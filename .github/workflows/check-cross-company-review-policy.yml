@@ -1,0 +1,266 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Check cross-company review policy
+
+on:
+  workflow_run:
+    workflows:
+      - Signal cross-company review check
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      pull_number:
+        description: PR number to check
+        required: true
+        type: number
+
+run-name: >-
+  Check cross-company review policy -
+  ${{ github.event.workflow_run.head_branch }}
+  @ ${{ github.event.workflow_run.head_sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-pr:
+    name: Resolve which PR triggered the signal workflow
+    runs-on: ubuntu-24.04
+    outputs:
+      pull-number: ${{ steps.resolve.outputs.pull-number }}
+    steps:
+      - name: Debug info
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "sha=${{ github.sha }}"
+          echo "head_branch=${{ github.event.workflow_run.head_branch }}"
+          echo "head_sha=${{ github.event.workflow_run.head_sha }}"
+
+      - name: Resolve PR number
+        id: resolve
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            let pullNumber;
+            if (context.eventName === 'workflow_dispatch'){
+              pullNumber = Number(context.payload.inputs.pull_number);
+              console.log(`PR ${pullNumber} provided by workflow_dispatch`);            
+            } else if (context.eventName === 'workflow_run') {
+              const workflowRun = context.payload.workflow_run;
+              pullNumber = workflowRun.pull_requests?.[0]?.number;
+              if (!pullNumber) {
+                throw new Error('No PR found in workflow_run.pull_requests');
+              }
+              console.log(`PR #${pullNumber} found in workflow_run.pull_requests`);
+            }
+            core.setOutput('pull-number', pullNumber);
+
+  check-cross-company-review-policy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    needs: resolve-pr
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: cross-company-review-pr-${{ needs.resolve-pr.outputs.pull-number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    env:
+      CROSS_COMPANY_TEAMS: ${{ vars.CROSS_COMPANY_TEAMS }}
+      STATUS_CONTEXT: ${{ vars.CROSS_COMPANY_CHECK_NAME }}
+    steps:
+      - name: Check cross-company review policy
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            async function setPolicyStatus(statusSha, state, description) {
+              const statusContext = process.env.STATUS_CONTEXT;
+              const { owner, repo } = context.repo;
+              console.log(`${statusContext}: ${state} - ${description}`);
+              await github.rest.repos.createCommitStatus({
+                owner: owner,
+                repo: repo,
+                sha: statusSha,
+                state: state,
+                context: statusContext,
+                target_url: `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+                description: description,
+              });
+            }
+
+            function getUserTeam(username, teams, teamMembers) {
+              const userTeams = teams.filter(
+                team => teamMembers.get(team).has(username)
+              );
+              if (userTeams.length > 1) {
+                throw new Error(
+                  `User ${username} belongs to multiple configured teams: ${userTeams.join(', ')}`
+                );
+              }
+              return userTeams[0] ?? null;
+            }
+
+            function getAuthorTeam(username, teams, teamMembers) {
+              const userTeam = getUserTeam(username, teams, teamMembers);
+              if (userTeam === null) {
+                throw new Error(
+                  `User ${username} does not belong to any of the configured teams: ${teams.join(', ')}`
+                );
+              }
+              return userTeam;
+            }
+
+            async function fetchReviews(pullNumber) {
+              // GitHub returns the reviews in chronological order.
+              const { owner, repo } = context.repo;
+              return github.paginate(
+                github.rest.pulls.listReviews,
+                {
+                  owner,
+                  repo,
+                  pull_number: pullNumber,
+                  per_page: 100,
+                }
+              );
+            }
+
+            function calculateEffectiveReviewStateMap(reviews) {
+              const reviewStates = new Map();
+              for (const review of reviews) {
+                const username = review.user.login;
+                if (
+                  review.state === 'APPROVED' ||
+                  review.state === 'CHANGES_REQUESTED' ||
+                  review.state === 'DISMISSED'
+                ) {
+                  reviewStates.set(username, review.state);
+                }
+              }
+              return reviewStates;
+            }            
+
+            // Get effective approvers, excluding PR author
+            async function getPrApprovers(pullNumber, pullAuthor){
+              const reviews = await fetchReviews(pullNumber);
+              const reviewStates = calculateEffectiveReviewStateMap(reviews);
+                const prApprovers = new Set(
+                [...reviewStates.entries()]
+                  .filter(
+                    ([username, state]) => username !== pullAuthor && state === 'APPROVED')
+                  .map(([username]) => username)
+              );
+              console.log(
+                `Effective approvers for PR ${pullNumber} authored by ${pullAuthor}: ${[...prApprovers].join(', ')}`
+              ); 
+              return prApprovers;
+            }
+
+            function computeApproverTeamMap(approvers, teams, teamMembers) {
+              const approverToTeam = new Map();
+              for (const approver of approvers) {
+                const team = getUserTeam(approver, teams, teamMembers);
+                if (team !== null) {
+                  approverToTeam.set(approver, team);
+                }
+              }
+              console.log('Approver to team:',approverToTeam);
+              return approverToTeam;
+            }
+
+            async function setPolicyStatusToFailure(statusSha, pullAuthor, authorTeam, crossCompanyTeams){
+              await setPolicyStatus(statusSha, 'failure', 'Cross-company approval is still required.');
+              core.setFailed(
+                `Cross-company review policy not met: ` +
+                `PR author ${pullAuthor} belongs to team '${authorTeam}', ` +
+                `and the PR has not been approved by any reviewers ` +
+                `belonging to teams from other companies: ` +
+                `${crossCompanyTeams.join(', ')}.`
+              );
+            }
+
+            async function setPolicyStatusToSuccess(statusSha, crossCompanyApprovers){
+              await setPolicyStatus(statusSha, 'success', 'Cross-company approval requirement satisfied.');
+              core.summary.addHeading('Cross-company review policy satisfied.', '3');
+              core.summary.addEOL();
+              core.summary.addRaw('Cross-company approver(s):');
+              core.summary.addList(crossCompanyApprovers);
+              console.log(core.summary.stringify());
+              core.summary.write();
+            }
+
+            async function main() {
+              const pullNumber = Number('${{ needs.resolve-pr.outputs.pull-number }}');
+              const teamMembers = new Map(
+                JSON.parse(process.env.CROSS_COMPANY_TEAMS)
+                  .map(({ name, members }) => [name, new Set(members)]));
+              const teams = [...teamMembers.keys()];
+              console.log('Team members:', teamMembers);
+
+              const { data: pullRequest } =
+                await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pullNumber,
+                });
+              const pullAuthor = pullRequest.user.login;
+              const statusSha = pullRequest.head.sha;
+
+              console.log(`PR: #${pullNumber}`);
+              console.log(`Author: ${pullAuthor}`);
+              console.log(`Head SHA: ${pullRequest.head.sha}`);
+              console.log(`Status SHA: ${statusSha}`);
+
+              try {
+                await setPolicyStatus(statusSha, 'pending', 'Checking cross-company review policy.');
+                const prApprovers = await getPrApprovers(pullNumber, pullAuthor);
+                const approverToTeam = computeApproverTeamMap(prApprovers, teams, teamMembers);
+                const authorTeam = getAuthorTeam(pullAuthor, teams, teamMembers);
+                const crossCompanyTeams = teams.filter(team => team !== authorTeam);
+                console.log(`Author team: ${pullAuthor} - ${authorTeam}`);
+                console.log(`Candidate cross-company teams: ${crossCompanyTeams.join(', ')}`);
+                const crossCompanyApprovers =
+                  [...approverToTeam.entries()]
+                    .filter(([_, team]) => crossCompanyTeams.includes(team))
+                    .map(([approver]) => approver);
+
+                if (crossCompanyApprovers.length === 0) {
+                  await setPolicyStatusToFailure(statusSha, pullAuthor, authorTeam, crossCompanyTeams);
+                } else {
+                  await setPolicyStatusToSuccess(statusSha, crossCompanyApprovers);
+                }
+              } catch (error) {
+                core.error(`Unable to check cross-company review policy: ${error.message}`);
+                try {
+                  await setPolicyStatus(statusSha, 'error', 'Unable to check cross-company review policy.');
+                } catch (statusError) {
+                  core.error(`Unable to publish error status: ${statusError.message}`);
+                }
+                throw error;
+              }
+            }
+
+            main();
+
+
+      - name: Print GitHub API rate limit
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "GitHub API rate limit:"
+          gh api rate_limit | jq .
