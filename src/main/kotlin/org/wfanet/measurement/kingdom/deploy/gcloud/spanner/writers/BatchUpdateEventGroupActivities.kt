@@ -44,23 +44,32 @@ class BatchUpdateEventGroupActivities(private val request: BatchUpdateEventGroup
       DataProviderReader.readDataProviderId(transactionContext, externalDataProviderId)
         ?: throw DataProviderNotFoundException(externalDataProviderId)
 
-    val externalEventGroupId = ExternalId(request.externalEventGroupId)
-    val eventGroupId: InternalId =
-      EventGroupReader.readEventGroupId(transactionContext, dataProviderId, externalEventGroupId)
-        ?: throw EventGroupNotFoundException(externalDataProviderId, externalEventGroupId)
+    val externalEventGroupIds: List<ExternalId> =
+      request.requestsList.map { ExternalId(it.eventGroupActivity.externalEventGroupId) }.distinct()
+    val eventGroups: Map<ExternalId, EventGroupReader.Result> =
+      EventGroupReader()
+        .batchReadByExternalIds(transactionContext, externalDataProviderId, externalEventGroupIds)
+    for (externalEventGroupId in externalEventGroupIds) {
+      if (externalEventGroupId !in eventGroups) {
+        throw EventGroupNotFoundException(externalDataProviderId, externalEventGroupId)
+      }
+    }
 
-    val activities: Map<Date, EventGroupActivityReader.Result> =
+    val activityKeys: List<Pair<InternalId, Date>> =
+      request.requestsList.map { child ->
+        val externalEventGroupId = ExternalId(child.eventGroupActivity.externalEventGroupId)
+        eventGroups.getValue(externalEventGroupId).internalEventGroupId to
+          child.eventGroupActivity.date
+      }
+
+    val activities: Map<Pair<InternalId, Date>, EventGroupActivityReader.Result> =
       EventGroupActivityReader()
-        .readByIds(
-          transactionContext,
-          dataProviderId,
-          eventGroupId,
-          request.requestsList.map { it.eventGroupActivity.date },
-        )
+        .readByEventGroupIdAndDatePairs(transactionContext, dataProviderId, activityKeys)
 
     val upsertedActivities = mutableListOf<EventGroupActivity>()
-    for (child in request.requestsList) {
-      val result: EventGroupActivityReader.Result? = activities[child.eventGroupActivity.date]
+    for ((index, child) in request.requestsList.withIndex()) {
+      val eventGroupId = activityKeys[index].first
+      val result: EventGroupActivityReader.Result? = activities[activityKeys[index]]
       if (result != null) {
         upsertedActivities.add(updateEventGroupActivity(child.eventGroupActivity, result))
       } else if (child.allowMissing) {
@@ -70,7 +79,7 @@ class BatchUpdateEventGroupActivities(private val request: BatchUpdateEventGroup
       } else {
         throw EventGroupActivityNotFoundException(
           externalDataProviderId,
-          externalEventGroupId,
+          ExternalId(child.eventGroupActivity.externalEventGroupId),
           child.eventGroupActivity.date,
         )
       }
@@ -87,12 +96,7 @@ class BatchUpdateEventGroupActivities(private val request: BatchUpdateEventGroup
         if (it.hasCreateTime()) {
           eventGroupActivities += it
         } else {
-          eventGroupActivities +=
-            it.copy {
-              createTime = commitTimestamp.toProto()
-              externalDataProviderId = request.externalDataProviderId
-              externalEventGroupId = request.externalEventGroupId
-            }
+          eventGroupActivities += it.copy { createTime = commitTimestamp.toProto() }
         }
       }
     }

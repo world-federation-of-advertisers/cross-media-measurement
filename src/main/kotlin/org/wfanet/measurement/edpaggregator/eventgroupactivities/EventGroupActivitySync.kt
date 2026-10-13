@@ -132,7 +132,7 @@ class EventGroupActivitySync(
   private val listPageSize: Int,
   private val preview: Boolean,
   private val batchSize: Int = 1000,
-  private val mode: SyncMode = SyncMode.SYNC,
+  private val mode: SyncMode,
   private val maxAttempts: Int = 3,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),
@@ -171,7 +171,8 @@ class EventGroupActivitySync(
     ) { _ ->
       val syncStartTime = TimeSource.Monotonic.markNow()
 
-      // 1. VALIDATE and GROUP incrementally: every record must reference a concrete EventGroup
+      // 1. VALIDATE and GROUP incrementally: every record must reference a concrete
+      // EventGroup
       // under this DataProvider and match the selected mode's input shape.
       val datesByEventGroup = mutableMapOf<String, MutableSet<LocalDate>>()
       val appendsByEventGroup = mutableMapOf<String, MutableSet<LocalDate>>()

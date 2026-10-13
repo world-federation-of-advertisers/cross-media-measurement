@@ -23,8 +23,6 @@ import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import org.wfanet.measurement.api.v2alpha.AddEventGroupActivitiesRequest
-import org.wfanet.measurement.api.v2alpha.AddEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.BatchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupActivitiesResponse
@@ -40,7 +38,6 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
-import org.wfanet.measurement.api.v2alpha.addEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.eventGroupActivity
 import org.wfanet.measurement.api.v2alpha.listEventGroupActivitiesResponse
@@ -62,7 +59,6 @@ import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequest a
 import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequestKt.filter as internalFilter
 import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesResponse as InternalListEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupActivityRequest as InternalUpdateEventGroupActivityRequest
-import org.wfanet.measurement.internal.kingdom.addEventGroupActivitiesRequest as internalAddEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest as internalBatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.dateInterval as internalDateInterval
@@ -87,75 +83,6 @@ class EventGroupActivitiesService(
       )
   }
 
-  override suspend fun addEventGroupActivities(
-    request: AddEventGroupActivitiesRequest
-  ): AddEventGroupActivitiesResponse {
-    val parentKey: DataProviderKey =
-      grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
-        "Parent is either unspecified or invalid"
-      }
-    grpcRequire(parentKey.dataProviderId != ResourceKey.WILDCARD_ID) {
-      "Wildcard ID is not supported in parent"
-    }
-
-    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
-    if (authenticatedPrincipal.resourceKey != parentKey) {
-      throw Permission.UPDATE.deniedStatus(request.parent).asRuntimeException()
-    }
-
-    grpcRequire(request.eventGroupsList.isNotEmpty()) { "event_groups is required" }
-    grpcRequire(request.datesList.isNotEmpty()) { "dates is required" }
-    grpcRequire(
-      request.eventGroupsCount.toLong() * request.datesCount.toLong() <= MAX_ACTIVITY_PAIRS
-    ) {
-      "The product of event_groups and dates must be at most $MAX_ACTIVITY_PAIRS"
-    }
-
-    val seenEventGroupKeys = mutableSetOf<EventGroupKey>()
-    val eventGroupKeys = request.eventGroupsList.mapIndexed { index, name ->
-      val eventGroupKey =
-        grpcRequireNotNull(EventGroupKey.fromName(name)) {
-          "event_groups[$index] is invalid"
-        }
-      grpcRequire(eventGroupKey.parentKey == parentKey) {
-        "event_groups[$index] is not a child of parent"
-      }
-      grpcRequire(eventGroupKey.eventGroupId != ResourceKey.WILDCARD_ID) {
-        "Wildcard ID is not supported in event_groups[$index]"
-      }
-      grpcRequire(seenEventGroupKeys.add(eventGroupKey)) {
-        "event_groups contains duplicate values"
-      }
-      eventGroupKey
-    }
-    grpcRequire(request.datesList.toSet().size == request.datesCount) {
-      "dates contains duplicate values"
-    }
-
-    val internalRequest = internalAddEventGroupActivitiesRequest {
-      externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
-      externalEventGroupIds += eventGroupKeys.map { apiIdToExternalId(it.eventGroupId) }
-      dates += request.datesList
-    }
-
-    return try {
-      addEventGroupActivitiesResponse {
-        eventGroupActivities +=
-          internalEventGroupActivitiesStub
-            .addEventGroupActivities(internalRequest)
-            .eventGroupActivitiesList
-            .map { it.toEventGroupActivity() }
-      }
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
-        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
-        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
-        Status.Code.NOT_FOUND -> Status.NOT_FOUND
-        else -> Status.UNKNOWN
-      }.toExternalStatusRuntimeException(e)
-    }
-  }
-
   override suspend fun batchUpdateEventGroupActivities(
     request: BatchUpdateEventGroupActivitiesRequest
   ): BatchUpdateEventGroupActivitiesResponse {
@@ -164,8 +91,12 @@ class EventGroupActivitiesService(
         "Parent is either unspecified or invalid"
       }
 
+    grpcRequire(parentKey.dataProviderId != ResourceKey.WILDCARD_ID) {
+      "Wildcard ID is not supported for the DataProvider in parent"
+    }
+    val hasWildcardEventGroup = parentKey.eventGroupId == ResourceKey.WILDCARD_ID
     val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
-    if (authenticatedPrincipal.resourceKey != parentKey.parentKey) {
+    if (authenticatedPrincipal.resourceKey != DataProviderKey(parentKey.dataProviderId)) {
       throw Permission.UPDATE.deniedStatus(request.parent).asRuntimeException()
     }
 
@@ -180,7 +111,14 @@ class EventGroupActivitiesService(
             "Child request event group activity name is either unspecified or invalid"
           }
 
-        if (eventGroupActivityKey.parentKey != parentKey) {
+        if (eventGroupActivityKey.dataProviderId != parentKey.dataProviderId) {
+          throw Status.INVALID_ARGUMENT.withDescription(
+              "the DataProvider component of parent and child's EventGroupActivity do not match"
+            )
+            .asRuntimeException()
+        }
+
+        if (!hasWildcardEventGroup && eventGroupActivityKey.parentKey != parentKey) {
           throw Status.INVALID_ARGUMENT.withDescription(
               "the EventGroup component of parent and child's EventGroupActivity do not match"
             )
@@ -199,7 +137,9 @@ class EventGroupActivitiesService(
 
     val internalBatchRequest = internalBatchUpdateEventGroupActivitiesRequest {
       externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
-      externalEventGroupId = apiIdToExternalId(parentKey.eventGroupId)
+      if (!hasWildcardEventGroup) {
+        externalEventGroupId = apiIdToExternalId(parentKey.eventGroupId)
+      }
       requests += internalRequests
     }
 
@@ -428,7 +368,6 @@ class EventGroupActivitiesService(
 
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
-    private const val MAX_ACTIVITY_PAIRS = 1000L
     private const val MAX_PAGE_SIZE = 1000
   }
 }

@@ -54,7 +54,6 @@ import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequestKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MediaType
-import org.wfanet.measurement.internal.kingdom.addEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
@@ -127,168 +126,6 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   }
 
   @Test
-  fun `addEventGroupActivities preserves existing activity and appends new dates`() = runBlocking {
-    val secondEventGroup = createEventGroup(dataProvider)
-    val firstDate = date {
-      year = 2026
-      month = 1
-      day = 1
-    }
-    val secondDate = date {
-      year = 2026
-      month = 1
-      day = 2
-    }
-    val externalEventGroupIds =
-      listOf(eventGroup.externalEventGroupId, secondEventGroup.externalEventGroupId)
-
-    eventGroupActivitiesService.addEventGroupActivities(
-      addEventGroupActivitiesRequest {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        this.externalEventGroupIds += externalEventGroupIds
-        dates += firstDate
-      }
-    )
-    val originalActivities = listActivities()
-
-    val addResponse =
-      eventGroupActivitiesService.addEventGroupActivities(
-        addEventGroupActivitiesRequest {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          this.externalEventGroupIds += externalEventGroupIds
-          dates += firstDate
-          dates += secondDate
-        }
-      )
-    val activities = listActivities()
-
-    assertThat(addResponse.eventGroupActivitiesList.map { it.externalEventGroupId to it.date })
-      .containsExactly(
-        eventGroup.externalEventGroupId to firstDate,
-        eventGroup.externalEventGroupId to secondDate,
-        secondEventGroup.externalEventGroupId to firstDate,
-        secondEventGroup.externalEventGroupId to secondDate,
-      )
-      .inOrder()
-    assertThat(activities.map { it.externalEventGroupId to it.date })
-      .containsExactly(
-        eventGroup.externalEventGroupId to firstDate,
-        secondEventGroup.externalEventGroupId to firstDate,
-        eventGroup.externalEventGroupId to secondDate,
-        secondEventGroup.externalEventGroupId to secondDate,
-      )
-    val originalCreateTimes =
-      originalActivities.associate { it.externalEventGroupId to it.date to it.createTime }
-    for (activity in activities.filter { it.date == firstDate }) {
-      assertThat(activity.createTime)
-        .isEqualTo(originalCreateTimes.getValue(activity.externalEventGroupId to activity.date))
-    }
-  }
-
-  @Test
-  fun `addEventGroupActivities throws NOT_FOUND for missing EventGroup`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        eventGroupActivitiesService.addEventGroupActivities(
-          addEventGroupActivitiesRequest {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            externalEventGroupIds += 999999L
-            dates += date {
-              year = 2026
-              month = 1
-              day = 1
-            }
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-  }
-
-  @Test
-  fun `addEventGroupActivities throws INVALID_ARGUMENT for duplicate dates`() = runBlocking {
-    val activityDate = date {
-      year = 2026
-      month = 1
-      day = 1
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        eventGroupActivitiesService.addEventGroupActivities(
-          addEventGroupActivitiesRequest {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            externalEventGroupIds += eventGroup.externalEventGroupId
-            dates += activityDate
-            dates += activityDate
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `addEventGroupActivities throws INVALID_ARGUMENT when EventGroups are empty`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupActivitiesService.addEventGroupActivities(
-            addEventGroupActivitiesRequest {
-              externalDataProviderId = dataProvider.externalDataProviderId
-              dates += date {
-                year = 2026
-                month = 1
-                day = 1
-              }
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
-
-  @Test
-  fun `addEventGroupActivities throws INVALID_ARGUMENT for invalid date`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        eventGroupActivitiesService.addEventGroupActivities(
-          addEventGroupActivitiesRequest {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            externalEventGroupIds += eventGroup.externalEventGroupId
-            dates += date {
-              year = 2026
-              month = 2
-              day = 30
-            }
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `addEventGroupActivities throws INVALID_ARGUMENT when pair limit is exceeded`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupActivitiesService.addEventGroupActivities(
-            addEventGroupActivitiesRequest {
-              externalDataProviderId = dataProvider.externalDataProviderId
-              externalEventGroupIds += List(1001) { eventGroup.externalEventGroupId }
-              dates += date {
-                year = 2026
-                month = 1
-                day = 1
-              }
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
-
-  @Test
   fun `batchUpdateEventGroupActivities returns created EventGroupActivities when allow_missing is set to true`() =
     runBlocking {
       val request = batchUpdateEventGroupActivitiesRequest {
@@ -357,6 +194,106 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         )
 
       assertThat(activities[1].createTime.toInstant()).isGreaterThan(startTime)
+    }
+
+  @Test
+  fun `batchUpdateEventGroupActivities creates activities under multiple EventGroups`() =
+    runBlocking {
+      val secondEventGroup = createEventGroup(dataProvider)
+      val activityDate = date {
+        year = 2025
+        month = 12
+        day = 1
+      }
+      val request = batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        requests += updateEventGroupActivityRequest {
+          allowMissing = true
+          eventGroupActivity = eventGroupActivity {
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = activityDate
+          }
+        }
+        requests += updateEventGroupActivityRequest {
+          allowMissing = true
+          eventGroupActivity = eventGroupActivity {
+            externalEventGroupId = secondEventGroup.externalEventGroupId
+            date = activityDate
+          }
+        }
+      }
+
+      val startTime = Instant.now()
+      val activities =
+        eventGroupActivitiesService
+          .batchUpdateEventGroupActivities(request)
+          .eventGroupActivitiesList
+
+      assertThat(activities)
+        .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+        .containsExactly(
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = activityDate
+          },
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = secondEventGroup.externalEventGroupId
+            date = activityDate
+          },
+        )
+        .inOrder()
+      for (activity in activities) {
+        assertThat(activity.createTime.toInstant()).isGreaterThan(startTime)
+      }
+
+      val updated =
+        eventGroupActivitiesService
+          .batchUpdateEventGroupActivities(request)
+          .eventGroupActivitiesList
+      assertThat(updated.map { it.createTime })
+        .containsExactlyElementsIn(activities.map { it.createTime })
+        .inOrder()
+    }
+
+  @Test
+  fun `batchUpdateEventGroupActivities is atomic when one EventGroup does not exist`() =
+    runBlocking {
+      val activityDate = date {
+        year = 2025
+        month = 12
+        day = 1
+      }
+      val request = batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        for (externalEventGroupId in listOf(eventGroup.externalEventGroupId, 1L)) {
+          requests += updateEventGroupActivityRequest {
+            allowMissing = true
+            eventGroupActivity = eventGroupActivity {
+              this.externalEventGroupId = externalEventGroupId
+              date = activityDate
+            }
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+      val activities =
+        eventGroupActivitiesService
+          .listEventGroupActivities(
+            listEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = eventGroup.externalEventGroupId
+            }
+          )
+          .eventGroupActivitiesList
+      assertThat(activities).isEmpty()
     }
 
   @Test
@@ -471,15 +408,14 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
     }
 
   @Test
-  fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when parent external event group id is not set`() =
+  fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when EventGroup id is not set`() =
     runBlocking {
       val request = batchUpdateEventGroupActivitiesRequest {
         externalDataProviderId = dataProvider.externalDataProviderId
-        // missing parent external event group id
         requests += updateEventGroupActivityRequest {
           allowMissing = true
           eventGroupActivity = eventGroupActivity {
-            externalEventGroupId = eventGroup.externalEventGroupId
+            // missing external event group id on both parent and child
             date = date {
               year = 2025
               month = 12
@@ -495,7 +431,9 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("external_event_group_id")
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("requests.0.event_group_activity.external_event_group_id")
     }
 
   @Test
@@ -2228,16 +2166,5 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         }
       }
     )
-  }
-
-  private suspend fun listActivities(): List<EventGroupActivity> {
-    return eventGroupActivitiesService
-      .listEventGroupActivities(
-        listEventGroupActivitiesRequest {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          pageSize = 1000
-        }
-      )
-      .eventGroupActivitiesList
   }
 }
