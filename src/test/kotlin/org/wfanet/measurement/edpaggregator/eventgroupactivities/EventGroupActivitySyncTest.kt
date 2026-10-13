@@ -80,8 +80,8 @@ class EventGroupActivitySyncTest {
   private fun instant(date: String): Instant =
     LocalDate.parse(date).atStartOfDay(ZoneOffset.UTC).toInstant()
 
-  private fun spotRecord(eventGroup: String, date: String): SpotRecord =
-    SpotRecord("$DATA_PROVIDER/eventGroups/$eventGroup", instant(date))
+  private fun spotRecord(eventGroup: String, date: String, operation: SpotOperation? = null) =
+    SpotRecord("$DATA_PROVIDER/eventGroups/$eventGroup", instant(date), operation)
 
   private fun protoDate(dateString: String) =
     LocalDate.parse(dateString).let {
@@ -110,6 +110,7 @@ class EventGroupActivitySyncTest {
   private fun newSync(
     throttler: Throttler = newThrottler(),
     mode: SyncMode = SyncMode.SYNC,
+    preview: Boolean = false,
   ): EventGroupActivitySync =
     EventGroupActivitySync(
       eventGroupActivitiesClient = activitiesStub,
@@ -117,6 +118,7 @@ class EventGroupActivitySyncTest {
       dataProviderName = DATA_PROVIDER,
       listPageSize = LIST_PAGE_SIZE,
       mode = mode,
+      preview = preview,
       // Fast backoff so retry tests do not sleep for the production default.
       retryBackoff = ExponentialBackoff(initialDelay = JavaDuration.ofMillis(1)),
     )
@@ -407,22 +409,82 @@ class EventGroupActivitySyncTest {
   }
 
   @Test
-  fun `sync with APPEND applies creates but not deletes`() {
+  fun `sync with PATCH applies only explicit appends and deletes`() {
     stubExistingDates("eg1", listOf("2026-01-01", "2026-01-02", "2026-01-03"))
-    // File keeps one existing date, drops two (would-delete), and adds one new date (create).
-    val records = listOf(spotRecord("eg1", "2026-01-01"), spotRecord("eg1", "2026-01-04"))
+    val records =
+      listOf(
+        spotRecord("eg1", "2026-01-01", SpotOperation.APPEND),
+        spotRecord("eg1", "2026-01-02", SpotOperation.DELETE),
+        spotRecord("eg1", "2026-01-04", SpotOperation.APPEND),
+        spotRecord("eg1", "2026-01-05", SpotOperation.DELETE),
+      )
 
-    val result = runBlocking { newSync(mode = SyncMode.APPEND).sync(records.asFlow()) }
+    val result = runBlocking { newSync(mode = SyncMode.PATCH).sync(records.asFlow()) }
 
     assertThat(result.activitiesCreated).isEqualTo(1)
-    assertThat(result.activitiesDeleted).isEqualTo(0)
-    assertThat(result.activitiesWouldDelete).isEqualTo(2)
-    assertThat(result.activitiesUnchanged).isEqualTo(1)
+    assertThat(result.activitiesDeleted).isEqualTo(1)
+    assertThat(result.activitiesWouldDelete).isEqualTo(0)
+    assertThat(result.activitiesUnchanged).isEqualTo(2)
     assertThat(result.eventGroupsSucceeded).isEqualTo(1)
     assertThat(result.eventGroupsFailed).isEqualTo(0)
     assertThat(result.errors).isEmpty()
-    verifyBlocking(activitiesServiceMock, times(1)) { batchUpdateEventGroupActivities(any()) }
-    verifyBlocking(activitiesServiceMock, never()) { batchDeleteEventGroupActivities(any()) }
+    verifyBlocking(activitiesServiceMock, times(1)) {
+      batchUpdateEventGroupActivities(
+        check { request ->
+          assertThat(request.requestsList.single().eventGroupActivity.name)
+            .isEqualTo("$DATA_PROVIDER/eventGroups/eg1/eventGroupActivities/2026-01-04")
+        }
+      )
+    }
+    verifyBlocking(activitiesServiceMock, times(1)) {
+      batchDeleteEventGroupActivities(
+        check { request ->
+          assertThat(request.namesList)
+            .containsExactly("$DATA_PROVIDER/eventGroups/eg1/eventGroupActivities/2026-01-02")
+        }
+      )
+    }
+  }
+
+  @Test
+  fun `sync with PATCH rejects records without operations`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking { newSync(mode = SyncMode.PATCH).sync(flowOf(spotRecord("eg1", "2026-01-01"))) }
+      }
+
+    assertThat(exception).hasMessageThat().contains("must set 'operation'")
+    verifyBlocking(activitiesServiceMock, never()) { listEventGroupActivities(any()) }
+  }
+
+  @Test
+  fun `sync with PATCH rejects conflicting operations`() {
+    val records =
+      flowOf(
+        spotRecord("eg1", "2026-01-01", SpotOperation.APPEND),
+        spotRecord("eg1", "2026-01-01", SpotOperation.DELETE),
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking { newSync(mode = SyncMode.PATCH).sync(records) }
+      }
+
+    assertThat(exception).hasMessageThat().contains("both APPEND and DELETE")
+    verifyBlocking(activitiesServiceMock, never()) { listEventGroupActivities(any()) }
+  }
+
+  @Test
+  fun `sync with SYNC rejects records with operations`() {
+    val record = spotRecord("eg1", "2026-01-01", SpotOperation.APPEND)
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking { newSync(mode = SyncMode.SYNC).sync(flowOf(record)) }
+      }
+
+    assertThat(exception).hasMessageThat().contains("must not set 'operation'")
+    verifyBlocking(activitiesServiceMock, never()) { listEventGroupActivities(any()) }
   }
 
   @Test
@@ -496,12 +558,14 @@ class EventGroupActivitySyncTest {
   }
 
   @Test
-  fun `sync with PREVIEW computes counts without making mutating calls`() {
+  fun `sync preview with SYNC computes counts without making mutating calls`() {
     stubExistingDates("eg1", listOf("2026-01-01", "2026-01-02"))
     // One unchanged (2026-01-01), one would-delete (2026-01-02), one would-create (2026-01-03).
     val records = listOf(spotRecord("eg1", "2026-01-01"), spotRecord("eg1", "2026-01-03"))
 
-    val result = runBlocking { newSync(mode = SyncMode.PREVIEW).sync(records.asFlow()) }
+    val result = runBlocking {
+      newSync(mode = SyncMode.SYNC, preview = true).sync(records.asFlow())
+    }
 
     assertThat(result.activitiesCreated).isEqualTo(1)
     assertThat(result.activitiesDeleted).isEqualTo(0)
@@ -512,6 +576,27 @@ class EventGroupActivitySyncTest {
     verifyBlocking(activitiesServiceMock, org.mockito.kotlin.atLeastOnce()) {
       listEventGroupActivities(any())
     }
+  }
+
+  @Test
+  fun `sync preview with PATCH applies explicit operations`() {
+    stubExistingDates("eg1", listOf("2026-01-01", "2026-01-02"))
+    val records =
+      listOf(
+        spotRecord("eg1", "2026-01-02", SpotOperation.DELETE),
+        spotRecord("eg1", "2026-01-03", SpotOperation.APPEND),
+      )
+
+    val result = runBlocking {
+      newSync(mode = SyncMode.PATCH, preview = true).sync(records.asFlow())
+    }
+
+    assertThat(result.activitiesCreated).isEqualTo(1)
+    assertThat(result.activitiesDeleted).isEqualTo(0)
+    assertThat(result.activitiesWouldDelete).isEqualTo(1)
+    assertThat(result.activitiesUnchanged).isEqualTo(0)
+    verifyBlocking(activitiesServiceMock, never()) { batchUpdateEventGroupActivities(any()) }
+    verifyBlocking(activitiesServiceMock, never()) { batchDeleteEventGroupActivities(any()) }
   }
 
   @Test

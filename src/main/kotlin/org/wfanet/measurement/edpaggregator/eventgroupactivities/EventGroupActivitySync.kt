@@ -59,20 +59,26 @@ import org.wfanet.measurement.edpaggregator.telemetry.withSpan
  * @property parent the EventGroup resource name the activity belongs to. Format:
  *   `dataProviders/{data_provider}/eventGroups/{event_group}`.
  * @property eventGroupActivityDate the instant of the activity; converted to a [LocalDate] at UTC.
+ * @property operation explicit PATCH operation, or `null` for SYNC input.
  */
-data class SpotRecord(val parent: String, val eventGroupActivityDate: Instant)
+data class SpotRecord(
+  val parent: String,
+  val eventGroupActivityDate: Instant,
+  val operation: SpotOperation? = null,
+)
+
+/** Explicit mutation applied to a [SpotRecord] in [SyncMode.PATCH]. */
+enum class SpotOperation {
+  APPEND,
+  DELETE,
+}
 
 /** Controls which mutations the sync applies for each EventGroup. */
 enum class SyncMode {
   /** Write creates and deletes to make the Kingdom match the input exactly. */
   SYNC,
-  /**
-   * Write creates only; leave Kingdom records absent from input untouched (record would-be
-   * deletes).
-   */
-  APPEND,
-  /** Make no mutating calls; log the planned diff (creates + would-be deletes). */
-  PREVIEW,
+  /** Apply only the APPEND and DELETE operations explicitly specified by input records. */
+  PATCH,
 }
 
 /** Aggregate result of an [EventGroupActivitySync.sync] run. */
@@ -94,13 +100,10 @@ data class SyncError(val eventGroup: String, val message: String, val cause: Thr
  * Synchronizes `EventGroupActivity` resources for the EventGroups of a single DataProvider against
  * the CMMS Public API.
  *
- * For each EventGroup referenced by the input records this:
- * 1. Lists the existing activities in the Kingdom.
- * 2. Computes the set difference between the input dates and the existing dates.
- * 3. Creates activities present in the input but missing in the Kingdom.
- * 4. Deletes activities present in the Kingdom but missing from the input.
- *
- * Activities that already match are left unchanged.
+ * [SyncMode.SYNC] treats input dates as the desired complete set. [SyncMode.PATCH] applies only
+ * explicitly specified [SpotOperation.APPEND] and [SpotOperation.DELETE] operations; omissions
+ * never imply deletion. Previewing suppresses mutations without changing the selected mode's input
+ * semantics.
  *
  * Per-EventGroup isolation applies to **runtime** failures: an RPC error during the list or batch
  * for a single EventGroup is logged and recorded as a [SyncError] but does not abort the overall
@@ -114,10 +117,9 @@ data class SyncError(val eventGroup: String, val message: String, val cause: Thr
  * @property listPageSize page size used when listing existing activities.
  * @property batchSize maximum number of activities per batch update/delete request.
  * @property mode controls which mutations are applied. [SyncMode.SYNC] applies both creates and
- *   deletes. [SyncMode.APPEND] applies creates only and never deletes; the computed delete count is
- *   reported via [SyncResult.activitiesWouldDelete] and metered. [SyncMode.PREVIEW] makes no
- *   mutating calls and reports the would-be created/deleted counts. This protects against truncated
- *   or partial input files causing mass deletions.
+ *   omission-based deletes. [SyncMode.PATCH] applies only explicit operations and protects against
+ *   truncated or partial input files causing mass deletions.
+ * @property preview whether to report planned changes without applying mutations.
  * @property maxAttempts maximum number of attempts (including the first) for each gRPC call when it
  *   fails with a transient status (UNAVAILABLE or DEADLINE_EXCEEDED).
  * @property retryBackoff exponential backoff used between transient retries.
@@ -130,6 +132,7 @@ class EventGroupActivitySync(
   private val listPageSize: Int,
   private val batchSize: Int = 1000,
   private val mode: SyncMode = SyncMode.SYNC,
+  private val preview: Boolean = false,
   private val maxAttempts: Int = 3,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),
@@ -154,7 +157,7 @@ class EventGroupActivitySync(
    * input-shape validation failures (a record whose parent is not a concrete EventGroup under this
    * DataProvider) abort the entire sync.
    *
-   * @param inputActivities the desired activities, grouped internally by EventGroup parent.
+   * @param inputActivities desired activities for SYNC or explicit operations for PATCH.
    * @return a [SyncResult] with totals and any per-EventGroup [SyncError]s.
    * @throws IllegalArgumentException if any record's parent is not a concrete EventGroup under
    *   [dataProviderName].
@@ -169,9 +172,10 @@ class EventGroupActivitySync(
       val syncStartTime = TimeSource.Monotonic.markNow()
 
       // 1. VALIDATE and GROUP incrementally: every record must reference a concrete EventGroup
-      // under this DataProvider. Build the map of parent -> desired activity dates as records
-      // stream in.
+      // under this DataProvider and match the selected mode's input shape.
       val datesByEventGroup = mutableMapOf<String, MutableSet<LocalDate>>()
+      val appendsByEventGroup = mutableMapOf<String, MutableSet<LocalDate>>()
+      val deletesByEventGroup = mutableMapOf<String, MutableSet<LocalDate>>()
       var totalInputRecords = 0
       inputActivities.collect { record ->
         require(record.parent.startsWith(eventGroupParentPrefix)) {
@@ -182,11 +186,43 @@ class EventGroupActivitySync(
         require(eventGroupId != ResourceKey.WILDCARD_ID && !eventGroupId.contains('/')) {
           "Record parent '${record.parent}' must reference a concrete EventGroup, not a wildcard"
         }
-        datesByEventGroup
-          .getOrPut(record.parent) { mutableSetOf() }
-          .add(record.eventGroupActivityDate.atZone(ZoneOffset.UTC).toLocalDate())
+        when (mode) {
+          SyncMode.SYNC ->
+            require(record.operation == null) {
+              "SYNC input record for '${record.parent}' must not set 'operation'"
+            }
+          SyncMode.PATCH ->
+            require(record.operation != null) {
+              "PATCH input record for '${record.parent}' must set 'operation'"
+            }
+        }
+
+        val date = record.eventGroupActivityDate.atZone(ZoneOffset.UTC).toLocalDate()
+        when (record.operation) {
+          null -> datesByEventGroup.getOrPut(record.parent) { mutableSetOf() }.add(date)
+          SpotOperation.APPEND -> {
+            require(date !in deletesByEventGroup[record.parent].orEmpty()) {
+              "Input contains both APPEND and DELETE for '${record.parent}' on $date"
+            }
+            appendsByEventGroup.getOrPut(record.parent) { mutableSetOf() }.add(date)
+          }
+          SpotOperation.DELETE -> {
+            require(date !in appendsByEventGroup[record.parent].orEmpty()) {
+              "Input contains both APPEND and DELETE for '${record.parent}' on $date"
+            }
+            deletesByEventGroup.getOrPut(record.parent) { mutableSetOf() }.add(date)
+          }
+        }
         totalInputRecords++
       }
+
+      val patchSemantics = mode == SyncMode.PATCH
+      val eventGroupNames =
+        if (patchSemantics) {
+          appendsByEventGroup.keys + deletesByEventGroup.keys
+        } else {
+          datesByEventGroup.keys
+        }
 
       var activitiesCreated = 0
       var activitiesDeleted = 0
@@ -197,8 +233,7 @@ class EventGroupActivitySync(
       val errors = mutableListOf<SyncError>()
 
       // 2. Process each EventGroup, sorted for determinism.
-      for (eventGroupName in datesByEventGroup.keys.sorted()) {
-        val fileDates: Set<LocalDate> = datesByEventGroup.getValue(eventGroupName)
+      for (eventGroupName in eventGroupNames.sorted()) {
         try {
           val eventGroupKey =
             requireNotNull(EventGroupKey.fromName(eventGroupName)) {
@@ -206,17 +241,30 @@ class EventGroupActivitySync(
             }
 
           val existingDates: Set<LocalDate> = listExistingDates(eventGroupName)
+          val datesToCreate: Set<LocalDate>
+          val datesToDelete: Set<LocalDate>
+          val unchanged: Int
+          if (patchSemantics) {
+            val appendDates = appendsByEventGroup[eventGroupName].orEmpty()
+            val deleteDates = deletesByEventGroup[eventGroupName].orEmpty()
+            datesToCreate = appendDates - existingDates
+            datesToDelete = deleteDates.intersect(existingDates)
+            unchanged =
+              appendDates.intersect(existingDates).size + (deleteDates - existingDates).size
+          } else {
+            val fileDates: Set<LocalDate> = datesByEventGroup.getValue(eventGroupName)
+            datesToCreate = fileDates - existingDates
+            datesToDelete = existingDates - fileDates
+            unchanged = fileDates.intersect(existingDates).size
+          }
 
-          val datesToCreate: Set<LocalDate> = fileDates - existingDates
-          val datesToDelete: Set<LocalDate> = existingDates - fileDates
-          val unchanged: Int = fileDates.intersect(existingDates).size
-
-          val applyCreates: Boolean = mode != SyncMode.PREVIEW
-          val applyDeletes: Boolean = mode == SyncMode.SYNC
+          val applyCreates: Boolean = !preview
+          val applyDeletes: Boolean = !preview
 
           logger.info(
             "EventGroup $eventGroupName: ${datesToCreate.size} to create, " +
-              "${datesToDelete.size} to delete, $unchanged unchanged (mode=$mode)"
+              "${datesToDelete.size} to delete, $unchanged unchanged " +
+              "(mode=$mode, preview=$preview)"
           )
 
           if (applyCreates) {
