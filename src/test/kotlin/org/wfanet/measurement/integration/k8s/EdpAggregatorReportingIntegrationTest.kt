@@ -689,8 +689,8 @@ class EdpAggregatorReportingIntegrationTest {
   /**
    * Checks each group's population against the whole synthetic population.
    *
-   * Bounded rather than exact: grouping splits the population, so each group reports only its
-   * own share.
+   * Bounded rather than exact: grouping splits the population, so each group reports only its own
+   * share.
    */
   private fun assertPopulationSizeMatchesSpec(report: BasicReport) {
     for (resultGroup in report.resultGroupsList) {
@@ -716,8 +716,7 @@ class EdpAggregatorReportingIntegrationTest {
     for (result in resultGroup.resultsList) {
       val metricSet = result.metricSet.reportingUnit
       val contributions: List<Long> = metricSet.stackedIncrementalReachList
-      val message =
-        "${demographicOf(result)}/${filterLabel(result)} stacked incremental reach"
+      val message = "${demographicOf(result)}/${filterLabel(result)} stacked incremental reach"
 
       assertWithMessage(message).that(contributions).hasSize(EDP_DISPLAY_NAMES.size)
       for (contribution in contributions) {
