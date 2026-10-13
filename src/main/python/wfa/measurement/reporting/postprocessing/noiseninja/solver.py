@@ -260,7 +260,7 @@ class Solver:
     logging.info("Solving the quadratic program.")
     attempt_count = 0
     best_solution = Solution(False)
-    smallest_residual = float('inf')
+    smallest_primal_residual = float('inf')
     equality_residual = float('inf')
     inequality_residual = float('inf')
     status_code: StatusCode = StatusCode.SOLUTION_NOT_FOUND
@@ -275,7 +275,7 @@ class Solver:
 
       if self._validate_solution(solution):
         primal_residual = solution.primal_residual()
-        if primal_residual < smallest_residual:
+        if primal_residual < smallest_primal_residual:
           smallest_primal_residual = primal_residual
           best_solution = solution
 
