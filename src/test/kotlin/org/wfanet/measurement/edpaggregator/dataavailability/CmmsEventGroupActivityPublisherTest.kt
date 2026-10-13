@@ -37,12 +37,11 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
-import org.wfanet.measurement.api.v2alpha.AddEventGroupActivitiesRequest
+import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivityKey
-import org.wfanet.measurement.api.v2alpha.EventGroupKey
-import org.wfanet.measurement.api.v2alpha.addEventGroupActivitiesResponse
+import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesResponse
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -58,22 +57,13 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 class CmmsEventGroupActivityPublisherTest {
   private val persistedActivityNames = Collections.synchronizedSet(mutableSetOf<String>())
   private val eventGroupActivitiesServiceMock: EventGroupActivitiesCoroutineImplBase = mockService {
-    onBlocking { addEventGroupActivities(any<AddEventGroupActivitiesRequest>()) }
+    onBlocking { batchUpdateEventGroupActivities(any<BatchUpdateEventGroupActivitiesRequest>()) }
       .thenAnswer { invocation ->
-        val request = invocation.getArgument<AddEventGroupActivitiesRequest>(0)
-        for (eventGroupName in request.eventGroupsList) {
-          val eventGroupKey = checkNotNull(EventGroupKey.fromName(eventGroupName))
-          for (activityDate in request.datesList) {
-            persistedActivityNames +=
-              EventGroupActivityKey(
-                  eventGroupKey.dataProviderId,
-                  eventGroupKey.eventGroupId,
-                  "%04d-%02d-%02d".format(activityDate.year, activityDate.month, activityDate.day),
-                )
-                .toName()
-          }
+        val request = invocation.getArgument<BatchUpdateEventGroupActivitiesRequest>(0)
+        for (child in request.requestsList) {
+          persistedActivityNames += child.eventGroupActivity.name
         }
-        addEventGroupActivitiesResponse {}
+        batchUpdateEventGroupActivitiesResponse {}
       }
   }
 
@@ -111,28 +101,20 @@ class CmmsEventGroupActivityPublisherTest {
         .publish(listOf(metadata))
 
     assertThat(published).isEqualTo(4)
-    val addRequest = argumentCaptor<AddEventGroupActivitiesRequest>()
+    val updateRequest = argumentCaptor<BatchUpdateEventGroupActivitiesRequest>()
     verifyBlocking(eventGroupActivitiesServiceMock) {
-      addEventGroupActivities(addRequest.capture())
+      batchUpdateEventGroupActivities(updateRequest.capture())
     }
-    assertThat(addRequest.firstValue.parent).isEqualTo(DATA_PROVIDER)
-    assertThat(addRequest.firstValue.eventGroupsList)
-      .containsExactly("$DATA_PROVIDER/eventGroups/eg1", "$DATA_PROVIDER/eventGroups/eg2")
-      .inOrder()
-    assertThat(addRequest.firstValue.datesList)
+    assertThat(updateRequest.firstValue.parent).isEqualTo("$DATA_PROVIDER/eventGroups/-")
+    assertThat(updateRequest.firstValue.requestsList.map { it.eventGroupActivity.name })
       .containsExactly(
-        date {
-          year = 2026
-          month = 1
-          day = 1
-        },
-        date {
-          year = 2026
-          month = 1
-          day = 2
-        },
+        "$DATA_PROVIDER/eventGroups/eg1/eventGroupActivities/2026-01-01",
+        "$DATA_PROVIDER/eventGroups/eg1/eventGroupActivities/2026-01-02",
+        "$DATA_PROVIDER/eventGroups/eg2/eventGroupActivities/2026-01-01",
+        "$DATA_PROVIDER/eventGroups/eg2/eventGroupActivities/2026-01-02",
       )
       .inOrder()
+    assertThat(updateRequest.firstValue.requestsList.all { it.allowMissing }).isTrue()
   }
 
   @Test
@@ -166,15 +148,15 @@ class CmmsEventGroupActivityPublisherTest {
         .publish(listOf(metadata))
 
     assertThat(published).isEqualTo(3)
-    val addRequest = argumentCaptor<AddEventGroupActivitiesRequest>()
+    val updateRequest = argumentCaptor<BatchUpdateEventGroupActivitiesRequest>()
     verifyBlocking(eventGroupActivitiesServiceMock) {
-      addEventGroupActivities(addRequest.capture())
+      batchUpdateEventGroupActivities(updateRequest.capture())
     }
-    assertThat(addRequest.firstValue.eventGroupsList)
+    assertThat(updateRequest.firstValue.requestsList.map { it.eventGroupActivity.name })
       .containsExactly(
-        "$DATA_PROVIDER/eventGroups/campaign-eg",
-        "$DATA_PROVIDER/eventGroups/ad-set-eg",
-        "$DATA_PROVIDER/eventGroups/ad-eg",
+        "$DATA_PROVIDER/eventGroups/campaign-eg/eventGroupActivities/2026-01-02",
+        "$DATA_PROVIDER/eventGroups/ad-set-eg/eventGroupActivities/2026-01-02",
+        "$DATA_PROVIDER/eventGroups/ad-eg/eventGroupActivities/2026-01-02",
       )
     Unit
   }
@@ -200,12 +182,12 @@ class CmmsEventGroupActivityPublisherTest {
         .publish(listOf(metadata))
 
     assertThat(published).isEqualTo(1002)
-    val requests = argumentCaptor<AddEventGroupActivitiesRequest>()
+    val requests = argumentCaptor<BatchUpdateEventGroupActivitiesRequest>()
     verifyBlocking(eventGroupActivitiesServiceMock, times(2)) {
-      addEventGroupActivities(requests.capture())
+      batchUpdateEventGroupActivities(requests.capture())
     }
-    assertThat(requests.allValues.sumOf { it.eventGroupsCount }).isEqualTo(501)
-    assertThat(requests.allValues.all { it.eventGroupsCount * it.datesCount <= 1000 }).isTrue()
+    assertThat(requests.allValues.sumOf { it.requestsCount }).isEqualTo(1002)
+    assertThat(requests.allValues.all { it.requestsCount <= 1000 }).isTrue()
   }
 
   @Test
@@ -228,9 +210,11 @@ class CmmsEventGroupActivityPublisherTest {
       )
       .publish(listOf(metadata))
 
-    val request = argumentCaptor<AddEventGroupActivitiesRequest>()
-    verifyBlocking(eventGroupActivitiesServiceMock) { addEventGroupActivities(request.capture()) }
-    assertThat(request.firstValue.datesList)
+    val request = argumentCaptor<BatchUpdateEventGroupActivitiesRequest>()
+    verifyBlocking(eventGroupActivitiesServiceMock) {
+      batchUpdateEventGroupActivities(request.capture())
+    }
+    assertThat(request.firstValue.requestsList.map { it.eventGroupActivity.date })
       .containsExactly(
         date {
           year = 2026
@@ -336,7 +320,9 @@ class CmmsEventGroupActivityPublisherTest {
           it.name == UNMAPPED_METADATA_ENTITY_KEY_METRIC
         }
       assertThat(metric.longSumData.points.single().value).isEqualTo(1)
-      verifyBlocking(eventGroupActivitiesServiceMock, never()) { addEventGroupActivities(any()) }
+      verifyBlocking(eventGroupActivitiesServiceMock, never()) {
+        batchUpdateEventGroupActivities(any())
+      }
     } finally {
       metricsEnvironment.close()
     }
@@ -365,7 +351,9 @@ class CmmsEventGroupActivityPublisherTest {
       metricsEnvironment.metricReader.forceFlush()
       assertThat(metricsEnvironment.metricExporter.finishedMetricItems.map { it.name })
         .doesNotContain(UNMAPPED_METADATA_ENTITY_KEY_METRIC)
-      verifyBlocking(eventGroupActivitiesServiceMock, never()) { addEventGroupActivities(any()) }
+      verifyBlocking(eventGroupActivitiesServiceMock, never()) {
+        batchUpdateEventGroupActivities(any())
+      }
     } finally {
       metricsEnvironment.close()
     }
@@ -392,7 +380,9 @@ class CmmsEventGroupActivityPublisherTest {
         .publish(listOf(metadata))
 
     assertThat(published).isEqualTo(0)
-    verifyBlocking(eventGroupActivitiesServiceMock, never()) { addEventGroupActivities(any()) }
+    verifyBlocking(eventGroupActivitiesServiceMock, never()) {
+      batchUpdateEventGroupActivities(any())
+    }
   }
 
   private suspend fun seedMap(vararg mappings: MappedEventGroup) {
