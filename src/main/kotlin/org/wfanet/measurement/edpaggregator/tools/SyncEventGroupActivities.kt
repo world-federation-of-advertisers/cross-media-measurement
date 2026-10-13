@@ -139,9 +139,8 @@ class SyncEventGroupActivities : Runnable {
         preview = preview,
       )
 
-    // Always shut down the channel; only exit non-zero AFTER the finally runs, since exitProcess
-    // would otherwise skip it. Previewed mutations are intentional, so only runtime (RPC) failures
-    // drive the non-zero exit.
+    // `exitProcess` skips `finally`, so shut down the channel before converting per-EventGroup RPC
+    // failures to a nonzero exit.
     val hasFailures: Boolean =
       try {
         runBlocking {
