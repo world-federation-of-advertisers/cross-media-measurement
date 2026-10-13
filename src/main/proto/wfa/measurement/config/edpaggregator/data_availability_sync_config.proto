@@ -70,9 +70,10 @@ message DataAvailabilitySyncConfig {
   // impression metadata.
   EventGroupActivityPublishingConfig event_group_activity_publishing = 8;
 
-  // This publisher only appends activity. A `SyncEventGroupActivities` process
-  // for the same DataProvider must use APPEND mode; SYNC mode can remove
-  // concurrently-published dates.
+  // This publisher only appends activity. For the same DataProvider, a
+  // `SyncEventGroupActivities` process may use PATCH mode for explicit APPEND
+  // and DELETE operations. Do not use SYNC mode: it treats its input as
+  // authoritative and can delete dates published here.
   message EventGroupActivityPublishingConfig {
     // Entity key types whose values identify EventGroups.
     repeated string entity_key_types = 1;
