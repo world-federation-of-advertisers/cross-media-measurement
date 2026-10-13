@@ -94,13 +94,13 @@ class SyncEventGroupActivities : Runnable {
     description =
       [
         "Input semantics: " +
-          "sync (default: reconcile exactly to the input) or " +
+          "sync (reconcile exactly to the input) or " +
           "patch (apply explicit append/delete operations and leave omissions untouched)."
       ],
     converter = [SyncModeConverter::class],
-    defaultValue = "sync",
+    required = true,
   )
-  private var mode: SyncMode = SyncMode.SYNC
+  private lateinit var mode: SyncMode
 
   @Option(
     names = ["--preview"],
@@ -139,7 +139,8 @@ class SyncEventGroupActivities : Runnable {
         preview = preview,
       )
 
-    // `exitProcess` skips `finally`, so shut down the channel before converting per-EventGroup RPC
+    // `exitProcess` skips `finally`, so shut down the channel before converting per-EventGroup
+    // RPC
     // failures to a nonzero exit.
     val hasFailures: Boolean =
       try {

@@ -149,7 +149,7 @@ class SyncEventGroupActivitiesTest {
         """
           .trimIndent()
       )
-    val args = tlsArgs + arrayOf("--config-file=${configFile.path}")
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=sync")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
@@ -169,7 +169,7 @@ class SyncEventGroupActivitiesTest {
           .trimIndent()
       )
     val configFile = writeLocalFileConfig(inputFile)
-    val args = tlsArgs + arrayOf("--config-file=${configFile.path}")
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=sync")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
@@ -187,7 +187,8 @@ class SyncEventGroupActivitiesTest {
           .trimIndent()
       )
     val configFile = writeLocalFileConfig(inputFile)
-    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--list-page-size=17")
+    val args =
+      tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=sync", "--list-page-size=17")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
@@ -195,6 +196,24 @@ class SyncEventGroupActivitiesTest {
     verifyBlocking(activitiesServiceMock, times(1)) {
       listEventGroupActivities(check { request -> assertThat(request.pageSize).isEqualTo(17) })
     }
+  }
+
+  @Test
+  fun `CLI fails when --mode is not provided`() {
+    val inputFile =
+      writeInputFile(
+        """
+        [{"parent": "$DATA_PROVIDER/eventGroups/eg1", "event_group_activity_date": "2026-01-01T00:00:00Z"}]
+        """
+          .trimIndent()
+      )
+    val configFile = writeLocalFileConfig(inputFile)
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}")
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
+
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+    verifyBlocking(activitiesServiceMock, never()) { listEventGroupActivities(any()) }
   }
 
   @Test
