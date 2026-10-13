@@ -25,31 +25,17 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Logger
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroupActivityKey
-import org.wfanet.measurement.api.v2alpha.EventGroupKey
-import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesRequest
-import org.wfanet.measurement.api.v2alpha.eventGroupActivity
-import org.wfanet.measurement.api.v2alpha.updateEventGroupActivityRequest
-import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.api.v2alpha.addEventGroupActivitiesRequest
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.storage.StorageClient
 
-/** Publishes positive EventGroup activity derived from finalized impression metadata. */
-fun interface EventGroupActivityPublisher {
-  /** Publishes activity and returns the number of distinct EventGroup/date pairs written. */
-  suspend fun publish(impressionMetadata: Collection<ImpressionMetadata>): Int
-}
-
 /** OpenTelemetry instruments used when publishing EventGroup activity. */
-class EventGroupActivityPublisherMetrics(meter: Meter = Instrumentation.meter) {
+class EventGroupActivityPublisherMetrics(meter: Meter) {
   val mapRecordsMissingEntityKeyCounter: LongCounter =
     meter
       .counterBuilder("edpa.event_group_activity.map_records_missing_entity_key")
@@ -72,7 +58,7 @@ class EventGroupActivityPublisherMetrics(meter: Meter = Instrumentation.meter) {
  * Publishes EventGroup activity through the CMMS Public API.
  *
  * Each metadata interval is expanded to the local calendar dates containing either endpoint or any
- * time between them in [timeZone]. Including both endpoint dates intentionally favors
+ * time between them in [marketTimeZone]. Including both endpoint dates intentionally favors
  * over-reporting activity over omitting a potentially active date. Metadata entity keys are joined
  * to EventGroup resource names in the Mesos RecordIO map exposed by [eventGroupMapStorageClient].
  * Existing historical activity is never deleted.
@@ -83,17 +69,16 @@ class CmmsEventGroupActivityPublisher(
   private val eventGroupMapBlobKey: String,
   private val dataProviderName: String,
   private val entityKeyTypes: Set<String>,
-  private val maxConcurrentRequests: Int,
-  private val timeZone: ZoneId,
-  private val metrics: EventGroupActivityPublisherMetrics = EventGroupActivityPublisherMetrics(),
-) : EventGroupActivityPublisher {
+  private val marketTimeZone: ZoneId,
+  private val metrics: EventGroupActivityPublisherMetrics,
+) {
   init {
     require(eventGroupMapBlobKey.isNotEmpty()) { "eventGroupMapBlobKey must not be empty" }
     require(entityKeyTypes.isNotEmpty()) { "entityKeyTypes must not be empty" }
-    require(maxConcurrentRequests > 0) { "maxConcurrentRequests must be greater than zero" }
   }
 
-  override suspend fun publish(impressionMetadata: Collection<ImpressionMetadata>): Int {
+  /** Publishes activity and returns the number of distinct EventGroup/date pairs written. */
+  suspend fun publish(impressionMetadata: Collection<ImpressionMetadata>): Int {
     val activitiesByEntityKey = mutableMapOf<EntityKey, MutableSet<LocalDate>>()
     for (metadata in impressionMetadata) {
       val activityDates = metadata.activityDates()
@@ -129,16 +114,17 @@ class CmmsEventGroupActivityPublisher(
       }
     }
 
-    val batches =
-      datesByEventGroup.entries
-        .sortedBy { it.key }
-        .flatMap { (eventGroupName, dates) ->
-          dates.sorted().chunked(MAX_BATCH_SIZE).map { datesChunk ->
-            ActivityBatch(eventGroupName, datesChunk)
-          }
+    val eventGroupsByDates = linkedMapOf<List<LocalDate>, MutableList<String>>()
+    for ((eventGroupName, dates) in datesByEventGroup.toSortedMap()) {
+      eventGroupsByDates.getOrPut(dates.sorted()) { mutableListOf() }.add(eventGroupName)
+    }
+    for ((dates, eventGroupNames) in eventGroupsByDates) {
+      for (dateChunk in dates.chunked(MAX_ACTIVITY_PAIRS)) {
+        val eventGroupBatchSize = MAX_ACTIVITY_PAIRS / dateChunk.size
+        for (eventGroupBatch in eventGroupNames.chunked(eventGroupBatchSize)) {
+          addActivities(eventGroupBatch, dateChunk)
         }
-    for (requestWindow in batches.chunked(maxConcurrentRequests)) {
-      coroutineScope { requestWindow.map { batch -> async { upsert(batch) } }.awaitAll() }
+      }
     }
     return datesByEventGroup.values.sumOf { it.size }
   }
@@ -185,53 +171,37 @@ class CmmsEventGroupActivityPublisher(
     return eventGroupsByEntityKey
   }
 
-  private suspend fun upsert(batch: ActivityBatch) {
-    val eventGroupKey =
-      requireNotNull(EventGroupKey.fromName(batch.eventGroupName)) {
-        "Invalid EventGroup resource name: ${batch.eventGroupName}"
-      }
+  private suspend fun addActivities(eventGroupNames: List<String>, dates: List<LocalDate>) {
     try {
-      eventGroupActivitiesClient.batchUpdateEventGroupActivities(
-        batchUpdateEventGroupActivitiesRequest {
-          parent = batch.eventGroupName
-          for (date in batch.dates) {
-            requests += updateEventGroupActivityRequest {
-              eventGroupActivity = eventGroupActivity {
-                name =
-                  EventGroupActivityKey(
-                      eventGroupKey.dataProviderId,
-                      eventGroupKey.eventGroupId,
-                      date.toString(),
-                    )
-                    .toName()
-                this.date = date.toProtoDate()
-              }
-              allowMissing = true
-            }
-          }
+      eventGroupActivitiesClient.addEventGroupActivities(
+        addEventGroupActivitiesRequest {
+          parent = dataProviderName
+          eventGroups += eventGroupNames
+          this.dates += dates.map { it.toProtoDate() }
         }
       )
     } catch (e: StatusException) {
-      throw Exception("Error publishing EventGroup activity for ${batch.eventGroupName}", e)
+      throw Exception(
+        "Error publishing EventGroup activity for ${eventGroupNames.size} EventGroups",
+        e,
+      )
     }
   }
 
   private data class EntityKey(val entityType: String, val entityId: String)
-
-  private data class ActivityBatch(val eventGroupName: String, val dates: List<LocalDate>)
 
   private fun ImpressionMetadata.activityDates(): Set<LocalDate> {
     val start: Instant = interval.startTime.toInstant()
     val end: Instant = interval.endTime.toInstant()
     require(!end.isBefore(start)) { "ImpressionMetadata interval end_time precedes start_time" }
 
-    val startDate = start.atZone(timeZone).toLocalDate()
-    val endDate = end.atZone(timeZone).toLocalDate()
+    val startDate = start.atZone(marketTimeZone).toLocalDate()
+    val endDate = end.atZone(marketTimeZone).toLocalDate()
     return generateSequence(startDate) { date -> date.plusDays(1).takeIf { it <= endDate } }.toSet()
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(CmmsEventGroupActivityPublisher::class.java.name)
-    private const val MAX_BATCH_SIZE = 1000
+    private const val MAX_ACTIVITY_PAIRS = 1000
   }
 }

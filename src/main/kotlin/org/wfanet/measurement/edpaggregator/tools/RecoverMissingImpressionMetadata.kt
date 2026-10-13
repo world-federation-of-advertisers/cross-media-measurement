@@ -268,6 +268,7 @@ class RecoverMissingImpressionMetadata : Runnable {
               impressionMetadataBatchSize = impressionMetadataBatchSize,
               modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
               errorIfGapsExist = config.errorIfGapsExist,
+              publishEventGroupActivities = null,
             )
             .sync(doneBlobUri)
           filteringStorageClient.processedMetadataBlobKeys

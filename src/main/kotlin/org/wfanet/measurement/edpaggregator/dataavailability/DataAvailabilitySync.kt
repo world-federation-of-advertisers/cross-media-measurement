@@ -112,8 +112,8 @@ import org.wfanet.measurement.storage.StorageClient
  *   detected and log a warning. If false (default), log a warning but proceed with replacing data
  *   availability intervals normally. Gap dates are always logged regardless of this setting.
  * @property metrics Metrics recorder for telemetry.
- * @property eventGroupActivityPublisher Optional publisher for positive EventGroup activity derived
- *   from finalized impression metadata.
+ * @property publishEventGroupActivities Optional function for publishing positive EventGroup
+ *   activity derived from finalized impression metadata.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
@@ -126,8 +126,9 @@ class DataAvailabilitySync(
   private val impressionMetadataBatchSize: Int,
   private val modelLineMap: Map<String, List<String>>,
   private val errorIfGapsExist: Boolean,
+  private val publishEventGroupActivities:
+    (suspend (Collection<ImpressionMetadata>) -> Int)?,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
-  private val eventGroupActivityPublisher: EventGroupActivityPublisher? = null,
 ) {
   enum class Outcome {
     NO_WORK,
@@ -377,9 +378,9 @@ class DataAvailabilitySync(
         logAvailabilityInterval(entry.key, entry.value, "published")
       }
 
-      if (eventGroupActivityPublisher != null) {
+      if (publishEventGroupActivities != null) {
         val publishedActivityCount =
-          eventGroupActivityPublisher.publish(
+          publishEventGroupActivities(
             impressionMetadataMap.values.flatten().map { it.impressionMetadata }
           )
         Span.current()

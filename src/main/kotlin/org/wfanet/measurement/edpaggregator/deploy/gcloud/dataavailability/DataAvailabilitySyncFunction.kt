@@ -49,6 +49,7 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
+import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -143,8 +144,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           require(publishingConfig.entityKeyTypesList.isNotEmpty()) {
             "event_group_activity_publishing.entity_key_types must not be empty"
           }
-          require(publishingConfig.timeZone.isNotEmpty()) {
-            "event_group_activity_publishing.time_zone must not be empty"
+          require(publishingConfig.marketTimeZone.isNotEmpty()) {
+            "event_group_activity_publishing.market_time_zone must not be empty"
           }
           require(publishingConfig.eventGroupMapBlobUri.isNotEmpty()) {
             "event_group_activity_publishing.event_group_map_blob_uri must not be empty"
@@ -174,9 +175,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             eventGroupMapBlobUri.key,
             dataAvailabilitySyncConfig.dataProvider,
             publishingConfig.entityKeyTypesList.toSet(),
-            publishingConfig.maxConcurrentRequests.takeIf { it > 0 }
-              ?: DEFAULT_EVENT_GROUP_ACTIVITY_MAX_CONCURRENT_REQUESTS,
-            ZoneId.of(publishingConfig.timeZone),
+            ZoneId.of(publishingConfig.marketTimeZone),
+            EventGroupActivityPublisherMetrics(Instrumentation.meter),
           )
         } else {
           null
@@ -194,7 +194,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           errorIfGapsExist = dataAvailabilitySyncConfig.errorIfGapsExist,
           modelLineMap =
             dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
-          eventGroupActivityPublisher = eventGroupActivityPublisher,
+          publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
         )
 
       Tracing.withW3CTraceContext(request) {
@@ -319,7 +319,6 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
     private val globalThrottler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration)
     private const val DEFAULT_IMPRESSION_METADATA_BATCH_SIZE = 100
-    private const val DEFAULT_EVENT_GROUP_ACTIVITY_MAX_CONCURRENT_REQUESTS = 8
     private val impressionMetadataBatchSize =
       System.getenv("IMPRESSION_METADATA_BATCH_SIZE")?.toIntOrNull()?.takeIf { it > 0 }
         ?: DEFAULT_IMPRESSION_METADATA_BATCH_SIZE

@@ -37,11 +37,13 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
-import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupActivitiesRequest
+import org.wfanet.measurement.api.v2alpha.AddEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivityKey
-import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesResponse
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.addEventGroupActivitiesResponse
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as mappedEntityKey
@@ -56,11 +58,23 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 class CmmsEventGroupActivityPublisherTest {
   private val persistedActivityNames = Collections.synchronizedSet(mutableSetOf<String>())
   private val eventGroupActivitiesServiceMock: EventGroupActivitiesCoroutineImplBase = mockService {
-    onBlocking { batchUpdateEventGroupActivities(any<BatchUpdateEventGroupActivitiesRequest>()) }
+    onBlocking { addEventGroupActivities(any<AddEventGroupActivitiesRequest>()) }
       .thenAnswer { invocation ->
-        val request = invocation.getArgument<BatchUpdateEventGroupActivitiesRequest>(0)
-        persistedActivityNames.addAll(request.requestsList.map { it.eventGroupActivity.name })
-        batchUpdateEventGroupActivitiesResponse {}
+        val request = invocation.getArgument<AddEventGroupActivitiesRequest>(0)
+        for (eventGroupName in request.eventGroupsList) {
+          val eventGroupKey = checkNotNull(EventGroupKey.fromName(eventGroupName))
+          for (activityDate in request.datesList) {
+            persistedActivityNames +=
+              EventGroupActivityKey(
+                  eventGroupKey.dataProviderId,
+                  eventGroupKey.eventGroupId,
+                  "%04d-%02d-%02d"
+                    .format(activityDate.year, activityDate.month, activityDate.day),
+                )
+                .toName()
+          }
+        }
+        addEventGroupActivitiesResponse {}
       }
   }
 
@@ -91,32 +105,36 @@ class CmmsEventGroupActivityPublisherTest {
     }
 
     val published =
-      newPublisher(timeZone = ZoneId.of("America/Los_Angeles")).publish(listOf(metadata))
+      newPublisher(
+          ZoneId.of("America/Los_Angeles"),
+          setOf("campaign"),
+          EventGroupActivityPublisherMetrics(Instrumentation.meter),
+        )
+        .publish(listOf(metadata))
 
     assertThat(published).isEqualTo(4)
-    val updateRequests = argumentCaptor<BatchUpdateEventGroupActivitiesRequest>()
-    verifyBlocking(eventGroupActivitiesServiceMock, times(2)) {
-      batchUpdateEventGroupActivities(updateRequests.capture())
+    val addRequest = argumentCaptor<AddEventGroupActivitiesRequest>()
+    verifyBlocking(eventGroupActivitiesServiceMock) {
+      addEventGroupActivities(addRequest.capture())
     }
-    assertThat(updateRequests.allValues.map { it.parent })
+    assertThat(addRequest.firstValue.parent).isEqualTo(DATA_PROVIDER)
+    assertThat(addRequest.firstValue.eventGroupsList)
       .containsExactly("$DATA_PROVIDER/eventGroups/eg1", "$DATA_PROVIDER/eventGroups/eg2")
-    for (request in updateRequests.allValues) {
-      assertThat(request.requestsList.map { it.eventGroupActivity.date })
-        .containsExactly(
-          date {
-            year = 2026
-            month = 1
-            day = 1
-          },
-          date {
-            year = 2026
-            month = 1
-            day = 2
-          },
-        )
-        .inOrder()
-      assertThat(request.requestsList.all { it.allowMissing }).isTrue()
-    }
+      .inOrder()
+    assertThat(addRequest.firstValue.datesList)
+      .containsExactly(
+        date {
+          year = 2026
+          month = 1
+          day = 1
+        },
+        date {
+          year = 2026
+          month = 1
+          day = 2
+        },
+      )
+      .inOrder()
   }
 
   @Test
@@ -146,20 +164,60 @@ class CmmsEventGroupActivityPublisherTest {
     }
 
     val published =
-      newPublisher(entityKeyTypes = setOf("campaign", "ad_set", "ad")).publish(listOf(metadata))
+      newPublisher(
+          ZoneId.of("UTC"),
+          setOf("campaign", "ad_set", "ad"),
+          EventGroupActivityPublisherMetrics(Instrumentation.meter),
+        )
+        .publish(listOf(metadata))
 
     assertThat(published).isEqualTo(3)
-    val updateRequests = argumentCaptor<BatchUpdateEventGroupActivitiesRequest>()
-    verifyBlocking(eventGroupActivitiesServiceMock, times(3)) {
-      batchUpdateEventGroupActivities(updateRequests.capture())
+    val addRequest = argumentCaptor<AddEventGroupActivitiesRequest>()
+    verifyBlocking(eventGroupActivitiesServiceMock) {
+      addEventGroupActivities(addRequest.capture())
     }
-    assertThat(updateRequests.allValues.map { it.parent })
+    assertThat(addRequest.firstValue.eventGroupsList)
       .containsExactly(
         "$DATA_PROVIDER/eventGroups/campaign-eg",
         "$DATA_PROVIDER/eventGroups/ad-set-eg",
         "$DATA_PROVIDER/eventGroups/ad-eg",
       )
     Unit
+  }
+
+  @Test
+  fun `publish batches EventGroups without exceeding activity pair limit`() = runBlocking {
+    seedMap(
+      *Array(501) { index ->
+        mapping("campaign", "123", "$DATA_PROVIDER/eventGroups/eg-$index")
+      }
+    )
+    val metadata = impressionMetadata {
+      interval = interval {
+        startTime = Timestamps.parse("2026-01-01T23:30:00Z")
+        endTime = Timestamps.parse("2026-01-02T00:30:00Z")
+      }
+      entityKeys += entityKey {
+        entityType = "campaign"
+        entityId = "123"
+      }
+    }
+
+    val published =
+      newPublisher(
+          ZoneId.of("UTC"),
+          setOf("campaign"),
+          EventGroupActivityPublisherMetrics(Instrumentation.meter),
+        )
+        .publish(listOf(metadata))
+
+    assertThat(published).isEqualTo(1002)
+    val requests = argumentCaptor<AddEventGroupActivitiesRequest>()
+    verifyBlocking(eventGroupActivitiesServiceMock, times(2)) {
+      addEventGroupActivities(requests.capture())
+    }
+    assertThat(requests.allValues.sumOf { it.eventGroupsCount }).isEqualTo(501)
+    assertThat(requests.allValues.all { it.eventGroupsCount * it.datesCount <= 1000 }).isTrue()
   }
 
   @Test
@@ -176,13 +234,18 @@ class CmmsEventGroupActivityPublisherTest {
       }
     }
 
-    newPublisher(timeZone = ZoneId.of("America/Los_Angeles")).publish(listOf(metadata))
+    newPublisher(
+        ZoneId.of("America/Los_Angeles"),
+        setOf("campaign"),
+        EventGroupActivityPublisherMetrics(Instrumentation.meter),
+      )
+      .publish(listOf(metadata))
 
-    val request = argumentCaptor<BatchUpdateEventGroupActivitiesRequest>()
+    val request = argumentCaptor<AddEventGroupActivitiesRequest>()
     verifyBlocking(eventGroupActivitiesServiceMock) {
-      batchUpdateEventGroupActivities(request.capture())
+      addEventGroupActivities(request.capture())
     }
-    assertThat(request.firstValue.requestsList.map { it.eventGroupActivity.date })
+    assertThat(request.firstValue.datesList)
       .containsExactly(
         date {
           year = 2026
@@ -213,7 +276,8 @@ class CmmsEventGroupActivityPublisherTest {
       }
     }
 
-    newPublisher().publish(listOf(metadata))
+    newPublisher(ZoneId.of("UTC"), setOf("campaign"), EventGroupActivityPublisherMetrics(Instrumentation.meter))
+      .publish(listOf(metadata))
 
     assertThat(persistedActivityNames)
       .containsExactly(
@@ -245,7 +309,9 @@ class CmmsEventGroupActivityPublisherTest {
         }
       }
 
-      val published = newPublisher(metrics = metricsEnvironment.metrics).publish(listOf(metadata))
+      val published =
+        newPublisher(ZoneId.of("UTC"), setOf("campaign"), metricsEnvironment.metrics)
+          .publish(listOf(metadata))
 
       assertThat(published).isEqualTo(1)
       metricsEnvironment.metricReader.forceFlush()
@@ -274,11 +340,13 @@ class CmmsEventGroupActivityPublisherTest {
       }
     }
 
-    val published = newPublisher().publish(listOf(metadata))
+    val published =
+      newPublisher(ZoneId.of("UTC"), setOf("campaign"), EventGroupActivityPublisherMetrics(Instrumentation.meter))
+        .publish(listOf(metadata))
 
     assertThat(published).isEqualTo(0)
     verifyBlocking(eventGroupActivitiesServiceMock, never()) {
-      batchUpdateEventGroupActivities(any())
+      addEventGroupActivities(any())
     }
   }
 
@@ -298,11 +366,13 @@ class CmmsEventGroupActivityPublisherTest {
       }
     }
 
-    val published = newPublisher().publish(listOf(metadata))
+    val published =
+      newPublisher(ZoneId.of("UTC"), setOf("campaign"), EventGroupActivityPublisherMetrics(Instrumentation.meter))
+        .publish(listOf(metadata))
 
     assertThat(published).isEqualTo(0)
     verifyBlocking(eventGroupActivitiesServiceMock, never()) {
-      batchUpdateEventGroupActivities(any())
+      addEventGroupActivities(any())
     }
   }
 
@@ -323,9 +393,9 @@ class CmmsEventGroupActivityPublisherTest {
   }
 
   private fun newPublisher(
-    timeZone: ZoneId = ZoneId.of("UTC"),
-    entityKeyTypes: Set<String> = setOf("campaign"),
-    metrics: EventGroupActivityPublisherMetrics = EventGroupActivityPublisherMetrics(),
+    marketTimeZone: ZoneId,
+    entityKeyTypes: Set<String>,
+    metrics: EventGroupActivityPublisherMetrics,
   ): CmmsEventGroupActivityPublisher =
     CmmsEventGroupActivityPublisher(
       eventGroupActivitiesClient = eventGroupActivitiesStub,
@@ -333,8 +403,7 @@ class CmmsEventGroupActivityPublisherTest {
       eventGroupMapBlobKey = MAP_BLOB_KEY,
       dataProviderName = DATA_PROVIDER,
       entityKeyTypes = entityKeyTypes,
-      maxConcurrentRequests = 2,
-      timeZone = timeZone,
+      marketTimeZone = marketTimeZone,
       metrics = metrics,
     )
 
