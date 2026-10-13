@@ -70,6 +70,15 @@ _SUCCESS_STATUS_CODES = frozenset({
 
 
 @dataclass(frozen=True)
+class _ReportingSetMetadata:
+    """Source ReportingSet properties needed for diagnostics and correction."""
+
+    primitive_reporting_set_ids: frozenset[str]
+    source_type: str
+    source_operation: str
+
+
+@dataclass(frozen=True)
 class ReportingSetDiagnosticContext:
     """Source identifiers for one reporting-set result."""
 
@@ -81,12 +90,31 @@ class ReportingSetDiagnosticContext:
 
 
 @dataclass(frozen=True)
+class MeasurementDiagnosticContext:
+    """Classification of one input measurement set."""
+
+    external_reporting_set_result_id: int
+    impression_qualification_filter_type: str
+    external_impression_qualification_filter_id: str
+    venn_diagram_region_type: str
+    source_reporting_set_type: str
+    source_reporting_set_root_operation: str
+    metric_frequency: str
+    window_type: str
+    is_cumulative: bool
+    measurement_type: str
+    data_provider_count: int
+    window_end_date: str
+
+
+@dataclass(frozen=True)
 class ReportSummaryProcessingResult:
     """Result and bounded exception metadata for one report summary."""
 
     report_summary_index: int
     result: ReportPostProcessorResult
     reporting_set_contexts: tuple[ReportingSetDiagnosticContext, ...] = ()
+    measurement_contexts: tuple[MeasurementDiagnosticContext, ...] = ()
     internal_error_type: str | None = None
 
 
@@ -181,6 +209,10 @@ def log_noise_correction_diagnostic(
                 asdict(context)
                 for context in summary_result.reporting_set_contexts
             ],
+            "measurement_contexts": [
+                asdict(context)
+                for context in summary_result.measurement_contexts
+            ],
         }
         args.append(
             json.dumps(diagnostic, separators=(",", ":"), sort_keys=True)
@@ -190,6 +222,17 @@ def log_noise_correction_diagnostic(
 
 def _date_to_iso_string(date) -> str:
     return f"{date.year:04d}-{date.month:02d}-{date.day:02d}"
+
+
+def _measurement_type(noisy_metric_set: Any) -> str:
+    if (
+        noisy_metric_set.HasField("frequency_histogram")
+        or noisy_metric_set.HasField("impression_count")
+    ):
+        return "REACH_AND_FREQUENCY"
+    if noisy_metric_set.HasField("reach"):
+        return "REACH_ONLY"
+    return "MEASUREMENT_TYPE_UNSPECIFIED"
 
 
 class PostProcessReportResult:
@@ -263,8 +306,13 @@ class PostProcessReportResult:
             result.dimension.external_reporting_set_id
             for result in reporting_set_results
         }
-        external_reporting_set_id_map = self._get_external_reporting_set_id_map(
-            cmms_measurement_consumer_id, external_reporting_set_ids)
+        reporting_set_metadata_by_id = self._get_reporting_set_metadata(
+            cmms_measurement_consumer_id, external_reporting_set_ids
+        )
+        external_reporting_set_id_map = {
+            reporting_set_id: set(metadata.primitive_reporting_set_ids)
+            for reporting_set_id, metadata in reporting_set_metadata_by_id.items()
+        }
         primitive_reporting_set_ids = {
             primitive_reporting_set_id
             for reporting_set_ids in external_reporting_set_id_map.values()
@@ -343,6 +391,7 @@ class PostProcessReportResult:
                 result.pre_correction_report_summary_v2.CopyFrom(report_summary)
 
             reporting_set_contexts = []
+            measurement_contexts = []
             for set_result in report_summary.report_summary_set_results:
                 source_result = reporting_set_results_by_id.get(
                     set_result.external_reporting_set_result_id
@@ -352,6 +401,7 @@ class PostProcessReportResult:
                 external_reporting_set_id = (
                     source_result.dimension.external_reporting_set_id
                 )
+                metadata = reporting_set_metadata_by_id[external_reporting_set_id]
                 primitive_reporting_set_ids = tuple(
                     sorted(
                         external_reporting_set_id_map.get(
@@ -385,10 +435,98 @@ class PostProcessReportResult:
                     )
                 )
 
+                dimension = source_result.dimension
+                iqf_field = dimension.WhichOneof(
+                    "impression_qualification_filter"
+                )
+                if iqf_field == "custom":
+                    impression_qualification_filter_type = "CUSTOM"
+                    external_impression_qualification_filter_id = ""
+                else:
+                    impression_qualification_filter_type = "EXTERNAL"
+                    external_impression_qualification_filter_id = (
+                        dimension.external_impression_qualification_filter_id
+                    )
+                venn_diagram_region_type = (
+                    ReportingSetResult.Dimension.VennDiagramRegionType.Name(
+                        dimension.venn_diagram_region_type
+                    )
+                )
+                metric_frequency = (
+                    dimension.metric_frequency_spec.WhichOneof("selector")
+                    or "METRIC_FREQUENCY_UNSPECIFIED"
+                ).upper()
+                data_provider_count = len(data_provider_resource_names)
+                for window in source_result.reporting_window_results:
+                    noisy_values = (
+                        window.value.unprocessed_report_result_values
+                    )
+                    window_end_date = _date_to_iso_string(window.key.end)
+                    if noisy_values.HasField("cumulative_results"):
+                        window_type = (
+                            "WHOLE_CAMPAIGN"
+                            if metric_frequency == "TOTAL"
+                            else "CUMULATIVE"
+                        )
+                        measurement_contexts.append(
+                            MeasurementDiagnosticContext(
+                                external_reporting_set_result_id=(
+                                    source_result.external_reporting_set_result_id
+                                ),
+                                impression_qualification_filter_type=(
+                                    impression_qualification_filter_type
+                                ),
+                                external_impression_qualification_filter_id=(
+                                    external_impression_qualification_filter_id
+                                ),
+                                venn_diagram_region_type=venn_diagram_region_type,
+                                source_reporting_set_type=metadata.source_type,
+                                source_reporting_set_root_operation=(
+                                    metadata.source_operation
+                                ),
+                                metric_frequency=metric_frequency,
+                                window_type=window_type,
+                                is_cumulative=True,
+                                measurement_type=_measurement_type(
+                                    noisy_values.cumulative_results
+                                ),
+                                data_provider_count=data_provider_count,
+                                window_end_date=window_end_date,
+                            )
+                        )
+                    if noisy_values.HasField("non_cumulative_results"):
+                        measurement_contexts.append(
+                            MeasurementDiagnosticContext(
+                                external_reporting_set_result_id=(
+                                    source_result.external_reporting_set_result_id
+                                ),
+                                impression_qualification_filter_type=(
+                                    impression_qualification_filter_type
+                                ),
+                                external_impression_qualification_filter_id=(
+                                    external_impression_qualification_filter_id
+                                ),
+                                venn_diagram_region_type=venn_diagram_region_type,
+                                source_reporting_set_type=metadata.source_type,
+                                source_reporting_set_root_operation=(
+                                    metadata.source_operation
+                                ),
+                                metric_frequency=metric_frequency,
+                                window_type="NON_CUMULATIVE",
+                                is_cumulative=False,
+                                measurement_type=_measurement_type(
+                                    noisy_values.non_cumulative_results
+                                ),
+                                data_provider_count=data_provider_count,
+                                window_end_date=window_end_date,
+                            )
+                        )
+
             summary_result = ReportSummaryProcessingResult(
                 report_summary_index=report_summary_index,
                 result=result,
                 reporting_set_contexts=tuple(reporting_set_contexts),
+                measurement_contexts=tuple(measurement_contexts),
                 internal_error_type=internal_error_type,
             )
             summary_results.append(summary_result)
@@ -747,18 +885,19 @@ class PostProcessReportResult:
 
         return results
 
-    def _get_external_reporting_set_id_map(
-            self, cmms_measurement_consumer_id: str,
-            external_reporting_set_ids: Iterable[str]) -> dict[str, set[str]]:
-        """Fetches reporting sets and extracts primitive reporting set IDs.
+    def _get_reporting_set_metadata(
+        self,
+        cmms_measurement_consumer_id: str,
+        external_reporting_set_ids: Iterable[str],
+    ) -> dict[str, _ReportingSetMetadata]:
+        """Fetches source ReportingSet metadata used by the processor.
 
         Args:
             cmms_measurement_consumer_id: The MC's ID.
             external_reporting_set_ids: A list of external reporting set IDs.
 
         Returns:
-            A dictionary mapping each external reporting set ID to a set of its
-            underlying primitive reporting set IDs.
+            Metadata keyed by external ReportingSet ID.
         """
         if not external_reporting_set_ids:
             return {}
@@ -785,12 +924,31 @@ class PostProcessReportResult:
                                           external_reporting_set_id)
                 return primitive_ids
 
-        return {
-            reporting_set_id:
-            _get_primitive_ids(reporting_set_map[reporting_set_id])
-            for reporting_set_id in external_reporting_set_ids
-            if reporting_set_id in reporting_set_map
-        }
+        metadata_by_id = {}
+        for reporting_set_id in external_reporting_set_ids:
+            if reporting_set_id not in reporting_set_map:
+                continue
+            reporting_set = reporting_set_map[reporting_set_id]
+            source_type = reporting_set.WhichOneof("value")
+            if source_type == "composite":
+                source_operation = ReportingSet.SetExpression.Operation.Name(
+                    reporting_set.composite.operation
+                )
+            else:
+                source_operation = ""
+            metadata_by_id[reporting_set_id] = _ReportingSetMetadata(
+                primitive_reporting_set_ids=frozenset(
+                    _get_primitive_ids(reporting_set)
+                ),
+                source_type=(
+                    source_type.upper()
+                    if source_type is not None
+                    else "REPORTING_SET_TYPE_UNSPECIFIED"
+                ),
+                source_operation=source_operation,
+            )
+
+        return metadata_by_id
 
     def _get_data_provider_ids_by_primitive_reporting_set_id(
         self,

@@ -408,16 +408,34 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             data_provider_resource_names=("dataProviders/provider-1",),
             window_end_dates=("2026-09-30",),
         )
+        measurement_context = (
+            post_process_report_result.MeasurementDiagnosticContext(
+                external_reporting_set_result_id=123456789,
+                impression_qualification_filter_type="EXTERNAL",
+                external_impression_qualification_filter_id="ami",
+                venn_diagram_region_type="UNION",
+                source_reporting_set_type="COMPOSITE",
+                source_reporting_set_root_operation="DIFFERENCE",
+                metric_frequency="WEEKLY",
+                window_type="NON_CUMULATIVE",
+                is_cumulative=False,
+                measurement_type="REACH_AND_FREQUENCY",
+                data_provider_count=1,
+                window_end_date="2026-09-30",
+            )
+        )
         return post_process_report_result.NoiseCorrectionFailure([
             post_process_report_result.ReportSummaryProcessingResult(
                 report_summary_index=0,
                 result=failed_result,
                 reporting_set_contexts=(context,),
+                measurement_contexts=(measurement_context,),
             ),
             post_process_report_result.ReportSummaryProcessingResult(
                 report_summary_index=1,
                 result=successful_result,
                 reporting_set_contexts=(context,),
+                measurement_contexts=(measurement_context,),
             ),
         ])
 
@@ -453,6 +471,10 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertNotIn("primitive-reporting-set-1", logs)
         self.assertNotIn("dataProviders/provider-1", logs)
         self.assertNotIn("2026-09-30", logs)
+        self.assertNotIn("REACH_AND_FREQUENCY", logs)
+        self.assertNotIn("NON_CUMULATIVE", logs)
+        self.assertNotIn("DIFFERENCE", logs)
+        self.assertNotIn('"policy"', logs)
         self.mock_basic_reports_stub.FailBasicReport.assert_called_once()
 
     def test_noise_correction_failure_logs_values_when_enabled(self):
@@ -489,6 +511,16 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertIn("primitive-reporting-set-1", logs)
         self.assertIn("dataProviders/provider-1", logs)
         self.assertIn("2026-09-30", logs)
+        self.assertIn("REACH_AND_FREQUENCY", logs)
+        self.assertIn("NON_CUMULATIVE", logs)
+        self.assertIn("DIFFERENCE", logs)
+        self.assertIn('"impression_qualification_filter_type":"EXTERNAL"', logs)
+        self.assertIn(
+            '"external_impression_qualification_filter_id":"ami"', logs
+        )
+        self.assertNotIn('"policy"', logs)
+        self.assertNotIn("UNIQUE", logs)
+        self.assertNotIn("INCREMENTAL", logs)
 
     @mock.patch.object(logging, "info", autospec=True)
     def test_fail_basic_report_logs_started_and_succeeded(self, mock_info):

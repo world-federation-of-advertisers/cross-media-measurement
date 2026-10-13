@@ -756,6 +756,37 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertTrue(
             all(context.data_provider_resource_names for context in contexts)
         )
+        measurement_contexts = [
+            context
+            for summary_result in raised.exception.summary_results
+            for context in summary_result.measurement_contexts
+        ]
+        self.assertTrue(measurement_contexts)
+        self.assertEqual(
+            {
+                context.impression_qualification_filter_type
+                for context in measurement_contexts
+            },
+            {"CUSTOM", "EXTERNAL"},
+        )
+        self.assertEqual(
+            {
+                context.source_reporting_set_type
+                for context in measurement_contexts
+            },
+            {"PRIMITIVE", "COMPOSITE"},
+        )
+        self.assertEqual(
+            {
+                context.source_reporting_set_root_operation
+                for context in measurement_contexts
+                if context.source_reporting_set_root_operation
+            },
+            {"UNION"},
+        )
+        self.assertTrue(
+            all(context.data_provider_count > 0 for context in measurement_contexts)
+        )
 
     @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
     def test_all_summaries_are_processed_and_internal_errors_are_preserved(
