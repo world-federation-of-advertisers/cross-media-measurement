@@ -30,10 +30,12 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -46,13 +48,17 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.ConfigLoader
+import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -132,6 +138,46 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       val impressionMetadataServicesClient =
         ImpressionMetadataServiceCoroutineStub(instrumentedImpMetadataChannel)
 
+      val eventGroupActivityPublisher =
+        dataAvailabilitySyncConfig.eventGroupActivityPublishing
+          .takeIf { dataAvailabilitySyncConfig.hasEventGroupActivityPublishing() }
+          ?.let { publishingConfig ->
+            val marketTimeZoneId = publishingConfig.marketTimeZone.id
+            require(marketTimeZoneId.isNotEmpty()) {
+              "event_group_activity_publishing.market_time_zone.id must not be empty"
+            }
+            require(publishingConfig.eventGroupMapBlobUri.isNotEmpty()) {
+              "event_group_activity_publishing.event_group_map_blob_uri must not be empty"
+            }
+            val eventGroupMapBlobUri =
+              SelectedStorageClient.parseBlobUri(publishingConfig.eventGroupMapBlobUri)
+            val eventGroupMapStorageClient =
+              MesosRecordIoStorageClient(
+                SelectedStorageClient(
+                  blobUri = eventGroupMapBlobUri,
+                  rootDirectory =
+                    if (publishingConfig.eventGroupMapStorage.hasFileSystem()) {
+                      File(
+                        checkNotNull(fileSystemPath) {
+                          "DATA_AVAILABILITY_FILE_SYSTEM_PATH must be set for file storage"
+                        }
+                      )
+                    } else {
+                      null
+                    },
+                  projectId = publishingConfig.eventGroupMapStorage.gcs.projectId,
+                )
+              )
+            CmmsEventGroupActivityPublisher(
+              EventGroupActivitiesCoroutineStub(instrumentedCmmsChannel),
+              eventGroupMapStorageClient,
+              eventGroupMapBlobUri.key,
+              dataAvailabilitySyncConfig.dataProvider,
+              ZoneId.of(marketTimeZoneId),
+              EventGroupActivityPublisherMetrics(Instrumentation.meter),
+            )
+          }
+
       val dataAvailabilitySync =
         DataAvailabilitySync(
           dataAvailabilitySyncConfig.edpImpressionPath,
@@ -144,6 +190,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           errorIfGapsExist = dataAvailabilitySyncConfig.errorIfGapsExist,
           modelLineMap =
             dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
+          publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
         )
 
       Tracing.withW3CTraceContext(request) {

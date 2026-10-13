@@ -26,6 +26,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -44,15 +46,19 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataDateSelection
+import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecovery
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
@@ -177,6 +183,13 @@ class RecoverMissingImpressionMetadata : Runnable {
   )
   private var impressionMetadataBatchSize: Int by Delegates.notNull()
 
+  @set:Option(
+    names = ["--publish-event-group-activities"],
+    description = ["Publish EventGroup activity for metadata resynchronized by this recovery run"],
+    defaultValue = "false",
+  )
+  private var publishEventGroupActivities: Boolean by Delegates.notNull()
+
   override fun run() {
     val config = parseTextProto(configFile, DataAvailabilitySyncConfig.getDefaultInstance())
     require(config.dataAvailabilityStorage.storageCase == StorageCase.GCS) {
@@ -184,6 +197,9 @@ class RecoverMissingImpressionMetadata : Runnable {
     }
     require(config.edpImpressionPath.isNotEmpty()) { "edp_impression_path must be set" }
     require(config.dataProvider.isNotEmpty()) { "data_provider must be set" }
+    require(!publishEventGroupActivities || config.hasEventGroupActivityPublishing()) {
+      "event_group_activity_publishing must be set when publishing EventGroup activity"
+    }
 
     val storageConfig = config.dataAvailabilityStorage.gcs
     require(storageConfig.bucketName.isNotEmpty()) { "GCS bucket_name must be set" }
@@ -245,6 +261,42 @@ class RecoverMissingImpressionMetadata : Runnable {
         )
       )
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
+    val eventGroupActivityPublisher =
+      if (publishEventGroupActivities) {
+        val publishingConfig = config.eventGroupActivityPublishing
+        val marketTimeZoneId = publishingConfig.marketTimeZone.id
+        require(marketTimeZoneId.isNotEmpty()) {
+          "event_group_activity_publishing.market_time_zone.id must not be empty"
+        }
+        require(publishingConfig.eventGroupMapBlobUri.isNotEmpty()) {
+          "event_group_activity_publishing.event_group_map_blob_uri must not be empty"
+        }
+        require(publishingConfig.eventGroupMapStorage.storageCase == StorageCase.GCS) {
+          "event_group_activity_publishing.event_group_map_storage must use GCS"
+        }
+        val eventGroupMapBlobUri =
+          SelectedStorageClient.parseBlobUri(publishingConfig.eventGroupMapBlobUri)
+        val eventGroupMapStorageClient =
+          MesosRecordIoStorageClient(
+            SelectedStorageClient(
+              blobUri = eventGroupMapBlobUri,
+              rootDirectory = null,
+              projectId = publishingConfig.eventGroupMapStorage.gcs.projectId.ifEmpty { null },
+            )
+          )
+        CmmsEventGroupActivityPublisher(
+          EventGroupActivitiesCoroutineStub(
+            ClientInterceptors.intercept(kingdomChannel, grpcTelemetry.newClientInterceptor())
+          ),
+          eventGroupMapStorageClient,
+          eventGroupMapBlobUri.key,
+          config.dataProvider,
+          ZoneId.of(marketTimeZoneId),
+          EventGroupActivityPublisherMetrics(Instrumentation.meter),
+        )
+      } else {
+        null
+      }
     val recovery =
       MissingImpressionMetadataRecovery(
         storageClient = storageClient,
@@ -268,6 +320,7 @@ class RecoverMissingImpressionMetadata : Runnable {
               impressionMetadataBatchSize = impressionMetadataBatchSize,
               modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
               errorIfGapsExist = config.errorIfGapsExist,
+              publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
             )
             .sync(doneBlobUri)
           filteringStorageClient.processedMetadataBlobKeys
