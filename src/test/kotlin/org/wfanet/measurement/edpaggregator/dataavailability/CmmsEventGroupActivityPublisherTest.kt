@@ -68,8 +68,7 @@ class CmmsEventGroupActivityPublisherTest {
               EventGroupActivityKey(
                   eventGroupKey.dataProviderId,
                   eventGroupKey.eventGroupId,
-                  "%04d-%02d-%02d"
-                    .format(activityDate.year, activityDate.month, activityDate.day),
+                  "%04d-%02d-%02d".format(activityDate.year, activityDate.month, activityDate.day),
                 )
                 .toName()
           }
@@ -107,7 +106,6 @@ class CmmsEventGroupActivityPublisherTest {
     val published =
       newPublisher(
           ZoneId.of("America/Los_Angeles"),
-          setOf("campaign"),
           EventGroupActivityPublisherMetrics(Instrumentation.meter),
         )
         .publish(listOf(metadata))
@@ -138,7 +136,7 @@ class CmmsEventGroupActivityPublisherTest {
   }
 
   @Test
-  fun `publish handles every configured entity hierarchy level`() = runBlocking {
+  fun `publish handles every mapped entity hierarchy level`() = runBlocking {
     seedMap(
       mapping("campaign", "123", "$DATA_PROVIDER/eventGroups/campaign-eg"),
       mapping("ad_set", "456", "$DATA_PROVIDER/eventGroups/ad-set-eg"),
@@ -164,11 +162,7 @@ class CmmsEventGroupActivityPublisherTest {
     }
 
     val published =
-      newPublisher(
-          ZoneId.of("UTC"),
-          setOf("campaign", "ad_set", "ad"),
-          EventGroupActivityPublisherMetrics(Instrumentation.meter),
-        )
+      newPublisher(ZoneId.of("UTC"), EventGroupActivityPublisherMetrics(Instrumentation.meter))
         .publish(listOf(metadata))
 
     assertThat(published).isEqualTo(3)
@@ -188,9 +182,7 @@ class CmmsEventGroupActivityPublisherTest {
   @Test
   fun `publish batches EventGroups without exceeding activity pair limit`() = runBlocking {
     seedMap(
-      *Array(501) { index ->
-        mapping("campaign", "123", "$DATA_PROVIDER/eventGroups/eg-$index")
-      }
+      *Array(501) { index -> mapping("campaign", "123", "$DATA_PROVIDER/eventGroups/eg-$index") }
     )
     val metadata = impressionMetadata {
       interval = interval {
@@ -204,11 +196,7 @@ class CmmsEventGroupActivityPublisherTest {
     }
 
     val published =
-      newPublisher(
-          ZoneId.of("UTC"),
-          setOf("campaign"),
-          EventGroupActivityPublisherMetrics(Instrumentation.meter),
-        )
+      newPublisher(ZoneId.of("UTC"), EventGroupActivityPublisherMetrics(Instrumentation.meter))
         .publish(listOf(metadata))
 
     assertThat(published).isEqualTo(1002)
@@ -236,15 +224,12 @@ class CmmsEventGroupActivityPublisherTest {
 
     newPublisher(
         ZoneId.of("America/Los_Angeles"),
-        setOf("campaign"),
         EventGroupActivityPublisherMetrics(Instrumentation.meter),
       )
       .publish(listOf(metadata))
 
     val request = argumentCaptor<AddEventGroupActivitiesRequest>()
-    verifyBlocking(eventGroupActivitiesServiceMock) {
-      addEventGroupActivities(request.capture())
-    }
+    verifyBlocking(eventGroupActivitiesServiceMock) { addEventGroupActivities(request.capture()) }
     assertThat(request.firstValue.datesList)
       .containsExactly(
         date {
@@ -276,7 +261,7 @@ class CmmsEventGroupActivityPublisherTest {
       }
     }
 
-    newPublisher(ZoneId.of("UTC"), setOf("campaign"), EventGroupActivityPublisherMetrics(Instrumentation.meter))
+    newPublisher(ZoneId.of("UTC"), EventGroupActivityPublisherMetrics(Instrumentation.meter))
       .publish(listOf(metadata))
 
     assertThat(persistedActivityNames)
@@ -310,14 +295,13 @@ class CmmsEventGroupActivityPublisherTest {
       }
 
       val published =
-        newPublisher(ZoneId.of("UTC"), setOf("campaign"), metricsEnvironment.metrics)
-          .publish(listOf(metadata))
+        newPublisher(ZoneId.of("UTC"), metricsEnvironment.metrics).publish(listOf(metadata))
 
       assertThat(published).isEqualTo(1)
       metricsEnvironment.metricReader.forceFlush()
       val metric =
         metricsEnvironment.metricExporter.finishedMetricItems.single {
-          it.name == MISSING_ENTITY_KEY_METRIC
+          it.name == MISSING_MAP_ENTITY_KEY_METRIC
         }
       val point = metric.longSumData.points.single()
       assertThat(point.value).isEqualTo(1)
@@ -327,26 +311,63 @@ class CmmsEventGroupActivityPublisherTest {
   }
 
   @Test
-  fun `publish skips entity keys absent from map`() = runBlocking {
+  fun `publish skips entity keys absent from map and records metric`() = runBlocking {
     seedMap(mapping("campaign", "other", "$DATA_PROVIDER/eventGroups/other-eg"))
-    val metadata = impressionMetadata {
-      interval = interval {
-        startTime = Timestamps.parse("2026-01-02T12:00:00Z")
-        endTime = Timestamps.parse("2026-01-02T13:00:00Z")
+    val metricsEnvironment = createMetricsEnvironment()
+    try {
+      val metadata = impressionMetadata {
+        interval = interval {
+          startTime = Timestamps.parse("2026-01-02T12:00:00Z")
+          endTime = Timestamps.parse("2026-01-02T13:00:00Z")
+        }
+        entityKeys += entityKey {
+          entityType = "campaign"
+          entityId = "missing"
+        }
       }
-      entityKeys += entityKey {
-        entityType = "campaign"
-        entityId = "missing"
-      }
+
+      val published =
+        newPublisher(ZoneId.of("UTC"), metricsEnvironment.metrics).publish(listOf(metadata))
+
+      assertThat(published).isEqualTo(0)
+      metricsEnvironment.metricReader.forceFlush()
+      val metric =
+        metricsEnvironment.metricExporter.finishedMetricItems.single {
+          it.name == UNMAPPED_METADATA_ENTITY_KEY_METRIC
+        }
+      assertThat(metric.longSumData.points.single().value).isEqualTo(1)
+      verifyBlocking(eventGroupActivitiesServiceMock, never()) { addEventGroupActivities(any()) }
+    } finally {
+      metricsEnvironment.close()
     }
+  }
 
-    val published =
-      newPublisher(ZoneId.of("UTC"), setOf("campaign"), EventGroupActivityPublisherMetrics(Instrumentation.meter))
-        .publish(listOf(metadata))
+  @Test
+  fun `publish ignores unmapped entity key types`() = runBlocking {
+    seedMap(mapping("campaign", "123", "$DATA_PROVIDER/eventGroups/campaign-eg"))
+    val metricsEnvironment = createMetricsEnvironment()
+    try {
+      val metadata = impressionMetadata {
+        interval = interval {
+          startTime = Timestamps.parse("2026-01-02T12:00:00Z")
+          endTime = Timestamps.parse("2026-01-02T13:00:00Z")
+        }
+        entityKeys += entityKey {
+          entityType = "unrelated"
+          entityId = "456"
+        }
+      }
 
-    assertThat(published).isEqualTo(0)
-    verifyBlocking(eventGroupActivitiesServiceMock, never()) {
-      addEventGroupActivities(any())
+      val published =
+        newPublisher(ZoneId.of("UTC"), metricsEnvironment.metrics).publish(listOf(metadata))
+
+      assertThat(published).isEqualTo(0)
+      metricsEnvironment.metricReader.forceFlush()
+      assertThat(metricsEnvironment.metricExporter.finishedMetricItems.map { it.name })
+        .doesNotContain(UNMAPPED_METADATA_ENTITY_KEY_METRIC)
+      verifyBlocking(eventGroupActivitiesServiceMock, never()) { addEventGroupActivities(any()) }
+    } finally {
+      metricsEnvironment.close()
     }
   }
 
@@ -367,13 +388,11 @@ class CmmsEventGroupActivityPublisherTest {
     }
 
     val published =
-      newPublisher(ZoneId.of("UTC"), setOf("campaign"), EventGroupActivityPublisherMetrics(Instrumentation.meter))
+      newPublisher(ZoneId.of("UTC"), EventGroupActivityPublisherMetrics(Instrumentation.meter))
         .publish(listOf(metadata))
 
     assertThat(published).isEqualTo(0)
-    verifyBlocking(eventGroupActivitiesServiceMock, never()) {
-      addEventGroupActivities(any())
-    }
+    verifyBlocking(eventGroupActivitiesServiceMock, never()) { addEventGroupActivities(any()) }
   }
 
   private suspend fun seedMap(vararg mappings: MappedEventGroup) {
@@ -394,7 +413,6 @@ class CmmsEventGroupActivityPublisherTest {
 
   private fun newPublisher(
     marketTimeZone: ZoneId,
-    entityKeyTypes: Set<String>,
     metrics: EventGroupActivityPublisherMetrics,
   ): CmmsEventGroupActivityPublisher =
     CmmsEventGroupActivityPublisher(
@@ -402,7 +420,6 @@ class CmmsEventGroupActivityPublisherTest {
       eventGroupMapStorageClient = mapStorageClient,
       eventGroupMapBlobKey = MAP_BLOB_KEY,
       dataProviderName = DATA_PROVIDER,
-      entityKeyTypes = entityKeyTypes,
       marketTimeZone = marketTimeZone,
       metrics = metrics,
     )
@@ -433,7 +450,9 @@ class CmmsEventGroupActivityPublisherTest {
   companion object {
     private const val DATA_PROVIDER = "dataProviders/dp1"
     private const val MAP_BLOB_KEY = "event-groups/map.bin"
-    private const val MISSING_ENTITY_KEY_METRIC =
+    private const val MISSING_MAP_ENTITY_KEY_METRIC =
       "edpa.event_group_activity.map_records_missing_entity_key"
+    private const val UNMAPPED_METADATA_ENTITY_KEY_METRIC =
+      "edpa.event_group_activity.unmapped_entity_keys"
   }
 }

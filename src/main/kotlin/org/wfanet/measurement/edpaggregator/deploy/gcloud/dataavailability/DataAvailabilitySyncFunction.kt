@@ -49,8 +49,8 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
-import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
@@ -141,9 +141,6 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       val eventGroupActivityPublisher =
         if (dataAvailabilitySyncConfig.hasEventGroupActivityPublishing()) {
           val publishingConfig = dataAvailabilitySyncConfig.eventGroupActivityPublishing
-          require(publishingConfig.entityKeyTypesList.isNotEmpty()) {
-            "event_group_activity_publishing.entity_key_types must not be empty"
-          }
           require(publishingConfig.marketTimeZone.isNotEmpty()) {
             "event_group_activity_publishing.market_time_zone must not be empty"
           }
@@ -174,7 +171,6 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             eventGroupMapStorageClient,
             eventGroupMapBlobUri.key,
             dataAvailabilitySyncConfig.dataProvider,
-            publishingConfig.entityKeyTypesList.toSet(),
             ZoneId.of(publishingConfig.marketTimeZone),
             EventGroupActivityPublisherMetrics(Instrumentation.meter),
           )

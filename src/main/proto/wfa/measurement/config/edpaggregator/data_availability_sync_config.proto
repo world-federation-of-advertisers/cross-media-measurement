@@ -75,23 +75,18 @@ message DataAvailabilitySyncConfig {
   // and DELETE operations. Do not use SYNC mode: it treats its input as
   // authoritative and can delete dates published here.
   message EventGroupActivityPublishingConfig {
-    reserved 2;
-
-    // Entity key types whose values identify EventGroups.
-    repeated string entity_key_types = 1;
-
     // IANA time zone ID for the market whose calendar dates define EventGroup
     // activity (e.g., "UTC", "America/New_York"). Every market calendar date
     // containing either interval endpoint or any time between them is
     // published. Including both endpoint dates intentionally favors
     // over-reporting activity over omitting a potentially active date.
-    string market_time_zone = 3;
+    string market_time_zone = 1;
 
     // Blob URI containing `MappedEventGroup` records in Mesos RecordIO format.
-    string event_group_map_blob_uri = 4;
+    string event_group_map_blob_uri = 2;
 
     // Storage containing the EventGroup map.
-    StorageParams event_group_map_storage = 5;
+    StorageParams event_group_map_storage = 3;
   }
 
   // List of model lines to use for a single mapping entry.

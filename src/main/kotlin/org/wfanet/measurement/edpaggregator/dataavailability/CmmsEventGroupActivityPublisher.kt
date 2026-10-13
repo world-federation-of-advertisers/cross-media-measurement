@@ -59,22 +59,20 @@ class EventGroupActivityPublisherMetrics(meter: Meter) {
  *
  * Each metadata interval is expanded to the local calendar dates containing either endpoint or any
  * time between them in [marketTimeZone]. Including both endpoint dates intentionally favors
- * over-reporting activity over omitting a potentially active date. Metadata entity keys are joined
- * to EventGroup resource names in the Mesos RecordIO map exposed by [eventGroupMapStorageClient].
- * Existing historical activity is never deleted.
+ * over-reporting activity over omitting a potentially active date. All metadata entity keys are
+ * joined to EventGroup resource names in the Mesos RecordIO map exposed by
+ * [eventGroupMapStorageClient]. Existing historical activity is never deleted.
  */
 class CmmsEventGroupActivityPublisher(
   private val eventGroupActivitiesClient: EventGroupActivitiesCoroutineStub,
   private val eventGroupMapStorageClient: StorageClient,
   private val eventGroupMapBlobKey: String,
   private val dataProviderName: String,
-  private val entityKeyTypes: Set<String>,
   private val marketTimeZone: ZoneId,
   private val metrics: EventGroupActivityPublisherMetrics,
 ) {
   init {
     require(eventGroupMapBlobKey.isNotEmpty()) { "eventGroupMapBlobKey must not be empty" }
-    require(entityKeyTypes.isNotEmpty()) { "entityKeyTypes must not be empty" }
   }
 
   /** Publishes activity and returns the number of distinct EventGroup/date pairs written. */
@@ -83,19 +81,20 @@ class CmmsEventGroupActivityPublisher(
     for (metadata in impressionMetadata) {
       val activityDates = metadata.activityDates()
       for (entityKey in metadata.entityKeysList) {
-        if (entityKey.entityType in entityKeyTypes) {
-          activitiesByEntityKey
-            .getOrPut(EntityKey(entityKey.entityType, entityKey.entityId)) { mutableSetOf() }
-            .addAll(activityDates)
-        }
+        activitiesByEntityKey
+          .getOrPut(EntityKey(entityKey.entityType, entityKey.entityId)) { mutableSetOf() }
+          .addAll(activityDates)
       }
     }
     if (activitiesByEntityKey.isEmpty()) {
       return 0
     }
 
-    val eventGroupsByEntityKey = loadEventGroupMap(activitiesByEntityKey.keys)
-    val unmatchedEntityKeyCount = activitiesByEntityKey.keys.count { it !in eventGroupsByEntityKey }
+    val eventGroupMap = loadEventGroupMap(activitiesByEntityKey.keys)
+    val unmatchedEntityKeyCount =
+      activitiesByEntityKey.keys.count {
+        it.entityType in eventGroupMap.entityTypes && it !in eventGroupMap.eventGroupsByEntityKey
+      }
     if (unmatchedEntityKeyCount > 0) {
       logger.severe(
         "Skipped $unmatchedEntityKeyCount impression metadata entity keys without EventGroup " +
@@ -109,7 +108,7 @@ class CmmsEventGroupActivityPublisher(
 
     val datesByEventGroup = mutableMapOf<String, MutableSet<LocalDate>>()
     for ((entityKey, dates) in activitiesByEntityKey) {
-      for (eventGroupName in eventGroupsByEntityKey[entityKey].orEmpty()) {
+      for (eventGroupName in eventGroupMap.eventGroupsByEntityKey[entityKey].orEmpty()) {
         datesByEventGroup.getOrPut(eventGroupName) { mutableSetOf() }.addAll(dates)
       }
     }
@@ -129,14 +128,13 @@ class CmmsEventGroupActivityPublisher(
     return datesByEventGroup.values.sumOf { it.size }
   }
 
-  private suspend fun loadEventGroupMap(
-    requestedEntityKeys: Set<EntityKey>
-  ): Map<EntityKey, Set<String>> {
+  private suspend fun loadEventGroupMap(requestedEntityKeys: Set<EntityKey>): LoadedEventGroupMap {
     val blob =
       checkNotNull(eventGroupMapStorageClient.getBlob(eventGroupMapBlobKey)) {
         "EventGroup map blob not found: $eventGroupMapBlobKey"
       }
     val eventGroupsByEntityKey = mutableMapOf<EntityKey, MutableSet<String>>()
+    val entityTypes = mutableSetOf<String>()
     var missingEntityKeyCount = 0L
     blob.read().collect { serializedRecord ->
       val mappedEventGroup = MappedEventGroup.parseFrom(serializedRecord)
@@ -151,6 +149,7 @@ class CmmsEventGroupActivityPublisher(
 
       val entityKey =
         EntityKey(mappedEventGroup.entityKey.entityType, mappedEventGroup.entityKey.entityId)
+      entityTypes += entityKey.entityType
       if (entityKey in requestedEntityKeys) {
         eventGroupsByEntityKey
           .getOrPut(entityKey) { mutableSetOf() }
@@ -168,7 +167,7 @@ class CmmsEventGroupActivityPublisher(
         Attributes.of(EventGroupActivityPublisherMetrics.DATA_PROVIDER_NAME_ATTR, dataProviderName),
       )
     }
-    return eventGroupsByEntityKey
+    return LoadedEventGroupMap(eventGroupsByEntityKey, entityTypes)
   }
 
   private suspend fun addActivities(eventGroupNames: List<String>, dates: List<LocalDate>) {
@@ -189,6 +188,11 @@ class CmmsEventGroupActivityPublisher(
   }
 
   private data class EntityKey(val entityType: String, val entityId: String)
+
+  private data class LoadedEventGroupMap(
+    val eventGroupsByEntityKey: Map<EntityKey, Set<String>>,
+    val entityTypes: Set<String>,
+  )
 
   private fun ImpressionMetadata.activityDates(): Set<LocalDate> {
     val start: Instant = interval.startTime.toInstant()
