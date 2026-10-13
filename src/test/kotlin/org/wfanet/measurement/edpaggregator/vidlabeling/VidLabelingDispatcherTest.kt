@@ -33,10 +33,16 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -68,6 +74,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
@@ -106,6 +113,29 @@ import org.wfanet.measurement.storage.StorageClient
 
 @RunWith(JUnit4::class)
 class VidLabelingDispatcherTest {
+  private val logRecords = mutableListOf<LogRecord>()
+  private val rootLogger = Logger.getLogger("")
+  private val logHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        logRecords += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
+
+  @Before
+  fun initLogging() {
+    logRecords.clear()
+    rootLogger.addHandler(logHandler)
+  }
+
+  @After
+  fun cleanupLogging() {
+    rootLogger.removeHandler(logHandler)
+  }
 
   private val modelLinesService: ModelLinesGrpcKt.ModelLinesCoroutineImplBase = mockService()
   private val modelRolloutsService: ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase =
@@ -564,8 +594,9 @@ class VidLabelingDispatcherTest {
             )
           }
         )
-      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      val outcome = dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
+      assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.SUCCEEDED)
       val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
       verifyBlocking(rawImpressionUploadFileService) {
         batchCreateRawImpressionUploadFiles(requestCaptor.capture())
@@ -1302,7 +1333,7 @@ class VidLabelingDispatcherTest {
           rpcThrottlers =
             VidLabelingRpcThrottlersTestHelper.alwaysReady().copy(metadataWrite = metadataWrite)
         )
-      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      val outcome = dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
       verifyBlocking(rawImpressionUploadService) { createRawImpressionUpload(any()) }
       verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
@@ -1312,6 +1343,7 @@ class VidLabelingDispatcherTest {
       verifyBlocking(rawImpressionUploadService) {
         markRawImpressionUploadRegistrationComplete(any())
       }
+      assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.NO_WORK)
       assertThat(metadataWrite.onReadyCalls).isEqualTo(3)
     }
 
@@ -1862,11 +1894,13 @@ class VidLabelingDispatcherTest {
           }
         )
 
-      createDispatcher(
-          readDoneBlobMetadata = { RawImpressionBlobMetadata(900L, 0L, DONE_BLOB_CREATE_TIME) }
-        )
-        .upload(DONE_BLOB_PATH, doneBlobGeneration = 900L)
+      val outcome =
+        createDispatcher(
+            readDoneBlobMetadata = { RawImpressionBlobMetadata(900L, 0L, DONE_BLOB_CREATE_TIME) }
+          )
+          .upload(DONE_BLOB_PATH, doneBlobGeneration = 900L)
 
+      assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.SUPERSEDED)
       verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
       verifyBlocking(rawImpressionUploadFileService, never()) {
         batchCreateRawImpressionUploadFiles(any())
@@ -1881,15 +1915,43 @@ class VidLabelingDispatcherTest {
       stubRawImpressionUploadCreation()
       stubFullResolutionChain(MODEL_LINE_1)
 
-      createDispatcher(
-          readDoneBlobMetadata = {
-            RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME.plusSeconds(1))
-          }
-        )
-        .upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
+      val outcome =
+        createDispatcher(
+            readDoneBlobMetadata = {
+              RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME.plusSeconds(1))
+            }
+          )
+          .upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
 
+      assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.STALE)
+      val lifecycleLog =
+        logRecords.single { it.message.contains("event=edpa.vid_labeling.upload_registered ") }
+      assertThat(lifecycleLog.message).contains("xmm.lifecycle.stage=upload_registration")
+      assertThat(lifecycleLog.message).contains("xmm.outcome=stale")
+      assertThat(lifecycleLog.message)
+        .contains("xmm.gcs.object.path_hash=" + VidLabelingTraceLogging.sha256(DONE_BLOB_PATH))
+      assertThat(lifecycleLog.message).doesNotContain(DONE_BLOB_PATH)
       verify(storageClient, never()).listBlobs(any())
       verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    }
+
+  @Test
+  fun `upload rethrows cancellation without recording application failure`() =
+    runBlocking<Unit> {
+      val dispatcher =
+        createDispatcher(readDoneBlobMetadata = { throw CancellationException("cancelled") })
+
+      assertFailsWith<CancellationException> {
+        dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = DONE_BLOB_GENERATION)
+      }
+
+      assertThat(
+          logRecords.none {
+            it.message.contains("event=edpa.vid_labeling.upload_registered ") &&
+              it.message.contains("xmm.outcome=failed")
+          }
+        )
+        .isTrue()
     }
 
   @Test
@@ -1899,18 +1961,20 @@ class VidLabelingDispatcherTest {
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
       var metadataReadCount = 0
 
-      createDispatcher(
-          readDoneBlobMetadata = {
-            metadataReadCount++
-            if (metadataReadCount == 1) {
-              RawImpressionBlobMetadata(150L, 0L, DONE_BLOB_CREATE_TIME)
-            } else {
-              RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME.plusSeconds(1))
+      val outcome =
+        createDispatcher(
+            readDoneBlobMetadata = {
+              metadataReadCount++
+              if (metadataReadCount == 1) {
+                RawImpressionBlobMetadata(150L, 0L, DONE_BLOB_CREATE_TIME)
+              } else {
+                RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME.plusSeconds(1))
+              }
             }
-          }
-        )
-        .upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
+          )
+          .upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
 
+      assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.STALE)
       verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
     }
 

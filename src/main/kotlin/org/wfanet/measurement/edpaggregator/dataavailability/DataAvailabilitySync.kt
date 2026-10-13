@@ -18,13 +18,16 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
+import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
 import kotlin.time.TimeSource
@@ -40,8 +43,11 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
@@ -120,6 +126,12 @@ class DataAvailabilitySync(
   private val errorIfGapsExist: Boolean,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
+  enum class Outcome {
+    NO_WORK,
+    BLOCKED_GAPS,
+    PUBLISHED,
+  }
+
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
 
   /** Holds an [ImpressionMetadata] along with its associated impressions blob key. */
@@ -149,7 +161,7 @@ class DataAvailabilitySync(
    *
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
    */
-  suspend fun sync(doneBlobPath: String) {
+  suspend fun sync(doneBlobPath: String): Outcome {
     // Start timing for sync duration
     val syncStartTime = TimeSource.Monotonic.markNow()
 
@@ -176,7 +188,7 @@ class DataAvailabilitySync(
         logger.info("There were no valid impressions metadata.")
         // Record sync duration even if no records
         recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
-        return
+        return Outcome.NO_WORK
       }
 
       // Count total records
@@ -195,6 +207,14 @@ class DataAvailabilitySync(
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
         saveImpressionMetadata(metadataWithBlobKeys)
       }
+      Span.current()
+        .addEvent(
+          "edpa.data_availability.impression_metadata_scanned",
+          Attributes.builder()
+            .put(RECORD_COUNT_ATTR, totalRecords.toLong())
+            .put(XmmTraceAttributes.OUTCOME, "succeeded")
+            .build(),
+        )
 
       // Record metadata-store completion separately. Disjoint marker writes prevent an older
       // overlapping attempt from overwriting a newer attempt's ID and falsely completing it.
@@ -283,8 +303,27 @@ class DataAvailabilitySync(
           DataAvailabilityMonitorMetrics.STATUS_HEALTHY,
           healthyCount,
         )
+        if (gaps.isNotEmpty() || inRangeUnfinalized) {
+          VidLabelingTraceLogging.log(
+            logger,
+            Level.WARNING,
+            "edpa.data_availability.gap_decision",
+            VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+            VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLineKey.toName(),
+            XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "data_availability_publish",
+            XmmTraceAttributes.OUTCOME_STRING to if (errorIfGapsExist) "blocked" else "allowed",
+          )
+        }
       }
       if (blockedDetails.isNotEmpty()) {
+        Span.current()
+          .addEvent(
+            "edpa.data_availability.gap_decision",
+            Attributes.of(
+              XmmTraceAttributes.OUTCOME,
+              if (errorIfGapsExist) "blocked" else "allowed",
+            ),
+          )
         logger.warning(
           "Date gaps or in-range unfinalized dates detected in $edpImpressionPath. " +
             blockedDetails.joinToString("; ")
@@ -295,7 +334,7 @@ class DataAvailabilitySync(
               "dates in $edpImpressionPath."
           )
           recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
-          return
+          return Outcome.BLOCKED_GAPS
         }
       }
       throttler.onReady {
@@ -307,6 +346,9 @@ class DataAvailabilitySync(
             }
           )
         } catch (e: StatusException) {
+          for (entry in availabilityEntries) {
+            logAvailabilityInterval(entry.key, entry.value, "failed", e)
+          }
           // Record CMMS RPC error
           metrics.cmmsRpcErrorsCounter.add(
             1,
@@ -322,6 +364,14 @@ class DataAvailabilitySync(
           throw Exception("Error replacing DataAvailability intervals", e)
         }
       }
+      Span.current()
+        .addEvent(
+          "edpa.data_availability.kingdom_published",
+          Attributes.of(XmmTraceAttributes.OUTCOME, "succeeded"),
+        )
+      for (entry in availabilityEntries) {
+        logAvailabilityInterval(entry.key, entry.value, "published")
+      }
 
       // This marker is the durable completion signal for both phases of synchronization. Only
       // update the publication ID here. If another attempt has written a newer sync ID while this
@@ -330,6 +380,11 @@ class DataAvailabilitySync(
         blobKey = doneBlobUri.key,
         metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),
       )
+      Span.current()
+        .addEvent(
+          "edpa.data_availability.sync_marker_written",
+          Attributes.of(XmmTraceAttributes.OUTCOME, "succeeded"),
+        )
 
       // Record successful sync
       recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
@@ -344,6 +399,7 @@ class DataAvailabilitySync(
           SYNC_STATUS_SUCCESS,
         ),
       )
+      return Outcome.PUBLISHED
     } catch (e: Exception) {
       // Record sync duration even on failure
       recordSyncDuration(syncStartTime, SYNC_STATUS_FAILED)
@@ -419,59 +475,88 @@ class DataAvailabilitySync(
       // BatchCreate new entries, chunked at the RPC boundary
       val createResponses =
         toCreate.chunked(impressionMetadataBatchSize).flatMap { createChunk ->
-          throttler
-            .onReady {
-              impressionMetadataServiceStub.batchCreateImpressionMetadata(
-                batchCreateImpressionMetadataRequest {
-                  parent = dataProviderName
-                  createChunk.forEach { item ->
-                    requests += createImpressionMetadataRequest {
-                      parent = dataProviderName
-                      impressionMetadata = item.impressionMetadata
-                      requestId = contentAwareRequestId(item.impressionMetadata)
+          runMetadataAction(
+            action = "created",
+            attempted = createChunk.map { it.impressionMetadata },
+          ) {
+            throttler
+              .onReady {
+                impressionMetadataServiceStub.batchCreateImpressionMetadata(
+                  batchCreateImpressionMetadataRequest {
+                    parent = dataProviderName
+                    createChunk.forEach { item ->
+                      requests += createImpressionMetadataRequest {
+                        parent = dataProviderName
+                        impressionMetadata = item.impressionMetadata
+                        requestId = contentAwareRequestId(item.impressionMetadata)
+                      }
                     }
                   }
-                }
-              )
-            }
-            .impressionMetadataList
+                )
+              }
+              .impressionMetadataList
+          }
         }
 
       // BatchUpdate changed entries, chunked at the RPC boundary
       val updateResponses =
         toUpdate.chunked(impressionMetadataBatchSize).flatMap { updateChunk ->
-          throttler
-            .onReady {
-              impressionMetadataServiceStub.batchUpdateImpressionMetadata(
-                batchUpdateImpressionMetadataRequest {
-                  parent = dataProviderName
-                  updateChunk.forEach { item ->
-                    requests += updateImpressionMetadataRequest {
-                      impressionMetadata = item.impressionMetadata
-                      requestId = contentAwareRequestId(item.impressionMetadata)
+          runMetadataAction(
+            action = "updated",
+            attempted = updateChunk.map { it.impressionMetadata },
+          ) {
+            throttler
+              .onReady {
+                impressionMetadataServiceStub.batchUpdateImpressionMetadata(
+                  batchUpdateImpressionMetadataRequest {
+                    parent = dataProviderName
+                    updateChunk.forEach { item ->
+                      requests += updateImpressionMetadataRequest {
+                        impressionMetadata = item.impressionMetadata
+                        requestId = contentAwareRequestId(item.impressionMetadata)
+                      }
                     }
                   }
-                }
-              )
-            }
-            .impressionMetadataList
+                )
+              }
+              .impressionMetadataList
+          }
         }
 
       // Restore soft-deleted entries only after their latest content has been persisted. This
       // prevents stale metadata from becoming visible if an update fails.
       val restoreResponses =
         toRestore.chunked(impressionMetadataBatchSize).flatMap { restoreChunk ->
-          throttler
-            .onReady {
-              impressionMetadataServiceStub.batchUndeleteImpressionMetadata(
-                batchUndeleteImpressionMetadataRequest {
-                  parent = dataProviderName
-                  names += restoreChunk.map { it.name }
-                }
-              )
-            }
-            .impressionMetadataList
+          runMetadataAction(action = "restored", attempted = restoreChunk) {
+            throttler
+              .onReady {
+                impressionMetadataServiceStub.batchUndeleteImpressionMetadata(
+                  batchUndeleteImpressionMetadataRequest {
+                    parent = dataProviderName
+                    names += restoreChunk.map { it.name }
+                  }
+                )
+              }
+              .impressionMetadataList
+          }
         }
+      val unchangedCount =
+        impressionMetadataList.size -
+          (toCreate.map { it.impressionMetadata.blobUri } +
+              toUpdate.map { it.impressionMetadata.blobUri } +
+              toRestore.map { it.blobUri })
+            .toSet()
+            .size
+      Span.current()
+        .addEvent(
+          "edpa.data_availability.impression_metadata_actions",
+          Attributes.builder()
+            .put(CREATED_COUNT_ATTR, createResponses.size.toLong())
+            .put(UPDATED_COUNT_ATTR, updateResponses.size.toLong())
+            .put(RESTORED_COUNT_ATTR, restoreResponses.size.toLong())
+            .put(UNCHANGED_COUNT_ATTR, unchangedCount.toLong())
+            .build(),
+        )
 
       // Set GCS object metadata on every scanned metadata blob — not just newly
       // created/updated ones. A re-sync of a date whose metadata content is unchanged would
@@ -484,6 +569,16 @@ class DataAvailabilitySync(
           createResponses.associateBy { it.blobUri } +
           restoreResponses.associateBy { it.blobUri } +
           updateResponses.associateBy { it.blobUri })
+      val changedBlobUris =
+        (toCreate.map { it.impressionMetadata.blobUri } +
+            toUpdate.map { it.impressionMetadata.blobUri } +
+            toRestore.map { it.blobUri })
+          .toSet()
+      for ((blobUri, existing) in existingByBlobUri) {
+        if (blobUri !in changedBlobUris) {
+          logImpressionMetadata(existing, "unchanged", "succeeded")
+        }
+      }
       for (item in impressionMetadataList) {
         val blobUri = item.impressionMetadata.blobUri
         val resultMetadata = resourceIdByBlobUri.getValue(blobUri)
@@ -510,6 +605,72 @@ class DataAvailabilitySync(
     } catch (e: StatusException) {
       throw Exception("Error saving Impressions Metadata", e)
     }
+  }
+
+  private suspend fun runMetadataAction(
+    action: String,
+    attempted: List<ImpressionMetadata>,
+    block: suspend () -> List<ImpressionMetadata>,
+  ): List<ImpressionMetadata> {
+    return try {
+      block().also { persisted ->
+        for (impressionMetadata in persisted) {
+          logImpressionMetadata(impressionMetadata, action, "succeeded")
+        }
+      }
+    } catch (e: StatusException) {
+      for (impressionMetadata in attempted) {
+        logImpressionMetadata(impressionMetadata, action, "failed", e)
+      }
+      throw Exception("Error applying ImpressionMetadata action $action", e)
+    }
+  }
+
+  private fun logImpressionMetadata(
+    impressionMetadata: ImpressionMetadata,
+    action: String,
+    outcome: String,
+    error: Throwable? = null,
+  ) {
+    VidLabelingTraceLogging.log(
+      logger,
+      if (error == null) Level.INFO else Level.WARNING,
+      "edpa.data_availability.impression_metadata",
+      VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+      VidLabelingTraceAttributes.IMPRESSION_METADATA_NAME_STRING to
+        impressionMetadata.name.takeIf { it.isNotEmpty() },
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to impressionMetadata.modelLine,
+      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to
+        VidLabelingTraceAttributes.gcsObjectPathHash(impressionMetadata.blobUri),
+      VidLabelingTraceAttributes.IMPRESSION_METADATA_ACTION_STRING to action,
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "data_availability_metadata",
+      XmmTraceAttributes.OUTCOME_STRING to outcome,
+      XmmTraceAttributes.ERROR_TYPE_STRING to error?.let(XmmTraceAttributes::errorType),
+      XmmTraceAttributes.ERROR_CODE_STRING to error?.let(XmmTraceAttributes::errorCode),
+    )
+  }
+
+  private fun logAvailabilityInterval(
+    modelLine: String,
+    interval: com.google.type.Interval,
+    outcome: String,
+    error: Throwable? = null,
+  ) {
+    VidLabelingTraceLogging.log(
+      logger,
+      if (error == null) Level.INFO else Level.WARNING,
+      "edpa.data_availability.interval_published",
+      VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+      VidLabelingTraceAttributes.AVAILABILITY_INTERVAL_START_STRING to
+        Timestamps.toString(interval.startTime),
+      VidLabelingTraceAttributes.AVAILABILITY_INTERVAL_END_STRING to
+        Timestamps.toString(interval.endTime),
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "data_availability_publish",
+      XmmTraceAttributes.OUTCOME_STRING to outcome,
+      XmmTraceAttributes.ERROR_TYPE_STRING to error?.let(XmmTraceAttributes::errorType),
+      XmmTraceAttributes.ERROR_CODE_STRING to error?.let(XmmTraceAttributes::errorCode),
+    )
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
@@ -732,6 +893,12 @@ class DataAvailabilitySync(
   }
 
   companion object {
+    private val RECORD_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.count")
+    private val CREATED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.created")
+    private val UPDATED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.updated")
+    private val RESTORED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.restored")
+    private val UNCHANGED_COUNT_ATTR =
+      AttributeKey.longKey("xmm.edpa.impression_metadata.unchanged")
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val DATA_PROVIDER_KEY_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")

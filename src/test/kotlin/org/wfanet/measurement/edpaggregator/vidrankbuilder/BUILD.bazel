@@ -41,7 +41,11 @@ kt_jvm_test(
     srcs = ["VidRankBuilderTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.VidRankBuilderTest",
     deps = [
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/sdk",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:subpool_ranker",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:vid_rank_builder",
@@ -57,10 +61,12 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
