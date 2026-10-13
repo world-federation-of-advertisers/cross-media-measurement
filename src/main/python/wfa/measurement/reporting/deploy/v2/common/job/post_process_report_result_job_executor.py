@@ -64,7 +64,7 @@ flags.DEFINE_alias("cert-collection-file", "cert_collection_file")
 _LOG_NOISE_CORRECTION_VALUES = flags.DEFINE_boolean(
     "log_noise_correction_values",
     False,
-    "Log DP-noised pre-correction and corrected measurement values. This may "
+    "Log pre-correction report-result values and corrected values. These may "
     "include reach, impression, frequency, and correction values.",
 )
 flags.DEFINE_alias(

@@ -19,6 +19,8 @@ from unittest.mock import ANY
 
 from noiseninja import noise_correction_value_logging
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import (
+    NoiseCorrectionFailure, )
+from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import (
     PostProcessReportResult, )
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import compute_basic_metric_set
 from tools.potential_direct_result_minimum_thresholds import (
@@ -695,52 +697,93 @@ class PostProcessReportResultTest(unittest.TestCase):
         )
         result.pre_correction_report_summary_v2.CopyFrom(report_summary)
         mock_processor_class.return_value.process.return_value = result
-        return PostProcessReportResult(
+        processor = PostProcessReportResult(
             self.mock_report_results_stub, self.mock_reporting_sets_stub
         )
+        return processor, report_summary, result
 
     @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
-    def test_failed_correction_logs_status_without_values_by_default(
+    def test_failed_correction_raises_typed_failure(
         self, mock_processor_class
     ):
-        processor = self._set_up_failed_post_processor(mock_processor_class)
+        processor, unused_summary, expected_result = (
+            self._set_up_failed_post_processor(mock_processor_class)
+        )
 
-        with self.assertLogs(level='WARNING') as captured:
-            with self.assertRaisesRegex(ValueError, 'SOLUTION_NOT_FOUND'):
+        with self.assertRaises(NoiseCorrectionFailure) as raised:
+            processor.process(
+                self.cmms_measurement_consumer_id,
+                self.external_report_result_id,
+                [],
+            )
+
+        self.assertEqual(
+            len(raised.exception.summary_results),
+            mock_processor_class.call_count,
+        )
+        self.assertTrue(
+            all(
+                result.result == expected_result
+                for result in raised.exception.summary_results
+            )
+        )
+        self.assertNotIn('918273645', str(raised.exception))
+        self.assertNotIn('12.5', str(raised.exception))
+
+    @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
+    def test_all_summaries_are_processed_and_internal_errors_are_preserved(
+        self, mock_processor_class
+    ):
+        processor, first_summary, unused_result = (
+            self._set_up_failed_post_processor(mock_processor_class)
+        )
+        second_summary = report_summary_v2_pb2.ReportSummaryV2(
+            cmms_measurement_consumer_id="mc-diagnostic",
+            external_report_result_id=987654321,
+        )
+        successful_result = (
+            report_post_processor_result_pb2.ReportPostProcessorResult(
+                status=report_post_processor_result_pb2.ReportPostProcessorStatus(
+                    status_code=(
+                        report_post_processor_result_pb2.ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS
+                    )
+                )
+            )
+        )
+        successful_result.pre_correction_report_summary_v2.CopyFrom(
+            second_summary
+        )
+        mock_processor_class.return_value.process.side_effect = [
+            RuntimeError("synthetic internal failure"),
+            successful_result,
+        ]
+
+        with patch(
+            'src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.report_conversion.report_summaries_from_reporting_set_results',
+            return_value=[first_summary, second_summary],
+        ):
+            with self.assertRaises(NoiseCorrectionFailure) as raised:
                 processor.process(
                     self.cmms_measurement_consumer_id,
                     self.external_report_result_id,
                     [],
                 )
 
-        logs = '\n'.join(captured.output)
-        self.assertIn('measurement_values_logging_enabled=false', logs)
-        self.assertIn('status=SOLUTION_NOT_FOUND', logs)
-        self.assertIn('primal_equality_residual=3.5', logs)
-        self.assertNotIn('918273645', logs)
-        self.assertNotIn('12.5', logs)
-
-    @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
-    def test_failed_correction_logs_pre_correction_values_when_enabled(
-        self, mock_processor_class
-    ):
-        processor = self._set_up_failed_post_processor(mock_processor_class)
-
-        with noise_correction_value_logging.measurement_value_logging(True):
-            with self.assertLogs(level='WARNING') as captured:
-                with self.assertRaisesRegex(ValueError, 'SOLUTION_NOT_FOUND'):
-                    processor.process(
-                        self.cmms_measurement_consumer_id,
-                        self.external_report_result_id,
-                        [],
-                    )
-
-        logs = '\n'.join(captured.output)
-        self.assertIn('measurement_values_logging_enabled=true', logs)
-        self.assertIn('pre_correction_report_summary_v2', logs)
-        self.assertIn('918273645', logs)
-        self.assertIn('12.5', logs)
-        self.assertIn('reporting-set-1', logs)
+        self.assertEqual(mock_processor_class.call_count, 2)
+        self.assertEqual(len(raised.exception.summary_results), 2)
+        internal_error = raised.exception.summary_results[0]
+        self.assertEqual(
+            internal_error.result.status.status_code,
+            report_post_processor_result_pb2.ReportPostProcessorStatus.INTERNAL_ERROR,
+        )
+        self.assertEqual(internal_error.internal_error_type, "RuntimeError")
+        self.assertEqual(
+            internal_error.result.pre_correction_report_summary_v2,
+            first_summary,
+        )
+        self.assertEqual(
+            raised.exception.summary_results[1].result, successful_result
+        )
 
     def test_post_process_report_result_raises_on_large_corrections(self):
         # Loads a real fixture whose noisy values force the solver to apply
@@ -760,13 +803,18 @@ class PostProcessReportResultTest(unittest.TestCase):
         report_result_processor = PostProcessReportResult(
             self.mock_report_results_stub, self.mock_reporting_sets_stub)
 
-        with self.assertRaisesRegex(ValueError, 'large corrections') as raised:
+        with self.assertRaises(NoiseCorrectionFailure) as raised:
             report_result_processor.process(
                 self.cmms_measurement_consumer_id,
                 self.external_report_result_id, [])
 
         message = str(raised.exception)
-        self.assertIn('count=', message)
+        self.assertTrue(
+            any(
+                summary_result.result.large_corrections
+                for summary_result in raised.exception.summary_results
+            )
+        )
         self.assertNotIn('original_value', message)
         self.assertNotIn('corrected_value', message)
         self.assertNotIn('sigma', message)

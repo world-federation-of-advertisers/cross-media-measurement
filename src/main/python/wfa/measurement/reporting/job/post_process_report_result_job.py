@@ -206,8 +206,8 @@ class PostProcessReportResultJob:
         Args:
             internal_reporting_channel: A gRPC channel to the internal reporting
                 server.
-            log_noise_correction_values: Whether to log DP-noised and corrected
-                measurement values.
+            log_noise_correction_values: Whether to log pre-correction
+                report-result values and corrected values.
             ami_mrc_exempted_edps: The list of EDPs resource name for which the
                 AMI >= MRC consistency checks are disabled.
             potential_direct_result_minimum_thresholds: Conservative upper
@@ -284,6 +284,13 @@ class PostProcessReportResultJob:
                 basic_report.external_report_result_id,
                 self._ami_mrc_exempted_edps,
             )
+        except post_process_report_result.NoiseCorrectionFailure as error:
+            for summary_result in error.summary_results:
+                post_process_report_result.log_noise_correction_diagnostic(
+                    summary_result
+                )
+            self._fail_basic_report(basic_report)
+            return False
         except Exception as error:
             # The post-processor itself (solver, data parsing) failed. This
             # BasicReport cannot be processed; mark it FAILED so downstream

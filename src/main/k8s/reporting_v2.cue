@@ -20,7 +20,9 @@ package k8s
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
 	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
-	_logNoiseCorrectionValues:          bool | *false
+	// Allows aggregate report-result values to be written to application logs.
+	// Enable only where log access and retention policy permit it.
+	_logNoiseCorrectionValues: bool | *false
 	// These values are conservative upper bounds across all policies that could have produced a
 	// pending result, not necessarily the thresholds currently used by any one EDP. An empty EDP
 	// list and zero threshold settings disable potential Direct threshold correction.

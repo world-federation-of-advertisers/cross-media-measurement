@@ -367,6 +367,112 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             exc_info=True,
         )
 
+    def _noise_correction_failure(self):
+        failed_result = post_process_report_result.ReportPostProcessorResult(
+            status=post_process_report_result.ReportPostProcessorStatus(
+                status_code=(
+                    post_process_report_result.ReportPostProcessorStatus.SOLUTION_NOT_FOUND
+                ),
+                primal_equality_residual=3.5,
+                primal_inequality_residual=4.5,
+            )
+        )
+        failed_summary = failed_result.pre_correction_report_summary_v2
+        failed_summary.cmms_measurement_consumer_id = "mc_id_1"
+        failed_summary.external_report_result_id = 101
+        set_result = failed_summary.report_summary_set_results.add(
+            external_reporting_set_result_id=123456789,
+            impression_filter="ami",
+            set_operation="union",
+            data_providers=["reporting-set-1"],
+        )
+        set_result.whole_campaign_result.reach.value = 918273645
+        set_result.whole_campaign_result.reach.standard_deviation = 12.5
+        set_result.whole_campaign_result.reach.metric = "synthetic-reach"
+
+        successful_result = post_process_report_result.ReportPostProcessorResult(
+            status=post_process_report_result.ReportPostProcessorStatus(
+                status_code=(
+                    post_process_report_result.ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS
+                )
+            )
+        )
+        successful_summary = successful_result.pre_correction_report_summary_v2
+        successful_summary.cmms_measurement_consumer_id = "mc_id_1"
+        successful_summary.external_report_result_id = 101
+
+        return post_process_report_result.NoiseCorrectionFailure([
+            post_process_report_result.ReportSummaryProcessingResult(
+                0, failed_result
+            ),
+            post_process_report_result.ReportSummaryProcessingResult(
+                1, successful_result
+            ),
+        ])
+
+    def test_noise_correction_failure_logs_every_summary_without_values(self):
+        basic_report = BasicReport(
+            external_basic_report_id="basic_report_1",
+            external_report_id="report_1",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[basic_report]
+            )
+        )
+        self.mock_post_processor.process.side_effect = (
+            self._noise_correction_failure()
+        )
+
+        with self.assertLogs(level="WARNING") as captured:
+            result = self.job.execute()
+
+        logs = "\n".join(captured.output)
+        self.assertFalse(result)
+        self.assertEqual(logs.count("report_failed=true"), 2)
+        self.assertIn("summary_failed=true", logs)
+        self.assertIn("summary_failed=false", logs)
+        self.assertIn("measurement_values_logging_enabled=false", logs)
+        self.assertIn("status=SOLUTION_NOT_FOUND", logs)
+        self.assertIn("primal_equality_residual=3.5", logs)
+        self.assertNotIn("918273645", logs)
+        self.assertNotIn("12.5", logs)
+        self.mock_basic_reports_stub.FailBasicReport.assert_called_once()
+
+    def test_noise_correction_failure_logs_values_when_enabled(self):
+        mock_channel = mock.create_autospec(grpc.Channel)
+        job = post_process_report_result_job.PostProcessReportResultJob(
+            mock_channel,
+            log_noise_correction_values=True,
+        )
+        basic_report = BasicReport(
+            external_basic_report_id="basic_report_1",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[basic_report]
+            )
+        )
+        self.mock_post_processor.process.side_effect = (
+            self._noise_correction_failure()
+        )
+
+        with self.assertLogs(level="WARNING") as captured:
+            result = job.execute()
+
+        logs = "\n".join(captured.output)
+        self.assertFalse(result)
+        self.assertEqual(logs.count("report_failed=true"), 2)
+        self.assertIn("measurement_values_logging_enabled=true", logs)
+        self.assertIn("pre_correction_report_summary_v2", logs)
+        self.assertIn("918273645", logs)
+        self.assertIn("12.5", logs)
+        self.assertIn("reporting-set-1", logs)
+
     @mock.patch.object(logging, "info", autospec=True)
     def test_fail_basic_report_logs_started_and_succeeded(self, mock_info):
         mock_report = BasicReport(

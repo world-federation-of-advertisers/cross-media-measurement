@@ -13,6 +13,7 @@
 # limitations under the License.
 """A tool for fetching, correcting, and updating a report."""
 
+from dataclasses import dataclass
 from typing import Any
 from typing import Optional
 from typing import TypeAlias
@@ -58,26 +59,70 @@ ReportingSetResult = report_result_pb2.ReportingSetResult
 
 _BATCH_GET_REPORTING_SETS_LIMIT = 1000
 
+_SUCCESS_STATUS_CODES = frozenset({
+    ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS,
+    ReportPostProcessorStatus.SOLUTION_FOUND_WITH_OSQP,
+    ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_HIGHS,
+    ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_OSQP,
+})
+
+
+@dataclass(frozen=True)
+class ReportSummaryProcessingResult:
+    """Result and bounded exception metadata for one report summary."""
+
+    report_summary_index: int
+    result: ReportPostProcessorResult
+    internal_error_type: str | None = None
+
+
+def _summary_failed(summary_result: ReportSummaryProcessingResult) -> bool:
+    result = summary_result.result
+    return (
+        result.status.status_code not in _SUCCESS_STATUS_CODES
+        or bool(result.large_corrections)
+    )
+
+
+class NoiseCorrectionFailure(ValueError):
+    """Indicates that one or more report summaries could not be corrected."""
+
+    def __init__(
+        self, summary_results: Iterable[ReportSummaryProcessingResult]
+    ):
+        self.summary_results = tuple(summary_results)
+        failed_count = sum(
+            _summary_failed(summary_result)
+            for summary_result in self.summary_results
+        )
+        super().__init__(
+            f"Noise correction failed for {failed_count} of "
+            f"{len(self.summary_results)} report summaries."
+        )
+
 
 def _get_cmms_data_provider_id(edp_name: str) -> str:
     """Converts an EDP resource name to a raw CMMS DataProvider ID."""
     return edp_name.split("/")[-1]
 
 
-def _log_noise_correction_failure(
-    result: ReportPostProcessorResult,
-    report_summary_index: int,
+def log_noise_correction_diagnostic(
+    summary_result: ReportSummaryProcessingResult,
 ) -> None:
-    """Logs bounded solver state and optional measurement-value diagnostics."""
+    """Logs one report-summary diagnostic with optional measurement values."""
+    result = summary_result.result
     values_enabled = noise_correction_value_logging.is_enabled()
     status = result.status
     pre_quality = result.pre_correction_quality
     post_quality = result.post_correction_quality
     report_summary = result.pre_correction_report_summary_v2
-    logging.warning(
-        "xmm.noise_correction.failure=true "
+    message = (
+        "xmm.lifecycle.stage=noise_correction xmm.outcome=failed "
+        "xmm.noise_correction.report_failed=true "
+        "xmm.noise_correction.summary_failed=%s "
         "xmm.noise_correction.measurement_values_logging_enabled=%s "
         "xmm.noise_correction.report_summary_index=%d "
+        "xmm.noise_correction.internal_error_type=%s "
         "xmm.measurement_consumer.id=%s "
         "xmm.report_result.id=%d "
         "xmm.noise_correction.status=%s "
@@ -88,9 +133,13 @@ def _log_noise_correction_failure(
         "xmm.noise_correction.post_zero_variance_quality=%s "
         "xmm.noise_correction.post_union_quality=%s "
         "xmm.noise_correction.uncorrected_measurement_count=%d "
-        "xmm.noise_correction.large_correction_count=%d",
+        "xmm.noise_correction.large_correction_count=%d"
+    )
+    args: list[Any] = [
+        str(_summary_failed(summary_result)).lower(),
         str(values_enabled).lower(),
-        report_summary_index,
+        summary_result.report_summary_index,
+        summary_result.internal_error_type or "none",
         report_summary.cmms_measurement_consumer_id,
         report_summary.external_report_result_id,
         ReportPostProcessorStatus.StatusCode.Name(status.status_code),
@@ -106,17 +155,18 @@ def _log_noise_correction_failure(
         ReportQuality.IndependenceCheckStatus.Name(post_quality.union_status),
         len(result.uncorrected_measurements),
         len(result.large_corrections),
-    )
+    ]
     if values_enabled:
-        logging.warning(
-            "xmm.noise_correction.result=%s",
+        message += " xmm.noise_correction.result=%s"
+        args.append(
             json_format.MessageToJson(
                 result,
                 preserving_proto_field_name=True,
                 indent=None,
                 sort_keys=True,
-            ),
+            )
         )
+    logging.warning(message, *args)
 
 
 class PostProcessReportResult:
@@ -235,56 +285,44 @@ class PostProcessReportResult:
 
         # Runs report post processor on each report summary v2.
         all_updated_measurements: dict[str, float] = {}
+        summary_results: list[ReportSummaryProcessingResult] = []
         for report_summary_index, report_summary in enumerate(report_summaries):
-            result = ReportSummaryV2Processor(
-                report_summary,
-                ami_mrc_exempted_reporting_set_ids,
-                potential_direct_result_minimum_thresholds=(
-                    self._potential_direct_result_minimum_thresholds
-                ),
-                potential_direct_thresholding_data_provider_ids=(
-                    potential_direct_thresholding_data_provider_ids
-                ),
-                data_provider_ids_by_reporting_set_id=(
-                    data_provider_ids_by_reporting_set_id
-                ),
-            ).process()
-            if result.status.status_code in [
-                    ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS,
-                    ReportPostProcessorStatus.SOLUTION_FOUND_WITH_OSQP,
-                    ReportPostProcessorStatus.
-                    PARTIAL_SOLUTION_FOUND_WITH_HIGHS,
-                    ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_OSQP,
-            ]:
-                if result.large_corrections:
-                    _log_noise_correction_failure(
-                        result, report_summary_index
-                    )
-                    if noise_correction_value_logging.is_enabled():
-                        details = f": {list(result.large_corrections)}"
-                    else:
-                        metric_titles = sorted(
-                            correction.metric_title
-                            for correction in result.large_corrections
-                        )
-                        details = (
-                            f" (count={len(result.large_corrections)}, "
-                            f"metrics={metric_titles})"
-                        )
-                    raise ValueError(
-                        "Noise correction produced large corrections for a"
-                        f" report summary{details}"
-                    )
+            internal_error_type = None
+            try:
+                result = ReportSummaryV2Processor(
+                    report_summary,
+                    ami_mrc_exempted_reporting_set_ids,
+                    potential_direct_result_minimum_thresholds=(
+                        self._potential_direct_result_minimum_thresholds
+                    ),
+                    potential_direct_thresholding_data_provider_ids=(
+                        potential_direct_thresholding_data_provider_ids
+                    ),
+                    data_provider_ids_by_reporting_set_id=(
+                        data_provider_ids_by_reporting_set_id
+                    ),
+                ).process()
+            except Exception as error:
+                internal_error_type = type(error).__name__[:200]
+                result = ReportPostProcessorResult(
+                    status=ReportPostProcessorStatus(
+                        status_code=ReportPostProcessorStatus.INTERNAL_ERROR
+                    ),
+                    error_message=f"{internal_error_type}: {error}",
+                )
+                result.pre_correction_report_summary_v2.CopyFrom(report_summary)
+
+            summary_result = ReportSummaryProcessingResult(
+                report_summary_index,
+                result,
+                internal_error_type,
+            )
+            summary_results.append(summary_result)
+            if not _summary_failed(summary_result):
                 all_updated_measurements.update(result.updated_measurements)
-            else:
-                _log_noise_correction_failure(result, report_summary_index)
-                status_name = ReportPostProcessorStatus.StatusCode.Name(
-                    result.status.status_code
-                )
-                raise ValueError(
-                    "Noise correction failed for a report summary with status:"
-                    f" {status_name}"
-                )
+
+        if any(_summary_failed(result) for result in summary_results):
+            raise NoiseCorrectionFailure(summary_results)
 
         # Creates AddProcessedResultValuesRequest for each report summary.
         request = self._create_add_processed_result_values_requests(
