@@ -25,6 +25,9 @@ from absl import logging
 from google.protobuf import json_format
 
 from noiseninja import noise_correction_value_logging
+from noiseninja.noised_measurements import Measurement
+from noiseninja.noised_measurements import MeasurementSet
+from report.report import ConstraintViolation
 from wfa.measurement.internal.reporting.postprocessing import \
     report_summary_v2_pb2
 from wfa.measurement.internal.reporting.postprocessing import \
@@ -90,8 +93,17 @@ class ReportingSetDiagnosticContext:
 
 
 @dataclass(frozen=True)
+class FrequencyBucketDiagnostic:
+    """One populated pre-correction frequency bucket."""
+
+    frequency: int
+    value: int
+    standard_deviation: float
+
+
+@dataclass(frozen=True)
 class MeasurementDiagnosticContext:
-    """Classification of one input measurement set."""
+    """Classification and values for one input measurement set."""
 
     external_reporting_set_result_id: int
     impression_qualification_filter_type: str
@@ -105,6 +117,21 @@ class MeasurementDiagnosticContext:
     measurement_type: str
     data_provider_count: int
     window_end_date: str
+    reach_value: int | None
+    reach_standard_deviation: float | None
+    impression_count_value: int | None
+    impression_count_standard_deviation: float | None
+    frequency_buckets: tuple[FrequencyBucketDiagnostic, ...]
+    frequency_bucket_count: int | None
+    frequency_bucket_sum: int | None
+    reach_minus_frequency_bucket_sum: int | None
+    minimum_impressions_from_frequency: int | None
+    impressions_minus_minimum_from_frequency: int | None
+    potential_direct_thresholding_eligible: bool
+    threshold_uncertainty_applied_to: tuple[str, ...]
+    threshold_uncertainty_skip_reason: str
+    threshold_min_users: int | None
+    threshold_min_impressions: int | None
 
 
 @dataclass(frozen=True)
@@ -113,6 +140,7 @@ class ReportSummaryProcessingResult:
 
     report_summary_index: int
     result: ReportPostProcessorResult
+    constraint_violations: tuple[ConstraintViolation, ...]
     reporting_set_contexts: tuple[ReportingSetDiagnosticContext, ...] = ()
     measurement_contexts: tuple[MeasurementDiagnosticContext, ...] = ()
     internal_error_type: str | None = None
@@ -148,17 +176,101 @@ def _get_cmms_data_provider_id(edp_name: str) -> str:
     return edp_name.split("/")[-1]
 
 
+_MAX_LOGGED_CONSTRAINT_VIOLATIONS = 25
+
+
+def _issue_codes(result: ReportPostProcessorResult) -> tuple[str, ...]:
+    """Returns the legacy issue codes represented by a processor result."""
+    issues = []
+    if result.status.status_code == ReportPostProcessorStatus.SOLUTION_NOT_FOUND:
+        issues.append("QP_SOLUTION_NOT_FOUND")
+    if result.status.status_code == ReportPostProcessorStatus.INTERNAL_ERROR:
+        issues.append("INTERNAL_ERROR")
+    if (
+        result.pre_correction_quality.zero_variance_measurements_status
+        == ReportQuality.ZeroVarianceMeasurementsStatus.INCONSISTENT
+    ):
+        issues.append(
+            "ZERO_VARIANCE_MEASUREMENTS_INCONSISTENT_PRE_CORRECTION"
+        )
+    if (
+        result.post_correction_quality.zero_variance_measurements_status
+        == ReportQuality.ZeroVarianceMeasurementsStatus.INCONSISTENT
+    ):
+        issues.append(
+            "ZERO_VARIANCE_MEASUREMENTS_INCONSISTENT_POST_CORRECTION"
+        )
+    if (
+        result.pre_correction_quality.union_status
+        == ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+    ):
+        issues.append("INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION")
+    if (
+        result.post_correction_quality.union_status
+        == ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE
+    ):
+        issues.append("INDEPENDENCE_CHECK_FAILS_POST_CORRECTION")
+    if result.large_corrections:
+        issues.append("HAS_LARGE_CORRECTIONS")
+    return tuple(issues)
+
+
+def _log_diagnostic_record(
+    summary_result: ReportSummaryProcessingResult,
+    record_type: str,
+    record_index: int,
+    payload: dict[str, Any],
+) -> None:
+    """Logs one bounded value-bearing record for a report summary."""
+    report_summary = summary_result.result.pre_correction_report_summary_v2
+    logging.warning(
+        "xmm.lifecycle.stage=noise_correction xmm.outcome=failed "
+        "xmm.noise_correction.report_summary_index=%d "
+        "xmm.measurement_consumer.id=%s "
+        "xmm.report_result.id=%d "
+        "xmm.noise_correction.diagnostic_record_type=%s "
+        "xmm.noise_correction.diagnostic_record_index=%d "
+        "xmm.noise_correction.diagnostic=%s",
+        summary_result.report_summary_index,
+        report_summary.cmms_measurement_consumer_id,
+        report_summary.external_report_result_id,
+        record_type,
+        record_index,
+        json.dumps(payload, separators=(",", ":"), sort_keys=True),
+    )
+
+
 def log_noise_correction_diagnostic(
     summary_result: ReportSummaryProcessingResult,
 ) -> None:
-    """Logs one report-summary diagnostic with optional measurement values."""
+    """Logs a summary diagnostic and bounded value-bearing detail records."""
     result = summary_result.result
     values_enabled = noise_correction_value_logging.is_enabled()
     status = result.status
     pre_quality = result.pre_correction_quality
     post_quality = result.post_correction_quality
     report_summary = result.pre_correction_report_summary_v2
-    message = (
+    issue_codes = _issue_codes(result)
+    constraint_codes = tuple(
+        sorted({
+            violation.constraint_name
+            for violation in summary_result.constraint_violations
+        })
+    )
+    logged_violation_count = min(
+        len(summary_result.constraint_violations),
+        _MAX_LOGGED_CONSTRAINT_VIOLATIONS,
+    )
+    constraint_attribution = (
+        "PRE_CORRECTION_VIOLATIONS_FOUND"
+        if summary_result.constraint_violations
+        else (
+            "SPECIFIC_SOLVER_CONSTRAINT_UNKNOWN"
+            if _summary_failed(summary_result)
+            else "NOT_APPLICABLE"
+        )
+    )
+    logging.warning(
         "xmm.lifecycle.stage=noise_correction xmm.outcome=failed "
         "xmm.noise_correction.report_failed=true "
         "xmm.noise_correction.summary_failed=%s "
@@ -168,6 +280,12 @@ def log_noise_correction_diagnostic(
         "xmm.measurement_consumer.id=%s "
         "xmm.report_result.id=%d "
         "xmm.noise_correction.status=%s "
+        "xmm.noise_correction.issue_codes=%s "
+        "xmm.noise_correction.constraint_codes=%s "
+        "xmm.noise_correction.constraint_violation_count=%d "
+        "xmm.noise_correction.logged_constraint_violation_count=%d "
+        "xmm.noise_correction.constraint_violations_truncated=%s "
+        "xmm.noise_correction.constraint_attribution=%s "
         "xmm.noise_correction.primal_equality_residual=%s "
         "xmm.noise_correction.primal_inequality_residual=%s "
         "xmm.noise_correction.pre_zero_variance_quality=%s "
@@ -175,9 +293,8 @@ def log_noise_correction_diagnostic(
         "xmm.noise_correction.post_zero_variance_quality=%s "
         "xmm.noise_correction.post_union_quality=%s "
         "xmm.noise_correction.uncorrected_measurement_count=%d "
-        "xmm.noise_correction.large_correction_count=%d"
-    )
-    args: list[Any] = [
+        "xmm.noise_correction.large_correction_count=%d "
+        "xmm.noise_correction.measurement_record_count=%d",
         str(_summary_failed(summary_result)).lower(),
         str(values_enabled).lower(),
         summary_result.report_summary_index,
@@ -185,6 +302,15 @@ def log_noise_correction_diagnostic(
         report_summary.cmms_measurement_consumer_id,
         report_summary.external_report_result_id,
         ReportPostProcessorStatus.StatusCode.Name(status.status_code),
+        ",".join(issue_codes) or "none",
+        ",".join(constraint_codes) or "none",
+        len(summary_result.constraint_violations),
+        logged_violation_count,
+        str(
+            len(summary_result.constraint_violations)
+            > _MAX_LOGGED_CONSTRAINT_VIOLATIONS
+        ).lower(),
+        constraint_attribution,
         status.primal_equality_residual,
         status.primal_inequality_residual,
         ReportQuality.ZeroVarianceMeasurementsStatus.Name(
@@ -197,27 +323,79 @@ def log_noise_correction_diagnostic(
         ReportQuality.IndependenceCheckStatus.Name(post_quality.union_status),
         len(result.uncorrected_measurements),
         len(result.large_corrections),
-    ]
-    if values_enabled:
-        message += " xmm.noise_correction.diagnostic=%s"
-        diagnostic = {
-            "report_post_processor_result": json_format.MessageToDict(
-                result,
-                preserving_proto_field_name=True,
-            ),
-            "reporting_set_contexts": [
-                asdict(context)
-                for context in summary_result.reporting_set_contexts
+        len(summary_result.measurement_contexts),
+    )
+
+    if not values_enabled:
+        return
+
+    _log_diagnostic_record(
+        summary_result,
+        "REPORT_CONTEXT",
+        0,
+        {
+            "population": report_summary.population,
+            "groupings": [
+                json_format.MessageToDict(
+                    grouping, preserving_proto_field_name=True
+                )
+                for grouping in report_summary.groupings
             ],
-            "measurement_contexts": [
-                asdict(context)
-                for context in summary_result.measurement_contexts
+            "event_filters": [
+                json_format.MessageToDict(
+                    event_filter, preserving_proto_field_name=True
+                )
+                for event_filter in report_summary.event_filters
             ],
-        }
-        args.append(
-            json.dumps(diagnostic, separators=(",", ":"), sort_keys=True)
+            "error_message": result.error_message[:4000],
+        },
+    )
+    for index, context in enumerate(summary_result.reporting_set_contexts):
+        _log_diagnostic_record(
+            summary_result,
+            "REPORTING_SET_CONTEXT",
+            index,
+            asdict(context),
         )
-    logging.warning(message, *args)
+    for index, context in enumerate(summary_result.measurement_contexts):
+        _log_diagnostic_record(
+            summary_result,
+            "MEASUREMENT",
+            index,
+            asdict(context),
+        )
+    for index, violation in enumerate(
+        summary_result.constraint_violations[
+            :_MAX_LOGGED_CONSTRAINT_VIOLATIONS
+        ]
+    ):
+        _log_diagnostic_record(
+            summary_result,
+            "CONSTRAINT_VIOLATION",
+            index,
+            asdict(violation),
+        )
+    for index, (metric_name, corrected_value) in enumerate(
+        sorted(result.updated_measurements.items())
+    ):
+        _log_diagnostic_record(
+            summary_result,
+            "CORRECTED_MEASUREMENT",
+            index,
+            {
+                "metric_name": metric_name,
+                "corrected_value": corrected_value,
+            },
+        )
+    for index, correction in enumerate(result.large_corrections):
+        _log_diagnostic_record(
+            summary_result,
+            "LARGE_CORRECTION",
+            index,
+            json_format.MessageToDict(
+                correction, preserving_proto_field_name=True
+            ),
+        )
 
 
 def _date_to_iso_string(date) -> str:
@@ -233,6 +411,43 @@ def _measurement_type(noisy_metric_set: Any) -> str:
     if noisy_metric_set.HasField("reach"):
         return "REACH_ONLY"
     return "MEASUREMENT_TYPE_UNSPECIFIED"
+
+
+def _to_measurement_set(noisy_metric_set: Any) -> MeasurementSet | None:
+    """Converts raw result values for threshold-decision diagnostics."""
+    reach = None
+    if noisy_metric_set.HasField("reach"):
+        reach = Measurement(
+            noisy_metric_set.reach.value,
+            noisy_metric_set.reach.univariate_statistics.standard_deviation,
+            "reach",
+        )
+    impression = None
+    if noisy_metric_set.HasField("impression_count"):
+        impression = Measurement(
+            noisy_metric_set.impression_count.value,
+            noisy_metric_set.impression_count.univariate_statistics.standard_deviation,
+            "impression_count",
+        )
+    k_reach = {}
+    if noisy_metric_set.HasField("frequency_histogram"):
+        k_reach = {
+            frequency: Measurement(
+                bin_result.value,
+                bin_result.univariate_statistics.standard_deviation,
+                f"frequency_bin_{frequency}",
+            )
+            for frequency, bin_result in (
+                noisy_metric_set.frequency_histogram.bin_results.items()
+            )
+        }
+    if reach is None and impression is None and not k_reach:
+        return None
+    return MeasurementSet(
+        reach=reach,
+        k_reach=k_reach,
+        impression=impression,
+    )
 
 
 class PostProcessReportResult:
@@ -271,6 +486,155 @@ class PostProcessReportResult:
                 "Potential Direct result thresholds and EDPs must be "
                 "configured together."
             )
+
+    def _threshold_diagnostic(
+        self,
+        noisy_metric_set: Any,
+        data_provider_resource_names: tuple[str, ...],
+    ) -> tuple[
+        bool, tuple[str, ...], str, int | None, int | None
+    ]:
+        thresholds = self._potential_direct_result_minimum_thresholds
+        if thresholds is None:
+            return False, (), "THRESHOLD_MODEL_DISABLED", None, None
+        if len(data_provider_resource_names) != 1:
+            return False, (), "NOT_SINGLE_DATA_PROVIDER", None, None
+        if (
+            data_provider_resource_names[0]
+            not in self._potential_direct_thresholding_edps
+        ):
+            return False, (), "DATA_PROVIDER_NOT_ELIGIBLE", None, None
+
+        measurement_set = _to_measurement_set(noisy_metric_set)
+        applications = (
+            thresholds.get_uncertainty_applications(measurement_set)
+            if measurement_set is not None
+            else ()
+        )
+        skip_reason = "" if applications else "NO_ZERO_VALUE_WITH_ZERO_SIGMA"
+        return (
+            True,
+            applications,
+            skip_reason,
+            thresholds.min_users,
+            thresholds.min_impressions,
+        )
+
+    def _measurement_diagnostic_context(
+        self,
+        external_reporting_set_result_id: int,
+        impression_qualification_filter_type: str,
+        external_impression_qualification_filter_id: str,
+        venn_diagram_region_type: str,
+        metadata: _ReportingSetMetadata,
+        metric_frequency: str,
+        window_type: str,
+        is_cumulative: bool,
+        data_provider_resource_names: tuple[str, ...],
+        window_end_date: str,
+        noisy_metric_set: Any,
+    ) -> MeasurementDiagnosticContext:
+        frequency_buckets = ()
+        frequency_bucket_count = None
+        frequency_bucket_sum = None
+        minimum_impressions_from_frequency = None
+        if noisy_metric_set.HasField("frequency_histogram"):
+            frequency_buckets = tuple(
+                FrequencyBucketDiagnostic(
+                    frequency=frequency,
+                    value=bin_result.value,
+                    standard_deviation=(
+                        bin_result.univariate_statistics.standard_deviation
+                    ),
+                )
+                for frequency, bin_result in sorted(
+                    noisy_metric_set.frequency_histogram.bin_results.items()
+                )
+            )
+            frequency_bucket_count = len(frequency_buckets)
+            frequency_bucket_sum = sum(
+                bucket.value for bucket in frequency_buckets
+            )
+            minimum_impressions_from_frequency = sum(
+                bucket.frequency * bucket.value
+                for bucket in frequency_buckets
+            )
+
+        reach_value = None
+        reach_standard_deviation = None
+        if noisy_metric_set.HasField("reach"):
+            reach_value = noisy_metric_set.reach.value
+            reach_standard_deviation = (
+                noisy_metric_set.reach.univariate_statistics.standard_deviation
+            )
+
+        impression_count_value = None
+        impression_count_standard_deviation = None
+        if noisy_metric_set.HasField("impression_count"):
+            impression_count_value = noisy_metric_set.impression_count.value
+            impression_count_standard_deviation = (
+                noisy_metric_set.impression_count.univariate_statistics
+                .standard_deviation
+            )
+
+        (
+            thresholding_eligible,
+            threshold_applied_to,
+            threshold_skip_reason,
+            threshold_min_users,
+            threshold_min_impressions,
+        ) = self._threshold_diagnostic(
+            noisy_metric_set,
+            data_provider_resource_names,
+        )
+
+        return MeasurementDiagnosticContext(
+            external_reporting_set_result_id=external_reporting_set_result_id,
+            impression_qualification_filter_type=(
+                impression_qualification_filter_type
+            ),
+            external_impression_qualification_filter_id=(
+                external_impression_qualification_filter_id
+            ),
+            venn_diagram_region_type=venn_diagram_region_type,
+            source_reporting_set_type=metadata.source_type,
+            source_reporting_set_root_operation=metadata.source_operation,
+            metric_frequency=metric_frequency,
+            window_type=window_type,
+            is_cumulative=is_cumulative,
+            measurement_type=_measurement_type(noisy_metric_set),
+            data_provider_count=len(data_provider_resource_names),
+            window_end_date=window_end_date,
+            reach_value=reach_value,
+            reach_standard_deviation=reach_standard_deviation,
+            impression_count_value=impression_count_value,
+            impression_count_standard_deviation=(
+                impression_count_standard_deviation
+            ),
+            frequency_buckets=frequency_buckets,
+            frequency_bucket_count=frequency_bucket_count,
+            frequency_bucket_sum=frequency_bucket_sum,
+            reach_minus_frequency_bucket_sum=(
+                reach_value - frequency_bucket_sum
+                if reach_value is not None
+                and frequency_bucket_sum is not None
+                else None
+            ),
+            minimum_impressions_from_frequency=(
+                minimum_impressions_from_frequency
+            ),
+            impressions_minus_minimum_from_frequency=(
+                impression_count_value - minimum_impressions_from_frequency
+                if impression_count_value is not None
+                and minimum_impressions_from_frequency is not None
+                else None
+            ),
+            potential_direct_thresholding_eligible=thresholding_eligible,
+            threshold_uncertainty_applied_to=threshold_applied_to,
+            threshold_uncertainty_skip_reason=threshold_skip_reason,
+            threshold_min_users=threshold_min_users,
+            threshold_min_impressions=threshold_min_impressions,
+        )
 
     def process(
         self,
@@ -366,8 +730,9 @@ class PostProcessReportResult:
         summary_results: list[ReportSummaryProcessingResult] = []
         for report_summary_index, report_summary in enumerate(report_summaries):
             internal_error_type = None
+            constraint_violations = ()
             try:
-                result = ReportSummaryV2Processor(
+                summary_processor = ReportSummaryV2Processor(
                     report_summary,
                     ami_mrc_exempted_reporting_set_ids,
                     potential_direct_result_minimum_thresholds=(
@@ -379,7 +744,11 @@ class PostProcessReportResult:
                     data_provider_ids_by_reporting_set_id=(
                         data_provider_ids_by_reporting_set_id
                     ),
-                ).process()
+                )
+                result = summary_processor.process()
+                constraint_violations = (
+                    summary_processor.pre_correction_constraint_violations
+                )
             except Exception as error:
                 internal_error_type = type(error).__name__[:200]
                 result = ReportPostProcessorResult(
@@ -456,7 +825,6 @@ class PostProcessReportResult:
                     dimension.metric_frequency_spec.WhichOneof("selector")
                     or "METRIC_FREQUENCY_UNSPECIFIED"
                 ).upper()
-                data_provider_count = len(data_provider_resource_names)
                 for window in source_result.reporting_window_results:
                     noisy_values = (
                         window.value.unprocessed_report_result_values
@@ -469,62 +837,42 @@ class PostProcessReportResult:
                             else "CUMULATIVE"
                         )
                         measurement_contexts.append(
-                            MeasurementDiagnosticContext(
-                                external_reporting_set_result_id=(
-                                    source_result.external_reporting_set_result_id
-                                ),
-                                impression_qualification_filter_type=(
-                                    impression_qualification_filter_type
-                                ),
-                                external_impression_qualification_filter_id=(
-                                    external_impression_qualification_filter_id
-                                ),
-                                venn_diagram_region_type=venn_diagram_region_type,
-                                source_reporting_set_type=metadata.source_type,
-                                source_reporting_set_root_operation=(
-                                    metadata.source_operation
-                                ),
-                                metric_frequency=metric_frequency,
-                                window_type=window_type,
-                                is_cumulative=True,
-                                measurement_type=_measurement_type(
-                                    noisy_values.cumulative_results
-                                ),
-                                data_provider_count=data_provider_count,
-                                window_end_date=window_end_date,
+                            self._measurement_diagnostic_context(
+                                source_result.external_reporting_set_result_id,
+                                impression_qualification_filter_type,
+                                external_impression_qualification_filter_id,
+                                venn_diagram_region_type,
+                                metadata,
+                                metric_frequency,
+                                window_type,
+                                True,
+                                data_provider_resource_names,
+                                window_end_date,
+                                noisy_values.cumulative_results,
                             )
                         )
                     if noisy_values.HasField("non_cumulative_results"):
                         measurement_contexts.append(
-                            MeasurementDiagnosticContext(
-                                external_reporting_set_result_id=(
-                                    source_result.external_reporting_set_result_id
-                                ),
-                                impression_qualification_filter_type=(
-                                    impression_qualification_filter_type
-                                ),
-                                external_impression_qualification_filter_id=(
-                                    external_impression_qualification_filter_id
-                                ),
-                                venn_diagram_region_type=venn_diagram_region_type,
-                                source_reporting_set_type=metadata.source_type,
-                                source_reporting_set_root_operation=(
-                                    metadata.source_operation
-                                ),
-                                metric_frequency=metric_frequency,
-                                window_type="NON_CUMULATIVE",
-                                is_cumulative=False,
-                                measurement_type=_measurement_type(
-                                    noisy_values.non_cumulative_results
-                                ),
-                                data_provider_count=data_provider_count,
-                                window_end_date=window_end_date,
+                            self._measurement_diagnostic_context(
+                                source_result.external_reporting_set_result_id,
+                                impression_qualification_filter_type,
+                                external_impression_qualification_filter_id,
+                                venn_diagram_region_type,
+                                metadata,
+                                metric_frequency,
+                                "NON_CUMULATIVE",
+                                False,
+                                data_provider_resource_names,
+                                window_end_date,
+                                noisy_values.non_cumulative_results,
                             )
                         )
+
 
             summary_result = ReportSummaryProcessingResult(
                 report_summary_index=report_summary_index,
                 result=result,
+                constraint_violations=tuple(constraint_violations),
                 reporting_set_contexts=tuple(reporting_set_contexts),
                 measurement_contexts=tuple(measurement_contexts),
                 internal_error_type=internal_error_type,

@@ -2642,6 +2642,24 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
+    violations = report.get_pre_correction_constraint_violations()
+
+    self.assertEqual(len(violations), 1)
+    violation = violations[0]
+    self.assertEqual(
+        violation.constraint_name, "METRIC_CUMULATIVE_REACH_ORDERING"
+    )
+    self.assertEqual(violation.relation, "LESS_THAN_OR_EQUAL")
+    self.assertEqual(violation.left_metric, "mrc")
+    self.assertEqual(violation.right_metric, "ami")
+    self.assertEqual(violation.data_providers, (EDP_ONE,))
+    self.assertEqual(violation.window_type, "CUMULATIVE")
+    self.assertEqual(violation.period, 0)
+    self.assertEqual(violation.left_value, 40)
+    self.assertEqual(violation.right_value, 35)
+    self.assertEqual(violation.difference, 5)
+    self.assertEqual(violation.tolerance, 1.0)
+
     corrected, report_post_processor_result = report.get_corrected_report()
 
     self.assertEqual(report_post_processor_result.status.status_code,

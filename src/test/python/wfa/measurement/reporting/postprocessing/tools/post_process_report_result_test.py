@@ -666,6 +666,84 @@ class PostProcessReportResultTest(unittest.TestCase):
             },
         )
 
+    @patch(
+        'src.main.python.wfa.measurement.reporting.postprocessing.tools.'
+        'post_process_report_result.ReportSummaryV2Processor'
+    )
+    def test_failed_result_context_reports_threshold_uncertainty(
+        self, mock_processor_class
+    ):
+        response = self.mock_list_reporing_set_results_response
+        source_result = response.reporting_set_results[0]
+        noisy_reach = (
+            source_result.reporting_window_results[0]
+            .value.unprocessed_report_result_values.cumulative_results.reach
+        )
+        noisy_reach.value = 0
+        noisy_reach.univariate_statistics.standard_deviation = 0
+        self.mock_report_results_stub.ListReportingSetResults.return_value = (
+            response
+        )
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            self.mock_batch_get_reporting_set_response
+        )
+        failed_result = report_post_processor_result_pb2.ReportPostProcessorResult(
+            status=report_post_processor_result_pb2.ReportPostProcessorStatus(
+                status_code=(
+                    report_post_processor_result_pb2.ReportPostProcessorStatus
+                    .SOLUTION_NOT_FOUND
+                )
+            )
+        )
+        mock_processor_class.return_value.process.return_value = failed_result
+        mock_processor_class.return_value.pre_correction_constraint_violations = (
+            ()
+        )
+        processor = PostProcessReportResult(
+            self.mock_report_results_stub,
+            self.mock_reporting_sets_stub,
+            potential_direct_result_minimum_thresholds=(
+                PotentialDirectResultMinimumThresholds(
+                    min_users=100,
+                    min_impressions=1000,
+                )
+            ),
+            potential_direct_thresholding_edps=["dataProviders/edp1"],
+        )
+
+        with self.assertRaises(NoiseCorrectionFailure) as raised:
+            processor.process(
+                self.cmms_measurement_consumer_id,
+                self.external_report_result_id,
+                [],
+            )
+
+        contexts = [
+            context
+            for summary_result in raised.exception.summary_results
+            for context in summary_result.measurement_contexts
+            if (
+                context.external_reporting_set_result_id
+                == source_result.external_reporting_set_result_id
+                and context.is_cumulative
+            )
+        ]
+        self.assertTrue(contexts)
+        self.assertTrue(
+            all(
+                context.potential_direct_thresholding_eligible
+                for context in contexts
+            )
+        )
+        self.assertTrue(
+            any(
+                "REACH" in context.threshold_uncertainty_applied_to
+                for context in contexts
+            )
+        )
+        self.assertEqual(contexts[0].threshold_min_users, 100)
+        self.assertEqual(contexts[0].threshold_min_impressions, 1000)
+
     def _set_up_failed_post_processor(self, mock_processor_class):
         self.mock_report_results_stub.ListReportingSetResults.return_value = (
             self.mock_list_reporing_set_results_response
@@ -786,6 +864,42 @@ class PostProcessReportResultTest(unittest.TestCase):
         )
         self.assertTrue(
             all(context.data_provider_count > 0 for context in measurement_contexts)
+        )
+
+        frequency_context = next(
+            context
+            for context in measurement_contexts
+            if context.frequency_bucket_count
+            and context.reach_value is not None
+            and context.impression_count_value is not None
+        )
+        self.assertEqual(
+            frequency_context.frequency_bucket_count,
+            len(frequency_context.frequency_buckets),
+        )
+        self.assertEqual(
+            frequency_context.frequency_bucket_sum,
+            sum(
+                bucket.value
+                for bucket in frequency_context.frequency_buckets
+            ),
+        )
+        self.assertEqual(
+            frequency_context.reach_minus_frequency_bucket_sum,
+            frequency_context.reach_value
+            - frequency_context.frequency_bucket_sum,
+        )
+        self.assertEqual(
+            frequency_context.minimum_impressions_from_frequency,
+            sum(
+                bucket.frequency * bucket.value
+                for bucket in frequency_context.frequency_buckets
+            ),
+        )
+        self.assertEqual(
+            frequency_context.impressions_minus_minimum_from_frequency,
+            frequency_context.impression_count_value
+            - frequency_context.minimum_impressions_from_frequency,
         )
 
     @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')

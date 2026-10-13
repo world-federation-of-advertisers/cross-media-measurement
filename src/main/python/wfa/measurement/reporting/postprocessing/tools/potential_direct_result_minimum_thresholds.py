@@ -49,6 +49,26 @@ class PotentialDirectResultMinimumThresholds:
         if self.min_impressions <= 0:
             raise ValueError("min_impressions must be greater than 0.")
 
+    def get_uncertainty_applications(
+        self, measurement_set: MeasurementSet
+    ) -> tuple[str, ...]:
+        """Returns the measurement fields whose uncertainty will be changed."""
+        applications = []
+        if self._should_add_uncertainty(measurement_set.reach):
+            applications.append("REACH")
+
+        frequency = self._frequency_uncertainty_target(measurement_set.k_reach)
+        if frequency is not None:
+            applications.append(f"FREQUENCY_BIN_{frequency}")
+
+        if self._should_add_uncertainty(measurement_set.impression):
+            applications.append("IMPRESSION_COUNT")
+        return tuple(applications)
+
+    def reach_uncertainty_applies(self, measurement: Measurement) -> bool:
+        """Returns whether reach uncertainty will be changed."""
+        return self._should_add_uncertainty(measurement)
+
     def add_reach_uncertainty(self, measurement: Measurement) -> Measurement:
         """Adds uncertainty for either threshold that can suppress reach."""
         return self._add_uncertainty(
@@ -85,6 +105,18 @@ class PotentialDirectResultMinimumThresholds:
         self, k_reach: dict[int, Measurement]
     ) -> dict[int, Measurement]:
         k_reach = dict(k_reach)
+        first_frequency = self._frequency_uncertainty_target(k_reach)
+        if first_frequency is not None:
+            k_reach[first_frequency] = self._add_uncertainty(
+                k_reach[first_frequency],
+                max(self.min_users, self.min_impressions),
+            )
+        return k_reach
+
+    @classmethod
+    def _frequency_uncertainty_target(
+        cls, k_reach: dict[int, Measurement]
+    ) -> int | None:
         # TODO(world-federation-of-advertisers/cross-media-measurement#4464):
         # Model partial fold-down if correction is expected to reconstruct the
         # pre-threshold histogram rather than preserve displayed values.
@@ -95,12 +127,17 @@ class PotentialDirectResultMinimumThresholds:
             # that bin so reach can be restored without inventing
             # higher-frequency users.
             first_frequency = min(k_reach)
-            k_reach[first_frequency] = self._add_uncertainty(
-                k_reach[first_frequency],
-                max(self.min_users, self.min_impressions),
-            )
+            if cls._should_add_uncertainty(k_reach[first_frequency]):
+                return first_frequency
+        return None
 
-        return k_reach
+    @staticmethod
+    def _should_add_uncertainty(measurement: Measurement | None) -> bool:
+        return (
+            measurement is not None
+            and measurement.value == 0
+            and measurement.sigma == 0
+        )
 
     @staticmethod
     def _add_uncertainty(
@@ -108,7 +145,9 @@ class PotentialDirectResultMinimumThresholds:
     ) -> Measurement:
         # TODO(world-federation-of-advertisers/cross-media-measurement#4466):
         # Model a Direct result that uses DP noise and minimum thresholding.
-        if measurement.value != 0 or measurement.sigma != 0:
+        if not PotentialDirectResultMinimumThresholds._should_add_uncertainty(
+            measurement
+        ):
             return measurement
         return Measurement(
             measurement.value,
