@@ -268,6 +268,9 @@ locals {
         "SECURE_COMPUTATION_CONTROL_PLANE_TARGET=${var.secure_computation_public_api_target}",
         # Below the module's timeout_seconds, so the drain ticker fires before the function dies.
         "FLUSH_INTERVAL=1m",
+        # Bounds the fulfiller's heap: it holds one ~360MB frequency vector per unique filter spec,
+        # and a group's specs never exceed its requisitions.
+        "MAX_REQUISITIONS_PER_GROUP=100",
       ]))
       secret_mappings = join(",", compact([
         var.requisition_fetcher_secret_mapping,
