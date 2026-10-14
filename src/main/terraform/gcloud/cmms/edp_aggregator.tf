@@ -134,7 +134,7 @@ locals {
       # with hyperdisk-balanced disk (provisioned_iops=5000,
       # provisioned_throughput=1250) and -Xmx96G.
       machine_type                  = "n2d-standard-8"
-      java_tool_options             = "-Xmx24G"
+      java_tool_options             = "-Xmx24G -XX:+ExitOnOutOfMemoryError -Xlog:gc:stdout:time,level,tags" # DO_NOT_SUBMIT: revert to "-Xmx24G"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
       app_flags = concat(
@@ -521,7 +521,7 @@ module "edp_aggregator" {
   edps_certs                                       = local.edps_certs
   requisition_fetcher_scheduler_config             = local.requisition_fetcher_scheduler_config
   cloud_function_configs                           = local.cloud_function_configs
-  results_fulfiller_disk_image_family              = "confidential-space"
+  results_fulfiller_disk_image_family              = "confidential-space-debug"
   dns_managed_zone_name                            = "googleapis-private"
   edp_aggregator_service_account_name              = "edp-aggregator-internal"
   data_availability_monitor_service_account_name   = "edpa-data-avail-monitor"
