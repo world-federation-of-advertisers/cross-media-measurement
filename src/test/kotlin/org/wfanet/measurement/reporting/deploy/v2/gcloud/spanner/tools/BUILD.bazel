@@ -182,6 +182,7 @@ spanner_emulator_test(
         "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",

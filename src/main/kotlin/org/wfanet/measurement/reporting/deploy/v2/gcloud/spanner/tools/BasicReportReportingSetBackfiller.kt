@@ -42,9 +42,9 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.updateBasicReportResultDetails
-import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
+import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.RepairLegacyCampaignGroup
 import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
@@ -56,9 +56,9 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * equals the component's `event_group_summaries`; a `ReportingSet` is created for a membership that
  * has no match.
  *
- * Neither database is written for a `BasicReport` unless all of its component summaries resolve:
- * every membership is resolved before any `ReportingSet` is created, so a `BasicReport` that is
- * skipped leaves no `ReportingSet` behind.
+ * No component `ReportingSet` is created and no `BasicReport` is updated unless all of its
+ * component summaries resolve. A safe legacy Campaign Group repair may be committed independently
+ * and is idempotent.
  *
  * Concurrent invocations are not safe. Each run builds its own in-memory view of the existing
  * `ReportingSet`s, and the minted IDs are random, so two runs against the same environment can
@@ -91,7 +91,10 @@ class BasicReportReportingSetBackfiller(
     val reportingSetsCreated: Int,
     val unresolvedComponents: Int,
     val unresolvableMetricSetComponents: Int,
+    val campaignGroupsRepaired: Int,
     val unresolvableCampaignGroupReferences: Int,
+    /** Whether the temporary read-path fallback can be removed after this run. */
+    val readyToRemoveReadPathFallback: Boolean,
     /** Earliest create_time among the backfilled BasicReports, if any. */
     val earliestCreateTime: Timestamp?,
     /** Latest create_time among the backfilled BasicReports, if any. */
@@ -105,7 +108,9 @@ class BasicReportReportingSetBackfiller(
         "reportingSetsCreated=$reportingSetsCreated, " +
         "unresolvedComponents=$unresolvedComponents, " +
         "unresolvableMetricSetComponents=$unresolvableMetricSetComponents, " +
+        "campaignGroupsRepaired=$campaignGroupsRepaired, " +
         "unresolvableCampaignGroupReferences=$unresolvableCampaignGroupReferences, " +
+        "readyToRemoveReadPathFallback=$readyToRemoveReadPathFallback, " +
         "earliestCreateTime=${formatTime(earliestCreateTime)}, " +
         "latestCreateTime=${formatTime(latestCreateTime)})"
   }
@@ -119,6 +124,7 @@ class BasicReportReportingSetBackfiller(
   private var reportingSetsCreated = 0
   private var unresolvedComponents = 0
   private var unresolvableMetricSetComponents = 0
+  private var campaignGroupsRepaired = 0
   private var unresolvableCampaignGroupReferences = 0
   private var earliestCreateTime: Timestamp? = null
   private var latestCreateTime: Timestamp? = null
@@ -160,7 +166,12 @@ class BasicReportReportingSetBackfiller(
         reportingSetsCreated = reportingSetsCreated,
         unresolvedComponents = unresolvedComponents,
         unresolvableMetricSetComponents = unresolvableMetricSetComponents,
+        campaignGroupsRepaired = campaignGroupsRepaired,
         unresolvableCampaignGroupReferences = unresolvableCampaignGroupReferences,
+        readyToRemoveReadPathFallback =
+          createTimeAfter == null &&
+            skipped == 0 &&
+            (!dryRun || (updated == 0 && campaignGroupsRepaired == 0)),
         earliestCreateTime = earliestCreateTime,
         latestCreateTime = latestCreateTime,
       )
@@ -244,15 +255,10 @@ class BasicReportReportingSetBackfiller(
         }
         .filter { it.externalReportingSetId.isEmpty() }
 
-    if (emptyComponentSummaries.isEmpty()) {
-      alreadyValid++
-      return
-    }
-
     val campaignGroupKey =
       CampaignGroupKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalCampaignGroupId)
     if (campaignGroupKey in unresolvableCampaignGroupKeys) {
-      skipUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
+      recordUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
       return
     }
     val reportingSetIdsByMembership =
@@ -261,12 +267,17 @@ class BasicReportReportingSetBackfiller(
           readCampaignGroupMembershipIndex(campaignGroupKey)
         }
       } catch (e: CampaignGroupInvalidException) {
-        skipUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
+        recordUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
         return
       } catch (e: ReportingSetNotFoundException) {
-        skipUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
+        recordUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
         return
       }
+
+    if (emptyComponentSummaries.isEmpty()) {
+      alreadyValid++
+      return
+    }
 
     // Resolution is separated from minting so that the Postgres writes are gated on the same
     // all-or-nothing guarantee as the Spanner write. Minting inline would leave a ReportingSet
@@ -349,7 +360,7 @@ class BasicReportReportingSetBackfiller(
     updated++
   }
 
-  private fun skipUnresolvableCampaignGroup(
+  private fun recordUnresolvableCampaignGroup(
     externalBasicReportId: String,
     campaignGroupKey: CampaignGroupKey,
   ) {
@@ -358,8 +369,9 @@ class BasicReportReportingSetBackfiller(
     skipped++
     logger.warning {
       "BasicReport $externalBasicReportId references ReportingSet " +
-        "${campaignGroupKey.externalCampaignGroupId} as its Campaign Group, but that " +
-        "ReportingSet is missing or is not a valid Campaign Group. Not updating."
+        "${campaignGroupKey.externalCampaignGroupId} as its Campaign Group, but it cannot be " +
+        "repaired automatically. Leaving the BasicReport unchanged and marking the environment " +
+        "not ready to remove the read-path fallback."
     }
   }
 
@@ -387,7 +399,7 @@ class BasicReportReportingSetBackfiller(
         "BasicReports examined" to result.examined.toString(),
         "Already valid" to result.alreadyValid.toString(),
         "Backfilled" to result.updated.toString(),
-        "Skipped" to result.skipped.toString(),
+        "Unbackfilled (blocking)" to result.skipped.toString(),
         "Component summaries filled" to result.componentSummariesFilled.toString(),
         "Backfilled create_time from" to formatTime(result.earliestCreateTime),
         "Backfilled create_time to" to formatTime(result.latestCreateTime),
@@ -395,8 +407,11 @@ class BasicReportReportingSetBackfiller(
         "ReportingSets created" to result.reportingSetsCreated.toString(),
         "Unresolved components" to result.unresolvedComponents.toString(),
         "Unresolvable metric_set components" to result.unresolvableMetricSetComponents.toString(),
+        "Campaign Groups repaired" to result.campaignGroupsRepaired.toString(),
         "Unresolvable Campaign Group references" to
           result.unresolvableCampaignGroupReferences.toString(),
+        "Ready to remove read-path fallback" to
+          if (result.readyToRemoveReadPathFallback) "yes" else "no",
       )
     val width = rows.maxOf { it.first.length }
     println()
@@ -412,27 +427,26 @@ class BasicReportReportingSetBackfiller(
   private suspend fun readCampaignGroupMembershipIndex(
     campaignGroupKey: CampaignGroupKey
   ): MutableMap<Set<ReportingSet.Primitive.EventGroupKey>, String> {
-    val readContext = postgresClient.readTransaction()
-    val reportingSetReader = ReportingSetReader(readContext)
-    val reportingSets: List<ReportingSet> =
-      try {
-        val measurementConsumerId =
-          MeasurementConsumerReader(readContext)
-            .getByCmmsId(campaignGroupKey.cmmsMeasurementConsumerId)
-            ?.measurementConsumerId
-            ?: throw ReportingSetNotFoundException(
-              campaignGroupKey.cmmsMeasurementConsumerId,
-              campaignGroupKey.externalCampaignGroupId,
-            )
-        reportingSetReader.readCampaignGroup(
-          measurementConsumerId,
-          campaignGroupKey.externalCampaignGroupId,
+    val campaignGroupBeforeRepair: ReportingSet =
+      RepairLegacyCampaignGroup(
+          cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId,
+          externalReportingSetId = campaignGroupKey.externalCampaignGroupId,
+          dryRun = dryRun,
         )
-          ?: throw ReportingSetNotFoundException(
-            campaignGroupKey.cmmsMeasurementConsumerId,
-            campaignGroupKey.externalCampaignGroupId,
-          )
-        reportingSetReader
+        .execute(postgresClient, idGenerator)
+    val wasRepaired = campaignGroupBeforeRepair.externalCampaignGroupId.isEmpty()
+    if (wasRepaired) {
+      campaignGroupsRepaired++
+      logger.info {
+        val prefix = if (dryRun) "[dry run] Would repair" else "Repaired"
+        "$prefix legacy Campaign Group ${campaignGroupKey.externalCampaignGroupId}"
+      }
+    }
+
+    val readContext = postgresClient.readTransaction()
+    val reportingSets: MutableList<ReportingSet> =
+      try {
+        ReportingSetReader(readContext)
           .readReportingSets(
             streamReportingSetsRequest {
               filter =
@@ -445,9 +459,14 @@ class BasicReportReportingSetBackfiller(
           )
           .map { it.reportingSet }
           .toList()
+          .toMutableList()
       } finally {
         readContext.close()
       }
+    if (dryRun && wasRepaired) {
+      reportingSets.add(campaignGroupBeforeRepair)
+      reportingSets.sortBy { it.externalReportingSetId }
+    }
 
     // Matches the read path: unfiltered primitives only, keyed by exact EventGroup membership.
     return reportingSets
