@@ -57,6 +57,19 @@ _accessPublicApiAddressName:                          "access-public"
 	}
 }
 
+// The namespace LimitRange defaults a container to 192Mi, which these jobs exceed on
+// non-heap alone: they are killed by the cgroup before the JVM reaches its own ceiling.
+#CronJobMaxHeapSize: "128M"
+#CronJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "10m"
+		memory: "512Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 // External exposure for the MCP server (Option B): a GKE Ingress terminates
 // HTTPS with a Google-managed certificate and forwards HTTP to the in-cluster
 // plain-HTTP MCP service, so the server itself stays unchanged.
@@ -178,6 +191,25 @@ reporting: #Reporting & {
 		"access-internal-api-server": {
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalAccessServerServiceAccount
+			}
+		}
+	}
+
+	cronJobs: {
+		"report-scheduling": {
+			_container: {
+				_javaOptions: maxHeapSize: #CronJobMaxHeapSize
+				resources: #CronJobResourceRequirements
+			}
+		}
+		"report-result-post-processor": {
+			_container: {
+				_javaOptions: maxHeapSize: #CronJobMaxHeapSize
+				resources: #CronJobResourceRequirements
+			}
+			spec: jobTemplate: spec: template: spec: _initContainers: "basic-reports-reports": {
+				_javaOptions: maxHeapSize: #CronJobMaxHeapSize
+				resources: #CronJobResourceRequirements
 			}
 		}
 	}
