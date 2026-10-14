@@ -22,6 +22,7 @@ from qpsolvers import Solution
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
+from noiseninja.solver import MAX_ATTEMPTS
 from noiseninja.solver import Solver
 from wfa.measurement.internal.reporting.postprocessing import (
     report_post_processor_result_pb2)
@@ -242,6 +243,34 @@ class SolverTest(unittest.TestCase):
         with self.assertRaisesRegex(
             ValueError, "sets of different length"):
             Solver(spec)
+    def test_solve_retains_partial_solution_with_smallest_residual(self):
+        spec = SetMeasurementsSpec()
+        spec.add_measurement(1, Measurement(10, 1, "measurement"))
+        solver = Solver(spec)
+
+        worse_solution = MagicMock()
+        worse_solution.found = True
+        worse_solution.x = np.array([1.0])
+        worse_solution.primal_residual.return_value = 0.5
+        best_solution = MagicMock()
+        best_solution.found = True
+        best_solution.x = np.array([2.0])
+        best_solution.primal_residual.return_value = 0.2
+        later_worse_solution = MagicMock()
+        later_worse_solution.found = True
+        later_worse_solution.x = np.array([3.0])
+        later_worse_solution.primal_residual.return_value = 0.4
+        solver._solve_with_initial_value = MagicMock(side_effect=[
+            worse_solution,
+            best_solution,
+        ] + [later_worse_solution] * (MAX_ATTEMPTS - 2))
+
+        solution, report_post_processor_status = solver._solve(HIGHS_SOLVER)
+
+        self.assertIs(solution, best_solution)
+        self.assertEqual(
+            report_post_processor_status.status_code,
+            StatusCode.PARTIAL_SOLUTION_FOUND_WITH_HIGHS)
 
     def test_solve_fails_when_solution_has_negative_results(self):
         spec = SetMeasurementsSpec()
