@@ -21,6 +21,7 @@ import kotlin.math.ln
 import kotlin.math.sqrt
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
@@ -41,7 +42,84 @@ object HighOverlapExpectedReach {
     val reach: ClosedFloatingPointRange<Double>,
     /** Indexed by frequency - 1, so element `i` is the reach at frequency `i + 1` or more. */
     val kPlusReach: List<ClosedFloatingPointRange<Double>>,
+    /** VIDs the population spec declares for this cell, which the report returns unnoised. */
+    val populationSize: Long = 0L,
+    /**
+     * Per-component contribution in `reporting_unit.components` order, each the increment its
+     * component adds to the union of the components before it.
+     */
+    val stackedIncrementalReach: List<ClosedFloatingPointRange<Double>> = emptyList(),
   )
+
+  /** The demographic cell [common] belongs to, matching the report's `gender/ageGroup` grouping. */
+  fun demographicKey(common: Common): String = "${common.gender.name}/${common.ageGroup.name}"
+
+  /**
+   * Resolves a VID's demographic cell from the population spec.
+   *
+   * The reached VID space is a run of equal, aligned stripes, so the stripe holding a VID is an
+   * index rather than a search. The spec is the same file the EDP Aggregator labels against, so
+   * this and the measured results agree by construction.
+   */
+  class DemographicIndex(populationSpec: PopulationSpec) {
+    private class Stripe(val startVid: Long, val endVidInclusive: Long, val key: String)
+
+    private val stripes: List<Stripe> =
+      populationSpec.subpopulationsList
+        .flatMap { subpopulation ->
+          val key = demographicKey(subpopulation.attributesList.single().unpack(Common::class.java))
+          subpopulation.vidRangesList.map { Stripe(it.startVid, it.endVidInclusive, key) }
+        }
+        .sortedBy { it.startVid }
+
+    /** Size of the leading equal-and-contiguous run, which every reached VID falls in. */
+    private val stripeSize: Long =
+      stripes.firstOrNull()?.let { it.endVidInclusive - it.startVid + 1 }
+        ?: error("Population spec declares no subpopulations")
+
+    /**
+     * Keys of that run, indexed by stripe. Beyond it the spec is a single unreached filler.
+     *
+     * Each stripe must start exactly where the previous one ended, so a gap cannot shift later
+     * stripes out from under the index arithmetic in [keyOf].
+     */
+    private val keysByStripe: List<String> =
+      stripes
+        .withIndex()
+        .takeWhile { (index, stripe) ->
+          stripe.startVid == index * stripeSize + 1 &&
+            stripe.endVidInclusive - stripe.startVid + 1 == stripeSize
+        }
+        .map { it.value.key }
+
+    private val uniformEndVidInclusive: Long = keysByStripe.size * stripeSize
+
+    init {
+      // Guards the index arithmetic: a generator that stops striping uniformly, or leaves a gap,
+      // would otherwise silently mis-assign demographics instead of failing here.
+      require(keysByStripe.isNotEmpty()) {
+        "Population spec does not begin with a contiguous run of equal stripes; first range is " +
+          "${stripes.first().startVid}..${stripes.first().endVidInclusive}, expected to start at 1"
+      }
+    }
+
+    /** Every cell the spec declares, so a cell nobody reached is still a known key. */
+    val keys: Set<String> = stripes.map { it.key }.toSet()
+
+    /** VIDs the spec declares per cell, including the unreached filler. */
+    val populationSizeByKey: Map<String, Long> =
+      stripes
+        .groupBy { it.key }
+        .mapValues { (_, striped) -> striped.sumOf { it.endVidInclusive - it.startVid + 1 } }
+
+    /** Returns the cell holding [vid], or null when the spec declares no range for it. */
+    fun keyOf(vid: Long): String? {
+      if (vid in 1..uniformEndVidInclusive) {
+        return keysByStripe[((vid - 1) / stripeSize).toInt()]
+      }
+      return stripes.firstOrNull { vid >= it.startVid && vid <= it.endVidInclusive }?.key
+    }
+  }
 
   /**
    * Returns the acceptable metric ranges per impression qualification filter label for each of the
@@ -111,10 +189,92 @@ object HighOverlapExpectedReach {
     )
   }
 
+  /**
+   * Returns the acceptable ranges for the whole-interval result group, per demographic cell and
+   * impression qualification filter.
+   *
+   * [componentEdpNames] must be the reporting unit's components in request order: the stacked
+   * incremental reach of component `i` is what it adds to the union of those before it, so a
+   * different order is a different expectation.
+   */
+  fun computeWholeIntervalRangesByDemographic(
+    config: ImpressionTestDataConfig,
+    eventGroupReferenceIds: Set<String>,
+    componentEdpNames: List<String>,
+    populationSpec: PopulationSpec,
+    reportStart: LocalDate,
+    reportEnd: LocalDate,
+    metricSpecConfig: MetricSpecConfig,
+    maxFrequency: Int,
+  ): Map<String, Map<String, ExpectedMetrics>> {
+    val demographics = DemographicIndex(populationSpec)
+    val frequenciesByEdpAndFilter =
+      frequenciesByEdpAndFilter(
+        config,
+        eventGroupReferenceIds,
+        populationSpec,
+        reportStart,
+        reportEnd,
+      )
+    for (edpName in componentEdpNames) {
+      require(frequenciesByEdpAndFilter.containsKey(edpName)) {
+        "No EventGroups for component $edpName among $eventGroupReferenceIds"
+      }
+    }
+    val params = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+    val stackedTolerance =
+      STACKED_NOISE_MULTIPLIER * tolerance(params.reachPrivacyParams, params.vidSamplingInterval)
+
+    val byCell = mutableMapOf<String, MutableMap<String, ExpectedMetrics>>()
+    for (label in FILTER_PREDICATES.keys) {
+      // Union across EDPs, bucketed by cell: a VID reached through more than one EDP is one
+      // person with the impressions of both.
+      val unionByCell = mutableMapOf<String, MutableMap<Long, Int>>()
+      for (byFilter in frequenciesByEdpAndFilter.values) {
+        for ((vid, frequency) in byFilter.getValue(label)) {
+          val key = demographics.keyOf(vid) ?: continue
+          val frequencies = unionByCell.getOrPut(key) { mutableMapOf() }
+          frequencies[vid] = (frequencies[vid] ?: 0) + frequency
+        }
+      }
+
+      // Ordered prefix unions, per cell, in component order. VIDs are folded straight into the
+      // running prefix rather than collected per component first, so only one set of the reached
+      // VIDs is held at a time.
+      val incrementsByCell = mutableMapOf<String, MutableList<Int>>()
+      val prefixByCell = mutableMapOf<String, MutableSet<Long>>()
+      for (edpName in componentEdpNames) {
+        val sizeBefore: Map<String, Int> = prefixByCell.mapValues { it.value.size }
+        for (vid in frequenciesByEdpAndFilter.getValue(edpName).getValue(label).keys) {
+          val key = demographics.keyOf(vid) ?: continue
+          prefixByCell.getOrPut(key) { mutableSetOf() }.add(vid)
+        }
+        for (key in unionByCell.keys) {
+          val added = (prefixByCell[key]?.size ?: 0) - (sizeBefore[key] ?: 0)
+          incrementsByCell.getOrPut(key) { mutableListOf() }.add(added)
+        }
+      }
+
+      for ((key, frequencies) in unionByCell) {
+        byCell.getOrPut(key) { mutableMapOf() }[label] =
+          expectedMetrics(frequencies, params, maxFrequency, DEMOGRAPHIC_RELATIVE_TOLERANCE)
+            .copy(
+              populationSize = demographics.populationSizeByKey.getValue(key),
+              stackedIncrementalReach =
+                incrementsByCell.getValue(key).map { increment ->
+                  rangeAround(increment.toDouble(), stackedTolerance, STACKED_RELATIVE_TOLERANCE)
+                },
+            )
+      }
+    }
+    return byCell
+  }
+
   private fun expectedMetrics(
     frequencies: Map<Long, Int>,
     reachAndFrequencyParams: MetricSpecConfig.ReachAndFrequencySamplingAndPrivacyParams,
     maxFrequency: Int,
+    relativeTolerance: Double = RELATIVE_TOLERANCE,
   ): ExpectedMetrics {
     val reachTolerance =
       tolerance(
@@ -123,10 +283,14 @@ object HighOverlapExpectedReach {
       )
 
     return ExpectedMetrics(
-      reach = rangeAround(frequencies.size.toDouble(), reachTolerance),
+      reach = rangeAround(frequencies.size.toDouble(), reachTolerance, relativeTolerance),
       kPlusReach =
         (1..maxFrequency).map { k ->
-          rangeAround(frequencies.values.count { it >= k }.toDouble(), reachTolerance)
+          rangeAround(
+            frequencies.values.count { it >= k }.toDouble(),
+            reachTolerance,
+            relativeTolerance,
+          )
         },
     )
   }
@@ -137,10 +301,14 @@ object HighOverlapExpectedReach {
       subpopulation.vidRangesList.sumOf { it.endVidInclusive - it.startVid + 1 }
     }
 
-  private fun rangeAround(expected: Double, tolerance: Double): ClosedFloatingPointRange<Double> {
+  private fun rangeAround(
+    expected: Double,
+    tolerance: Double,
+    relativeTolerance: Double = RELATIVE_TOLERANCE,
+  ): ClosedFloatingPointRange<Double> {
     // The post-processor shifts values by an amount that scales with the report's magnitudes, which
     // the additive measurement noise does not cover.
-    val margin = maxOf(tolerance, RELATIVE_TOLERANCE * expected)
+    val margin = maxOf(tolerance, relativeTolerance * expected)
     return (expected - margin)..(expected + margin)
   }
 
@@ -248,6 +416,20 @@ object HighOverlapExpectedReach {
 
   /** Minimum margin, as a fraction of the expected value. */
   private const val RELATIVE_TOLERANCE = 0.15
+
+  /**
+   * Minimum margin for a single demographic cell.
+   *
+   * A cell carries roughly a sixth of the reach the ungrouped metrics do, so the same absolute
+   * noise is a far larger share of it.
+   */
+  private const val DEMOGRAPHIC_RELATIVE_TOLERANCE = 0.35
+
+  /** Minimum margin for one stacked incremental contribution. */
+  private const val STACKED_RELATIVE_TOLERANCE = 0.50
+
+  /** Two independently noised prefix reaches are subtracted, so their variances add. */
+  private const val STACKED_NOISE_MULTIPLIER = 1.4142135623730951
 
   private val MRC_VIEWABLE_FRACTIONS = setOf(0.5f, 0.75f, 1.0f)
 }

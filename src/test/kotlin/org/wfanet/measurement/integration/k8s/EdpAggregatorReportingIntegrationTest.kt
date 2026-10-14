@@ -476,6 +476,25 @@ class EdpAggregatorReportingIntegrationTest {
     assertCumulativeReachIsMonotonic(report)
     assertStackedIncrementalReach(report)
     assertPopulationSizeMatchesSpec(report)
+    assertWholeIntervalMetricsMatchSpecs(report)
+  }
+
+  /** Component EDPs of the weekly reporting unit, in the order the request lists them. */
+  private lateinit var weeklyComponentEdpNames: List<String>
+
+  /** Expected whole-interval metrics per demographic cell, by impression qualification filter. */
+  private val expectedWholeIntervalMetrics:
+    Map<String, Map<String, HighOverlapExpectedReach.ExpectedMetrics>> by lazy {
+    HighOverlapExpectedReach.computeWholeIntervalRangesByDemographic(
+      PROVISIONED_CONFIG,
+      WEEKLY_REPORT_EVENT_GROUP_REF_IDS,
+      weeklyComponentEdpNames,
+      POPULATION_SPEC,
+      WEEKLY_REPORT_START,
+      WEEKLY_REPORT_END,
+      BASIC_REPORT_METRIC_SPEC_CONFIG,
+      K_PLUS_REACH,
+    )
   }
 
   /**
@@ -493,6 +512,13 @@ class EdpAggregatorReportingIntegrationTest {
     require(dataProviderNames.size == EDP_DISPLAY_NAMES.size) {
       "Expected one DataProvider per EDP in $EDP_DISPLAY_NAMES, got $dataProviderNames"
     }
+    // Taken from the requested EventGroups rather than the returned report, so the stacked
+    // expectation is anchored on the component order that was asked for.
+    val edpNameByDataProvider: Map<String, String> =
+      eventGroups.associate {
+        it.cmmsDataProvider to EDP_NAME_BY_EVENT_GROUP_REF_ID.getValue(it.eventGroupReferenceId)
+      }
+    weeklyComponentEdpNames = dataProviderNames.map { edpNameByDataProvider.getValue(it) }
 
     return listOf(
       resultGroupSpec {
@@ -729,6 +755,79 @@ class EdpAggregatorReportingIntegrationTest {
         .isWithin(STACKED_REACH_TOLERANCE * unionReach)
         .of(unionReach.toDouble())
     }
+  }
+
+  /**
+   * Checks the whole-interval group against the values the synthetic specs imply, per demographic
+   * cell.
+   *
+   * Every metric is compared before anything fails, so one bad cell reads differently from a
+   * systematic shift across all of them.
+   */
+  private fun assertWholeIntervalMetricsMatchSpecs(report: BasicReport) {
+    val resultGroup = resultGroupOf(report, TOTAL_GROUP_TITLE)
+    val expectedByCell = expectedWholeIntervalMetrics
+
+    assertWithMessage("expected demographic cells")
+      .that(expectedByCell)
+      .hasSize(EXPECTED_DEMOGRAPHIC_COUNT)
+    assertWithMessage("whole-interval results")
+      .that(resultGroup.resultsList)
+      .hasSize(EXPECTED_DEMOGRAPHIC_COUNT)
+
+    val actualByKey = resultGroup.resultsList.associateBy { demographicOf(it) }
+    assertWithMessage("demographic cells")
+      .that(actualByKey.keys)
+      .containsExactlyElementsIn(expectedByCell.keys)
+
+    val comparisons = mutableListOf<MetricComparison>()
+    for ((key, result) in actualByKey) {
+      val expected = expectedByCell.getValue(key).getValue(filterLabel(result))
+      val metricSet = result.metricSet.reportingUnit
+      val prefix = "$TOTAL_GROUP_TITLE: $key"
+
+      assertWithMessage("$prefix metric frequency")
+        .that(result.metadata.metricFrequency.hasTotal())
+        .isTrue()
+
+      // Declared by the population spec, so the report returns it unnoised.
+      assertWithMessage("$prefix population size")
+        .that(result.metricSet.populationSize)
+        .isEqualTo(expected.populationSize)
+
+      comparisons +=
+        MetricComparison(
+          "$prefix cumulative reach",
+          metricSet.cumulative.reach.toDouble(),
+          expected.reach,
+        )
+
+      assertWithMessage("$prefix stacked incremental reach size")
+        .that(metricSet.stackedIncrementalReachList)
+        .hasSize(expected.stackedIncrementalReach.size)
+      metricSet.stackedIncrementalReachList.forEachIndexed { index, contribution ->
+        comparisons +=
+          MetricComparison(
+            "$prefix stacked incremental reach[$index]",
+            contribution.toDouble(),
+            expected.stackedIncrementalReach[index],
+          )
+      }
+    }
+
+    logger.info(
+      comparisons.joinToString("\n", prefix = "Whole-interval metrics measured against specs:\n")
+    )
+    val outOfRange = comparisons.filter { !it.inRange }
+    assertWithMessage(
+        outOfRange.size.toString() +
+          " of " +
+          comparisons.size +
+          " whole-interval metrics outside the expected range:\n" +
+          comparisons.joinToString("\n")
+      )
+      .that(outOfRange)
+      .isEmpty()
   }
 
   private fun resultGroupOf(report: BasicReport, title: String): ResultGroup =
@@ -1108,6 +1207,17 @@ class EdpAggregatorReportingIntegrationTest {
     /** EDPs this test covers: every one the high overlap dataset defines. */
     private val EDP_DISPLAY_NAMES: Set<String> by lazy {
       IMPRESSION_TEST_DATA_CONFIG.eventGroupsList.map { it.edpName }.toSet()
+    }
+
+    /** The EDP each EventGroup is seeded on, by the reference id the report requests it by. */
+    private val EDP_NAME_BY_EVENT_GROUP_REF_ID: Map<String, String> by lazy {
+      IMPRESSION_TEST_DATA_CONFIG.eventGroupsList
+        .flatMap { eventGroup ->
+          eventGroup.entityKeySpecsList.map { entityKeySpec ->
+            "${entityKeySpec.entityType}-${entityKeySpec.entityId}" to eventGroup.edpName
+          }
+        }
+        .toMap()
     }
 
     /** Config restricted to [EDP_DISPLAY_NAMES], empty when the dataset is not configured. */
