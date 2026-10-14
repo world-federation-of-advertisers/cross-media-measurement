@@ -128,7 +128,7 @@ locals {
       mig_service_account_name    = "results-fulfiller-sa"
       single_instance_assignment  = 1
       min_replicas                = 0
-      max_replicas                = 10
+      max_replicas                = 20
       # Using n2d for better Confidential VM availability.
       # Large production workloads may require c4d-standard-32 (124 GB)
       # with hyperdisk-balanced disk (provisioned_iops=5000,
