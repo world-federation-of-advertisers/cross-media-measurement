@@ -131,6 +131,55 @@ class BasicReportReportingSetBackfillerTest {
     }
 
   @Test
+  fun `skips an invalid Campaign Group and continues backfilling`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      insertTestBasicReport(
+        basicReportId = INVALID_CAMPAIGN_GROUP_BASIC_REPORT_ID,
+        externalBasicReportId = INVALID_CAMPAIGN_GROUP_BASIC_REPORT_EXTERNAL_ID,
+        externalCampaignGroupId = INVALID_CAMPAIGN_GROUP_ID,
+        components = listOf(ComponentSpec()),
+      )
+      createCampaignGroup()
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID,
+        externalCampaignGroupId = CAMPAIGN_GROUP_ID,
+        components = listOf(ComponentSpec()),
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.examined).isEqualTo(2)
+      assertThat(result.unresolvableCampaignGroupReferences).isEqualTo(1)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(
+          readComponentSummaryReportingSetId(INVALID_CAMPAIGN_GROUP_BASIC_REPORT_EXTERNAL_ID)
+        )
+        .isEmpty()
+      assertThat(readComponentSummaryReportingSetId(EXTERNAL_BASIC_REPORT_ID)).isNotEmpty()
+    }
+
+  @Test
+  fun `skips a BasicReport whose Campaign Group is missing`() =
+    runBlocking<Unit> {
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID,
+        externalCampaignGroupId = MISSING_CAMPAIGN_GROUP_ID,
+        components = listOf(ComponentSpec()),
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.unresolvableCampaignGroupReferences).isEqualTo(1)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.updated).isEqualTo(0)
+      assertThat(readComponentSummaryReportingSetId()).isEmpty()
+    }
+
+  @Test
   fun `leaves a BasicReport that already has external_reporting_set_id untouched`() =
     runBlocking<Unit> {
       createCampaignGroup()
@@ -276,6 +325,22 @@ class BasicReportReportingSetBackfillerTest {
     )
   }
 
+  private suspend fun createNonCampaignGroup() {
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        externalReportingSetId = INVALID_CAMPAIGN_GROUP_ID
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys += eventGroupKey(EVENT_GROUP_ID_1)
+              eventGroupKeys += eventGroupKey(EVENT_GROUP_ID_2)
+            }
+        }
+      }
+    )
+  }
+
   private suspend fun createChildReportingSet(cmmsEventGroupIds: List<String>): String {
     val externalId = "child-${cmmsEventGroupIds.joinToString("-")}"
     reportingSetsService.createReportingSet(
@@ -326,11 +391,24 @@ class BasicReportReportingSetBackfillerTest {
     )
 
   /** Inserts a `BasicReport` with one `ReportingUnitComponentSummary` per entry in [components]. */
-  private suspend fun insertTestBasicReport(components: List<ComponentSpec>) {
+  private suspend fun insertTestBasicReport(components: List<ComponentSpec>) =
+    insertTestBasicReport(
+      basicReportId = BASIC_REPORT_ID,
+      externalBasicReportId = EXTERNAL_BASIC_REPORT_ID,
+      externalCampaignGroupId = CAMPAIGN_GROUP_ID,
+      components = components,
+    )
+
+  private suspend fun insertTestBasicReport(
+    basicReportId: Long,
+    externalBasicReportId: String,
+    externalCampaignGroupId: String,
+    components: List<ComponentSpec>,
+  ) {
     val basicReport = internalBasicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
-      externalCampaignGroupId = CAMPAIGN_GROUP_ID
+      this.externalBasicReportId = externalBasicReportId
+      this.externalCampaignGroupId = externalCampaignGroupId
       details = basicReportDetails {}
       resultDetails = basicReportResultDetails {
         resultGroups += internalResultGroup {
@@ -368,7 +446,7 @@ class BasicReportReportingSetBackfillerTest {
 
     spannerClient.readWriteTransaction().run { txn ->
       txn.insertBasicReport(
-        basicReportId = BASIC_REPORT_ID,
+        basicReportId = basicReportId,
         measurementConsumerId = MEASUREMENT_CONSUMER_ID,
         basicReport = basicReport,
         state = BasicReport.State.SUCCEEDED,
@@ -378,11 +456,19 @@ class BasicReportReportingSetBackfillerTest {
   }
 
   private suspend fun readComponentSummaryReportingSetId(): String =
-    readComponentSummaryReportingSetIds().single()
+    readComponentSummaryReportingSetId(EXTERNAL_BASIC_REPORT_ID)
+
+  private suspend fun readComponentSummaryReportingSetId(externalBasicReportId: String): String =
+    readComponentSummaryReportingSetIds(externalBasicReportId).single()
 
   /** The `external_reporting_set_id` of every component summary, in order. */
   private suspend fun readComponentSummaryReportingSetIds(): List<String> =
-    readInternalBasicReport()
+    readComponentSummaryReportingSetIds(EXTERNAL_BASIC_REPORT_ID)
+
+  private suspend fun readComponentSummaryReportingSetIds(
+    externalBasicReportId: String
+  ): List<String> =
+    readInternalBasicReport(externalBasicReportId)
       .resultDetails
       .resultGroupsList
       .single()
@@ -394,10 +480,13 @@ class BasicReportReportingSetBackfillerTest {
       .map { it.externalReportingSetId }
 
   private suspend fun readInternalBasicReport(): BasicReport =
+    readInternalBasicReport(EXTERNAL_BASIC_REPORT_ID)
+
+  private suspend fun readInternalBasicReport(externalBasicReportId: String): BasicReport =
     spannerClient
       .readOnlyTransaction()
       .use { txn ->
-        txn.getBasicReportByExternalId(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID)
+        txn.getBasicReportByExternalId(CMMS_MEASUREMENT_CONSUMER_ID, externalBasicReportId)
       }
       .basicReport
 
@@ -436,9 +525,14 @@ class BasicReportReportingSetBackfillerTest {
     private const val OTHER_CMMS_DATA_PROVIDER_ID = "dp2"
     private const val OTHER_EVENT_GROUP_ID = "eg3"
     private const val CAMPAIGN_GROUP_ID = "campaign-group"
+    private const val INVALID_CAMPAIGN_GROUP_ID = "invalid-campaign-group"
+    private const val MISSING_CAMPAIGN_GROUP_ID = "missing-campaign-group"
     private const val EXTERNAL_BASIC_REPORT_ID = "basic-report"
+    private const val INVALID_CAMPAIGN_GROUP_BASIC_REPORT_EXTERNAL_ID =
+      "invalid-campaign-group-basic-report"
     private const val MEASUREMENT_CONSUMER_ID = 1L
     private const val BASIC_REPORT_ID = 1L
+    private const val INVALID_CAMPAIGN_GROUP_BASIC_REPORT_ID = 2L
 
     private var idCounter = 0L
 

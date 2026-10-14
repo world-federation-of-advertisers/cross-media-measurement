@@ -42,8 +42,11 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.updateBasicReportResultDetails
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
+import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 /**
  * Backfills `ReportingUnitComponentSummary.external_reporting_set_id` on stored `BasicReport`s.
@@ -88,6 +91,7 @@ class BasicReportReportingSetBackfiller(
     val reportingSetsCreated: Int,
     val unresolvedComponents: Int,
     val unresolvableMetricSetComponents: Int,
+    val unresolvableCampaignGroupReferences: Int,
     /** Earliest create_time among the backfilled BasicReports, if any. */
     val earliestCreateTime: Timestamp?,
     /** Latest create_time among the backfilled BasicReports, if any. */
@@ -101,6 +105,7 @@ class BasicReportReportingSetBackfiller(
         "reportingSetsCreated=$reportingSetsCreated, " +
         "unresolvedComponents=$unresolvedComponents, " +
         "unresolvableMetricSetComponents=$unresolvableMetricSetComponents, " +
+        "unresolvableCampaignGroupReferences=$unresolvableCampaignGroupReferences, " +
         "earliestCreateTime=${formatTime(earliestCreateTime)}, " +
         "latestCreateTime=${formatTime(latestCreateTime)})"
   }
@@ -114,6 +119,7 @@ class BasicReportReportingSetBackfiller(
   private var reportingSetsCreated = 0
   private var unresolvedComponents = 0
   private var unresolvableMetricSetComponents = 0
+  private var unresolvableCampaignGroupReferences = 0
   private var earliestCreateTime: Timestamp? = null
   private var latestCreateTime: Timestamp? = null
   private var examined = 0
@@ -122,6 +128,8 @@ class BasicReportReportingSetBackfiller(
   private val reportingSetIdsByCampaignGroup:
     MutableMap<CampaignGroupKey, MutableMap<Set<ReportingSet.Primitive.EventGroupKey>, String>> =
     mutableMapOf()
+
+  private val unresolvableCampaignGroupKeys = mutableSetOf<CampaignGroupKey>()
 
   suspend fun run(): Result {
     // BasicReports is interleaved in MeasurementConsumers, so scoping each query to a
@@ -152,6 +160,7 @@ class BasicReportReportingSetBackfiller(
         reportingSetsCreated = reportingSetsCreated,
         unresolvedComponents = unresolvedComponents,
         unresolvableMetricSetComponents = unresolvableMetricSetComponents,
+        unresolvableCampaignGroupReferences = unresolvableCampaignGroupReferences,
         earliestCreateTime = earliestCreateTime,
         latestCreateTime = latestCreateTime,
       )
@@ -242,9 +251,21 @@ class BasicReportReportingSetBackfiller(
 
     val campaignGroupKey =
       CampaignGroupKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalCampaignGroupId)
+    if (campaignGroupKey in unresolvableCampaignGroupKeys) {
+      skipUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
+      return
+    }
     val reportingSetIdsByMembership =
-      reportingSetIdsByCampaignGroup.getOrPut(campaignGroupKey) {
-        readCampaignGroupMembershipIndex(campaignGroupKey)
+      try {
+        reportingSetIdsByCampaignGroup.getOrPut(campaignGroupKey) {
+          readCampaignGroupMembershipIndex(campaignGroupKey)
+        }
+      } catch (e: CampaignGroupInvalidException) {
+        skipUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
+        return
+      } catch (e: ReportingSetNotFoundException) {
+        skipUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
+        return
       }
 
     // Resolution is separated from minting so that the Postgres writes are gated on the same
@@ -328,6 +349,20 @@ class BasicReportReportingSetBackfiller(
     updated++
   }
 
+  private fun skipUnresolvableCampaignGroup(
+    externalBasicReportId: String,
+    campaignGroupKey: CampaignGroupKey,
+  ) {
+    unresolvableCampaignGroupKeys.add(campaignGroupKey)
+    unresolvableCampaignGroupReferences++
+    skipped++
+    logger.warning {
+      "BasicReport $externalBasicReportId references ReportingSet " +
+        "${campaignGroupKey.externalCampaignGroupId} as its Campaign Group, but that " +
+        "ReportingSet is missing or is not a valid Campaign Group. Not updating."
+    }
+  }
+
   private fun recordCreateTime(createTime: Timestamp) {
     val earliest = earliestCreateTime
     if (earliest == null || Timestamps.compare(createTime, earliest) < 0) {
@@ -352,7 +387,7 @@ class BasicReportReportingSetBackfiller(
         "BasicReports examined" to result.examined.toString(),
         "Already valid" to result.alreadyValid.toString(),
         "Backfilled" to result.updated.toString(),
-        "Skipped (unresolved components)" to result.skipped.toString(),
+        "Skipped" to result.skipped.toString(),
         "Component summaries filled" to result.componentSummariesFilled.toString(),
         "Backfilled create_time from" to formatTime(result.earliestCreateTime),
         "Backfilled create_time to" to formatTime(result.latestCreateTime),
@@ -360,6 +395,8 @@ class BasicReportReportingSetBackfiller(
         "ReportingSets created" to result.reportingSetsCreated.toString(),
         "Unresolved components" to result.unresolvedComponents.toString(),
         "Unresolvable metric_set components" to result.unresolvableMetricSetComponents.toString(),
+        "Unresolvable Campaign Group references" to
+          result.unresolvableCampaignGroupReferences.toString(),
       )
     val width = rows.maxOf { it.first.length }
     println()
@@ -375,10 +412,27 @@ class BasicReportReportingSetBackfiller(
   private suspend fun readCampaignGroupMembershipIndex(
     campaignGroupKey: CampaignGroupKey
   ): MutableMap<Set<ReportingSet.Primitive.EventGroupKey>, String> {
-    val readContext = postgresClient.singleUse()
+    val readContext = postgresClient.readTransaction()
+    val reportingSetReader = ReportingSetReader(readContext)
     val reportingSets: List<ReportingSet> =
       try {
-        ReportingSetReader(readContext)
+        val measurementConsumerId =
+          MeasurementConsumerReader(readContext)
+            .getByCmmsId(campaignGroupKey.cmmsMeasurementConsumerId)
+            ?.measurementConsumerId
+            ?: throw ReportingSetNotFoundException(
+              campaignGroupKey.cmmsMeasurementConsumerId,
+              campaignGroupKey.externalCampaignGroupId,
+            )
+        reportingSetReader.readCampaignGroup(
+          measurementConsumerId,
+          campaignGroupKey.externalCampaignGroupId,
+        )
+          ?: throw ReportingSetNotFoundException(
+            campaignGroupKey.cmmsMeasurementConsumerId,
+            campaignGroupKey.externalCampaignGroupId,
+          )
+        reportingSetReader
           .readReportingSets(
             streamReportingSetsRequest {
               filter =

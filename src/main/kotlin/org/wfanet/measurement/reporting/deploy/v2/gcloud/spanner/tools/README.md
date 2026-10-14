@@ -101,6 +101,11 @@ examined, one `MeasurementConsumer` at a time and a page at a time. Use
 time, which both bounds the work and makes it impossible to modify a
 `BasicReport` outside that window.
 
+Before resolving a component summary, the tool verifies that the ReportingSet
+referenced by the `BasicReport` exists and is a valid Campaign Group. If it is
+missing or invalid, the whole `BasicReport` is left unchanged and reported as
+skipped; the run continues with the remaining records.
+
 For each component summary missing `external_reporting_set_id`:
 
 1.  The component's membership is taken from its own `event_group_summaries`,
@@ -247,10 +252,11 @@ include the full path to the executable.
 ### Output
 
 Each run ends with a summary of the `BasicReport`s examined, those already
-valid, those updated, those skipped, the `ReportingSet`s reused and created, and
-any components that could not be resolved.
+valid, those updated, those skipped, the unresolvable Campaign Group references,
+the `ReportingSet`s reused and created, and any components that could not be
+resolved.
 
-Run with `--dry-run` first. The unresolved counts should both be zero; a
+Run with `--dry-run` first. The unresolved counts should all be zero; a
 non-zero count means some component summaries would remain unserveable, and the
 per-`BasicReport` reasons are logged.
 
