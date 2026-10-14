@@ -23,6 +23,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 
@@ -225,6 +226,40 @@ class ResultsFulfillerParamsValidatorTest {
       }
 
     assertThat(exception).hasMessageThat().contains("Unsupported multi-party noise type")
+  }
+
+  @Test
+  fun `a TrusTeeV2 impression count refuses a clip outside the noised mode`() {
+    val invalidParams =
+      VALID_PARAMS.copy {
+        trusTeeV2Config =
+          ResultsFulfillerParamsKt.trusTeeV2Config {
+            impressionCountMode =
+              ResultsFulfillerParams.TrusTeeV2Config.ImpressionCountMode.UNNOISED
+            maxFrequencyPerUser = 3
+          }
+      }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResultsFulfillerParamsValidator.validate(invalidParams)
+      }
+
+    assertThat(exception).hasMessageThat().contains("read only under NOISED")
+  }
+
+  @Test
+  fun `a TrusTeeV2 impression count passes validation under the noised mode`() {
+    ResultsFulfillerParamsValidator.validate(
+      VALID_PARAMS.copy {
+        trusTeeV2Config =
+          ResultsFulfillerParamsKt.trusTeeV2Config {
+            impressionCountMode = ResultsFulfillerParams.TrusTeeV2Config.ImpressionCountMode.NOISED
+            maxFrequencyPerUser = 3
+          }
+      },
+      DATA_PROVIDER,
+    )
   }
 
   @Test
