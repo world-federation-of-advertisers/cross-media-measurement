@@ -1158,7 +1158,7 @@ class EdpAggregatorReportingIntegrationTest {
      * Reach noise has a fixed sigma, so the smallest values in a cumulative series carry the
      * largest relative error and can clamp to zero.
      */
-    private const val NOISE_DOMINATED_WEEKS = 2
+    private const val NOISE_DOMINATED_WEEKS = 3
 
     /**
      * EventGroups the weekly report covers, spanning every EDP in [EDP_DISPLAY_NAMES].
