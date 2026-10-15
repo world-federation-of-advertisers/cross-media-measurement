@@ -52,11 +52,11 @@ Encrypted Parquet + done ──────────► EDPA assigns VIDs in 
                                     ► TrusTEE combines publisher contributions
 ```
 
-The impression columns remain encrypted in storage. They are decrypted only
-inside Google Confidential Space, a trusted execution environment (TEE). Before
-the publisher's cloud key manager grants access, the workload presents a
-hardware-signed attestation describing the software and environment that are
-running.
+After upload, Halo keeps the impression columns encrypted at rest and decrypts
+them only inside Google Confidential Space, a trusted execution environment
+(TEE). Before the publisher's cloud key manager grants access, the workload
+presents a hardware-signed attestation describing the software and environment
+that are running.
 
 Storage access does not grant decryption access. The publisher keeps control of
 the encryption key and can revoke future use by changing the key policy.
@@ -245,13 +245,16 @@ The operator configures:
 Each file must represent exactly one UTC calendar date. A date may contain any
 number of files.
 
-Aim to keep each Parquet object at or below approximately **1 GB**. This is a
-best-practice target, not a protocol limit. A file is the smallest unit the
-pipeline can assign to a worker, so several moderately sized files allow more
-parallelism than one very large file. The operator-configured
-`max_file_batch_size_bytes` controls how files are packed into a labeling job
-and may require a smaller target. Confirm the target with the operator because
-one oversized file cannot be split across workers.
+Ask the operator for the per-file target and keep each Parquet object at or
+below it. The target should not exceed the operator-configured
+`max_file_batch_size_bytes`, which depends on worker capacity. An oversized
+file is dispatched alone on a best-effort basis and cannot be split across
+labeling jobs.
+
+Approximately **1 GB** is a best-practice starting point when the operator has
+not specified a smaller target; it is not a protocol limit. The operator's
+target always takes precedence. Several moderately sized files also allow more
+parallelism than one very large file.
 
 Splitting by campaign and date is a useful default because it produces natural
 backfill and correction boundaries.

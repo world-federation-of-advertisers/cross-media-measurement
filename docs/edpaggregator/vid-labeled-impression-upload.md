@@ -133,8 +133,10 @@ gs://<BUCKET>/<LABELED_PREFIX>/model-line/<MODEL_LINE_ID>/<YYYY-MM-DD>/
   done
 ```
 
-The encrypted data blob may live elsewhere if `BlobDetails.blob_uri` points to
-it, but co-locating the three objects is easier to operate.
+The encrypted data blob may use another directory tree within the same
+operator-provided bucket if `BlobDetails.blob_uri` points to it. Cross-bucket
+references are not currently supported. Co-locating the three objects is easier
+to operate.
 
 For each date:
 
