@@ -207,9 +207,12 @@ class SolverTest(unittest.TestCase):
 
     def test_solve_enforces_ordered_sets_relation(self):
         spec = SetMeasurementsSpec()
-        spec.add_ordered_sets_relation(OrderedSets({1}, {2}))
-        spec.add_measurement(1, Measurement(10, 1, "larger_set"))
-        spec.add_measurement(2, Measurement(20, 1, "smaller_set"))
+        spec.add_ordered_sets_relation(OrderedSets({1, 2, 3}, {3, 4, 5}))
+        spec.add_measurement(1, Measurement(10, 1, "larger_set_01"))
+        spec.add_measurement(2, Measurement(10, 1, "larger_set_02"))
+        spec.add_measurement(3, Measurement(100, 1, "shared_set"))
+        spec.add_measurement(4, Measurement(20, 1, "smaller_set_01"))
+        spec.add_measurement(5, Measurement(20, 1, "smaller_set_02"))
 
         solution, report_post_processor_status = Solver(
             spec).solve_and_translate()
@@ -222,7 +225,11 @@ class SolverTest(unittest.TestCase):
             max(report_post_processor_status.primal_equality_residual,
                 report_post_processor_status.primal_inequality_residual),
             TOLERANCE)
-        self.assertGreaterEqual(solution[1], solution[2] - TOLERANCE)
+        self.assertGreaterEqual(
+            solution[1] + solution[2] + solution[3],
+            solution[3] + solution[4] + solution[5] - TOLERANCE)
+        # The shared measurement cancels from the ordered-sets constraint.
+        self.assertAlmostEqual(solution[3], 100, places=2)
 
     def test_solver_rejects_empty_ordered_set(self):
         spec = SetMeasurementsSpec()
@@ -243,6 +250,7 @@ class SolverTest(unittest.TestCase):
         with self.assertRaisesRegex(
             ValueError, "sets of different length"):
             Solver(spec)
+
     def test_solve_retains_partial_solution_with_smallest_residual(self):
         spec = SetMeasurementsSpec()
         spec.add_measurement(1, Measurement(10, 1, "measurement"))
