@@ -157,7 +157,7 @@ export contract.
 | Feed | What the exporter sends | What connects it to the other feed |
 | --- | --- | --- |
 | Campaign information | `EventGroup` records describing campaigns and their data intervals | An `entity_key`, such as a campaign ID |
-| Daily impressions | PME-encrypted Parquet with one row per impression, followed by a `done` marker | The same entity type and ID mapped from a Parquet column |
+| Daily impressions | PME-encrypted Parquet with one row per impression, followed by a `done` marker | At least one matching entity type and ID; IDs come from the configured Parquet columns |
 
 Campaign information may come from a different source system than the daily
 impression export. It does not need to be uploaded every day, but it must be
@@ -192,9 +192,10 @@ date's directory, reads their plaintext footers, records their exact object
 versions, and determines which VID model lines apply. The marker is a completion
 signal; it contains no impression data.
 
-Writing a new `done` object after correcting the directory creates a new upload
-revision. EDPA does not silently add later files to a revision that is already
-being processed.
+A new generation of `done` can create another upload revision. Follow the
+[Reference VID impression upload guide](reference-vid-impression-upload-guide.md):
+additive backfills may add new object versions, while correcting or removing
+previously processed data requires operator-managed eviction.
 
 ### 3. EDPA assigns VIDs in trusted hardware
 
@@ -239,6 +240,9 @@ requisition specification and the relevant labeled-impression blobs, then:
 3. applies the requested event filters; and
 4. counts the qualifying impressions by VID in a frequency vector.
 
+The vector contains counts at positions defined by the configured population.
+It contains neither impression records nor explicit VID values.
+
 For a non-empty TrusTEE contribution, ResultsFulfiller encrypts that vector for
 TrusTEE before sending it outside the EDPA TEE.
 
@@ -264,8 +268,8 @@ impression payload.
 | Campaign metadata | Data exporter | Kept in private operator-provided storage; it is not protected by the impression KEK | No impression-payload decryption is involved |
 | Raw Parquet | Data exporter | Configured data columns are protected with PME under the data owner's KMS key; the schema, footer, `event_date`, object name, and object size are not protected by PME | Enabled VID-labeling TEE workloads |
 | Raw-upload `done` marker | Data exporter | Plaintext completion signal containing no impression records | None |
-| VID-labeled RecordIO | VID-labeling TEE | Payload is envelope-encrypted under the data owner's KMS key | ResultsFulfiller TEE |
-| `BlobDetails` | VID-labeling TEE | Metadata sidecar containing the blob URI, interval, entity keys, model line, and encrypted data-encryption key; it does not contain impression records | None; the wrapped key is used by an authorized KMS client |
+| VID-labeled RecordIO | VID-labeling TEE or data exporter | Payload is envelope-encrypted under the data owner's KMS key | ResultsFulfiller TEE |
+| `BlobDetails` | VID-labeling TEE or data exporter | Metadata sidecar containing the blob URI, interval, entity keys, model line, and encrypted data-encryption key; it does not contain impression records | None; the wrapped key is used by an authorized KMS client |
 | TrusTEE contribution | ResultsFulfiller TEE | A non-empty frequency vector is envelope-encrypted for TrusTEE | TrusTEE TEE |
 | Measurement result | TrusTEE and Halo | Aggregate protocol result delivered through Halo | The authorized result recipient under the selected protocol |
 
@@ -279,7 +283,8 @@ The data owner configures its cloud key manager once during onboarding. It does
 not approve individual files, jobs, or measurement requests.
 
 Before a trusted workload can use the key, its Confidential Space environment
-presents hardware-backed attestation claims. A production policy can require:
+presents hardware-backed attestation claims. A production policy should require
+every claim supported by the selected attestation path:
 
 * a genuine, non-debug Confidential Space environment;
 * an image signed by the approved Halo signing key;
