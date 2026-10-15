@@ -92,6 +92,11 @@ object ReachAndFrequencyComputations {
    * Computes the frequency distribution among VIDs with non-zero frequencies, applying differential
    * privacy noise if parameters are provided.
    *
+   * When [resultMinimumThresholds] is set, each returned rate uses the noised active-register count
+   * before small-cell suppression as its denominator. If suppression removes the 1+ bucket, the
+   * returned rates are not renormalized and can sum to less than 1; the missing mass represents the
+   * suppressed share of reached VIDs.
+   *
    * @param rawHistogram A histogram of counts for frequencies 1 to `maxFrequency`.
    * @param maxFrequency The maximum frequency to reveal in the distribution. The input
    *   `rawHistogram` must have this size.

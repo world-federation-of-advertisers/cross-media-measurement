@@ -83,6 +83,28 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
         self.assertEqual(result.k_reach[2].sigma, 0)
         self.assertEqual(result.k_reach[3].sigma, 0)
 
+    def test_add_measurement_set_uncertainty_does_not_infer_one_plus_bucket(self):
+        thresholds = PotentialDirectResultMinimumThresholds(
+            min_users=100,
+            min_impressions=1000,
+        )
+        measurement_set = MeasurementSet(
+            reach=Measurement(value=70, sigma=0, name="reach"),
+            k_reach={
+                2: Measurement(value=0, sigma=0, name="frequency-2"),
+                3: Measurement(value=70, sigma=0, name="frequency-3"),
+            },
+            impression=Measurement(
+                value=210,
+                sigma=0,
+                name="impressions",
+            ),
+        )
+
+        result = thresholds.add_measurement_set_uncertainty(measurement_set)
+
+        self.assertEqual(result.k_reach, measurement_set.k_reach)
+
     def test_add_measurement_set_uncertainty_preserves_dp_noised_zeros(self):
         thresholds = PotentialDirectResultMinimumThresholds(
             min_users=100,
