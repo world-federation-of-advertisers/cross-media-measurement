@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import com.google.cloud.spanner.Type
 import com.google.type.Date
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -27,6 +28,8 @@ import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.struct
+import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.internal.kingdom.DateInterval
 import org.wfanet.measurement.internal.kingdom.EventGroupActivity
 import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesPageToken
@@ -70,6 +73,39 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
         }
         .execute(readContext)
         .collect { put(it.eventGroupActivity.date, it) }
+    }
+  }
+
+  /** Reads activities identified by exact EventGroup ID and date pairs. */
+  suspend fun readByEventGroupIdAndDatePairs(
+    readContext: AsyncDatabaseClient.ReadContext,
+    dataProviderId: InternalId,
+    activityKeys: Collection<Pair<InternalId, Date>>,
+  ): Map<Pair<InternalId, Date>, Result> {
+    return buildMap {
+      fillStatementBuilder {
+          appendClause(
+            """
+            WHERE EventGroupActivities.DataProviderId = @${Params.DATA_PROVIDER_ID}
+            AND STRUCT(EventGroupActivities.EventGroupId, EventGroupActivities.ActivityDate)
+              IN UNNEST(@activityKeys)
+          """
+              .trimIndent()
+          )
+          bind(Params.DATA_PROVIDER_ID to dataProviderId)
+          bind("activityKeys")
+            .toStructArray(
+              ACTIVITY_KEY_STRUCT,
+              activityKeys.map { (eventGroupId, date) ->
+                struct {
+                  set("EventGroupId").to(eventGroupId.value)
+                  set("ActivityDate").to(date.toCloudDate())
+                }
+              },
+            )
+        }
+        .execute(readContext)
+        .collect { put(it.internalEventGroupId to it.eventGroupActivity.date, it) }
     }
   }
 
@@ -164,6 +200,12 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
         JOIN DataProviders USING (DataProviderId)
       """
         .trimIndent()
+
+    private val ACTIVITY_KEY_STRUCT =
+      Type.struct(
+        Type.StructField.of("EventGroupId", Type.int64()),
+        Type.StructField.of("ActivityDate", Type.date()),
+      )
 
     suspend fun readKeysByIndex(
       readContext: AsyncDatabaseClient.ReadContext,

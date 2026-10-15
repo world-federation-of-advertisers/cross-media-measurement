@@ -91,8 +91,12 @@ class EventGroupActivitiesService(
         "Parent is either unspecified or invalid"
       }
 
+    grpcRequire(parentKey.dataProviderId != ResourceKey.WILDCARD_ID) {
+      "Wildcard ID is not supported for the DataProvider in parent"
+    }
+    val hasWildcardEventGroup = parentKey.eventGroupId == ResourceKey.WILDCARD_ID
     val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
-    if (authenticatedPrincipal.resourceKey != parentKey.parentKey) {
+    if (authenticatedPrincipal.resourceKey != DataProviderKey(parentKey.dataProviderId)) {
       throw Permission.UPDATE.deniedStatus(request.parent).asRuntimeException()
     }
 
@@ -107,7 +111,14 @@ class EventGroupActivitiesService(
             "Child request event group activity name is either unspecified or invalid"
           }
 
-        if (eventGroupActivityKey.parentKey != parentKey) {
+        if (eventGroupActivityKey.dataProviderId != parentKey.dataProviderId) {
+          throw Status.INVALID_ARGUMENT.withDescription(
+              "the DataProvider component of parent and child's EventGroupActivity do not match"
+            )
+            .asRuntimeException()
+        }
+
+        if (!hasWildcardEventGroup && eventGroupActivityKey.parentKey != parentKey) {
           throw Status.INVALID_ARGUMENT.withDescription(
               "the EventGroup component of parent and child's EventGroupActivity do not match"
             )
@@ -126,7 +137,9 @@ class EventGroupActivitiesService(
 
     val internalBatchRequest = internalBatchUpdateEventGroupActivitiesRequest {
       externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
-      externalEventGroupId = apiIdToExternalId(parentKey.eventGroupId)
+      if (!hasWildcardEventGroup) {
+        externalEventGroupId = apiIdToExternalId(parentKey.eventGroupId)
+      }
       requests += internalRequests
     }
 

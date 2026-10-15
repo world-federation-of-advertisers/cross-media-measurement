@@ -32,8 +32,11 @@ import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesPageToken
 import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
+import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.listEventGroupActivitiesPageToken
 import org.wfanet.measurement.internal.kingdom.listEventGroupActivitiesResponse
+import org.wfanet.measurement.internal.kingdom.updateEventGroupActivityRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupActivityNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundByMeasurementConsumerException
@@ -62,50 +65,93 @@ class SpannerEventGroupActivitiesService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.externalEventGroupId == 0L) {
-      throw RequiredFieldNotSetException("external_event_group_id")
+    if (request.requestsCount == 0) {
+      throw RequiredFieldNotSetException("requests")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.requestsCount > MAX_BATCH_SIZE) {
+      throw InvalidFieldValueException("requests") { fieldPath ->
+          "$fieldPath cannot contain more than $MAX_BATCH_SIZE requests"
+        }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val externalDataProviderId = request.externalDataProviderId
     val externalEventGroupId = request.externalEventGroupId
-    request.requestsList.forEachIndexed { index, child ->
-      val childExternalDataProviderId = child.eventGroupActivity.externalDataProviderId
-      if (
-        childExternalDataProviderId != 0L && childExternalDataProviderId != externalDataProviderId
-      ) {
-        throw InvalidFieldValueException(
-            "requests.$index.event_group_activity.external_data_provider_id"
-          ) { fieldPath ->
-            "Value of $fieldPath does not match parent request"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val activityKeys = mutableSetOf<Pair<Long, Date>>()
+    val normalizedRequests =
+      request.requestsList.mapIndexed { index, child ->
+        if (!child.hasEventGroupActivity()) {
+          throw RequiredFieldNotSetException("requests.$index.event_group_activity")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        val childExternalDataProviderId = child.eventGroupActivity.externalDataProviderId
+        if (
+          childExternalDataProviderId != 0L && childExternalDataProviderId != externalDataProviderId
+        ) {
+          throw InvalidFieldValueException(
+              "requests.$index.event_group_activity.external_data_provider_id"
+            ) { fieldPath ->
+              "Value of $fieldPath does not match parent request"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        val childExternalEventGroupId = child.eventGroupActivity.externalEventGroupId
+
+        if (externalEventGroupId == 0L && childExternalEventGroupId == 0L) {
+          throw RequiredFieldNotSetException(
+              "requests.$index.event_group_activity.external_event_group_id"
+            )
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        if (
+          externalEventGroupId != 0L &&
+            childExternalEventGroupId != 0L &&
+            childExternalEventGroupId != externalEventGroupId
+        ) {
+          throw InvalidFieldValueException(
+              "requests.$index.event_group_activity.external_event_group_id"
+            ) { fieldPath ->
+              "Value of $fieldPath does not match parent request"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        if (!child.eventGroupActivity.hasDate()) {
+          throw RequiredFieldNotSetException("requests.$index.event_group_activity.date")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        val normalizedExternalEventGroupId =
+          if (externalEventGroupId == 0L) childExternalEventGroupId else externalEventGroupId
+        val activityKey = normalizedExternalEventGroupId to child.eventGroupActivity.date
+        if (!activityKeys.add(activityKey)) {
+          throw InvalidFieldValueException("requests") { fieldPath ->
+              "$fieldPath contains duplicate EventGroupActivity resources"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        updateEventGroupActivityRequest {
+          eventGroupActivity =
+            child.eventGroupActivity.copy {
+              this.externalDataProviderId = externalDataProviderId
+              this.externalEventGroupId = normalizedExternalEventGroupId
+            }
+          allowMissing = child.allowMissing
+        }
       }
 
-      val childExternalEventGroupId = child.eventGroupActivity.externalEventGroupId
-
-      if (childExternalEventGroupId != 0L && childExternalEventGroupId != externalEventGroupId) {
-        throw InvalidFieldValueException(
-            "requests.$index.event_group_activity.external_event_group_id"
-          ) { fieldPath ->
-            "Value of $fieldPath does not match parent request"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (!child.hasEventGroupActivity()) {
-        throw RequiredFieldNotSetException("requests.$index.event_group_activity")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (!child.eventGroupActivity.hasDate()) {
-        throw RequiredFieldNotSetException("requests.$index.event_group_activity.date")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+    val normalizedRequest = batchUpdateEventGroupActivitiesRequest {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalEventGroupId = externalEventGroupId
+      requests += normalizedRequests
     }
 
     try {
-      return BatchUpdateEventGroupActivities(request).execute(client, idGenerator)
+      return BatchUpdateEventGroupActivities(normalizedRequest).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: EventGroupNotFoundException) {
@@ -354,5 +400,6 @@ class SpannerEventGroupActivitiesService(
   companion object {
     private const val MAX_PAGE_SIZE = 1000
     private const val DEFAULT_PAGE_SIZE = 50
+    private const val MAX_BATCH_SIZE = 1000
   }
 }

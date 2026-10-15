@@ -197,6 +197,106 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
     }
 
   @Test
+  fun `batchUpdateEventGroupActivities creates activities under multiple EventGroups`() =
+    runBlocking {
+      val secondEventGroup = createEventGroup(dataProvider)
+      val activityDate = date {
+        year = 2025
+        month = 12
+        day = 1
+      }
+      val request = batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        requests += updateEventGroupActivityRequest {
+          allowMissing = true
+          eventGroupActivity = eventGroupActivity {
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = activityDate
+          }
+        }
+        requests += updateEventGroupActivityRequest {
+          allowMissing = true
+          eventGroupActivity = eventGroupActivity {
+            externalEventGroupId = secondEventGroup.externalEventGroupId
+            date = activityDate
+          }
+        }
+      }
+
+      val startTime = Instant.now()
+      val activities =
+        eventGroupActivitiesService
+          .batchUpdateEventGroupActivities(request)
+          .eventGroupActivitiesList
+
+      assertThat(activities)
+        .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+        .containsExactly(
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = activityDate
+          },
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = secondEventGroup.externalEventGroupId
+            date = activityDate
+          },
+        )
+        .inOrder()
+      for (activity in activities) {
+        assertThat(activity.createTime.toInstant()).isGreaterThan(startTime)
+      }
+
+      val updated =
+        eventGroupActivitiesService
+          .batchUpdateEventGroupActivities(request)
+          .eventGroupActivitiesList
+      assertThat(updated.map { it.createTime })
+        .containsExactlyElementsIn(activities.map { it.createTime })
+        .inOrder()
+    }
+
+  @Test
+  fun `batchUpdateEventGroupActivities is atomic when one EventGroup does not exist`() =
+    runBlocking {
+      val activityDate = date {
+        year = 2025
+        month = 12
+        day = 1
+      }
+      val request = batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        for (externalEventGroupId in listOf(eventGroup.externalEventGroupId, 1L)) {
+          requests += updateEventGroupActivityRequest {
+            allowMissing = true
+            eventGroupActivity = eventGroupActivity {
+              this.externalEventGroupId = externalEventGroupId
+              date = activityDate
+            }
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+      val activities =
+        eventGroupActivitiesService
+          .listEventGroupActivities(
+            listEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = eventGroup.externalEventGroupId
+            }
+          )
+          .eventGroupActivitiesList
+      assertThat(activities).isEmpty()
+    }
+
+  @Test
   fun `batchUpdateEventGroupActivities returns updated existing EventGroupActivities`() =
     runBlocking {
       val createRequest = batchUpdateEventGroupActivitiesRequest {
@@ -308,15 +408,14 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
     }
 
   @Test
-  fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when parent external event group id is not set`() =
+  fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when EventGroup id is not set`() =
     runBlocking {
       val request = batchUpdateEventGroupActivitiesRequest {
         externalDataProviderId = dataProvider.externalDataProviderId
-        // missing parent external event group id
         requests += updateEventGroupActivityRequest {
           allowMissing = true
           eventGroupActivity = eventGroupActivity {
-            externalEventGroupId = eventGroup.externalEventGroupId
+            // missing external event group id on both parent and child
             date = date {
               year = 2025
               month = 12
@@ -332,7 +431,9 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("external_event_group_id")
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("requests.0.event_group_activity.external_event_group_id")
     }
 
   @Test
