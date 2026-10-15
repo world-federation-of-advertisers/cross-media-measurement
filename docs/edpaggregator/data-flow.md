@@ -31,88 +31,126 @@ Campaign information and impressions are separate feeds. They meet when an
 impression's entity key matches the entity key of a campaign registered in
 Halo.
 
+### Simplified Halo flow
+
 ```mermaid
-flowchart TB
-  subgraph exporter["Data exporter"]
-    direction LR
-    uploadCampaigns["Upload campaign metadata"]
-    uploadParquet["Upload KMS-encrypted Parquet"]
-    uploadRawDone["Upload raw done marker last"]
+flowchart LR
+  P["Publisher or data exporter"]
+
+  subgraph STORAGE["Private object storage<br/>Sensitive payloads are KMS-encrypted"]
+    EG["Campaign metadata<br/>Protobuf or JSON<br/>(IAM-protected)"]
+    RAW["Raw impressions<br/>KMS-encrypted Parquet<br/>(recommended)"]
+    LABELED["Already VID-labeled impressions<br/>KMS-encrypted RecordIO<br/>+ plaintext BlobDetails sidecar"]
   end
 
-  subgraph inputStorage["Private object storage: uploaded inputs<br/>Sensitive payloads use data-owner KMS keys"]
-    direction LR
-    campaignObject["Campaign metadata<br/>(IAM-protected)"]
-    rawObject["Raw Parquet<br/>(KMS-encrypted data columns)"]
-    rawDoneObject["Raw-upload done marker<br/>(plaintext)"]
-  end
+  HALO["Halo processing with separate trust boundaries<br/><br/>Campaign and data-availability registration<br/>VID Labeling (Confidential Space TEE)<br/>ResultsFulfiller (Confidential Space TEE)<br/>TrusTEE (separate Confidential Space TEE)"]
+  RESULT["Aggregated result<br/>with protocol-defined<br/>privacy controls"]
+  RS["Reporting Server / Kingdom"]
 
-  subgraph ingestion["Operator ingestion services"]
-    direction LR
-    eventGroupSync["Register campaigns in Halo"]
-    registerUpload["Register completed raw upload"]
-  end
+  P --> EG --> HALO
+  P --> RAW -->|"Primary path"| HALO
+  P --> LABELED -->|"Optional already-labeled path"| HALO
+  HALO --> RESULT --> RS
 
-  subgraph labelTee["EDPA Confidential Space TEE"]
-    label["VID-labeling trusted workload (TEE)<br/>Decrypt columns and assign VIDs"]
-  end
+  classDef publisher fill:#EAF2FF,stroke:#3974D0,stroke-width:2px,color:#111827,font-weight:bold;
+  classDef input fill:#FFF2DA,stroke:#D88B16,stroke-width:2px,color:#111827;
+  classDef halo fill:#EEF0FF,stroke:#6667B0,stroke-width:3px,color:#111827,font-weight:bold;
+  classDef result fill:#FFF7E8,stroke:#B55B00,stroke-width:2px,color:#8A4B08,font-weight:bold;
+  classDef server fill:#E8F5EC,stroke:#2E8B57,stroke-width:2px,color:#111827,font-weight:bold;
 
-  subgraph outputStorage["Private object storage: EDPA output<br/>Sensitive payloads use data-owner KMS keys"]
-    direction LR
-    labeled["VID-labeled impressions<br/>(KMS-encrypted)"]
-    blobDetails["BlobDetails<br/>(plaintext metadata with wrapped DEK)"]
-    labeledDone["Labeled-output done marker<br/>(plaintext)"]
-  end
-
-  subgraph control["Halo control plane"]
-    direction LR
-    availability["Publish data availability"]
-    requisition["Receive measurement requisition"]
-  end
-
-  subgraph fulfillmentTee["EDPA Confidential Space TEE"]
-    fulfill["ResultsFulfiller trusted workload (TEE)<br/>Select impressions and build contribution"]
-  end
-
-  subgraph trusteeTee["Separate TrusTEE Confidential Space TEE"]
-    trustee["TrusTEE trusted workload (TEE)<br/>Combine contributions and compute result"]
-  end
-
-  result["Halo measurement result"]
-
-  uploadCampaigns --> campaignObject
-  uploadParquet --> rawObject
-  uploadRawDone --> rawDoneObject
-  campaignObject --> eventGroupSync
-  rawObject -. "listed after marker arrives" .-> registerUpload
-  rawDoneObject --> registerUpload
-  registerUpload --> label
-  rawObject --> label
-  label --> labeled
-  label --> blobDetails
-  label --> labeledDone
-  blobDetails --> availability
-  labeledDone --> availability
-  eventGroupSync --> requisition
-  availability --> requisition
-  requisition --> fulfill
-  labeled --> fulfill
-  blobDetails --> fulfill
-  fulfill -- "encrypted contribution" --> trustee
-  trustee --> result
+  class P publisher;
+  class EG,RAW,LABELED input;
+  class HALO halo;
+  class RESULT result;
+  class RS server;
+  style STORAGE fill:#F7FAFC,stroke:#17827B,stroke-width:2px;
 ```
 
-The two object-storage boxes show the input and output stages; they do not imply
-that a deployment must use two physical buckets. Sensitive payloads are
-protected with data-owner KMS keys. Campaign metadata, `BlobDetails`, and `done`
-markers remain readable to services authorized to access the bucket.
+This view intentionally hides queues, markers, and intermediate files. “Halo
+processing” is not one TEE: VID Labeling, ResultsFulfiller, and TrusTEE are
+separately attested workloads, and TrusTEE has a separate trust boundary.
+
+The primary path is encrypted Parquet. The already-labeled path is included only
+to show where it joins the flow; its format is documented separately.
+
+### Detailed EDP Aggregator and TrusTEE flow
+
+```mermaid
+flowchart LR
+  P["Publisher or data exporter"]
+  OTHER["Other participating EDPs"]
+  ADV["Advertiser / report consumer"]
+  RS["Reporting Server / Kingdom"]
+
+  subgraph EDPA["EDP Aggregator"]
+    direction TB
+
+    subgraph INPUTS["Private object storage: uploaded inputs<br/>Sensitive payloads are KMS-encrypted"]
+      direction TB
+      EG["Campaign metadata<br/>Protobuf or JSON<br/>(IAM-protected)"]
+      RAW["Raw impressions<br/>KMS-encrypted Parquet<br/>+ plaintext done marker"]
+    end
+
+    VL["VID Labeling<br/>Confidential Space TEE<br/>Maps fields and assigns VID"]
+    STORE["VID-labeled impression store<br/>Private object storage<br/>KMS-encrypted RecordIO<br/>+ plaintext BlobDetails and done marker"]
+    RP["ResultsFulfiller<br/>Confidential Space TEE<br/>Filters impressions and builds vector"]
+
+    RAW -->|"Encrypted Parquet columns"| VL
+    VL -->|"Encrypted labeled impressions"| STORE
+    STORE -->|"Qualifying impressions"| RP
+  end
+
+  subgraph TRUSTEE["TrusTEE: separate trust boundary"]
+    direction BT
+    FVSTORE["KMS-encrypted frequency-vector handoff"]
+    TT["TrusTEE processing<br/>Confidential Space TEE<br/>Combines publisher vectors"]
+    FVSTORE -->|"Encrypted vectors"| TT
+  end
+
+  P -->|"Uploads"| EG
+  P -->|"Primary path"| RAW
+  P -->|"Optional: already labeled<br/>+ BlobDetails sidecar"| STORE
+  EG -->|"Registers campaigns"| RS
+  STORE -->|"Publishes data availability"| RS
+  ADV -->|"Requests report"| RS
+  RS -->|"Issues requisition"| RP
+  RP -->|"Encrypted frequency vector"| FVSTORE
+  OTHER -->|"Encrypted frequency vectors"| FVSTORE
+  TT -->|"Aggregated result with<br/>configured privacy controls"| RS
+  RS -->|"Completed report"| ADV
+
+  classDef publisher fill:#EAF2FF,stroke:#3974D0,stroke-width:2px,color:#111827,font-weight:bold;
+  classDef metadata fill:#EAF2FF,stroke:#5A87CC,stroke-width:2px,color:#111827;
+  classDef tee fill:#FFF2DA,stroke:#C87512,stroke-width:2px,color:#111827;
+  classDef storage fill:#E6F7F5,stroke:#17827B,stroke-width:2px,color:#111827;
+  classDef server fill:#E8F5EC,stroke:#2E8B57,stroke-width:2px,color:#111827,font-weight:bold;
+  classDef consumer fill:#F3E8FF,stroke:#8B4AC2,stroke-width:2px,color:#111827,font-weight:bold;
+
+  class P,OTHER publisher;
+  class EG metadata;
+  class VL,RP,TT tee;
+  class RAW,STORE,FVSTORE storage;
+  class RS server;
+  class ADV consumer;
+  style INPUTS fill:#F7FAFC,stroke:#17827B,stroke-width:2px;
+  style EDPA fill:#F7FAFC,stroke:#667085,stroke-width:2px;
+  style TRUSTEE fill:#FFF9F0,stroke:#C87512,stroke-width:3px;
+```
+
+The detailed view keeps the same two input options as the source architecture:
+raw Parquet passes through VID Labeling, while already-labeled RecordIO joins at
+the VID-labeled impression store. Both paths converge before ResultsFulfiller
+processes a requisition.
 
 Each trusted workload is shown in its own Confidential Space TEE. Sensitive data
 passes between ResultsFulfiller and TrusTEE as an encrypted contribution; the
 two components do not share one TEE boundary.
 
-The diagram omits internal queues, retries, and model-specific VID-labeling
-stages. Those details do not change the export contract.
+Both diagrams use KMS labels only for sensitive payloads. Campaign metadata,
+`BlobDetails`, and `done` markers remain readable to services authorized to
+access the private storage location. Internal queues, retries, and
+model-specific VID-labeling stages are omitted because they do not change the
+export contract.
 
 ## 2. The two input feeds
 
