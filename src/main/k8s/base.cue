@@ -182,6 +182,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			"-XX:NativeMemoryTracking=\(nativeMemoryTracking)"
 		},
 		if nativeMemoryTracking != _|_ {
+			"-XX:+UnlockDiagnosticVMOptions"
+		},
+		if nativeMemoryTracking != _|_ {
 			"-XX:+PrintNMTStatistics"
 		},
 		if gcLogging {
