@@ -118,6 +118,20 @@ Your **KEK URI** is:
 `gcp-kms://projects/PROJECT_ID/locations/global/keyRings/edp-keyring/cryptoKeys/edp-key`.
 Share it with the operator.
 
+The federated `edp-service-account` is for attested Halo workloads. Separately
+grant the publisher's export identity encrypt-only access so it can wrap the DEK
+for RecordIO or write PME-encrypted Parquet:
+
+```bash
+gcloud kms keys add-iam-policy-binding \
+  projects/PROJECT_ID/locations/global/keyRings/edp-keyring/cryptoKeys/edp-key \
+  --member=serviceAccount:PUBLISHER_EXPORT_SA@PUBLISHER_PROJECT.iam.gserviceaccount.com \
+  --role=roles/cloudkms.cryptoKeyEncrypter
+```
+
+Grant the export identity decrypt access only if a publisher-operated validation
+process requires it.
+
 #### EDPA-managed VID-labeling variant
 
 If you are following the [Parquet onboarding guide](README.md), the VID-labeling
@@ -131,19 +145,6 @@ gcloud kms keys add-iam-policy-binding \
   --member=serviceAccount:edp-service-account@PROJECT_ID.iam.gserviceaccount.com \
   --role=roles/cloudkms.cryptoKeyEncrypterDecrypter
 ```
-
-Grant the publisher's separate export identity encrypt-only access so it can write
-PME-encrypted Parquet:
-
-```bash
-gcloud kms keys add-iam-policy-binding \
-  projects/PROJECT_ID/locations/global/keyRings/edp-keyring/cryptoKeys/edp-key \
-  --member=serviceAccount:PUBLISHER_EXPORT_SA@PUBLISHER_PROJECT.iam.gserviceaccount.com \
-  --role=roles/cloudkms.cryptoKeyEncrypter
-```
-
-Grant the export identity decrypt access only if a publisher-operated validation
-process requires it.
 
 ### 2.3 Create a Workload Identity Provider
 

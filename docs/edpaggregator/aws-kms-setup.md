@@ -38,6 +38,11 @@ Identity Pool and Service Account **must** live in **your** GCP project, not the
 operator's — if the operator controlled the WIF, they could mint tokens without a
 legitimate Confidential VM.
 
+The AWS role configured below is only for attested Halo workloads. Give the
+publisher's separate export principal `kms:Encrypt` so it can wrap the input DEK;
+grant it `kms:Decrypt` only if a publisher-operated validation process requires it.
+Do not add the publisher export principal to the Confidential Space trust policy.
+
 ---
 
 # Option 1 — Direct Confidential Space attestation
