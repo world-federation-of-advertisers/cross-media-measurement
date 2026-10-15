@@ -46,9 +46,9 @@ flowchart LR
     requisition["Receive measurement requisition"]
   end
 
-  subgraph edpaTee["EDPA trusted workloads"]
-    label["Decrypt columns and assign VIDs"]
-    fulfill["Select impressions and build contribution"]
+  subgraph edpaTee["EDPA Confidential Space TEEs"]
+    label["VID-labeling trusted workload (TEE)<br/>Decrypt columns and assign VIDs"]
+    fulfill["ResultsFulfiller trusted workload (TEE)<br/>Select impressions and build contribution"]
   end
 
   subgraph storage["Private object storage"]
@@ -57,8 +57,8 @@ flowchart LR
     labeledDone["Labeled-output done marker"]
   end
 
-  subgraph trusteeTee["Separate TrusTEE trusted workload"]
-    trustee["Combine contributions and compute result"]
+  subgraph trusteeTee["Separate TrusTEE Confidential Space TEE"]
+    trustee["TrusTEE trusted workload (TEE)<br/>Combine contributions and compute result"]
   end
 
   result["Halo measurement result"]
