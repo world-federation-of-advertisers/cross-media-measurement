@@ -32,10 +32,12 @@ import kotlinx.coroutines.flow.flow
  * The expected format is a JSON array of objects, each with:
  * - `parent`: the EventGroup resource name (String).
  * - `event_group_activity_date`: an ISO-8601 instant (String).
+ * - `operation`: optional `append` or `delete` PATCH operation (String).
  */
 object SpotDataParser {
   private const val PARENT_FIELD = "parent"
   private const val DATE_FIELD = "event_group_activity_date"
+  private const val OPERATION_FIELD = "operation"
 
   /**
    * Parses a JSON array of activity records from [inputStream] into a streaming [Flow].
@@ -46,7 +48,8 @@ object SpotDataParser {
    * @return a [Flow] of the parsed records, in document order.
    * @throws IllegalArgumentException when the flow is collected, if the input is not a JSON array
    *   of the expected shape, is malformed/truncated, or any record is missing `parent` or
-   *   `event_group_activity_date`, has a blank value for either, or has an unparseable date.
+   *   `event_group_activity_date`, has a blank value for either, has an unparseable date, or has an
+   *   invalid `operation`.
    */
   fun parseJson(inputStream: InputStream): Flow<SpotRecord> = flow {
     try {
@@ -73,11 +76,13 @@ object SpotDataParser {
   private fun parseRecord(reader: JsonReader, index: Int): SpotRecord {
     var parent: String? = null
     var dateString: String? = null
+    var operationString: String? = null
     reader.beginObject()
     while (reader.hasNext()) {
       when (reader.nextName()) {
         PARENT_FIELD -> parent = reader.nextStringStrict(index, PARENT_FIELD)
         DATE_FIELD -> dateString = reader.nextStringStrict(index, DATE_FIELD)
+        OPERATION_FIELD -> operationString = reader.nextStringStrict(index, OPERATION_FIELD)
         else -> reader.skipValue()
       }
     }
@@ -94,7 +99,18 @@ object SpotDataParser {
           e,
         )
       }
-    return SpotRecord(parent = parent, eventGroupActivityDate = instant)
+    val operation =
+      operationString?.let {
+        try {
+          SpotOperation.valueOf(it.uppercase())
+        } catch (e: IllegalArgumentException) {
+          throw IllegalArgumentException(
+            "Record at index $index has invalid '$OPERATION_FIELD': '$it'",
+            e,
+          )
+        }
+      }
+    return SpotRecord(parent = parent, eventGroupActivityDate = instant, operation = operation)
   }
 
   /**
