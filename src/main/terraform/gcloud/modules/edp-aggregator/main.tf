@@ -998,3 +998,40 @@ resource "google_storage_bucket_iam_member" "vid_labeling_monitor_config_storage
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.vid_labeling_monitor_cloud_function.cloud_function_service_account.email}"
 }
+
+# Meta's DataProviderImpressionQuery adapter, built and published by edp-components. Results
+# Fulfiller calls it to compare its impression count with Meta's. The Meta credentials are created
+# in Secret Manager outside Terraform, so they never pass through Terraform state.
+locals {
+  deploy_meta_impression_query = (
+    var.meta_impression_query_uber_jar_path != null &&
+    var.meta_impression_query_uber_jar_path != ""
+  )
+  meta_impression_query_function_name = "meta-impression-query"
+}
+
+module "meta_impression_query_cloud_function" {
+  count  = local.deploy_meta_impression_query ? 1 : 0
+  source = "../http-cloud-function"
+
+  http_cloud_function_service_account_name = "meta-impression-query"
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = local.meta_impression_query_function_name
+  entry_point                              = "org.wfanet.measurement.edpcomponents.meta.MetaImpressionQueryFunction"
+  extra_env_vars                           = ""
+  secret_mappings                          = "META_ACCESS_TOKEN=meta-access-token:latest,META_APP_SECRET=meta-app-secret:latest"
+  uber_jar_path                            = var.meta_impression_query_uber_jar_path
+  secrets_to_access                        = ["meta-access-token", "meta-app-secret"]
+
+  # Below Results Fulfiller's 30-second deadline, so the function stops spending Meta quota once
+  # the caller has stopped waiting.
+  timeout_seconds = 25
+}
+
+resource "google_cloud_run_service_iam_member" "meta_impression_query_invoker" {
+  count      = local.deploy_meta_impression_query ? 1 : 0
+  depends_on = [module.meta_impression_query_cloud_function]
+  service    = local.meta_impression_query_function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
+}

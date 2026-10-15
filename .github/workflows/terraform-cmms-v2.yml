@@ -216,6 +216,33 @@ jobs:
           echo "${safe_key}_source_path=$dest_dir/$filename" >> "$GITHUB_OUTPUT"
         done
 
+    - name: Download Meta impression-query JAR
+      id: download-meta-impression-query
+      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
+      env:
+        TFVARS_FILE: envs/${{ inputs.environment }}.tfvars
+      run: |
+        set -euo pipefail
+        # The version is pinned in the reviewed tfvars rather than a GitHub variable, so each
+        # environment records exactly which adapter revision it runs. Unset skips the deployment.
+        version="$(sed -nE 's/^meta_impression_query_artifact_version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$TFVARS_FILE")"
+        if [[ -z "$version" ]]; then
+          echo "meta_impression_query_artifact_version is not set in $TFVARS_FILE; skipping"
+          echo "jar_path=" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        group_id=org.wfanet.measurement.edpcomponents.meta
+        artifact_id=meta-impression-query
+        mvn -U dependency:get \
+          -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/edp-components \
+          -Dartifact="$group_id:$artifact_id:$version:jar"
+        local_repo="$(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)"
+        jar_path="$(find "$local_repo/${group_id//./\/}/$artifact_id/$version" -maxdepth 1 -type f -name "$artifact_id-*.jar" ! -name "*sources*" | head -n1)"
+        dest_dir="${RUNNER_TEMP}/uber-jars/meta-impression-query"
+        mkdir -p "$dest_dir"
+        cp "$jar_path" "$dest_dir/${version}-function.jar"
+        echo "jar_path=$dest_dir/${version}-function.jar" >> "$GITHUB_OUTPUT"
+
     - name: Build test event proto descriptors
       id: build-test-event-descriptors
       env:
@@ -394,6 +421,7 @@ jobs:
         -var="vid_labeling_monitor_secret_mapping=$VID_LABELING_MONITOR_SECRET_MAPPING"
         -var="vid_labeling_monitor_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_monitor_source_path }}"
         -var="dashboard_compliance_uber_jar_path=${{ steps.download-uber-jars.outputs.dashboard_compliance_check_source_path }}"
+        -var="meta_impression_query_uber_jar_path=${{ steps.download-meta-impression-query.outputs.jar_path }}"
         -var="image_tag=$IMAGE_TAG"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"
         -var="requisition_fetcher_enabled=${{ inputs.requisition-fetcher-enabled }}"
