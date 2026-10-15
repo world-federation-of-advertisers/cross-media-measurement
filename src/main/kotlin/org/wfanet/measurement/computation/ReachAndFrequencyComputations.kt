@@ -142,6 +142,12 @@ object ReachAndFrequencyComputations {
         count / vidSamplingIntervalWidth < resultMinimumThresholds.minUsers ||
           frequency * count / vidSamplingIntervalWidth < resultMinimumThresholds.minImpressions
       ) {
+        // The 1+ bucket cannot be folded lower. Suppress the whole distribution rather than
+        // renormalizing its users into surviving higher-frequency buckets.
+        if (index == 0) {
+          return (1..maxFrequency).associate { it.toLong() to 0.0 }
+        }
+
         thresholdedHistogram[index] = 0
         if (index > 0) {
           thresholdedHistogram[index - 1] += count

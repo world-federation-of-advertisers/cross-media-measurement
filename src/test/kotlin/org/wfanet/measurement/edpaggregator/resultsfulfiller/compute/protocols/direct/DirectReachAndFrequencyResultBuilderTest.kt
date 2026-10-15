@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 @RunWith(JUnit4::class)
@@ -65,6 +66,40 @@ class DirectReachAndFrequencyResultBuilderTest {
       // once and 10% saw it twice
       assertThat(result.frequency.relativeFrequencyDistributionMap[1]).isEqualTo(0.9)
       assertThat(result.frequency.relativeFrequencyDistributionMap[2]).isEqualTo(0.1)
+    }
+
+  @Test
+  fun `buildMeasurementResult keeps reach and suppresses frequency when freq-1 fails threshold`() =
+    runBlocking {
+      val frequencyData =
+        IntArray(110) { index ->
+          when {
+            index < 8 -> 1
+            index < 73 -> 2
+            index < 98 -> 5
+            else -> 9
+          }
+        }
+      val directReachAndFrequencyResultBuilder =
+        DirectReachAndFrequencyResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          maxFrequency = MAX_FREQUENCY,
+          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          frequencyData = frequencyData,
+          maxPopulation = null,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 5),
+        )
+
+      val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
+
+      assertThat(result.reach.value).isEqualTo(110)
+      assertThat(result.frequency.relativeFrequencyDistributionMap).hasSize(MAX_FREQUENCY)
+      assertThat(result.frequency.relativeFrequencyDistributionMap.values)
+        .containsExactlyElementsIn(List(MAX_FREQUENCY) { 0.0 })
+        .inOrder()
     }
 
   @Test
