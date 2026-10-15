@@ -54,8 +54,6 @@ import okhttp3.tls.HeldCertificate
 import okhttp3.tls.decodeCertificatePem
 import org.junit.ClassRule
 import org.junit.FixMethodOrder
-// DO_NOT_SUBMIT: remove along with the @Ignore below.
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -429,7 +427,6 @@ class EdpAggregatorReportingIntegrationTest {
   }
 
   @Test
-  @Ignore("DO_NOT_SUBMIT: restore. Skipped only to iterate on the weekly report faster.")
   fun `media type and impression qualification filter report succeeds`() = runBlocking {
     check(MODEL_LINE.isNotEmpty()) { "model_line must be set to run this test" }
 
@@ -799,8 +796,7 @@ class EdpAggregatorReportingIntegrationTest {
 
     val comparisons = mutableListOf<MetricComparison>()
     for ((key, result) in actualByKey) {
-      val expected =
-        expectedByCell.getValue(demographicOf(result)).getValue(filterLabel(result))
+      val expected = expectedByCell.getValue(demographicOf(result)).getValue(filterLabel(result))
       val metricSet = result.metricSet.reportingUnit
       val prefix = "$TOTAL_GROUP_TITLE: $key"
 
@@ -1381,9 +1377,7 @@ class EdpAggregatorReportingIntegrationTest {
       chainRulesSequentially(
         provisionModelResources,
         uploadEventGroups,
-        // DO_NOT_SUBMIT: restore writeImpressions. Dropped only to iterate on the assertions
-        // against impressions a previous run already wrote to the bucket.
-        // writeImpressions,
+        writeImpressions,
         createDoneBlobs,
         reportingSystem,
       )
