@@ -45,7 +45,8 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
-#CancellationJobMaxHeapSize: "96M"
+#CancellationJobMaxHeapSize:     "96M"
+#CancellationJobInitialHeapSize: "64M"
 
 #OperationalMetricsJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
@@ -118,7 +119,10 @@ kingdom: #Kingdom & {
 	cronJobs: {
 		"pending-measurements-cancellation": {
 			_container: {
-				_javaOptions: maxHeapSize: #CancellationJobMaxHeapSize
+				_javaOptions: {
+					maxHeapSize:     #CancellationJobMaxHeapSize
+					initialHeapSize: #CancellationJobInitialHeapSize
+				}
 			}
 		}
 		"operational-metrics": {
