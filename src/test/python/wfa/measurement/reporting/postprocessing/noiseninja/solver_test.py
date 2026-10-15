@@ -22,7 +22,9 @@ from qpsolvers import Solution
 
 from noiseninja import noise_correction_value_logging
 from noiseninja.noised_measurements import Measurement
+from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
+from noiseninja.solver import MAX_ATTEMPTS
 from noiseninja.solver import Solver
 from wfa.measurement.internal.reporting.postprocessing import (
     report_post_processor_result_pb2)
@@ -222,6 +224,81 @@ class SolverTest(unittest.TestCase):
         self.assertGreaterEqual(solution[2], 0.0)
         self.assertGreaterEqual(solution[3], 0.0)
         self.assertGreaterEqual(solution[4], 0.0)
+
+    def test_solve_enforces_ordered_sets_relation(self):
+        spec = SetMeasurementsSpec()
+        spec.add_ordered_sets_relation(OrderedSets({1, 2, 3}, {3, 4, 5}))
+        spec.add_measurement(1, Measurement(10, 1, "larger_set_01"))
+        spec.add_measurement(2, Measurement(10, 1, "larger_set_02"))
+        spec.add_measurement(3, Measurement(100, 1, "shared_set"))
+        spec.add_measurement(4, Measurement(20, 1, "smaller_set_01"))
+        spec.add_measurement(5, Measurement(20, 1, "smaller_set_02"))
+
+        solution, report_post_processor_status = Solver(
+            spec).solve_and_translate()
+
+        self.assertIn(report_post_processor_status.status_code, [
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+            StatusCode.SOLUTION_FOUND_WITH_OSQP
+        ])
+        self.assertLess(
+            max(report_post_processor_status.primal_equality_residual,
+                report_post_processor_status.primal_inequality_residual),
+            TOLERANCE)
+        self.assertGreaterEqual(
+            solution[1] + solution[2] + solution[3],
+            solution[3] + solution[4] + solution[5] - TOLERANCE)
+        # The shared measurement cancels from the ordered-sets constraint.
+        self.assertAlmostEqual(solution[3], 100, places=2)
+
+    def test_solver_rejects_empty_ordered_set(self):
+        spec = SetMeasurementsSpec()
+        spec.add_ordered_sets_relation(OrderedSets(set(), {1}))
+        spec.add_measurement(1, Measurement(10, 1, "measurement"))
+
+        with self.assertRaisesRegex(
+            ValueError, "empty larger set or empty smaller set"):
+            Solver(spec)
+
+    def test_solver_rejects_ordered_sets_of_different_lengths(self):
+        spec = SetMeasurementsSpec()
+        spec.add_ordered_sets_relation(OrderedSets({1}, {2, 3}))
+        spec.add_measurement(1, Measurement(10, 1, "measurement_01"))
+        spec.add_measurement(2, Measurement(20, 1, "measurement_02"))
+        spec.add_measurement(3, Measurement(30, 1, "measurement_03"))
+
+        with self.assertRaisesRegex(
+            ValueError, "sets of different length"):
+            Solver(spec)
+
+    def test_solve_retains_partial_solution_with_smallest_residual(self):
+        spec = SetMeasurementsSpec()
+        spec.add_measurement(1, Measurement(10, 1, "measurement"))
+        solver = Solver(spec)
+
+        worse_solution = MagicMock()
+        worse_solution.found = True
+        worse_solution.x = np.array([1.0])
+        worse_solution.primal_residual.return_value = 0.5
+        best_solution = MagicMock()
+        best_solution.found = True
+        best_solution.x = np.array([2.0])
+        best_solution.primal_residual.return_value = 0.2
+        later_worse_solution = MagicMock()
+        later_worse_solution.found = True
+        later_worse_solution.x = np.array([3.0])
+        later_worse_solution.primal_residual.return_value = 0.4
+        solver._solve_with_initial_value = MagicMock(side_effect=[
+            worse_solution,
+            best_solution,
+        ] + [later_worse_solution] * (MAX_ATTEMPTS - 2))
+
+        solution, report_post_processor_status = solver._solve(HIGHS_SOLVER)
+
+        self.assertIs(solution, best_solution)
+        self.assertEqual(
+            report_post_processor_status.status_code,
+            StatusCode.PARTIAL_SOLUTION_FOUND_WITH_HIGHS)
 
     def test_solve_fails_when_solution_has_negative_results(self):
         spec = SetMeasurementsSpec()
