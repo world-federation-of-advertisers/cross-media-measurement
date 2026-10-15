@@ -675,10 +675,6 @@ class EdpAggregatorReportingIntegrationTest {
       byWeek.forEachIndexed { index, result ->
         val metricSet = result.metricSet.reportingUnit
         val week = result.metadata.metricEndTime.seconds
-        // Cumulative reach grows over the interval, so the opening weeks are its smallest
-        // values and sit close to the measurement noise: a draw below zero is clamped to zero
-        // and nothing in the post-processor lifts it back, since every constraint on an early
-        // week is an upper bound. Later weeks are several sigma clear and must be positive.
         if (index < NOISE_DOMINATED_WEEKS) {
           assertWithMessage("$series week $week cumulative reach")
             .that(metricSet.cumulative.reach)
@@ -1159,11 +1155,8 @@ class EdpAggregatorReportingIntegrationTest {
     /**
      * Opening weeks whose cumulative reach is only required to be non-negative.
      *
-     * Reach is measured with continuous Gaussian noise whose sigma does not shrink with the value
-     * being measured, so the smallest values in a report carry the largest relative error. The
-     * first weeks of a cumulative series are those values: a draw below zero is clamped to zero,
-     * and the post-processor cannot recover it because every constraint on an early week bounds it
-     * from above. By the third week the series is several sigma clear of zero.
+     * Reach noise has a fixed sigma, so the smallest values in a cumulative series carry the
+     * largest relative error and can clamp to zero.
      */
     private const val NOISE_DOMINATED_WEEKS = 2
 

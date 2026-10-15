@@ -238,9 +238,7 @@ object HighOverlapExpectedReach {
         }
       }
 
-      // Ordered prefix unions, per cell, in component order. VIDs are folded straight into the
-      // running prefix rather than collected per component first, so only one set of the reached
-      // VIDs is held at a time.
+      // Ordered prefix unions, per cell, in component order.
       val incrementsByCell = mutableMapOf<String, MutableList<Int>>()
       val prefixByCell = mutableMapOf<String, MutableSet<Long>>()
       for (edpName in componentEdpNames) {
