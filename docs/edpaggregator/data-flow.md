@@ -32,29 +32,46 @@ impression's entity key matches the entity key of a campaign registered in
 Halo.
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph exporter["Data exporter"]
-    campaigns["Campaign metadata"]
-    parquet["Encrypted Parquet files"]
-    rawDone["Raw-upload done marker"]
+    direction LR
+    uploadCampaigns["Upload campaign metadata"]
+    uploadParquet["Upload KMS-encrypted Parquet"]
+    uploadRawDone["Upload raw done marker last"]
   end
 
-  subgraph control["Operator storage and control plane"]
+  subgraph inputStorage["Private object storage: uploaded inputs<br/>Sensitive payloads use data-owner KMS keys"]
+    direction LR
+    campaignObject["Campaign metadata<br/>(IAM-protected)"]
+    rawObject["Raw Parquet<br/>(KMS-encrypted data columns)"]
+    rawDoneObject["Raw-upload done marker<br/>(plaintext)"]
+  end
+
+  subgraph ingestion["Operator ingestion services"]
+    direction LR
     eventGroupSync["Register campaigns in Halo"]
     registerUpload["Register completed raw upload"]
+  end
+
+  subgraph labelTee["EDPA Confidential Space TEE"]
+    label["VID-labeling trusted workload (TEE)<br/>Decrypt columns and assign VIDs"]
+  end
+
+  subgraph outputStorage["Private object storage: EDPA output<br/>Sensitive payloads use data-owner KMS keys"]
+    direction LR
+    labeled["VID-labeled impressions<br/>(KMS-encrypted)"]
+    blobDetails["BlobDetails<br/>(plaintext metadata with wrapped DEK)"]
+    labeledDone["Labeled-output done marker<br/>(plaintext)"]
+  end
+
+  subgraph control["Halo control plane"]
+    direction LR
     availability["Publish data availability"]
     requisition["Receive measurement requisition"]
   end
 
-  subgraph edpaTee["EDPA Confidential Space TEEs"]
-    label["VID-labeling trusted workload (TEE)<br/>Decrypt columns and assign VIDs"]
+  subgraph fulfillmentTee["EDPA Confidential Space TEE"]
     fulfill["ResultsFulfiller trusted workload (TEE)<br/>Select impressions and build contribution"]
-  end
-
-  subgraph storage["Private object storage"]
-    labeled["Encrypted VID-labeled impressions"]
-    blobDetails["BlobDetails metadata"]
-    labeledDone["Labeled-output done marker"]
   end
 
   subgraph trusteeTee["Separate TrusTEE Confidential Space TEE"]
@@ -63,10 +80,14 @@ flowchart LR
 
   result["Halo measurement result"]
 
-  campaigns --> eventGroupSync
-  parquet -. "listed after marker arrives" .-> registerUpload
-  rawDone --> registerUpload
+  uploadCampaigns --> campaignObject
+  uploadParquet --> rawObject
+  uploadRawDone --> rawDoneObject
+  campaignObject --> eventGroupSync
+  rawObject -. "listed after marker arrives" .-> registerUpload
+  rawDoneObject --> registerUpload
   registerUpload --> label
+  rawObject --> label
   label --> labeled
   label --> blobDetails
   label --> labeledDone
@@ -81,11 +102,14 @@ flowchart LR
   trustee --> result
 ```
 
-The diagram groups EDPA workloads for readability. VID labeling,
-ResultsFulfiller, and TrusTEE execute as separate attested workloads. Sensitive
-data passes between ResultsFulfiller and TrusTEE as an encrypted contribution;
-the two components do not share one trusted execution environment (TEE)
-boundary.
+The two object-storage boxes show the input and output stages; they do not imply
+that a deployment must use two physical buckets. Sensitive payloads are
+protected with data-owner KMS keys. Campaign metadata, `BlobDetails`, and `done`
+markers remain readable to services authorized to access the bucket.
+
+Each trusted workload is shown in its own Confidential Space TEE. Sensitive data
+passes between ResultsFulfiller and TrusTEE as an encrypted contribution; the
+two components do not share one TEE boundary.
 
 The diagram omits internal queues, retries, and model-specific VID-labeling
 stages. Those details do not change the export contract.
