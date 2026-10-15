@@ -59,6 +59,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: read
     environment: ${{ inputs.environment }}
     outputs:
       work_item_tee_mig_names: ${{ steps.terraform_outputs.outputs.work_item_tee_mig_names }}

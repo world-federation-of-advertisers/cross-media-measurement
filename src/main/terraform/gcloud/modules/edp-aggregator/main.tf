@@ -1029,9 +1029,20 @@ module "meta_impression_query_cloud_function" {
 }
 
 resource "google_cloud_run_service_iam_member" "meta_impression_query_invoker" {
-  count      = local.deploy_meta_impression_query ? 1 : 0
+  count = local.deploy_meta_impression_query ? 1 : 0
+  # Depending on the whole module orders teardown: this binding is removed before the module's
+  # lifecycle resource deletes the function.
   depends_on = [module.meta_impression_query_cloud_function]
   service    = local.meta_impression_query_function_name
   role       = "roles/run.invoker"
   member     = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
+}
+
+# Lets Update CMMS mint an ID token as the Results Fulfiller, so the post-deploy test calls the
+# function with the same identity, and therefore the same invoker binding, as production.
+resource "google_service_account_iam_member" "terraform_can_mint_results_fulfiller_tokens" {
+  count              = local.deploy_meta_impression_query ? 1 : 0
+  service_account_id = module.result_fulfiller_tee_app.mig_service_account.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${var.terraform_service_account}"
 }
