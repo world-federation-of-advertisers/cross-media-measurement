@@ -8,9 +8,9 @@ This guide replaces the GCP KMS steps in the [EDP Onboarding Guide](edp-onboardi
 daily workflow — is unchanged.
 
 > Generic placeholders throughout: substitute your own `REGION`, `AWS_ACCOUNT_ID`,
-> `KEY_ID`, `ROLE_NAME`, `AUDIENCE`, the aggregator's `OPERATOR_PROJECT`, and — for
-> Option 2 only — GCP `EDP_PROJECT` / `EDP_PROJECT_NUMBER`, the operator's
-> `RESULTS_FULFILLER_SA`, and the image signature fingerprint
+> `KEY_ID`, `ROLE_NAME`, `AUDIENCE`, the aggregator's workload projects, and — for
+> Option 2 only — GCP `EDP_PROJECT` / `EDP_PROJECT_NUMBER`, the operator's enabled
+> workload service accounts, and the image signature fingerprint
 > (`SIGNATURE_ALGORITHM:KEY_ID`).
 
 ---
@@ -180,11 +180,16 @@ Notes:
 
 [aws-multivalue]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-single-vs-multi-valued-context-keys.html
 
-## Step 4 — Grant the role `kms:Decrypt` on the key
+## Step 4 — Grant the required KMS actions on the key
 
 Attach a permissions policy to the role, or add the role as a principal in the KMS key
-policy. Include `kms:Encrypt` / `kms:GenerateDataKey` if you also want to support
-TrusTEE re-encryption:
+policy. A publisher-managed VID-labeled integration without TrusTEE needs only
+`kms:Decrypt`. The EDPA-managed Parquet profile needs both `kms:Decrypt` and
+`kms:Encrypt` because the VID labeler decrypts raw data and wraps the DEK for its
+labeled output. In the TrusTEE flow, ResultsFulfiller encrypts with the
+re-encryption key and the Duchy decrypts with it.
+
+This policy is the EDPA-managed Parquet example:
 
 ```json
 {
@@ -192,7 +197,7 @@ TrusTEE re-encryption:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"],
+      "Action": ["kms:Decrypt", "kms:Encrypt"],
       "Resource": "arn:aws:kms:REGION:AWS_ACCOUNT_ID:key/KEY_ID"
     }
   ]
@@ -229,9 +234,10 @@ event_data_provider_config {
 1. Deploy a build that supports `AWS_CONFIDENTIAL_SPACE` (ResultsFulfiller, VID
    Labeler, and Duchy TrusTEE mill images).
 2. Recreate the workload MIG VMs so they pick up the new config.
-3. Trigger a requisition or a labeling run that exercises this EDP, then confirm three
-   things: the launcher serves `/v1/token`, STS `AssumeRoleWithWebIdentity` succeeds,
-   and AWS KMS `Decrypt` succeeds.
+3. Trigger a requisition or a labeling run that exercises this EDP, then confirm that
+   the launcher serves `/v1/token`, STS `AssumeRoleWithWebIdentity` succeeds, and the
+   KMS operations expected for the profile succeed (`Decrypt`, plus `Encrypt` when
+   enabled).
 
 > AWS CloudTrail's `AssumeRoleWithWebIdentity` events are the authoritative place to
 > see which trust policy conditions matched. Note that CloudTrail records
@@ -253,7 +259,7 @@ a chain that starts with GCP attestation.
 ## Architecture
 
 ```
-Confidential VM (ResultsFulfiller TEE)
+Confidential VM (approved EDPA or TrusTEE workload)
   |  1. Attestation token (GCP-native JWT)
   v
 GCP Workload Identity Pool (EDP's GCP project)      <-- you control this
@@ -274,6 +280,7 @@ AWS KMS (EDP's AWS account)                         <-- you control this
 * An EDP-owned AWS account.
 * The `gcloud` CLI authenticated with sufficient permissions.
 * Your `DataProvider` resource name (`dataProviders/DATA_PROVIDER_ID`).
+* The exact workload service accounts enabled for your integration.
 
 ## Resources you will create
 
@@ -304,8 +311,9 @@ If one does not already exist:
 1. AWS Console → IAM → Roles → Create role.
 2. Trusted entity type: **Web identity**.
 3. Identity provider: `accounts.google.com`.
-4. Attach a policy granting `kms:Decrypt` (add `kms:Encrypt` / `kms:GenerateDataKey`
-   if you plan to support TrusTEE re-encryption) on your key:
+4. Attach a policy granting the actions required by your profile. The
+   publisher-managed VID-labeled profile without TrusTEE needs only `kms:Decrypt`.
+   The EDPA-managed Parquet profile and TrusTEE need `kms:Decrypt` and `kms:Encrypt`:
 
 ```json
 {
@@ -313,7 +321,7 @@ If one does not already exist:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"],
+      "Action": ["kms:Decrypt", "kms:Encrypt"],
       "Resource": "arn:aws:kms:REGION:AWS_ACCOUNT_ID:key/KEY_ID"
     }
   ]
@@ -332,16 +340,27 @@ Note the role ARN: `arn:aws:iam::AWS_ACCOUNT_ID:role/ROLE_NAME`.
 5. Allowed audiences: include `https://sts.googleapis.com` (the audience baked into
    the Confidential Space attestation token).
 6. Attribute mapping: `google.subject = assertion.sub`.
-7. Attribute condition (CEL) restricting access to your approved image + the
-   operator's ResultsFulfiller SA:
+7. Attribute condition (CEL) restricting access to your approved image and the
+   exact operator workload service accounts enabled for your integration. For
+   example, a memoized VID-labeling profile with TrusTEE can use:
 
 ```
 assertion.swname == 'CONFIDENTIAL_SPACE'
-  && 'RESULTS_FULFILLER_SA@OPERATOR_PROJECT.iam.gserviceaccount.com' in assertion.google_service_accounts
+  && ['VID_LABELER_SA@OPERATOR_PROJECT.iam.gserviceaccount.com',
+      'SUBPOOL_ASSIGNER_SA@OPERATOR_PROJECT.iam.gserviceaccount.com',
+      'VID_RANK_BUILDER_SA@OPERATOR_PROJECT.iam.gserviceaccount.com',
+      'RESULTS_FULFILLER_SA@OPERATOR_PROJECT.iam.gserviceaccount.com',
+      'TRUSTEE_DUCHY_SA@TRUSTEE_PROJECT.iam.gserviceaccount.com']
+       .exists(sa, sa in assertion.google_service_accounts)
   && ['SIGNATURE_ALGORITHM:KEY_ID'].exists(
        fingerprint,
        fingerprint in assertion.submods.container.image_signatures.map(sig, sig.signature_algorithm + ':' + sig.key_id))
 ```
+
+Omit SubpoolAssigner, VidRankBuilder, TrusTEE, or any other identity that the
+operator confirms is not used by your integration. In production, also require
+`'STABLE' in assertion.submods.confidential_space.support_attributes`, as shown in
+the GCP provider example in the [EDP Onboarding Guide](edp-onboarding.md#23-create-a-workload-identity-provider).
 
 > **Troubleshooting — audience mismatch.** If the ResultsFulfiller fails with
 > `invalid_grant: The audience in ID Token [https://sts.googleapis.com] does not

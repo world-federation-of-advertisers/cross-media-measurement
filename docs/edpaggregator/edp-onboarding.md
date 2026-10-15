@@ -83,9 +83,10 @@ formatting, upload, workflow) is identical.
 
 ### 2.2 KMS setup — Google Cloud
 
-Create a symmetric KEK in **your own** GCP project. This key lets the aggregator's TEE
-decrypt the daily DEKs that protect your impression data. All steps can be scripted
-with Terraform.
+Create a symmetric KEK in **your own** GCP project. For the publisher-managed
+VID-labeled flow described by this guide, the key lets the aggregator's TEE decrypt
+the daily DEKs that protect your impression data. All steps can be scripted with
+Terraform.
 
 ```bash
 # 1. Key ring (location as agreed with the operator; `global` or a specific region)
@@ -97,7 +98,7 @@ gcloud kms keys create edp-key --location global --keyring edp-keyring --purpose
 # 3. Service account that will access the key
 gcloud iam service-accounts create edp-service-account
 
-# 4. Grant the SA decrypt on the key
+# 4. Publisher-managed labeling: grant the SA decrypt on the key
 gcloud kms keys add-iam-policy-binding \
   projects/PROJECT_ID/locations/global/keyRings/edp-keyring/cryptoKeys/edp-key \
   --member=serviceAccount:edp-service-account@PROJECT_ID.iam.gserviceaccount.com \
@@ -117,10 +118,37 @@ Your **KEK URI** is:
 `gcp-kms://projects/PROJECT_ID/locations/global/keyRings/edp-keyring/cryptoKeys/edp-key`.
 Share it with the operator.
 
+#### EDPA-managed VID-labeling variant
+
+If you are following the [Parquet onboarding guide](README.md), the VID-labeling
+workload uses this same KMS client both to decrypt raw Parquet data and to wrap the
+DEK for its labeled output. In step 4, grant the federated service account
+`roles/cloudkms.cryptoKeyEncrypterDecrypter` instead:
+
+```bash
+gcloud kms keys add-iam-policy-binding \
+  projects/PROJECT_ID/locations/global/keyRings/edp-keyring/cryptoKeys/edp-key \
+  --member=serviceAccount:edp-service-account@PROJECT_ID.iam.gserviceaccount.com \
+  --role=roles/cloudkms.cryptoKeyEncrypterDecrypter
+```
+
+Grant the publisher's separate export identity encrypt-only access so it can write
+PME-encrypted Parquet:
+
+```bash
+gcloud kms keys add-iam-policy-binding \
+  projects/PROJECT_ID/locations/global/keyRings/edp-keyring/cryptoKeys/edp-key \
+  --member=serviceAccount:PUBLISHER_EXPORT_SA@PUBLISHER_PROJECT.iam.gserviceaccount.com \
+  --role=roles/cloudkms.cryptoKeyEncrypter
+```
+
+Grant the export identity decrypt access only if a publisher-operated validation
+process requires it.
+
 ### 2.3 Create a Workload Identity Provider
 
-To accept decryption requests from the aggregator's TEE, create an OIDC Workload
-Identity Provider whose attestation condition verifies that:
+For the publisher-managed VID-labeled flow, create an OIDC Workload Identity
+Provider whose attestation condition verifies that:
 
 * the code runs in a Confidential Space (`assertion.swname == 'CONFIDENTIAL_SPACE'`),
 * the request comes from the operator's authorized ResultsFulfiller service account, and
@@ -156,6 +184,23 @@ Obtain `RESULTS_FULFILLER_SA` and the image signature fingerprint
 (`SIGNATURE_ALGORITHM:KEY_ID`) from your operator. Give the resulting provider
 resource name (the `//iam.googleapis.com/projects/.../providers/...` audience) and
 the service account to the operator so they can set your `kms_config`.
+
+For EDPA-managed VID labeling, replace the single ResultsFulfiller membership check
+with a list of the exact workloads enabled for your market. A production condition
+for a memoized model line with TrusTEE can use this membership clause:
+
+```text
+['VID_LABELER_SA@OPERATOR_PROJECT.iam.gserviceaccount.com',
+ 'SUBPOOL_ASSIGNER_SA@OPERATOR_PROJECT.iam.gserviceaccount.com',
+ 'VID_RANK_BUILDER_SA@OPERATOR_PROJECT.iam.gserviceaccount.com',
+ 'RESULTS_FULFILLER_SA@OPERATOR_PROJECT.iam.gserviceaccount.com',
+ 'TRUSTEE_DUCHY_SA@TRUSTEE_PROJECT.iam.gserviceaccount.com']
+  .exists(sa, sa in assertion.google_service_accounts)
+```
+
+Keep the Confidential Space, `STABLE`, and image-signature checks shown above.
+Omit SubpoolAssigner, VidRankBuilder, TrusTEE, or any other identity that the
+operator confirms is not used by your integration.
 
 ### 2.4 Storage bucket
 
@@ -228,12 +273,18 @@ The embedded `EncryptedDek`:
 | Field | Notes |
 | --- | --- |
 | `kek_uri` | Required — your KEK URI (`gcp-kms://...` or `aws-kms://...`). |
-| `type_url` | Either `type.googleapis.com/google.crypto.tink.Keyset` or `type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey`. |
-| `protobuf_format` | `BINARY` or `JSON`. |
 | `ciphertext` | The DEK ciphertext, encrypted under `kek_uri`. |
 
-For the JSON path, the DEK is represented by the `EncryptionKey` message (an
-`AesGcmHkdfStreamingKey` for streaming AEAD, or an `AesGcmKey`).
+The supported `type_url` and `protobuf_format` combinations are:
+
+| `type_url` | `protobuf_format` |
+| --- | --- |
+| `type.googleapis.com/google.crypto.tink.Keyset` | `BINARY` |
+| `type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey` | `JSON` |
+
+For the JSON combination, the DEK is represented by the `EncryptionKey` message
+(an `AesGcmHkdfStreamingKey` for streaming AEAD, or an `AesGcmKey`). Other
+type-and-format combinations are not supported.
 
 ### 3.4 Event Group
 
@@ -252,6 +303,11 @@ key fields are:
 
 * **Protobuf:** `EventGroup` messages separated by RecordIO.
 * **JSON:** the `EventGroups` wrapper (a list of `EventGroup`), no RecordIO required.
+
+Omitting an event group from a later upload does not delete it. To delete one,
+upload an `EventGroup` with `state = DELETED`, a complete `entity_key`, and an
+explicit `measurement_consumer`. A `client_account_reference_id` alone is not
+sufficient for a deletion.
 
 ---
 
@@ -353,8 +409,10 @@ Provider beyond the baseline in Section 2.
 The ResultsFulfiller must **encrypt** the frequency vector before sending it to the
 Duchy. You choose how that key is provided — **a second key is not required**:
 
-* **Option A — reuse your existing KEK.** Simplest. Upgrade the key's permission from
-  decrypt-only to encrypt+decrypt:
+* **Option A — reuse your existing KEK.** Simplest. For publisher-managed VID
+  labeling, upgrade the key's permission from decrypt-only to encrypt+decrypt. The
+  EDPA-managed Parquet variant already grants this role, so no permission change is
+  needed there. For the publisher-managed flow, replace the role as follows:
 
   ```bash
   gcloud kms keys remove-iam-policy-binding \
@@ -369,8 +427,9 @@ Duchy. You choose how that key is provided — **a second key is not required**:
   ```
 
 * **Option B — dedicated re-encryption key.** For key isolation and independent
-  rotation, create a **second** key **on the same key ring**; keep the original key's
-  decrypt-only role unchanged:
+  rotation, create a **second** key **on the same key ring**. The original key can
+  remain decrypt-only for publisher-managed labeling. For EDPA-managed labeling,
+  it must remain encrypt+decrypt because the VID labeler writes encrypted output:
 
   ```bash
   gcloud kms keys create edp-trustee-key --location global --keyring edp-keyring --purpose=encryption
@@ -384,16 +443,18 @@ Duchy. You choose how that key is provided — **a second key is not required**:
   operator the new key name so they can configure the re-encryption mapping
   (`trustee_params.kek_uri_to_key_name`).
 
-> Why encrypt *and* decrypt? Decrypt reads your daily DEK / impressions (baseline
-> flow); encrypt wraps the frequency vector for the Duchy, which then decrypts it
-> inside its own TEE.
+> Why encrypt *and* decrypt? Decrypt reads your input. Encrypt protects output:
+> labeled impressions in the EDPA-managed flow and the frequency vector in the
+> TrusTEE flow.
 
 ### 6.2 Update the Workload Identity Provider
 
-The baseline provider (Section 2.3) trusts only the ResultsFulfiller service account.
-For TrusTEE, add the **Duchy** service account too. Ask the operator for the TrusTEE
-Duchy service account (the image signature fingerprint is the same). Update the
-provider's `--attribute-condition` to accept both:
+The baseline publisher-managed provider (Section 2.3) trusts only the
+ResultsFulfiller service account. For TrusTEE, add the **Duchy** service account too.
+Ask the operator for the TrusTEE Duchy service account (the image signature
+fingerprint is the same). If you already used the EDPA-managed membership list above
+and included the Duchy, no additional provider change is needed. Otherwise, update
+the provider's `--attribute-condition` to accept both:
 
 ```
 assertion.swname == 'CONFIDENTIAL_SPACE' &&
@@ -408,8 +469,10 @@ assertion.swname == 'CONFIDENTIAL_SPACE' &&
 If your KMS is on AWS, the same principles apply:
 
 * The AWS IAM role's KMS policy must allow **both** `kms:Encrypt` and `kms:Decrypt`.
-* The GCP WIF pool in your project must trust the TrusTEE Duchy's service account
-  (as in 6.2).
+* With direct Confidential Space attestation, include the Duchy's workload project
+  and accepted image-signature combination in the AWS role's trust policy.
+* With GCP federation, include the Duchy's service account in the GCP Workload
+  Identity Provider condition, as in Section 6.2.
 * For a dedicated re-encryption key, create it in the same AWS account/region and
   give the operator its ARN.
 
@@ -423,6 +486,6 @@ re-encryption mapping.
 | | Single key (Option A) | Dedicated key (Option B) |
 | --- | --- | --- |
 | New key needed | No | Yes (same key ring) |
-| Permission on KEK | Upgrade to EncrypterDecrypter | Keep Decrypter |
+| Permission on KEK | EncrypterDecrypter | Decrypter for publisher-managed labeling; EncrypterDecrypter for EDPA-managed labeling |
 | Permission on re-encryption key | N/A | Grant EncrypterDecrypter |
 | Operator config | No key mapping | Provide key name to operator |

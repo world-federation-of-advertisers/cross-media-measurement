@@ -16,7 +16,7 @@ This guide covers the recommended integration:
 
 After onboarding, the publisher has two recurring responsibilities:
 
-1. Publish campaign information when campaigns are added or changed.
+1. Publish campaign information when campaigns are added, changed, or removed.
 2. Upload each day's encrypted Parquet files, followed by an empty `done`
    object.
 
@@ -39,7 +39,8 @@ measurement requests.
 
 ## 1. How the integration works
 
-The publisher sends two independent feeds to a private Cloud Storage bucket:
+The publisher sends two independent feeds to one or more private Cloud Storage
+locations supplied by the operator:
 
 ```text
 Campaign information ──────────────► Halo registers the campaigns
@@ -64,7 +65,7 @@ the encryption key and can revoke future use by changing the key policy.
 
 | The publisher owns | The market operator owns |
 | --- | --- |
-| The encryption key in the publisher's cloud account | The private bucket and assigned upload prefixes |
+| The encryption key in the publisher's cloud account | The private buckets and assigned upload prefixes |
 | The policy deciding which trusted workloads may use the key | Registration of the publisher in Halo |
 | The raw-impression and campaign exports | Configuration of VID models and Parquet field mappings |
 | The identity used to upload files | The trusted VID-labeling, fulfillment, and TrusTEE workloads |
@@ -85,7 +86,7 @@ request.
 The operator gives the publisher:
 
 * its Halo `DataProvider` resource name;
-* the bucket URI and exact prefixes for campaign and raw-impression uploads;
+* the bucket URIs and exact prefixes for campaign and raw-impression uploads;
 * the trusted workload projects, runtime identities, and official Halo
   image-signing fingerprint needed by the publisher's key policy;
 * the event fields and identity signals required by the market's VID model;
@@ -125,8 +126,8 @@ The publisher may reuse the primary key for TrusTEE or create a dedicated
 re-encryption key. A second key provides independent rotation and artifact
 isolation. It does not by itself separate IAM roles if the same federated
 identity has encrypt and decrypt access to both keys. Follow the cloud-specific
-placement rules: for example, the Google Cloud key must be on the same key ring
-as the primary key.
+placement rules: for example, a dedicated Google Cloud re-encryption key must be
+on the same key ring as the primary key.
 
 ### Trust workload classes, not individual jobs
 
@@ -165,9 +166,12 @@ For cloud-specific setup, use:
 * [AWS KMS setup](aws-kms-setup.md). Direct Confidential Space attestation is
   the preferred AWS path for a new integration.
 
-The ResultsFulfiller-only Google Cloud example in the general guide must be
-expanded for this profile to include the VID-labeling and TrusTEE workloads above
-and to grant encrypt as well as decrypt access.
+For Google Cloud, follow the linked guide's
+[EDPA-managed VID-labeling variant](edp-onboarding.md#edpa-managed-vid-labeling-variant).
+For either cloud, allow only the VID-labeling, ResultsFulfiller, and TrusTEE
+workload classes enabled for this market. Use exact runtime service accounts
+when the attestation path exposes them. Direct AWS attestation instead uses the
+approved workload projects together with the image-signature claims.
 
 ## 4. Agree on the Parquet contract
 
@@ -276,11 +280,13 @@ The operator provides a path similar to:
 
 ```text
 gs://<BUCKET>/<EDP_PREFIX>/event-groups/<FILENAME>.json
+gs://<BUCKET>/<EDP_PREFIX>/event-groups/<FILENAME>.binpb
 ```
 
 Campaign information may be JSON or protobuf. JSON files contain an
 `EventGroups` wrapper. Protobuf files contain RecordIO-framed `EventGroup`
-messages. The authoritative schema is
+messages. Filenames must end in the lowercase suffix `.json` or `.binpb`;
+otherwise EDPA ignores them. The authoritative schema is
 [event_group.proto](../../src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha/event_group.proto).
 
 Each campaign includes:
@@ -300,6 +306,11 @@ Identify the advertiser by setting either:
 
 Use `entity_key` for new integrations. `event_group_reference_id` is the
 legacy alternative.
+
+Omitting a campaign from a later file does not delete it. To remove a campaign,
+upload an `EventGroup` tombstone with `state` set to `DELETED`, a complete
+`entity_key`, and an explicit `measurement_consumer`. A
+`client_account_reference_id` alone is not sufficient for a deletion.
 
 ## 6. Upload daily impressions
 
@@ -367,8 +378,8 @@ For each day:
 5. Upload `done` last.
 6. Confirm that labeling and data availability complete.
 
-When campaigns change, publish the updated campaign file and confirm registration
-before relying on it in a measurement.
+When campaigns change or are removed, publish the update or explicit deletion
+tombstone and confirm registration before relying on it in a measurement.
 
 Coordinate key-policy changes before the operator rolls out new workload
 identities, projects, or signing keys. Add the new trust values first, verify the

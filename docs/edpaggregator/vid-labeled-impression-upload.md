@@ -23,7 +23,7 @@ Obtain these values from the market operator:
 * the storage bucket and labeled-impression prefix;
 * the market's event protobuf type and descriptor;
 * the campaign/entity-key convention; and
-* the trusted ResultsFulfiller and TrusTEE workload identities.
+* the trusted ResultsFulfiller and, if enabled, TrusTEE workload identities.
 
 Set up the publisher-owned KMS key and attestation policy using the
 [General EDP Onboarding Guide](edp-onboarding.md) and, when applicable, the
@@ -57,17 +57,17 @@ while measurements find no matching impressions.
 
 ## 2. Encrypt the RecordIO file
 
-For each output blob:
+For each daily batch:
 
-1. Generate a fresh data-encryption key (DEK) for the daily batch, suitable for
-   Tink Streaming AEAD.
+1. Generate a fresh data-encryption key (DEK) suitable for Tink Streaming AEAD.
 2. Serialize each `LabeledImpression` as binary protobuf and write the records
-   using Mesos RecordIO framing.
-3. Encrypt the RecordIO stream with the DEK.
+   using Mesos RecordIO framing. You may split the batch into multiple blobs.
+3. Encrypt each RecordIO stream with the DEK.
 4. Wrap the serialized DEK with the publisher's KMS key.
 
 The publisher keeps the KMS key in its own cloud account. The wrapped DEK is
-recorded in the metadata sidecar; the plaintext DEK is not uploaded.
+recorded in every metadata sidecar for a blob protected by that DEK; the
+plaintext DEK is not uploaded.
 
 The repository's
 [reference writer](../../src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing/ImpressionWriter.kt)
@@ -93,21 +93,31 @@ authoritative schema is
 Every listed key must occur on at least one impression, and every impression
 must carry at least one of the listed keys.
 
+`BlobDetails.interval` must cover every impression in the blob. For a daily
+batch, use a half-open UTC interval from `YYYY-MM-DDT00:00:00Z` through the next
+date at `00:00:00Z`.
+
 The nested `EncryptedDek` contains:
 
 | Field | Meaning |
 | --- | --- |
 | `kek_uri` | URI of the publisher's KMS key |
-| `type_url` | Type of the serialized key: Tink `Keyset` or EDPA `EncryptionKey` |
-| `protobuf_format` | `BINARY` or `JSON`, describing the serialized key |
 | `ciphertext` | Serialized DEK encrypted by `kek_uri` |
 
-`protobuf_format` describes the wrapped key representation. The impression
-records themselves are binary `LabeledImpression` protobuf messages.
+Use one of the two supported `type_url` and `protobuf_format` pairs:
+
+| `type_url` | `protobuf_format` |
+| --- | --- |
+| `type.googleapis.com/google.crypto.tink.Keyset` | `BINARY` |
+| `type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey` | `JSON` |
+
+The format describes the wrapped key representation. The impression records
+themselves are binary `LabeledImpression` protobuf messages.
 
 Serialize `BlobDetails` as binary protobuf or JSON. Its filename must contain
-the case-insensitive substring `metadata`, for example
-`metadata.binpb` or `metadata-campaign-123.json`.
+the case-insensitive substring `metadata` **and** end with the lowercase suffix
+`.binpb` or `.json`, for example `metadata.binpb` or
+`metadata-campaign-123.json`.
 
 Do not upload a bare `EncryptedDek` as the sidecar. EDPA expects the complete
 `BlobDetails` message.
@@ -154,7 +164,7 @@ Confirm all of the following with the operator:
 | Symptom | First check |
 | --- | --- |
 | Date is not registered | Path, model-line ID, and lowercase empty `done` object |
-| Metadata is ignored | Filename contains `metadata` and file is non-empty |
+| Metadata is ignored | Filename contains `metadata`, ends in `.binpb` or `.json`, and is non-empty |
 | Metadata parsing fails | Sidecar is `BlobDetails`, not a bare `EncryptedDek` |
 | KMS permission denied | KEK URI, federated identity, and attestation-policy conditions |
 | RecordIO cannot be read | Binary protobuf records, framing, streaming encryption, and wrapped DEK all agree |
