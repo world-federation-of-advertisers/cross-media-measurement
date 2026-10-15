@@ -196,17 +196,26 @@ reporting: #Reporting & {
 	cronJobs: {
 		"report-scheduling": {
 			_container: {
-				_javaOptions: maxHeapSize: #CronJobMaxHeapSize
+				_javaOptions: {
+					maxHeapSize:          #CronJobMaxHeapSize
+					nativeMemoryTracking: "summary"
+				}
 				resources: #CronJobResourceRequirements
 			}
 		}
 		"report-result-post-processor": {
 			_container: {
-				_javaOptions: maxHeapSize: #CronJobMaxHeapSize
+				_javaOptions: {
+					maxHeapSize:          #CronJobMaxHeapSize
+					nativeMemoryTracking: "summary"
+				}
 				resources: #CronJobResourceRequirements
 			}
 			spec: jobTemplate: spec: template: spec: _initContainers: "basic-reports-reports": {
-				_javaOptions: maxHeapSize: #CronJobMaxHeapSize
+				_javaOptions: {
+					maxHeapSize:          #CronJobMaxHeapSize
+					nativeMemoryTracking: "summary"
+				}
 				resources: #CronJobResourceRequirements
 			}
 		}
