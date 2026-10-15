@@ -58,6 +58,9 @@ them only inside Google Confidential Space, a trusted execution environment
 presents a hardware-signed attestation describing the software and environment
 that are running.
 
+For the complete lifecycle, including the separate EDPA and TrusTEE trust
+boundaries, see [How data moves through the EDP Aggregator](data-flow.md).
+
 Storage access does not grant decryption access. The publisher keeps control of
 the encryption key and can revoke future use by changing the key policy.
 
@@ -440,6 +443,7 @@ For deeper investigation, use the
 
 | Guide | Purpose |
 | --- | --- |
+| [Data flow and trust boundaries](data-flow.md) | Follow data from export through VID labeling, TrusTEE, and result delivery |
 | [Upload already VID-labeled impressions](vid-labeled-impression-upload.md) | Upload encrypted RecordIO when the publisher assigns VIDs |
 | [General EDP Onboarding Guide](edp-onboarding.md) | Full KMS, schema, upload, and optional TrusTEE reference |
 | [AWS KMS Setup Guide](aws-kms-setup.md) | Configure either supported AWS KMS federation path |
