@@ -33,8 +33,8 @@ _systemApiAddressName: string @tag("system_api_address_name")
 // a thread, so this should be greater than the number of Heralds.
 #SystemServerGrpcThreads: 5
 
-// ~4.4x the 58MB peak heap live set observed over 30 days.
-#InternalServerMaxHeapSize: "256M"
+// 3.3x the 58MB peak heap used after last GC, observed over 30 days.
+#InternalServerMaxHeapSize: "192M"
 
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
@@ -46,8 +46,8 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
-// ~4.9x the 26MB peak heap live set observed over 30 days.
-#CancellationJobMaxHeapSize: "128M"
+// 3.7x the 26MB peak heap used after last GC, observed over 30 days.
+#CancellationJobMaxHeapSize: "96M"
 
 #CancellationJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
