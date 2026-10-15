@@ -65,10 +65,6 @@ class PotentialDirectResultMinimumThresholds:
             applications.append("IMPRESSION_COUNT")
         return tuple(applications)
 
-    def reach_uncertainty_applies(self, measurement: Measurement) -> bool:
-        """Returns whether reach uncertainty will be changed."""
-        return self._should_add_uncertainty(measurement)
-
     def add_reach_uncertainty(self, measurement: Measurement) -> Measurement:
         """Adds uncertainty for either threshold that can suppress reach."""
         return self._add_uncertainty(

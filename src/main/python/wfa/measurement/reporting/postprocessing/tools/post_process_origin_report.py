@@ -50,7 +50,7 @@ flags.DEFINE_string("input_file", None, "The input file path.")
 flags.DEFINE_boolean(
     "log_noise_correction_values",
     False,
-    "Log pre-correction report-result values and corrected values.",
+    "Log post-noise, pre-correction report-result values and corrected values.",
 )
 flags.DEFINE_list(
     "ami_mrc_exempted_edps",

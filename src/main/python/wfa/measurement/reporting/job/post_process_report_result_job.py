@@ -194,7 +194,7 @@ class PostProcessReportResultJob:
     def __init__(
         self,
         internal_reporting_channel: grpc.Channel,
-        log_noise_correction_values: bool,
+        log_noise_correction_values: bool = False,
         ami_mrc_exempted_edps: Iterable[str] | None = None,
         potential_direct_result_minimum_thresholds: (
             PotentialDirectResultMinimumThresholds | None
@@ -206,8 +206,8 @@ class PostProcessReportResultJob:
         Args:
             internal_reporting_channel: A gRPC channel to the internal reporting
                 server.
-            log_noise_correction_values: Whether to log pre-correction
-                report-result values and corrected values.
+            log_noise_correction_values: Whether to log post-noise,
+                pre-correction report-result values and corrected values.
             ami_mrc_exempted_edps: The list of EDPs resource name for which the
                 AMI >= MRC consistency checks are disabled.
             potential_direct_result_minimum_thresholds: Conservative upper

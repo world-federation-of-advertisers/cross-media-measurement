@@ -134,8 +134,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
         mock_channel = mock.create_autospec(grpc.Channel)
         self.job = post_process_report_result_job.PostProcessReportResultJob(
-            mock_channel,
-            log_noise_correction_values=False,
+            mock_channel
         )
 
     def tearDown(self):
