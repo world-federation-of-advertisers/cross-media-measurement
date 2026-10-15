@@ -113,19 +113,15 @@ object ReachAndFrequencyComputations {
     }
     val noisedHistogram =
       LongArray(maxFrequency) { index -> noiser.noiseFrequencyBucket(index, rawHistogram[index]) }
-    if (noisedHistogram.sum() == 0L) {
+    val numNoisedActiveRegisters = noisedHistogram.sum()
+    if (numNoisedActiveRegisters == 0L) {
       return (1..maxFrequency).associate { it.toLong() to 0.0 }
     }
 
     if (resultMinimumThresholds == null) {
-      val numNoisedActiveRegisters = noisedHistogram.sum()
       return noisedHistogram.withIndex().associate { (index, count) ->
         val frequency = index + 1L
-        if (numNoisedActiveRegisters === 0L) {
-          frequency to 0.0
-        } else {
-          frequency to count.toDouble() / numNoisedActiveRegisters
-        }
+        frequency to count.toDouble() / numNoisedActiveRegisters
       }
     }
 
@@ -142,26 +138,16 @@ object ReachAndFrequencyComputations {
         count / vidSamplingIntervalWidth < resultMinimumThresholds.minUsers ||
           frequency * count / vidSamplingIntervalWidth < resultMinimumThresholds.minImpressions
       ) {
-        // Releasing higher buckets would expose the 1+ count through the reach remainder, while
-        // renormalizing them would overstate their reach. Fully suppress the distribution.
-        if (index == 0) {
-          return (1..maxFrequency).associate { it.toLong() to 0.0 }
-        }
-
         thresholdedHistogram[index] = 0
         if (index > 0) {
           thresholdedHistogram[index - 1] += count
         }
       }
     }
-    val numThresholdedActiveRegisters = thresholdedHistogram.sum()
+    // Keep the pre-threshold denominator so suppressing 1+ does not redistribute its users.
     return thresholdedHistogram.withIndex().associate { (index, count) ->
       val frequency = index + 1L
-      if (numThresholdedActiveRegisters === 0L) {
-        frequency to 0.0
-      } else {
-        frequency to count.toDouble() / numThresholdedActiveRegisters
-      }
+      frequency to count.toDouble() / numNoisedActiveRegisters
     }
   }
 }

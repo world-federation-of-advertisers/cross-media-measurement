@@ -69,7 +69,7 @@ class DirectReachAndFrequencyResultBuilderTest {
     }
 
   @Test
-  fun `buildMeasurementResult keeps reach and suppresses frequency when freq-1 fails threshold`() =
+  fun `buildMeasurementResult keeps reach and surviving frequency when freq-1 fails threshold`() =
     runBlocking {
       val frequencyData =
         IntArray(110) { index ->
@@ -97,9 +97,21 @@ class DirectReachAndFrequencyResultBuilderTest {
 
       assertThat(result.reach.value).isEqualTo(110)
       assertThat(result.frequency.relativeFrequencyDistributionMap).hasSize(MAX_FREQUENCY)
-      assertThat(result.frequency.relativeFrequencyDistributionMap.values)
-        .containsExactlyElementsIn(List(MAX_FREQUENCY) { 0.0 })
-        .inOrder()
+      assertThat(result.frequency.relativeFrequencyDistributionMap[1])
+        .isWithin(FLOAT_COMPARISON_TOLERANCE)
+        .of(0.0)
+      assertThat(result.frequency.relativeFrequencyDistributionMap[2])
+        .isWithin(FLOAT_COMPARISON_TOLERANCE)
+        .of(65.0 / 110.0)
+      assertThat(result.frequency.relativeFrequencyDistributionMap[5])
+        .isWithin(FLOAT_COMPARISON_TOLERANCE)
+        .of(25.0 / 110.0)
+      assertThat(result.frequency.relativeFrequencyDistributionMap[9])
+        .isWithin(FLOAT_COMPARISON_TOLERANCE)
+        .of(12.0 / 110.0)
+      assertThat(result.frequency.relativeFrequencyDistributionMap.values.sum())
+        .isWithin(FLOAT_COMPARISON_TOLERANCE)
+        .of(102.0 / 110.0)
     }
 
   @Test
@@ -199,6 +211,7 @@ class DirectReachAndFrequencyResultBuilderTest {
 
   companion object {
     private val MAX_FREQUENCY = 10
+    private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
     private val REACH_PRIVACY_PARAMS = differentialPrivacyParams {
       epsilon = 1.0
       delta = 1E-12

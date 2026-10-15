@@ -232,7 +232,7 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `computeFrequencyDistribution suppresses all buckets when populated freq-1 fails min users`() {
+  fun `computeFrequencyDistribution preserves higher buckets when populated freq-1 fails min users`() {
     val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
@@ -243,11 +243,14 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0,
       )
 
-    assertThat(distribution.values).containsExactly(0.0, 0.0, 0.0).inOrder()
+    assertThat(distribution[1L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
+    assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(30.0 / 110.0)
+    assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(70.0 / 110.0)
+    assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(100.0 / 110.0)
   }
 
   @Test
-  fun `computeFrequencyDistribution suppresses all buckets when empty freq-1 fails threshold`() {
+  fun `computeFrequencyDistribution preserves higher buckets when empty freq-1 fails threshold`() {
     val rawHistogram = longArrayOf(0, 30, 70)
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
@@ -258,7 +261,9 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0,
       )
 
-    assertThat(distribution.values).containsExactly(0.0, 0.0, 0.0).inOrder()
+    assertThat(distribution[1L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
+    assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.3)
+    assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.7)
   }
 
   @Test
@@ -288,9 +293,10 @@ class ReachAndFrequencyComputationsTest {
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
         vidSamplingIntervalWidth = 1.0,
       )
-    // With fold-down + noise, outcome is non-deterministic. Either all zeros or sums to 1.
+    // With fold-down + noise, outcome is non-deterministic but cannot gain histogram mass.
     val sum = distribution.values.sum()
-    assertThat(sum == 0.0 || Math.abs(sum - 1.0) < FLOAT_COMPARISON_TOLERANCE).isTrue()
+    assertThat(sum).isAtLeast(-FLOAT_COMPARISON_TOLERANCE)
+    assertThat(sum).isAtMost(1.0 + FLOAT_COMPARISON_TOLERANCE)
   }
 
   @Test
@@ -325,7 +331,7 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `computeFrequencyDistribution suppresses all buckets when freq-1 fails min impressions`() {
+  fun `computeFrequencyDistribution preserves higher buckets when freq-1 fails min impressions`() {
     // Frequency 1: 5 users * 1 impression = 5 impressions
     // Frequency 2: 10 users * 2 impressions = 20 impressions
     // Frequency 3: 20 users * 3 impressions = 60 impressions
@@ -340,7 +346,9 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0,
       )
 
-    assertThat(distribution.values).containsExactly(0.0, 0.0, 0.0).inOrder()
+    assertThat(distribution[1L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
+    assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(10.0 / 35.0)
+    assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(20.0 / 35.0)
   }
 
   @Test
@@ -368,7 +376,7 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `computeFrequencyDistribution suppresses populated freq-1 using fractional VID width`() {
+  fun `computeFrequencyDistribution preserves higher buckets using fractional VID width`() {
     // freq1=10, freq2=30, freq3=70
     // At vidSamplingIntervalWidth=0.5, estimated counts are doubled (count / 0.5):
     //   freq3: 70/0.5=140 >= 50 -> passes
@@ -385,7 +393,9 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 0.5,
       )
 
-    assertThat(distribution.values).containsExactly(0.0, 0.0, 0.0).inOrder()
+    assertThat(distribution[1L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
+    assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(30.0 / 110.0)
+    assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(70.0 / 110.0)
   }
 
   @Test
@@ -513,7 +523,7 @@ class ReachAndFrequencyComputationsTest {
           thresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 5),
           vidSamplingIntervalWidth = 1.0,
         ),
-        // An empty 1+ bucket is indistinguishable from a populated suppressed bucket.
+        // A genuinely empty 1+ bucket does not reduce the displayed histogram mass.
         Scenario(
           rawHistogram = longArrayOf(0, 65, 0, 0, 25, 0, 0, 0, 12),
           thresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 5),
@@ -549,7 +559,7 @@ class ReachAndFrequencyComputationsTest {
         scenario.rawHistogram.withIndex().sumOf { (index, count) -> (index + 1L) * count } /
           scenario.vidSamplingIntervalWidth
 
-      assertThat(impliedImpressions).isAtMost(sourceImpressions)
+      assertThat(impliedImpressions).isAtMost(sourceImpressions + FLOAT_COMPARISON_TOLERANCE)
     }
   }
 
