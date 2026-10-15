@@ -674,12 +674,23 @@ class EdpAggregatorReportingIntegrationTest {
         .that(results.map { it.metadata.metricEndTime.seconds }.toSet())
         .hasSize(WEEKLY_PERIOD_COUNT)
 
-      for (result in results) {
+      val byWeek = results.sortedBy { it.metadata.metricEndTime.seconds }
+      byWeek.forEachIndexed { index, result ->
         val metricSet = result.metricSet.reportingUnit
         val week = result.metadata.metricEndTime.seconds
-        assertWithMessage("$series week $week cumulative reach")
-          .that(metricSet.cumulative.reach)
-          .isGreaterThan(0L)
+        // Cumulative reach grows over the interval, so the opening weeks are its smallest
+        // values and sit close to the measurement noise: a draw below zero is clamped to zero
+        // and nothing in the post-processor lifts it back, since every constraint on an early
+        // week is an upper bound. Later weeks are several sigma clear and must be positive.
+        if (index < NOISE_DOMINATED_WEEKS) {
+          assertWithMessage("$series week $week cumulative reach")
+            .that(metricSet.cumulative.reach)
+            .isAtLeast(0L)
+        } else {
+          assertWithMessage("$series week $week cumulative reach")
+            .that(metricSet.cumulative.reach)
+            .isGreaterThan(0L)
+        }
         assertWithMessage("$series week $week non-cumulative reach")
           .that(metricSet.nonCumulative.reach)
           .isAtLeast(0L)
@@ -774,18 +785,22 @@ class EdpAggregatorReportingIntegrationTest {
     assertWithMessage("expected demographic cells")
       .that(expectedByCell)
       .hasSize(EXPECTED_DEMOGRAPHIC_COUNT)
-    assertWithMessage("whole-interval results")
-      .that(resultGroup.resultsList)
-      .hasSize(EXPECTED_DEMOGRAPHIC_COUNT)
 
-    val actualByKey = resultGroup.resultsList.associateBy { demographicOf(it) }
+    // The report carries a result per (demographic cell, filter): every configured impression
+    // qualification filter is reported, not only the one the request named.
+    val actualByKey =
+      resultGroup.resultsList.associateBy { "${demographicOf(it)}/${filterLabel(it)}" }
+    assertWithMessage("whole-interval results are unique per cell and filter")
+      .that(actualByKey)
+      .hasSize(resultGroup.resultsList.size)
     assertWithMessage("demographic cells")
-      .that(actualByKey.keys)
+      .that(resultGroup.resultsList.map { demographicOf(it) }.toSet())
       .containsExactlyElementsIn(expectedByCell.keys)
 
     val comparisons = mutableListOf<MetricComparison>()
     for ((key, result) in actualByKey) {
-      val expected = expectedByCell.getValue(key).getValue(filterLabel(result))
+      val expected =
+        expectedByCell.getValue(demographicOf(result)).getValue(filterLabel(result))
       val metricSet = result.metricSet.reportingUnit
       val prefix = "$TOTAL_GROUP_TITLE: $key"
 
@@ -1144,6 +1159,17 @@ class EdpAggregatorReportingIntegrationTest {
     private val WEEKLY_METRIC_FREQUENCY: DayOfWeek = DayOfWeek.WEDNESDAY
 
     private const val WEEKLY_PERIOD_COUNT = 9
+
+    /**
+     * Opening weeks whose cumulative reach is only required to be non-negative.
+     *
+     * Reach is measured with continuous Gaussian noise whose sigma does not shrink with the value
+     * being measured, so the smallest values in a report carry the largest relative error. The
+     * first weeks of a cumulative series are those values: a draw below zero is clamped to zero,
+     * and the post-processor cannot recover it because every constraint on an early week bounds it
+     * from above. By the third week the series is several sigma clear of zero.
+     */
+    private const val NOISE_DOMINATED_WEEKS = 2
 
     /**
      * EventGroups the weekly report covers, spanning every EDP in [EDP_DISPLAY_NAMES].
