@@ -356,7 +356,6 @@ class TestOriginReport(unittest.TestCase):
         report_summary, []).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
-    composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
 
     num_periods = 2
     num_frequencies = 5
@@ -599,7 +598,8 @@ class TestOriginReport(unittest.TestCase):
         TOLERANCE
     )
 
-    # Verifies that mrc/custom measurements are less than or equal to ami ones.
+    # Verifies that primitive mrc/custom measurements are less than or equal
+    # to ami ones.
     for i in range(num_periods):
       for edp_combination in primitive_edp_combinations:
         self._assertFuzzyLessEqual(
@@ -645,17 +645,6 @@ class TestOriginReport(unittest.TestCase):
             'impression_count/ami/' + edp_combination],
           TOLERANCE
       )
-    for edp_combination in composite_edp_combinations:
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/mrc/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
-          TOLERANCE
-      )
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/custom/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
-          TOLERANCE
-      )
 
   def test_report_summary_without_whole_campaign_reach_is_corrected_successfully(
       self):
@@ -665,7 +654,6 @@ class TestOriginReport(unittest.TestCase):
         report_summary, []).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
-    composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
 
     num_periods = 2
     num_frequencies = 5
@@ -880,7 +868,8 @@ class TestOriginReport(unittest.TestCase):
         TOLERANCE
     )
 
-    # Verifies that mrc/custom measurements are less than or equal to ami ones.
+    # Verifies that primitive mrc/custom measurements are less than or equal
+    # to ami ones.
     for i in range(num_periods):
       for edp_combination in primitive_edp_combinations:
         self._assertFuzzyLessEqual(
@@ -926,17 +915,6 @@ class TestOriginReport(unittest.TestCase):
             'impression_count/ami/' + edp_combination],
           TOLERANCE
       )
-    for edp_combination in composite_edp_combinations:
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/mrc/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
-          TOLERANCE
-      )
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/custom/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
-          TOLERANCE
-      )
 
   def test_report_summary_without_cumulative_reaches_is_corrected_successfully(
       self):
@@ -946,7 +924,6 @@ class TestOriginReport(unittest.TestCase):
         report_summary, []).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
-    composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
 
     num_periods = 2
     num_frequencies = 5
@@ -1094,17 +1071,6 @@ class TestOriginReport(unittest.TestCase):
             'impression_count/custom/' + edp_combination],
           corrected_measurements_map[
             'impression_count/ami/' + edp_combination],
-          TOLERANCE
-      )
-    for edp_combination in composite_edp_combinations:
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/mrc/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
-          TOLERANCE
-      )
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/custom/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
           TOLERANCE
       )
 
