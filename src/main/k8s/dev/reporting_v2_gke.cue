@@ -59,7 +59,7 @@ _accessPublicApiAddressName:                          "access-public"
 
 // The namespace LimitRange defaults a container to 192Mi, which these jobs exceed on
 // non-heap alone: they are killed by the cgroup before the JVM reaches its own ceiling.
-#CronJobMaxHeapSize: "128M"
+#CronJobMaxHeapSize:          "128M"
 #CronJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "10m"
