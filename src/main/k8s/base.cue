@@ -130,6 +130,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	heapDumpOnOutOfMemory:    bool | *false
 	heapDumpPath?:            string
 	exitOnOutOfMemory:        bool | *heapDumpOnOutOfMemory
+	nativeMemoryTracking?:    "summary" | "detail"
 
 	_maxRamPercentageOpts: [...string]
 	if maxRamPercentage != _|_ {
@@ -175,6 +176,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		},
 		if exitOnOutOfMemory {
 			"-XX:+ExitOnOutOfMemoryError"
+		},
+		if nativeMemoryTracking != _|_ {
+			"-XX:NativeMemoryTracking=\(nativeMemoryTracking)"
+		},
+		if nativeMemoryTracking != _|_ {
+			"-XX:+PrintNMTStatistics"
 		},
 	]
 }
