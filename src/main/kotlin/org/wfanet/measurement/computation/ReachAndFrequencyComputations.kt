@@ -142,8 +142,8 @@ object ReachAndFrequencyComputations {
         count / vidSamplingIntervalWidth < resultMinimumThresholds.minUsers ||
           frequency * count / vidSamplingIntervalWidth < resultMinimumThresholds.minImpressions
       ) {
-        // The 1+ bucket cannot be folded lower. Suppress the whole distribution rather than
-        // renormalizing its users into surviving higher-frequency buckets.
+        // Releasing higher buckets would expose the 1+ count through the reach remainder, while
+        // renormalizing them would overstate their reach. Fully suppress the distribution.
         if (index == 0) {
           return (1..maxFrequency).associate { it.toLong() to 0.0 }
         }
