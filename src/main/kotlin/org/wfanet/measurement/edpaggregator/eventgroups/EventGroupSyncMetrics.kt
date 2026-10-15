@@ -125,4 +125,19 @@ class EventGroupSyncMetrics(meter: Meter) {
         "Number of ClientAccount reference IDs that are not mapped in the account table"
       )
       .build()
+
+  /**
+   * Counter for failed unlinked-client-account reconciles.
+   *
+   * Incremented once per failed end-of-run reconcile RPC: the single `ListUnlinkedClientAccounts`,
+   * plus each `BatchCreateUnlinkedClientAccounts` and `BatchDeleteUnlinkedClientAccounts` chunk
+   * (chunked at `MAX_UNLINKED_BATCH_SIZE`), so a single run can increment it more than once. This
+   * is a secondary reconcile: the EventGroups themselves have already synced, so a failure here is
+   * logged and left for the next run rather than failing the sync.
+   */
+  val unlinkedReconcileFailure: LongCounter =
+    meter
+      .counterBuilder("edpa.event_group.unlinked_reconcile_failure")
+      .setDescription("Number of failed unlinked-client-account reconciles")
+      .build()
 }

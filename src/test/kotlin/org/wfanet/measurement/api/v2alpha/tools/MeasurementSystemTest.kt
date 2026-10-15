@@ -1554,6 +1554,31 @@ class MeasurementSystemTest {
   }
 
   @Test
+  fun `data-providers update-capabilities sets trus_tee_v2_supported`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "data-providers",
+          "--name=$DATA_PROVIDER_NAME",
+          "update-capabilities",
+          "--trus-tee-v2-supported=true",
+        )
+
+    callCli(args)
+
+    val request = captureFirst {
+      runBlocking { verify(dataProvidersServiceMock).replaceDataProviderCapabilities(capture()) }
+    }
+    assertThat(request)
+      .isEqualTo(
+        replaceDataProviderCapabilitiesRequest {
+          name = DATA_PROVIDER_NAME
+          capabilities = DATA_PROVIDER.capabilities.copy { trusTeeV2Supported = true }
+        }
+      )
+  }
+
+  @Test
   fun `data-providers get calls GetDataProvider with correct params`() {
     val args = commonArgs + arrayOf("data-providers", "--name=dataProviders/777", "get")
     callCli(args)

@@ -29,6 +29,7 @@ import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
@@ -192,10 +193,12 @@ private constructor(
       rankIndexStore: RankIndexStore,
       dataProvider: String,
       modelLine: String,
+      metadataReadThrottler: Throttler,
       readerParallelism: Int = DEFAULT_READER_PARALLELISM,
       metrics: MemoizedRankIndexMetrics = MemoizedRankIndexMetrics(),
     ): MemoizedRankIndex {
-      val resolved = resolveLatestBlobs(rankIndexBlobsStub, dataProvider, modelLine)
+      val resolved =
+        resolveLatestBlobs(rankIndexBlobsStub, dataProvider, modelLine, metadataReadThrottler)
       return buildFrom(
         rankIndexStore,
         dataProvider,
@@ -218,22 +221,25 @@ private constructor(
       rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
       dataProvider: String,
       modelLine: String,
+      metadataReadThrottler: Throttler,
     ): ResolvedBlobs {
       val latestByPoolOffset = LinkedHashMap<Long, RankIndexBlob>()
       rankIndexBlobsStub
         .listResources { pageToken: String ->
           val response =
-            listRankIndexBlobs(
-              listRankIndexBlobsRequest {
-                parent = "$dataProvider/rawImpressionUploads/${ResourceKey.WILDCARD_ID}"
-                filter =
-                  ListRankIndexBlobsRequestKt.filter {
-                    blobType = RankIndexBlob.BlobType.SNAPSHOT
-                    cmmsModelLine = modelLine
-                  }
-                this.pageToken = pageToken
-              }
-            )
+            metadataReadThrottler.onReady {
+              rankIndexBlobsStub.listRankIndexBlobs(
+                listRankIndexBlobsRequest {
+                  parent = "$dataProvider/rawImpressionUploads/${ResourceKey.WILDCARD_ID}"
+                  filter =
+                    ListRankIndexBlobsRequestKt.filter {
+                      blobType = RankIndexBlob.BlobType.SNAPSHOT
+                      cmmsModelLine = modelLine
+                    }
+                  this.pageToken = pageToken
+                }
+              )
+            }
           ResourceList(response.rankIndexBlobsList, response.nextPageToken)
         }
         .collect { page ->

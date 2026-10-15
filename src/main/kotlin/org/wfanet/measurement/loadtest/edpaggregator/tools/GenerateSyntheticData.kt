@@ -38,7 +38,7 @@ import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
@@ -378,7 +378,7 @@ class GenerateSyntheticData : Runnable {
     /** Type URL of the default event message ([TestEvent]). */
     const val DEFAULT_EVENT_MESSAGE_TYPE_URL: String =
       ProtoReflection.DEFAULT_TYPE_URL_PREFIX +
-        "/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+        "/wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
 
     private val EVENT_MESSAGE_EXTENSION_REGISTRY: ExtensionRegistry =
       ExtensionRegistry.newInstance()

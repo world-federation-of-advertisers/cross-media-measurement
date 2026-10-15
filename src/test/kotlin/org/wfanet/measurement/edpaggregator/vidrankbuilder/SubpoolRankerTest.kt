@@ -41,20 +41,27 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 private const val DP = "dataProviders/dp"
@@ -77,6 +84,7 @@ class SubpoolRankerTest {
   private lateinit var rankStore: RankIndexStore
   private lateinit var subpoolDek: EncryptedDek
   private lateinit var fake: FakeRankIndexBlobs
+  private val modelLineStates = mutableMapOf<String, RawImpressionUploadModelLine.State>()
 
   @Before
   fun setUp() {
@@ -97,18 +105,22 @@ class SubpoolRankerTest {
     rankStore = RankIndexStore(storageClient, kmsClient)
     subpoolDek = subpoolStore.generateDek(kekUri)
     fake = FakeRankIndexBlobs()
+    modelLineStates.clear()
   }
 
   private fun ranker(
     maxEventDate: Date = epochDayToDate(TODAY_EPOCH_DAY),
     upload: String = UPLOAD,
     metrics: VidRankBuilderMetrics = VidRankBuilderMetrics(),
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
   ): SubpoolRanker {
-    val retention = SubpoolRetention(fake.stub, rankStore, DP, MODEL_LINE, RETENTION_DAYS, TODAY)
+    val retention =
+      SubpoolRetention(fake.stub, rankStore, DP, MODEL_LINE, RETENTION_DAYS, TODAY, rpcThrottlers)
     return SubpoolRanker(
       subpoolFingerprintsStore = subpoolStore,
       rankIndexStore = rankStore,
       rankIndexBlobsStub = fake.stub,
+      rawImpressionUploadModelLinesStub = modelLinesStub(),
       retention = retention,
       dataProvider = DP,
       rawImpressionUpload = upload,
@@ -119,8 +131,22 @@ class SubpoolRankerTest {
       maxEventDate = maxEventDate,
       retentionDays = RETENTION_DAYS,
       today = TODAY,
+      rpcThrottlers = rpcThrottlers,
       metrics = metrics,
     )
+  }
+
+  private fun modelLinesStub(): RawImpressionUploadModelLineServiceCoroutineStub = mock {
+    onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+      { invocation ->
+        val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            cmmsModelLine = MODEL_LINE
+            state = modelLineStates[request.parent] ?: RawImpressionUploadModelLine.State.COMPLETED
+          }
+        }
+      }
   }
 
   /** Writes a Phase-0 merged blob for the subpool at [key] and returns it. */
@@ -198,8 +224,10 @@ class SubpoolRankerTest {
   @Test
   fun `cold subpool allocates a dense rank set and stamps last_seen`() = runBlocking {
     val key = writePhase0(listOf(1L to 0, 2L to 0, 3L to 0))
+    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-    val result = ranker().rank(POOL, key, rankedSize = 100)
+    val result =
+      ranker(rpcThrottlers = recordingThrottlers.throttlers).rank(POOL, key, rankedSize = 100)
 
     assertThat(result.skipped).isFalse()
     assertThat(result.allocated).isEqualTo(3)
@@ -215,6 +243,10 @@ class SubpoolRankerTest {
         fake.rows.any { it.blobType == RankIndexBlob.BlobType.DAY_ONLY && it.hasMaxEventDate() }
       )
       .isTrue()
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
   }
 
   @Test
@@ -317,6 +349,29 @@ class SubpoolRankerTest {
 
       // The allocator loaded the newer snapshot (99), not the older one (10).
       assertThat(readSnapshot().keys).containsExactly(99L to 0)
+    }
+
+  @Test
+  fun `ignores a newer snapshot owned by a failed model line`() =
+    runBlocking<Unit> {
+      val completedUpload = "dataProviders/dp/rawImpressionUploads/completed"
+      val failedUpload = "dataProviders/dp/rawImpressionUploads/failed"
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90)),
+        uploadName = completedUpload,
+        createTimeSeconds = 1L,
+      )
+      seedPriorSnapshot(
+        listOf(Triple(99L to 0, 0, 90)),
+        uploadName = failedUpload,
+        createTimeSeconds = 5L,
+      )
+      modelLineStates[failedUpload] = RawImpressionUploadModelLine.State.FAILED
+      val key = writePhase0(emptyList())
+
+      ranker().rank(POOL, key, rankedSize = 100)
+
+      assertThat(readSnapshot().keys).containsExactly(10L to 0)
     }
 
   @Test
@@ -562,7 +617,7 @@ class SubpoolRankerTest {
 
       assertThat(result.backfill).isTrue()
       assertThat(result.backfillReusedOldRank).isEqualTo(1)
-      assertThat(result.backfillRankCollisions).isEqualTo(0) // F1 is not in the latest snapshot
+      assertThat(result.backfillRankCollisions).isEqualTo(1)
       // The backfilled day is labeled with the original rank 5 (shared with Bob — accepted
       // undercount)...
       assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(1L to 0, 5)

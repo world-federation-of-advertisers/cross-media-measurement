@@ -2240,7 +2240,6 @@ module "crosstool" [system] {
   textual header "/usr/include/fstab.h"
   textual header "/usr/include/fts.h"
   textual header "/usr/include/ftw.h"
-  textual header "/usr/include/gawkapi.h"
   textual header "/usr/include/gconv.h"
   textual header "/usr/include/getopt.h"
   textual header "/usr/include/glob.h"

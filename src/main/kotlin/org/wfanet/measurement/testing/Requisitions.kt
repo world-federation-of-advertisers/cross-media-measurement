@@ -23,6 +23,7 @@ import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.multiMeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -246,6 +247,39 @@ object Requisitions {
       duchyCertificate = DUCHY_ONE_CERTIFICATE.name
       trusTee = DuchyEntry.TrusTee.getDefaultInstance()
     }
+  }
+
+  val MULTI_MEASUREMENT_SPEC = measurementSpec {
+    measurementPublicKey = MC_PUBLIC_KEY.pack()
+    multi = multiMeasurementSpec {}
+    vidSamplingInterval = vidSamplingInterval {
+      start = 0.0f
+      width = 1.0f
+    }
+    nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+  }
+
+  val TRUSTEE_V2_DUCHY_ENTRY_ONE = duchyEntry {
+    key = DUCHY_ONE_NAME
+    value = value {
+      duchyCertificate = DUCHY_ONE_CERTIFICATE.name
+      trusTeeV2 = DuchyEntry.TrusTeeV2.getDefaultInstance()
+    }
+  }
+
+  val TRUSTEE_V2_REQUISITION = requisition {
+    name = "$EDP_NAME/requisitions/trustee-v2-foo"
+    measurement = MEASUREMENT_NAME
+    state = Requisition.State.UNFULFILLED
+    measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+    measurementSpec = signMeasurementSpec(MULTI_MEASUREMENT_SPEC, MC_SIGNING_KEY)
+    encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+    protocolConfig = protocolConfig {
+      protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
+    }
+    dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
+    dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+    duchies += TRUSTEE_V2_DUCHY_ENTRY_ONE
   }
 
   val TRUSTEE_REQUISITION = requisition {

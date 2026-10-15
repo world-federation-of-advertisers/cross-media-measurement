@@ -14,10 +14,13 @@
 package org.wfanet.measurement.eventdataprovider.differentialprivacy
 
 import com.google.common.truth.Truth.assertThat
+import java.util.Random
 import kotlin.math.abs
+import kotlin.math.sqrt
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.computation.DeterministicDynamicClippingNoiseSource
 
 @RunWith(JUnit4::class)
 class DynamicClippingTest {
@@ -49,15 +52,17 @@ class DynamicClippingTest {
       mapOf(1L to 1L, 2L to 1L, 3L to 2L) // cumulativeHistogramList is listOf(4.0, 3.0, 2.0)
     val maxThreshold = 500
 
-    // Set rho large enough to minimize noise.
-    val dynamicClipping = DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold)
+    // No noise at all: the padded bars are searched like any other, so a stochastic source would
+    // leave the threshold random rather than merely close to the expected one.
+    val dynamicClipping =
+      DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold, NO_NOISE)
     val dynamicClipResult = dynamicClipping.computeImpressionCappedHistogram(frequencyMap)
 
     // Output threshold is 6 calculated by the algorithm, pre-set sliding window size, and input
     // histogramList. It can be verified by the original colab.
     val expectedThreshold = 6
-    // Expected noisedCumulativeHistogramList should have all elements.
-    val expectedCumulativeHistogramList = listOf(4.0, 3.0, 2.0)
+    // The data fills three bars; the rest pad to maxThreshold, and this source leaves them at zero.
+    val expectedCumulativeHistogramList = listOf(4.0, 3.0, 2.0) + List(maxThreshold - 3) { 0.0 }
 
     assertThat(dynamicClipResult.threshold).isEqualTo(expectedThreshold)
     assertAlmostEqualCumulativeHistogram(
@@ -148,8 +153,9 @@ class DynamicClippingTest {
         4L to 1L,
       ) // cumulativeHistogramList is listOf(53.0, 33.0, 13.0, 1.0)
 
-    // Set rho large enough to minimize noise.
-    val dynamicClipping = DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE)
+    // No noise at all, so the padded bars cannot move the threshold.
+    val dynamicClipping =
+      DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = NO_NOISE)
     val dynamicClipResult = dynamicClipping.computeImpressionCappedHistogram(frequencyMap)
 
     val histogramList = DynamicClipping.frequencyHistogramMapToList(frequencyMap)
@@ -165,10 +171,62 @@ class DynamicClippingTest {
 
     assertThat(dynamicClipResult.threshold).isEqualTo(expectedThreshold)
     assertAlmostEqualCumulativeHistogram(
-      dynamicClipResult.noisedCumulativeHistogramList,
+      dynamicClipResult.noisedCumulativeHistogramList.take(expectedCumulativeHistogramList.size),
       expectedCumulativeHistogramList,
     )
+    // The data fills four bars. The rest pad to the default maxThreshold, left at zero here.
+    assertThat(
+        dynamicClipResult.noisedCumulativeHistogramList
+          .drop(expectedCumulativeHistogramList.size)
+          .all { abs(it) < TOLERANCE }
+      )
+      .isTrue()
     assertThat(errPercent).isWithin(TOLERANCE).of(expectedErrPercent)
+  }
+
+  @Test
+  fun `the histogram is padded to maxThreshold whatever the data holds`() {
+    val maxThreshold = 20
+
+    // One bar of data, and one bar short of maxThreshold, both pad to the same length.
+    for (frequencyMap in listOf(mapOf(1L to 40L), mapOf(1L to 40L, 19L to 2L))) {
+      val result =
+        DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold)
+          .computeImpressionCappedHistogram(frequencyMap)
+
+      assertThat(result.noisedCumulativeHistogramList).hasSize(maxThreshold)
+    }
+  }
+
+  @Test
+  fun `the padded bars carry noise`() {
+    val maxThreshold = 20
+    // The data reaches frequency 2, so bars 2 and above hold no users and are padded.
+    val frequencyMap = mapOf(1L to 40L, 2L to 10L)
+    val firstPaddedBar = 2
+
+    // An unnoised pad would be exactly zero. UNROUNDED_NOISE never lands there, so a zero here
+    // means the bar was never noised rather than that its draw rounded away.
+    val result =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold, UNROUNDED_NOISE)
+        .computeImpressionCappedHistogram(frequencyMap)
+
+    val paddedBars = result.noisedCumulativeHistogramList.drop(firstPaddedBar)
+    assertThat(paddedBars).hasSize(maxThreshold - firstPaddedBar)
+    assertThat(paddedBars.none { it == 0.0 }).isTrue()
+  }
+
+  @Test
+  fun `the threshold never exceeds maxThreshold`() {
+    val maxThreshold = 8
+    // Every user sits at the top of the representable range, so nothing thins out the histogram.
+    val frequencyMap = mapOf(50L to 130L)
+
+    val result =
+      DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold)
+        .computeImpressionCappedHistogram(frequencyMap)
+
+    assertThat(result.threshold).isAtMost(maxThreshold)
   }
 
   @Test
@@ -182,8 +240,91 @@ class DynamicClippingTest {
     assertThat(histogramList).isEqualTo(expectedHistogramList)
   }
 
+  @Test
+  fun `a deterministic noise source reproduces the threshold and the histogram`() {
+    val frequencyMap = mapOf(1L to 500L, 2L to 300L, 3L to 120L, 4L to 40L, 7L to 5L)
+
+    val first =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource())
+        .computeImpressionCappedHistogram(frequencyMap)
+    val second =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource())
+        .computeImpressionCappedHistogram(frequencyMap)
+
+    assertThat(second.threshold).isEqualTo(first.threshold)
+    assertThat(second.noisedCumulativeHistogramList).isEqualTo(first.noisedCumulativeHistogramList)
+    assertThat(second.barNoiseVariance).isEqualTo(first.barNoiseVariance)
+  }
+
+  @Test
+  fun `the same instance reproduces its result across calls`() {
+    // The pass counter resets per call, so a reused instance addresses the same draws again rather
+    // than continuing a stream.
+    val frequencyMap = mapOf(1L to 500L, 2L to 300L, 3L to 120L)
+    val dynamicClipping =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource())
+
+    val first = dynamicClipping.computeImpressionCappedHistogram(frequencyMap)
+    val second = dynamicClipping.computeImpressionCappedHistogram(frequencyMap)
+
+    assertThat(second.threshold).isEqualTo(first.threshold)
+    assertThat(second.noisedCumulativeHistogramList).isEqualTo(first.noisedCumulativeHistogramList)
+  }
+
+  @Test
+  fun `a different seed gives a different histogram`() {
+    val frequencyMap = mapOf(1L to 500L, 2L to 300L, 3L to 120L)
+
+    val first =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource(1))
+        .computeImpressionCappedHistogram(frequencyMap)
+    val second =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource(2))
+        .computeImpressionCappedHistogram(frequencyMap)
+
+    assertThat(second.noisedCumulativeHistogramList)
+      .isNotEqualTo(first.noisedCumulativeHistogramList)
+  }
+
+  @Test
+  fun `bar noise variance falls as rho rises`() {
+    val frequencyMap = mapOf(1L to 500L, 2L to 300L, 3L to 120L)
+
+    val noisy =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource())
+        .computeImpressionCappedHistogram(frequencyMap)
+    val precise =
+      DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource())
+        .computeImpressionCappedHistogram(frequencyMap)
+
+    assertThat(noisy.barNoiseVariance).isGreaterThan(0.0)
+    assertThat(precise.barNoiseVariance).isLessThan(noisy.barNoiseVariance)
+  }
+
+  /** The source the EDP Aggregator supplies, seeded from a distinct frequency vector per [seed]. */
+  private fun seededNoiseSource(seed: Int = 0) =
+    DeterministicDynamicClippingNoiseSource("frequency-vector-$seed".toByteArray())
+
   private companion object {
+    /**
+     * Reproducible draws, addressed by (pass, bar) like the real source but without its rounding.
+     *
+     * [DeterministicDynamicClippingNoiseSource] rounds to the integer lattice, so a small draw
+     * leaves a bar at exactly zero and an assertion about a bar being noised cannot tell that from
+     * a bar that was skipped.
+     */
+    private val UNROUNDED_NOISE =
+      DynamicClippingNoiseSource { pass, barIndex, bar, l2Sensitivity, rho ->
+        val random = Random(pass * 31L + barIndex)
+        bar + (l2Sensitivity / sqrt(2.0 * rho)) * random.nextGaussian()
+      }
+
+    /** Returns each bar unchanged, so a threshold is a function of the data alone. */
+    private val NO_NOISE = DynamicClippingNoiseSource { _, _, bar, _, _ -> bar }
+
     private val IMPRESSION_MEASUREMENT_TYPE = DynamicClipping.MeasurementType.IMPRESSION
+    /** Small enough that the bars carry visible noise. */
+    private const val SMALL_RHO = 1E-2
     private const val EPSILON = 0.00558073744893074
     // Set rho large enough to minimize noise.
     private const val BIG_RHO = 1E10

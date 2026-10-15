@@ -131,7 +131,8 @@ locals {
       "trusted_root_ca_collection",
       "requisition_fetcher_tls_pem",
       "requisition_fetcher_tls_key",
-      "metadata_storage_root_ca"
+      "metadata_storage_root_ca",
+      "secure_computation_root_ca",
     ],
     local.edp_tls_keys
   )
@@ -251,6 +252,13 @@ resource "google_storage_bucket_object" "upload_results_fulfiller_population_spe
   source = var.results_fulfiller_population_spec.local_path
 }
 
+resource "google_storage_bucket_object" "upload_vid_labeler_population_spec" {
+  name           = var.vid_labeler_population_spec.destination
+  bucket         = module.config_files_bucket.storage_bucket.name
+  source         = var.vid_labeler_population_spec.local_path
+  source_md5hash = filemd5(var.vid_labeler_population_spec.local_path)
+}
+
 resource "google_project_iam_member" "eventarc_service_agent" {
   project = data.google_project.project.id
   role    = "roles/eventarc.serviceAgent"
@@ -287,7 +295,11 @@ module "data_watcher_cloud_function" {
   uber_jar_path                               = var.cloud_function_configs.data_watcher.uber_jar_path
   secrets_to_access                           = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "finalized"
+  retry_on_failure                            = true
   uploaded_config_generation                  = google_storage_bucket_object.upload_data_watcher_config.generation
+  # The DataWatcher waits synchronously for the dispatcher. Event-driven gen2 functions allow at
+  # most 540 seconds, so give the caller that maximum and keep the dispatcher below it.
+  timeout_seconds = 540
 }
 
 module "data_watcher_delete_cloud_function" {
@@ -306,12 +318,16 @@ module "data_watcher_delete_cloud_function" {
   uber_jar_path                               = var.cloud_function_configs.data_watcher_delete.uber_jar_path
   secrets_to_access                           = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "deleted"
+  retry_on_failure                            = true
 }
 
 module "requisition_fetcher_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_requisition_fetcher_config,
+  ]
 
   http_cloud_function_service_account_name = var.requisition_fetcher_service_account_name
   terraform_service_account                = var.terraform_service_account
@@ -360,7 +376,17 @@ module "event_group_sync_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.event_group_sync.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.event_group_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.event_group_sync.uber_jar_path
-  secrets_to_access                        = [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id]
+  secrets_to_access = concat(
+    [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id],
+    var.event_group_sync_additional_secret_ids,
+  )
+
+  # The Kingdom rate limit and mapped output are shared across syncs for the same DataProvider.
+  # Keep one single-request instance so syncs cannot overlap, and finish before the DataWatcher's
+  # 540-second timeout so it can handle or retry failures.
+  timeout_seconds = 480
+  max_instances   = 1
+  concurrency     = 1
 }
 
 module "data_availability_sync_cloud_function" {
@@ -410,11 +436,25 @@ resource "google_pubsub_topic_iam_member" "publisher" {
   member = var.pubsub_iam_service_account_member
 }
 
+resource "google_pubsub_topic_iam_member" "result_fulfiller_dead_letter_publisher" {
+  topic  = module.result_fulfiller_queue.dead_letter_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_subscription_iam_member" "result_fulfiller_dead_letter_subscriber" {
+  subscription = module.result_fulfiller_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
 module "result_fulfiller_tee_app" {
   source = "../mig"
 
   depends_on = [module.secrets]
 
+  enabled                       = var.tee_consumers_enabled
+  work_item_consumption_enabled = var.tee_consumers_enabled
   instance_template_name        = var.requisition_fulfiller_config.worker.instance_template_name
   base_instance_name            = var.requisition_fulfiller_config.worker.base_instance_name
   managed_instance_group_name   = var.requisition_fulfiller_config.worker.managed_instance_group_name
@@ -761,6 +801,14 @@ resource "google_pubsub_topic_iam_member" "vid_labeling_publisher" {
   member = var.pubsub_iam_service_account_member
 }
 
+resource "google_pubsub_topic_iam_member" "vid_labeling_dead_letter_publisher" {
+  for_each = var.vid_labeling_workers
+
+  topic  = module.vid_labeling_queue[each.key].dead_letter_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
 # Allow the Secure Computation control plane to consume each phase's dead-letter
 # subscription so its dead-letter listener can mark the EDPA pipeline resources
 # FAILED on Pub/Sub retry exhaustion.
@@ -778,6 +826,8 @@ module "vid_labeling_tee_app" {
 
   depends_on = [module.secrets]
 
+  enabled                       = var.tee_consumers_enabled
+  work_item_consumption_enabled = var.tee_consumers_enabled
   instance_template_name        = each.value.worker.instance_template_name
   base_instance_name            = each.value.worker.base_instance_name
   managed_instance_group_name   = each.value.worker.managed_instance_group_name
@@ -854,6 +904,13 @@ module "vid_labeling_dispatcher_cloud_function" {
   secret_mappings                          = var.cloud_function_configs.vid_labeling_dispatcher.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_dispatcher.uber_jar_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
+
+  # The dispatcher and monitor authenticate to Kingdom as the same EDP. One instance of each
+  # limits their combined worst-case rate to 4 QPS, below the dedicated 5-QPS VID Repository method
+  # buckets. The 480-second timeout leaves one minute of caller headroom under the DataWatcher's
+  # 540-second timeout.
+  timeout_seconds = 480
+  max_instances   = 1
 }
 
 # The DataWatcher invokes the dispatcher over HTTP when a "done" blob lands.
@@ -900,20 +957,33 @@ module "vid_labeling_monitor_cloud_function" {
   secret_mappings                          = var.cloud_function_configs.vid_labeling_monitor.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_monitor.uber_jar_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
+
+  # See the dispatcher cap above. Together the two functions can run at most two 2-QPS clients.
+  # Health scans may traverse multiple metadata pages, so retain the same timeout headroom.
+  timeout_seconds = 600
+  max_instances   = 1
 }
 
 module "vid_labeling_monitor_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
-  scheduler_config          = var.vid_labeling_monitor_scheduler_config
-  depends_on                = [module.vid_labeling_monitor_cloud_function]
+  # Wait beyond the function's 600-second timeout so Scheduler can receive its terminal response.
+  scheduler_config = merge(
+    var.vid_labeling_monitor_scheduler_config,
+    { attempt_deadline = "660s" },
+  )
+  depends_on = [module.vid_labeling_monitor_cloud_function]
 }
 
 module "vid_labeling_dispatch_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
-  scheduler_config          = var.vid_labeling_dispatch_scheduler_config
-  depends_on                = [module.vid_labeling_monitor_cloud_function]
+  # This job invokes the same function in dispatch mode and needs the same response headroom.
+  scheduler_config = merge(
+    var.vid_labeling_dispatch_scheduler_config,
+    { attempt_deadline = "660s" },
+  )
+  depends_on = [module.vid_labeling_monitor_cloud_function]
 }
 
 resource "google_storage_bucket_iam_member" "vid_labeling_monitor_storage_viewer" {

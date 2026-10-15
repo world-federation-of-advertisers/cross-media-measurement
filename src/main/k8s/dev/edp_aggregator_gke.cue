@@ -14,8 +14,9 @@
 
 package k8s
 
-_secretName:           string @tag("secret_name")
-_systemApiAddressName: "edp-aggregator-system"
+_secretName:             string @tag("secret_name")
+_systemApiAddressName:   "edp-aggregator-system"
+#KingdomPublicApiTarget: string @tag("kingdom_public_api_target")
 
 // Name of K8s service account for the internal API server.
 #InternalEdpAggregatorServerServiceAccount: "internal-edp-aggregator-server"
@@ -25,10 +26,19 @@ _systemApiAddressName: "edp-aggregator-system"
 // storage.objectAdmin on the spot-data bucket).
 #SyncEventGroupActivitiesServiceAccount: "sync-event-group-activities"
 
-// Bumped from cpu 25m / memory 256Mi (heap default -Xmx64M): the system API server was
-// OOMKilled while serving the VID-labeling pipeline's concurrent calls (e.g.
-// ListRawImpressionUploadFiles), which stalled memoized pool assignment and hung the cloud test.
+// Sized for the concurrent calls the VID-labeling pipeline makes against the system API server.
 #SystemServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "100m"
+		memory: "1Gi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
+// Sized for the concurrent calls the VID-labeling pipeline makes against the internal API server.
+#InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "100m"
 		memory: "1Gi"
@@ -68,6 +78,10 @@ edpAggregator: #EdpAggregator & {
 
 	deployments: {
 		"edp-aggregator-internal-api-server": {
+			_container: {
+				_javaOptions: maxHeapSize: "512M"
+				resources: #InternalServerResourceRequirements
+			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalEdpAggregatorServerServiceAccount
 			}
@@ -83,7 +97,8 @@ edpAggregator: #EdpAggregator & {
 		"edp-aggregator-system-api-server": _ipAddressName: _systemApiAddressName
 	}
 
-	_syncEventGroupActivitiesServiceAccountName: #SyncEventGroupActivitiesServiceAccount
+	_syncEventGroupActivitiesServiceAccountName:         #SyncEventGroupActivitiesServiceAccount
+	_recoverMissingImpressionMetadataServiceAccountName: #SyncEventGroupActivitiesServiceAccount
 
 	// Per-EDP arg lists for sync-event-group-activities. Each EDP has an entry
 	// here; the textproto config for that EDP is staged into the edp-aggregator
@@ -102,6 +117,22 @@ edpAggregator: #EdpAggregator & {
 			// Start in preview; switch to "--mode=append" (creates only) or
 			// "--mode=sync" (creates + deletes) after validating a run.
 			"--mode=preview",
+		]
+	}
+
+	// Reconcile the last 90 date folders once per week. The schedule defaults
+	// to Sundays at 06:00 UTC in edp_aggregator.cue.
+	_recoverMissingImpressionMetadataArgs: "edp7": {
+		tlsSecrets: ["edp7-tls", "data-availability-tls"]
+		args: [
+			"--config-file=/etc/halo-cmms/edp-aggregator/config/data-availability-recovery-config-edp7.textproto",
+			"--kingdom-public-api-target=\(#KingdomPublicApiTarget)",
+			"--impression-metadata-api-target=edp-aggregator-system-api-server:8443",
+			"--impression-metadata-api-cert-host=localhost",
+			"--lookback-days=90",
+			"--end-days-ago=0",
+			"--impression-metadata-batch-size=1000",
+			"--throttler-minimum-interval=100ms",
 		]
 	}
 }

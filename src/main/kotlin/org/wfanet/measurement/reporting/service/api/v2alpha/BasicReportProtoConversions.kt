@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.type.DateTime
+import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -440,6 +441,32 @@ fun InternalBasicReport.toBasicReport(
   populateDeprecatedReportingUnitEventGroupSummaries: Boolean
 ): BasicReport {
   val source = this
+
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4289): Remove this warning
+  // together with the tolerate-blank check in toMetricMetadata. Gate that removal on this warning
+  // having stayed silent, which is what confirms no new BasicReports are being written without
+  // external_reporting_set_id, rather than on elapsed time alone.
+  //
+  // Counted per BasicReport rather than logged at the omission site, which sits inside a
+  // ResultGroup x Result x component summary loop and would emit thousands of records per read.
+  val componentSummariesWithoutReportingSet: Int =
+    source.resultDetails.resultGroupsList.sumOf { resultGroup ->
+      resultGroup.resultsList.sumOf { result ->
+        result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList.count {
+          it.externalReportingSetId.isEmpty()
+        }
+      }
+    }
+  if (componentSummariesWithoutReportingSet > 0) {
+    logger.warning {
+      "BasicReport ${source.externalBasicReportId} of MeasurementConsumer " +
+        "${source.cmmsMeasurementConsumerId} has $componentSummariesWithoutReportingSet component " +
+        "summary/summaries without external_reporting_set_id. reporting_set is omitted for those, " +
+        "so the resource is served incomplete. This BasicReport either predates the backfill or " +
+        "was written by a path that bypasses InsertBasicReport validation."
+    }
+  }
+
   return basicReport {
     name = BasicReportKey(source.cmmsMeasurementConsumerId, source.externalBasicReportId).toName()
     title = source.details.title
@@ -845,8 +872,9 @@ fun InternalMetricMetadata.toMetricMetadata(
                 }
               displayName = internalReportingUnitComponentSummary.cmmsDataProviderDisplayName
               // TODO(world-federation-of-advertisers/cross-media-measurement#4289): Remove this
-              // check once BasicReports written via InsertBasicReport without
-              // external_reporting_set_id have been backfilled.
+              // check once BasicReports written without external_reporting_set_id have been
+              // backfilled. The warning in toBasicReport is the gate: remove this only once that
+              // warning has stayed silent, confirming the write path is actually closed.
               if (internalReportingUnitComponentSummary.externalReportingSetId.isNotEmpty()) {
                 reportingSet =
                   ReportingSetKey(
@@ -1012,3 +1040,5 @@ fun InternalImpressionQualificationFilter.toImpressionQualificationFilter():
       }
   }
 }
+
+private val logger: Logger = Logger.getLogger("BasicReportProtoConversions")

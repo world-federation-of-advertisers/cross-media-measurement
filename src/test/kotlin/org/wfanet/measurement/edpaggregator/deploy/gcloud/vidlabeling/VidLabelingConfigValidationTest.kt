@@ -61,6 +61,19 @@ class VidLabelingConfigValidationTest {
   }
 
   @Test
+  fun `throws when a model line omits population_spec_blob_uri`() {
+    val config =
+      configWith(validModelLineConfig().toBuilder().apply { clearPopulationSpecBlobUri() }.build())
+
+    // Without the spec the TEE cannot resolve an assigned VID's demo, so the labeled output would
+    // silently carry the DataProvider's uploaded demographics.
+    val exception =
+      assertFailsWith<IllegalArgumentException> { requireValidModelLineConfigs(config) }
+    assertThat(exception).hasMessageThat().contains("population_spec_blob_uri")
+    assertThat(exception).hasMessageThat().contains(MODEL_LINE)
+  }
+
+  @Test
   fun `throws when a model line has no entity-key mapping`() {
     val config =
       configWith(
@@ -102,6 +115,36 @@ class VidLabelingConfigValidationTest {
     assertThat(exception).hasMessageThat().contains(DATA_PROVIDER)
   }
 
+  @Test
+  fun `max_file_batch_size_bytes passes when positive`() {
+    requireValidMaxFileBatchSizeBytes(configWithMaxFileBatchSizeBytes(1_000_000_000))
+  }
+
+  @Test
+  fun `max_file_batch_size_bytes throws when not set`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        requireValidMaxFileBatchSizeBytes(vidLabelingConfig { dataProvider = DATA_PROVIDER })
+      }
+    assertThat(exception).hasMessageThat().contains("max_file_batch_size_bytes must be set")
+    assertThat(exception).hasMessageThat().contains(DATA_PROVIDER)
+  }
+
+  @Test
+  fun `max_file_batch_size_bytes throws when negative`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        requireValidMaxFileBatchSizeBytes(configWithMaxFileBatchSizeBytes(-1))
+      }
+    assertThat(exception).hasMessageThat().contains("max_file_batch_size_bytes must be set")
+  }
+
+  private fun configWithMaxFileBatchSizeBytes(sizeBytes: Long): VidLabelingConfig =
+    vidLabelingConfig {
+      dataProvider = DATA_PROVIDER
+      maxFileBatchSizeBytes = sizeBytes
+    }
+
   private fun configWithStaleness(threshold: com.google.protobuf.Duration): VidLabelingConfig =
     vidLabelingConfig {
       dataProvider = DATA_PROVIDER
@@ -124,6 +167,7 @@ class VidLabelingConfigValidationTest {
       eventTemplateDescriptorBlobUri = "gs://descriptors/event-template-set.binpb"
       eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       requiredEntityKeyFieldMapping["person"] = "person_col"
+      populationSpecBlobUri = "gs://configs/population-spec.textproto"
     }
 
   companion object {

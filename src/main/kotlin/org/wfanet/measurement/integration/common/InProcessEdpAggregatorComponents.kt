@@ -59,8 +59,9 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
@@ -69,7 +70,7 @@ import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
@@ -83,6 +84,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.SecureComputationRequisitionWorkItemDispatcher
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics
@@ -111,11 +113,8 @@ import org.wfanet.measurement.loadtest.resourcesetup.Resources.Resource
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
-import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices as InternalSecureComputationApiServices
-import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -172,8 +171,6 @@ class InProcessEdpAggregatorComponents(
     ImpressionMetadataServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
   }
 
-  private lateinit var dataWatcher: DataWatcher
-
   private lateinit var eventGroupSync: EventGroupSync
 
   private val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
@@ -221,6 +218,8 @@ class InProcessEdpAggregatorComponents(
       getRequisitionsStorageConfig = getStorageConfig,
       modelLineInfoMap = modelLineInfoMap,
       metrics = ResultsFulfillerMetrics.create(),
+      requisitionsThrottler = FakeThrottler(),
+      kingdomThrottler = FakeThrottler(),
     )
   }
 
@@ -254,9 +253,13 @@ class InProcessEdpAggregatorComponents(
     duchyMap: Map<String, Channel>,
     edpNoise: Map<String, ResultsFulfillerParams.NoiseParams.NoiseType>,
     edpMultiPartyNoiseTypes: Map<String, List<ResultsFulfillerParams.NoiseParams.NoiseType>>,
+    resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams> = emptyMap(),
   ) = runBlocking {
     require(edpNoise.keys == edpCapabilities.keys) {
       "edpNoise keys ${edpNoise.keys} must match edpCapabilities keys ${edpCapabilities.keys}"
+    }
+    require(resultMinimumThresholdsByEdp.keys.all { it in edpCapabilities }) {
+      "resultMinimumThresholdsByEdp keys must identify configured EDPs"
     }
     publicApiChannel = kingdomChannel
     duchyChannelMap = duchyMap
@@ -274,36 +277,22 @@ class InProcessEdpAggregatorComponents(
         }
       )
     }
-    val watchedPaths: List<WatchedPath> = run {
-      val resultsFulfillerParamsMap: Map<String, ResultsFulfillerParams> =
-        edpResourceNameMap.toList().associate { (edpAggregatorShortName, edpResourceName) ->
-          edpAggregatorShortName to
-            getResultsFulfillerParams(
-              edpAggregatorShortName,
-              edpResourceName,
-              DataProviderCertificateKey.fromName(
-                edpDisplayNameToResourceMap
-                  .getValue(edpAggregatorShortName)
-                  .dataProvider
-                  .certificate
-              )!!,
-              "file:///$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
-              noiseType = edpNoise.getValue(edpAggregatorShortName),
-              supportedMultiPartyNoiseTypes =
-                edpMultiPartyNoiseTypes.getOrDefault(edpAggregatorShortName, emptyList()),
-            )
-        }
-      getDataWatcherResultFulfillerParamsConfig(
-        blobPrefix = "file:///$REQUISITION_STORAGE_PREFIX",
-        edpResultFulfillerConfigs = resultsFulfillerParamsMap,
-      )
-    }
-
-    dataWatcher =
-      DataWatcher(workItemsClient, watchedPaths, idTokenProvider = TestIdTokenProvider())
-
-    val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, "file:///")
-    subscribingStorageClient.subscribe(dataWatcher)
+    val resultsFulfillerParamsMap: Map<String, ResultsFulfillerParams> =
+      edpResourceNameMap.toList().associate { (edpAggregatorShortName, edpResourceName) ->
+        edpAggregatorShortName to
+          getResultsFulfillerParams(
+            edpAggregatorShortName,
+            edpResourceName,
+            DataProviderCertificateKey.fromName(
+              edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).dataProvider.certificate
+            )!!,
+            "file:///$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
+            noiseType = edpNoise.getValue(edpAggregatorShortName),
+            supportedMultiPartyNoiseTypes =
+              edpMultiPartyNoiseTypes.getOrDefault(edpAggregatorShortName, emptyList()),
+            resultMinimumThresholds = resultMinimumThresholdsByEdp[edpAggregatorShortName],
+          )
+      }
     kmsClients =
       edpResourceNameMap.toList().associate { (edpAggregatorShortName, edpResourceName) ->
         edpResourceName to kmsClient
@@ -316,6 +305,8 @@ class InProcessEdpAggregatorComponents(
         EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
       val clientAccountsClient: ClientAccountsCoroutineStub =
         ClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+      val unlinkedClientAccountsClient: UnlinkedClientAccountsCoroutineStub =
+        UnlinkedClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
       val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
 
       val requisitionsValidator = RequisitionsValidator(edpPrivateKey)
@@ -333,13 +324,23 @@ class InProcessEdpAggregatorComponents(
         RequisitionFetcher(
           requisitionsStub = requisitionsClient,
           requisitionMetadataStub = requisitionMetadataClient,
-          storageClient = subscribingStorageClient,
+          storageClient = storageClient,
           dataProviderName = edpResourceName,
           storagePathPrefix = "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
-          blobUriPrefix = "file:///$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
+          directStoragePathPrefix = "$REQUISITION_STORAGE_PREFIX-v2-$edpAggregatorShortName",
+          blobUriPrefix = "file://",
           requisitionValidator = requisitionsValidator,
           requisitionGrouper = requisitionGrouper,
           metadataThrottler = throttler,
+          workItemDispatcher =
+            SecureComputationRequisitionWorkItemDispatcher(
+              workItemsStub = workItemsClient,
+              queue = FULFILLER_TOPIC_ID,
+              resultsFulfillerParams = resultsFulfillerParamsMap.getValue(edpAggregatorShortName),
+              controlPlaneThrottler = FakeThrottler(),
+            ),
+          requisitionRefusalDuration = RequisitionFetcher.DEFAULT_REQUISITION_REFUSAL_DURATION,
+          clock = Clock.systemUTC(),
           responsePageSize = 50,
         )
       backgroundScope.launch {
@@ -354,6 +355,7 @@ class InProcessEdpAggregatorComponents(
           edpResourceName,
           eventGroupsClient,
           clientAccountsClient,
+          unlinkedClientAccountsClient,
           eventGroups.asFlow(),
           throttler,
           entityKeyTypes = emptyList(),
@@ -769,10 +771,13 @@ class InProcessEdpAggregatorComponents(
       EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
     val clientAccountsClient =
       ClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+    val unlinkedClientAccountsClient =
+      UnlinkedClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
     EventGroupSync(
         edpResourceName,
         eventGroupsClient,
         clientAccountsClient,
+        unlinkedClientAccountsClient,
         sources.asFlow(),
         throttler,
         entityKeyTypes = entityKeyTypes,

@@ -984,6 +984,35 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     }
 
   @Test
+  fun `createMetric succeeds when different measurement consumers reuse the same external metric id`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val differentCmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + 2
+      createMeasurementConsumer(differentCmmsMeasurementConsumerId, measurementConsumersService)
+
+      val createdMetric =
+        service.createMetric(
+          createCreateMetricRequest(
+            CMMS_MEASUREMENT_CONSUMER_ID,
+            reportingSetsService,
+            "sharedExternalMetricId",
+          )
+        )
+      val createdMetric2 =
+        service.createMetric(
+          createCreateMetricRequest(
+            differentCmmsMeasurementConsumerId,
+            reportingSetsService,
+            "sharedExternalMetricId",
+          )
+        )
+
+      assertThat(createdMetric.externalMetricId).isEqualTo(createdMetric2.externalMetricId)
+      assertThat(createdMetric.cmmsMeasurementConsumerId)
+        .isNotEqualTo(createdMetric2.cmmsMeasurementConsumerId)
+    }
+
+  @Test
   fun `createMetric throws NOT_FOUND when ReportingSet in basis not found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
@@ -1777,6 +1806,44 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
           )
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
+
+  @Test
+  fun `batchCreateMetrics succeeds when different measurement consumers reuse the same external metric id`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val differentCmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + 2
+      createMeasurementConsumer(differentCmmsMeasurementConsumerId, measurementConsumersService)
+
+      val response =
+        service.batchCreateMetrics(
+          batchCreateMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            requests +=
+              createCreateMetricRequest(
+                CMMS_MEASUREMENT_CONSUMER_ID,
+                reportingSetsService,
+                "sharedExternalMetricId",
+              )
+          }
+        )
+      val response2 =
+        service.batchCreateMetrics(
+          batchCreateMetricsRequest {
+            cmmsMeasurementConsumerId = differentCmmsMeasurementConsumerId
+            requests +=
+              createCreateMetricRequest(
+                differentCmmsMeasurementConsumerId,
+                reportingSetsService,
+                "sharedExternalMetricId",
+              )
+          }
+        )
+
+      assertThat(response.metricsList.single().externalMetricId)
+        .isEqualTo(response2.metricsList.single().externalMetricId)
+      assertThat(response.metricsList.single().cmmsMeasurementConsumerId)
+        .isNotEqualTo(response2.metricsList.single().cmmsMeasurementConsumerId)
     }
 
   @Test
@@ -3394,6 +3461,23 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   fun `streamMetrics returns empty flow when no metrics are found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
 
+    val retrievedMetrics =
+      service
+        .streamMetrics(
+          streamMetricsRequest {
+            filter =
+              StreamMetricsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+        .toList()
+
+    assertThat(retrievedMetrics).hasSize(0)
+  }
+
+  @Test
+  fun `streamMetrics returns empty flow when measurement consumer does not exist`() = runBlocking {
     val retrievedMetrics =
       service
         .streamMetrics(

@@ -1,6 +1,6 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
-package(default_visibility = [
+_DEFAULT_VISIBILITY = [
     "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:__subpackages__",
@@ -10,7 +10,10 @@ package(default_visibility = [
     "//src/test/kotlin/org/wfanet/measurement/computation:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/duchy/mill/trustee:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
-])
+    "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:__pkg__",
+]
+
+package(default_visibility = _DEFAULT_VISIBILITY)
 
 kt_jvm_library(
     name = "computation_params",
@@ -25,6 +28,10 @@ kt_jvm_library(
 kt_jvm_library(
     name = "deterministic_truncated_laplace_params",
     srcs = ["DeterministicTruncatedLaplaceParams.kt"],
+    visibility = _DEFAULT_VISIBILITY + [
+        # The report harness asserts results against the same truncation bound the sampler applies.
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:__pkg__",
+    ],
 )
 
 kt_jvm_library(
@@ -48,11 +55,36 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "standard_normal_noise_distribution",
+    srcs = ["StandardNormalNoiseDistribution.kt"],
+    deps = ["//imports/java/org/apache/commons/math3"],
+)
+
+kt_jvm_library(
+    name = "deterministic_gaussian_noise_sampler",
+    srcs = ["DeterministicGaussianNoiseSampler.kt"],
+    deps = [
+        ":deterministic_uniform_sampler",
+        ":standard_normal_noise_distribution",
+    ],
+)
+
+kt_jvm_library(
+    name = "deterministic_dynamic_clipping_noise_source",
+    srcs = ["DeterministicDynamicClippingNoiseSource.kt"],
+    deps = [
+        ":deterministic_gaussian_noise_sampler",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping",
+    ],
+)
+
+kt_jvm_library(
     name = "impression_computations",
     srcs = ["ImpressionComputations.kt"],
     deps = [
         ":result_minimum_thresholds",
         ":result_noiser",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping",
     ],
 )
 

@@ -20,19 +20,30 @@ import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.telemetry.XmmTracing
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
+import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
@@ -43,6 +54,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
@@ -63,24 +75,25 @@ import org.wfanet.measurement.storage.StorageClient
  * cadence). This first iteration (#3958) implements:
  * - **Dispatch sequencing:** delegated to the shared [VidLabelingDispatchSequencer], which both
  *   this monitor (the periodic backstop) and [VidLabelingDispatcher] (the upload-triggered fast
- *   path) call. The sequencer enforces "at most one upload per DataProvider runs at a time" and
- *   starts the Phase-0/Phase-2 work for the oldest `CREATED` upload when none are `ACTIVE`. Keeping
- *   that logic in one place means the sequencing rule lives in exactly one component with one set
- *   of tests.
+ *   path) call. The sequencer allows different model lines for the same DataProvider to run
+ *   concurrently, but enforces at most one active upload per `(DataProvider, ModelLine)`. It starts
+ *   Phase-0/Phase-2 work for the oldest eligible `CREATED` model-line states. Keeping that logic in
+ *   one place means the sequencing rule lives in exactly one component with one set of tests.
  * - **Failure + staleness monitoring:** uploads stuck in a non-terminal state past
  *   [stalenessThreshold] are surfaced via [VidLabelingMonitorMetrics.uploadsStuckGauge], and
  *   uploads with a `FAILED` model line via [VidLabelingMonitorMetrics.failedUploadsGauge], for
  *   duration-window alerting (no per-tick `SEVERE`, to avoid re-paging until manual recovery).
  *
- * Phase-transition advancement (`POOL_ASSIGNING → RANKING → LABELING → COMPLETED`) and data-quality
- * checks are added in follow-up PRs (see #3958); the scan is structured so each is an additive
- * step.
+ * The health pass recovers stalled phase transitions (`POOL_ASSIGNING → RANKING → LABELING →
+ * COMPLETED`) by replaying one completed child WorkItem.
  *
  * @param rawImpressionUploadStub stub for `RawImpressionUploadService`.
  * @param rawImpressionUploadModelLineStub stub for `RawImpressionUploadModelLineService`.
+ * @param poolAssignmentJobStub stub for `PoolAssignmentJobService`.
  * @param dispatchSequencer shared sequencer that performs dispatch for this DataProvider.
  * @param dataProviderName resource name of the `DataProvider` this monitor scans.
  * @param stalenessThreshold non-terminal uploads older than this are flagged as stuck.
+ * @param rpcThrottlers process-scoped rate limiters shared with the dispatch sequencer.
  * @param clock clock used for staleness evaluation.
  * @param metrics OpenTelemetry instruments recorder.
  */
@@ -96,9 +109,12 @@ class VidLabelingMonitor(
   private val rawImpressionUploadFileStub:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
   vidLabeledImpressionsStorageClientProvider: () -> StorageClient,
+  private val poolAssignmentJobStub:
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub,
   private val rankerJobStub: RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingMonitorMetrics = VidLabelingMonitorMetrics(),
 ) {
@@ -138,6 +154,8 @@ class VidLabelingMonitor(
     val zeroImpressionDates: Long,
     /** Registered raw impression files whose blob is absent from storage (data loss). */
     val missingRawFiles: Long,
+    /** Whether the non-blocking data-quality crawl failed and its counts are unavailable. */
+    val dataQualityCheckFailed: Boolean,
     /** Stuck phase transitions the Monitor re-triggered this run. */
     val recoveredTransitions: Int,
     /** Stuck transitions whose bounded recovery is exhausted (the Monitor has given up; page). */
@@ -157,24 +175,35 @@ class VidLabelingMonitor(
           missingDoneBlobs > 0 ||
           zeroImpressionDates > 0 ||
           missingRawFiles > 0 ||
+          dataQualityCheckFailed ||
           recoveryExhausted > 0 ||
           unrecoverableRecoveries > 0
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4044): stuck-POOL_ASSIGNING
-  //   phase-transition recovery is deferred until the PoolAssignmentJobService implementation
-  //   (#4044) is in this branch base. Both the O(1) "all PoolAssignmentJobs SUCCEEDED" detection
-  //   (ListPoolAssignmentJobs total_size with a state filter) and end-to-end recovery require
-  //   that service, which is not yet in ancestry. Stuck-RANKING/stuck-LABELING recovery and the
-  //   data-quality checks do not depend on it.
   /**
    * Runs the fast dispatch cadence: delegates to the shared sequencer to start the oldest queued
    * upload for this DataProvider. Does not run any health check.
    */
-  suspend fun runDispatch(): DispatchOnlyResult {
+  suspend fun runDispatch(): DispatchOnlyResult =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.monitor.dispatch",
+      attributes = monitorAttributes("monitor_dispatch"),
+    ) {
+      runDispatchInternal().also { result ->
+        Span.current()
+          .setAttribute(
+            XmmTraceAttributes.OUTCOME,
+            if (result.dispatchError) "failed" else "succeeded",
+          )
+      }
+    }
+
+  private suspend fun runDispatchInternal(): DispatchOnlyResult {
     val dispatch: VidLabelingDispatchSequencer.DispatchResult =
       try {
         dispatchSequencer.dispatchNext()
+      } catch (e: CancellationException) {
+        throw e
       } catch (e: Exception) {
         // The sequencer wraps RPC failures (list calls, model-repo unavailable, non-ALREADY_EXISTS
         // creates) as plain exceptions. Surface them as a metric so operators can tell "dispatch
@@ -202,7 +231,23 @@ class VidLabelingMonitor(
    * data-quality checks over a single snapshot of this DataProvider's uploads and model lines. Does
    * not dispatch.
    */
-  suspend fun runHealth(): HealthResult {
+  suspend fun runHealth(): HealthResult =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.monitor.health",
+      attributes = monitorAttributes("monitor_health"),
+    ) {
+      runHealthInternal().also { result ->
+        val outcome =
+          when {
+            result.dataQualityCheckFailed -> "failed"
+            result.recoveredTransitions > 0 -> "recovered"
+            else -> "succeeded"
+          }
+        Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome)
+      }
+    }
+
+  private suspend fun runHealthInternal(): HealthResult {
     val snapshot = RunSnapshot(listAllUploads().groupBy { it.state })
     val (stuckUploads, failedModelLines) = checkFailuresAndStaleness(snapshot)
     val recovery = recoverStuckPhases(snapshot)
@@ -215,6 +260,7 @@ class VidLabelingMonitor(
       missingDoneBlobs = dataQuality.missingDoneBlobs,
       zeroImpressionDates = dataQuality.zeroImpressionDates,
       missingRawFiles = dataQuality.missingRawFiles,
+      dataQualityCheckFailed = dataQuality.checkFailed,
       recoveredTransitions = recovery.recovered,
       recoveryExhausted = recovery.exhausted,
       unrecoverableRecoveries = recovery.unrecoverable,
@@ -315,14 +361,16 @@ class VidLabelingMonitor(
         // distinguish UNAVAILABLE/NOT_FOUND/PERMISSION_DENIED instead of seeing an opaque
         // Exception.
         val response =
-          rawImpressionUploadStub.listRawImpressionUploads(
-            listRawImpressionUploadsRequest {
-              parent = dataProviderName
-              if (pageToken.isNotEmpty()) {
-                this.pageToken = pageToken
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadStub.listRawImpressionUploads(
+              listRawImpressionUploadsRequest {
+                parent = dataProviderName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
               }
-            }
-          )
+            )
+          }
         ResourceList(response.rawImpressionUploadsList, response.nextPageToken)
       }
       .flattenConcat()
@@ -335,14 +383,16 @@ class VidLabelingMonitor(
       .listResources { pageToken: String ->
         // Let StatusException propagate with its gRPC Status.Code intact (see listUploads).
         val response =
-          rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
-            listRawImpressionUploadModelLinesRequest {
-              parent = uploadName
-              if (pageToken.isNotEmpty()) {
-                this.pageToken = pageToken
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
+              listRawImpressionUploadModelLinesRequest {
+                parent = uploadName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
               }
-            }
-          )
+            )
+          }
         ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
       }
       .flattenConcat()
@@ -354,14 +404,16 @@ class VidLabelingMonitor(
     rawImpressionUploadFileStub
       .listResources { pageToken: String ->
         val response =
-          rawImpressionUploadFileStub.listRawImpressionUploadFiles(
-            listRawImpressionUploadFilesRequest {
-              parent = uploadName
-              if (pageToken.isNotEmpty()) {
-                this.pageToken = pageToken
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFileStub.listRawImpressionUploadFiles(
+              listRawImpressionUploadFilesRequest {
+                parent = uploadName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
               }
-            }
-          )
+            )
+          }
         ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
       }
       .flattenConcat()
@@ -374,6 +426,7 @@ class VidLabelingMonitor(
     val missingDoneBlobs: Long,
     val zeroImpressionDates: Long,
     val missingRawFiles: Long,
+    val checkFailed: Boolean,
   )
 
   /** Raw-impression storage-crawl signals (a subset of [DataQualityResult]). */
@@ -409,7 +462,10 @@ class VidLabelingMonitor(
         missingDoneBlobs = storage.missingDoneBlobs,
         zeroImpressionDates = storage.zeroImpressionDates,
         missingRawFiles = storage.missingRawFiles,
+        checkFailed = false,
       )
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       // Non-blocking: a bad crawl never fails the monitor run. The per-signal gauges above now hold
       // stale values from a previous run, so raise dataQualityCheckFailed=1 (an alertable signal)
@@ -420,7 +476,17 @@ class VidLabelingMonitor(
         "Data-quality checks failed for $dataProviderName; gauges may be stale (non-blocking)",
         e,
       )
-      DataQualityResult(0L, 0L, 0L, 0L, 0L)
+      VidLabelingTraceLogging.log(
+        logger,
+        Level.SEVERE,
+        "edpa.vid_labeling.monitor.data_quality_failed",
+        VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+        XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "monitor_health",
+        XmmTraceAttributes.OUTCOME_STRING to "failed",
+        XmmTraceAttributes.ERROR_TYPE_STRING to XmmTraceAttributes.errorType(e),
+        XmmTraceAttributes.ERROR_CODE_STRING to XmmTraceAttributes.errorCode(e),
+      )
+      DataQualityResult(0L, 0L, 0L, 0L, 0L, checkFailed = true)
     }
   }
 
@@ -556,8 +622,7 @@ class VidLabelingMonitor(
    * [MAX_RECOVERY_ATTEMPTS]. Past that the transition is left stuck, the recovery-exhausted gauge
    * is raised as the page signal, and a `SEVERE` line names the transition for the operator. Only a
    * model line stuck longer than [stalenessThreshold] is recovered, so a legitimately in-flight
-   * last-out is never raced. Stuck `POOL_ASSIGNING` recovery is deferred to #4044 (see the TODO
-   * above [runDispatch]); it needs `PoolAssignmentJobService`, which is not in this base.
+   * last-out is never raced.
    */
   private suspend fun recoverStuckPhases(snapshot: RunSnapshot): RecoverySummary {
     val nowNanos: Long = Timestamps.toNanos(Timestamps.fromMillis(clock.millis()))
@@ -572,11 +637,12 @@ class VidLabelingMonitor(
         }
         val outcome =
           when (modelLine.state) {
+            RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+              recoverIfAllPoolAssignmentJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             RawImpressionUploadModelLine.State.RANKING ->
               recoverIfAllRankerJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             RawImpressionUploadModelLine.State.LABELING ->
               recoverIfAllVidLabelingJobsSucceeded(upload.name, modelLine.cmmsModelLine)
-            // POOL_ASSIGNING recovery deferred to #4044 (PoolAssignmentJobService not in base).
             else -> RecoveryOutcome.NOOP
           }
         when (outcome) {
@@ -613,6 +679,41 @@ class VidLabelingMonitor(
     )
   }
 
+  /** Re-publishes a successful Phase-0 shard when every shard job has succeeded. */
+  private suspend fun recoverIfAllPoolAssignmentJobsSucceeded(
+    uploadName: String,
+    modelLine: String,
+  ): RecoveryOutcome {
+    val jobs = listPoolAssignmentJobs(uploadName, modelLine)
+    if (jobs.isEmpty() || jobs.any { it.state != PoolAssignmentJob.State.SUCCEEDED }) {
+      return RecoveryOutcome.NOOP
+    }
+    val job = jobs.minBy { it.shardIndex }
+    return republishWorkItem(WorkItemIds.forSubpoolAssigner(uploadName, modelLine, job.shardIndex))
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private suspend fun listPoolAssignmentJobs(
+    uploadName: String,
+    modelLine: String,
+  ): List<PoolAssignmentJob> =
+    poolAssignmentJobStub
+      .listResources { pageToken: String ->
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            poolAssignmentJobStub.listPoolAssignmentJobs(
+              listPoolAssignmentJobsRequest {
+                parent = uploadName
+                filter = ListPoolAssignmentJobsRequestKt.filter { cmmsModelLine = modelLine }
+                this.pageToken = pageToken
+              }
+            )
+          }
+        ResourceList(response.poolAssignmentJobsList, response.nextPageToken)
+      }
+      .flattenConcat()
+      .toList()
+
   /**
    * O(1) check (List `total_size`) that every `RankerJob` for `(uploadName, modelLine)` is
    * SUCCEEDED; if so, re-publishes one of their WorkItems to advance RANKING.
@@ -622,48 +723,54 @@ class VidLabelingMonitor(
     modelLine: String,
   ): RecoveryOutcome {
     val total =
-      rankerJobStub
-        .listRankerJobs(
-          listRankerJobsRequest {
-            parent = uploadName
-            filter = ListRankerJobsRequestKt.filter { cmmsModelLine = modelLine }
-            pageSize = 0
-          }
-        )
+      rpcThrottlers.metadataRead
+        .onReady {
+          rankerJobStub.listRankerJobs(
+            listRankerJobsRequest {
+              parent = uploadName
+              filter = ListRankerJobsRequestKt.filter { cmmsModelLine = modelLine }
+              pageSize = 0
+            }
+          )
+        }
         .totalSize
     if (total == 0) {
       return RecoveryOutcome.NOOP
     }
     val nonSucceeded =
-      rankerJobStub
-        .listRankerJobs(
-          listRankerJobsRequest {
-            parent = uploadName
-            filter =
-              ListRankerJobsRequestKt.filter {
-                cmmsModelLine = modelLine
-                stateIn += listOf(RankerJob.State.CREATED, RankerJob.State.FAILED)
-              }
-            pageSize = 0
-          }
-        )
+      rpcThrottlers.metadataRead
+        .onReady {
+          rankerJobStub.listRankerJobs(
+            listRankerJobsRequest {
+              parent = uploadName
+              filter =
+                ListRankerJobsRequestKt.filter {
+                  cmmsModelLine = modelLine
+                  stateIn += listOf(RankerJob.State.CREATED, RankerJob.State.FAILED)
+                }
+              pageSize = 0
+            }
+          )
+        }
         .totalSize
     if (nonSucceeded > 0) {
       return RecoveryOutcome.NOOP
     }
     val job =
-      rankerJobStub
-        .listRankerJobs(
-          listRankerJobsRequest {
-            parent = uploadName
-            filter =
-              ListRankerJobsRequestKt.filter {
-                cmmsModelLine = modelLine
-                stateIn += RankerJob.State.SUCCEEDED
-              }
-            pageSize = 1
-          }
-        )
+      rpcThrottlers.metadataRead
+        .onReady {
+          rankerJobStub.listRankerJobs(
+            listRankerJobsRequest {
+              parent = uploadName
+              filter =
+                ListRankerJobsRequestKt.filter {
+                  cmmsModelLine = modelLine
+                  stateIn += RankerJob.State.SUCCEEDED
+                }
+              pageSize = 1
+            }
+          )
+        }
         .rankerJobsList
         .firstOrNull() ?: return RecoveryOutcome.NOOP
     return republishWorkItem(WorkItemIds.forVidRankBuilder(job.name))
@@ -695,18 +802,20 @@ class VidLabelingMonitor(
     modelLine: String,
     state: VidLabelingJob.State,
   ): List<VidLabelingJob> =
-    vidLabelingJobStub
-      .listVidLabelingJobs(
-        listVidLabelingJobsRequest {
-          parent = uploadName
-          filter =
-            ListVidLabelingJobsRequestKt.filter {
-              cmmsModelLine = modelLine
-              this.state = state
-            }
-          pageSize = 1
-        }
-      )
+    rpcThrottlers.metadataRead
+      .onReady {
+        vidLabelingJobStub.listVidLabelingJobs(
+          listVidLabelingJobsRequest {
+            parent = uploadName
+            filter =
+              ListVidLabelingJobsRequestKt.filter {
+                cmmsModelLine = modelLine
+                this.state = state
+              }
+            pageSize = 1
+          }
+        )
+      }
       .vidLabelingJobsList
 
   /**
@@ -722,43 +831,97 @@ class VidLabelingMonitor(
    * never be cloned and a human must intervene; [RecoveryOutcome.NOOP] when the original fetch or a
    * create fails with a transient error (retried next tick — the attempt is not burned).
    */
-  private suspend fun republishWorkItem(workItemId: String): RecoveryOutcome {
+  private suspend fun republishWorkItem(workItemId: String): RecoveryOutcome =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.monitor.recover",
+      attributes =
+        monitorAttributes("monitor_recovery")
+          .toBuilder()
+          .put(XmmTraceAttributes.WORK_ITEM_NAME, "workItems/$workItemId")
+          .build(),
+    ) {
+      republishWorkItemInternal(workItemId).also { outcome ->
+        if (outcome != RecoveryOutcome.NOOP) {
+          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
+        }
+      }
+    }
+
+  private suspend fun republishWorkItemInternal(workItemId: String): RecoveryOutcome {
     val existing =
       try {
-        workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+        rpcThrottlers.controlPlane.onReady {
+          workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+        }
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.NOT_FOUND) {
           // The original WorkItem is gone (e.g. retention-deleted); cloning it is impossible and
           // retrying never succeeds, so escalate instead of counting a transient failure.
           logger.warning("Cannot recover: WorkItem $workItemId is gone (NOT_FOUND)")
+          XmmTracing.recordFailure(Span.current(), e)
           return RecoveryOutcome.UNRECOVERABLE
         }
         logger.warning("Cannot recover: WorkItem $workItemId unavailable (${e.status.code})")
+        XmmTracing.recordFailure(Span.current(), e)
         metrics.recoveryStepFailuresCounter.add(1, recoveryStepAttributes("get_original"))
         return RecoveryOutcome.NOOP
       }
     for (attempt in 1..MAX_RECOVERY_ATTEMPTS) {
       val recoveryId = "$workItemId-monitor-recovery-$attempt"
       try {
-        workItemsStub.createWorkItem(
-          createWorkItemRequest {
-            this.workItemId = recoveryId
-            workItem = workItem {
-              queue = existing.queue
-              workItemParams = existing.workItemParams
+        Span.current()
+          .setAttribute(VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME, "workItems/$recoveryId")
+        Span.current()
+          .addEvent(
+            "edpa.vid_labeling.monitor.recovery_attempt",
+            Attributes.builder()
+              .put(VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME, "workItems/$recoveryId")
+              .put(XmmTraceAttributes.OUTCOME, "attempted")
+              .build(),
+          )
+        val published =
+          try {
+            rpcThrottlers.controlPlane.onReady {
+              workItemsStub.createWorkItem(
+                createWorkItemRequest {
+                  this.workItemId = recoveryId
+                  workItem = workItem {
+                    queue = existing.queue
+                    workItemParams = existing.workItemParams
+                  }
+                }
+              )
             }
+            true
+          } catch (e: StatusException) {
+            if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+            Span.current()
+              .addEvent(
+                "edpa.vid_labeling.monitor.recovery_attempt",
+                Attributes.builder()
+                  .put(VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME, "workItems/$recoveryId")
+                  .put(XmmTraceAttributes.OUTCOME, "already_exists")
+                  .build(),
+              )
+            false
           }
-        )
+        if (!published) continue
         logger.info(
           "Recovered a stuck transition by re-publishing WorkItem $workItemId (attempt $attempt)"
         )
+        VidLabelingTraceLogging.log(
+          logger,
+          "edpa.vid_labeling.monitor_recovered",
+          VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+          XmmTraceAttributes.WORK_ITEM_NAME_STRING to "workItems/$workItemId",
+          VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME_STRING to "workItems/$recoveryId",
+          XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "monitor_recovery",
+          XmmTraceAttributes.OUTCOME_STRING to "recovered",
+        )
         return RecoveryOutcome.RECOVERED
       } catch (e: StatusException) {
-        if (e.status.code == Status.Code.ALREADY_EXISTS) {
-          // This attempt was already published on a prior tick; try the next suffix.
-          continue
-        }
         logger.warning("Recovery publish failed for $recoveryId (${e.status.code})")
+        XmmTracing.recordFailure(Span.current(), e)
         metrics.recoveryStepFailuresCounter.add(1, recoveryStepAttributes("publish"))
         return RecoveryOutcome.NOOP
       }
@@ -776,6 +939,13 @@ class VidLabelingMonitor(
       VidLabelingMonitorMetrics.RECOVERY_STEP_ATTR,
       step,
     )
+
+  private fun monitorAttributes(lifecycleStage: String): Attributes =
+    Attributes.builder()
+      .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, dataProviderName)
+      .put(XmmTraceAttributes.LIFECYCLE_STAGE, lifecycleStage)
+      .put(XmmTraceAttributes.OUTCOME, "started")
+      .build()
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

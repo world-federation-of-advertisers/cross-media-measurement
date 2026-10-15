@@ -57,11 +57,14 @@ jobs:
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EventTemplateValidator_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools:Reporting_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:BackfillBasicReportExternalReportIds_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:BackfillBasicReportReportingSets_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/access/deploy/tools:Access_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools:ModelRepository_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/common/tools:OpenIdProvider_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:SyncEventGroupActivities_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:RecoverMissingImpressionMetadata_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingHeal_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools:CreateResource_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:GenerateSyntheticData_deploy.jar
@@ -103,11 +106,14 @@ jobs:
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EncryptionPublicKeys_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EventTemplateValidator_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools/Reporting_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools/BackfillBasicReportExternalReportIds_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools/BackfillBasicReportReportingSets_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools/ModelRepository_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/common/tools/OpenIdProvider_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools/DashboardComplianceCheck_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/SyncEventGroupActivities_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/RecoverMissingImpressionMetadata_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/VidLabelingHeal_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools/CreateResource_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/GenerateSyntheticData_deploy.jar

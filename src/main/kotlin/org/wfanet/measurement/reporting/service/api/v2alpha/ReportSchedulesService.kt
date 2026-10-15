@@ -674,10 +674,13 @@ class ReportSchedulesService(
       while (externalReportingSetIdSet.isNotEmpty()) {
         retrievedExternalReportingSetIdSet.addAll(externalReportingSetIdSet)
 
+        // Bounded by the ReportingSet structure's own size, not by Metric count, so it
+        // doesn't share the Kingdom-dispatch concurrency flag.
         submitBatchRequests(
             externalReportingSetIdSet.asFlow(),
             BATCH_GET_REPORTING_SETS_LIMIT,
             callRpc,
+            concurrency = 3,
           ) { response ->
             externalReportingSetIdSet.clear()
             response.reportingSetsList

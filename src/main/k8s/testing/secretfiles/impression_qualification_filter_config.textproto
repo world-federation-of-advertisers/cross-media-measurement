@@ -22,11 +22,27 @@ impression_qualification_filters {
   impression_qualification_filter_id: 2
   filter_specs {
     media_type: DISPLAY
+    # TODO(world-federation-of-advertisers/cross-media-measurement#4380):
+    # Use `>= 0.5` once relative comparison operators are supported. The
+    # disjunction covers only the declared quartiles; a value such as 0.56 is
+    # dropped.
     filters: {
       terms: {
-        path: "banner_ad.viewable"
+        path: "display.viewable_fraction"
         value {
-          bool_value: true
+          float_value: 0.5
+        }
+      }
+      terms: {
+        path: "display.viewable_fraction"
+        value {
+          float_value: 0.75
+        }
+      }
+      terms: {
+        path: "display.viewable_fraction"
+        value {
+          float_value: 1.0
         }
       }
     }

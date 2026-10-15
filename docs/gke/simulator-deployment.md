@@ -101,7 +101,7 @@ in protobuf text format. By default, these come with the specs necessary for
 running the K8s correctness test.
 
 If you want to use an event message type other than
-[`TestEvent`](../../src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/test_event.proto),
+[`TestEvent`](../../src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1/test_event.proto),
 set `--event-message-type-url` to the new message's type URL and supply the
 matching `FileDescriptorSet`(s) via `--event-message-descriptor-set`. The flag
 can be repeated when the dependencies span multiple `FileDescriptorSet`s.

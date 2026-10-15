@@ -46,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.common.Health
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
@@ -115,6 +116,15 @@ class InProcessEdpSimulator(
         eventGroupsOptions = listOf(eventGroupOptions),
         eventQuery = eventQuery,
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        // Kingdom RPCs here go to an in-process test server, not a real rate-limited Kingdom, so
+        // there's no need to pace or serialize them: only [throttler]'s workflow-loop cadence
+        // matters for this fixture. A MinimumIntervalThrottler here -- even with a tiny interval
+        // -- would serialize every concurrent RPC behind the previous one's full round-trip, since
+        // it holds a lock across the whole call, not just the gap between starts.
+        kingdomRpcThrottler =
+          object : Throttler {
+            override suspend fun <T> onReady(block: suspend () -> T): T = block()
+          },
         privacyBudgetManager =
           PrivacyBudgetManager(
             PrivacyBucketFilter(TestPrivacyBucketMapper()),

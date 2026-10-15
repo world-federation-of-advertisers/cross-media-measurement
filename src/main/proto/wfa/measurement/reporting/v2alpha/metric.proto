@@ -441,6 +441,15 @@ message Metric {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  // The `BasicReport` that originated this `Metric`, if any.
+  string basic_report = 12 [
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/BasicReport"
+    },
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
   // TODO(@tristanvuong2021): WIll be required in a future release. See
   // https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/2345
   string model_line = 11

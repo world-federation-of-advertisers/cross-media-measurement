@@ -25,7 +25,7 @@ import org.apache.hadoop.conf.Configuration
  */
 fun gcsHadoopConfiguration(projectId: String): Configuration =
   Configuration().apply {
-    set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
+    set("fs.gs.impl", GenerationMatchedGoogleHadoopFileSystem::class.java.name)
     set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS")
     set("fs.gs.auth.type", "COMPUTE_ENGINE")
     set("fs.gs.project.id", projectId)

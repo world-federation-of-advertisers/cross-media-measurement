@@ -19,7 +19,10 @@ package org.wfanet.measurement.edpaggregator.tools
 import java.util.logging.Logger
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
 /**
  * Force-fails a stuck or hanging `RawImpressionUpload` — the operator recovery for a dispatch that
@@ -29,10 +32,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
  * `VidLabelingMonitorFunction` owns automated recovery (stuck-phase advancement, dispatch
  * sequencing).
  *
+ * @param rawImpressionUploadsStub stub for the `RawImpressionUploadService` public API.
  * @param rawImpressionModelLinesStub stub for the `RawImpressionUploadModelLineService` public API.
  */
 class DispatchFailer(
-  private val rawImpressionModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub
+  private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
+  private val rawImpressionModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
 ) {
   /**
    * Marks every non-terminal child model line of [rawImpressionUpload] `FAILED`, recording [reason]
@@ -50,21 +55,23 @@ class DispatchFailer(
    * @return the resource names of the model lines that were marked `FAILED`.
    */
   suspend fun failUpload(rawImpressionUpload: String, reason: String): List<String> {
+    rawImpressionUploadsStub.getRawImpressionUpload(
+      getRawImpressionUploadRequest { name = rawImpressionUpload }
+    )
     val failed = mutableListOf<String>()
     for (modelLine in rawImpressionModelLinesStub.listModelLines(rawImpressionUpload)) {
       if (modelLine.state !in STUCK_STATES) {
         logger.info("${modelLine.name} is ${modelLine.state} (not stuck); leaving as-is.")
         continue
       }
-      // TODO(world-federation-of-advertisers/cross-media-measurement#4211): once #4211 makes
-      // request_id REQUIRED on the Mark* RPCs, set
-      // requestId = RequestIds.forMarkRawImpressionUploadModelLineFailed(modelLine.name) so an
-      // operator re-run hits the AIP-155 replay short-circuit instead of failing INVALID_ARGUMENT.
       rawImpressionModelLinesStub.markRawImpressionUploadModelLineFailed(
         markRawImpressionUploadModelLineFailedRequest {
           name = modelLine.name
           errorMessage = reason
           etag = modelLine.etag
+          failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+          requestId =
+            RequestIds.forMarkRawImpressionUploadModelLineFailed(modelLine.name, modelLine.etag)
         }
       )
       failed.add(modelLine.name)

@@ -63,6 +63,7 @@ class SpannerDataServices(
       SpannerModelShardsService(idGenerator, client, coroutineContext),
       SpannerModelRolloutsService(clock, idGenerator, client, coroutineContext),
       SpannerPopulationsService(idGenerator, client, coroutineContext),
+      SpannerUnlinkedClientAccountsService(idGenerator, client, coroutineContext),
     )
   }
 }

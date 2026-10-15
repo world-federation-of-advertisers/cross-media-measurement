@@ -207,4 +207,16 @@ message SubpoolAssignerParams {
   // Entity types an impression MAY have. Pass-through, same as
   // required_entity_key_field_mapping; keys MUST be disjoint from it.
   map<string, string> optional_entity_key_field_mapping = 21;
+
+  // Config-storage blob URI of the `PopulationSpec` describing the VID pools of
+  // this model line's compiled model. Mirrors
+  // `VidLabelingConfig.ModelLineConfig.population_spec_blob_uri`.
+  //
+  // Not consumed by the Phase-0 SubpoolAssigner; carried as pass-through so the
+  // last-shard-out can stamp it on the VidRankBuilder Phase-1 WorkItem, which
+  // the Phase-1 last-out then stamps on the Phase-2 VidLabeler
+  // `ModelLineConfig`. REQUIRED rather than OPTIONAL like its pass-through
+  // siblings: Phase-2 rejects a WorkItem without it, so an omission here is a
+  // dispatch bug that would otherwise only surface as a crash-looping TEE.
+  string population_spec_blob_uri = 23 [(google.api.field_behavior) = REQUIRED];
 }

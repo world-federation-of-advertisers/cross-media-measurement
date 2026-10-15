@@ -31,13 +31,11 @@ import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement
 import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
-import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
@@ -139,21 +137,12 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         }
         .toSet()
 
-    if (externalIdsSet.isNotEmpty()) {
-      val batchGetMetricsRequest: BatchGetMetricsRequest = batchGetMetricsRequest {
-        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        externalMetricIds += externalIdsSet
-      }
-      // If there is any metrics found, it means there are metrics already existing with different
+    // Existence-only check: avoids the ReportingSets/Measurements/etc join that
+    // batchGetMetrics() pays for, since only presence -- not the matched rows -- is needed here.
+    if (MetricReader(transactionContext).metricsExist(measurementConsumerId, externalIdsSet)) {
+      // If there is any metric found, it means there are metrics already existing with different
       // request IDs or without request IDs.
-      if (
-        MetricReader(transactionContext)
-          .batchGetMetrics(batchGetMetricsRequest)
-          .toList()
-          .isNotEmpty()
-      ) {
-        throw MetricAlreadyExistsException()
-      }
+      throw MetricAlreadyExistsException()
     }
 
     val externalReportingSetIds = buildSet {

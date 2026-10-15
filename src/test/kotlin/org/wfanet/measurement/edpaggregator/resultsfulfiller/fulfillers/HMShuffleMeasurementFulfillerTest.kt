@@ -70,6 +70,8 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
@@ -91,6 +93,17 @@ class HMShuffleMeasurementFulfillerTest {
       // Consume flow before returning.
       _fullfillRequisitionInvocations.add(FulfillRequisitionInvocation(requests.toList()))
       return FulfillRequisitionResponse.getDefaultInstance()
+    }
+  }
+
+  /** [Throttler] that is always ready but records how many times it was invoked. */
+  private class RecordingThrottler : Throttler {
+    var invocationCount = 0
+      private set
+
+    override suspend fun <T> onReady(block: suspend () -> T): T {
+      invocationCount++
+      return block()
     }
   }
 
@@ -129,6 +142,7 @@ class HMShuffleMeasurementFulfillerTest {
     val requisitionNonce = Random.Default.nextLong()
     val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
     val requisition = HMSS_REQUISITION.copy { this.nonce = requisitionNonce }
+    val requisitionsThrottler = RecordingThrottler()
     val fulfiller =
       HMShuffleMeasurementFulfiller(
         requisition = requisition,
@@ -141,8 +155,10 @@ class HMShuffleMeasurementFulfillerTest {
             "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
           ),
         requisitionsStub = unfulfilledRequisitionsStub,
+        requisitionsThrottler = requisitionsThrottler,
       )
     fulfiller.fulfillRequisition()
+    assertThat(requisitionsThrottler.invocationCount).isEqualTo(1)
     val fulfilledRequisitions =
       requisitionFulfillmentMock.fullfillRequisitionInvocations.single().requests
     assertThat(fulfilledRequisitions).hasSize(2)
@@ -183,6 +199,7 @@ class HMShuffleMeasurementFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stubWithError),
           requisitionsStub = unfulfilledRequisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
         )
       assertFails { fulfiller.fulfillRequisition() }
     }
@@ -199,6 +216,7 @@ class HMShuffleMeasurementFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         requisitionFulfillmentStubMap = emptyMap(),
         requisitionsStub = unfulfilledRequisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         retryMaxAttempts = 0,
       )
     }
@@ -219,6 +237,7 @@ class HMShuffleMeasurementFulfillerTest {
       }
 
       val requisition = HMSS_REQUISITION.copy { this.nonce = requisitionNonce }
+      val requisitionsThrottler = RecordingThrottler()
       val fulfiller =
         HMShuffleMeasurementFulfiller(
           requisition = requisition,
@@ -228,6 +247,7 @@ class HMShuffleMeasurementFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stub),
           requisitionsStub = unfulfilledRequisitionsStub,
+          requisitionsThrottler = requisitionsThrottler,
           retryMaxAttempts = 3,
           retryBackoff = FAST_BACKOFF,
         )
@@ -235,6 +255,9 @@ class HMShuffleMeasurementFulfillerTest {
       fulfiller.fulfillRequisition()
 
       assertThat(attempts.get()).isEqualTo(3)
+      // getRequisition re-checks on every retry attempt (see the class KDoc), so the throttler
+      // must be invoked once per attempt, not just once for the whole call.
+      assertThat(requisitionsThrottler.invocationCount).isEqualTo(3)
     }
   }
 
@@ -262,6 +285,7 @@ class HMShuffleMeasurementFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stub),
           requisitionsStub = unfulfilledRequisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           retryMaxAttempts = 3,
           retryBackoff = FAST_BACKOFF,
         )
@@ -294,6 +318,7 @@ class HMShuffleMeasurementFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stub),
           requisitionsStub = unfulfilledRequisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           retryMaxAttempts = 3,
           retryBackoff = FAST_BACKOFF,
         )
@@ -325,6 +350,7 @@ class HMShuffleMeasurementFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stub),
           requisitionsStub = unfulfilledRequisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           retryMaxAttempts = 4,
           retryBackoff = FAST_BACKOFF,
         )
@@ -354,6 +380,7 @@ class HMShuffleMeasurementFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stubWithError),
           requisitionsStub = terminalRequisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
         )
       fulfiller.fulfillRequisition()
     }
@@ -386,9 +413,10 @@ class HMShuffleMeasurementFulfillerTest {
               "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
             ),
           requisitionsStub = unfulfilledRequisitionsStub,
-          ResultMinimumThresholds(minImpressions = 1, minUsers = 1),
+          requisitionsThrottler = FakeThrottler(),
+          resultMinimumThresholds = ResultMinimumThresholds(minImpressions = 1, minUsers = 1),
           maxPopulation = null,
-          ::echoFrequencyVector,
+          generateSecretShares = ::echoFrequencyVector,
         )
       fulfiller.fulfillRequisition()
       val fulfilledRequisitions =
@@ -439,9 +467,10 @@ class HMShuffleMeasurementFulfillerTest {
               "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
             ),
           requisitionsStub = unfulfilledRequisitionsStub,
-          ResultMinimumThresholds(minImpressions = 1000, minUsers = 1000),
+          requisitionsThrottler = FakeThrottler(),
+          resultMinimumThresholds = ResultMinimumThresholds(minImpressions = 1000, minUsers = 1000),
           maxPopulation = null,
-          ::echoFrequencyVector,
+          generateSecretShares = ::echoFrequencyVector,
         )
       fulfiller.fulfillRequisition()
       val fulfilledRequisitions =

@@ -1,0 +1,31 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadModelLineFailureReasonProto";
+
+// Reason that a RawImpressionUploadModelLine entered the FAILED state.
+enum RawImpressionUploadModelLineFailureReason {
+  // The failure reason is unspecified.
+  RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED = 0;
+  // Pipeline processing failed and may be retried after its cause is fixed.
+  RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE = 1;
+  // Output was invalidated by an operator and must be replaced, not retried.
+  RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT = 2;
+}

@@ -40,14 +40,19 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ListClientAccountsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.ListUnlinkedClientAccountsRequestKt.filter as unlinkedFilter
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.batchCreateClientAccountsRequest
 import org.wfanet.measurement.internal.kingdom.clientAccount
 import org.wfanet.measurement.internal.kingdom.createClientAccountRequest
+import org.wfanet.measurement.internal.kingdom.createUnlinkedClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.deleteClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.getClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.listClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.listUnlinkedClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.unlinkedClientAccount
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 
@@ -60,6 +65,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val accountsService: AccountsCoroutineImplBase,
+    val unlinkedClientAccountsService: UnlinkedClientAccountsCoroutineImplBase,
   )
 
   private val clock: Clock = Clock.systemUTC()
@@ -78,6 +84,9 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
   protected lateinit var accountsService: AccountsCoroutineImplBase
     private set
 
+  protected lateinit var unlinkedClientAccountsService: UnlinkedClientAccountsCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -87,6 +96,7 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
     measurementConsumersService = services.measurementConsumersService
     dataProvidersService = services.dataProvidersService
     accountsService = services.accountsService
+    unlinkedClientAccountsService = services.unlinkedClientAccountsService
   }
 
   @Test
@@ -594,6 +604,89 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
       .isEqualTo("batch-multi-ref-2")
     assertThat(response.clientAccountsList[0].externalClientAccountId)
       .isNotEqualTo(response.clientAccountsList[1].externalClientAccountId)
+  }
+
+  @Test
+  fun `batchCreateClientAccounts deletes matching UnlinkedClientAccounts and preserves others`():
+    Unit = runBlocking {
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    for (refId in listOf("linked-ref-1", "linked-ref-2", "other-ref")) {
+      unlinkedClientAccountsService.createUnlinkedClientAccount(
+        createUnlinkedClientAccountRequest {
+          unlinkedClientAccount = unlinkedClientAccount {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = refId
+          }
+        }
+      )
+    }
+
+    clientAccountsService.batchCreateClientAccounts(
+      batchCreateClientAccountsRequest {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        requests += createClientAccountRequest {
+          clientAccount = clientAccount {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "linked-ref-1"
+          }
+        }
+        requests += createClientAccountRequest {
+          clientAccount = clientAccount {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "linked-ref-2"
+          }
+        }
+      }
+    )
+
+    // The two matching UnlinkedClientAccounts are auto-deleted; the non-matching one is preserved.
+    val listResponse =
+      unlinkedClientAccountsService.listUnlinkedClientAccounts(
+        listUnlinkedClientAccountsRequest {
+          filter = unlinkedFilter { externalDataProviderId = dataProvider.externalDataProviderId }
+        }
+      )
+    assertThat(listResponse.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
+      .containsExactly("other-ref")
+  }
+
+  @Test
+  fun `createClientAccount deletes matching UnlinkedClientAccount`(): Unit = runBlocking {
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    unlinkedClientAccountsService.createUnlinkedClientAccount(
+      createUnlinkedClientAccountRequest {
+        unlinkedClientAccount = unlinkedClientAccount {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = "linked-ref"
+        }
+      }
+    )
+
+    clientAccountsService.createClientAccount(
+      createClientAccountRequest {
+        this.clientAccount = clientAccount {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = "linked-ref"
+        }
+      }
+    )
+
+    val listResponse =
+      unlinkedClientAccountsService.listUnlinkedClientAccounts(
+        listUnlinkedClientAccountsRequest {
+          filter = unlinkedFilter { externalDataProviderId = dataProvider.externalDataProviderId }
+        }
+      )
+    assertThat(listResponse.unlinkedClientAccountsList).isEmpty()
   }
 
   companion object {

@@ -146,6 +146,11 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:sync_event_group_activities_image",
         repository = _PREFIX + "/edp-aggregator/sync-event-group-activities",
     ),
+    struct(
+        name = "recover_missing_impression_metadata_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:recover_missing_impression_metadata_image",
+        repository = _PREFIX + "/edp-aggregator/recover-missing-impression-metadata",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.

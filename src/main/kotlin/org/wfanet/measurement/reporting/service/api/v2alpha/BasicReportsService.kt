@@ -25,9 +25,12 @@ import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.logging.Logger
 import kotlin.collections.List
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -50,6 +53,8 @@ import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.cel.CelPredicates
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
@@ -212,6 +217,30 @@ class BasicReportsService(
   )
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
+    val parentKey = MeasurementConsumerKey.fromName(request.parent)
+    if (parentKey == null || request.basicReportId.isEmpty()) {
+      return createBasicReportInternal(request)
+    }
+    val basicReportName =
+      BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName()
+    return ReportTracing.traceSuspending(
+      spanName = "reporting.basic_report.create",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_creation")
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      val basicReport = createBasicReportInternal(request)
+      Span.current()
+        .setAttribute(ReportTraceAttributes.BASIC_REPORT_STATE, basicReport.state.name)
+        .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+      basicReport
+    }
+  }
+
+  private suspend fun createBasicReportInternal(request: CreateBasicReportRequest): BasicReport {
     val eventTemplateFieldsByPath = eventMessageDescriptor.eventTemplateFieldsByPath
 
     // The Campaign Group is either supplied by the caller (when campaign_group is specified) or,
@@ -565,10 +594,13 @@ class BasicReportsService(
           .asRuntimeException()
     }
 
+    val basicReportName =
+      BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName()
     val report: Report =
       try {
         buildReport(
           request.basicReport,
+          basicReportName,
           campaignGroupResolution.campaignGroupKey,
           reportingSetMaps.nameByReportingSetComposite,
           reportingSetsMetricCalculationSpecDetailsMap,
@@ -623,6 +655,18 @@ class BasicReportsService(
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
+
+    logger.info {
+      val reportName =
+        ReportKey(parentKey.measurementConsumerId, createReportRequest.reportId).toName()
+      "Associated xmm.basic_report.name=$basicReportName xmm.report.name=$reportName"
+    }
+    Span.current()
+      .setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+      .setAttribute(
+        ReportTraceAttributes.REPORT_NAME,
+        ReportKey(parentKey.measurementConsumerId, createReportRequest.reportId).toName(),
+      )
 
     return createdInternalBasicReport.toBasicReport(
       populateDeprecatedReportingUnitEventGroupSummaries = false
@@ -732,6 +776,24 @@ class BasicReportsService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
+    return ReportTracing.traceSuspending(
+      spanName = "reporting.basic_report.get",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.BASIC_REPORT_NAME, request.name)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_api_fetch")
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      getBasicReportInternal(request, measurementConsumerKey, basicReportId)
+    }
+  }
+
+  private suspend fun getBasicReportInternal(
+    request: GetBasicReportRequest,
+    measurementConsumerKey: MeasurementConsumerKey,
+    basicReportId: String,
+  ): BasicReport {
     authorization.check(listOf(request.name, measurementConsumerKey.toName()), Permission.GET)
 
     val internalBasicReport: InternalBasicReport =
@@ -763,7 +825,20 @@ class BasicReportsService(
         }
       }
 
-    return internalBasicReport.toBasicReport(!request.excludeDeprecatedEventGroupSummaries)
+    val basicReport =
+      internalBasicReport.toBasicReport(!request.excludeDeprecatedEventGroupSummaries)
+    Span.current()
+      .setAttribute(ReportTraceAttributes.BASIC_REPORT_STATE, basicReport.state.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+      .addEvent(
+        "reporting.basic_report.returned",
+        io.opentelemetry.api.common.Attributes.builder()
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_api_fetch")
+          .put(ReportTraceAttributes.BASIC_REPORT_STATE, basicReport.state.name)
+          .put(ReportTraceAttributes.OUTCOME, "succeeded")
+          .build(),
+      )
+    return basicReport
   }
 
   override suspend fun listBasicReports(
@@ -1289,6 +1364,7 @@ class BasicReportsService(
    */
   private suspend fun buildReport(
     basicReport: BasicReport,
+    basicReportName: String,
     campaignGroupKey: ReportingSetKey,
     nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
     reportingSetMetricCalculationSpecDetailsMap:
@@ -1301,6 +1377,7 @@ class BasicReportsService(
       buildMetricCalculationSpecToNameMap(campaignGroupKey).toMutableMap()
 
     return report {
+      this.basicReport = basicReportName
       for (reportingSetMetricCalculationSpecDetailsEntry in
         reportingSetMetricCalculationSpecDetailsMap.entries) {
         reportingMetricEntries +=
@@ -1450,6 +1527,7 @@ class BasicReportsService(
   }
 
   companion object {
+    private val logger: Logger = Logger.getLogger(BasicReportsService::class.java.name)
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
     private const val SCALING_FACTOR = 10000

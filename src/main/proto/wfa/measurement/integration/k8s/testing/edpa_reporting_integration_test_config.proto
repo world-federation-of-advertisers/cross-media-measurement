@@ -1,0 +1,107 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.integration.k8s.testing;
+
+import "google/api/resource.proto";
+
+option java_package = "org.measurement.integration.k8s.testing";
+option java_multiple_files = true;
+option java_outer_classname = "EdpaReportingIntegrationTestConfigProto";
+
+// Configuration for the EDPA reporting integration test, which provisions the
+// high overlap dataset and reports over it.
+//
+// TODO(world-federation-of-advertisers/cross-media-measurement#4561):
+// Factor the fields shared with CorrectnessTestConfig into a common message.
+message EdpaReportingIntegrationTestConfig {
+  // gRPC target of Kingdom public API server.
+  string kingdom_public_api_target = 1;
+
+  // Expected hostname (DNS-ID) in the Kingdom public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string kingdom_public_api_cert_host = 2;
+
+  // MeasurementConsumer resource name.
+  string measurement_consumer = 3 [(google.api.resource_reference).type =
+                                       "halo.wfanet.org/MeasurementConsumer"];
+
+  // Authentication key for the CMMS public API.
+  string api_authentication_key = 4;
+
+  // Storage bucket holding the EventGroup blobs and impressions.
+  string storage_bucket = 5;
+
+  // http endpoint of Reporting Server.
+  string reporting_service_endpoint = 6;
+
+  // jwt audience for Reporting Server.
+  string reporting_token_audience = 7;
+
+  // gRPC target of Reporting public API server.
+  string reporting_public_api_target = 8;
+
+  // Expected hostname (DNS-ID) in the Reporting public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string reporting_public_api_cert_host = 9;
+
+  // gRPC target of Access public API server.
+  string access_public_api_target = 10;
+
+  // Expected hostname (DNS-ID) in the Access public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string access_public_api_cert_host = 11;
+
+  // ModelLine the high overlap dataset is generated against.
+  //
+  // Empty where the environment has no high overlap ModelLine, which disables
+  // all high overlap seeding and makes the test a no-op.
+  string model_line = 12
+      [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
+
+  // Comma-separated names of the EDPs this environment has provisioned.
+  //
+  // Empty defaults to the EDPs every environment has.
+  string edp_names = 13;
+
+  // DataProvider that owns the high overlap Population.
+  string population_data_provider = 14
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4562):
+  // Replace the four fields below with repeated entries of EDP name plus
+  // KmsConfig, so adding an EDP is a config change rather than a proto change.
+
+  // Google Cloud KMS KEK URI for edp7 impressions.
+  //
+  // Empty falls back to the KEK for the project the test runs in.
+  string edp7_kek_uri = 15;
+
+  // AWS KMS KEK URI for edpa_meta impressions.
+  string edpa_meta_kek_uri = 16;
+
+  // AWS role the edpa_meta KMS client assumes via web-identity federation.
+  string edpa_meta_aws_role_arn = 17;
+
+  // AWS region of the edpa_meta KMS key.
+  string edpa_meta_aws_region = 18;
+}

@@ -21,7 +21,6 @@ import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/edpaggregator/v1alpha/labeled_impression.proto";
 import "wfa/measurement/edpaggregator/v1alpha/labeler_input_field_mapping.proto";
-import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -54,16 +53,6 @@ message VidLabelerParams {
   // Storage for VID-labeled impressions written by the TEE app.
   StorageParams vid_labeled_impressions_storage_params = 3
       [(google.api.field_behavior) = REQUIRED];
-
-  // TLS connection for a remote VID Repo service.
-  //
-  // Currently UNUSED by the labeler: both the non-memoized and memoized
-  // configurations load the compiled model from [model_blob_paths] and label
-  // locally inside the TEE, which never contacts a VID Repo. (An overflow /
-  // unseen fingerprint falls back to the locally-computed hash path, not the
-  // VID Repo.) OPTIONAL; leave unset.
-  TransportLayerSecurityParams vid_repo_connection = 4
-      [(google.api.field_behavior) = OPTIONAL];
 
   // Message representing the configuration for a model line.
   message ModelLineConfig {
@@ -109,6 +98,22 @@ message VidLabelerParams {
     // entity_type. Keys MUST be disjoint from
     // required_entity_key_field_mapping.
     map<string, string> optional_entity_key_field_mapping = 8;
+
+    // Config-storage blob URI of the model line's `PopulationSpec` textproto
+    // (the same artifact ResultsFulfiller loads).
+    //
+    // A VID model may assign an impression a different demo than the
+    // `DataProvider` uploaded, and it draws the VID from the pool of the demo
+    // it assigned. Each `SubPopulation` pairs its VID ranges with the event
+    // template's population attributes, so the labeler resolves the assigned
+    // VID here and writes those attributes onto the labeled output.
+    //
+    // REQUIRED: without it the labeled output carries the demographics the
+    // DataProvider uploaded rather than the ones the model assigned, and
+    // ResultsFulfiller then groups reports by the uncorrected demo. Enforced by
+    // the dispatcher's config pre-flight and again by the TEE at label time.
+    string population_spec_blob_uri = 9
+        [(google.api.field_behavior) = REQUIRED];
   }
 
   // Map from model line resource name to its configuration.

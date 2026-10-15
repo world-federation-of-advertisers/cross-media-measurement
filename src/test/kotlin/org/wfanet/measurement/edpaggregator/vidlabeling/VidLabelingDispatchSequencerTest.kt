@@ -22,9 +22,19 @@ import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Instant
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,8 +54,13 @@ import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
@@ -86,6 +101,45 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 @RunWith(JUnit4::class)
 class VidLabelingDispatchSequencerTest {
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
+  private val logRecords = mutableListOf<LogRecord>()
+  private val rootLogger = Logger.getLogger("")
+  private val logHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        logRecords += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
+
+  @Before
+  fun initTelemetry() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
+    logRecords.clear()
+    rootLogger.addHandler(logHandler)
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    rootLogger.removeHandler(logHandler)
+    openTelemetry.close()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+  }
 
   private val rawImpressionUploadService:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase =
@@ -158,6 +212,8 @@ class VidLabelingDispatchSequencerTest {
   private fun createSequencer(
     numberOfShards: Int = NUMBER_OF_SHARDS,
     subpoolAssignerParamsTemplate: SubpoolAssignerParams = SUBPOOL_ASSIGNER_PARAMS_TEMPLATE,
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    traceContextProvider: () -> Map<String, String> = { emptyMap() },
   ): VidLabelingDispatchSequencer =
     VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
@@ -177,6 +233,8 @@ class VidLabelingDispatchSequencerTest {
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       vidLabelingJobStub = vidLabelingJobStub,
       maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
+      rpcThrottlers = rpcThrottlers,
+      traceContextProvider = traceContextProvider,
     )
 
   /**
@@ -338,12 +396,19 @@ class VidLabelingDispatchSequencerTest {
     stubMarkPoolAssigning()
   }
 
-  private fun upload(id: String, state: RawImpressionUpload.State, createdAt: Instant) =
-    rawImpressionUpload {
-      name = "$DATA_PROVIDER/rawImpressionUploads/$id"
-      this.state = state
-      createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
-    }
+  private fun upload(
+    id: String,
+    state: RawImpressionUpload.State,
+    createdAt: Instant,
+    registrationComplete: Boolean = true,
+    processingDeferred: Boolean = false,
+  ) = rawImpressionUpload {
+    name = "$DATA_PROVIDER/rawImpressionUploads/$id"
+    this.state = state
+    createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
+    this.registrationComplete = registrationComplete
+    this.processingDeferred = processingDeferred
+  }
 
   private fun createdModelLine(id: String = "ml1") = rawImpressionUploadModelLine {
     name = "$DATA_PROVIDER/rawImpressionUploads/upload-1/modelLines/$id"
@@ -361,8 +426,9 @@ class VidLabelingDispatchSequencerTest {
     stubNonMemoizedFilesAndJobs()
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
     stubMarkTransitions()
+    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-    val result = createSequencer().dispatchNext()
+    val result = createSequencer(rpcThrottlers = recordingThrottlers.throttlers).dispatchNext()
 
     assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
     // Non-memoized line: one WorkItem per shard, then MarkLabeling once.
@@ -370,6 +436,92 @@ class VidLabelingDispatchSequencerTest {
     verifyBlocking(rawImpressionUploadModelLineService) {
       markRawImpressionUploadModelLineLabeling(any())
     }
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(3)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(4)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `dispatchNext skips upload while registration is incomplete`() = runBlocking {
+    stubUploads(
+      created =
+        listOf(
+          upload(
+            "upload-1",
+            RawImpressionUpload.State.CREATED,
+            FIXED_NOW,
+            registrationComplete = false,
+          )
+        )
+    )
+
+    val result = createSequencer().dispatchNext()
+
+    assertThat(result.dispatchedUpload).isNull()
+    assertThat(result.queuedUploads).isEqualTo(0)
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      listRawImpressionUploadModelLines(any())
+    }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `dispatchNext processes deferred uploads oldest first after fence release`() = runBlocking {
+    val d4 =
+      upload("upload-4", RawImpressionUpload.State.CREATED, FIXED_NOW, processingDeferred = true)
+    val d5 =
+      upload(
+        "upload-5",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW.plusSeconds(60),
+        processingDeferred = true,
+      )
+    stubUploads(created = listOf(d4, d5))
+
+    val sequencer = createSequencer()
+    assertThat(sequencer.dispatchNext().dispatchedUpload).isNull()
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      listRawImpressionUploadModelLines(any())
+    }
+
+    val releasedD4 = d4.copy { processingDeferred = false }
+    val releasedD5 = d5.copy { processingDeferred = false }
+    stubUploads(created = listOf(releasedD4, releasedD5))
+    stubModelLinesByParent(
+      mapOf(
+        d4.name to
+          listOf(modelLine(d4.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+        d5.name to
+          listOf(modelLine(d5.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+      )
+    )
+    stubMemoizedDispatch()
+
+    val first = sequencer.dispatchNext()
+    assertThat(first.dispatchedUpload).isEqualTo(d4.name)
+    assertThat(first.queuedUploads).isEqualTo(1)
+
+    stubUploads(created = listOf(releasedD5))
+    stubModelLinesByParent(
+      mapOf(
+        d5.name to
+          listOf(modelLine(d5.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED))
+      )
+    )
+    val second = sequencer.dispatchNext()
+    assertThat(second.dispatchedUpload).isEqualTo(d5.name)
+
+    val captor =
+      argumentCaptor<
+        org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLinePoolAssigningRequest
+      >()
+    verifyBlocking(rawImpressionUploadModelLineService, times(2)) {
+      markRawImpressionUploadModelLinePoolAssigning(captor.capture())
+    }
+    assertThat(captor.allValues.map { it.name })
+      .containsExactly("${d4.name}/modelLines/ml", "${d5.name}/modelLines/ml")
+      .inOrder()
   }
 
   @Test
@@ -447,8 +599,9 @@ class VidLabelingDispatchSequencerTest {
       )
       stubModelLines(createdModelLine())
       stubMemoizedDispatch()
+      val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-      val result = createSequencer().dispatchNext()
+      val result = createSequencer(rpcThrottlers = recordingThrottlers.throttlers).dispatchNext()
 
       assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
       // Memoized line: one PoolAssignmentJob batch, one SubpoolAssigner WorkItem per shard, then
@@ -461,6 +614,54 @@ class VidLabelingDispatchSequencerTest {
       verifyBlocking(rawImpressionUploadModelLineService, never()) {
         markRawImpressionUploadModelLineLabeling(any())
       }
+      assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(3)
+      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+      assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
+      assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
+      val dispatchSpan =
+        spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.dispatch" }
+      assertThat(dispatchSpan.attributes.get(VidLabelingTraceAttributes.PIPELINE_PHASE))
+        .isEqualTo("phase0")
+      assertThat(dispatchSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("succeeded")
+      assertThat(dispatchSpan.events.map { it.name })
+        .containsAtLeast(
+          "edpa.vid_labeling.dispatch.job",
+          "edpa.vid_labeling.dispatch.work_item",
+          "edpa.vid_labeling.dispatch.transition",
+        )
+      val jobEvents = dispatchSpan.events.filter { it.name == "edpa.vid_labeling.dispatch.job" }
+      assertThat(
+          jobEvents.mapNotNull {
+            it.attributes.get(VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME)
+          }
+        )
+        .hasSize(NUMBER_OF_SHARDS)
+      assertThat(jobEvents.map { it.attributes.get(XmmTraceAttributes.OUTCOME) }.toSet())
+        .containsExactly("resolved")
+      val workItemEvents =
+        dispatchSpan.events.filter { it.name == "edpa.vid_labeling.dispatch.work_item" }
+      assertThat(workItemEvents.mapNotNull { it.attributes.get(XmmTraceAttributes.WORK_ITEM_NAME) })
+        .hasSize(NUMBER_OF_SHARDS)
+      val transition =
+        dispatchSpan.events.single { it.name == "edpa.vid_labeling.dispatch.transition" }
+      assertThat(
+          transition.attributes.get(
+            VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME
+          )
+        )
+        .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1/modelLines/ml1")
+      assertThat(transition.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("pool_assigning")
+      val jobLogs =
+        logRecords.filter { it.message.contains("event=edpa.vid_labeling.dispatch.job ") }
+      assertThat(jobLogs).hasSize(NUMBER_OF_SHARDS)
+      jobLogs.forEach {
+        assertThat(it.message).contains("xmm.lifecycle.stage=dispatch")
+        assertThat(it.message).contains("xmm.outcome=resolved")
+      }
+      val workItemLogs =
+        logRecords.filter { it.message.contains("event=edpa.vid_labeling.dispatch.work_item ") }
+      assertThat(workItemLogs).hasSize(NUMBER_OF_SHARDS)
+      workItemLogs.forEach { assertThat(it.message).contains("xmm.work_item.name=workItems/") }
     }
 
   @Test
@@ -472,7 +673,7 @@ class VidLabelingDispatchSequencerTest {
       stubModelLines(createdModelLine())
       stubMemoizedDispatch()
 
-      createSequencer().dispatchNext()
+      createSequencer(traceContextProvider = { TRACE_CONTEXT }).dispatchNext()
 
       val captor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
@@ -481,11 +682,9 @@ class VidLabelingDispatchSequencerTest {
       val paramsByShard: Map<Int, SubpoolAssignerParams> =
         captor.allValues.associate { request ->
           assertThat(request.workItem.queue).isEqualTo(POOL_ASSIGNER_QUEUE_NAME)
-          val params =
-            request.workItem.workItemParams
-              .unpack<WorkItemParams>()
-              .appParams
-              .unpack<SubpoolAssignerParams>()
+          val workItemParams = request.workItem.workItemParams.unpack<WorkItemParams>()
+          assertThat(workItemParams.traceContextMap).containsExactlyEntriesIn(TRACE_CONTEXT)
+          val params = workItemParams.appParams.unpack<SubpoolAssignerParams>()
           params.shardIndex to params
         }
       assertThat(paramsByShard.keys).containsExactly(0, 1)
@@ -510,6 +709,9 @@ class VidLabelingDispatchSequencerTest {
         assertThat(params.eventTemplateDescriptorBlobUri)
           .isEqualTo(EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI)
         assertThat(params.eventTemplateType).isEqualTo(EVENT_TEMPLATE_TYPE)
+        // Same for the PopulationSpec: Phase-2 rejects a WorkItem without it, so dropping it here
+        // would strand the memoized fan-out on a crash-looping VidLabeler.
+        assertThat(params.populationSpecBlobUri).isEqualTo(POPULATION_SPEC_BLOB_URI)
       }
     }
 
@@ -563,6 +765,31 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
+  fun `dispatchNext records shard identities when PoolAssignmentJob creation fails`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any())).thenAnswer {
+        throw StatusException(Status.UNAVAILABLE.withDescription("metadata unavailable"))
+      }
+
+      assertFailsWith<StatusException> { createSequencer().dispatchNext() }
+
+      val failureLogs =
+        logRecords.filter {
+          it.message.contains("event=edpa.vid_labeling.dispatch.job ") &&
+            it.message.contains("xmm.outcome=failed")
+        }
+      assertThat(failureLogs).hasSize(NUMBER_OF_SHARDS)
+      assertThat(failureLogs.any { it.message.contains("xmm.edpa.shard_index=0") }).isTrue()
+      assertThat(failureLogs.any { it.message.contains("xmm.edpa.shard_index=1") }).isTrue()
+    }
+
+  @Test
   fun `dispatchNext tolerates an already-existing SubpoolAssigner WorkItem`() =
     runBlocking<Unit> {
       stubUploads(
@@ -578,13 +805,39 @@ class VidLabelingDispatchSequencerTest {
       }
       stubMarkPoolAssigning()
 
-      val result = createSequencer().dispatchNext()
+      val result = createSequencer(traceContextProvider = { TRACE_CONTEXT }).dispatchNext()
 
       // Idempotent: the upload is still dispatched and the transition still happens.
       assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
       verifyBlocking(rawImpressionUploadModelLineService) {
         markRawImpressionUploadModelLinePoolAssigning(any())
       }
+    }
+
+  @Test
+  fun `dispatchNext records a failed SubpoolAssigner WorkItem identifier`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      stubPoolAssignmentJobs()
+      whenever(workItemsService.createWorkItem(any())).thenAnswer {
+        throw StatusException(Status.UNAVAILABLE.withDescription("control plane unavailable"))
+      }
+
+      assertFailsWith<StatusException> { createSequencer().dispatchNext() }
+
+      val failureLog =
+        logRecords.single {
+          it.message.contains("event=edpa.vid_labeling.dispatch.work_item ") &&
+            it.message.contains("xmm.outcome=failed")
+        }
+      assertThat(failureLog.message).contains("xmm.work_item.name=workItems/")
+      assertThat(failureLog.message).contains("xmm.lifecycle.stage=dispatch")
+      assertThat(failureLog.message).contains("xmm.error.code=grpc.UNAVAILABLE")
     }
 
   @Test
@@ -604,11 +857,77 @@ class VidLabelingDispatchSequencerTest {
           rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
         )
         .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(
+          createdModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+        )
 
       // dispatchNext must not propagate the lost-race error.
       val result = createSequencer().dispatchNext()
 
       assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+    }
+
+  @Test
+  fun `dispatchNext does not retry a memoized claim rejected with FAILED_PRECONDITION`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      stubPoolAssignmentJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(
+          rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+        )
+        .thenAnswer {
+          throw StatusException(
+            Status.FAILED_PRECONDITION.withDescription("another upload owns the model line")
+          )
+        }
+
+      val result = createSequencer().dispatchNext()
+
+      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      verifyBlocking(rawImpressionUploadModelLineService, times(1)) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        getRawImpressionUploadModelLine(any())
+      }
+    }
+
+  @Test
+  fun `dispatchNext retries a memoized claim when only the parent etag changed`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      stubPoolAssignmentJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(
+          rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+        )
+        .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+        .thenReturn(
+          createdModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+        )
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(createdModelLine().copy { etag = "fresh-etag" })
+
+      val result = createSequencer().dispatchNext()
+
+      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      val requests = argumentCaptor<MarkRawImpressionUploadModelLinePoolAssigningRequest>()
+      verifyBlocking(rawImpressionUploadModelLineService, times(2)) {
+        markRawImpressionUploadModelLinePoolAssigning(requests.capture())
+      }
+      assertThat(requests.allValues.map { it.etag }).containsExactly(ETAG, "fresh-etag").inOrder()
     }
 
   @Test
@@ -757,6 +1076,30 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
+  fun `dispatchNext fails fast when a memoized model line lacks max_file_batch_size_bytes`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      val templateMissingMaxFileBatchSize =
+        SUBPOOL_ASSIGNER_PARAMS_TEMPLATE.copy { maxFileBatchSizeBytes = 0 }
+
+      val exception =
+        assertFailsWith<Exception> {
+          createSequencer(subpoolAssignerParamsTemplate = templateMissingMaxFileBatchSize)
+            .dispatchNext()
+        }
+
+      assertThat(exception).hasMessageThat().contains("max_file_batch_size_bytes missing")
+      verifyBlocking(poolAssignmentJobService, never()) { batchCreatePoolAssignmentJobs(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+    }
+
+  @Test
   fun `dispatchNext selects the oldest CREATED upload`() =
     runBlocking<Unit> {
       val older =
@@ -770,7 +1113,7 @@ class VidLabelingDispatchSequencerTest {
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       stubMarkTransitions()
 
-      val result = createSequencer().dispatchNext()
+      val result = createSequencer(traceContextProvider = { TRACE_CONTEXT }).dispatchNext()
 
       assertThat(result.dispatchedUpload)
         .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-old")
@@ -793,6 +1136,19 @@ class VidLabelingDispatchSequencerTest {
         .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-old")
       assertThat(vidLabelerParams.vidLabelingJob)
         .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-old/vidLabelingJobs/job-0")
+      assertThat(captor.firstValue.workItem.workItemParams.unpack<WorkItemParams>().traceContextMap)
+        .containsExactlyEntriesIn(TRACE_CONTEXT)
+      val dispatchSpan =
+        spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.dispatch" }
+      assertThat(dispatchSpan.attributes.get(VidLabelingTraceAttributes.PIPELINE_PHASE))
+        .isEqualTo("phase2")
+      val phase2Jobs = dispatchSpan.events.filter { it.name == "edpa.vid_labeling.dispatch.job" }
+      assertThat(
+          phase2Jobs.mapNotNull {
+            it.attributes.get(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME)
+          }
+        )
+        .isNotEmpty()
     }
 
   @Test
@@ -881,6 +1237,9 @@ class VidLabelingDispatchSequencerTest {
       assertThat(modelLineConfig.eventTemplateDescriptorBlobUri)
         .isEqualTo(EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI)
       assertThat(modelLineConfig.eventTemplateType).isEqualTo(EVENT_TEMPLATE_TYPE)
+      // And the PopulationSpec, which Phase-2 requires to set the assigned VID's population
+      // attributes. This rebuild silently drops anything not copied explicitly.
+      assertThat(modelLineConfig.populationSpecBlobUri).isEqualTo(POPULATION_SPEC_BLOB_URI)
     }
 
   @Test
@@ -1060,6 +1419,9 @@ class VidLabelingDispatchSequencerTest {
       "gs://descriptors/event-template-set.binpb"
     private const val EVENT_TEMPLATE_TYPE =
       "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+    private const val POPULATION_SPEC_BLOB_URI = "gs://configs/population-spec.textproto"
+    private val TRACE_CONTEXT =
+      mapOf("traceparent" to "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
     private val ACTIVE_START_TIME: Timestamp = Timestamps.fromSeconds(1_600_000_000L)
@@ -1077,10 +1439,6 @@ class VidLabelingDispatchSequencerTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://vid-labeled-bucket"
         }
-      vidRepoConnection = transportLayerSecurityParams {
-        clientCertResourcePath = "cert"
-        clientPrivateKeyResourcePath = "key"
-      }
     }
 
     private val SUBPOOL_ASSIGNER_PARAMS_TEMPLATE: SubpoolAssignerParams = subpoolAssignerParams {
@@ -1135,6 +1493,7 @@ class VidLabelingDispatchSequencerTest {
             optionalEntityKeyFieldMapping["creative"] = "cr_col"
             eventTemplateDescriptorBlobUri = EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI
             eventTemplateType = EVENT_TEMPLATE_TYPE
+            populationSpecBlobUri = POPULATION_SPEC_BLOB_URI
           },
         MODEL_LINE_2 to
           VidLabelerParamsKt.modelLineConfig {

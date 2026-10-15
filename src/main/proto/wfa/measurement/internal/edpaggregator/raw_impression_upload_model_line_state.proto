@@ -32,8 +32,11 @@ enum RawImpressionUploadModelLineState {
   RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING = 3;
   // VID labeling (Phase 2) is in progress.
   RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING = 4;
-  // All phases completed successfully. Terminal state.
+  // All phases completed successfully. Operator eviction may transition this
+  // state to `FAILED` when the completed output is invalid.
   RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED = 5;
-  // Processing failed.
+  // Processing failed or completed output was invalidated. Only failed
+  // processing attempts may be retried; invalidated output requires a
+  // replacement upload.
   RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED = 6;
 }

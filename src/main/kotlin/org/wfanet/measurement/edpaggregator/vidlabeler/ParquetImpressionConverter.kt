@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
-import com.google.protobuf.Any
 import com.google.protobuf.Descriptors
 import java.util.concurrent.ConcurrentHashMap
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
@@ -43,12 +42,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
  * @property eventDescriptor descriptor of the model line's EventTemplate event message, resolved by
  *   the runner from `ModelLineConfig.event_template_descriptor_blob_uri` + `event_template_type`.
  */
-class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descriptor) :
-  ImpressionConverter {
-  // The event Any type_url is identical for every row (it is a function of the event descriptor
-  // only), so cache it once instead of recomputing it in Any.pack per row.
-  private val eventTypeUrl: String = TYPE_URL_PREFIX + eventDescriptor.fullName
-
+class ParquetImpressionConverter(
+  private val eventDescriptor: Descriptors.Descriptor,
+  private val populationAttributeWriter: PopulationAttributeWriter,
+) : ImpressionConverter {
   // A converter instance may see more than one ModelLineConfig: the non-memoized path builds ONE
   // converter and calls convert() once per bundled model line's config. Cache the (path-resolved)
   // mappers per config in a lock-free ConcurrentHashMap — computeIfAbsent builds each config's
@@ -73,20 +70,22 @@ class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descri
     val mappers = mappersFor(config)
 
     val labelerInput = mappers.inputMapper.project(event.row)
-    // Byte-identical to Any.pack(message): the type_url is "type.googleapis.com/<fullName>" and the
-    // value is message.toByteString(); the type_url is cached because it never varies per row.
-    val eventMessage =
-      Any.newBuilder()
-        .setTypeUrl(eventTypeUrl)
-        .setValue(mappers.messageMapper.project(event.row).toByteString())
-        .build()
+    // Deferred, not built: the sink projects the event only after the model has assigned a VID,
+    // immediately before PopulationAttributeWriter corrects its population attributes. An event
+    // holding the DataProvider's uploaded demographics therefore never exists, and a row dropped
+    // upstream is never projected at all.
+    val buildEvent = { mappers.messageMapper.project(event.row) }
     // entity_keys are read per row from the mapped columns.
     val entityKeys = mappers.entityKeyMapper.map(event.row)
 
     return ConvertedImpression(
       labelerInput = labelerInput,
-      event = eventMessage,
+      buildEvent = buildEvent,
       entityKeys = entityKeys,
+      // Cannot be applied here: the VID model has not run yet, so the assigned VID -- and with it
+      // the subpopulation whose attributes describe this impression -- is unknown until the sink
+      // has a LabelerOutput.
+      populationAttributeWriter = populationAttributeWriter,
     )
   }
 
@@ -96,8 +95,4 @@ class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descri
     val messageMapper: EventMessageMapper,
     val entityKeyMapper: EntityKeyMapper,
   )
-
-  private companion object {
-    private const val TYPE_URL_PREFIX = "type.googleapis.com/"
-  }
 }

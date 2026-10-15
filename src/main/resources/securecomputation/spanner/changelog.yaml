@@ -16,3 +16,21 @@ databaseChangeLog:
   - include:
       file: create-securecomputation-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-work-item-publications.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-work-item-publication-retry-scheduling.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-work-item-generation.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-work-item-attempt-leases.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-work-item-publication-scheduling.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-work-item-dead-letter-publications.sql
+      relativeToChangeLogFile: true

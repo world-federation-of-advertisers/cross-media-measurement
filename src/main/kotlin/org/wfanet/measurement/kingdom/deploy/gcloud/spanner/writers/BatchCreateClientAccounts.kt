@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.generateNewExternalId
 import org.wfanet.measurement.common.generateNewInternalId
@@ -130,6 +132,16 @@ class BatchCreateClientAccounts(private val request: BatchCreateClientAccountsRe
       set("ClientAccountReferenceId" to clientAccount.clientAccountReferenceId)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
+
+    // A ClientAccount and an UnlinkedClientAccount are mutually exclusive for a given
+    // (DataProvider, reference ID): once the account is linked, remove any tracked unlinked row.
+    // Deleting a nonexistent key is a no-op.
+    transactionContext.buffer(
+      Mutation.delete(
+        "UnlinkedClientAccounts",
+        Key.of(dataProviderId.value, clientAccount.clientAccountReferenceId),
+      )
+    )
 
     return clientAccount.copy {
       this.externalClientAccountId = externalClientAccountId.value

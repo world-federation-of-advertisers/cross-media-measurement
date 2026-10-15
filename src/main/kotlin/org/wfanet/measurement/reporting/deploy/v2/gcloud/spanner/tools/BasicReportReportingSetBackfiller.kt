@@ -1,0 +1,450 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
+
+import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Timestamps
+import java.time.Instant
+import java.util.UUID
+import java.util.logging.Logger
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.internal.reporting.v2.BasicReport
+import org.wfanet.measurement.internal.reporting.v2.BasicReportResultDetails
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
+import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.updateBasicReportResultDetails
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
+import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
+
+/**
+ * Backfills `ReportingUnitComponentSummary.external_reporting_set_id` on stored `BasicReport`s.
+ *
+ * Every SUCCEEDED `BasicReport`, across all `MeasurementConsumer`s, is examined. Each component
+ * summary missing the field is resolved to the Campaign Group child `ReportingSet` whose membership
+ * equals the component's `event_group_summaries`; a `ReportingSet` is created for a membership that
+ * has no match.
+ *
+ * Neither database is written for a `BasicReport` unless all of its component summaries resolve:
+ * every membership is resolved before any `ReportingSet` is created, so a `BasicReport` that is
+ * skipped leaves no `ReportingSet` behind.
+ *
+ * Concurrent invocations are not safe. Each run builds its own in-memory view of the existing
+ * `ReportingSet`s, and the minted IDs are random, so two runs against the same environment can
+ * create duplicate `ReportingSet`s with identical membership without either reporting an error.
+ *
+ * @param dryRun when true, no write is issued to either database
+ */
+class BasicReportReportingSetBackfiller(
+  private val spannerClient: AsyncDatabaseClient,
+  private val postgresClient: PostgresDatabaseClient,
+  private val idGenerator: IdGenerator,
+  private val dryRun: Boolean,
+  /** When set, only BasicReports created after this are examined. */
+  private val createTimeAfter: Timestamp? = null,
+) {
+  /** Identifies a Campaign Group. `ReportingSet` IDs are unique per `MeasurementConsumer`. */
+  private data class CampaignGroupKey(
+    val cmmsMeasurementConsumerId: String,
+    val externalCampaignGroupId: String,
+  )
+
+  /** Outcome counts for a single [run]. */
+  data class Result(
+    val examined: Int,
+    val alreadyValid: Int,
+    val updated: Int,
+    val skipped: Int,
+    val componentSummariesFilled: Int,
+    val reportingSetsReused: Int,
+    val reportingSetsCreated: Int,
+    val unresolvedComponents: Int,
+    val unresolvableMetricSetComponents: Int,
+    /** Earliest create_time among the backfilled BasicReports, if any. */
+    val earliestCreateTime: Timestamp?,
+    /** Latest create_time among the backfilled BasicReports, if any. */
+    val latestCreateTime: Timestamp?,
+  ) {
+    // Timestamp's own toString is multi-line, which would break this onto several lines.
+    override fun toString(): String =
+      "Result(examined=$examined, alreadyValid=$alreadyValid, updated=$updated, " +
+        "skipped=$skipped, componentSummariesFilled=$componentSummariesFilled, " +
+        "reportingSetsReused=$reportingSetsReused, " +
+        "reportingSetsCreated=$reportingSetsCreated, " +
+        "unresolvedComponents=$unresolvedComponents, " +
+        "unresolvableMetricSetComponents=$unresolvableMetricSetComponents, " +
+        "earliestCreateTime=${formatTime(earliestCreateTime)}, " +
+        "latestCreateTime=${formatTime(latestCreateTime)})"
+  }
+
+  private var alreadyValid = 0
+  private var updated = 0
+  private var skipped = 0
+  private var componentSummariesFilled = 0
+  private val reusedReportingSetIds = mutableSetOf<String>()
+  private val mintedReportingSetIds = mutableSetOf<String>()
+  private var reportingSetsCreated = 0
+  private var unresolvedComponents = 0
+  private var unresolvableMetricSetComponents = 0
+  private var earliestCreateTime: Timestamp? = null
+  private var latestCreateTime: Timestamp? = null
+  private var examined = 0
+
+  /** ReportingSet membership index per Campaign Group, reused across `BasicReport`s. */
+  private val reportingSetIdsByCampaignGroup:
+    MutableMap<CampaignGroupKey, MutableMap<Set<ReportingSet.Primitive.EventGroupKey>, String>> =
+    mutableMapOf()
+
+  suspend fun run(): Result {
+    // BasicReports is interleaved in MeasurementConsumers, so scoping each query to a
+    // MeasurementConsumer turns a full table scan into a key-range read.
+    val cmmsMeasurementConsumerIds: List<String> =
+      spannerClient.readOnlyTransaction().use { txn ->
+        txn
+          .executeQuery(statement("SELECT CmmsMeasurementConsumerId FROM MeasurementConsumers"))
+          .map { it.getString("CmmsMeasurementConsumerId") }
+          .toList()
+      }
+    logger.info { "Scanning ${cmmsMeasurementConsumerIds.size} MeasurementConsumer(s)" }
+
+    for (cmmsMeasurementConsumerId in cmmsMeasurementConsumerIds) {
+      backfillMeasurementConsumer(cmmsMeasurementConsumerId)
+      // Campaign Groups belong to a single MeasurementConsumer.
+      reportingSetIdsByCampaignGroup.clear()
+    }
+
+    val result =
+      Result(
+        examined = examined,
+        alreadyValid = alreadyValid,
+        updated = updated,
+        skipped = skipped,
+        componentSummariesFilled = componentSummariesFilled,
+        reportingSetsReused = reusedReportingSetIds.size,
+        reportingSetsCreated = reportingSetsCreated,
+        unresolvedComponents = unresolvedComponents,
+        unresolvableMetricSetComponents = unresolvableMetricSetComponents,
+        earliestCreateTime = earliestCreateTime,
+        latestCreateTime = latestCreateTime,
+      )
+    printSummary(result)
+    logger.info { result.toString() }
+    return result
+  }
+
+  /** Pages through one MeasurementConsumer's SUCCEEDED BasicReports. */
+  private suspend fun backfillMeasurementConsumer(measurementConsumerId: String) {
+    var pageToken: ListBasicReportsPageToken? = null
+    do {
+      val page: List<BasicReportResult> =
+        spannerClient.readOnlyTransaction().use { txn ->
+          txn
+            .readBasicReports(
+              filter =
+                ListBasicReportsRequestKt.filter {
+                  cmmsMeasurementConsumerId = measurementConsumerId
+                  state = BasicReport.State.SUCCEEDED
+                  if (this@BasicReportReportingSetBackfiller.createTimeAfter != null) {
+                    createTimeAfter = this@BasicReportReportingSetBackfiller.createTimeAfter
+                  }
+                },
+              limit = PAGE_SIZE + 1,
+              pageToken = pageToken,
+            )
+            .toList()
+        }
+
+      val hasNextPage = page.size == PAGE_SIZE + 1
+      val basicReportResults = if (hasNextPage) page.subList(0, PAGE_SIZE) else page
+      for (basicReportResult in basicReportResults) {
+        examined++
+        backfillBasicReport(basicReportResult)
+      }
+
+      pageToken =
+        if (hasNextPage) {
+          val last = basicReportResults.last().basicReport
+          listBasicReportsPageToken {
+            lastBasicReport =
+              ListBasicReportsPageTokenKt.previousPageEnd {
+                createTime = last.createTime
+                cmmsMeasurementConsumerId = last.cmmsMeasurementConsumerId
+                externalBasicReportId = last.externalBasicReportId
+              }
+          }
+        } else {
+          null
+        }
+    } while (pageToken != null)
+  }
+
+  private suspend fun backfillBasicReport(basicReportResult: BasicReportResult) {
+    val basicReport: BasicReport = basicReportResult.basicReport
+    val externalBasicReportId: String = basicReport.externalBasicReportId
+
+    val unresolvableComponents: Int =
+      basicReport.resultDetails.resultGroupsList.sumOf { resultGroup ->
+        resultGroup.resultsList.sumOf { result ->
+          result.metricSet.reportingSetComponentsList.count { it.externalReportingSetId.isEmpty() }
+        }
+      }
+    if (unresolvableComponents > 0) {
+      logger.warning {
+        "BasicReport $externalBasicReportId has $unresolvableComponents " +
+          "metric_set.reporting_set_components entries without external_reporting_set_id. " +
+          "These carry no membership and cannot be backfilled."
+      }
+      unresolvableMetricSetComponents += unresolvableComponents
+    }
+
+    val resultDetailsBuilder: BasicReportResultDetails.Builder =
+      basicReport.resultDetails.toBuilder()
+    val emptyComponentSummaries =
+      resultDetailsBuilder.resultGroupsBuilderList
+        .flatMap { it.resultsBuilderList }
+        .flatMap {
+          it.metadataBuilder.reportingUnitSummaryBuilder.reportingUnitComponentSummaryBuilderList
+        }
+        .filter { it.externalReportingSetId.isEmpty() }
+
+    if (emptyComponentSummaries.isEmpty()) {
+      alreadyValid++
+      return
+    }
+
+    val campaignGroupKey =
+      CampaignGroupKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalCampaignGroupId)
+    val reportingSetIdsByMembership =
+      reportingSetIdsByCampaignGroup.getOrPut(campaignGroupKey) {
+        readCampaignGroupMembershipIndex(campaignGroupKey)
+      }
+
+    // Resolution is separated from minting so that the Postgres writes are gated on the same
+    // all-or-nothing guarantee as the Spanner write. Minting inline would leave a ReportingSet
+    // orphaned whenever a later component summary in the same BasicReport turns out unresolvable,
+    // since the BasicReport itself is then skipped.
+    //
+    // The component's own EventGroups are what the BasicReport was computed over. The internal
+    // EventGroupSummary carries only the EventGroup ID, so the DataProvider comes from the
+    // component summary.
+    val memberships: List<Set<ReportingSet.Primitive.EventGroupKey>> =
+      emptyComponentSummaries.map { componentSummary ->
+        @Suppress("DEPRECATION") // Only source of membership for these BasicReports.
+        val eventGroupSummaries = componentSummary.eventGroupSummariesList
+        eventGroupSummaries
+          .map {
+            ReportingSetKt.PrimitiveKt.eventGroupKey {
+              cmmsDataProviderId = componentSummary.cmmsDataProviderId
+              cmmsEventGroupId = it.cmmsEventGroupId
+            }
+          }
+          .toSet()
+      }
+
+    var unresolved = 0
+    for ((componentSummary, membership) in emptyComponentSummaries.zip(memberships)) {
+      if (membership.isEmpty()) {
+        logger.warning {
+          "BasicReport $externalBasicReportId has a component summary for DataProvider " +
+            "${componentSummary.cmmsDataProviderId} with no EventGroups. Cannot resolve."
+        }
+        unresolved++
+      }
+    }
+
+    unresolvedComponents += unresolved
+    if (unresolved > 0) {
+      logger.warning {
+        "BasicReport $externalBasicReportId left with $unresolved unresolved component(s); " +
+          "not updating."
+      }
+      skipped++
+      return
+    }
+
+    // Every component summary resolved, so minting cannot strand a ReportingSet.
+    for ((componentSummary, membership) in emptyComponentSummaries.zip(memberships)) {
+      val existingId: String? = reportingSetIdsByMembership[membership]
+      if (existingId != null) {
+        componentSummary.externalReportingSetId = existingId
+        componentSummariesFilled++
+        // A ReportingSet this run created and then found again in the index is not a reuse.
+        if (existingId !in mintedReportingSetIds) {
+          reusedReportingSetIds.add(existingId)
+        }
+        continue
+      }
+
+      val mintedId: String = mintReportingSet(campaignGroupKey, membership)
+      reportingSetIdsByMembership[membership] = mintedId
+      componentSummary.externalReportingSetId = mintedId
+      componentSummariesFilled++
+      mintedReportingSetIds.add(mintedId)
+      reportingSetsCreated++
+    }
+
+    recordCreateTime(basicReport.createTime)
+    if (dryRun) {
+      updated++
+      return
+    }
+
+    val resultDetails: BasicReportResultDetails = resultDetailsBuilder.build()
+    spannerClient.readWriteTransaction().run { txn ->
+      txn.updateBasicReportResultDetails(
+        measurementConsumerId = basicReportResult.measurementConsumerId,
+        basicReportId = basicReportResult.basicReportId,
+        resultDetails = resultDetails,
+      )
+    }
+    updated++
+  }
+
+  private fun recordCreateTime(createTime: Timestamp) {
+    val earliest = earliestCreateTime
+    if (earliest == null || Timestamps.compare(createTime, earliest) < 0) {
+      earliestCreateTime = createTime
+    }
+    val latest = latestCreateTime
+    if (latest == null || Timestamps.compare(createTime, latest) > 0) {
+      latestCreateTime = createTime
+    }
+  }
+
+  /**
+   * Prints a summary of [result] to stdout.
+   *
+   * The create_time range covers only the backfilled BasicReports, so it can be compared against
+   * the window in which the affected BasicReports were known to have been created.
+   */
+  private fun printSummary(result: Result) {
+    val verb = if (dryRun) "would be" else "were"
+    val rows =
+      listOf(
+        "BasicReports examined" to result.examined.toString(),
+        "Already valid" to result.alreadyValid.toString(),
+        "Backfilled" to result.updated.toString(),
+        "Skipped (unresolved components)" to result.skipped.toString(),
+        "Component summaries filled" to result.componentSummariesFilled.toString(),
+        "Backfilled create_time from" to formatTime(result.earliestCreateTime),
+        "Backfilled create_time to" to formatTime(result.latestCreateTime),
+        "ReportingSets reused" to result.reportingSetsReused.toString(),
+        "ReportingSets created" to result.reportingSetsCreated.toString(),
+        "Unresolved components" to result.unresolvedComponents.toString(),
+        "Unresolvable metric_set components" to result.unresolvableMetricSetComponents.toString(),
+      )
+    val width = rows.maxOf { it.first.length }
+    println()
+    println(if (dryRun) "Backfill summary (dry run, nothing written)" else "Backfill summary")
+    for ((label, value) in rows) {
+      println("  ${label.padEnd(width)}  $value")
+    }
+    println("  ${result.updated} BasicReport(s) $verb backfilled.")
+    println()
+  }
+
+  /** Indexes the Campaign Group's unfiltered primitive children by their EventGroup membership. */
+  private suspend fun readCampaignGroupMembershipIndex(
+    campaignGroupKey: CampaignGroupKey
+  ): MutableMap<Set<ReportingSet.Primitive.EventGroupKey>, String> {
+    val readContext = postgresClient.singleUse()
+    val reportingSets: List<ReportingSet> =
+      try {
+        ReportingSetReader(readContext)
+          .readReportingSets(
+            streamReportingSetsRequest {
+              filter =
+                StreamReportingSetsRequestKt.filter {
+                  cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+                  externalCampaignGroupId = campaignGroupKey.externalCampaignGroupId
+                }
+              limit = Int.MAX_VALUE
+            }
+          )
+          .map { it.reportingSet }
+          .toList()
+      } finally {
+        readContext.close()
+      }
+
+    // Matches the read path: unfiltered primitives only, keyed by exact EventGroup membership.
+    return reportingSets
+      .filter { it.filter.isEmpty() && it.hasPrimitive() }
+      .associateTo(mutableMapOf()) {
+        it.primitive.eventGroupKeysList.toSet() to it.externalReportingSetId
+      }
+  }
+
+  private suspend fun mintReportingSet(
+    campaignGroupKey: CampaignGroupKey,
+    membership: Set<ReportingSet.Primitive.EventGroupKey>,
+  ): String {
+    val newExternalReportingSetId = "a${UUID.randomUUID()}"
+    if (dryRun) {
+      logger.info {
+        "[dry run] Would create ReportingSet $newExternalReportingSetId under Campaign Group " +
+          "${campaignGroupKey.externalCampaignGroupId} with ${membership.size} EventGroup(s)"
+      }
+      return newExternalReportingSetId
+    }
+
+    val reportingSet: ReportingSet =
+      CreateReportingSet(
+          createReportingSetRequest {
+            externalReportingSetId = newExternalReportingSetId
+            reportingSet = internalReportingSet {
+              cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.externalCampaignGroupId
+              primitive = ReportingSetKt.primitive { eventGroupKeys += membership }
+            }
+          }
+        )
+        .execute(postgresClient, idGenerator)
+    logger.info {
+      "Created ReportingSet ${reportingSet.externalReportingSetId} under Campaign Group " +
+        "${campaignGroupKey.externalCampaignGroupId} with ${membership.size} EventGroup(s)"
+    }
+    return reportingSet.externalReportingSetId
+  }
+
+  companion object {
+    // A page is held in memory as parsed protos, so peak heap scales with this. Measured
+    // over 20k BasicReports with result details up to 1.5 MiB: 100 peaked at 4.7 GiB of
+    // resident memory, 20 at 1.0 GiB, for a 2.4x increase in wall time.
+    private const val PAGE_SIZE = 20
+
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private fun formatTime(timestamp: Timestamp?): String =
+      if (timestamp == null) "-"
+      else Instant.ofEpochSecond(timestamp.seconds, timestamp.nanos.toLong()).toString()
+  }
+}

@@ -36,6 +36,18 @@ service WorkItems {
     option (google.api.method_signature) = "work_item,work_item_id";
   }
 
+  // Ensures that a matching `WorkItem` exists.
+  //
+  // Creates the `WorkItem` and its pending publication when it does not exist.
+  // An existing matching `QUEUED` or `RUNNING` `WorkItem` is returned without
+  // creating another publication.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: Returning the ensured resource directly is more
+  //     ergonomic for this idempotent create-like method. --)
+  rpc EnsureWorkItem(EnsureWorkItemRequest) returns (WorkItem) {
+    option (google.api.method_signature) = "work_item,work_item_id";
+  }
+
   // Returns a `WorkItem`.
   rpc GetWorkItem(GetWorkItemRequest) returns (WorkItem) {
     option (google.api.method_signature) = "name";
@@ -48,7 +60,16 @@ service WorkItems {
   //
   // Set `WorkItemAttempt`s as FAILED.
   rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem) {
-    option (google.api.method_signature) = "name";
+    option (google.api.method_signature) = "name,expected_work_item_generation";
+  }
+
+  // Retries a failed `WorkItem`, a `RUNNING` `WorkItem` with no active attempt,
+  // or republishes a `QUEUED` `WorkItem`. If the previous `QUEUED` publication
+  // was acknowledged, this advances the `WorkItem` generation before
+  // publishing. To recover abandoned work, first fail the exact active attempt
+  // with `FailWorkItemAttempt`, then call this method.
+  rpc RetryWorkItem(RetryWorkItemRequest) returns (WorkItem) {
+    option (google.api.method_signature) = "name,expected_work_item_generation";
   }
 }
 
@@ -62,6 +83,18 @@ message CreateWorkItemRequest {
   string work_item_id = 1 [(google.api.field_behavior) = REQUIRED];
 
   // The `WorkItem` to create.
+  WorkItem work_item = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for `EnsureWorkItem` method.
+message EnsureWorkItemRequest {
+  // The ID of the `WorkItem` to ensure.
+  //
+  // This must conform to RFC 1034, with the additional restriction that all
+  // letters must be lower-case.
+  string work_item_id = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // The immutable `WorkItem` fields to create or match.
   WorkItem work_item = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
@@ -109,4 +142,32 @@ message FailWorkItemRequest {
     (google.api.resource_reference).type =
         "control-plane.secure-computation.halo-cmm.org/WorkItem"
   ];
+
+  // Expected execution generation from the delivered `WorkItem`. New clients
+  // must populate this field. Absence is interpreted as generation 1 only for
+  // legacy-client compatibility; an explicit value less than 1 is invalid.
+  //
+  // This prevents a stale queue delivery from failing a newer execution of
+  // the same `WorkItem`.
+  optional int64 expected_work_item_generation = 2
+      [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Request message for `RetryWorkItem` method.
+message RetryWorkItemRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type =
+        "control-plane.secure-computation.halo-cmm.org/WorkItem"
+  ];
+
+  // Expected execution generation of the `WorkItem`. New clients must
+  // populate this field. Absence is interpreted as generation 1 only for
+  // legacy-client compatibility; an explicit value less than 1 is invalid.
+  //
+  // This prevents a stale or replayed operator request from retrying a newer
+  // failed execution of the same `WorkItem`.
+  optional int64 expected_work_item_generation = 2
+      [(google.api.field_behavior) = OPTIONAL];
 }

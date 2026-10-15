@@ -99,7 +99,7 @@ jobs:
           build --define "image_tag=$IMAGE_TAG"
           build --define "pdp_name=$PDP_NAME"
           build --define "pdp_cert_name=$PDP_CERT_NAME"
-          build --define 'event_message_type_url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent'
+          build --define 'event_message_type_url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent'
           EOF
 
       - name: Set up Bazel
@@ -121,7 +121,7 @@ jobs:
           //src/main/k8s/testing/secretfiles:pdp1_tls_files.tar
           //src/main/k8s/testing/secretfiles:pdp1_consent_signaling_files.tar
           //src/main/k8s/testing/secretfiles:pdp_trusted_certs.pem
-          //src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set
+          //src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_descriptor_set
 
       - name: Make Kustomization dir
         run: mkdir -p "$KUSTOMIZATION_PATH"
@@ -148,7 +148,7 @@ jobs:
 
       - name: Copy event message descriptor set
         run: >
-          cp "$BAZEL_BIN/src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/test_event_descriptor_set.pb"
+          cp "$BAZEL_BIN/src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1/test_event_descriptor_set.pb"
           "$KUSTOMIZATION_PATH/src/main/k8s/dev/pdp_config/event_message_descriptor_set.pb"
 
       - name: Upload Kustomization artifact

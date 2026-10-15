@@ -62,6 +62,10 @@ message ComputationDetails {
     //
     // This may not be set for legacy Computations.
     int32 participant_count = 5;
+
+    // Resource name of the public API Measurement represented by this
+    // computation.
+    string measurement = 6;
   }
   KingdomComputationDetails kingdom_computation = 3;
 

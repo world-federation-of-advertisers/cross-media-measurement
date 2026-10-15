@@ -182,4 +182,20 @@ class ReportingApiServerFlags {
   )
   var systemMeasurementConsumerName: String? = null
     private set
+
+  @set:CommandLine.Option(
+    names = ["--kingdom-measurement-batch-concurrency"],
+    description =
+      [
+        "Number of concurrent batch requests to the Kingdom's BatchCreateMeasurements and " +
+          "BatchGetMeasurements RPCs when dispatching or syncing Measurements for a Report or " +
+          "Metric."
+      ],
+    defaultValue = "8",
+  )
+  var kingdomMeasurementBatchConcurrency: Int = 8
+    private set(value) {
+      require(value > 0) { "--kingdom-measurement-batch-concurrency must be greater than 0" }
+      field = value
+    }
 }

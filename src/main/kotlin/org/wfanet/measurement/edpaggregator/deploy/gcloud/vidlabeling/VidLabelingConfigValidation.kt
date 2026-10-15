@@ -47,6 +47,9 @@ fun requireValidModelLineConfigs(config: VidLabelingConfig) {
     require(modelLineConfig.eventTemplateType.isNotEmpty()) {
       "event_template_type missing for model line $modelLine on ${config.dataProvider}"
     }
+    require(modelLineConfig.populationSpecBlobUri.isNotEmpty()) {
+      "population_spec_blob_uri missing for model line $modelLine on ${config.dataProvider}"
+    }
     require(
       modelLineConfig.requiredEntityKeyFieldMappingMap.isNotEmpty() ||
         modelLineConfig.optionalEntityKeyFieldMappingMap.isNotEmpty()
@@ -82,5 +85,15 @@ fun requireValidStalenessThreshold(config: VidLabelingConfig) {
     "staleness_threshold ($stalenessThreshold) must be at least $MINIMUM_STALENESS_THRESHOLD for " +
       "data provider: ${config.dataProvider}; a shorter threshold risks recovering an in-flight " +
       "last-out as if it were stuck"
+  }
+}
+
+/**
+ * Fails fast (at Cloud Function boot / first tick) if [config] omits max_file_batch_size_bytes,
+ * which the memoized path would otherwise only reject inside the TEE at Phase-0.
+ */
+fun requireValidMaxFileBatchSizeBytes(config: VidLabelingConfig) {
+  require(config.maxFileBatchSizeBytes > 0) {
+    "max_file_batch_size_bytes must be set (> 0) for data provider: ${config.dataProvider}"
   }
 }

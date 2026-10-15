@@ -63,6 +63,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase as InternalRankIndexBlobServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub as InternalRankIndexBlobServiceCoroutineStub
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 
 @RunWith(JUnit4::class)
@@ -71,6 +72,9 @@ class RankIndexBlobServiceTest {
   private lateinit var service: RankIndexBlobService
 
   private var nextUploadId: Long = 1L
+  private var nextModelLineId: Long = 1L
+  private val uploadIdsByResourceId = mutableMapOf<String, Long>()
+  private val modelLineIdsByUploadResourceId = mutableMapOf<String, Long>()
 
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
@@ -95,7 +99,7 @@ class RankIndexBlobServiceTest {
     rawImpressionUploadResourceId: String,
   ) {
     val uploadId = nextUploadId++
-    val mutation =
+    val uploadMutation =
       Mutation.newInsertBuilder("RawImpressionUpload")
         .set("DataProviderResourceId")
         .to(dataProviderResourceId)
@@ -112,7 +116,56 @@ class RankIndexBlobServiceTest {
         .set("UpdateTime")
         .to(Value.COMMIT_TIMESTAMP)
         .build()
-    spannerDatabase.databaseClient.write(listOf(mutation))
+    uploadIdsByResourceId[rawImpressionUploadResourceId] = uploadId
+    val modelLineId = nextModelLineId++
+    modelLineIdsByUploadResourceId[rawImpressionUploadResourceId] = modelLineId
+    val modelLineMutation =
+      Mutation.newInsertBuilder("RawImpressionUploadModelLine")
+        .set("DataProviderResourceId")
+        .to(dataProviderResourceId)
+        .set("RawImpressionUploadId")
+        .to(uploadId)
+        .set("RawImpressionUploadModelLineId")
+        .to(modelLineId)
+        .set("RawImpressionUploadModelLineResourceId")
+        .to("ml-${UUID.randomUUID()}")
+        .set("CmmsModelLine")
+        .to(CMMS_MODEL_LINE)
+        .set("State")
+        .to(
+          Value.protoEnum(
+            RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING
+          )
+        )
+        .set("PoolOffsets")
+        .toInt64Array(emptyList())
+        .set("CreateTime")
+        .to(Value.COMMIT_TIMESTAMP)
+        .set("UpdateTime")
+        .to(Value.COMMIT_TIMESTAMP)
+        .build()
+    spannerDatabase.databaseClient.write(listOf(uploadMutation, modelLineMutation))
+  }
+
+  private suspend fun setParentModelLineState(state: RawImpressionUploadModelLineState) {
+    val uploadId = checkNotNull(uploadIdsByResourceId[RAW_IMPRESSION_UPLOAD_ID])
+    val modelLineId = checkNotNull(modelLineIdsByUploadResourceId[RAW_IMPRESSION_UPLOAD_ID])
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUploadModelLine")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadId")
+          .to(uploadId)
+          .set("RawImpressionUploadModelLineId")
+          .to(modelLineId)
+          .set("State")
+          .to(Value.protoEnum(state))
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
   }
 
   private suspend fun createBlob(
@@ -167,6 +220,19 @@ class RankIndexBlobServiceTest {
       assertThat(blob.encryptedDek).isEqualTo(ENCRYPTED_DEK)
       assertThat(blob.hasCreateTime()).isTrue()
       assertThat(blob.hasDeleteTime()).isFalse()
+    }
+
+  @Test
+  fun `createRankIndexBlob returns FAILED_PRECONDITION after model line failure`() =
+    runBlocking<Unit> {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      setParentModelLineState(
+        RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED
+      )
+
+      val exception = assertFailsWith<StatusRuntimeException> { createBlob() }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   @Test

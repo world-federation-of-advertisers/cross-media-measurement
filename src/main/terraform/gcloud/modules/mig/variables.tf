@@ -12,6 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "enabled" {
+  description = "Whether this Managed Instance Group may run instances."
+  type        = bool
+  default     = true
+}
+
+variable "work_item_consumption_enabled" {
+  description = "Whether a WorkItem TEE application may consume Pub/Sub deliveries. Null for non-WorkItem applications."
+  type        = bool
+  default     = null
+}
+
 variable "instance_template_name" {
   description = "The name of the instance template."
   type        = string
@@ -44,8 +56,8 @@ variable "mig_distribution_policy_zones" {
 variable "secrets_to_access" {
   description = "List of secrets to access from the VM"
   type = list(object({
-    secret_id  = string
-    version    = string
+    secret_id = string
+    version   = string
   }))
   default = []
 }

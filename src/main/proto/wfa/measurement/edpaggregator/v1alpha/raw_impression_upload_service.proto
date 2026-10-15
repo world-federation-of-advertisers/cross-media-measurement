@@ -39,10 +39,96 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload resources for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse) {}
+
+  // Marks registration of an upload's files and model lines complete. Throws
+  // `ABORTED` if `etag` does not match (AIP-154).
+  rpc MarkRawImpressionUploadRegistrationComplete(
+      MarkRawImpressionUploadRegistrationCompleteRequest)
+      returns (RawImpressionUpload) {}
+
+  // Acquires a data-provider-wide fence before evicting VID-labeling output.
+  // The same operation ID may reacquire the fence to resume an interrupted
+  // eviction.
+  rpc AcquireRawImpressionUploadEvictionFence(
+      AcquireRawImpressionUploadEvictionFenceRequest)
+      returns (AcquireRawImpressionUploadEvictionFenceResponse) {}
+
+  // Releases the data-provider-wide fence after upload healing completes.
+  rpc ReleaseRawImpressionUploadEvictionFence(
+      ReleaseRawImpressionUploadEvictionFenceRequest)
+      returns (ReleaseRawImpressionUploadEvictionFenceResponse) {}
+}
+
+// Request message for `AcquireRawImpressionUploadEvictionFence`.
+message AcquireRawImpressionUploadEvictionFenceRequest {
+  // The data provider whose VID-labeling pipeline is being evicted.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // UUID4 identifying this resumable eviction operation.
+  string eviction_operation_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Response from acquiring the VID-labeling eviction fence.
+message AcquireRawImpressionUploadEvictionFenceResponse {
+  // Whether this request created the fence instead of reacquiring it for the
+  // same eviction operation.
+  bool newly_acquired = 1;
+}
+
+// Request message for `ReleaseRawImpressionUploadEvictionFence`.
+message ReleaseRawImpressionUploadEvictionFenceRequest {
+  // The data provider whose VID-labeling eviction has completed.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // UUID4 identifying the operation that owns the fence.
+  string eviction_operation_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Response from releasing the VID-labeling eviction fence.
+message ReleaseRawImpressionUploadEvictionFenceResponse {}
+
+// Request message for `MarkRawImpressionUploadRegistrationComplete`.
+message MarkRawImpressionUploadRegistrationCompleteRequest {
+  // Resource name of the RawImpressionUpload.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // The etag of the `RawImpressionUpload` for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A UUID4 request ID used to make the operation idempotent. The dispatcher
+  // derives this deterministically from `name` and the observed `etag`.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
 // Request message for the `CreateRawImpressionUpload` method.
 message CreateRawImpressionUploadRequest {
+  reserved 4;
+  reserved "eviction_operation_id";
+
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
   string parent = 1 [
@@ -127,6 +213,9 @@ message ListRawImpressionUploadsRequest {
     //     for set-membership filter fields. --)
     google.type.Interval create_time_in = 2
         [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter by the exact Cloud Storage URI of the done blob.
+    string done_blob_uri = 3 [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Optional. A filter to apply to the results.

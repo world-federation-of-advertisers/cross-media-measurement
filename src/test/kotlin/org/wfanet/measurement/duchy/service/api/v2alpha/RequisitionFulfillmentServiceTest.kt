@@ -21,6 +21,12 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.trace.StatusCode
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +34,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -62,10 +69,12 @@ import org.wfanet.measurement.api.v2alpha.randomSeed
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.HexString
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
 import org.wfanet.measurement.duchy.storage.RequisitionStore
@@ -206,9 +215,22 @@ class RequisitionFulfillmentServiceTest {
 
   private lateinit var requisitionStore: RequisitionStore
   private lateinit var service: RequisitionFulfillmentService
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   @Before
   fun initService() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     requisitionStore = RequisitionStore(InMemoryStorageClient())
     service =
       RequisitionFulfillmentService(
@@ -218,6 +240,11 @@ class RequisitionFulfillmentServiceTest {
         requisitionStore,
         Dispatchers.Default,
       )
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
   }
 
   @Test
@@ -263,6 +290,14 @@ class RequisitionFulfillmentServiceTest {
           nonce = NONCE
         }
       )
+    val traceSpans = spanExporter.finishedSpanItems.associateBy { it.name }
+    assertThat(traceSpans.keys)
+      .containsAtLeast("duchy.requisition.acceptance", "duchy.requisition.kingdom_fulfillment")
+    for (span in traceSpans.values) {
+      assertThat(span.attributes.get(ReportTraceAttributes.REQUISITION_NAME)).isEqualTo(HEADER.name)
+      assertThat(span.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ID)
+      assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
+    }
   }
 
   @Test
@@ -709,6 +744,52 @@ class RequisitionFulfillmentServiceTest {
       }
     assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(e).hasMessageThat().contains("nonce")
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("duchy.requisition.acceptance")
+    assertThat(span.status.statusCode).isEqualTo(StatusCode.ERROR)
+    assertThat(span.attributes.get(ReportTraceAttributes.REQUISITION_NAME)).isEqualTo(HEADER.name)
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("duchy_requisition_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+  }
+
+  @Test
+  fun `Kingdom fulfillment failure is traced after local acceptance`() = runBlocking {
+    val fakeToken = computationToken {
+      globalComputationId = COMPUTATION_ID
+      computationStage = computationStage {
+        liquidLegionsSketchAggregationV2 = Llv2Stage.INITIALIZATION_PHASE
+      }
+      computationDetails = COMPUTATION_DETAILS
+      requisitions += REQUISITION_METADATA
+    }
+    computationsServiceMock.stub {
+      onBlocking { getComputationToken(any()) }
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
+    }
+    requisitionsServiceMock.stub {
+      onBlocking { fulfillRequisition(any()) }.thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    }
+
+    assertFailsWith<Exception> {
+      withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+        service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA))
+      }
+    }
+
+    val traceSpans = spanExporter.finishedSpanItems.associateBy { it.name }
+    assertThat(
+        traceSpans
+          .getValue("duchy.requisition.acceptance")
+          .attributes
+          .get(ReportTraceAttributes.OUTCOME)
+      )
+      .isEqualTo("succeeded")
+    val kingdomSpan = traceSpans.getValue("duchy.requisition.kingdom_fulfillment")
+    assertThat(kingdomSpan.status.statusCode).isEqualTo(StatusCode.ERROR)
+    assertThat(kingdomSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(kingdomSpan.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.UNAVAILABLE")
   }
 
   @Test

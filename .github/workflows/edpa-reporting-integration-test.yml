@@ -1,0 +1,148 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Run EDPA Reporting Integration Test
+
+run-name: Run EDPA Reporting Integration Test [${{ inputs.environment }}]
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - head
+
+permissions:
+  contents: read
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Write ~/.bazelrc
+        env:
+          KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+          MC_NAME: ${{ vars.MC_NAME }}
+          MC_API_KEY: ${{ secrets.MC_API_KEY }}
+          STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
+          REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
+          REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
+          REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
+          ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
+          HIGH_OVERLAP_MODEL_LINE: ${{ vars.HIGH_OVERLAP_MODEL_LINE }}
+          HIGH_OVERLAP_EDPS: ${{ vars.HIGH_OVERLAP_EDPS }}
+          PDP_NAME: ${{ vars.PDP_NAME }}
+          EDP7_KEK_URI: ${{ vars.EDP7_KEK_URI }}
+          EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
+          EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
+          EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
+          build --define mc_name=$MC_NAME
+          build --define mc_api_key=$MC_API_KEY
+          build --define storage_bucket=$STORAGE_BUCKET
+          build --define reporting_service_endpoint=$REPORTING_SERVICE_ENDPOINT
+          build --define reporting_token_audience=$REPORTING_TOKEN_AUDIENCE
+          build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
+          build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
+          build --define high_overlap_model_line=$HIGH_OVERLAP_MODEL_LINE
+          build --define high_overlap_edps=$HIGH_OVERLAP_EDPS
+          build --define pdp_name=$PDP_NAME
+          build --define edp7_kek_uri=$EDP7_KEK_URI
+          build --define edpa_meta_kek_uri=$EDPA_META_KEK_URI
+          build --define edpa_meta_aws_role_arn=$EDPA_META_AWS_ROLE_ARN
+          build --define edpa_meta_aws_region=$EDPA_META_AWS_REGION
+          test --test_output=streamed
+          test --test_timeout=5400
+          EOF
+
+      # Reduce chance of disconnection from the Build Event Service.
+      - name: Set TCP keepalive
+        run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+
+      # The edpa_meta AWS KMS client authenticates via web-identity federation using a Google
+      # (accounts.google.com) OIDC token. The AWS role EDPA_META_AWS_ROLE_ARN
+      # (GcpSyntheticDataKmsRole) trusts the CI service account's numeric subject
+      # (accounts.google.com:sub) and has no audience condition. Mint a fresh id_token for the CI
+      # service account here (right before the test, for maximum validity headroom) and point
+      # AWS_WEB_IDENTITY_TOKEN_FILE at it.
+      - name: Mint Google web-identity token for AWS
+        id: aws_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          token_format: 'id_token'
+          id_token_audience: ${{ vars.EDPA_META_AWS_AUDIENCE }}
+          create_credentials_file: false
+          export_environment_variables: false
+
+      - name: Write AWS web-identity token file
+        env:
+          AWS_WEB_IDENTITY_ID_TOKEN: ${{ steps.aws_auth.outputs.id_token }}
+        run: |
+          token_file="$RUNNER_TEMP/aws-web-identity-token"
+          printf '%s' "$AWS_WEB_IDENTITY_ID_TOKEN" > "$token_file"
+          chmod 600 "$token_file"
+          echo "AWS_WEB_IDENTITY_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
+
+      - name: Run tests
+        id: run-tests
+        run: |
+          bazel test \
+          --test_env=GOOGLE_APPLICATION_CREDENTIALS \
+          --test_env=GOOGLE_CLOUD_PROJECT \
+          --test_env=AWS_WEB_IDENTITY_TOKEN_FILE \
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorReportingIntegrationTest
+
+      - name: Upload Bazel testlogs
+        continue-on-error: true
+        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
+        if: failure() && steps.run-tests.outcome == 'failure'

@@ -93,6 +93,7 @@ jobs:
           - duchy/spanner-update-schema
           - duchy/trus-tee-mill
           - edp-aggregator/internal-api
+          - edp-aggregator/recover-missing-impression-metadata
           - edp-aggregator/results_fulfiller
           - edp-aggregator/system-api
           - edp-aggregator/update-schema

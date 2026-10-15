@@ -122,3 +122,6 @@ databaseChangeLog:
 - include:
     file: add-model-shard-memoized-vid-assignment-flag.sql
     relativeToChangeLogFile: true
+- include:
+    file: create-unlinked-client-accounts-table.sql
+    relativeToChangeLogFile: true

@@ -95,6 +95,12 @@ variable "message_retention_duration" {
   default     = "604800s" # 7 days
 }
 
+variable "retry_on_failure" {
+  description = "Whether Eventarc retries failed Cloud Function invocations."
+  type        = bool
+  default     = true
+}
+
 variable "alert_notification_channels" {
   description = "List of Cloud Monitoring notification channel IDs for DLQ alerts. If empty, the alert fires but no notification is sent."
   type        = list(string)
@@ -106,4 +112,18 @@ variable "uploaded_config_generation" {
   type        = string
   nullable    = true
   default     = null
+}
+
+variable "timeout_seconds" {
+  description = "Function request timeout in seconds. Null uses the gcloud default (60s for gen2)."
+  type        = number
+  nullable    = true
+  default     = null
+
+  validation {
+    condition = var.timeout_seconds == null ? true : (
+      var.timeout_seconds >= 1 && var.timeout_seconds <= 540
+    )
+    error_message = "timeout_seconds must be between 1 and 540 for an event-driven gen2 function."
+  }
 }

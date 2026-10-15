@@ -73,6 +73,7 @@ import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoro
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub as InternalPublicKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub as InternalRecurringExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub as InternalUnlinkedClientAccountsCoroutineStub
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfigFlags
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -106,6 +107,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PopulationsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PublicKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.UnlinkedClientAccountsService
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V2alphaPublicApiServer"
@@ -217,6 +219,17 @@ private fun run(
           akidInterceptor,
         ),
       ClientAccountsService(InternalClientAccountsCoroutineStub(channel), serviceDispatcher)
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          apiKeyPrincipalInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
+      UnlinkedClientAccountsService(
+          InternalUnlinkedClientAccountsCoroutineStub(channel),
+          serviceDispatcher,
+        )
         .withInterceptors(
           apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
@@ -523,7 +536,8 @@ private class V2alphaFlags {
       when (noiseMechanism) {
         NoiseMechanism.NONE,
         NoiseMechanism.CONTINUOUS_LAPLACE,
-        NoiseMechanism.CONTINUOUS_GAUSSIAN -> {}
+        NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE -> {}
         NoiseMechanism.GEOMETRIC,
         // TODO(@riemanli): support DISCRETE_GAUSSIAN after having a clear definition of it.
         NoiseMechanism.DISCRETE_GAUSSIAN -> {
@@ -535,7 +549,6 @@ private class V2alphaFlags {
             ),
           )
         }
-        NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
         NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
         NoiseMechanism.UNRECOGNIZED -> {
           throw CommandLine.ParameterException(

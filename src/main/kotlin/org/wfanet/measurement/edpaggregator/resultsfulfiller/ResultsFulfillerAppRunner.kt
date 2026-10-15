@@ -23,6 +23,7 @@ import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
+import java.time.Duration
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -30,6 +31,7 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -39,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -183,11 +186,45 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   )
   private var pipelineReadConcurrency: Int = 16
 
+  @CommandLine.Option(
+    names = ["--get-requisition-min-interval"],
+    description =
+      [
+        "Minimum interval between outbound GetRequisition calls to Kingdom. Paces this app's " +
+          "GetRequisition traffic to stay within Kingdom's per-principal rate limit for that " +
+          "method, which is shared across every concurrent instance of this app authenticating " +
+          "as the same data provider."
+      ],
+    defaultValue = "100ms",
+  )
+  private lateinit var getRequisitionMinInterval: Duration
+
+  @CommandLine.Option(
+    names = ["--kingdom-requisitions-min-interval"],
+    description =
+      [
+        "Minimum interval between outbound FulfillDirectRequisition/RefuseRequisition calls to " +
+          "Kingdom. These share Kingdom's default per-principal rate-limit bucket (5 " +
+          "requests/second average, 20 burst) with other Kingdom RPC methods without a " +
+          "dedicated per-method limit (GetRequisition and ListRequisitions have their own). " +
+          "2.5s leaves 20% headroom for a 10-instance fleet sharing the 5/second bucket."
+      ],
+    defaultValue = "2.5s",
+  )
+  private lateinit var kingdomRequisitionsMinInterval: Duration
+
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
 
   override fun run() {
+    require(getRequisitionMinInterval > Duration.ZERO) {
+      "--get-requisition-min-interval must be positive, got $getRequisitionMinInterval"
+    }
+    require(kingdomRequisitionsMinInterval > Duration.ZERO) {
+      "--kingdom-requisitions-min-interval must be positive, got $kingdomRequisitionsMinInterval"
+    }
+
     // Pull certificates needed to operate from Google Secrets.
     saveCommonEdpaCerts()
     saveExtraEdpaCerts()
@@ -222,7 +259,23 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         grpcTelemetry = grpcTelemetry,
       )
 
-    val modelLinesMap = runBlockingWithTelemetry { buildModelLineMap() }
+    val modelLinesMap = runBlockingWithTelemetry {
+      ModelLineInfoMapBuilder(
+          ::loadDescriptorSetFromBlob,
+          ::loadPopulationSpecFromBlob,
+          ::buildVidIndexMapWithMetrics,
+        )
+        .build(
+          modelLines.map {
+            ModelLineSource(
+              modelLine = it.modelLine,
+              populationSpecFileBlobUri = it.populationSpecFileBlobUri,
+              eventTemplateDescriptorBlobUri = it.eventTemplateDescriptorBlobUri,
+              eventTemplateTypeName = it.eventTemplateTypeName,
+            )
+          }
+        )
+    }
 
     val cpuCount = Runtime.getRuntime().availableProcessors()
     val pipelineConfiguration =
@@ -252,6 +305,10 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
         modelLineInfoMap = modelLinesMap,
         pipelineConfiguration = pipelineConfiguration,
+        requisitionsThrottler =
+          MaximumRateThrottler(1_000_000_000.0 / getRequisitionMinInterval.toNanos()),
+        kingdomThrottler =
+          MaximumRateThrottler(1_000_000_000.0 / kingdomRequisitionsMinInterval.toNanos()),
         metrics = metrics,
       )
 
@@ -326,39 +383,36 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
     }
   }
 
-  private suspend fun buildModelLineMap(): Map<String, ModelLineInfo> {
-    return modelLines.associate { it: ModelLineFlags ->
-      val configContent: ByteArray =
-        getResultsFulfillerConfigAsByteArray(googleProjectId, it.populationSpecFileBlobUri)
-      val eventDescriptorBytes =
-        getResultsFulfillerConfigAsByteArray(googleProjectId, it.eventTemplateDescriptorBlobUri)
-      val fileDescriptorSet =
-        DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
-      val descriptors: List<Descriptors.Descriptor> =
-        ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
-      val typeName = it.eventTemplateTypeName
-      val eventDescriptor =
-        descriptors.firstOrNull { it.fullName == typeName }
-          ?: error("Descriptor not found for type: $typeName")
-      // Build a TypeRegistry containing all descriptors from the supplied
-      // FileDescriptorSet so that the PopulationSpec textproto can resolve any
-      // event template attribute messages packed in google.protobuf.Any (e.g. a
-      // Person event template attribute on each SubPopulation).
-      val populationSpecTypeRegistry: TypeRegistry =
-        TypeRegistry.newBuilder().add(descriptors).build()
-      val populationSpec =
-        configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
-          parseTextProto(reader, PopulationSpec.getDefaultInstance(), populationSpecTypeRegistry)
-        }
-      val vidIndexMap =
-        metrics.vidIndexBuildDuration.measured { ParallelInMemoryVidIndexMap.build(populationSpec) }
-      it.modelLine to
-        ModelLineInfo(
-          populationSpec = populationSpec,
-          vidIndexMap = vidIndexMap,
-          eventDescriptor = eventDescriptor,
-          localAlias = null,
-        )
+  /** Downloads and parses the descriptor set at [descriptorBlobUri] from blob storage. */
+  private suspend fun loadDescriptorSetFromBlob(
+    descriptorBlobUri: String
+  ): List<Descriptors.Descriptor> {
+    val eventDescriptorBytes =
+      getResultsFulfillerConfigAsByteArray(googleProjectId, descriptorBlobUri)
+    val fileDescriptorSet =
+      DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
+    return ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
+  }
+
+  /**
+   * Downloads and parses the [PopulationSpec] at [populationSpecBlobUri] from blob storage, using
+   * [typeRegistry] to resolve any event template attribute messages packed in google.protobuf.Any
+   * (e.g. a Person event template attribute on each SubPopulation).
+   */
+  private suspend fun loadPopulationSpecFromBlob(
+    populationSpecBlobUri: String,
+    typeRegistry: TypeRegistry,
+  ): PopulationSpec {
+    val configContent = getResultsFulfillerConfigAsByteArray(googleProjectId, populationSpecBlobUri)
+    return configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
+      parseTextProto(reader, PopulationSpec.getDefaultInstance(), typeRegistry)
+    }
+  }
+
+  /** Builds the [VidIndexMap] for [populationSpec], timed via [metrics]. */
+  private suspend fun buildVidIndexMapWithMetrics(populationSpec: PopulationSpec): VidIndexMap {
+    return metrics.vidIndexBuildDuration.measured {
+      ParallelInMemoryVidIndexMap.build(populationSpec)
     }
   }
 

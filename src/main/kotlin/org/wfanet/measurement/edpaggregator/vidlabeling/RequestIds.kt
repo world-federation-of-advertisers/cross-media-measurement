@@ -33,6 +33,10 @@ object RequestIds {
   fun forRawImpressionUpload(doneBlobPath: String, generation: Long): String =
     fromKey("rawImpressionUpload:$doneBlobPath:$generation")
 
+  /** `request_id` for completing one observed version of a `RawImpressionUpload`. */
+  fun forRawImpressionUploadRegistrationComplete(uploadName: String, etag: String): String =
+    fromKey("rawImpressionUploadRegistrationComplete:$uploadName:$etag")
+
   /**
    * `request_id` for creating a `RawImpressionUploadFile`.
    *
@@ -111,8 +115,36 @@ object RequestIds {
   fun forMarkRawImpressionUploadModelLineCompleted(modelLineName: String): String =
     fromKey("markRawImpressionUploadModelLineCompleted:$modelLineName")
 
-  fun forMarkRawImpressionUploadModelLineFailed(modelLineName: String): String =
-    fromKey("markRawImpressionUploadModelLineFailed:$modelLineName")
+  fun forMarkRawImpressionUploadModelLineFailed(modelLineName: String, etag: String): String =
+    fromKey("markRawImpressionUploadModelLineFailed:$modelLineName:$etag")
+
+  /** `request_id` for invalidating a model line during operator eviction. */
+  fun forEvictRawImpressionUploadModelLine(modelLineName: String, etag: String): String =
+    fromKey("evictRawImpressionUploadModelLine:$modelLineName:$etag")
+
+  /** `request_id` for creating a durable upload-healing operation. */
+  fun forUploadHealingOperation(operationId: String): String =
+    fromKey("uploadHealingOperation:$operationId")
+
+  /** `request_id` for recording one durable upload-healing checkpoint and its evidence. */
+  fun forUploadHealingStep(stepName: String, checkpoint: String, evidence: String): String =
+    fromKey("uploadHealingStep:$stepName:$checkpoint:$evidence")
+
+  /** `request_id` for retrying a specific model-line failure at Phase 0. */
+  fun forHealingRetryPoolAssigning(modelLineName: String, failureAttemptId: String): String =
+    fromKey("healingRetryPoolAssigning:$modelLineName:$failureAttemptId")
+
+  /** `request_id` for retrying a specific model-line failure at Phase 1. */
+  fun forHealingRetryRanking(modelLineName: String, failureAttemptId: String): String =
+    fromKey("healingRetryRanking:$modelLineName:$failureAttemptId")
+
+  /** `request_id` for retrying a specific model-line failure at Phase 2. */
+  fun forHealingRetryLabeling(modelLineName: String, failureAttemptId: String): String =
+    fromKey("healingRetryLabeling:$modelLineName:$failureAttemptId")
+
+  /** WorkItem id for retrying [originalWorkItemId] after a specific model-line failure. */
+  fun forRetriedWorkItem(originalWorkItemId: String, failureAttemptId: String): String =
+    "rt-${fromKey("retryWorkItem:$originalWorkItemId:$failureAttemptId")}"
 
   private fun fromKey(key: String): String {
     // Render the deterministic (name-based) id in the RFC 4122 version-4 layout so the value

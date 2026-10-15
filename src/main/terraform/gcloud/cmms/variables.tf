@@ -144,6 +144,18 @@ variable "results_fulfiller_population_spec_file_path" {
   nullable    = false
 }
 
+variable "vid_labeler_population_spec_file_path" {
+  description = "Path to the VID Labeler population spec file. Describes the VID pools of the compiled model the pipeline labels with, so labeled impressions carry the demographics the model assigned rather than the ones the DataProvider declared. Resolved relative to the Terraform working directory."
+  type        = string
+  nullable    = false
+}
+
+variable "vid_labeler_population_spec_blob_uri" {
+  description = "Cloud Storage URI of the uploaded VID Labeler population spec. Not consumed by Terraform: it is the value each model line's `population_spec_blob_uri` must carry in the deployed VidLabelingConfig, and the EDPA cloud-test workflow reads it from here so the two cannot drift."
+  type        = string
+  nullable    = false
+}
+
 variable "kingdom_public_api_target" {
   description = "Kingdom public api target"
   type        = string
@@ -162,6 +174,18 @@ variable "metadata_storage_public_api_target" {
 variable "image_tag" {
   description = "Tag of container images"
   type        = string
+}
+
+variable "tee_consumers_enabled" {
+  description = "Whether Secure Computation WorkItem TEE consumers may run."
+  type        = bool
+  default     = true
+}
+
+variable "requisition_fetcher_enabled" {
+  description = "Whether the RequisitionFetcher scheduler may start new invocations."
+  type        = bool
+  default     = true
 }
 
 variable "data_watcher_env_var" {
@@ -206,22 +230,22 @@ variable "data_availability_secret_mapping" {
 
 variable "data_watcher_uber_jar_path" {
   description = "Path to DataWatcher uber jar."
-  type = string
+  type        = string
 }
 
 variable "requisition_fetcher_uber_jar_path" {
   description = "Path to RequisitionFetcher uber jar."
-  type = string
+  type        = string
 }
 
 variable "event_group_uber_jar_path" {
   description = "Path to EventGroupSync uber jar."
-  type = string
+  type        = string
 }
 
 variable "data_availability_uber_jar_path" {
   description = "Path to DataAvailability uber jar."
-  type = string
+  type        = string
 }
 
 variable "data_watcher_delete_env_var" {
@@ -247,83 +271,78 @@ variable "data_availability_cleanup_secret_mapping" {
 
 variable "data_availability_cleanup_uber_jar_path" {
   description = "Path to DataAvailabilityCleanup uber jar."
-  type = string
+  type        = string
 }
 
 
 variable "results_fulfiller_event_proto_descriptor_path" {
   description = "Serialized FileDescriptorSet path for EventTemplate metadata types."
-  type = string
+  type        = string
 }
 
 variable "results_fulfiller_event_proto_descriptor_blob_uri" {
   description = "GCS blob uri of the FileDescriptorSet containing the event message descriptor."
-  type = string
+  type        = string
 }
 
 variable "results_fulfiller_event_template_type_name" {
   description = "Fully qualified name of the event template proto message"
-  type = string
+  type        = string
 }
 
-variable "results_fulfiller_population_spec_blob_uri" {
-  description = "GCS blob uri of the Results Fulfiller population spec."
-  type = string
-}
-
-variable "edpa_model_line_map" {
-  description = "Mapping of available model line for the Results Fulfiller"
-  type = string
+variable "edpa_model_line_population_spec_blob_uris" {
+  description = "GCS blob uri of the population spec by model line, for each model line the Results Fulfiller should fulfill measurements for."
+  type        = map(string)
 }
 
 variable "duchy_worker1_id" {
   description = "ID of duchy worker 1."
-  type = string
+  type        = string
 }
 
 variable "duchy_worker1_target" {
   description = "Target of duchy worker 1."
-  type = string
+  type        = string
 }
 
 variable "duchy_worker2_id" {
   description = "ID of duchy worker 2."
-  type = string
+  type        = string
 }
 
 variable "duchy_worker2_target" {
   description = "Target of duchy worker 2."
-  type = string
+  type        = string
 }
 
 variable "duchy_aggregator_id" {
   description = "ID of aggregator duchy."
-  type = string
+  type        = string
 }
 
 variable "duchy_aggregator_target" {
   description = "Public API target of aggregator duchy."
-  type = string
+  type        = string
 }
 
 variable "results_fulfiller_trusted_root_ca_collection_file_path" {
   description = "Trusted root CA used by the Results Fulfiller."
-  type = string
+  type        = string
 }
 
 variable "duchy_aggregator_computations_service_target" {
   description = "Target of aggregator computations service."
-  type = string
+  type        = string
 }
 
 variable "kingdom_system_api_target" {
   description = "Target of the kingdom system api"
-  type = string
+  type        = string
 }
 
 variable "duchy_aggregator_cert_id" {
   description = "Aggregator's certificate id"
-  type = string
+  type        = string
 }
 
 variable "edp_simulator_names" {
@@ -362,10 +381,37 @@ variable "data_availability_monitor_uber_jar_path" {
   type        = string
 }
 
+variable "event_group_scale_data_provider" {
+  type        = string
+  nullable    = false
+  description = "DataProvider resource name for the EventGroupSync scale test"
+}
+
 variable "data_provider_resource_ids" {
   type        = map(string)
   nullable    = false
   description = "Map of EDP name to DataProviderResourceId"
+}
+
+variable "reporting_operators" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Users/groups granted impersonation of the Reporting internal service account, in order to run operational CLIs against the Reporting databases"
+}
+
+variable "report_trace_operators" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Users/groups allowed to impersonate the read-only report-trace operator service account"
+}
+
+variable "report_trace_observability_projects" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Additional projects from which the report-trace operator may read logs and traces"
 }
 
 variable "dashboard_operators" {

@@ -38,10 +38,11 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
@@ -70,14 +71,21 @@ class EdpAggregatorMeasurementConsumerSimulator(
   initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
   listEventGroupsEntityTypes: List<String>,
+  listEventGroupsDataProviders: List<String> = emptyList(),
+  kingdomApiThrottler: Throttler,
   onMeasurementsCreated: (() -> Unit)? = null,
   /**
-   * Optional override that assigns the VID for each generated event when computing the expected
-   * result. When null (default), the raw synthetic VID is used. The EDPA cloud test injects the
-   * non-memoized labeler here so the expected reach/frequency is computed from the same VIDs the
-   * pipeline assigns, matching the pre-staged and pipelined labeled data.
+   * Optional override that relabels each generated event before it is filtered and counted, when
+   * computing the expected result. When null (default), the generated event is used as-is.
+   *
+   * The EDPA cloud test injects the non-memoized labeler here so the expected reach/frequency is
+   * computed from the same VIDs **and the same population attributes** the pipeline assigns,
+   * matching the pre-staged and pipelined labeled data. It returns the whole event rather than just
+   * a VID because a model's demographic-correction matrix can move an impression to a different
+   * demo bucket, and [filterExpression] is evaluated against the event the `ResultsFulfiller`
+   * actually sees — the corrected one.
    */
-  private val vidLabeler: ((LabeledEvent<*>) -> Long)? = null,
+  private val eventRelabeler: ((LabeledEvent<*>) -> LabeledEvent<*>)? = null,
 ) :
   MeasurementConsumerSimulator(
     measurementConsumerData,
@@ -89,12 +97,14 @@ class EdpAggregatorMeasurementConsumerSimulator(
     certificatesClient,
     trustedCertificates,
     expectedDirectNoiseMechanism,
+    kingdomApiThrottler,
     initialResultPollingDelay,
     maximumResultPollingDelay,
     onMeasurementsCreated = onMeasurementsCreated,
     reportName = reportName,
     modelLineName = modelLineName,
     listEventGroupsEntityTypes = listEventGroupsEntityTypes,
+    listEventGroupsDataProviders = listEventGroupsDataProviders,
   ) {
 
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {
@@ -157,6 +167,11 @@ class EdpAggregatorMeasurementConsumerSimulator(
               shard.labeledEvents
             }
           }
+          // Relabel BEFORE filtering: [eventRelabeler] may move an impression into a different
+          // demo bucket, and the fulfiller applies the filter to the relabeled event, so filtering
+          // the generated event first would count a different set of people than the measurement
+          // does.
+          .map { impression -> eventRelabeler?.invoke(impression) ?: impression }
           .filter { impression -> EventFilters.matches(impression.message, program) }
           .filter { impression ->
             targetDataProviderId != null ||
@@ -164,7 +179,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
                 impression.timestamp < collectionInterval.endTime.toInstant())
           }
       }
-      .map { vidLabeler?.invoke(it) ?: it.vid }
+      .map { it.vid }
   }
 
   override fun getFilteredVids(measurementInfo: MeasurementInfo): Sequence<Long> {
@@ -228,8 +243,8 @@ class EdpAggregatorMeasurementConsumerSimulator(
 
   companion object {
     private const val DEFAULT_FILTER_EXPRESSION =
-      "person.gender == ${Person.Gender.MALE_VALUE} && " +
-        "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
+      "common.gender == ${Common.Gender.MALE_VALUE} && " +
+        "(video.completed_fraction > 0.25 || video.completed_fraction == 0.25)"
     /** Default time range for events. */
     private val DEFAULT_EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))

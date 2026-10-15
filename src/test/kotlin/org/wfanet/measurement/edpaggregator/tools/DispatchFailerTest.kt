@@ -21,20 +21,25 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argThat
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 
 @RunWith(JUnit4::class)
@@ -42,15 +47,33 @@ class DispatchFailerTest {
   private val modelLineService:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase =
     mockService()
+  private val uploadService:
+    RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase =
+    mockService()
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(modelLineService) }
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(uploadService)
+    addService(modelLineService)
+  }
 
   private val failer: DispatchFailer by lazy {
     DispatchFailer(
+      RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
+        grpcTestServerRule.channel
+      ),
       RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
         grpcTestServerRule.channel
-      )
+      ),
     )
+  }
+
+  @Before
+  fun stubUpload() {
+    runBlocking {
+      whenever(uploadService.getRawImpressionUpload(any()))
+        .thenReturn(rawImpressionUpload { name = UPLOAD_NAME })
+    }
   }
 
   private fun modelLine(id: String, lineState: RawImpressionUploadModelLine.State) =
@@ -84,10 +107,19 @@ class DispatchFailerTest {
     verifyBlocking(modelLineService) {
       markRawImpressionUploadModelLineFailed(
         argThat {
-          name == "$UPLOAD_NAME/rawImpressionUploadModelLines/rml1" && errorMessage == REASON
+          name == "$UPLOAD_NAME/rawImpressionUploadModelLines/rml1" &&
+            errorMessage == REASON &&
+            failureReason == RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
         }
       )
     }
+    val requestCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
+    verifyBlocking(modelLineService) {
+      markRawImpressionUploadModelLineFailed(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
+    assertThat(requestCaptor.firstValue.failureReason)
+      .isEqualTo(RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE)
   }
 
   @Test
@@ -160,12 +192,13 @@ class DispatchFailerTest {
   fun `failUpload propagates NOT_FOUND when the upload does not exist`() {
     assertFailsWith<StatusException> {
       runBlocking {
-        whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer {
+        whenever(uploadService.getRawImpressionUpload(any())).thenAnswer {
           throw Status.NOT_FOUND.asRuntimeException()
         }
         failer.failUpload(UPLOAD_NAME, REASON)
       }
     }
+    verifyBlocking(modelLineService, never()) { listRawImpressionUploadModelLines(any()) }
     verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
   }
 

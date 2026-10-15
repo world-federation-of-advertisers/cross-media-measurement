@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.single
 import org.junit.ClassRule
@@ -35,6 +36,7 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
 
   private var nextUploadId: Long = 1L
+  private val uploadIdsByResourceId = mutableMapOf<String, Long>()
 
   override fun newService(
     idGenerator: IdGenerator
@@ -48,6 +50,7 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
     rawImpressionUploadResourceId: String,
   ) {
     val uploadId = nextUploadId++
+    uploadIdsByResourceId[rawImpressionUploadResourceId] = uploadId
     val mutation =
       insertMutation("RawImpressionUpload") {
         set("DataProviderResourceId").to(dataProviderResourceId)
@@ -60,6 +63,43 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
         set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
       }
     spannerDatabase.databaseClient.write(listOf(mutation))
+  }
+
+  override suspend fun setEvictionFence(
+    dataProviderResourceId: String,
+    evictionOperationId: String,
+  ) {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        insertMutation("VidLabelingEvictionFence") {
+          set("DataProviderResourceId").to(dataProviderResourceId)
+          set("EvictionOperationId").to(evictionOperationId)
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+        }
+      )
+    )
+  }
+
+  override suspend fun setParentUploadEvictionDisposition(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    evictionOperationId: String?,
+    processingDeferred: Boolean,
+  ) {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(dataProviderResourceId)
+          .set("RawImpressionUploadId")
+          .to(uploadIdsByResourceId.getValue(rawImpressionUploadResourceId))
+          .set("EvictionOperationId")
+          .to(evictionOperationId)
+          .set("ProcessingDeferred")
+          .to(processingDeferred)
+          .build()
+      )
+    )
   }
 
   override suspend fun getParentUploadState(

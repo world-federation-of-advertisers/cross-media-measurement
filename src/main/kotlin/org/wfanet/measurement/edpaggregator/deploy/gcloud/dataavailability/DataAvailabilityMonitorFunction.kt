@@ -234,6 +234,14 @@ class DataAvailabilityMonitorFunction : HttpFunction {
           "${status.unprocessedDoneDates}",
       )
     }
+    if (!status.unpublishedAvailabilityDates.isNullOrEmpty()) {
+      logger.log(
+        Level.SEVERE,
+        "ALERT: Model line $modelLineName in $edpImpressionPath has dates whose metadata was " +
+          "persisted but whose data availability was not published: " +
+          "${status.unpublishedAvailabilityDates}",
+      )
+    }
     if ((status.spuriousDeletionCount ?: 0) > 0) {
       logger.log(
         Level.SEVERE,
@@ -326,6 +334,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         !status.datesWithoutDoneBlob.isNullOrEmpty() ||
         !status.lateArrivingDates.isNullOrEmpty() ||
         !status.unprocessedDoneDates.isNullOrEmpty() ||
+        !status.unpublishedAvailabilityDates.isNullOrEmpty() ||
         (status.spuriousDeletionCount ?: 0) > 0
   }
 }

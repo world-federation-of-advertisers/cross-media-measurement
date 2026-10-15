@@ -23,6 +23,7 @@ import io.grpc.ManagedChannel
 import java.io.File
 import java.security.cert.X509Certificate
 import java.time.Clock
+import java.time.Duration
 import java.time.ZoneId
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
@@ -32,7 +33,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.common.FileExistsHealth
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.SettableHealth
@@ -56,7 +57,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
    *
    * Parsed lazily so that [typeRegistry] is constructed first; the textproto is parsed with the
    * runner's [typeRegistry] so that template attribute messages packed in `google.protobuf.Any`
-   * (e.g. a `Person` event template attribute) can be resolved.
+   * (e.g. a `Common` event template attribute) can be resolved.
    */
   protected val populationSpec: PopulationSpec by lazy {
     parseTextProto(flags.populationSpecFile, PopulationSpec.getDefaultInstance(), typeRegistry)
@@ -108,6 +109,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
     vidIndexMap: InMemoryVidIndexMap,
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
+    kingdomRpcThrottler: MinimumIntervalThrottler,
     health: SettableHealth,
     random: Random,
   ): AbstractEdpSimulator
@@ -123,6 +125,10 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
   }
 
   override fun run() {
+    require(flags.kingdomRpcMinInterval > Duration.ZERO) {
+      "--kingdom-rpc-min-interval must be positive, got ${flags.kingdomRpcMinInterval}"
+    }
+
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
@@ -176,6 +182,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         vidIndexMap,
         flags.logSketchDetails,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
+        MinimumIntervalThrottler(Clock.systemUTC(), flags.kingdomRpcMinInterval),
         health,
         random,
       )

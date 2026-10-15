@@ -38,11 +38,24 @@ service WorkItemAttempts {
   rpc CompleteWorkItemAttempt(CompleteWorkItemAttemptRequest)
       returns (WorkItemAttempt);
 
+  // Extends the lease for an ACTIVE attempt.
+  rpc RenewWorkItemAttempt(RenewWorkItemAttemptRequest)
+      returns (WorkItemAttempt);
+
+  // Sets an ACTIVE attempt to FAILED, or returns an already-FAILED attempt
+  // unchanged.
   rpc FailWorkItemAttempt(FailWorkItemAttemptRequest) returns (WorkItemAttempt);
 }
 
 message CreateWorkItemAttemptRequest {
   WorkItemAttempt work_item_attempt = 1;
+  // Expected execution generation from the queue message. New callers must
+  // populate this field. Absence is interpreted as generation 1 only for
+  // legacy-client compatibility; an explicit value less than 1 is invalid.
+  optional int64 expected_work_item_generation = 2
+      [(google.api.field_behavior) = OPTIONAL];
+  // Whether the caller supports renewing an attempt lease.
+  bool supports_attempt_lease = 3;
 }
 
 message GetWorkItemAttemptRequest {
@@ -80,6 +93,11 @@ message ListWorkItemAttemptsPageToken {
 }
 
 message CompleteWorkItemAttemptRequest {
+  string work_item_resource_id = 1;
+  string work_item_attempt_resource_id = 2;
+}
+
+message RenewWorkItemAttemptRequest {
   string work_item_resource_id = 1;
   string work_item_attempt_resource_id = 2;
 }

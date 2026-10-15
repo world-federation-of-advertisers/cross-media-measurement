@@ -128,6 +128,7 @@ jobs:
         env:
           MODEL_LINE_NAME: ${{ vars.MODEL_LINE_NAME }}
           PIPELINED_DATA_PROVIDER: dataProviders/${{ fromJson(vars.DATA_PROVIDER_RESOURCE_IDS).edp7 }}
+          EDPA_DATA_PROVIDERS: dataProviders/${{ fromJson(vars.DATA_PROVIDER_RESOURCE_IDS).edp7 }},dataProviders/${{ fromJson(vars.DATA_PROVIDER_RESOURCE_IDS).meta }}
           EDPA_PUBLIC_API_TARGET: ${{ vars.METADATA_STORAGE_PUBLIC_API_TARGET }}
           # Deployed Spanner instance; lets SeedRawImpressionsRule hard-delete this test's own
           # RawImpressionUpload rows before seeding (scoped by DoneBlobUri prefix) so re-runs do not
@@ -151,6 +152,7 @@ jobs:
           vid_models_bucket="$(tfvar vid_models_storage_bucket_name)"
           export MEMOIZED_MODEL_BLOB_URI="gs://${vid_models_bucket}/edp7/memoized_model"
           export NON_MEMOIZED_MODEL_BLOB_URI="gs://${vid_models_bucket}/edp7/hashonly_model"
+          export VID_LABELER_POPULATION_SPEC_BLOB_URI="$(tfvar vid_labeler_population_spec_blob_uri)"
           # Derive the ModelSuite from the ModelLine resource name.
           export MODEL_SUITE="${MODEL_LINE_NAME%/modelLines/*}"
           bazel test \
@@ -158,11 +160,13 @@ jobs:
           --test_env=GOOGLE_CLOUD_PROJECT \
           --test_env=MODEL_SUITE \
           --test_env=PIPELINED_DATA_PROVIDER \
+          --test_env=EDPA_DATA_PROVIDERS \
           --test_env=EDPA_CONFIG_STORAGE_BUCKET \
           --test_env=EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI \
           --test_env=EVENT_TEMPLATE_TYPE \
           --test_env=MEMOIZED_MODEL_BLOB_URI \
           --test_env=NON_MEMOIZED_MODEL_BLOB_URI \
+          --test_env=VID_LABELER_POPULATION_SPEC_BLOB_URI \
           --test_env=RAW_IMPRESSIONS_BUCKET \
           --test_env=SPANNER_INSTANCE \
           --test_env=EDPA_PUBLIC_API_TARGET \
@@ -176,4 +180,3 @@ jobs:
         continue-on-error: true
         uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
         if: failure() && steps.run-tests.outcome == 'failure'
-          

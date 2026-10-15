@@ -48,6 +48,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesPageToken as InternalListPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesResponse as InternalListResponse
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine as InternalRawImpressionUploadModelLine
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as InternalFailureReason
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub as InternalModelLineServiceStub
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadModelLinesRequest as internalBatchCreateRequest
@@ -468,6 +470,67 @@ class RawImpressionUploadModelLineService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     validateEtagAndRequestId(request.etag, request.requestId)
+    if (request.failureReason == RawImpressionUploadModelLine.FailureReason.UNRECOGNIZED) {
+      throw InvalidFieldValueException("failure_reason")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val failureReason =
+      if (
+        request.failureReason ==
+          RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED
+      ) {
+        RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+      } else {
+        request.failureReason
+      }
+    if (request.recoveryAction == RawImpressionUploadModelLine.RecoveryAction.UNRECOGNIZED) {
+      throw InvalidFieldValueException("recovery_action")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.evictionOperationId.isNotEmpty()) {
+      try {
+        UUID.fromString(request.evictionOperationId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("eviction_operation_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+    val recoveryPredecessorKey =
+      request.recoveryPredecessorRawImpressionUpload
+        .takeIf { it.isNotEmpty() }
+        ?.let { name ->
+          RawImpressionUploadKey.fromName(name)
+            ?: throw InvalidFieldValueException("recovery_predecessor_raw_impression_upload")
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+    if (failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT) {
+      if (request.evictionOperationId.isEmpty()) {
+        throw RequiredFieldNotSetException("eviction_operation_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (
+        request.recoveryAction ==
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED
+      ) {
+        throw RequiredFieldNotSetException("recovery_action")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    } else if (
+      request.evictionOperationId.isNotEmpty() ||
+        request.recoveryAction !=
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED ||
+        recoveryPredecessorKey != null
+    ) {
+      throw InvalidFieldValueException("recovery_action")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (
+      recoveryPredecessorKey != null &&
+        recoveryPredecessorKey.dataProviderId != modelLineKey.dataProviderId
+    ) {
+      throw InvalidFieldValueException("recovery_predecessor_raw_impression_upload")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineFailed(
@@ -478,6 +541,11 @@ class RawImpressionUploadModelLineService(
             etag = request.etag
             requestId = request.requestId
             errorMessage = request.errorMessage
+            this.failureReason = failureReason.toInternal()
+            evictionOperationId = request.evictionOperationId
+            recoveryAction = request.recoveryAction.toInternal()
+            recoveryPredecessorRawImpressionUploadResourceId =
+              recoveryPredecessorKey?.rawImpressionUploadId.orEmpty()
           }
         )
       } catch (e: StatusException) {
@@ -546,7 +614,12 @@ class RawImpressionUploadModelLineService(
       InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
       InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
-      null -> Status.INTERNAL.withCause(e).asRuntimeException()
+      null ->
+        if (e.status.code == Status.Code.FAILED_PRECONDITION) {
+          e.status.withCause(e).asRuntimeException()
+        } else {
+          Status.INTERNAL.withCause(e).asRuntimeException()
+        }
     }
   }
 
@@ -584,6 +657,18 @@ fun InternalRawImpressionUploadModelLine.toPublic(): RawImpressionUploadModelLin
     }
     if (source.hasEncryptedMergedDek()) {
       encryptedMergedDek = source.encryptedMergedDek.toPublic()
+    }
+    failureAttemptId = source.failureAttemptId
+    failureReason = source.failureReason.toPublic()
+    evictionOperationId = source.evictionOperationId
+    recoveryAction = source.recoveryAction.toPublic()
+    if (source.recoveryPredecessorRawImpressionUploadResourceId.isNotEmpty()) {
+      recoveryPredecessorRawImpressionUpload =
+        RawImpressionUploadKey(
+            source.dataProviderResourceId,
+            source.recoveryPredecessorRawImpressionUploadResourceId,
+          )
+          .toName()
     }
   }
 }
@@ -632,5 +717,62 @@ internal fun RawImpressionUploadModelLine.State.toInternal(): RawImpressionUploa
       RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED
     RawImpressionUploadModelLine.State.UNRECOGNIZED,
     RawImpressionUploadModelLine.State.STATE_UNSPECIFIED -> error("Unrecognized state")
+  }
+}
+
+/** Converts an internal failure reason to its public representation. */
+internal fun InternalFailureReason.toPublic(): RawImpressionUploadModelLine.FailureReason {
+  return when (this) {
+    InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE ->
+      RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+    InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT ->
+      RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+    InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED ->
+      RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED
+    InternalFailureReason.UNRECOGNIZED -> error("Unrecognized failure reason")
+  }
+}
+
+/** Converts a public failure reason to its internal representation. */
+internal fun RawImpressionUploadModelLine.FailureReason.toInternal(): InternalFailureReason {
+  return when (this) {
+    RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE ->
+      InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE
+    RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT ->
+      InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+    RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED ->
+      InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED
+    RawImpressionUploadModelLine.FailureReason.UNRECOGNIZED -> error("Unrecognized failure reason")
+  }
+}
+
+/** Converts an internal recovery action to its public representation. */
+internal fun InternalRecoveryAction.toPublic(): RawImpressionUploadModelLine.RecoveryAction {
+  return when (this) {
+    InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION ->
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+    InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY ->
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+    InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT ->
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+    InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_UNSPECIFIED ->
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED
+    InternalRecoveryAction.UNRECOGNIZED -> error("Unrecognized recovery action")
+  }
+}
+
+/** Converts a public recovery action to its internal representation. */
+internal fun RawImpressionUploadModelLine.RecoveryAction.toInternal(): InternalRecoveryAction {
+  return when (this) {
+    RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION ->
+      InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
+    RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY ->
+      InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+    RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT ->
+      InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
+    RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED ->
+      InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_UNSPECIFIED
+    RawImpressionUploadModelLine.RecoveryAction.UNRECOGNIZED ->
+      error("Unrecognized recovery action")
   }
 }

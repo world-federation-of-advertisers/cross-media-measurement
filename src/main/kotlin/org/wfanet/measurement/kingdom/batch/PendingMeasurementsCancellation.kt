@@ -16,13 +16,20 @@
 
 package org.wfanet.measurement.kingdom.batch
 
+import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongCounter
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -86,9 +93,29 @@ class PendingMeasurementsCancellation(
                 etag = it.etag
               }
             }
-          measurementsService.batchCancelMeasurements(
-            batchCancelMeasurementsRequest { requests += cancelRequests }
-          )
+          val response =
+            try {
+              measurementsService.batchCancelMeasurements(
+                batchCancelMeasurementsRequest { requests += cancelRequests }
+              )
+            } catch (e: CancellationException) {
+              throw e
+            } catch (e: Exception) {
+              for (measurement in batchMeasurementsToCancel) {
+                ReportTracing.recordFailure(
+                  spanName = "kingdom.measurement.retention_cancel",
+                  attributes = cancellationTraceAttributes(measurement, "started"),
+                  error = e,
+                )
+              }
+              throw e
+            }
+          for (measurement in response.measurementsList) {
+            ReportTracing.recordSuccess(
+              spanName = "kingdom.measurement.retention_cancel",
+              attributes = cancellationTraceAttributes(measurement, "accepted"),
+            )
+          }
           pendingMeasurementCancellationCounter.add(cancelRequests.size.toLong())
 
           measurementsToCancel =
@@ -110,5 +137,29 @@ class PendingMeasurementsCancellation(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
+
+  private fun cancellationTraceAttributes(measurement: Measurement, outcome: String): Attributes {
+    val measurementName =
+      MeasurementKey(
+          externalIdToApiId(measurement.externalMeasurementConsumerId),
+          externalIdToApiId(measurement.externalMeasurementId),
+        )
+        .toName()
+    return Attributes.builder()
+      .put(ReportTraceAttributes.MEASUREMENT_NAME, measurementName)
+      .put(ReportTraceAttributes.MEASUREMENT_STATE, measurement.state.name)
+      .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_cancellation")
+      .put(
+        ReportTraceAttributes.CANCELLATION_ORIGIN,
+        ReportTraceAttributes.RETENTION_POLICY_CANCELLATION_ORIGIN,
+      )
+      .put(ReportTraceAttributes.OUTCOME, outcome)
+      .also { builder ->
+        runCatching { MeasurementSpec.parseFrom(measurement.details.measurementSpec) }
+          .getOrNull()
+          ?.let { builder.putAll(ReportTraceAttributes.fromMeasurementSpec(it)) }
+      }
+      .build()
   }
 }

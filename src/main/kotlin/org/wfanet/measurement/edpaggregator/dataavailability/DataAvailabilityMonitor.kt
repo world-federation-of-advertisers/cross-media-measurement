@@ -28,6 +28,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -110,10 +111,17 @@ class DataAvailabilityMonitor(
    *   `synced-by=data-availability-sync` marker and is older than `unprocessedDoneThreshold`,
    *   indicating `DataAvailabilitySync` did not complete for this date. `null` when no uploaded
    *   dates were found.
+   * @property unpublishedAvailabilityDates Dates where metadata-store persistence completed but the
+   *   latest `data-availability-sync-id` does not match `data-availability-published-sync-id` after
+   *   `unprocessedDoneThreshold`, indicating Kingdom publication did not complete. `null` when no
+   *   uploaded dates were found.
    * @property healthyDates Dates with a "done" blob, data files, and no late arrivals, or `null`
    *   when no uploaded dates were found.
    * @property spuriousDeletionCount Number of deleted ImpressionMetadata entries whose blob still
    *   exists on the bucket, or `null` when the check was not run.
+   * @property spuriousDeletionCountsByDate Deleted ImpressionMetadata entries whose blob still
+   *   exists, grouped by the date in the blob path. Entries with a nonstandard path are included in
+   *   [spuriousDeletionCount] but not this map.
    * @property legitimateDeletionCount Number of deleted ImpressionMetadata entries whose blob is
    *   genuinely gone from the bucket, or `null` when the check was not run.
    */
@@ -128,8 +136,10 @@ class DataAvailabilityMonitor(
     val datesWithoutDoneBlob: List<LocalDate>?,
     val lateArrivingDates: List<LocalDate>?,
     val unprocessedDoneDates: List<LocalDate>?,
+    val unpublishedAvailabilityDates: List<LocalDate>?,
     val healthyDates: List<LocalDate>?,
     val spuriousDeletionCount: Int?,
+    val spuriousDeletionCountsByDate: Map<LocalDate, Int>?,
     val legitimateDeletionCount: Int?,
   )
 
@@ -236,8 +246,10 @@ class DataAvailabilityMonitor(
         datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
         lateArrivingDates = null,
         unprocessedDoneDates = null,
+        unpublishedAvailabilityDates = null,
         healthyDates = null,
         spuriousDeletionCount = dateInfo.spuriousDeletionCount,
+        spuriousDeletionCountsByDate = dateInfo.spuriousDeletionCountsByDate,
         legitimateDeletionCount = dateInfo.legitimateDeletionCount,
       )
     }
@@ -275,8 +287,10 @@ class DataAvailabilityMonitor(
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
       lateArrivingDates = dateInfo.lateArrivingDates,
       unprocessedDoneDates = dateInfo.unprocessedDoneDates,
+      unpublishedAvailabilityDates = dateInfo.unpublishedAvailabilityDates,
       healthyDates = dateInfo.healthyDates,
       spuriousDeletionCount = dateInfo.spuriousDeletionCount,
+      spuriousDeletionCountsByDate = dateInfo.spuriousDeletionCountsByDate,
       legitimateDeletionCount = dateInfo.legitimateDeletionCount,
     )
   }
@@ -297,8 +311,10 @@ class DataAvailabilityMonitor(
         datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
         lateArrivingDates = null,
         unprocessedDoneDates = null,
+        unpublishedAvailabilityDates = null,
         healthyDates = null,
         spuriousDeletionCount = dateInfo.spuriousDeletionCount,
+        spuriousDeletionCountsByDate = dateInfo.spuriousDeletionCountsByDate,
         legitimateDeletionCount = dateInfo.legitimateDeletionCount,
       )
     }
@@ -327,8 +343,10 @@ class DataAvailabilityMonitor(
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
       lateArrivingDates = dateInfo.lateArrivingDates,
       unprocessedDoneDates = dateInfo.unprocessedDoneDates,
+      unpublishedAvailabilityDates = dateInfo.unpublishedAvailabilityDates,
       healthyDates = dateInfo.healthyDates,
       spuriousDeletionCount = dateInfo.spuriousDeletionCount,
+      spuriousDeletionCountsByDate = dateInfo.spuriousDeletionCountsByDate,
       legitimateDeletionCount = dateInfo.legitimateDeletionCount,
     )
   }
@@ -368,6 +386,13 @@ class DataAvailabilityMonitor(
           "complete): ${dateInfo.unprocessedDoneDates}",
       )
     }
+    if (dateInfo.unpublishedAvailabilityDates.isNotEmpty()) {
+      logger.log(
+        Level.WARNING,
+        "Model line $modelLineName has dates whose metadata was persisted but whose data " +
+          "availability was not published: ${dateInfo.unpublishedAvailabilityDates}",
+      )
+    }
   }
 
   /** Info about uploaded dates for a model line. */
@@ -377,8 +402,10 @@ class DataAvailabilityMonitor(
     val datesWithoutDoneBlob: List<LocalDate>,
     val lateArrivingDates: List<LocalDate>,
     val unprocessedDoneDates: List<LocalDate>,
+    val unpublishedAvailabilityDates: List<LocalDate>,
     val healthyDates: List<LocalDate>,
     val spuriousDeletionCount: Int?,
+    val spuriousDeletionCountsByDate: Map<LocalDate, Int>?,
     val legitimateDeletionCount: Int?,
   )
 
@@ -399,7 +426,9 @@ class DataAvailabilityMonitor(
     val modelLineName = modelLineKey.toName()
 
     var spuriousCount = 0
+    var noncanonicalSpuriousCount = 0
     var legitimateCount = 0
+    val spuriousCountsByDate = mutableMapOf<LocalDate, Int>()
 
     val deletedEntries: Flow<V1AlphaImpressionMetadata> =
       checkNotNull(impressionMetadataStub)
@@ -414,6 +443,7 @@ class DataAvailabilityMonitor(
                 this.pageToken = pageToken
                 filter = listImpressionMetadataRequestFilter {
                   modelLine = modelLineName
+                  state = V1AlphaImpressionMetadata.State.DELETED
                   intervalOverlaps = spuriousInterval
                 }
               }
@@ -423,10 +453,28 @@ class DataAvailabilityMonitor(
         .flattenConcat()
 
     deletedEntries.collect { entry ->
+      // Fail closed if the service violates the requested state filter.
+      check(entry.state == V1AlphaImpressionMetadata.State.DELETED) {
+        "ListImpressionMetadata returned ${entry.state} for a DELETED state filter"
+      }
       val blobKey = SelectedStorageClient.parseBlobUri(entry.blobUri).key
       val blob = storageClient.getBlob(blobKey)
       blob?.let {
         spuriousCount++
+        val dataDate = extractCanonicalDataDate(blobKey, prefix)
+        if (dataDate == null) {
+          noncanonicalSpuriousCount++
+          if (noncanonicalSpuriousCount <= 10) {
+            logger.log(
+              Level.WARNING,
+              "Cannot determine the data date for spurious deletion ${entry.name}: blob URI " +
+                "${entry.blobUri} does not use the expected prefix and YYYY-MM-DD folder " +
+                "structure $prefix{date}/",
+            )
+          }
+        } else {
+          spuriousCountsByDate.merge(dataDate, 1, Int::plus)
+        }
         if (spuriousCount <= 10) {
           logger.log(
             Level.WARNING,
@@ -440,18 +488,21 @@ class DataAvailabilityMonitor(
     logger.log(
       Level.INFO,
       "Model line $modelLineName spurious deletion check: " +
-        "spurious=$spuriousCount, legitimate=$legitimateCount",
+        "spurious=$spuriousCount, noncanonical=$noncanonicalSpuriousCount, " +
+        "legitimate=$legitimateCount",
     )
     if (spuriousCount > 0) {
       logger.log(
         Level.SEVERE,
         "ALERT: Model line $modelLineName has $spuriousCount spuriously deleted entries " +
-          "(deleted in metadata store but blob still exists on bucket)",
+          "(deleted in metadata store but blob still exists on bucket); " +
+          "$noncanonicalSpuriousCount have no canonical data date",
       )
     }
 
     return baseInfo.copy(
       spuriousDeletionCount = spuriousCount,
+      spuriousDeletionCountsByDate = spuriousCountsByDate,
       legitimateDeletionCount = legitimateCount,
     )
   }
@@ -465,6 +516,7 @@ class DataAvailabilityMonitor(
     val zeroImpressionDatesList = mutableListOf<LocalDate>()
     val lateArrivingDatesList = mutableListOf<LocalDate>()
     val unprocessedDoneDatesList = mutableListOf<LocalDate>()
+    val unpublishedAvailabilityDatesList = mutableListOf<LocalDate>()
     val healthyDatesList = mutableListOf<LocalDate>()
 
     val now = clock()
@@ -480,13 +532,14 @@ class DataAvailabilityMonitor(
         zeroImpressionDatesList.add(date)
       }
 
-      // Two distinct alert categories share the marker:
-      //   - Sync stamps `synced-by=data-availability-sync` on the `done` blob after it
-      //     successfully processes the date. Absent marker => Sync did not (yet) complete.
+      // The metadata-persistence marker supports two alert categories:
+      //   - Sync stamps `synced-by=data-availability-sync` on the `done` blob after it persists
+      //     ImpressionMetadata. An absent marker means that phase did not complete.
       //   - Sync stamps the same marker on each metadata blob it processes. An unmarked
-      //     metadata blob in a date Sync DID complete for represents late-arriving or
+      //     metadata blob in a date whose persistence phase completed represents late-arriving or
       //     rewritten data (the EDP overwrote a metadata blob after Sync ran; fresh GCS
       //     uploads replace prior user-set custom metadata).
+      // Full Kingdom publication is tracked separately by matching per-attempt IDs on `done`.
       val doneSynced = DataAvailabilityBlobs.isSynced(doneBlob)
       val hasLateArrivals =
         if (doneSynced) {
@@ -500,11 +553,21 @@ class DataAvailabilityMonitor(
       // should reasonably have processed it, flag the date as having an unprocessed done.
       val doneAge = Duration.between(doneBlob.createTime, now)
       val isUnprocessedDone = !doneSynced && doneAge >= unprocessedDoneThreshold
+      val hasSyncAttempt = doneBlob.metadata.containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+      val publicationAttemptAge = Duration.between(doneBlob.updateTime, now)
+      val isUnpublishedAvailability =
+        doneSynced &&
+          hasSyncAttempt &&
+          !DataAvailabilityBlobs.isDataAvailabilityPublished(doneBlob) &&
+          publicationAttemptAge >= unprocessedDoneThreshold
       if (isUnprocessedDone) {
         unprocessedDoneDatesList.add(date)
       }
+      if (isUnpublishedAvailability) {
+        unpublishedAvailabilityDatesList.add(date)
+      }
 
-      if (hasData && !hasLateArrivals && !isUnprocessedDone) {
+      if (hasData && !hasLateArrivals && !isUnprocessedDone && !isUnpublishedAvailability) {
         healthyDatesList.add(date)
       }
     }
@@ -515,8 +578,10 @@ class DataAvailabilityMonitor(
       datesWithoutDoneBlob = enumerated.datesWithoutDoneBlob,
       lateArrivingDates = lateArrivingDatesList.sorted(),
       unprocessedDoneDates = unprocessedDoneDatesList.sorted(),
+      unpublishedAvailabilityDates = unpublishedAvailabilityDatesList.sorted(),
       healthyDates = healthyDatesList.sorted(),
       spuriousDeletionCount = null,
+      spuriousDeletionCountsByDate = null,
       legitimateDeletionCount = null,
     )
   }
@@ -524,6 +589,14 @@ class DataAvailabilityMonitor(
   /** Returns true if [blob] is a metadata file that has not been marked as synced. */
   private fun isUnsynced(blob: StorageClient.Blob): Boolean =
     DataAvailabilityBlobs.isMetadataBlob(blob) && !DataAvailabilityBlobs.isSynced(blob)
+
+  private fun extractCanonicalDataDate(blobKey: String, modelLinePrefix: String): LocalDate? {
+    if (!blobKey.startsWith(modelLinePrefix)) {
+      return null
+    }
+    val dateFolder = blobKey.removePrefix(modelLinePrefix).substringBefore(StorageClient.DELIMITER)
+    return runCatching { LocalDate.parse(dateFolder) }.getOrNull()
+  }
 
   private fun recordMetrics(status: ModelLineStatus) {
     val modelLineName = status.modelLineKey.toName()
@@ -541,37 +614,65 @@ class DataAvailabilityMonitor(
       DataAvailabilityMonitorMetrics.staleDaysGauge.set(status.staleDays.toLong(), baseAttrs)
     }
 
-    fun addDateCount(count: Int, statusValue: String) {
-      if (count > 0) {
-        val attrs =
-          baseAttrs
-            .toBuilder()
-            .put(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR, statusValue)
-            .build()
-        DataAvailabilityMonitorMetrics.dateStatusCounter.add(count.toLong(), attrs)
+    fun addDateCount(count: Int, statusValue: String, date: LocalDate? = null) {
+      if (count <= 0) {
+        return
       }
+      val attrsBuilder =
+        baseAttrs.toBuilder().put(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR, statusValue)
+      if (date != null) {
+        attrsBuilder.put(DataAvailabilityMonitorMetrics.DATA_DATE_ATTR, date.toString())
+      }
+      DataAvailabilityMonitorMetrics.dateStatusCounter.add(count.toLong(), attrsBuilder.build())
     }
 
-    addDateCount(status.gapDates?.size ?: 0, DataAvailabilityMonitorMetrics.STATUS_GAP)
-    addDateCount(
-      status.zeroImpressionDates?.size ?: 0,
-      DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION,
-    )
-    addDateCount(
-      status.datesWithoutDoneBlob?.size ?: 0,
+    fun addDateCounts(dates: List<LocalDate>?, statusValue: String) {
+      dates?.forEach { date -> addDateCount(1, statusValue, date) }
+    }
+
+    fun addResourceCountsByDate(countsByDate: Map<LocalDate, Int>?, statusValue: String): Int {
+      var recordedCount = 0
+      countsByDate?.forEach { (date, count) ->
+        addDateCount(count, statusValue, date)
+        recordedCount += count
+      }
+      return recordedCount
+    }
+
+    addDateCounts(status.gapDates, DataAvailabilityMonitorMetrics.STATUS_GAP)
+    addDateCounts(status.zeroImpressionDates, DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION)
+    addDateCounts(
+      status.datesWithoutDoneBlob,
       DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB,
     )
-    addDateCount(
-      status.lateArrivingDates?.size ?: 0,
-      DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING,
-    )
-    addDateCount(
-      status.unprocessedDoneDates?.size ?: 0,
+    addDateCounts(status.lateArrivingDates, DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING)
+    addDateCounts(
+      status.unprocessedDoneDates,
       DataAvailabilityMonitorMetrics.STATUS_UNPROCESSED_DONE,
     )
+    addDateCounts(
+      status.unpublishedAvailabilityDates,
+      DataAvailabilityMonitorMetrics.STATUS_UNPUBLISHED_AVAILABILITY,
+    )
+    // Keep non-actionable counts aggregated. Unparseable spurious-deletion paths also fall back to
+    // an undated point so the total remains accurate.
+    // Healthy dates are intentionally aggregated because they are not actionable alert series.
     addDateCount(status.healthyDates?.size ?: 0, DataAvailabilityMonitorMetrics.STATUS_HEALTHY)
+    val datedSpuriousDeletionCount =
+      addResourceCountsByDate(
+        status.spuriousDeletionCountsByDate,
+        DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION,
+      )
+    val noncanonicalSpuriousDeletionCount =
+      (status.spuriousDeletionCount ?: 0) - datedSpuriousDeletionCount
+    if (status.spuriousDeletionCount != null) {
+      DataAvailabilityMonitorMetrics.noncanonicalSpuriousDeletionCountGauge.set(
+        noncanonicalSpuriousDeletionCount.toLong(),
+        baseAttrs,
+      )
+    }
     addDateCount(
-      status.spuriousDeletionCount ?: 0,
+      noncanonicalSpuriousDeletionCount,
       DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION,
     )
     addDateCount(

@@ -448,6 +448,7 @@ class HonestMajorityShareShuffleMill(
           MeasurementSpec.MeasurementTypeCase.IMPRESSION,
           MeasurementSpec.MeasurementTypeCase.DURATION,
           MeasurementSpec.MeasurementTypeCase.POPULATION,
+          MeasurementSpec.MeasurementTypeCase.MULTI,
           MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
             error("Unsupported measurement type $measurementType")
         }
@@ -548,6 +549,7 @@ class HonestMajorityShareShuffleMill(
           MeasurementSpec.MeasurementTypeCase.IMPRESSION,
           MeasurementSpec.MeasurementTypeCase.DURATION,
           MeasurementSpec.MeasurementTypeCase.POPULATION,
+          MeasurementSpec.MeasurementTypeCase.MULTI,
           MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
             error("Unsupported measurement type $measurementType")
         }
@@ -585,6 +587,7 @@ class HonestMajorityShareShuffleMill(
       MeasurementSpec.MeasurementTypeCase.IMPRESSION,
       MeasurementSpec.MeasurementTypeCase.DURATION,
       MeasurementSpec.MeasurementTypeCase.POPULATION,
+      MeasurementSpec.MeasurementTypeCase.MULTI,
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
         error("Unsupported measurement type $measurementType")
     }

@@ -36,9 +36,11 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonCom
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findInProgressModelLinesForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLineByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLinesByRequestIds
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadState
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionOperationId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadModelLineExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadModelLines
@@ -66,6 +68,8 @@ import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadMode
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as FailureReason
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as RecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as State
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
@@ -121,6 +125,10 @@ class SpannerRawImpressionUploadModelLineService(
               request.dataProviderResourceId,
               request.rawImpressionUploadResourceId,
             )
+          txn.requireRegistrationAllowedDuringEviction(
+            request.dataProviderResourceId,
+            request.rawImpressionUploadResourceId,
+          )
 
           val rawImpressionUploadModelLineId =
             idGenerator.generateNewId { id ->
@@ -263,6 +271,13 @@ class SpannerRawImpressionUploadModelLineService(
               rawImpressionUploadResourceId,
               request.requestsList.map { it.requestId },
             )
+
+          if (request.requestsList.any { it.requestId !in existingByRequestId }) {
+            txn.requireRegistrationAllowedDuringEviction(
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+            )
+          }
 
           var anyInserted = false
           val created =
@@ -568,6 +583,38 @@ class SpannerRawImpressionUploadModelLineService(
   override suspend fun markRawImpressionUploadModelLineFailed(
     request: MarkRawImpressionUploadModelLineFailedRequest
   ): RawImpressionUploadModelLine {
+    if (request.failureReason == FailureReason.UNRECOGNIZED) {
+      throw InvalidFieldValueException("failure_reason")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val failureReason =
+      if (
+        request.failureReason ==
+          FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED
+      ) {
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE
+      } else {
+        request.failureReason
+      }
+    validateRecoveryFields(request, failureReason)
+
+    val validPreviousStates =
+      when (failureReason) {
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE ->
+          setOf(
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+          )
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT ->
+          setOf(
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+          )
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED,
+        FailureReason.UNRECOGNIZED -> error("failure_reason was normalized")
+      }
 
     val transitionResult =
       transitionState(
@@ -577,17 +624,16 @@ class SpannerRawImpressionUploadModelLineService(
         request.etag,
         request.requestId,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
-        validPreviousStates =
-          setOf(
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
-          ),
+        validPreviousStates = validPreviousStates,
         markRequestIdColumn = "MarkFailedRequestId",
         currentMarkRequestId = { it.markFailedRequestId },
       ) {
         set("ErrorMessage").to(request.errorMessage)
+        set("FailureReason").to(failureReason)
+        set("EvictionOperationId").to(request.evictionOperationId.ifEmpty { null })
+        set("RecoveryAction").to(request.recoveryAction)
+        set("RecoveryPredecessorRawImpressionUploadResourceId")
+          .to(request.recoveryPredecessorRawImpressionUploadResourceId.ifEmpty { null })
       }
     // On an AIP-155 replay the stored (first) error_message is authoritative and returned as-is;
     // only a fresh transition adopts this request's error_message (the row read before the write
@@ -595,7 +641,54 @@ class SpannerRawImpressionUploadModelLineService(
     return if (transitionResult.isReplay) {
       transitionResult.modelLine
     } else {
-      transitionResult.modelLine.copy { errorMessage = request.errorMessage }
+      transitionResult.modelLine.copy {
+        errorMessage = request.errorMessage
+        failureAttemptId = request.requestId
+        this.failureReason = failureReason
+        evictionOperationId = request.evictionOperationId
+        recoveryAction = request.recoveryAction
+        recoveryPredecessorRawImpressionUploadResourceId =
+          request.recoveryPredecessorRawImpressionUploadResourceId
+      }
+    }
+  }
+
+  private fun validateRecoveryFields(
+    request: MarkRawImpressionUploadModelLineFailedRequest,
+    failureReason: FailureReason,
+  ) {
+    if (request.recoveryAction == RecoveryAction.UNRECOGNIZED) {
+      throw InvalidFieldValueException("recovery_action")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (
+      failureReason == FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+    ) {
+      if (request.evictionOperationId.isEmpty()) {
+        throw RequiredFieldNotSetException("eviction_operation_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      try {
+        UUID.fromString(request.evictionOperationId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("eviction_operation_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (
+        request.recoveryAction ==
+          RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_UNSPECIFIED
+      ) {
+        throw RequiredFieldNotSetException("recovery_action")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    } else if (
+      request.evictionOperationId.isNotEmpty() ||
+        request.recoveryAction !=
+          RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_UNSPECIFIED ||
+        request.recoveryPredecessorRawImpressionUploadResourceId.isNotEmpty()
+    ) {
+      throw InvalidFieldValueException("recovery_action")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
 
@@ -697,6 +790,30 @@ class SpannerRawImpressionUploadModelLineService(
               validPreviousStates,
             )
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
+
+        // FAILED is retryable only when it represents processing failure. This check is in the
+        // same transaction as the state change so eviction and retry cannot both win.
+        if (
+          currentState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED &&
+            nextState in PROCESSING_STATES &&
+            result.rawImpressionUploadModelLine.failureReason !in RETRYABLE_FAILURE_REASONS
+        ) {
+          throw RawImpressionUploadModelLineStateInvalidException(
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+              rawImpressionUploadModelLineResourceId,
+              currentState,
+              validPreviousStates - State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
+
+        if (nextState in PROCESSING_STATES) {
+          txn.requireProcessingAllowedDuringEviction(
+            dataProviderResourceId,
+            rawImpressionUploadResourceId,
+          )
         }
 
         // One upload in-flight per (DataProvider, cmms_model_line): concurrent Phase-1 rankers
@@ -802,6 +919,38 @@ class SpannerRawImpressionUploadModelLineService(
     )
   }
 
+  private suspend fun AsyncDatabaseClient.ReadContext.requireRegistrationAllowedDuringEviction(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+  ) {
+    val operationId = getVidLabelingEvictionOperationId(dataProviderResourceId) ?: return
+    val upload =
+      getRawImpressionUploadByResourceId(dataProviderResourceId, rawImpressionUploadResourceId)
+        .rawImpressionUpload
+    if (upload.processingDeferred || upload.evictionOperationId == operationId) return
+    throw Status.FAILED_PRECONDITION.withDescription(
+        "VID-labeling eviction $operationId is in progress for DataProvider " +
+          dataProviderResourceId
+      )
+      .asRuntimeException()
+  }
+
+  private suspend fun AsyncDatabaseClient.ReadContext.requireProcessingAllowedDuringEviction(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+  ) {
+    val operationId = getVidLabelingEvictionOperationId(dataProviderResourceId) ?: return
+    val upload =
+      getRawImpressionUploadByResourceId(dataProviderResourceId, rawImpressionUploadResourceId)
+        .rawImpressionUpload
+    if (upload.evictionOperationId == operationId) return
+    throw Status.FAILED_PRECONDITION.withDescription(
+        "RawImpressionUpload $rawImpressionUploadResourceId is waiting for VID-labeling " +
+          "eviction $operationId to complete"
+      )
+      .asRuntimeException()
+  }
+
   /**
    * Validates a [CreateRawImpressionUploadModelLineRequest].
    *
@@ -843,6 +992,12 @@ class SpannerRawImpressionUploadModelLineService(
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+      )
+
+    private val RETRYABLE_FAILURE_REASONS =
+      setOf(
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED,
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE,
       )
   }
 }

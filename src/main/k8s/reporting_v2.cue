@@ -20,11 +20,18 @@ package k8s
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
 	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
+	// These values are conservative upper bounds across all policies that could have produced a
+	// pending result, not necessarily the thresholds currently used by any one EDP. An empty EDP
+	// list and zero threshold settings disable potential Direct threshold correction.
+	_potentialDirectResultMinUsers:       uint | *0
+	_potentialDirectResultMinImpressions: uint | *0
+	_potentialDirectThresholdingEdps:     [...string] | *[]
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
-	_maxCreatedBasicReportAge: string | *"15m"
+	_maxCreatedBasicReportAge:           string | *"15m"
+	_kingdomMeasurementBatchConcurrency: string | *"8"
 
 	_postgresConfig:         #PostgresConfig
 	_reportingSpannerConfig: #SpannerConfig & {
@@ -215,6 +222,7 @@ package k8s
 						"--default-report-start-time-zone=America/New_York",
 						"--default-report-start-hour=6",
 						"--enable-reporting-set-reporting-unit-components=\(_reportingSetReportingUnitComponentsEnabled)",
+						"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
@@ -352,6 +360,7 @@ package k8s
 						"--port=8443",
 						"--health-port=8080",
 						"--pdp-name=\(_populationDataProviderName)",
+						"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
@@ -368,7 +377,11 @@ package k8s
 			_container: {
 				args: [
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
-				] + _tlsArgs + _internalApiTarget.args
+					"--potential-direct-result-min-users=\(_potentialDirectResultMinUsers)",
+					"--potential-direct-result-min-impressions=\(_potentialDirectResultMinImpressions)",
+				] + [ for edp in _potentialDirectThresholdingEdps {
+					"--potential-direct-thresholding-edp=\(edp)"
+				}] + _tlsArgs + _internalApiTarget.args
 			}
 			spec: {
 				schedule: _reportResultProcessorCronSchedule
@@ -395,6 +408,7 @@ package k8s
 							"--health-port=8080",
 							"--pdp-name=\(_populationDataProviderName)",
 							"--max-created-basic-report-age=\(Reporting._maxCreatedBasicReportAge)",
+							"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
 						] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 					}
 				}
@@ -447,10 +461,8 @@ package k8s
 			// Egress: calls the Reporting public API.
 			_destinationMatchLabels: ["reporting-v2alpha-public-api-server-app"]
 			// Ingress: intentionally open to any in-cluster pod on 8080. There is no
-			// dedicated in-cluster client in this phase (the server is reached via
-			// kubectl port-forward for testing and by the planned cloud integration
-			// test), so no `_sourceMatchLabels` restriction is applied yet. External
-			// exposure is tracked in
+			// dedicated in-cluster client, so no `_sourceMatchLabels` restriction is
+			// applied. External exposure is tracked in
 			// TODO(world-federation-of-advertisers/cross-media-measurement#3938).
 			_ingresses: {
 				http: {

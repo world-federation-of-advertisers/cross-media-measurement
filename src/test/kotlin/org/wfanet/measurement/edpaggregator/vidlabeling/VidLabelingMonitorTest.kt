@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import com.google.type.date
 import io.grpc.Status
@@ -29,10 +30,16 @@ import io.opentelemetry.sdk.metrics.data.MetricData
 import io.opentelemetry.sdk.metrics.export.MetricReader
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -59,13 +66,20 @@ import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
@@ -83,20 +97,23 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
-import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -193,6 +210,19 @@ class VidLabelingMonitorTest {
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var metricExporter: InMemoryMetricExporter
   private lateinit var metricReader: MetricReader
+  private lateinit var spanExporter: InMemorySpanExporter
+  private val logRecords = mutableListOf<LogRecord>()
+  private val rootLogger = Logger.getLogger("")
+  private val logHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        logRecords += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
 
   @Before
   fun initTelemetry() {
@@ -200,14 +230,23 @@ class VidLabelingMonitorTest {
     Instrumentation.resetForTest()
     metricExporter = InMemoryMetricExporter.create()
     metricReader = PeriodicMetricReader.create(metricExporter)
+    spanExporter = InMemorySpanExporter.create()
     openTelemetry =
       OpenTelemetrySdk.builder()
         .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
         .buildAndRegisterGlobal()
+    logRecords.clear()
+    rootLogger.addHandler(logHandler)
   }
 
   @After
   fun cleanupTelemetry() {
+    rootLogger.removeHandler(logHandler)
     if (this::openTelemetry.isInitialized) {
       openTelemetry.close()
     }
@@ -228,7 +267,9 @@ class VidLabelingMonitorTest {
   private fun List<MetricData>.counterValue(name: String): Long =
     associateBy { it.name }.getValue(name).longSumData.points.single().value
 
-  private fun createSequencer(): VidLabelingDispatchSequencer =
+  private fun createSequencer(
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady()
+  ): VidLabelingDispatchSequencer =
     VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
@@ -247,21 +288,26 @@ class VidLabelingMonitorTest {
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       vidLabelingJobStub = vidLabelingJobStub,
       maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
+      rpcThrottlers = rpcThrottlers,
     )
 
-  private fun createMonitor(): VidLabelingMonitor =
+  private fun createMonitor(
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady()
+  ): VidLabelingMonitor =
     VidLabelingMonitor(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
-      dispatchSequencer = createSequencer(),
+      dispatchSequencer = createSequencer(rpcThrottlers),
       dataProviderName = DATA_PROVIDER,
       stalenessThreshold = STALENESS_THRESHOLD,
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       rawImpressionsStorageClientProvider = { rawImpressionsStorageClient },
       vidLabeledImpressionsStorageClientProvider = { vidLabeledImpressionsStorageClient },
+      poolAssignmentJobStub = poolAssignmentJobStub,
       rankerJobStub = rankerJobStub,
       vidLabelingJobStub = vidLabelingJobStub,
       workItemsStub = workItemsStub,
+      rpcThrottlers = rpcThrottlers,
       clock = fixedClock,
     )
 
@@ -392,6 +438,7 @@ class VidLabelingMonitorTest {
     rawImpressionUpload {
       name = "$DATA_PROVIDER/rawImpressionUploads/$id"
       this.state = state
+      registrationComplete = true
       createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
       doneBlobUri = "gs://raw-bucket/edp7/2026-06-01/done"
     }
@@ -704,8 +751,9 @@ class VidLabelingMonitorTest {
     stubModelLines()
     stubFiles()
 
-    createMonitor().runHealth()
+    val result = createMonitor().runHealth()
 
+    assertThat(result.dataQualityCheckFailed).isFalse()
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.data_quality_check_failed"))
       .isEqualTo(0)
   }
@@ -719,10 +767,23 @@ class VidLabelingMonitorTest {
         .thenThrow(StatusRuntimeException(Status.INTERNAL))
 
       // Non-blocking: the health run completes despite the crawl failure.
-      createMonitor().runHealth()
+      val result = createMonitor().runHealth()
 
+      assertThat(result.dataQualityCheckFailed).isTrue()
+      assertThat(result.hasIssues).isTrue()
       assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.data_quality_check_failed"))
         .isEqualTo(1)
+      val healthSpan =
+        spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.monitor.health" }
+      assertThat(healthSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("failed")
+      val failureLog =
+        logRecords.single {
+          it.message.contains("event=edpa.vid_labeling.monitor.data_quality_failed ")
+        }
+      assertThat(failureLog.message).contains("xmm.lifecycle.stage=monitor_health")
+      assertThat(failureLog.message).contains("xmm.outcome=failed")
+      assertThat(failureLog.message).contains("xmm.error.type=")
+      assertThat(failureLog.message).contains("xmm.error.code=grpc.INTERNAL")
     }
 
   @Test
@@ -812,6 +873,117 @@ class VidLabelingMonitorTest {
   }
 
   @Test
+  fun `recovers a stuck POOL_ASSIGNING model line by re-publishing a shard WorkItem`() =
+    runBlocking {
+      val uploadName = "$DATA_PROVIDER/rawImpressionUploads/active-1"
+      stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+      stubModelLines(
+        rawImpressionUploadModelLine {
+          name = "$uploadName/modelLines/ml1"
+          cmmsModelLine = MODEL_LINE
+          state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+        }
+      )
+      whenever(poolAssignmentJobService.listPoolAssignmentJobs(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<ListPoolAssignmentJobsRequest>(0)
+        listPoolAssignmentJobsResponse {
+          if (request.pageToken.isEmpty()) {
+            poolAssignmentJobs += poolAssignmentJob {
+              name = "$uploadName/poolAssignmentJobs/pa1"
+              cmmsModelLine = MODEL_LINE
+              shardIndex = 1
+              state = PoolAssignmentJob.State.SUCCEEDED
+            }
+            nextPageToken = "next"
+          } else {
+            poolAssignmentJobs += poolAssignmentJob {
+              name = "$uploadName/poolAssignmentJobs/pa0"
+              cmmsModelLine = MODEL_LINE
+              shardIndex = 0
+              state = PoolAssignmentJob.State.SUCCEEDED
+            }
+          }
+        }
+      }
+      val originalWorkItem = WorkItemIds.forSubpoolAssigner(uploadName, MODEL_LINE, 0)
+      whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<GetWorkItemRequest>(0)
+        if (request.name == "workItems/$originalWorkItem") {
+          workItem {
+            queue = "queues/pool-assigner"
+            workItemParams = workItemParams { traceContext.putAll(TRACE_CONTEXT) }.pack()
+          }
+        } else {
+          throw Status.NOT_FOUND.asRuntimeException()
+        }
+      }
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+
+      val result = createMonitor().runHealth()
+
+      assertThat(result.recoveredTransitions).isEqualTo(1)
+      val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
+      assertThat(createCaptor.firstValue.workItemId)
+        .isEqualTo("$originalWorkItem-monitor-recovery-1")
+      assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/pool-assigner")
+      assertThat(
+          createCaptor.firstValue.workItem.workItemParams
+            .unpack<WorkItem.WorkItemParams>()
+            .traceContextMap
+        )
+        .containsExactlyEntriesIn(TRACE_CONTEXT)
+      val recoverySpan =
+        spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.monitor.recover" }
+      assertThat(recoverySpan.attributes.get(XmmTraceAttributes.WORK_ITEM_NAME))
+        .isEqualTo("workItems/$originalWorkItem")
+      assertThat(recoverySpan.attributes.get(VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME))
+        .isEqualTo("workItems/$originalWorkItem-monitor-recovery-1")
+      assertThat(recoverySpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("recovered")
+      verifyBlocking(poolAssignmentJobService, times(2)) { listPoolAssignmentJobs(any()) }
+    }
+
+  @Test
+  fun `does not recover POOL_ASSIGNING while a shard job is unfinished`() = runBlocking {
+    val uploadName = "$DATA_PROVIDER/rawImpressionUploads/active-1"
+    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "$uploadName/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+      }
+    )
+    whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+      .thenReturn(
+        listPoolAssignmentJobsResponse {
+          poolAssignmentJobs += poolAssignmentJob {
+            name = "$uploadName/poolAssignmentJobs/pa0"
+            cmmsModelLine = MODEL_LINE
+            shardIndex = 0
+            state = PoolAssignmentJob.State.SUCCEEDED
+          }
+          poolAssignmentJobs += poolAssignmentJob {
+            name = "$uploadName/poolAssignmentJobs/pa1"
+            cmmsModelLine = MODEL_LINE
+            shardIndex = 1
+            state = PoolAssignmentJob.State.CREATED
+          }
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    verifyBlocking(workItemsService, never()) { getWorkItem(any()) }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
   fun `recovers a stuck RANKING model line by re-publishing a WorkItem`() = runBlocking {
     stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
     stubModelLines(
@@ -837,8 +1009,11 @@ class VidLabelingMonitorTest {
       }
     }
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-    val result = createMonitor().runHealth()
+    val result = createMonitor(recordingThrottlers.throttlers).runHealth()
 
     assertThat(result.recoveredTransitions).isEqualTo(1)
     assertThat(
@@ -851,6 +1026,10 @@ class VidLabelingMonitorTest {
     assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/ranker")
     // C3: a successful recovery is not an issue; only exhausted recovery is.
     assertThat(result.hasIssues).isFalse()
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(6)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
   }
 
   @Test
@@ -1137,6 +1316,8 @@ class VidLabelingMonitorTest {
     private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner-queue"
     private const val NUMBER_OF_SHARDS = 2
     private const val MAX_FILE_BATCH_SIZE_BYTES = 1000L
+    private val TRACE_CONTEXT =
+      mapOf("traceparent" to "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
     private val STALENESS_THRESHOLD: Duration = Duration.ofHours(24)
@@ -1153,10 +1334,6 @@ class VidLabelingMonitorTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://vid-labeled-bucket"
         }
-      vidRepoConnection = transportLayerSecurityParams {
-        clientCertResourcePath = "cert"
-        clientPrivateKeyResourcePath = "key"
-      }
     }
 
     private val MODEL_LINE_CONFIGS: Map<String, VidLabelerParams.ModelLineConfig> =

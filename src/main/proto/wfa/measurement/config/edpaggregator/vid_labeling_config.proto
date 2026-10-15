@@ -44,10 +44,6 @@ message VidLabelingConfig {
   StorageParams vid_labeled_impressions_storage_params = 3
       [(google.api.field_behavior) = REQUIRED];
 
-  // Connection used by TEE App to access the VID Repo.
-  TransportLayerSecurityParams vid_repo_connection = 4
-      [(google.api.field_behavior) = REQUIRED];
-
   // Message representing the configuration for a model line.
   message ModelLineConfig {
     // How each LabelerInput field is sourced from the raw-impression row (plain
@@ -80,6 +76,17 @@ message VidLabelingConfig {
     // entity_type. Keys MUST be disjoint from
     // required_entity_key_field_mapping.
     map<string, string> optional_entity_key_field_mapping = 6;
+
+    // Config-storage blob URI of the model line's `PopulationSpec` textproto.
+    // Copied onto VidLabelerParams.ModelLineConfig; the TEE resolves each
+    // assigned VID against it and writes that subpopulation's population
+    // attributes onto the labeled output's event.
+    //
+    // REQUIRED: without it the labeled output carries the demographics the
+    // DataProvider uploaded rather than the ones the model assigned. Checked at
+    // Cloud Function boot by requireValidModelLineConfigs.
+    string population_spec_blob_uri = 7
+        [(google.api.field_behavior) = REQUIRED];
   }
 
   // Map from model line resource name to its configuration.
@@ -167,10 +174,10 @@ message VidLabelingConfig {
       [(google.api.field_behavior) = OPTIONAL];
 
   // Maximum total `RawImpressionUploadFile.size_bytes` packed into a single
-  // non-memoized Phase-2 `VidLabelingJob` (the bin-packing threshold). OPTIONAL
-  // here like the memoized-only storage params above; the dispatcher enforces
-  // it (`> 0`) at the first non-memoized dispatch.
-  int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = OPTIONAL];
+  // Phase-2 `VidLabelingJob` (the bin-packing threshold). Required by both
+  // dispatch paths, with no default: too high a cap OOMs the Phase-2 VM and
+  // too low a cap under-utilizes it.
+  int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = REQUIRED];
 
   // Per-EDP folder segment for this EDP's VID-labeled impression output, placed
   // between the storage bucket and the `model-line/<id>/<date>/` layout so each

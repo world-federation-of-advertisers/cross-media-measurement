@@ -41,6 +41,7 @@ KINGDOM_INTERNAL_SERVICE_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:model_outages_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_rollouts_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:populations_service_kt_jvm_grpc_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:unlinked_client_accounts_service_kt_jvm_grpc_proto",
 ]
 
 KINGDOM_INTERNAL_ENTITY_PROTOS = [
@@ -82,6 +83,7 @@ KINGDOM_INTERNAL_ENTITY_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:model_outage_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_rollout_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:population_kt_jvm_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:unlinked_client_account_kt_jvm_proto",
 ]
 
 KINGDOM_INTERNAL_PROTOS = KINGDOM_INTERNAL_ENTITY_PROTOS + KINGDOM_INTERNAL_SERVICE_PROTOS

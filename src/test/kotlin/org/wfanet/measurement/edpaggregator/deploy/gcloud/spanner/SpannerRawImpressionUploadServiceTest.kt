@@ -14,15 +14,24 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.Value
+import java.util.UUID
+import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
+import org.junit.Test
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.internal.testing.RawImpressionUploadServiceTest
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceRequest
 
 class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
   @get:Rule
@@ -34,6 +43,133 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
   ): RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase {
     val databaseClient: AsyncDatabaseClient = spannerDatabase.databaseClient
     return SpannerRawImpressionUploadService(databaseClient, idGenerator = idGenerator)
+  }
+
+  override suspend fun createActiveModelLine(dataProviderResourceId: String) {
+    val databaseClient = spannerDatabase.databaseClient
+    databaseClient.write(
+      listOf(
+        insertMutation("RawImpressionUpload") {
+          set("DataProviderResourceId").to(dataProviderResourceId)
+          set("RawImpressionUploadId").to(1L)
+          set("RawImpressionUploadResourceId").to("upload-active")
+          set("DoneBlobUri").to("gs://bucket/active/done")
+          set("RegistrationComplete").to(true)
+          set("State")
+            .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE))
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        }
+      )
+    )
+    databaseClient.write(
+      listOf(
+        insertMutation("RawImpressionUploadModelLine") {
+          set("DataProviderResourceId").to(dataProviderResourceId)
+          set("RawImpressionUploadId").to(1L)
+          set("RawImpressionUploadModelLineId").to(1L)
+          set("RawImpressionUploadModelLineResourceId").to("model-line-active")
+          set("CmmsModelLine").to("modelProviders/mp/modelSuites/ms/modelLines/ml")
+          set("State")
+            .to(
+              Value.protoEnum(
+                RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+              )
+            )
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        }
+      )
+    )
+  }
+
+  @Test
+  fun `eviction fence ignores inactive uploads with incomplete registration`(): Unit = runBlocking {
+    val dataProviderResourceId = "data-provider-with-inactive-uploads"
+    val databaseClient = spannerDatabase.databaseClient
+    databaseClient.write(
+      listOf(
+        insertMutation("RawImpressionUpload") {
+          set("DataProviderResourceId").to(dataProviderResourceId)
+          set("RawImpressionUploadId").to(1L)
+          set("RawImpressionUploadResourceId").to("completed-upload")
+          set("DoneBlobUri").to("gs://bucket/completed/done")
+          set("RegistrationComplete").to(false)
+          set("State")
+            .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED))
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        },
+        insertMutation("RawImpressionUpload") {
+          set("DataProviderResourceId").to(dataProviderResourceId)
+          set("RawImpressionUploadId").to(2L)
+          set("RawImpressionUploadResourceId").to("failed-upload")
+          set("DoneBlobUri").to("gs://bucket/failed/done")
+          set("RegistrationComplete").to(false)
+          set("State")
+            .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED))
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        },
+      )
+    )
+
+    newService()
+      .acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          this.dataProviderResourceId = dataProviderResourceId
+          evictionOperationId = UUID.randomUUID().toString()
+        }
+      )
+  }
+
+  override suspend fun createEvictedUpload(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    doneBlobUri: String,
+    evictionOperationId: String,
+  ) {
+    val databaseClient = spannerDatabase.databaseClient
+    databaseClient.write(
+      listOf(
+        insertMutation("RawImpressionUpload") {
+          set("DataProviderResourceId").to(dataProviderResourceId)
+          set("RawImpressionUploadId").to(2L)
+          set("RawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+          set("DoneBlobUri").to(doneBlobUri)
+          set("DoneBlobGeneration").to(1L)
+          set("DoneBlobCreateTime").to(com.google.cloud.Timestamp.ofTimeSecondsAndNanos(1L, 0))
+          set("RegistrationComplete").to(true)
+          set("State")
+            .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED))
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        },
+        insertMutation("RawImpressionUploadModelLine") {
+          set("DataProviderResourceId").to(dataProviderResourceId)
+          set("RawImpressionUploadId").to(2L)
+          set("RawImpressionUploadModelLineId").to(1L)
+          set("RawImpressionUploadModelLineResourceId").to("model-line-evicted")
+          set("CmmsModelLine").to("modelProviders/mp/modelSuites/ms/modelLines/ml")
+          set("State")
+            .to(
+              Value.protoEnum(
+                RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED
+              )
+            )
+          set("FailureReason")
+            .to(
+              Value.protoEnum(
+                RawImpressionUploadModelLineFailureReason
+                  .RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+              )
+            )
+          set("EvictionOperationId").to(evictionOperationId)
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        },
+      )
+    )
   }
 
   companion object {

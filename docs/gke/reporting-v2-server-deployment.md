@@ -132,6 +132,28 @@ You can customize this generated object configuration with your own settings
 such as the number of replicas per deployment, the memory and CPU requirements
 of each container, and the JVM options of each container.
 
+For the internal reporting server container specifically, we recommend a JVM
+max heap size of at least 512M within a container memory limit of at least
+1Gi, and a CPU request of at least 500m with no CPU limit (allow the
+container to burst using spare node capacity rather than capping it). Load
+testing with report-creation requests producing hundreds of metrics found
+that the previous smaller defaults (a 64M heap inherited from this
+environment's default, a 384Mi memory limit, and a 100m CPU request with
+no explicit heap override) caused both OOMKilled crashes and CPU-throttling-driven
+latency of several seconds per request. These recommended values are
+a starting point based on that testing, not a guarantee for every workload;
+size your own node pools with enough spare CPU capacity to support bursting
+above the request under load.
+
+The reporting-v2alpha-public-api-server container, which builds every Metric
+in a report in memory before dispatching it, needs similar headroom: we
+recommend a JVM max heap size of at least 384M within a container memory
+limit of at least 768Mi, and a CPU request of at least 500m with no CPU
+limit. The same load testing found the smaller defaults for this container
+(a 64M heap, 320Mi memory, and a 25m CPU request) left a multi-second
+CPU-and-GC-bound stall in report-creation requests that raising these
+values measurably shrank.
+
 ## Customize the K8s secrets
 
 We use K8s secrets to hold sensitive information, such as private keys.
@@ -318,6 +340,54 @@ report-result-post-processor-cronjob  30 7 * * *   False     0        <none>    
 
 See [Updating Retention Policies](../operations/updating-retention-policies.md)
 for an example.
+
+### Configuring potential Direct minimum-threshold correction
+
+The Reporting V2 configuration can identify EDPs whose Direct results may be
+minimum-thresholded and supply the bounds used when correcting suppressed
+zeros. `_potentialDirectResultMinUsers`,
+and `_potentialDirectResultMinImpressions` are conservative upper bounds across
+every applicable policy that could have produced a result still awaiting
+post-processing. They are not copies of one EDP's current settings.
+
+For EDPs with different policies, configure the greatest applicable value for
+each bound. A higher bound can give a suppressed zero less weight during
+correction; a lower bound can understate its uncertainty.
+
+For impression correction, the post-processor assumes a maximum average
+frequency of 127. This is a correction-model assumption, not an enforced cap on
+uncapped Direct impression results.
+
+For single-publisher Direct results, this configuration assumes that DP noise
+and minimum thresholding are mutually exclusive. Threshold correction is
+applied only to zeros whose reported standard deviation is zero. A nonzero
+standard deviation is treated as DP-only and preserved unchanged. Combined DP
+and thresholding is tracked in issue #4466.
+
+This correction is limited to single-publisher results. EDPA contribution
+suppression in multi-publisher results is tracked in issue #4465. Future
+protocol-level TrusTEE aggregate thresholding is tracked separately in issue
+#4454.
+
+Use the following rollout order whenever a producer policy changes:
+
+1. Before enabling minimum thresholding for an EDP, add the EDP to
+   `_potentialDirectThresholdingEdps` and wait for that configuration to become
+   active.
+2. Before increasing an EDP threshold, deploy the new correction upper bound
+   and wait for that configuration to become active.
+3. Deploy the producer policy change.
+4. To disable producer thresholding, deploy the producer policy change first.
+   Keep the EDP in `_potentialDirectThresholdingEdps` until every result
+   produced while thresholding was enabled has been processed or expired, and
+   only then remove it.
+5. When decreasing a correction upper bound, retain the previous higher value
+   until every result produced under the previous policy has been processed or
+   expired.
+
+This ordering is required because threshold policy metadata is not persisted
+with a result. If a deployment cannot guarantee this ordering and queue-drain
+condition, it must not enable corrector-side potential-threshold handling.
 
 ### Troubleshooting
 

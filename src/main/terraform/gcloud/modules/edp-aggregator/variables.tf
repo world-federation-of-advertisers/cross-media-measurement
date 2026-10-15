@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "tee_consumers_enabled" {
+  description = "Whether Secure Computation WorkItem TEE consumers may run."
+  type        = bool
+  default     = true
+}
+
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({
@@ -241,6 +247,14 @@ variable "results_fulfiller_population_spec" {
   })
 }
 
+variable "vid_labeler_population_spec" {
+  description = "An object containing the local path of the VID Labeler population spec file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
 variable "edp_aggregator_buckets_location" {
   description = "Location of the Storage buckets used by the Edp Aggregator."
   type        = string
@@ -289,6 +303,12 @@ variable "event_group_sync_service_account_name" {
   nullable    = false
 }
 
+variable "event_group_sync_additional_secret_ids" {
+  description = "Additional existing secret IDs that EventGroupSync may access."
+  type        = list(string)
+  default     = []
+}
+
 variable "data_availability_sync_service_account_name" {
   description = "Name of the DataAvailabilitySync service account."
   type        = string
@@ -321,11 +341,11 @@ variable "data_availability_cleanup_function_name" {
 
 variable "cloud_function_configs" {
   type = map(object({
-    function_name       = string
-    entry_point         = string
-    extra_env_vars      = string
-    secret_mappings     = string
-    uber_jar_path       = string
+    function_name   = string
+    entry_point     = string
+    extra_env_vars  = string
+    secret_mappings = string
+    uber_jar_path   = string
   }))
 }
 
@@ -362,13 +382,14 @@ variable "dns_managed_zone_name" {
 variable "requisition_fetcher_scheduler_config" {
   description = "Configuration for Google Cloud Scheduler to trigger the RequisitionFetcher"
   type = object({
-    schedule                    = string
-    time_zone                   = string
-    name                        = string
-    function_url                = string
-    scheduler_sa_display_name   = string
-    scheduler_sa_description    = string
-    scheduler_job_description   = string
+    schedule                  = string
+    time_zone                 = string
+    name                      = string
+    function_url              = string
+    scheduler_sa_display_name = string
+    scheduler_sa_description  = string
+    scheduler_job_description = string
+    paused                    = optional(bool, false)
   })
   nullable = false
 }
@@ -386,9 +407,9 @@ variable "private_subnetwork_network" {
 }
 
 variable "edp_aggregator_service_account_name" {
-    description = "Name of the EdpAggregator service account."
-    type        = string
-    nullable    = false
+  description = "Name of the EdpAggregator service account."
+  type        = string
+  nullable    = false
 }
 
 variable "spanner_instance" {

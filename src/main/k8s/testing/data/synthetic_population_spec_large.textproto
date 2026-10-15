@@ -1,191 +1,192 @@
 # proto-file: wfa/measurement/api/v2alpha/population_spec.proto
 # proto-message: PopulationSpec
 
-# 2011 UK population by sex, age, and social grade.
+# 2011 UK population by sex and age, with the two approximated social grades of
+# the source data mapped onto two US states.
 # See https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/families/adhocs/005317ct05672011censussexbyagesyoabyapproximatedsocialgradenationaltocountry
 #
-# Each SubPopulation declares its template attributes inline as a Person event
+# Each SubPopulation declares its template attributes inline as a Common event
 # template message embedded in a google.protobuf.Any. The event message type
 # URL is supplied via the EDP simulator's --event-message-type-url CLI flag,
 # and population / non-population field paths are introspected from the event
 # message descriptor at runtime.
 
-# Sub-population 1: MALE, YEARS_18_TO_34, A_B_C1
+# Sub-population 1: MALE, YEARS_18_TO_34, CALIFORNIA
 subpopulations {
   vid_ranges {
     start_vid: 1
     end_vid_inclusive: 3274021
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: MALE
       age_group: YEARS_18_TO_34
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }
 
-# Sub-population 2: MALE, YEARS_18_TO_34, C2_D_E
+# Sub-population 2: MALE, YEARS_18_TO_34, NEW_YORK
 subpopulations {
   vid_ranges {
     start_vid: 3274022
     end_vid_inclusive: 6151244
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: MALE
       age_group: YEARS_18_TO_34
-      social_grade_group: C2_D_E
+      us_state: NEW_YORK
     }
   }
 }
 
-# Sub-population 3: MALE, YEARS_35_TO_54, A_B_C1
+# Sub-population 3: MALE, YEARS_35_TO_54, CALIFORNIA
 subpopulations {
   vid_ranges {
     start_vid: 6151245
     end_vid_inclusive: 10177154
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: MALE
       age_group: YEARS_35_TO_54
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }
 
-# Sub-population 4: MALE, YEARS_35_TO_54, C2_D_E
+# Sub-population 4: MALE, YEARS_35_TO_54, NEW_YORK
 subpopulations {
   vid_ranges {
     start_vid: 10177155
     end_vid_inclusive: 13782704
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: MALE
       age_group: YEARS_35_TO_54
-      social_grade_group: C2_D_E
+      us_state: NEW_YORK
     }
   }
 }
 
-# Sub-population 5: MALE, YEARS_55_PLUS, A_B_C1
+# Sub-population 5: MALE, YEARS_55_PLUS, CALIFORNIA
 subpopulations {
   vid_ranges {
     start_vid: 13782705
     end_vid_inclusive: 15341498
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: MALE
       age_group: YEARS_55_PLUS
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }
 
-# Sub-population 6: MALE, YEARS_55_PLUS, C2_D_E
+# Sub-population 6: MALE, YEARS_55_PLUS, NEW_YORK
 subpopulations {
   vid_ranges {
     start_vid: 15341499
     end_vid_inclusive: 16991687
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: MALE
       age_group: YEARS_55_PLUS
-      social_grade_group: C2_D_E
+      us_state: NEW_YORK
     }
   }
 }
 
-# Sub-population 7: FEMALE, YEARS_18_TO_34, A_B_C1
+# Sub-population 7: FEMALE, YEARS_18_TO_34, CALIFORNIA
 subpopulations {
   vid_ranges {
     start_vid: 16991688
     end_vid_inclusive: 20310055
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: FEMALE
       age_group: YEARS_18_TO_34
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }
 
-# Sub-population 8: FEMALE, YEARS_18_TO_34, C2_D_E
+# Sub-population 8: FEMALE, YEARS_18_TO_34, NEW_YORK
 subpopulations {
   vid_ranges {
     start_vid: 20310056
     end_vid_inclusive: 23166642
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: FEMALE
       age_group: YEARS_18_TO_34
-      social_grade_group: C2_D_E
+      us_state: NEW_YORK
     }
   }
 }
 
-# Sub-population 9: FEMALE, YEARS_35_TO_54, A_B_C1
+# Sub-population 9: FEMALE, YEARS_35_TO_54, CALIFORNIA
 subpopulations {
   vid_ranges {
     start_vid: 23166643
     end_vid_inclusive: 27494479
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: FEMALE
       age_group: YEARS_35_TO_54
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }
 
-# Sub-population 10: FEMALE, YEARS_35_TO_54, C2_D_E
+# Sub-population 10: FEMALE, YEARS_35_TO_54, NEW_YORK
 subpopulations {
   vid_ranges {
     start_vid: 27494480
     end_vid_inclusive: 30973857
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: FEMALE
       age_group: YEARS_35_TO_54
-      social_grade_group: C2_D_E
+      us_state: NEW_YORK
     }
   }
 }
 
-# Sub-population 11: FEMALE, YEARS_55_PLUS, A_B_C1
+# Sub-population 11: FEMALE, YEARS_55_PLUS, CALIFORNIA
 subpopulations {
   vid_ranges {
     start_vid: 30973858
     end_vid_inclusive: 32679539
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: FEMALE
       age_group: YEARS_55_PLUS
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }
 
-# Sub-population 12: FEMALE, YEARS_55_PLUS, C2_D_E
+# Sub-population 12: FEMALE, YEARS_55_PLUS, NEW_YORK
 subpopulations {
   vid_ranges {
     start_vid: 32679540
     end_vid_inclusive: 34288880
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: FEMALE
       age_group: YEARS_55_PLUS
-      social_grade_group: C2_D_E
+      us_state: NEW_YORK
     }
   }
 }

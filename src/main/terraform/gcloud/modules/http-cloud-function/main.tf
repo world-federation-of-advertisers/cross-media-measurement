@@ -48,6 +48,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
     var.config_path != null ? filesha256(var.config_path) : "",
     var.timeout_seconds,
     var.max_instances,
+    var.concurrency,
   ]
 
   provisioner "local-exec" {
@@ -62,6 +63,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
       UBER_JAR_DIRECTORY  = dirname(var.uber_jar_path)
       TIMEOUT_SECONDS     = var.timeout_seconds == null ? "" : tostring(var.timeout_seconds)
       MAX_INSTANCES       = var.max_instances == null ? "" : tostring(var.max_instances)
+      CONCURRENCY         = var.concurrency == null ? "" : tostring(var.concurrency)
     }
     command = <<-EOT
       #!/bin/bash
@@ -99,6 +101,10 @@ resource "terraform_data" "deploy_http_cloud_function" {
 
       if [[ -n "$MAX_INSTANCES" ]]; then
         args+=("--max-instances=$MAX_INSTANCES")
+      fi
+
+      if [[ -n "$CONCURRENCY" ]]; then
+        args+=("--concurrency=$CONCURRENCY")
       fi
 
       gcloud $${args[@]}

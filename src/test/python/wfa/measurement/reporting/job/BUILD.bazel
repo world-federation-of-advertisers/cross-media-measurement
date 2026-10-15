@@ -16,5 +16,6 @@ py_test(
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_py_pb2_grpc",
         "//src/main/python/wfa/measurement/reporting/job:post_process_report_result_job",
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_result",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:potential_direct_result_minimum_thresholds",
     ],
 )

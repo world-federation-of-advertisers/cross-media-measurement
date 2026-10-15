@@ -120,6 +120,13 @@ sections of this when reviewing others’ code.
 *   Use idiomatic KDoc tags (`@param`, `@return`, `@throws`) rather than prose
     restating the same information. See [Comments](#comments) for general
     guidance.
+*   KDoc, like JavaDoc, is used to add documentation for a symbol. The
+    [summary fragment](https://developer.android.com/kotlin/style-guide#summary_fragment)
+    provides a summary of that symbol.
+*   Unlike JavaDoc, KDoc does not have a mechanism for inheriting documentation
+    for an overridden symbol. Adding KDoc for an overridden symbol replaces any
+    KDoc from a supertype, so any relevant documentation from the supertype
+    KDoc needs to be duplicated on the override.
 
 #### Namespacing & Imports
 
@@ -133,6 +140,12 @@ sections of this when reviewing others’ code.
     *   For example, `String.toFoo()` where the String must be a specific
         serialization of a `Foo` to work. This is a version of the "stringly
         typed" anti-pattern.
+*   Avoid polluting the global namespace.
+    *   Don't declare public non-extension functions at the top level.
+    *   Use (companion) objects for constants and static properties.
+    *   Note that some existing files in the repository do not follow this. You
+        may continue to follow the existing style in those files until they can
+        be refactored.
 
 #### Error Handling
 

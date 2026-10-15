@@ -19,6 +19,9 @@ import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.grpc.Status
+import io.grpc.StatusException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -366,7 +369,7 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
     }
 
   @Test
-  fun `EDPA EventGroup migration without entity_key_types silently fails to re-sync the migrated row (blocked by unique index)`() =
+  fun `EDPA EventGroup migration without entity_key_types fails to re-sync the migrated row (blocked by unique index)`() =
     runBlocking {
       // Guards the migration footgun documented on EventGroupSyncConfig.entity_key_types: when the
       // sync is NOT configured with entity_key_types, listEventGroups defaults to entity_type=
@@ -422,22 +425,24 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
 
       // Phase 3: entity_key-only re-sync. The row is now creative-id-typed, invisible to the
       // campaign-only default fetch, so the sync tries to CREATE it again and the Kingdom rejects
-      // the duplicate on EventGroupsByEntityKey. EventGroupSync records the per-item failure and
-      // emits no mapping — the write does not go through, so still no duplicate row lands, but the
-      // sync silently fails to progress the item. This is the misconfiguration signature.
-      val phase3 =
-        syncEventGroups(
-          edp,
-          listOf(
-            buildMigrationSourceEventGroup(
-              referenceId = null,
-              entityType = CREATIVE_ID_ENTITY_TYPE,
-              entityId = migEntityId,
-              campaign = "c1-final",
-            )
-          ),
-        )
-      assertThat(phase3).isEmpty()
+      // the duplicate on EventGroupsByEntityKey. EventGroupSync fails the run without publishing a
+      // partial mapping. This is the misconfiguration signature.
+      val exception =
+        assertFailsWith<RuntimeException> {
+          syncEventGroups(
+            edp,
+            listOf(
+              buildMigrationSourceEventGroup(
+                referenceId = null,
+                entityType = CREATIVE_ID_ENTITY_TYPE,
+                entityId = migEntityId,
+                campaign = "c1-final",
+              )
+            ),
+          )
+        }
+      assertThat(exception.cause).isInstanceOf(StatusException::class.java)
+      assertThat((exception.cause as StatusException).status.code).isEqualTo(Status.Code.UNKNOWN)
       // No duplicate landed (the unique index blocked it), but the item never synced: the mutation
       // (campaign renamed to "c1-final") did not apply.
       assertThat(listCmmsEventGroups(edp, presentEntityTypes)).hasSize(baselineCount + 1)
@@ -585,7 +590,7 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
     }
 
   @Test
-  fun `EDPA EventGroup keeping refId while adding entity_key stalls (does not explode) when entity_key_types is unset`() =
+  fun `EDPA EventGroup keeping refId while adding entity_key fails safely when entity_key_types is unset`() =
     runBlocking {
       // The proper migration procedure — keep event_group_reference_id while adding entity_key
       // (dual-keyed), so the existing row is matched by refId and UPDATED to carry the entity_key —
@@ -645,21 +650,24 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
 
       // Sync 3: identical dual-keyed source. The row is now creative-id-typed, so the campaign-
       // default fetch misses it and the refId in the source can't rescue the match either. The sync
-      // issues a CREATE that the unique index rejects — the item stalls (no mapping), and crucially
-      // no duplicate row is created.
-      val sync3 =
-        syncEventGroups(
-          edp,
-          listOf(
-            buildMigrationSourceEventGroup(
-              referenceId = migRefId,
-              entityType = CREATIVE_ID_ENTITY_TYPE,
-              entityId = migEntityId,
-              campaign = "c1",
-            )
-          ),
-        )
-      assertThat(sync3).isEmpty()
+      // issues a CREATE that the unique index rejects. The sync fails without publishing a partial
+      // mapping, and no duplicate row is created.
+      val exception =
+        assertFailsWith<RuntimeException> {
+          syncEventGroups(
+            edp,
+            listOf(
+              buildMigrationSourceEventGroup(
+                referenceId = migRefId,
+                entityType = CREATIVE_ID_ENTITY_TYPE,
+                entityId = migEntityId,
+                campaign = "c1",
+              )
+            ),
+          )
+        }
+      assertThat(exception.cause).isInstanceOf(StatusException::class.java)
+      assertThat((exception.cause as StatusException).status.code).isEqualTo(Status.Code.UNKNOWN)
       assertThat(listCmmsEventGroups(edp, listTypes)).hasSize(baselineCount + 1)
     }
 }

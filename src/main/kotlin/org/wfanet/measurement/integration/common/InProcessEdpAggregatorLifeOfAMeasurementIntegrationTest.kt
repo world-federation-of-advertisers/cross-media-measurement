@@ -40,12 +40,13 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -308,6 +309,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           .toName(),
         modelLineName = modelLineName,
         listEventGroupsEntityTypes = listOf("campaign", "ad_group", "creative-id"),
+        kingdomApiThrottler = FakeThrottler(),
       )
   }
 
@@ -392,7 +394,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
       getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
-      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+      TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
 
     val populationSpec: PopulationSpec =
       parseTextProto(

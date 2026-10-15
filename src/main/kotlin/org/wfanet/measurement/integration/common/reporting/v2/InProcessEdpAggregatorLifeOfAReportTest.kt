@@ -36,6 +36,8 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Logger
+import kotlin.math.abs
+import kotlin.math.ceil
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -71,8 +73,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig as PublicProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
@@ -87,6 +89,7 @@ import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
@@ -95,6 +98,7 @@ import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
@@ -134,7 +138,6 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsC
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as ReportingEventGroupsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
@@ -150,8 +153,6 @@ import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
-import org.wfanet.measurement.reporting.v2alpha.eventFilter
-import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
@@ -180,6 +181,15 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * TrusTEE with that mechanism only when every DataProvider reports it.
    */
   private val deterministicTruncatedLaplaceSupported: Boolean = false,
+  /**
+   * The noise every EDP applies to its own Direct results. NONE keeps results exact, which the
+   * assertions on this class depend on; a subclass selecting a noising mechanism asserts against
+   * the noise envelope instead.
+   */
+  private val directNoiseType: ResultsFulfillerParams.NoiseParams.NoiseType =
+    ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+  private val resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams> =
+    emptyMap(),
 ) {
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
@@ -401,12 +411,13 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           duchyMap,
           edpNoise =
             mapOf(
-              "edp1" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-              "edp2" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-              "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-              "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+              "edp1" to directNoiseType,
+              "edp2" to directNoiseType,
+              "edp3" to directNoiseType,
+              "edp4" to directNoiseType,
             ),
           edpMultiPartyNoiseTypes = multiPartyNoiseTypes,
+          resultMinimumThresholdsByEdp = resultMinimumThresholdsByEdp,
         )
         runBlocking {
           registerDataAvailabilityIntervals(kingdomChannel, edpDisplayNameToResourceMap)
@@ -673,6 +684,27 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         }
       }
     }
+  }
+
+  /**
+   * Asserts [actual] is within one deterministic truncated-Laplace draw of [expected].
+   *
+   * The draw is truncated to a bound derived from the compiled privacy params and scaled by the
+   * quantity's L1 [sensitivity], so a single noised quantity cannot move further than that. The
+   * extra unit absorbs the truncation to `Long` when the result is scaled. Taking the bound from
+   * [DeterministicTruncatedLaplaceParams] rather than a recorded value keeps this in step with the
+   * params instead of with a particular seed.
+   */
+  protected fun assertWithinNoiseBound(
+    label: String,
+    actual: Long,
+    expected: Long,
+    sensitivity: Double,
+  ) {
+    val bound = ceil(DeterministicTruncatedLaplaceParams.truncationBound(sensitivity)).toLong()
+    assertWithMessage("$label: $actual is further than ${bound + 1} from $expected")
+      .that(abs(actual - expected))
+      .isAtMost(bound + 1)
   }
 
   /**
@@ -1016,6 +1048,25 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
+  /**
+   * Returns the [Measurement.Result]s [measurements] carry, decrypted with the
+   * MeasurementConsumer's key.
+   *
+   * A Direct result records the mechanism the EDP Aggregator actually applied. The protocol config
+   * carries only the mechanisms the Kingdom offered, so it cannot tell one selection from another.
+   */
+  protected fun decryptedResults(measurements: List<Measurement>): List<Measurement.Result> {
+    val encryptionKey = inProcessCmmsComponents.getMeasurementConsumerData().encryptionKey
+    return measurements.flatMap { measurement ->
+      measurement.resultsList.map { resultOutput ->
+        decryptResult(resultOutput.encryptedResult, encryptionKey).unpack()
+      }
+    }
+  }
+
+  protected fun dataProviderName(edpDisplayName: String): String =
+    inProcessCmmsComponents.edpDisplayNameToResourceMap.getValue(edpDisplayName).name
+
   protected fun assertExpectedProtocolUsed(measurements: List<Measurement>) {
     assertWithMessage("measurements").that(measurements).isNotEmpty()
     var expectedProtocolFound = false
@@ -1137,6 +1188,25 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     processBuilder.command().add("--tls-cert-file=${REPORTING_TLS_CERT_FILE.path}")
     processBuilder.command().add("--tls-key-file=${REPORTING_TLS_KEY_FILE.path}")
     processBuilder.command().add("--cert-collection-file=${ALL_ROOT_CERTS_FILE.path}")
+    if (resultMinimumThresholdsByEdp.isNotEmpty()) {
+      val thresholds = resultMinimumThresholdsByEdp.values.first()
+      require(
+        resultMinimumThresholdsByEdp.values.all {
+          it.minUsers == thresholds.minUsers && it.minImpressions == thresholds.minImpressions
+        }
+      ) {
+        "The report corrector supports one shared minimum threshold configuration."
+      }
+      processBuilder.command().add("--potential-direct-result-min-users=${thresholds.minUsers}")
+      processBuilder
+        .command()
+        .add("--potential-direct-result-min-impressions=${thresholds.minImpressions}")
+      for (edpDisplayName in resultMinimumThresholdsByEdp.keys.sorted()) {
+        val edpResourceName =
+          inProcessCmmsComponents.edpDisplayNameToResourceMap.getValue(edpDisplayName).name
+        processBuilder.command().add("--potential-direct-thresholding-edp=$edpResourceName")
+      }
+    }
     val process = processBuilder.start()
     process.waitFor()
   }
@@ -1350,7 +1420,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
-      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+      TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
 
     val populationSpec: PopulationSpec =
       parseTextProto(
@@ -1385,26 +1455,21 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           }
       }
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Add a filter term once
+    // threshold comparisons are supported. Every IMPRESSION_QUALIFICATION field on the event
+    // message is a fraction, and filter terms render as `==`.
     private val IMPRESSION_QUALIFICATION_FILTER = reportingImpressionQualificationFilter {
       custom =
         ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-          filterSpec += impressionQualificationFilterSpec {
-            mediaType = MediaType.DISPLAY
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "banner_ad.viewable"
-                value = EventTemplateFieldKt.fieldValue { boolValue = true }
-              }
-            }
-          }
+          filterSpec += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
         }
     }
     // All computation methods (HMSS, TrusTee, etc.) are expected to produce exactly the same
     // results when using the same input data and no noise.
-    internal const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
-    internal const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
-    internal val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
-    internal const val EXPECTED_EDP_SPEC1_REACH = 3937L
+    const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
+    const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
+    val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
+    const val EXPECTED_EDP_SPEC1_REACH = 3937L
     internal const val EXPECTED_EDP_SPEC2_REACH = 3638L
 
     internal const val EXPECTED_SINGLE_EDP_SPEC2_REACH = 3638L
@@ -1420,6 +1485,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         epsilon = 1.0
         delta = 1e-15
       }
+
+    private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
 
     /** MetricSpecConfig with width=1.0 so there's no VID sampling variance. */
     private val NO_SAMPLING_METRIC_SPEC_CONFIG = metricSpecConfig {
@@ -1473,7 +1540,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     }
                 }
             }
-          maximumFrequencyPerUser = 60
+          maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
         }
 
       watchDurationParams =

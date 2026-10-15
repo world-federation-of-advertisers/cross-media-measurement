@@ -31,6 +31,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.mockito.kotlin.any
@@ -81,10 +82,10 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.testEvent
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
@@ -143,6 +144,33 @@ private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
 // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
 private const val DECLINED_EVENT_GROUP_ID = "declined"
 
+/** [Throttler] that records how many times [onReady] was called. */
+private class RecordingThrottler : Throttler {
+  var callCount = 0
+    private set
+
+  override suspend fun <T> onReady(block: suspend () -> T): T {
+    callCount++
+    return block()
+  }
+}
+
+private class TestSentinelException : Exception()
+
+/** [Throttler] that runs [Throttler.onReady]'s block once, then throws [TestSentinelException]. */
+private class RunOnceThenStopThrottler : Throttler {
+  var callCount = 0
+    private set
+
+  override suspend fun <T> onReady(block: suspend () -> T): T {
+    callCount++
+    if (callCount > 1) {
+      throw TestSentinelException()
+    }
+    return block()
+  }
+}
+
 class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   private data class EventGroupOptions(
     override val referenceIdSuffix: String,
@@ -154,12 +182,12 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   private fun generateEvents(
     vidRange: LongRange,
     date: LocalDate,
-    ageGroup: Person.AgeGroup,
-    gender: Person.Gender,
+    ageGroup: Common.AgeGroup,
+    gender: Common.Gender,
   ): List<LabeledTestEvent> {
     val timestamp = date.atStartOfDay().toInstant(ZoneOffset.UTC)
     val message = testEvent {
-      person = person {
+      common = common {
         this.ageGroup = ageGroup
         this.gender = gender
       }
@@ -196,6 +224,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -257,6 +286,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -300,6 +330,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.run() }
@@ -329,37 +360,105 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   }
 
   @Test
+  fun `construction fails when workflow and Kingdom RPC throttlers are the same instance`() {
+    val sharedThrottler = dummyThrottler
+
+    assertFailsWith<IllegalArgumentException> {
+      EdpSimulator(
+        EDP_DATA,
+        EDP_DISPLAY_NAME,
+        MC_NAME,
+        certificatesStub,
+        modelLinesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        SYNTHETIC_DATA_TIME_ZONE,
+        listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
+        syntheticGeneratorEventQuery,
+        sharedThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        VID_INDEX_MAP,
+        trusTeeSupported = true,
+        random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = sharedThrottler,
+      )
+    }
+  }
+
+  @Test
+  fun `run paces the workflow loop and Kingdom RPCs via distinct throttlers`() {
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }.thenReturn(listRequisitionsResponse {})
+    }
+    // Runs the workflow once, then throws a sentinel to end the loop deterministically.
+    val workflowThrottler = RunOnceThenStopThrottler()
+    val kingdomRpcThrottler = RecordingThrottler()
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        EDP_DISPLAY_NAME,
+        MC_NAME,
+        certificatesStub,
+        modelLinesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        SYNTHETIC_DATA_TIME_ZONE,
+        listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
+        syntheticGeneratorEventQuery,
+        workflowThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        VID_INDEX_MAP,
+        trusTeeSupported = true,
+        random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = kingdomRpcThrottler,
+      )
+
+    assertFailsWith<TestSentinelException> { runBlocking { simulator.run() } }
+
+    // The workflow loop's single real iteration ran via workflowThrottler; its nested
+    // getRequisitions() call was paced by the distinct kingdomRpcThrottler.
+    assertThat(workflowThrottler.callCount).isEqualTo(2)
+    assertThat(kingdomRpcThrottler.callCount).isEqualTo(1)
+  }
+
+  @Test
   fun `ignores Requisitions for other MeasurementConsumers`() {
     val allEvents =
       generateEvents(
         1L..10L,
         FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE,
+        Common.AgeGroup.YEARS_18_TO_34,
+        Common.Gender.FEMALE,
       ) +
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.FEMALE,
         ) +
         generateEvents(
           16L..20L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_55_PLUS,
+          Common.Gender.FEMALE,
         ) +
         generateEvents(
           21L..25L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.MALE,
         ) +
         generateEvents(
           26L..30L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.MALE,
         )
 
     val edpSimulator =
@@ -381,6 +480,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking {
@@ -423,6 +523,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -480,6 +581,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -551,6 +653,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -584,33 +687,33 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       generateEvents(
         1L..10L,
         FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE,
+        Common.AgeGroup.YEARS_18_TO_34,
+        Common.Gender.FEMALE,
       )
     val nonMatchingEvents =
       generateEvents(
         11L..15L,
         FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_35_TO_54,
-        Person.Gender.FEMALE,
+        Common.AgeGroup.YEARS_35_TO_54,
+        Common.Gender.FEMALE,
       ) +
         generateEvents(
           16L..20L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_55_PLUS,
+          Common.Gender.FEMALE,
         ) +
         generateEvents(
           21L..25L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.MALE,
         ) +
         generateEvents(
           26L..30L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.MALE,
         )
 
     val allEvents = matchingEvents + nonMatchingEvents
@@ -634,6 +737,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -692,6 +796,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = false,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -740,6 +845,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -797,6 +903,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         trusTeeEncryptionParams = trusTeeEncryptionParams,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -849,33 +956,33 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         generateEvents(
           1L..10L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.FEMALE,
         )
       val nonMatchingEvents =
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.FEMALE,
         ) +
           generateEvents(
             16L..20L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_55_PLUS,
-            Person.Gender.FEMALE,
+            Common.AgeGroup.YEARS_55_PLUS,
+            Common.Gender.FEMALE,
           ) +
           generateEvents(
             21L..25L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_18_TO_34,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_18_TO_34,
+            Common.Gender.MALE,
           ) +
           generateEvents(
             26L..30L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_35_TO_54,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_35_TO_54,
+            Common.Gender.MALE,
           )
 
       val allEvents = matchingEvents + nonMatchingEvents
@@ -899,6 +1006,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           TRUSTED_CERTIFICATES,
           VID_INDEX_MAP,
           trusTeeSupported = true,
+          kingdomRpcThrottler = dummyKingdomRpcThrottler,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -981,33 +1089,33 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         generateEvents(
           1L..10L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.FEMALE,
         )
       val nonMatchingEvents =
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.FEMALE,
         ) +
           generateEvents(
             16L..20L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_55_PLUS,
-            Person.Gender.FEMALE,
+            Common.AgeGroup.YEARS_55_PLUS,
+            Common.Gender.FEMALE,
           ) +
           generateEvents(
             21L..25L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_18_TO_34,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_18_TO_34,
+            Common.Gender.MALE,
           ) +
           generateEvents(
             26L..30L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_35_TO_54,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_35_TO_54,
+            Common.Gender.MALE,
           )
 
       val allEvents = matchingEvents + nonMatchingEvents
@@ -1031,6 +1139,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           TRUSTED_CERTIFICATES,
           VID_INDEX_MAP,
           trusTeeSupported = true,
+          kingdomRpcThrottler = dummyKingdomRpcThrottler,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -1133,33 +1242,33 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         generateEvents(
           1L..10L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.FEMALE,
         )
       val nonMatchingEvents =
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.FEMALE,
         ) +
           generateEvents(
             16L..20L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_55_PLUS,
-            Person.Gender.FEMALE,
+            Common.AgeGroup.YEARS_55_PLUS,
+            Common.Gender.FEMALE,
           ) +
           generateEvents(
             21L..25L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_18_TO_34,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_18_TO_34,
+            Common.Gender.MALE,
           ) +
           generateEvents(
             26L..30L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_35_TO_54,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_35_TO_54,
+            Common.Gender.MALE,
           )
 
       val allEvents = matchingEvents + nonMatchingEvents
@@ -1183,6 +1292,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           TRUSTED_CERTIFICATES,
           VID_INDEX_MAP,
           trusTeeSupported = true,
+          kingdomRpcThrottler = dummyKingdomRpcThrottler,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -1246,32 +1356,32 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       generateEvents(
         1L..10L,
         FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE,
+        Common.AgeGroup.YEARS_18_TO_34,
+        Common.Gender.FEMALE,
       ) +
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.FEMALE,
         ) +
         generateEvents(
           16L..20L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_55_PLUS,
+          Common.Gender.FEMALE,
         ) +
         generateEvents(
           21L..25L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.MALE,
         ) +
         generateEvents(
           26L..30L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.MALE,
         )
     val eventQuery = InMemoryEventQuery(events)
     val edpSimulator =
@@ -1294,6 +1404,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         sketchEncrypter = fakeSketchEncrypter,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -1354,6 +1465,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     val requisition =
       REQUISITION.copy {
@@ -1417,6 +1529,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
@@ -1491,6 +1604,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1563,6 +1677,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1633,6 +1748,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1702,6 +1818,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1771,6 +1888,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1840,6 +1958,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1909,6 +2028,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1976,6 +2096,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2036,6 +2157,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2086,8 +2208,8 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
                   filter = eventFilter {
                     // An null set expression
                     expression =
-                      "person.gender == ${Person.Gender.MALE_VALUE} && " +
-                        "person.gender == ${Person.Gender.FEMALE_VALUE}"
+                      "common.gender == ${Common.Gender.MALE_VALUE} && " +
+                        "common.gender == ${Common.Gender.FEMALE_VALUE}"
                   }
                 }
             }
@@ -2143,6 +2265,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2217,6 +2340,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2291,6 +2415,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2352,6 +2477,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2420,6 +2546,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2488,6 +2615,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2557,6 +2685,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2623,6 +2752,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2690,6 +2820,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2760,6 +2891,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2825,6 +2957,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2887,6 +3020,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -3042,9 +3176,17 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     /** Dummy [Throttler] for satisfying signatures without being used. */
     private val dummyThrottler =
       object : Throttler {
-        override suspend fun <T> onReady(block: suspend () -> T): T {
-          throw UnsupportedOperationException("Should not be called")
-        }
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
+      }
+
+    /**
+     * A second, distinct dummy [Throttler] instance for `kingdomRpcThrottler`. It must not be the
+     * same instance as the workflow throttler: in production, a real (non-reentrant) throttler
+     * shared between the two would deadlock, since run() holds it for the whole workflow.
+     */
+    private val dummyKingdomRpcThrottler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
       }
 
     /** [SketchEncrypter] that does not encrypt, just returning the plaintext. */

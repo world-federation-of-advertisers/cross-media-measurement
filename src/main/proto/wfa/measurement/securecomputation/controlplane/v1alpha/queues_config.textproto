@@ -4,19 +4,27 @@
 queueInfos {
   queue_resource_id: "results-fulfiller-queue"
   app_params_type_url: "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams"
+  max_work_item_attempts: 5
+  dead_letter_queue_resource_id: "results-fulfiller-queue-dlq"
 }
 
 queueInfos {
   queue_resource_id: "subpool-assigner-queue"
   app_params_type_url: "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams"
+  max_work_item_attempts: 5
+  dead_letter_queue_resource_id: "subpool-assigner-queue-dlq"
 }
 
 queueInfos {
   queue_resource_id: "vid-rank-builder-queue"
   app_params_type_url: "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams"
+  max_work_item_attempts: 5
+  dead_letter_queue_resource_id: "vid-rank-builder-queue-dlq"
 }
 
 queueInfos {
   queue_resource_id: "vid-labeler-queue"
   app_params_type_url: "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams"
+  max_work_item_attempts: 5
+  dead_letter_queue_resource_id: "vid-labeler-queue-dlq"
 }

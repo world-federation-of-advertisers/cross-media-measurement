@@ -16,10 +16,14 @@
 
 package org.wfanet.measurement.reporting.service.api
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.ceil
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.toList
@@ -89,7 +93,8 @@ class SubmitBatchRequestsTest {
             items,
             BATCH_GET_REPORTING_SETS_LIMIT,
             ::batchGetReportingSets,
-            parseResponse,
+            concurrency = 3,
+            parseResponse = parseResponse,
           )
           .toList()
           .flatten()
@@ -122,7 +127,8 @@ class SubmitBatchRequestsTest {
             items,
             BATCH_GET_REPORTING_SETS_LIMIT,
             ::batchGetReportingSets,
-            parseResponse,
+            concurrency = 3,
+            parseResponse = parseResponse,
           )
           .toList()
           .flatten()
@@ -137,6 +143,68 @@ class SubmitBatchRequestsTest {
     }
 
   @Test
+  fun `submitBatchRequests limits concurrent calls to the given concurrency`() = runBlocking {
+    val activeCalls = AtomicInteger(0)
+    val maxObservedConcurrency = AtomicInteger(0)
+    val concurrency = 2
+    val callRpc: suspend (List<Int>) -> List<Int> = { batch ->
+      val current = activeCalls.incrementAndGet()
+      maxObservedConcurrency.updateAndGet { previous -> maxOf(previous, current) }
+      delay(50)
+      activeCalls.decrementAndGet()
+      batch
+    }
+
+    submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = concurrency) { it }.toList()
+
+    assertThat(maxObservedConcurrency.get()).isEqualTo(concurrency)
+  }
+
+  @Test
+  fun `submitBatchRequests limits concurrent calls to 3 when concurrency is explicitly 3`() =
+    runBlocking {
+      val activeCalls = AtomicInteger(0)
+      val maxObservedConcurrency = AtomicInteger(0)
+      val callRpc: suspend (List<Int>) -> List<Int> = { batch ->
+        val current = activeCalls.incrementAndGet()
+        maxObservedConcurrency.updateAndGet { previous -> maxOf(previous, current) }
+        delay(50)
+        activeCalls.decrementAndGet()
+        batch
+      }
+
+      submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = 3) { it }.toList()
+
+      assertThat(maxObservedConcurrency.get()).isEqualTo(3)
+    }
+
+  @Test
+  fun `submitBatchRequests throws BatchRequestException wrapping IllegalArgumentException when concurrency is zero`() =
+    runBlocking {
+      val callRpc: suspend (List<Int>) -> List<Int> = { batch -> batch }
+
+      val exception =
+        assertFailsWith<BatchRequestException> {
+          submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = 0) { it }.toList()
+        }
+
+      assertThat(exception.cause).isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+  @Test
+  fun `submitBatchRequests throws BatchRequestException wrapping IllegalArgumentException when concurrency is negative`() =
+    runBlocking {
+      val callRpc: suspend (List<Int>) -> List<Int> = { batch -> batch }
+
+      val exception =
+        assertFailsWith<BatchRequestException> {
+          submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = -1) { it }.toList()
+        }
+
+      assertThat(exception.cause).isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+  @Test
   fun `submitBatchRequests returns empty list when the number of requests is 0`() = runBlocking {
     val parseResponse: (BatchGetReportingSetsResponse) -> List<InternalReportingSet> = { response ->
       response.reportingSetsList
@@ -147,7 +215,8 @@ class SubmitBatchRequestsTest {
           emptyFlow(),
           BATCH_GET_REPORTING_SETS_LIMIT,
           ::batchGetReportingSets,
-          parseResponse,
+          concurrency = 3,
+          parseResponse = parseResponse,
         )
         .toList()
         .flatten()

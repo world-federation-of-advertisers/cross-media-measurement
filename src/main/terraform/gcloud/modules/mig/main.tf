@@ -22,9 +22,12 @@ locals {
       "tee-image-reference"    = var.docker_image
       "tee-cmd"                = jsonencode(var.tee_cmd)
 
-      "google-logging-enabled"     = "true"
-      "google-monitoring-enabled"  = "true"
-      "tee-container-log-redirect" = "true"
+      "google-logging-enabled"                = "true"
+      "google-monitoring-enabled"             = "true"
+      "tee-container-log-redirect"            = "true"
+    },
+    var.work_item_consumption_enabled == null ? {} : {
+      "tee-env-WORK_ITEM_CONSUMPTION_ENABLED" = tostring(var.work_item_consumption_enabled)
     },
     var.config_storage_bucket == null ? {} : {
       "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
@@ -149,6 +152,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
 resource "google_compute_region_instance_group_manager" "mig" {
   name               = var.managed_instance_group_name
   base_instance_name = var.base_instance_name
+  target_size        = var.enabled ? null : 0
   version {
     instance_template = google_compute_instance_template.confidential_vm_template.id
   }
@@ -161,8 +165,8 @@ resource "google_compute_region_instance_group_manager" "mig" {
     create_before_destroy = true
   }
   update_policy {
-    type                  = "PROACTIVE"
-    minimal_action        = "REPLACE"
+    type           = "PROACTIVE"
+    minimal_action = "REPLACE"
     # PROACTIVE rolling updates on a regional MIG require max_surge >= zone count so the
     # replacement pool can honor distribution_policy_zones during the roll. Trade-off vs
     # a fixed max_surge=1: rolls now briefly run up to zone-count extra instances instead
@@ -173,6 +177,8 @@ resource "google_compute_region_instance_group_manager" "mig" {
 }
 
 resource "google_compute_region_autoscaler" "mig_autoscaler" {
+  count = var.enabled ? 1 : 0
+
   name   = "autoscaler-for-${google_compute_region_instance_group_manager.mig.name}"
   target = google_compute_region_instance_group_manager.mig.id
 

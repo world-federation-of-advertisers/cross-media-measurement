@@ -61,6 +61,13 @@ message WorkItem {
     // The data path params for this [WorkItem]
     DataPathParams data_path_params = 2
         [(google.api.field_behavior) = IMMUTABLE];
+
+    // W3C Trace Context fields propagated across the asynchronous queue
+    // boundary. Empty when no upstream trace context is available.
+    map<string, string> trace_context = 3 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
   }
   // The parameters to be delivered to the TEE application.
   google.protobuf.Any work_item_params = 3
@@ -71,8 +78,8 @@ message WorkItem {
     // Default value if state is omitted.
     STATE_UNSPECIFIED = 0;
 
-    // The `WorkItem` has been queued but has not yet been attempted.
-    // At this stage, there are no `WorkItemAttempt`s associated with it.
+    // The `WorkItem` is waiting to be processed. A retried `WorkItem` retains
+    // its historical `WorkItemAttempt`s.
     QUEUED = 1;
 
     // There is at least one `WorkItemAttempt` associated with the `WorkItem`.
@@ -95,4 +102,10 @@ message WorkItem {
   // Update time.
   google.protobuf.Timestamp update_time = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Execution generation of this `WorkItem`.
+  //
+  // This advances only when the current execution is retried. Queue consumers
+  // use it to reject stale deliveries from an earlier generation.
+  int64 generation = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

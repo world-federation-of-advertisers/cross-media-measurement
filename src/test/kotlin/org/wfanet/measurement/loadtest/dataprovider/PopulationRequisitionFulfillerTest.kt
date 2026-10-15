@@ -18,12 +18,14 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
-import java.lang.UnsupportedOperationException
+import com.google.type.Date
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
+import java.time.LocalDate
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -41,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.GetModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -63,6 +66,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Dummy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
@@ -100,6 +104,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -203,6 +208,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -252,6 +258,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -304,6 +311,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -357,6 +365,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -370,6 +379,219 @@ class PopulationRequisitionFulfillerTest {
 
     // Result should be SUB_POPULATION_3
     assertThat(result.population.value).isEqualTo(VID_RANGE_3.size())
+  }
+
+  @Test
+  fun `uses ModelRollout with latest rollout date`() {
+    // The later rollout date has the earlier createTime, so date must take precedence.
+    modelRolloutsServiceMock.stub {
+      onBlocking { listModelRollouts(any()) }
+        .thenReturn(
+          listModelRolloutsResponse {
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME_2
+              instantRolloutDate = ROLLOUT_DATE_LATER
+              createTime = CREATE_TIME_1
+              modelRelease = MODEL_RELEASE_NAME_2
+            }
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME
+              instantRolloutDate = ROLLOUT_DATE_EARLIER
+              createTime = CREATE_TIME_2
+              modelRelease = MODEL_RELEASE_NAME_1
+            }
+          }
+        )
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    val request: GetModelReleaseRequest =
+      verifyAndCapture(modelReleasesServiceMock, ModelReleasesCoroutineImplBase::getModelRelease)
+    assertThat(request.name).isEqualTo(MODEL_RELEASE_NAME_2)
+  }
+
+  @Test
+  fun `uses most recently created ModelRollout when rollout dates are equal`() {
+    // ModelRollouts created from a ModelLine's activeStartTime all share a rollout date.
+    modelRolloutsServiceMock.stub {
+      onBlocking { listModelRollouts(any()) }
+        .thenReturn(
+          listModelRolloutsResponse {
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME
+              instantRolloutDate = ROLLOUT_DATE_EARLIER
+              createTime = CREATE_TIME_1
+              modelRelease = MODEL_RELEASE_NAME_1
+            }
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME_2
+              instantRolloutDate = ROLLOUT_DATE_EARLIER
+              createTime = CREATE_TIME_2
+              modelRelease = MODEL_RELEASE_NAME_2
+            }
+          }
+        )
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    val request: GetModelReleaseRequest =
+      verifyAndCapture(modelReleasesServiceMock, ModelReleasesCoroutineImplBase::getModelRelease)
+    assertThat(request.name).isEqualTo(MODEL_RELEASE_NAME_2)
+  }
+
+  @Test
+  fun `uses ModelRollout that starts last when an earlier gradual rollout ends later`() {
+    // The gradual rollout starts first but is still in progress when the instant rollout starts.
+    // It also has the later createTime, so ordering must come from the rollout start date.
+    modelRolloutsServiceMock.stub {
+      onBlocking { listModelRollouts(any()) }
+        .thenReturn(
+          listModelRolloutsResponse {
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME
+              gradualRolloutPeriod = dateInterval {
+                startDate = ROLLOUT_DATE_EARLIER
+                endDate = ROLLOUT_DATE_LATEST
+              }
+              createTime = CREATE_TIME_2
+              modelRelease = MODEL_RELEASE_NAME_1
+            }
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME_2
+              instantRolloutDate = ROLLOUT_DATE_LATER
+              createTime = CREATE_TIME_1
+              modelRelease = MODEL_RELEASE_NAME_2
+            }
+          }
+        )
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    val request: GetModelReleaseRequest =
+      verifyAndCapture(modelReleasesServiceMock, ModelReleasesCoroutineImplBase::getModelRelease)
+    assertThat(request.name).isEqualTo(MODEL_RELEASE_NAME_2)
+  }
+
+  @Test
+  fun `uses latest ModelRollout from a subsequent page`() {
+    // ListModelRollouts orders by rollout start time ascending, so the latest ModelRollout is on
+    // the last page.
+    modelRolloutsServiceMock.stub {
+      onBlocking { listModelRollouts(any()) }
+        .thenReturn(
+          listModelRolloutsResponse {
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME
+              instantRolloutDate = ROLLOUT_DATE_EARLIER
+              createTime = CREATE_TIME_1
+              modelRelease = MODEL_RELEASE_NAME_1
+            }
+            nextPageToken = NEXT_PAGE_TOKEN
+          },
+          listModelRolloutsResponse {
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME_2
+              instantRolloutDate = ROLLOUT_DATE_LATER
+              createTime = CREATE_TIME_2
+              modelRelease = MODEL_RELEASE_NAME_2
+            }
+          },
+        )
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    val request: GetModelReleaseRequest =
+      verifyAndCapture(modelReleasesServiceMock, ModelReleasesCoroutineImplBase::getModelRelease)
+    assertThat(request.name).isEqualTo(MODEL_RELEASE_NAME_2)
+  }
+
+  @Test
+  fun `refuses requisition when ModelLine has no ModelRollout`() {
+    modelRolloutsServiceMock.stub {
+      onBlocking { listModelRollouts(any()) }.thenReturn(listModelRolloutsResponse {})
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequisitionRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequisitionRequest.refusal.justification)
+      .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
+    assertThat(refuseRequisitionRequest.refusal.message).contains("ModelRollout")
   }
 
   @Test
@@ -413,6 +635,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -465,6 +688,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
@@ -512,6 +736,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -521,6 +746,26 @@ class PopulationRequisitionFulfillerTest {
     assertThat(refuseRequisitionRequest.refusal.justification)
       .isEqualTo(Requisition.Refusal.Justification.SPEC_INVALID)
     assertThat(refuseRequisitionRequest.refusal.message).contains("filter")
+  }
+
+  @Test
+  fun `construction fails when workflow and Kingdom RPC throttlers are the same instance`() {
+    val sharedThrottler = dummyThrottler
+
+    assertFailsWith<IllegalArgumentException> {
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        sharedThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = sharedThrottler,
+      )
+    }
   }
 
   companion object {
@@ -561,6 +806,13 @@ class PopulationRequisitionFulfillerTest {
 
     private const val MODEL_LINE_NAME = "${MODEL_SUITE_NAME}/modelLines/AAAAAAAAAHs"
     private const val MODEL_ROLLOUT_NAME = "${MODEL_LINE_NAME}/modelRollouts/AAAAAAAAAHs"
+    private const val MODEL_ROLLOUT_NAME_2 = "${MODEL_LINE_NAME}/modelRollouts/AAAAAAAAAJs"
+
+    private val ROLLOUT_DATE_EARLIER: Date = LocalDate.of(2024, 1, 1).toProtoDate()
+    private val ROLLOUT_DATE_LATER: Date = LocalDate.of(2025, 1, 1).toProtoDate()
+    private val ROLLOUT_DATE_LATEST: Date = LocalDate.of(2026, 1, 1).toProtoDate()
+
+    private const val NEXT_PAGE_TOKEN = "next-page-token"
 
     private val MODEL_RELEASE_1 = modelRelease {
       name = MODEL_RELEASE_NAME_1
@@ -760,9 +1012,17 @@ class PopulationRequisitionFulfillerTest {
     /** Dummy [Throttler] for satisfying signatures without being used. */
     private val dummyThrottler =
       object : Throttler {
-        override suspend fun <T> onReady(block: suspend () -> T): T {
-          throw UnsupportedOperationException("Should not be called")
-        }
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
+      }
+
+    /**
+     * A second, distinct dummy [Throttler] instance for `kingdomRpcThrottler`. It must not be the
+     * same instance as the workflow throttler: in production, a real (non-reentrant) throttler
+     * shared between the two would deadlock, since run() holds it for the whole workflow.
+     */
+    private val dummyKingdomRpcThrottler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
       }
 
     private fun loadSigningKey(

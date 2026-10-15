@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -70,6 +71,13 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
  * @param modelLineInfoMap map of model line to [ModelLineInfo]
  * @param pipelineConfiguration Configuration for the event processing pipeline.
+ * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom. Shared across this
+ *   app's own pre-check and the fulfillers it dispatches to, so the throttle budget covers all
+ *   `GetRequisition` traffic this process makes.
+ * @param kingdomThrottler paces outbound `FulfillDirectRequisition`/`RefuseRequisition` calls to
+ *   Kingdom, which share Kingdom's default per-principal rate-limit bucket with other Kingdom RPC
+ *   methods without a dedicated per-method limit (`GetRequisition` and `ListRequisitions` each have
+ *   their own).
  * @param metrics Metrics recorder for telemetry.
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
@@ -89,6 +97,8 @@ class ResultsFulfillerApp(
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+  private val requisitionsThrottler: Throttler,
+  private val kingdomThrottler: Throttler,
   private val metrics: ResultsFulfillerMetrics,
 ) :
   BaseTeeApplication(
@@ -102,6 +112,7 @@ class ResultsFulfillerApp(
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
     val fulfillerParams = workItemParams.appParams.unpack(ResultsFulfillerParams::class.java)
+    ResultsFulfillerParamsValidator.validate(fulfillerParams)
     val requisitionsBlobUri = workItemParams.dataPathParams.dataPath
 
     val storageParams = fulfillerParams.storageParams
@@ -156,26 +167,12 @@ class ResultsFulfillerApp(
       when (fulfillerParams.noiseParams.noiseType) {
         NoiseType.NONE -> NoNoiserSelector()
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
-        // TODO(@raimundoltdf): The Kingdom cannot offer this for Direct yet.
-        // V2alphaPublicApiServer rejects it for --direct-noise-mechanism, so it never reaches
-        // ProtocolConfig.Direct.noise_mechanisms and this selector refuses every requisition.
-        // Accepting it there needs the reporting server to map the mechanism first; both land in
-        // a follow-up.
         NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE -> DeterministicTruncatedLaplaceNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
 
     val resultMinimumThresholds: ResultMinimumThresholds? =
       if (fulfillerParams.hasKAnonymityParams()) {
-        require(fulfillerParams.kAnonymityParams.minUsers > 0) {
-          "Result minimum thresholds minUsers must be greater than 0, got ${fulfillerParams.kAnonymityParams.minUsers}"
-        }
-        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
-          "Result minimum thresholds minImpressions must be greater than 0, got ${fulfillerParams.kAnonymityParams.minImpressions}"
-        }
-        require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
-          "Result minimum thresholds reachMaxFrequencyPerUser must be greater than 0, got ${fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser}"
-        }
         ResultMinimumThresholds(
           minUsers = fulfillerParams.kAnonymityParams.minUsers,
           minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
@@ -184,13 +181,6 @@ class ResultsFulfillerApp(
       } else {
         null
       }
-
-    require(
-      fulfillerParams.impressionMaxFrequencyPerUser >= -1 &&
-        fulfillerParams.impressionMaxFrequencyPerUser <= Byte.MAX_VALUE
-    ) {
-      "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
-    }
 
     // Get TrusTeeConfig for this data provider if available
     val trusTeeConfig: TrusTeeConfig? = trusTeeConfigs[fulfillerParams.dataProvider]
@@ -213,21 +203,27 @@ class ResultsFulfillerApp(
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = requisitionsThrottler,
+        kingdomThrottler = kingdomThrottler,
         requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
         dataProviderCertificateKey = dataProviderCertificateKey,
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         noiserSelector = noiseSelector,
         resultMinimumThresholds = resultMinimumThresholds,
-        // When -1, treat as no frequency cap. When 0 or unset, use measurement spec value.
+        // Read under UNSPECIFIED and CUSTOM_CAP. -1 means no cap, 0 or unset means the
+        // MeasurementSpec's value. The explicit modes carry the choice themselves.
         overrideImpressionMaxFrequencyPerUser =
           if (fulfillerParams.impressionMaxFrequencyPerUser == -1) {
             -1
           } else {
             fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 }
           },
+        impressionCapMode = fulfillerParams.impressionCapMode,
         supportedMultiPartyNoiseMechanisms = supportedMultiPartyNoiseMechanisms,
         trusTeeConfig = trusTeeConfig,
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
+        trusTeeV2ImpressionCountMode = fulfillerParams.trusTeeV2Config.impressionCountMode,
+        trusTeeV2MaxFrequencyPerUser = fulfillerParams.trusTeeV2Config.maxFrequencyPerUserOrNull,
       )
     val modelLineInfoMapWithAliases =
       if (fulfillerParams.modelLineMapMap.isEmpty()) {
@@ -247,6 +243,8 @@ class ResultsFulfillerApp(
         dataProvider = fulfillerParams.dataProvider,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = requisitionsThrottler,
+        kingdomThrottler = kingdomThrottler,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMapWithAliases,

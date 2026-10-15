@@ -77,6 +77,8 @@ class RequisitionGrouperByReportId(
           getEventGroupMapEntries(requisitionValidator.getRequisitionSpec(req))
         groupedRequisitions {
           modelLine = measurementSpec.modelLine
+          report = measurementSpec.reportingMetadata.report
+          basicReport = measurementSpec.reportingMetadata.basicReport
           this.requisitions +=
             GroupedRequisitionsKt.requisitionEntry { requisition = Any.pack(req) }
           this.eventGroupMap +=
@@ -102,6 +104,12 @@ class RequisitionGrouperByReportId(
     groupId: String,
   ): GroupedRequisitions {
     val firstModelLine = perRequisitionGroups.first().modelLine
+    val basicReport =
+      perRequisitionGroups
+        .mapNotNull { it.basicReport.takeIf(String::isNotEmpty) }
+        .distinct()
+        .singleOrNull()
+        .orEmpty()
     val mergedRequisitions = perRequisitionGroups.flatMap { it.requisitionsList }
     val eventGroupMapEntries = buildEventGroupEntries(reportId, perRequisitionGroups)
     return groupedRequisitions {
@@ -109,6 +117,8 @@ class RequisitionGrouperByReportId(
       requisitions += mergedRequisitions
       eventGroupMap += eventGroupMapEntries
       this.groupId = groupId
+      report = reportId
+      this.basicReport = basicReport
     }
   }
 

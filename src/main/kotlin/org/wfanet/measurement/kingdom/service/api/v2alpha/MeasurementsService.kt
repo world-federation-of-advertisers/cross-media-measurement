@@ -19,12 +19,16 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.kotlin.unpack
+import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.util.AbstractMap
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsResponse
@@ -62,15 +66,19 @@ import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
@@ -96,6 +104,9 @@ import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
+import org.wfanet.measurement.reporting.service.api.v2alpha.MetricKey
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -146,11 +157,29 @@ class MeasurementsService(
   }
 
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
-    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
-    val parentKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-        "parent is either unspecified or invalid"
-      }
+    return ReportTracing.traceSuspending(
+      spanName = "kingdom.measurement.create",
+      attributes = measurementCreationTraceAttributes(request),
+    ) {
+      val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+      val parentKey =
+        grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+          "parent is either unspecified or invalid"
+        }
+      val measurement = createMeasurementInternal(request, authenticatedPrincipal, parentKey)
+      Span.current()
+        .setAttribute(ReportTraceAttributes.MEASUREMENT_NAME, measurement.name)
+        .setAttribute(ReportTraceAttributes.MEASUREMENT_STATE, measurement.state.name)
+        .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
+      measurement
+    }
+  }
+
+  private suspend fun createMeasurementInternal(
+    request: CreateMeasurementRequest,
+    authenticatedPrincipal: MeasurementPrincipal,
+    parentKey: MeasurementConsumerKey,
+  ): Measurement {
     if (parentKey != authenticatedPrincipal.resourceKey) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot create a Measurement for another MeasurementConsumer"
@@ -192,7 +221,11 @@ class MeasurementsService(
     // TODO(@SanjayVas): Check required capabilities once we have any.
 
     val internalRequest =
-      request.buildInternalCreateMeasurementRequest(dataProviderCapabilities, parentKey)
+      request.buildInternalCreateMeasurementRequest(
+        dataProviderCapabilities,
+        parentKey,
+        "measurement",
+      )
 
     val internalMeasurement =
       try {
@@ -254,50 +287,88 @@ class MeasurementsService(
     }
   }
 
-  override suspend fun cancelMeasurement(request: CancelMeasurementRequest): Measurement {
-    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
+  override suspend fun cancelMeasurement(request: CancelMeasurementRequest): Measurement =
+    ReportTracing.traceSuspending(
+      spanName = "kingdom.measurement.cancel",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.MEASUREMENT_NAME, request.name)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_cancellation")
+          .put(
+            ReportTraceAttributes.CANCELLATION_ORIGIN,
+            ReportTraceAttributes.API_CANCELLATION_ORIGIN,
+          )
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
-    val key =
-      grpcRequireNotNull(MeasurementKey.fromName(request.name)) { MISSING_RESOURCE_NAME_ERROR }
+      val key =
+        grpcRequireNotNull(MeasurementKey.fromName(request.name)) { MISSING_RESOURCE_NAME_ERROR }
 
-    if (authenticatedMeasurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
-      failGrpc(Status.PERMISSION_DENIED) {
-        "Cannot cancel a Measurement for another MeasurementConsumer"
-      }
-    }
-
-    val internalCancelMeasurementRequest = cancelMeasurementRequest {
-      externalMeasurementId = apiIdToExternalId(key.measurementId)
-      externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-    }
-
-    val internalMeasurement =
-      try {
-        internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
-      } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.INVALID_ARGUMENT ->
-            throw Status.INVALID_ARGUMENT.toExternalStatusRuntimeException(ex)
-          Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
-          Status.Code.FAILED_PRECONDITION ->
-            throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
-          else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
+      if (authenticatedMeasurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Cannot cancel a Measurement for another MeasurementConsumer"
         }
       }
 
-    return internalMeasurement.toMeasurement()
-  }
+      val internalCancelMeasurementRequest = cancelMeasurementRequest {
+        externalMeasurementId = apiIdToExternalId(key.measurementId)
+        externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+      }
+
+      val internalMeasurement =
+        try {
+          internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
+        } catch (ex: StatusException) {
+          when (ex.status.code) {
+            Status.Code.INVALID_ARGUMENT ->
+              throw Status.INVALID_ARGUMENT.toExternalStatusRuntimeException(ex)
+            Status.Code.NOT_FOUND -> throw Status.NOT_FOUND.toExternalStatusRuntimeException(ex)
+            Status.Code.FAILED_PRECONDITION ->
+              throw Status.FAILED_PRECONDITION.toExternalStatusRuntimeException(ex)
+            else -> throw Status.UNKNOWN.toExternalStatusRuntimeException(ex)
+          }
+        }
+
+      val measurement = internalMeasurement.toMeasurement()
+      val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
+      Span.current()
+        .setAllAttributes(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+        .setAttribute(ReportTraceAttributes.MEASUREMENT_STATE, measurement.state.name)
+        .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
+      measurement
+    }
 
   override suspend fun batchCreateMeasurements(
     request: BatchCreateMeasurementsRequest
   ): BatchCreateMeasurementsResponse {
-    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
-
-    val parentKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-        "parent is either unspecified or invalid"
+    return try {
+      val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
+      val parentKey =
+        grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+          "parent is either unspecified or invalid"
+        }
+      batchCreateMeasurementsInternal(request, authenticatedMeasurementConsumerKey, parentKey)
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      for (createMeasurementRequest in request.requestsList) {
+        ReportTracing.recordFailure(
+          spanName = "kingdom.measurement.creation_failed",
+          attributes = measurementCreationTraceAttributes(createMeasurementRequest),
+          error = e,
+        )
       }
+      throw e
+    }
+  }
 
+  private suspend fun batchCreateMeasurementsInternal(
+    request: BatchCreateMeasurementsRequest,
+    authenticatedMeasurementConsumerKey: MeasurementConsumerKey,
+    parentKey: MeasurementConsumerKey,
+  ): BatchCreateMeasurementsResponse {
     if (parentKey != authenticatedMeasurementConsumerKey) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot create a Measurement for another MeasurementConsumer"
@@ -350,7 +421,7 @@ class MeasurementsService(
     val internalCreateMeasurementRequests = mutableListOf<InternalCreateMeasurementRequest>()
     var isParentEmpty = false
     var isParentNotEmpty = false
-    for (createMeasurementRequest in request.requestsList) {
+    for ((index, createMeasurementRequest) in request.requestsList.withIndex()) {
       if (createMeasurementRequest.parent.isEmpty()) {
         if (isParentNotEmpty) {
           failGrpc(Status.INVALID_ARGUMENT) {
@@ -386,6 +457,7 @@ class MeasurementsService(
         createMeasurementRequest.buildInternalCreateMeasurementRequest(
           allDataProviderCapabilities.filterKeys { it in externalDataProviderIds }.values,
           parentKey,
+          "requests[$index].measurement",
         )
       internalCreateMeasurementRequests.add(internalCreateMeasurementRequest)
     }
@@ -412,7 +484,13 @@ class MeasurementsService(
       }
 
     return batchCreateMeasurementsResponse {
-      measurements += internalMeasurements.map { it.toMeasurement() }
+      for ((index, internalMeasurement) in internalMeasurements.withIndex()) {
+        measurements +=
+          recordMeasurementCreation(
+            internalMeasurement.toMeasurement(),
+            request.requestsList.getOrNull(index)?.requestId.orEmpty(),
+          )
+      }
     }
   }
 
@@ -656,6 +734,7 @@ class MeasurementsService(
             }
         }
       }
+      MeasurementSpec.MeasurementTypeCase.MULTI -> error("Multi measurements are not supported.")
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
         error("MeasurementType not set.")
     }
@@ -664,6 +743,7 @@ class MeasurementsService(
   private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(
     dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
     parentKey: MeasurementConsumerKey,
+    measurementFieldPath: String,
   ): InternalCreateMeasurementRequest {
     val measurementConsumerCertificateKey =
       grpcRequireNotNull(
@@ -687,7 +767,8 @@ class MeasurementsService(
           .withDescription("measurement.measurement_spec does not contain a valid MeasurementSpec")
           .asRuntimeException()
       }
-    measurementSpec.validate()
+    measurementSpec.validate("$measurementFieldPath.measurement_spec")
+    measurementSpec.validateReportingMetadata(parentKey)
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
     val dataProviderValues: Map<ExternalId, DataProviderValue> = buildMap {
@@ -723,6 +804,60 @@ class MeasurementsService(
       this.requestId = requestId
     }
   }
+
+  private fun measurementCreationTraceAttributes(request: CreateMeasurementRequest): Attributes {
+    return Attributes.builder()
+      .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
+      .put(ReportTraceAttributes.OUTCOME, "started")
+      .also { builder ->
+        if (request.requestId.isNotEmpty()) {
+          builder.put(ReportTraceAttributes.MEASUREMENT_REQUEST_ID, request.requestId)
+        }
+        val measurementSpec =
+          runCatching { request.measurement.measurementSpec.unpack<MeasurementSpec>() }.getOrNull()
+        if (measurementSpec != null) {
+          builder.putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+        }
+      }
+      .build()
+  }
+
+  private fun recordMeasurementCreation(measurement: Measurement, requestId: String): Measurement {
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
+    val attributes =
+      Attributes.builder()
+        .putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+        .put(ReportTraceAttributes.MEASUREMENT_NAME, measurement.name)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
+        .put(ReportTraceAttributes.OUTCOME, "accepted")
+        .also { builder ->
+          if (requestId.isNotEmpty()) {
+            builder.put(ReportTraceAttributes.MEASUREMENT_REQUEST_ID, requestId)
+          }
+        }
+        .build()
+    ReportTracing.recordSuccess("kingdom.measurement.created", attributes)
+    return measurement
+  }
+}
+
+private fun MeasurementSpec.validateReportingMetadata(parentKey: MeasurementConsumerKey) {
+  val metadata = reportingMetadata
+  fun requireChildResource(
+    name: String,
+    fieldName: String,
+    parentFromName: (String) -> MeasurementConsumerKey?,
+  ) {
+    if (name.isEmpty()) return
+    grpcRequire(parentFromName(name) == parentKey) {
+      "measurement_spec.reporting_metadata.$fieldName is invalid or has incorrect parent"
+    }
+  }
+  requireChildResource(metadata.basicReport, "basic_report") {
+    BasicReportKey.fromName(it)?.parentKey
+  }
+  requireChildResource(metadata.report, "report") { ReportKey.fromName(it)?.parentKey }
+  requireChildResource(metadata.metric, "metric") { MetricKey.fromName(it)?.parentKey }
 }
 
 private fun DifferentialPrivacyParams.hasValidEpsilonAndDelta(): Boolean {
@@ -730,7 +865,7 @@ private fun DifferentialPrivacyParams.hasValidEpsilonAndDelta(): Boolean {
 }
 
 /** Validates a [MeasurementSpec] for a request. */
-private fun MeasurementSpec.validate() {
+private fun MeasurementSpec.validate(fieldPath: String) {
   grpcRequire(hasMeasurementPublicKey()) { "Measurement public key is unspecified" }
   try {
     measurementPublicKey.unpack<EncryptionPublicKey>()
@@ -798,8 +933,19 @@ private fun MeasurementSpec.validate() {
       }
     }
     MeasurementSpec.MeasurementTypeCase.POPULATION -> {
-      grpcRequire(modelLine.isNotEmpty()) { "Model Line is unspecified" }
+      if (modelLine.isEmpty()) {
+        throw Status.INVALID_ARGUMENT.withDescription("Model Line is unspecified")
+          .asRuntimeException(
+            errorInfo {
+              domain = Errors.DOMAIN
+              reason = ErrorCode.REQUIRED_FIELD_NOT_SET.name
+              metadata["fieldName"] = "$fieldPath.model_line"
+            }
+          )
+      }
     }
+    MeasurementSpec.MeasurementTypeCase.MULTI ->
+      failGrpc(Status.INVALID_ARGUMENT) { "Multi measurements are not supported" }
     MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
       failGrpc(Status.INVALID_ARGUMENT) { "Measurement type is unspecified" }
   }

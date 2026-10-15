@@ -57,13 +57,15 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -74,6 +76,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -214,11 +217,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             .atStartOfDay(ZONE_ID)
             .toInstant()
         val endTime =
-          LocalDate.of(
-              dateRange.endExclusive.year,
-              dateRange.endExclusive.month,
-              dateRange.endExclusive.day - 1,
-            )
+          dateRange.endExclusive
+            .toLocalDate()
+            .minusDays(1)
             .atTime(23, 59, 59)
             .atZone(ZONE_ID)
             .toInstant()
@@ -362,7 +363,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private val storageClient = StorageOptions.getDefaultInstance().service
     private val bucket = TEST_CONFIG.storageBucket
-    private val edp_requisitions_prefix = "edp7/requisitions/"
+    private val directRequisitionStoragePrefix = "edp7/requisitions-v2/"
 
     private lateinit var _mcSimulator: MeasurementConsumerSimulator
 
@@ -374,6 +375,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
     override val measurementConsumerName: String = TEST_CONFIG.measurementConsumer
     override val apiAuthenticationKey: String = TEST_CONFIG.apiAuthenticationKey
+    override val dataProviderNames: List<String> = EDPA_DATA_PROVIDERS
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -390,16 +392,16 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private fun triggerRequisitionFetcher() {
 
-      // Delete existing requisitions from storage bucket
-      val blobs = storageClient.list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
+      // Snapshot existing direct-dispatch blobs so the readiness check observes this test's group
+      // without deleting inputs that another WorkItem may still need.
+      val existingBlobNames =
+        storageClient
+          .list(bucket, Storage.BlobListOption.prefix(directRequisitionStoragePrefix))
+          .iterateAll()
+          .map { it.name }
+          .toSet()
 
-      blobs.iterateAll().forEach { blob ->
-        storageClient.delete(bucket, blob.name)
-        logger.info("Deleted: ${blob.name}")
-      }
-
-      // Wait until requisitions for EDP have status == UNFULFILLED before triggering
-      // `RequisitionFetcher`.
+      // Trigger RequisitionFetcher until it writes the direct-dispatch group for this test.
       runBlocking {
         withTimeoutOrNull(REQUISITIONS_SYNC_TIMEOUT) {
           var areRequisitionsReady: Boolean
@@ -419,13 +421,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             val response = client.send(request, HttpResponse.BodyHandlers.ofString())
             check(response.statusCode() == 200)
 
-            val blobCount =
+            areRequisitionsReady =
               storageClient
-                .list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
+                .list(bucket, Storage.BlobListOption.prefix(directRequisitionStoragePrefix))
                 .iterateAll()
-                .count()
-
-            areRequisitionsReady = blobCount > 0
+                .any { it.name !in existingBlobNames }
 
             if (!areRequisitionsReady) {
               logger.info("Waiting for requisitions to appear...")
@@ -463,16 +463,15 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         reportName,
         provisionModelResources.nonMemoizedModelLine ?: TEST_CONFIG.modelLine,
         listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
+        listEventGroupsDataProviders = EDPA_DATA_PROVIDERS,
+        kingdomApiThrottler = MaximumRateThrottler(maxPerSecond = 5.0),
         onMeasurementsCreated = ::triggerRequisitionFetcher,
-        // Compute the expected reach/frequency from the VIDs the deployed non-memoized model
-        // assigns (not the raw synthetic VIDs), matching the pre-staged and pipelined labeled data.
-        vidLabeler = { impression ->
-          val event = impression.message as TestEvent
-          nonMemoizedVidLabeler.assignVid(
-            impression.vid,
-            event.person.gender.name,
-            event.person.ageGroup.name,
-            impression.timestamp,
+        // Compute the expected reach/frequency from the VIDs and population attributes the deployed
+        // non-memoized model assigns (not the raw synthetic ones), matching the pre-staged and
+        // pipelined labeled data.
+        eventRelabeler = { impression ->
+          nonMemoizedVidLabeler.relabel(
+            LabeledEvent(impression.timestamp, impression.vid, impression.message as TestEvent)
           )
         },
       )
@@ -519,9 +518,24 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       val configFile = getRuntimePath(CONFIG_PATH.resolve(TEST_CONFIG_NAME)).toFile()
       parseTextProto(configFile, EdpaCorrectnessTestConfig.getDefaultInstance())
     }
+    private val EDPA_DATA_PROVIDERS: List<String> =
+      checkNotNull(System.getenv("EDPA_DATA_PROVIDERS")) {
+          "EDPA_DATA_PROVIDERS environment variable is not set"
+        }
+        .split(',')
+        .filter(String::isNotBlank)
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
-      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+      TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
+
+    /**
+     * `PopulationSpec` matching the pools of the compiled hash-only model at
+     * `NON_MEMOIZED_MODEL_BLOB_URI`. Must stay in sync with the `population_spec_blob_uri` the
+     * deployed `VidLabelingConfig` points the same model line at, or the pre-staged days and the
+     * expected results will disagree with the pipelined day.
+     */
+    private const val MODEL_POPULATION_SPEC_RESOURCE_NAME =
+      "hashonly_model_population_spec.textproto"
 
     private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       val configFile =
@@ -534,6 +548,24 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         ImpressionTestDataConfigs.resolveSpecPath(
           IMPRESSION_TEST_DATA_CONFIG.populationSpecResourcePath
         ),
+        PopulationSpec.getDefaultInstance(),
+        POPULATION_SPEC_TYPE_REGISTRY,
+      )
+    }
+
+    /**
+     * The `PopulationSpec` describing the VID pools of the deployed non-memoized model, i.e. the
+     * blob the pipeline reads as `population_spec_blob_uri`.
+     *
+     * Distinct from [populationSpec], which describes the *synthetic* VIDs (1..99999) the generator
+     * draws declared demographics from. This one describes the VIDs the model *assigns*
+     * (10000..10599) and therefore the demographics the labeled output carries. The two cannot be
+     * the same file: [populationSpec] buckets VIDs 10000..19999 into a single subpopulation, which
+     * would collapse all six model pools into one demo.
+     */
+    private val modelPopulationSpec: PopulationSpec by lazy {
+      parseTextProto(
+        ImpressionTestDataConfigs.resolveSpecPath(MODEL_POPULATION_SPEC_RESOURCE_NAME),
         PopulationSpec.getDefaultInstance(),
         POPULATION_SPEC_TYPE_REGISTRY,
       )
@@ -583,6 +615,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           gcsProjectId =
             System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set"),
           labelerInputFieldMapping = provisionModelResources.labelerInputFieldMapping,
+          populationSpec = modelPopulationSpec,
         )
       }
     }

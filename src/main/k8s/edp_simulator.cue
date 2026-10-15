@@ -46,6 +46,7 @@ import "list"
 	_requisitionFulfillmentServiceConfigs: [...#RequisitionFulfillmentServiceConfig]
 	_kingdom_public_api_target: string
 	_logSketchDetails:          bool | *false
+	_kingdomRpcMinInterval:     string | *"200ms"
 	_imageConfig:               #ImageConfig
 	_gcloudProjectId:           string
 	_gcloudProjectNumber:       string
@@ -104,6 +105,7 @@ import "list"
 				"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 				"--kingdom-public-api-cert-host=localhost",
 				"--log-sketch-details=\(_logSketchDetails)",
+				"--kingdom-rpc-min-interval=\(_kingdomRpcMinInterval)",
 				"--health-file=\(HealthFile)",
 				"--population-spec=\(_populationSpecPath)",
 				"--support-trustee=\(_edpConfig.supportTrusTee)",

@@ -17,6 +17,10 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import java.util.logging.Handler
+import java.util.logging.Level
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -230,6 +234,59 @@ class BasicReportProtoConversionsTest {
       .isEqualTo(ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID, customGroupId).toName())
   }
 
+  @Test
+  fun `toBasicReport warns once when a component summary has no external_reporting_set_id`() {
+    val warnings = captureConversionWarnings {
+      INTERNAL_BASIC_REPORT_WITHOUT_COMPONENT_REPORTING_SET_ID.toBasicReport(
+        populateDeprecatedReportingUnitEventGroupSummaries = false
+      )
+    }
+
+    assertThat(warnings).hasSize(1)
+    assertThat(warnings.single()).contains("basic-report")
+    assertThat(warnings.single()).contains("without external_reporting_set_id")
+  }
+
+  @Test
+  fun `toBasicReport does not warn when every component summary is populated`() {
+    val warnings = captureConversionWarnings {
+      internalBasicReportWithComponentReportingSetId("reporting-set")
+        .toBasicReport(populateDeprecatedReportingUnitEventGroupSummaries = false)
+    }
+
+    assertThat(warnings).isEmpty()
+  }
+
+  /**
+   * Runs [block] and returns the WARNING messages the conversion logger emitted.
+   *
+   * The warning is the signal that gates removal of the tolerate-blank behavior, so it is asserted
+   * on directly rather than inferred from the converted message.
+   */
+  private fun captureConversionWarnings(block: () -> Unit): List<String> {
+    val logger = Logger.getLogger(CONVERSION_LOGGER_NAME)
+    val warnings = mutableListOf<String>()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          if (record.level == Level.WARNING) {
+            warnings.add(record.message)
+          }
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    logger.addHandler(handler)
+    return try {
+      block()
+      warnings
+    } finally {
+      logger.removeHandler(handler)
+    }
+  }
+
   private fun BasicReport.onlyComponentSummary(): ReportingUnitComponentSummary {
     return resultGroupsList
       .single()
@@ -247,6 +304,7 @@ class BasicReportProtoConversionsTest {
     private const val CMMS_EVENT_GROUP_ID = "eg"
     private const val COMPONENT_EXTERNAL_REPORTING_SET_ID = "component-reporting-set"
     private const val CAMPAIGN_GROUP_EXTERNAL_ID = "campaign-group"
+    private const val CONVERSION_LOGGER_NAME = "BasicReportProtoConversions"
 
     private fun internalBasicReportWithComponentReportingSetId(
       componentExternalReportingSetId: String

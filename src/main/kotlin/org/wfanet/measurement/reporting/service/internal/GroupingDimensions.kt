@@ -34,6 +34,9 @@ class GroupingDimensions(eventMessageDescriptor: Descriptors.Descriptor) {
     val valuesByFieldPath: Map<String, List<Descriptors.EnumValueDescriptor>> =
       allGroupableFields.associateBy(EventTemplates.TemplateField::path) { field ->
         // For now, all groupable fields must be enums.
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Support
+        // non-enum GROUPABLE fields once grouping specs are supported. Do not mark a non-enum
+        // field GROUPABLE before then.
         require(field.descriptor.type == Descriptors.FieldDescriptor.Type.ENUM) {
           "Only enum types are supported for groupable fields"
         }

@@ -55,7 +55,7 @@ class SpannerFlags : SpannerParams {
   @CommandLine.Option(
     names = ["--spanner-ready-timeout"],
     description = ["How long to wait for Spanner to be ready."],
-    defaultValue = "10s",
+    defaultValue = "PT10S",
   )
   override lateinit var readyTimeout: Duration
     private set

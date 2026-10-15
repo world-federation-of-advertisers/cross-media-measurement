@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
@@ -87,6 +88,8 @@ import org.wfanet.measurement.storage.StorageClient
  * - `POOL_ASSIGNER_QUEUE_NAME`: Required. Resource name of the Phase-0 SubpoolAssigner Secure
  *   Computation queue (memoized model lines).
  * - `CHANNEL_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
+ * - `VID_LABELING_*_RPC_MIN_INTERVAL`: Optional. Minimum intervals for the four outbound RPC
+ *   throttlers.
  *
  * The staleness threshold (after which a non-terminal upload is flagged as stuck) is set per
  * `DataProvider` via the `staleness_threshold` field on each [VidLabelingConfig].
@@ -176,6 +179,8 @@ class VidLabelingMonitorFunction : HttpFunction {
     requireValidStalenessThreshold(config)
     // Fail fast on per-model-line config the TEE would otherwise only reject at Phase-2.
     requireValidModelLineConfigs(config)
+    // Fail fast on the bin-packing cap the memoized path only rejects inside the TEE.
+    requireValidMaxFileBatchSizeBytes(config)
 
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
 
@@ -270,6 +275,7 @@ class VidLabelingMonitorFunction : HttpFunction {
         rawImpressionUploadFileStub = rawImpressionUploadFileStub,
         vidLabelingJobStub = vidLabelingJobStub,
         maxFileBatchSizeBytes = config.maxFileBatchSizeBytes,
+        rpcThrottlers = rpcThrottlers,
       )
 
     val monitor =
@@ -292,9 +298,11 @@ class VidLabelingMonitorFunction : HttpFunction {
             config.vidLabeledImpressionsStorageParams.gcs.projectId,
           )
         },
+        poolAssignmentJobStub = poolAssignmentJobStub,
         rankerJobStub = rankerJobStub,
         vidLabelingJobStub = vidLabelingJobStub,
         workItemsStub = workItemsStub,
+        rpcThrottlers = rpcThrottlers,
       )
 
     return when (mode) {
@@ -332,6 +340,10 @@ class VidLabelingMonitorFunction : HttpFunction {
       EnvVars.checkNotNullOrEmpty("POOL_ASSIGNER_QUEUE_NAME")
 
     private val configBlobKey: String = EnvVars.checkNotNullOrEmpty("CONFIG_BLOB_KEY")
+
+    private val rpcThrottlers: VidLabelingRpcThrottlers by lazy {
+      VidLabelingRpcThrottlersEnvironment.load()
+    }
 
     /**
      * Eagerly loaded at class init via [runBlocking]. Cloud Functions initialize the class on the

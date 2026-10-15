@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultMinimumThresholder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
@@ -39,7 +40,10 @@ class TrusTeeMeasurementFulfiller(
   private val sampledFrequencyVector: FrequencyVector,
   private val requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
   private val requisitionsStub: RequisitionsCoroutineStub,
+  private val requisitionsThrottler: Throttler,
   private val encryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams?,
+  private val fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? =
+    null,
 ) : MeasurementFulfiller {
   override suspend fun fulfillRequisition() {
     logger.info("Fulfilling requisition ${requisition.name}...")
@@ -47,7 +51,9 @@ class TrusTeeMeasurementFulfiller(
     val requisitionFulfillmentStub = requisitionFulfillmentStubMap.getValue(duchyId)
     try {
       val getRequisitionResponse =
-        requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
+        requisitionsThrottler.onReady {
+          requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
+        }
       if (getRequisitionResponse.state === Requisition.State.UNFULFILLED) {
         val requests: Flow<FulfillRequisitionRequest> =
           if (encryptionParams != null) {
@@ -56,6 +62,7 @@ class TrusTeeMeasurementFulfiller(
                 requisitionNonce,
                 sampledFrequencyVector,
                 encryptionParams,
+                fulfillmentDetails,
               )
               .asFlow()
           } else {
@@ -63,6 +70,7 @@ class TrusTeeMeasurementFulfiller(
                 requisition,
                 requisitionNonce,
                 sampledFrequencyVector,
+                fulfillmentDetails,
               )
               .asFlow()
           }
@@ -80,9 +88,11 @@ class TrusTeeMeasurementFulfiller(
   }
 
   private fun getAggregatorDuchy(requisition: Requisition): String {
-    return requisition.duchiesList.singleOrNull { it.value.hasTrusTee() }?.key
+    return requisition.duchiesList
+      .singleOrNull { it.value.hasTrusTee() || it.value.hasTrusTeeV2() }
+      ?.key
       ?: throw IllegalArgumentException(
-        "Expected exactly one Duchy entry with TrusTee protocol configuration."
+        "Expected exactly one Duchy entry with TrusTee or TrusTeeV2 protocol configuration."
       )
   }
 
@@ -98,6 +108,7 @@ class TrusTeeMeasurementFulfiller(
       frequencyVectorBuilder: FrequencyVectorBuilder,
       requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
       requisitionsStub: RequisitionsCoroutineStub,
+      requisitionsThrottler: Throttler,
       resultMinimumThresholds: ResultMinimumThresholds,
       protocolMinUsers: Int,
       protocolMinImpressions: Int,
@@ -120,6 +131,7 @@ class TrusTeeMeasurementFulfiller(
         thresholdedFrequencyVector,
         requisitionFulfillmentStubMap,
         requisitionsStub,
+        requisitionsThrottler,
         encryptionParams,
       )
     }

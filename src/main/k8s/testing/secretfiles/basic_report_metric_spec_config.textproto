@@ -3,7 +3,7 @@
 reach_params {
   multiple_data_provider_params {
     privacy_params {
-      epsilon: 0.0041
+      epsilon: 0.041
       delta: 1.0E-12
     }
     vid_sampling_interval {
@@ -15,7 +15,7 @@ reach_params {
   }
   single_data_provider_params {
     privacy_params {
-      epsilon: 0.0041
+      epsilon: 0.041
       delta: 1.0E-12
     }
     vid_sampling_interval {
@@ -29,11 +29,11 @@ reach_params {
 reach_and_frequency_params {
   multiple_data_provider_params {
     reach_privacy_params {
-      epsilon: 0.0033
+      epsilon: 0.033
       delta: 1.0E-12
     }
     frequency_privacy_params {
-      epsilon: 0.115
+      epsilon: 1.15
       delta: 1.0E-12
     }
     vid_sampling_interval {
@@ -45,11 +45,11 @@ reach_and_frequency_params {
   }
   single_data_provider_params {
     reach_privacy_params {
-      epsilon: 0.0033
+      epsilon: 0.033
       delta: 1.0E-12
     }
     frequency_privacy_params {
-      epsilon: 0.115
+      epsilon: 1.15
       delta: 1.0E-12
     }
     vid_sampling_interval {
@@ -64,7 +64,7 @@ reach_and_frequency_params {
 impression_count_params {
   params {
     privacy_params {
-      epsilon: 0.0011
+      epsilon: 0.011
       delta: 1.0E-12
     }
     vid_sampling_interval {
@@ -79,7 +79,7 @@ impression_count_params {
 watch_duration_params {
   params {
     privacy_params {
-      epsilon: 0.001
+      epsilon: 0.01
       delta: 1.0E-12
     }
     vid_sampling_interval {

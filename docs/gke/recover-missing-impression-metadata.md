@@ -1,0 +1,241 @@
+# Recover missing ImpressionMetadata
+
+`RecoverMissingImpressionMetadata` reconciles impression metadata files in blob storage with the
+EDP Aggregator `ImpressionMetadataService`.
+
+The command discovers ISO-date folders in the requested lookback window and processes one folder
+at a time. For each folder, it lists storage objects and pages through the metadata store using the
+folder's blob URI prefix. This bounds memory to one date folder instead of loading the full
+lookback window.
+
+It repairs four inconsistencies:
+
+- A finalized metadata file has no active or deleted `ImpressionMetadata` resource. A folder is
+  finalized only when it contains a `done` blob. The command re-runs `DataAvailabilitySync`
+  through a filtered storage view containing only the missing files, then re-queries the folder and
+  verifies that every missing resource is now active.
+- An `ImpressionMetadata` resource is deleted while its metadata file still exists. The command
+  calls `UndeleteImpressionMetadata`, includes the restored blob in the finalized folder's
+  `DataAvailabilitySync`, and reports any resource that could not be restored.
+- A finalized metadata blob has an active resource but no `synced-by` marker, which can happen
+  when an upload overwrites a previously processed blob or synchronization stops while stamping
+  blobs. The command includes every such blob in the retry.
+- A finalized folder has the metadata-store `synced-by` marker but its latest
+  `data-availability-sync-id` does not match `data-availability-published-sync-id`. The command
+  re-runs `DataAvailabilitySync` with one representative marked blob per model line and verifies
+  that the publication IDs match. Missing, restored, and unmarked blobs share the same retry.
+
+Deleted-record checks also include folders without `done`, since that existence check is
+independent of upload finalization.
+
+If `error_if_gaps_exist` blocks publication, the publication IDs remain mismatched and the command
+exits nonzero so the folder remains retryable after the gap is corrected.
+
+## Run the CLI
+
+The config file is a `DataAvailabilitySyncConfig` textproto. Its GCS bucket, data provider,
+impression path, model-line mapping, and TLS file paths are reused by the recovery command.
+
+```shell
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:RecoverMissingImpressionMetadata \
+  -- \
+  --config-file=/absolute/path/to/data-availability-sync-config.textproto \
+  --kingdom-public-api-target=KINGDOM_HOST:8443 \
+  --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
+  --lookback-days=90 \
+  --end-days-ago=0
+```
+
+Optional flags:
+
+- `--kingdom-public-api-cert-host`
+- `--impression-metadata-api-cert-host`
+- `--throttler-minimum-interval` (default `1s`)
+- `--impression-metadata-batch-size` (default `1000`)
+
+Choose exactly one date-selection mode:
+
+- Repeat `--data-date=YYYY-MM-DD` for `late_arriving`, `unprocessed_done`,
+  `unpublished_availability`, and `spurious_deletion` recovery. This is the preferred mode for
+  monitor alerts and supports non-contiguous dates without scanning the folders between them.
+  `gap`, `zero_impression`, and `without_done_blob` require correcting or completing the source
+  upload; selecting those dates before correcting the upload produces a successful no-op.
+- Pass `--end-days-ago` with optional `--lookback-days` (default `90`) to reconcile a contiguous
+  window. `--end-days-ago` sets the newest eligible date and must be nonnegative and less than
+  `--lookback-days`. For example, `--lookback-days=90 --end-days-ago=30` scans from 89 days ago
+  through 30 days ago, inclusive. The weekly CronJob uses
+  `--lookback-days=90 --end-days-ago=0`, which includes today.
+
+For example, this ad-hoc CLI invocation reconciles two non-contiguous alert dates and no others:
+
+```shell
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:RecoverMissingImpressionMetadata \
+  -- \
+  --config-file=/absolute/path/to/data-availability-sync-config.textproto \
+  --kingdom-public-api-target=KINGDOM_HOST:8443 \
+  --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
+  --data-date=2026-09-12 \
+  --data-date=2026-09-15
+```
+
+The Cloud Monitoring alert policy must filter on
+`edpa_data_availability_monitor_source=monitor` and preserve or group by
+`edpa_data_availability_monitor_data_date`, `edpa_data_availability_monitor_model_line`, and
+`edpa_data_availability_monitor_date_status`. These are the exported forms of the corresponding
+dotted OpenTelemetry attribute names. Otherwise, the counter remains useful for totals but does
+not identify the folder to recover. The date attribute is present on monitor-emitted issue
+statuses that identify date folders. It is omitted from healthy-date totals,
+legitimate-deletion counts, and points emitted by `DataAvailabilitySync`.
+
+The command exits nonzero when any folder scan, resynchronization, verification, or undelete fails.
+A successfully repaired inconsistency does not cause a nonzero exit.
+
+## Weekly Kubernetes CronJob
+
+The `recover_missing_impression_metadata_image` target publishes the
+`edp-aggregator/recover-missing-impression-metadata` image. The EDP Aggregator GKE configuration
+deploys and enables `recover-missing-impression-metadata-edp7-cronjob` with:
+
+- schedule `0 6 * * 0` (Sunday at 06:00 UTC);
+- `concurrencyPolicy: Forbid`;
+- a 90-day lookback;
+- `--end-days-ago=0` to include the current UTC date;
+- list and write batches of 1,000 records; and
+- a 100 ms minimum interval between API requests.
+
+The job uses the same Workload Identity service account as
+`sync-event-group-activities-edp7-cronjob`. That identity must have
+`roles/storage.objectAdmin` on the configured bucket because recovery reads blobs and updates
+their metadata during synchronization.
+
+The deployment workflow derives the job's single-EDP config from the `edp/edp7` entry in the
+existing `DATA_AVAILABILITY_SYNC_CONFIG_CONTENT` GitHub environment variable and rewrites its TLS
+paths for the Kubernetes mounts. The expected Cloud Function TLS paths must remain present in that
+source config so the workflow can validate and replace each one explicitly.
+
+The pod needs:
+
+- read and metadata-update access to the configured bucket;
+- network access to the Kingdom and EDP Aggregator public APIs;
+- the TLS files referenced by `DataAvailabilitySyncConfig` mounted at their configured paths; and
+- OpenTelemetry injection or equivalent exporter configuration for alerts.
+
+The Kubernetes job sets `OTEL_METRIC_EXPORT_INTERVAL=5000`, allowing short no-op runs to export
+their metrics before the process exits.
+
+### Run the healing tool ad hoc
+
+A suspended CronJob can still be used as the template for one-off recovery Jobs. To run the
+CronJob's configured 90-day range immediately:
+
+```shell
+kubectl create job \
+  --from=cronjob/recover-missing-impression-metadata-edp7-cronjob \
+  recover-missing-impression-metadata-edp7-manual-$(date +%s)
+```
+
+The command above copies the CronJob's configured 90-day range. To run only the dates identified
+by monitor alerts, list their `edpa_data_availability_monitor_data_date` values in `ALERTED_DATES`.
+The command removes the default range arguments and appends one `--data-date` argument for each
+date:
+
+```shell
+ALERTED_DATES='["2026-09-12", "2026-09-15"]'
+JOB_NAME=recover-missing-impression-metadata-edp7-manual-$(date +%s)
+
+kubectl create job \
+  --from=cronjob/recover-missing-impression-metadata-edp7-cronjob \
+  "$JOB_NAME" \
+  --dry-run=client \
+  -o json |
+  jq \
+    --argjson dates "$ALERTED_DATES" \
+    '.spec.template.spec.containers[].args |=
+      (map(select(
+        (startswith("--lookback-days=") or startswith("--end-days-ago=")) | not
+      )) + ($dates | map("--data-date=" + .)))' |
+  kubectl create -f -
+```
+
+The selected dates run sequentially within one Job. Do not start multiple manual recovery Jobs
+concurrently.
+
+Then inspect its logs:
+
+```shell
+kubectl logs -l app=recover-missing-impression-metadata-edp7-app --tail=200
+```
+
+## Operational boundaries
+
+The recovery job and `DataAvailabilitySyncFunction` do not share a distributed lock. The scheduled
+job runs during a low-traffic weekly window, and `concurrencyPolicy: Forbid` prevents scheduled
+runs from overlapping. It does not serialize manually created Jobs or prevent the Cloud Function
+from processing the same date folder. Do not start multiple manual recovery Jobs concurrently,
+and avoid manually starting recovery while a target folder is actively being finalized.
+
+Post-sync verification proves that every repaired `ImpressionMetadata` resource is active and that
+the sync and publication IDs match after the Kingdom update. The existing `synced-by` marker
+continues to record the metadata-store phase. The sync attempt ID is written before metadata-store
+mutation, while publication updates only its own marker. If a newer attempt starts while an older
+attempt is publishing, their IDs remain mismatched until a complete retry. These separate markers
+allow the monitor to distinguish metadata-persistence failures from Kingdom publication failures.
+
+## Scale and performance
+
+For two model lines, 90 days, and 5,000 campaigns per model line per day, the window contains about
+900,000 metadata resources in 180 date folders. With 1,000-resource pages, a healthy run makes
+about 900 paginated list RPCs plus storage listings. It never builds a 900,000-entry in-memory map;
+the largest working set is one folder, about 5,000 resources in this example.
+
+The 100 ms production throttle contributes about 90 seconds to the healthy metadata-store scan.
+Storage listing, network latency, JVM startup, and any actual repairs add to that lower bound. A
+reasonable healthy-run budget is therefore several minutes, not the earlier one-to-two-minute
+estimate based on one metadata file per folder. Missing-record repair is slower because
+`DataAvailabilitySync` parses the selected blobs, performs writes, recomputes model-line bounds,
+and publishes availability intervals for each affected folder.
+
+Undelete recovery is intentionally rate-limited and currently uses one RPC per deleted resource.
+At the deployed 100 ms minimum interval, an extreme window in which all 900,000 records are
+deleted has a 25-hour throttle floor before network latency, verification, or resynchronization.
+That is a pathological repair case, not the healthy scan estimate. A future batch-undelete RPC is
+the main way to reduce this bound without exceeding the service's request budget.
+
+The main speedups are folder-prefix filtering, 1,000-record pages, and bounded per-folder memory.
+For a folder that only lacks the publication marker, recovery feeds one representative metadata
+blob per model line back through `DataAvailabilitySync`; it does not rewrite all 5,000 resources.
+The first run after this marker is introduced backfills the last 90 days, after which healthy runs
+skip already-published folders. Markerless legacy folders outside the configured window are not
+reported as failed publication attempts; operators can backfill a chosen historical range with the
+CLI. A successful synchronization performs three small metadata patches on `done`: attempt start,
+metadata-store completion, and Kingdom-publication completion.
+Parallelizing folders would shorten the scan but is intentionally avoided because concurrent syncs
+can race while replacing provider-wide Kingdom availability intervals.
+
+## Metrics
+
+- `edpa.data_availability_recovery.missing_blobs`
+- `edpa.data_availability_recovery.deleted_records_with_blobs`
+- `edpa.data_availability_recovery.failed_blobs`
+- `edpa.data_availability_recovery.failed_undeletes`
+- `edpa.data_availability_recovery.errors`
+
+All five are per-run gauges. Alert when either inconsistency gauge, either targeted repair-failure
+gauge, or the aggregate error gauge is greater than zero. The aggregate gauge also covers failures
+such as an unsuccessful folder listing that cannot be attributed to a blob or undelete. Each point
+has an
+`edpa.data_availability_recovery.edp_impression_path` attribute. Successful counts are in the
+completion log; a separate recovered gauge would duplicate `missing_blobs - failed_blobs`.
+The data-availability monitor also emits
+`edpa.data_availability.date_count` with
+`edpa_data_availability_monitor_data_date=YYYY-MM-DD` in Cloud Monitoring for issue statuses tied
+to a date folder. Preserve that label in alerts so an operator can run the targeted one-day Job
+above. The `unpublished_availability` status specifically identifies folders whose new
+sync-attempt ID does not match the Kingdom publication marker after the configured threshold.
+`edpa.data_availability.noncanonical_spurious_deletion_count` identifies spurious deletions that
+cannot be mapped to a canonical date folder. When it is nonzero, inspect the monitor's warning logs
+for the resource names and blob URIs; those entries cannot be selected with `--data-date`.
+Legacy `synced-by` folders without a sync-attempt ID are migrated by recovery within its configured
+date range and do not create permanent monitor alerts outside that range.

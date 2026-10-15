@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
@@ -26,6 +28,8 @@ import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest as InternalConfirmComputationParticipantRequest
@@ -77,8 +81,12 @@ class ComputationParticipantsService(
 
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest
-  ): ComputationParticipant {
-    val internalResponse =
+  ): ComputationParticipant =
+    traceParticipantMutation(
+      spanName = "kingdom.computation_participant.set_requisition_params",
+      stage = "kingdom_participant_requisition_params_acceptance",
+      participantName = request.name,
+    ) {
       try {
         internalComputationParticipantsClient.setParticipantRequisitionParams(
           request.toInternalRequest()
@@ -86,14 +94,16 @@ class ComputationParticipantsService(
       } catch (e: StatusException) {
         throw mapStatusException(e).asRuntimeException()
       }
-
-    return internalResponse.toSystemComputationParticipant()
-  }
+    }
 
   override suspend fun confirmComputationParticipant(
     request: ConfirmComputationParticipantRequest
-  ): ComputationParticipant {
-    val internalResponse =
+  ): ComputationParticipant =
+    traceParticipantMutation(
+      spanName = "kingdom.computation_participant.confirm",
+      stage = "kingdom_participant_confirmation",
+      participantName = request.name,
+    ) {
       try {
         internalComputationParticipantsClient.confirmComputationParticipant(
           request.toInternalRequest()
@@ -101,14 +111,27 @@ class ComputationParticipantsService(
       } catch (e: StatusException) {
         throw mapStatusException(e).asRuntimeException()
       }
-
-    return internalResponse.toSystemComputationParticipant()
-  }
+    }
 
   override suspend fun failComputationParticipant(
     request: FailComputationParticipantRequest
-  ): ComputationParticipant {
-    val internalResponse =
+  ): ComputationParticipant =
+    traceParticipantMutation(
+      spanName = "kingdom.computation_participant.fail",
+      stage = "kingdom_participant_failure_acceptance",
+      participantName = request.name,
+      additionalAttributes =
+        Attributes.builder()
+          .also { builder ->
+            if (request.hasFailure() && request.failure.hasStageAttempt()) {
+              KingdomSystemReportTracing.addComputationStageAttemptAttributes(
+                builder,
+                request.failure.stageAttempt,
+              )
+            }
+          }
+          .build(),
+    ) {
       try {
         internalComputationParticipantsClient.failComputationParticipant(
           request.toInternalRequest()
@@ -116,8 +139,47 @@ class ComputationParticipantsService(
       } catch (e: StatusException) {
         throw mapStatusException(e).asRuntimeException()
       }
+    }
 
-    return internalResponse.toSystemComputationParticipant()
+  private suspend fun traceParticipantMutation(
+    spanName: String,
+    stage: String,
+    participantName: String,
+    additionalAttributes: Attributes = Attributes.empty(),
+    mutation: suspend () -> InternalComputationParticipant,
+  ): ComputationParticipant {
+    return ReportTracing.traceSuspending(
+      spanName = spanName,
+      attributes = participantTraceAttributes(participantName, stage, additionalAttributes),
+    ) {
+      val internalResponse = mutation()
+      Span.current()
+        .setAttribute(
+          ReportTraceAttributes.COMPUTATION_PARTICIPANT_STATE,
+          internalResponse.state.name,
+        )
+        .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
+      KingdomSystemReportTracing.addMeasurementName(
+        Span.current(),
+        internalResponse.externalMeasurementConsumerId,
+        internalResponse.externalMeasurementId,
+      )
+      internalResponse.toSystemComputationParticipant()
+    }
+  }
+
+  private fun participantTraceAttributes(
+    participantName: String,
+    stage: String,
+    additionalAttributes: Attributes,
+  ): Attributes {
+    val builder =
+      Attributes.builder()
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, stage)
+        .put(ReportTraceAttributes.OUTCOME, "started")
+        .putAll(additionalAttributes)
+    return KingdomSystemReportTracing.addComputationParticipantAttributes(builder, participantName)
+      .build()
   }
 
   /**

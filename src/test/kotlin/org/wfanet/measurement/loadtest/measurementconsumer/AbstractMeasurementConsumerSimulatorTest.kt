@@ -20,6 +20,7 @@ import com.google.type.interval
 import java.nio.file.Paths
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -51,11 +52,14 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 
 abstract class AbstractMeasurementConsumerSimulatorTest {
+
+  protected val kingdomApiThrottler = RecordingThrottler()
 
   protected val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase =
     mockService {
@@ -117,6 +121,18 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
   ): RequisitionSpec {
     val signedRequisitionSpec = decryptRequisitionSpec(encryptedRequisitionSpec, EDP_PRIVATE_KEY)
     return RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+  }
+
+  @Test
+  fun `testDirectReachAndFrequency throttles every Kingdom API request`() {
+    stubEventGroups(listOf("sim-eg-ref-1"))
+
+    val simulator = createSimulator(listOf("sim-eg-ref-1"))
+    assertFailsWith<ShortCircuitException> {
+      runBlocking { simulator.testDirectReachAndFrequency("run1", 1) }
+    }
+
+    assertThat(kingdomApiThrottler.invocationCount).isEqualTo(4)
   }
 
   @Test
@@ -188,6 +204,18 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
     assertThat(requisitionSpec.events.eventGroupsList).hasSize(1)
     assertThat(requisitionSpec.events.eventGroupsList[0].key)
       .isEqualTo("$DATA_PROVIDER_NAME/eventGroups/sim-eg-wanted")
+  }
+
+  protected class RecordingThrottler : Throttler {
+    private val invocationCounter = AtomicInteger()
+
+    val invocationCount: Int
+      get() = invocationCounter.get()
+
+    override suspend fun <T> onReady(block: suspend () -> T): T {
+      invocationCounter.incrementAndGet()
+      return block()
+    }
   }
 
   companion object {

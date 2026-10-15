@@ -33,24 +33,14 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "GitHub-managed environment"
-        required: true
-        type: choice
-        options:
-        - dev
-        - qa
-        - head
-      image-tag:
-        description: "Tag of container images"
-        type: string
-        required: true
-      apply:
-        description: "Apply the new configuration"
+      dead-letter-processing-enabled:
+        description: "Whether Secure Computation DLQ listeners may consume messages"
         type: boolean
-        default: false
+        default: true
+      work-item-publication-enabled:
+        description: "Whether Secure Computation may publish or reconcile WorkItems"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -96,6 +86,8 @@ jobs:
         build --define "image_tag=$IMAGE_TAG"
         build --define "google_cloud_project=$GCLOUD_PROJECT"
         build --define "spanner_instance=$SPANNER_INSTANCE"
+        build --define "dead_letter_processing_enabled=${{ inputs.dead-letter-processing-enabled }}"
+        build --define "work_item_publication_enabled=${{ inputs.work-item-publication-enabled }}"
         EOF
 
     - name: Export BAZEL_BIN
@@ -146,5 +138,5 @@ jobs:
       if: ${{ inputs.apply }}
       run: |
         for deployment in $(kubectl get deployments -l app.kubernetes.io/component=secure-computation -o name); do
-          kubectl rollout status "$deployment" --timeout=5m
+          kubectl rollout status "$deployment" --timeout=15m
         done
