@@ -178,19 +178,19 @@ approved workload projects together with the image-signature claims.
 Complete the mapping before building the production export. Raw impressions do
 not contain a VID. They are flat Parquet files with one row per impression.
 
-### If the data starts in a clean room or warehouse
+### If an advertiser or another data aggregator prepares the export
 
-Snowflake, Decentriq, or another clean room or data warehouse can be the system
-that produces the daily files. EDPA does not require a live database connector,
-a Halo SDK inside the clean room, or an API call for each measurement. The
-integration boundary is the two file feeds in this guide.
+An advertiser or another data aggregator can produce the daily files. EDPA
+does not require a live database connector, a Halo SDK in the source system,
+or an API call for each measurement. The integration boundary is the two file
+feeds in this guide.
 
 The impression feed must contain the approved **impression-level rows**, not an
 aggregated reach, frequency, or campaign result. Each exported row needs the
 identity inputs, event fields, and campaign identifier agreed with the operator.
-If the clean room's output policy does not permit those rows to leave in
-plaintext, the Parquet encryption step must run inside the clean-room boundary
-and emit only PME-encrypted files.
+If the exporter's policy does not permit those rows to leave in plaintext, the
+Parquet encryption step must run inside its controlled environment and emit
+only PME-encrypted files.
 
 A native Parquet export is sufficient only if it can also:
 
@@ -198,17 +198,17 @@ A native Parquet export is sufficient only if it can also:
 * apply Parquet Modular Encryption with a plaintext footer; and
 * produce files near the agreed size target.
 
-If the native export cannot do all three, add a publisher-controlled export step,
-inside the clean-room boundary when policy requires it, that reads the approved
-rows, validates and shards them, adds the footer, applies PME with the
+If the native export cannot do all three, add an exporter-controlled step,
+inside its controlled environment when policy requires it, that reads the
+approved rows, validates and shards them, adds the footer, applies PME with the
 publisher's KMS key, and writes the encrypted objects to the operator-provided
-prefix. Do not write plaintext impression files to the operator's bucket. Use a
-separate, prefix-scoped upload identity and publish `done` only after every
+prefix. Do not write plaintext impression files to the operator's bucket. Use
+a separate, prefix-scoped upload identity and publish `done` only after every
 encrypted object for the date is present.
 
-Campaign information remains a separate feed. It may come from the same clean
-room or from the publisher's campaign system, but its entity keys must match the
-values in the impression export.
+Campaign information remains a separate feed. It may come from the same
+exporter or from the publisher's campaign system, but its entity keys must
+match the values in the impression export.
 
 Column names belong to the publisher. The operator maps them into the market's
 VID model and event schema. The names below are examples from the reference
