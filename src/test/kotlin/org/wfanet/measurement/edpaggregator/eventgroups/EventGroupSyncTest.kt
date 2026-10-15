@@ -2310,6 +2310,71 @@ class EventGroupSyncTest {
   }
 
   @Test
+  fun `sync maps one entity key to distinct resources for all matched measurement consumers`() {
+    wheneverBlocking { eventGroupsServiceMock.batchCreateEventGroups(any()) }
+      .thenAnswer { invocation ->
+        val requests = invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList
+        batchCreateEventGroupsResponse {
+          eventGroups +=
+            requests.map { request ->
+              val source = request.eventGroup
+              cmmsEventGroup {
+                name =
+                  "dataProviders/edp/eventGroups/" +
+                    source.measurementConsumer.substringAfterLast("/")
+                measurementConsumer = source.measurementConsumer
+                entityKey = source.entityKey
+                eventGroupMetadata = source.eventGroupMetadata
+                dataAvailabilityInterval = source.dataAvailabilityInterval
+                mediaTypes += source.mediaTypesList
+              }
+            }
+        }
+      }
+    val source = eventGroup {
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "campaign-123"
+      }
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-multiple"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += MediaType.VIDEO
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        listOf(source).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = listOf("campaign"),
+      )
+
+    val mappings = runBlocking { eventGroupSync.sync().toList() }
+
+    assertThat(mappings.map { it.entityKey }).containsExactly(source.entityKey, source.entityKey)
+    assertThat(mappings.map { it.eventGroupResource })
+      .containsExactly(
+        "dataProviders/edp/eventGroups/measurement-consumer-1",
+        "dataProviders/edp/eventGroups/measurement-consumer-2",
+      )
+    assertThat(mappings.all { it.eventGroupReferenceId.isEmpty() }).isTrue()
+  }
+
+  @Test
   fun `records unmapped metric when event group cannot be resolved`() {
     runBlocking {
       val unmappableEventGroup = eventGroup {
