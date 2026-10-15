@@ -1892,6 +1892,8 @@ class TestReport(unittest.TestCase):
     # 3. Reach of the child set is less than or equal to reach of the parent set
     # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
     # 4. All reach values are non-negative.
+    # 5. Overlap is monotonic as the measurement period grows. The overlap of
+    # a set of EDPs in a later period cannot be smaller than in an earlier one.
     corrected, report_post_processor_result = report.get_corrected_report()
 
     expected = Report(
@@ -1901,18 +1903,18 @@ class TestReport(unittest.TestCase):
                     # 1 way comb
                     frozenset({EDP_ONE}): [
                         Measurement(0.10, 1.00, "measurement_01"),
-                        Measurement(3.362, 1.00, "measurement_02"),
-                        Measurement(4.00, 1.00, "measurement_03"),
+                        Measurement(3.2893, 1.00, "measurement_02"),
+                        Measurement(4.1464, 1.00, "measurement_03"),
                     ],
                     frozenset({EDP_TWO}): [
                         Measurement(0.00, 1.00, "measurement_04"),
-                        Measurement(2.512, 1.00, "measurement_05"),
-                        Measurement(3.3333, 1.00, "measurement_06"),
+                        Measurement(2.4393, 1.00, "measurement_05"),
+                        Measurement(3.3821, 1.00, "measurement_06"),
                     ],
                     frozenset({EDP_THREE}): [
                         Measurement(0.95, 1.00, "measurement_07"),
                         Measurement(3.5749, 1.00, "measurement_08"),
-                        Measurement(5.3333, 1.00, "measurement_09"),
+                        Measurement(5.3821, 1.00, "measurement_09"),
                     ],
                     # 2 way combs
                     frozenset({EDP_ONE, EDP_TWO}): [
@@ -1922,19 +1924,19 @@ class TestReport(unittest.TestCase):
                     ],
                     frozenset({EDP_TWO, EDP_THREE}): [
                         Measurement(0.95, 1.00, "measurement_13"),
-                        Measurement(6.087, 1.00, "measurement_14"),
-                        Measurement(8.66666, 1.00, "measurement_15"),
+                        Measurement(6.0143, 1.00, "measurement_14"),
+                        Measurement(8.7643, 1.00, "measurement_15"),
                     ],
                     frozenset({EDP_ONE, EDP_THREE}): [
                         Measurement(1.05, 1.00, "measurement_16"),
-                        Measurement(6.937, 1.00, "measurement_17"),
+                        Measurement(6.8643, 1.00, "measurement_17"),
                         Measurement(8.90, 1.00, "measurement_18"),
                     ],
                     # 3 way comb
                     frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
                         Measurement(1.05, 1.00, "measurement_19"),
-                        Measurement(8.00, 1.00, "measurement_20"),
-                        Measurement(11.90, 1.00, "measurement_21"),
+                        Measurement(8.1464, 1.00, "measurement_20"),
+                        Measurement(11.7536, 1.00, "measurement_21"),
                     ],
                 },
                 whole_campaign_measurements={},
