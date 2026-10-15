@@ -201,6 +201,7 @@ reporting: #Reporting & {
 				_javaOptions: {
 					maxHeapSize:          #CronJobMaxHeapSize
 					nativeMemoryTracking: "summary"
+					gcLogging:            true
 				}
 				resources: #CronJobResourceRequirements
 			}
@@ -210,6 +211,7 @@ reporting: #Reporting & {
 				_javaOptions: {
 					maxHeapSize:          #CronJobMaxHeapSize
 					nativeMemoryTracking: "summary"
+					gcLogging:            true
 				}
 				resources: #CronJobResourceRequirements
 			}
@@ -217,6 +219,7 @@ reporting: #Reporting & {
 				_javaOptions: {
 					maxHeapSize:          #CronJobMaxHeapSize
 					nativeMemoryTracking: "summary"
+					gcLogging:            true
 				}
 				resources: #CronJobResourceRequirements
 			}

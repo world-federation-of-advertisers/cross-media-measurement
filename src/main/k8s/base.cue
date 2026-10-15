@@ -131,6 +131,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	heapDumpPath?:            string
 	exitOnOutOfMemory:        bool | *heapDumpOnOutOfMemory
 	nativeMemoryTracking?:    "summary" | "detail"
+	gcLogging:                bool | *false
 
 	_maxRamPercentageOpts: [...string]
 	if maxRamPercentage != _|_ {
@@ -181,7 +182,13 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			"-XX:NativeMemoryTracking=\(nativeMemoryTracking)"
 		},
 		if nativeMemoryTracking != _|_ {
+			"-XX:+UnlockDiagnosticVMOptions"
+		},
+		if nativeMemoryTracking != _|_ {
 			"-XX:+PrintNMTStatistics"
+		},
+		if gcLogging {
+			"-Xlog:gc:stdout:time,level,tags"
 		},
 	]
 }
