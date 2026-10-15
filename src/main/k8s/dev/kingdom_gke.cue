@@ -38,7 +38,7 @@ _systemApiAddressName: string @tag("system_api_address_name")
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "768Mi"
+		memory: "640Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
