@@ -25,8 +25,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
  * [FilterSpec].
  */
 sealed class ImpressionQuerySelector {
-  /** Query impression metadata by entity key. */
-  data class ByEntityKey(val entityKey: EntityKey) : ImpressionQuerySelector()
+  /** Query impression metadata by any of [entityKeys]. */
+  data class ByEntityKeys(val entityKeys: List<EntityKey>) : ImpressionQuerySelector()
 
   /**
    * Query impression metadata by a single event group reference ID.

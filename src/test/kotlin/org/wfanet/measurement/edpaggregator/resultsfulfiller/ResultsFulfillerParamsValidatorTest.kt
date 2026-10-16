@@ -283,6 +283,26 @@ class ResultsFulfillerParamsValidatorTest {
     assertThat(exception).hasMessageThat().contains("Invalid key name format")
   }
 
+  @Test
+  fun `enabled event group reference ID mapping requires entity type`() {
+    val invalidParams =
+      VALID_PARAMS.copy {
+        eventGroupReferenceIdEntityKeyMapping =
+          ResultsFulfillerParamsKt.eventGroupReferenceIdEntityKeyMapping {
+            enabled = true
+            eventGroupReferenceIdPrefix = "ref/"
+            entityIdPrefix = "entity/"
+          }
+      }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResultsFulfillerParamsValidator.validate(invalidParams)
+      }
+
+    assertThat(exception).hasMessageThat().contains("entity_type")
+  }
+
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp1"
     private val VALID_PARAMS: ResultsFulfillerParams = resultsFulfillerParams {

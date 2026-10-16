@@ -139,8 +139,8 @@ class ImpressionDataSourceProvider(
                         eventGroupReferenceIds += selector.refId
                       is ImpressionQuerySelector.ByEventGroupReferenceIds ->
                         eventGroupReferenceIds += selector.refIds
-                      is ImpressionQuerySelector.ByEntityKey ->
-                        this.entityKeys += selector.entityKey
+                      is ImpressionQuerySelector.ByEntityKeys ->
+                        this.entityKeys += selector.entityKeys
                     }
                     intervalOverlaps = period
                   }

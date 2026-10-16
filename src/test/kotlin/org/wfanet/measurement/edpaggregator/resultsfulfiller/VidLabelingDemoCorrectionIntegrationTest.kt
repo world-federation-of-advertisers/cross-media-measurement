@@ -124,7 +124,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
   @Before
   fun initOrchestrator() {
     kmsClient = TestEncryptedStorage.buildFakeKmsClient(kekUri, keyTemplate = "AES128_GCM")
-    orchestrator = EventProcessingOrchestrator(PRIVATE_ENCRYPTION_KEY)
+    orchestrator = EventProcessingOrchestrator(privateEncryptionKey = PRIVATE_ENCRYPTION_KEY)
   }
 
   @Test
@@ -250,7 +250,8 @@ class VidLabelingDemoCorrectionIntegrationTest {
       requisitions = requisitions,
       eventGroupSelector =
         FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-          mapOf(EVENT_GROUP to EVENT_GROUP)
+          map = mapOf(EVENT_GROUP to EVENT_GROUP),
+          mappedEntityKeyMap = emptyMap(),
         ),
       config =
         PipelineConfiguration(
@@ -336,7 +337,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
               events,
               times.min(),
               times.max(),
-              eventGroupIdentifier = EventGroupIdentifier.ByReferenceId(eventGroupReferenceId),
+              eventGroupIdentifier = EventGroupIdentifier.ByReferenceId(eventGroupReferenceId, null),
             )
           )
         }

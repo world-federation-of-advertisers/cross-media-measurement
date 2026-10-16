@@ -127,6 +127,7 @@ class ResultsFulfiller(
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
+  private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping?,
   private val responsePageSize: Int? = null,
   private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
@@ -134,7 +135,7 @@ class ResultsFulfiller(
 ) {
 
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
-    EventProcessingOrchestrator<Message>(privateEncryptionKey)
+    EventProcessingOrchestrator<Message>(privateEncryptionKey = privateEncryptionKey)
   }
 
   /**
@@ -240,14 +241,49 @@ class ResultsFulfiller(
     // selector and skip building its map entirely.
     val eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey> =
       buildEventGroupEntityKeyMap(groupedRequisitions.eventGroupMapList)
+    val mapping: EventGroupReferenceIdEntityKeyMapping? = eventGroupReferenceIdEntityKeyMapping
     val eventGroupSelector: FilterSpecIndex.Companion.EventGroupSelector =
       if (eventGroupEntityKeyMap.isNotEmpty()) {
-        FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(eventGroupEntityKeyMap)
+        val mappedEventGroupReferenceIdMap: Map<String, String> =
+          if (mapping == null) {
+            emptyMap()
+          } else {
+            eventGroupEntityKeyMap
+              .mapNotNull { (eventGroup, entityKey) ->
+                mapping.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId)?.let {
+                  eventGroup to it
+                }
+              }
+              .toMap()
+          }
+        FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(
+          map = eventGroupEntityKeyMap,
+          mappedEventGroupReferenceIdMap = mappedEventGroupReferenceIdMap,
+        )
       } else {
-        FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+        val eventGroupReferenceIdMap: Map<String, String> =
           groupedRequisitions.eventGroupMapList.associate {
             it.eventGroup to it.details.eventGroupReferenceId
           }
+        val mappedEntityKeyMap: Map<String, LabeledImpression.EntityKey> =
+          if (mapping == null) {
+            emptyMap()
+          } else {
+            eventGroupReferenceIdMap
+              .mapNotNull { (eventGroup, referenceId) ->
+                mapping.toEntityId(referenceId)?.let { entityId ->
+                  eventGroup to
+                    LabeledImpressionKt.entityKey {
+                      entityType = mapping.entityType
+                      this.entityId = entityId
+                    }
+                }
+              }
+              .toMap()
+          }
+        FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
+          map = eventGroupReferenceIdMap,
+          mappedEntityKeyMap = mappedEntityKeyMap,
         )
       }
 
@@ -340,6 +376,7 @@ class ResultsFulfiller(
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
+        eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
         readConcurrency = pipelineConfiguration.readConcurrency,
       )
 

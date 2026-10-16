@@ -55,7 +55,7 @@ class FrequencyVectorSinkTest {
         events = events,
         minTime = testInstant,
         maxTime = testInstant,
-        eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("test-group"),
+        eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("test-group", null),
       )
     }
 
@@ -68,6 +68,7 @@ class FrequencyVectorSinkTest {
         celExpression = "true",
         collectionInterval = interval,
         eventGroupReferenceIds = listOf("test-event-group-1"),
+        mappedEntityKeys = emptySet(),
       )
     }
   }

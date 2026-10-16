@@ -34,6 +34,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
  * which returns a [BatchMatchResult].
  *
  * @param filterSpec immutable specification containing all filtering criteria
+ * @param eventDescriptor descriptor of the event message type.
  */
 class FilterProcessor<T : Message>(
   val filterSpec: FilterSpec,
@@ -85,9 +86,8 @@ class FilterProcessor<T : Message>(
    * @param batch The batch of events to process. Must contain a valid list of events.
    * @return An EventBatch containing events that match all configured filters. The batch may be
    *   empty if no events match the criteria.
-   * @throws MissingBatchEntityKeysException when [filterSpec] is [FilterSpec.ByEntityKeys] and
-   *   [batch.eventGroupIdentifier] is [EventGroupIdentifier.ByEntityKeys] with an empty entity keys
-   *   list.
+   * @throws MissingBatchEntityKeysException when [batch.eventGroupIdentifier] carries an empty
+   *   entity-keys list.
    */
   fun processBatch(batch: EventBatch<T>): EventBatch<T> {
     if (batch.events.isEmpty()) {

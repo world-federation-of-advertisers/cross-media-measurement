@@ -123,6 +123,10 @@ data class FilterSpecIndex(
                 celExpression = firstEventGroup.value.filter.expression,
                 collectionInterval = firstEventGroup.value.collectionInterval,
                 entityKeys = entityKeys,
+                mappedEventGroupReferenceIds =
+                  eventGroups
+                    .mapNotNull { eventGroupSelector.mappedEventGroupReferenceIdMap[it.key] }
+                    .toSet(),
               )
             }
             is EventGroupSelector.ByEventGroupReferenceIds -> {
@@ -133,6 +137,8 @@ data class FilterSpecIndex(
                 celExpression = firstEventGroup.value.filter.expression,
                 collectionInterval = firstEventGroup.value.collectionInterval,
                 eventGroupReferenceIds = eventGroupReferenceIds,
+                mappedEntityKeys =
+                  eventGroups.mapNotNull { eventGroupSelector.mappedEntityKeyMap[it.key] }.toSet(),
               )
             }
           }
@@ -149,15 +155,20 @@ data class FilterSpecIndex(
      * when canonicalising filters: legacy event-group reference IDs, or entity keys.
      *
      * Constructed once at the call site (in `ResultsFulfiller`) so the precedence between the two
-     * is explicit and the map of the unused variant is never even built.
+     * is explicit and equivalent selectors are resolved before event processing.
      */
     sealed class EventGroupSelector {
       /** Use the legacy event-group reference IDs as the selector. */
-      data class ByEventGroupReferenceIds(val map: Map<String, String>) : EventGroupSelector()
+      data class ByEventGroupReferenceIds(
+        val map: Map<String, String>,
+        val mappedEntityKeyMap: Map<String, LabeledImpression.EntityKey>,
+      ) : EventGroupSelector()
 
       /** Use entity keys as the selector. */
-      data class ByEntityKeys(val map: Map<String, LabeledImpression.EntityKey>) :
-        EventGroupSelector()
+      data class ByEntityKeys(
+        val map: Map<String, LabeledImpression.EntityKey>,
+        val mappedEventGroupReferenceIdMap: Map<String, String>,
+      ) : EventGroupSelector()
     }
   }
 }
