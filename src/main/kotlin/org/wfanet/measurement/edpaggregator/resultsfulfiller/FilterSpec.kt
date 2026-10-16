@@ -136,15 +136,15 @@ sealed class FilterSpec {
       mapping: EventGroupReferenceIdEntityKeyMapping?,
     ): BatchMatchResult {
       return when (identifier) {
-        is EventGroupIdentifier.ByEntityKeys -> {
-          if (mapping == null) {
-            throw MismatchedBatchIdentifierException(
-              "ByEventGroupReferenceIds filter requires EventGroupIdentifier.ByReferenceId"
-            )
-          }
-          matchMappedEntityKeys(identifier.entityKeys, mapping)
-        }
         is EventGroupIdentifier.ByReferenceId -> matchReferenceId(identifier.refId)
+        is EventGroupIdentifier.ByEntityKeys ->
+          matchEntityKeys(
+            identifier.entityKeys,
+            mapping
+              ?: throw MismatchedBatchIdentifierException(
+                "ByEventGroupReferenceIds filter requires EventGroupIdentifier.ByReferenceId"
+              ),
+          )
       }
     }
 
@@ -156,35 +156,34 @@ sealed class FilterSpec {
       }
     }
 
-    private fun matchMappedEntityKeys(
+    private fun matchEntityKeys(
       batchEntityKeys: List<EntityKeyGroup>,
       mapping: EventGroupReferenceIdEntityKeyMapping,
     ): BatchMatchResult {
       if (batchEntityKeys.isEmpty()) throw MissingBatchEntityKeysException()
-      val mappedEntityIds: Set<String> =
+      val batchEntityIds: Set<String> =
         batchEntityKeys
           .asSequence()
           .filter { it.entityType == mapping.entityType }
           .flatMap { it.entityIdsList.asSequence() }
           .toSet()
-      val filterEntityKeys: Set<LabeledImpression.EntityKey> =
-        eventGroupReferenceIds
-          .mapNotNull { mapping.toEntityId(it) }
-          .map { entityId ->
-            entityKey {
-              entityType = mapping.entityType
-              this.entityId = entityId
-            }
-          }
-          .toSet()
-      val filterEntityIds: Set<String> = filterEntityKeys.map { it.entityId }.toSet()
-      if (mappedEntityIds.none { it in filterEntityIds }) {
-        return BatchMatchResult.NoMatch
-      }
-      return if (mappedEntityIds.size == 1) {
-        BatchMatchResult.MatchedAllEvents
-      } else {
-        BatchMatchResult.MatchedByEntityKeys(filterEntityKeys)
+      val requestedEntityIds: Set<String> =
+        eventGroupReferenceIds.mapNotNull(mapping::toEntityId).toSet()
+
+      return when {
+        batchEntityIds.none { it in requestedEntityIds } -> BatchMatchResult.NoMatch
+        batchEntityIds.size == 1 -> BatchMatchResult.MatchedAllEvents
+        else ->
+          BatchMatchResult.MatchedByEntityKeys(
+            requestedEntityIds
+              .map { entityId ->
+                entityKey {
+                  entityType = mapping.entityType
+                  this.entityId = entityId
+                }
+              }
+              .toSet()
+          )
       }
     }
   }
@@ -215,14 +214,14 @@ sealed class FilterSpec {
       mapping: EventGroupReferenceIdEntityKeyMapping?,
     ): BatchMatchResult {
       return when (identifier) {
-        is EventGroupIdentifier.ByReferenceId -> {
-          if (mapping == null) {
-            throw MismatchedBatchIdentifierException(
-              "ByEntityKeys filter requires EventGroupIdentifier.ByEntityKeys"
-            )
-          }
-          matchMappedReferenceId(identifier.refId, mapping)
-        }
+        is EventGroupIdentifier.ByReferenceId ->
+          matchMappedReferenceId(
+            identifier.refId,
+            mapping
+              ?: throw MismatchedBatchIdentifierException(
+                "ByEntityKeys filter requires EventGroupIdentifier.ByEntityKeys"
+              ),
+          )
         is EventGroupIdentifier.ByEntityKeys -> matchEntityKeys(identifier.entityKeys, mapping)
       }
     }
