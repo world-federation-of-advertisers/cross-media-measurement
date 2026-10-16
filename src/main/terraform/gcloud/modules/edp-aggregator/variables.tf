@@ -570,3 +570,10 @@ variable "vid_labeling_dispatch_scheduler_config" {
   })
   nullable = false
 }
+
+variable "meta_impression_query_uber_jar_path" {
+  description = "Path to the Meta impression-query Cloud Function uber jar published by edp-components. When null, the function is not deployed."
+  type        = string
+  nullable    = true
+  default     = null
+}

@@ -12,3 +12,4 @@ edpa_model_line_population_spec_blob_uris = {
   "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A" = "gs://edpa-configs-storage-dev-bucket/results-fulfiller-population-spec-small.textproto"
   "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NY6atJUixwk" = "gs://edpa-configs-storage-dev-bucket/high-overlap-population-spec.textproto"
 }
+meta_impression_query_artifact_version = "0.0.0-dev-test-SNAPSHOT"
