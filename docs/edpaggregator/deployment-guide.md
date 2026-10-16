@@ -920,9 +920,11 @@ It still processes newly discovered requisitions for the same report through the
 To activate direct dispatch, operators only need to:
 
 1. Add the required `work_item_dispatch` block to every provider in
-   `REQUISITION_FETCHER_CONFIG_CONTENT`. Preserve the existing top-level `storage_path_prefix`,
-   choose a dedicated nested prefix such as `<edp-id>/requisitions-v2` that is disjoint from every
-   legacy and direct prefix sharing the bucket.
+   the selected environment's `requisition-fetcher-config.textproto` under
+   `src/main/terraform/gcloud/cmms/envs/`. Preserve the existing top-level
+   `storage_path_prefix`, and choose a dedicated nested prefix such as
+   `<edp-id>/requisitions-v2` that is disjoint from every legacy and direct prefix sharing the
+   bucket.
 2. Run the repository's top-level **Update CMMS** workflow, or automation that implements the same
    environment lock and ordered barriers.
 3. If deployment fails before workers are restored, rerun the complete process. Do not enable
@@ -930,12 +932,13 @@ To activate direct dispatch, operators only need to:
 
 The workflow's environment-scoped concurrency lock prevents overlapping deployments from
 interleaving rollout phases. Before its first Terraform apply, the workflow validates the exact
-RequisitionFetcher and DataWatcher textprotos from the selected GitHub environment. It requires a
-direct-dispatch block for every configured data provider, a control-plane target, queue, TLS paths,
-and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any deployed
-DataWatcher regex that matches a representative direct-path object. Validation failure therefore
-stops deployment before any worker is quiesced. The workflow first rolls both Secure Computation API
-deployments with WorkItem publication, legacy reconciliation, and dead-letter processing disabled.
+RequisitionFetcher and DataWatcher textprotos committed for the selected environment. It requires
+a direct-dispatch block for every configured data provider, a control-plane target, queue, TLS
+paths, and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any
+deployed DataWatcher regex that matches a representative direct-path object. Validation failure
+therefore stops deployment before any worker is quiesced. The workflow first rolls both Secure
+Computation API deployments with WorkItem publication, legacy reconciliation, and dead-letter
+processing disabled.
 Its first Terraform apply then pauses the RequisitionFetcher Cloud Scheduler job, uploads the
 direct-only configuration and binary, and quiesces all WorkItem-consuming TEE MIGs. The workflow
 waits for the fetcher's 600-second maximum invocation duration and verifies that every affected TEE

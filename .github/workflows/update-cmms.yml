@@ -113,20 +113,9 @@ jobs:
         common --config=ci
         EOF
 
-    - name: Write validation inputs
-      env:
-        CONFIG_DIR: ${{ runner.temp }}/configs
-        DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
-        REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
-      run: |
-        set -euo pipefail
-        mkdir -p "$CONFIG_DIR"
-        printf '%s' "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
-        printf '%s' "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
-
     - name: Validate RequisitionFetcher and DataWatcher configuration
       env:
-        CONFIG_DIR: ${{ runner.temp }}/configs
+        CONFIG_DIR: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
       run: |
         bazelisk run \

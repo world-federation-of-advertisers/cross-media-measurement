@@ -1,6 +1,11 @@
 spanner_processing_units                          = 100
 secure_computation_storage_bucket_name            = "secure-computation-storage-head-bucket"
 edpa_config_files_bucket_name                     = "edpa-configs-storage-head-bucket"
+data_watcher_config_file_path                     = "envs/head/data-watcher-config.textproto"
+requisition_fetcher_config_file_path              = "envs/head/requisition-fetcher-config.textproto"
+event_data_provider_configs_file_path              = "envs/head/event-data-provider-configs.textproto"
+event_group_sync_config_file_path                  = "envs/head/event-group-sync-config.textproto"
+data_availability_sync_config_file_path            = "envs/head/data-availability-sync-config.textproto"
 event_group_scale_data_provider                   = "dataProviders/eO3DIA2ihRw"
 vid_models_storage_bucket_name                    = "vid-models-storage-head-bucket"
 key_ring_name                                     = "halo"

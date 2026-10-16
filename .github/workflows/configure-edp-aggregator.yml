@@ -149,10 +149,10 @@ jobs:
 
     - name: Write data availability recovery config (edp7)
       env:
-        DATA_AVAILABILITY_SYNC_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT }}
+        DATA_AVAILABILITY_SYNC_CONFIG_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/data-availability-sync-config.textproto
       run: |
-        if [ -z "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" ]; then
-          echo "vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT is empty for environment ${{ inputs.environment }}" >&2
+        if [ ! -f "$DATA_AVAILABILITY_SYNC_CONFIG_FILE" ]; then
+          echo "Missing $DATA_AVAILABILITY_SYNC_CONFIG_FILE" >&2
           exit 1
         fi
         python3 - <<'PY'
@@ -160,7 +160,7 @@ jobs:
         import pathlib
         import re
 
-        source = os.environ["DATA_AVAILABILITY_SYNC_CONFIG_CONTENT"]
+        source = pathlib.Path(os.environ["DATA_AVAILABILITY_SYNC_CONFIG_FILE"]).read_text()
         blocks = []
         offset = 0
         while True:
