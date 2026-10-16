@@ -134,7 +134,7 @@ locals {
       # with hyperdisk-balanced disk (provisioned_iops=5000,
       # provisioned_throughput=1250) and -Xmx96G.
       machine_type                  = "n2d-highmem-8"
-      java_tool_options             = "-Xmx48G -XX:+ExitOnOutOfMemoryError -Xlog:gc:stdout:time,level,tags" # DO_NOT_SUBMIT: revert to "-Xmx48G"
+      java_tool_options             = "-Xmx48G"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
       app_flags = concat(
