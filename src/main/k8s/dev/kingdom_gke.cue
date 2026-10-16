@@ -48,6 +48,16 @@ _systemApiAddressName: string @tag("system_api_address_name")
 #CancellationJobMaxHeapSize:     "96M"
 #CancellationJobInitialHeapSize: "64M"
 
+#CancellationJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "10m"
+		memory: "300Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 #OperationalMetricsJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "10m"
@@ -123,6 +133,7 @@ kingdom: #Kingdom & {
 					maxHeapSize:     #CancellationJobMaxHeapSize
 					initialHeapSize: #CancellationJobInitialHeapSize
 				}
+				resources: #CancellationJobResourceRequirements
 			}
 		}
 		"operational-metrics": {
