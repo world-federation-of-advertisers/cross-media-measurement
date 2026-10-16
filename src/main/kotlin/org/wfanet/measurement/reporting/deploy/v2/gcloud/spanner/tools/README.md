@@ -86,9 +86,9 @@ Backfills
 on stored `BasicReport`s.
 
 `BasicReport`s written through the internal `InsertBasicReport` method before
-that field was validated have it unset. The public read path assembles a
-`ReportingSet` resource name from it, so such a `BasicReport` cannot be served
-by `GetBasicReport`, and fails the whole page for `ListBasicReports`. See
+that field was validated have it unset. The temporary public read fallback
+serves them without `reporting_set`; this tool makes them complete so the
+fallback can be removed. See
 [issue #4289](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4289).
 
 Run the tool with `--help` for usage information.
@@ -101,6 +101,18 @@ examined, one `MeasurementConsumer` at a time and a page at a time. Use
 time, which both bounds the work and makes it impossible to modify a
 `BasicReport` outside that window.
 
+Before resolving a component summary, the tool verifies that the ReportingSet
+referenced by the `BasicReport` is a valid Campaign Group. A legacy primitive
+ReportingSet with EventGroups and a null `CampaignGroupId` is repaired by
+self-linking it (`CampaignGroupId = ReportingSetId`). This recovers the
+Campaign Group identity already recorded on the `BasicReport`; it does not
+invent a new group or change membership.
+
+A missing ReportingSet, a composite, an empty primitive, or a ReportingSet
+already assigned to another Campaign Group cannot be repaired safely. The tool
+leaves that `BasicReport` unchanged, continues the audit, and marks the
+environment as not ready to remove the read-path fallback.
+
 For each component summary missing `external_reporting_set_id`:
 
 1.  The component's membership is taken from its own `event_group_summaries`,
@@ -111,11 +123,12 @@ For each component summary missing `external_reporting_set_id`:
 3.  Otherwise a `ReportingSet` with that membership is created under the
     Campaign Group, and its ID is used.
 
-Neither database is written for a `BasicReport` unless all of its component
-summaries resolve. Every membership is resolved before any `ReportingSet` is
-created, so a skipped `BasicReport` leaves no `ReportingSet` behind. A component
-summary with no `event_group_summaries` cannot be resolved, and its
-`BasicReport` is left unmodified and reported.
+No component `ReportingSet` is created and no `BasicReport` is updated unless
+all of its component summaries resolve. Every membership is resolved before
+any component `ReportingSet` is created. A safe legacy Campaign Group repair
+may be committed independently and is idempotent. A component summary with no
+`event_group_summaries` cannot be resolved; the `BasicReport` is left
+unmodified and the environment is reported as not ready.
 
 Note that `metric_set.reporting_set_components` entries carry no membership, so
 an entry missing `external_reporting_set_id` cannot be backfilled. Any such
@@ -123,10 +136,15 @@ entry is counted and reported.
 
 ### After the backfill
 
-The public read path tolerates a `BasicReport` whose component summaries still
-lack `external_reporting_set_id`: it omits `reporting_set` rather than failing,
-so an incomplete resource is served without any error. A run of this tool that
-misses records therefore produces no visible symptom.
+The public read path temporarily tolerates a `BasicReport` whose component
+summaries still lack `external_reporting_set_id`: it omits `reporting_set`
+rather than failing, so an incomplete resource is served without any error.
+
+An applied, unbounded run reports `Ready to remove read-path fallback: yes`
+only when every examined `SUCCEEDED` row has complete component summaries. A
+bounded run never reports ready because it does not examine older rows. A dry
+run reports ready only when it finds that no writes or Campaign Group repairs
+would be needed.
 
 Each such `BasicReport` is logged once per read, at `WARNING`, by the Reporting
 public API server:
@@ -136,10 +154,9 @@ BasicReport <id> of MeasurementConsumer <id> has N component summary/summaries
 without external_reporting_set_id.
 ```
 
-That warning is the completion signal. It going quiet means every affected
-`BasicReport` has been repaired and no new ones are being written. It recurring
-after a completed run means records are still being written without the field,
-by a path that the `InsertBasicReport` validation does not cover.
+After a successful unbounded run, that warning staying quiet confirms that no
+new incomplete records are being written. It recurring means a write path still
+bypasses `InsertBasicReport` validation.
 
 The tolerance in the read path should be removed only once the warning has
 stayed silent over a sustained period, not on a schedule.
@@ -247,12 +264,13 @@ include the full path to the executable.
 ### Output
 
 Each run ends with a summary of the `BasicReport`s examined, those already
-valid, those updated, those skipped, the `ReportingSet`s reused and created, and
-any components that could not be resolved.
+valid, those updated, any blocking unbackfilled records, the Campaign Groups
+repaired, the `ReportingSet`s reused and created, and any components that could
+not be resolved.
 
-Run with `--dry-run` first. The unresolved counts should both be zero; a
-non-zero count means some component summaries would remain unserveable, and the
-per-`BasicReport` reasons are logged.
+Run with `--dry-run` first. A non-zero blocking count means some component
+summaries would remain incomplete; the per-`BasicReport` reasons are logged and
+the readiness result is `no`.
 
 Check the reported `create_time` range as well. It covers only the
 `BasicReport`s that were backfilled, so it can be compared against the window in

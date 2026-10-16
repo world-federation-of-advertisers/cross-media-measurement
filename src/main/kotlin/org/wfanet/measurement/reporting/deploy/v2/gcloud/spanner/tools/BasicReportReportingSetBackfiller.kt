@@ -44,6 +44,9 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicRep
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.updateBasicReportResultDetails
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
+import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.RepairLegacyCampaignGroup
+import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 /**
  * Backfills `ReportingUnitComponentSummary.external_reporting_set_id` on stored `BasicReport`s.
@@ -53,9 +56,9 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReporti
  * equals the component's `event_group_summaries`; a `ReportingSet` is created for a membership that
  * has no match.
  *
- * Neither database is written for a `BasicReport` unless all of its component summaries resolve:
- * every membership is resolved before any `ReportingSet` is created, so a `BasicReport` that is
- * skipped leaves no `ReportingSet` behind.
+ * No component `ReportingSet` is created and no `BasicReport` is updated unless all of its
+ * component summaries resolve. A safe legacy Campaign Group repair may be committed independently
+ * and is idempotent.
  *
  * Concurrent invocations are not safe. Each run builds its own in-memory view of the existing
  * `ReportingSet`s, and the minted IDs are random, so two runs against the same environment can
@@ -88,6 +91,10 @@ class BasicReportReportingSetBackfiller(
     val reportingSetsCreated: Int,
     val unresolvedComponents: Int,
     val unresolvableMetricSetComponents: Int,
+    val campaignGroupsRepaired: Int,
+    val unresolvableCampaignGroupReferences: Int,
+    /** Whether the temporary read-path fallback can be removed after this run. */
+    val readyToRemoveReadPathFallback: Boolean,
     /** Earliest create_time among the backfilled BasicReports, if any. */
     val earliestCreateTime: Timestamp?,
     /** Latest create_time among the backfilled BasicReports, if any. */
@@ -101,6 +108,9 @@ class BasicReportReportingSetBackfiller(
         "reportingSetsCreated=$reportingSetsCreated, " +
         "unresolvedComponents=$unresolvedComponents, " +
         "unresolvableMetricSetComponents=$unresolvableMetricSetComponents, " +
+        "campaignGroupsRepaired=$campaignGroupsRepaired, " +
+        "unresolvableCampaignGroupReferences=$unresolvableCampaignGroupReferences, " +
+        "readyToRemoveReadPathFallback=$readyToRemoveReadPathFallback, " +
         "earliestCreateTime=${formatTime(earliestCreateTime)}, " +
         "latestCreateTime=${formatTime(latestCreateTime)})"
   }
@@ -114,6 +124,8 @@ class BasicReportReportingSetBackfiller(
   private var reportingSetsCreated = 0
   private var unresolvedComponents = 0
   private var unresolvableMetricSetComponents = 0
+  private var campaignGroupsRepaired = 0
+  private var unresolvableCampaignGroupReferences = 0
   private var earliestCreateTime: Timestamp? = null
   private var latestCreateTime: Timestamp? = null
   private var examined = 0
@@ -122,6 +134,8 @@ class BasicReportReportingSetBackfiller(
   private val reportingSetIdsByCampaignGroup:
     MutableMap<CampaignGroupKey, MutableMap<Set<ReportingSet.Primitive.EventGroupKey>, String>> =
     mutableMapOf()
+
+  private val unresolvableCampaignGroupKeys = mutableSetOf<CampaignGroupKey>()
 
   suspend fun run(): Result {
     // BasicReports is interleaved in MeasurementConsumers, so scoping each query to a
@@ -152,6 +166,12 @@ class BasicReportReportingSetBackfiller(
         reportingSetsCreated = reportingSetsCreated,
         unresolvedComponents = unresolvedComponents,
         unresolvableMetricSetComponents = unresolvableMetricSetComponents,
+        campaignGroupsRepaired = campaignGroupsRepaired,
+        unresolvableCampaignGroupReferences = unresolvableCampaignGroupReferences,
+        readyToRemoveReadPathFallback =
+          createTimeAfter == null &&
+            skipped == 0 &&
+            (!dryRun || (updated == 0 && campaignGroupsRepaired == 0)),
         earliestCreateTime = earliestCreateTime,
         latestCreateTime = latestCreateTime,
       )
@@ -235,17 +255,29 @@ class BasicReportReportingSetBackfiller(
         }
         .filter { it.externalReportingSetId.isEmpty() }
 
+    val campaignGroupKey =
+      CampaignGroupKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalCampaignGroupId)
+    if (campaignGroupKey in unresolvableCampaignGroupKeys) {
+      recordUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
+      return
+    }
+    val reportingSetIdsByMembership =
+      try {
+        reportingSetIdsByCampaignGroup.getOrPut(campaignGroupKey) {
+          readCampaignGroupMembershipIndex(campaignGroupKey)
+        }
+      } catch (e: CampaignGroupInvalidException) {
+        recordUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
+        return
+      } catch (e: ReportingSetNotFoundException) {
+        recordUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
+        return
+      }
+
     if (emptyComponentSummaries.isEmpty()) {
       alreadyValid++
       return
     }
-
-    val campaignGroupKey =
-      CampaignGroupKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalCampaignGroupId)
-    val reportingSetIdsByMembership =
-      reportingSetIdsByCampaignGroup.getOrPut(campaignGroupKey) {
-        readCampaignGroupMembershipIndex(campaignGroupKey)
-      }
 
     // Resolution is separated from minting so that the Postgres writes are gated on the same
     // all-or-nothing guarantee as the Spanner write. Minting inline would leave a ReportingSet
@@ -328,6 +360,21 @@ class BasicReportReportingSetBackfiller(
     updated++
   }
 
+  private fun recordUnresolvableCampaignGroup(
+    externalBasicReportId: String,
+    campaignGroupKey: CampaignGroupKey,
+  ) {
+    unresolvableCampaignGroupKeys.add(campaignGroupKey)
+    unresolvableCampaignGroupReferences++
+    skipped++
+    logger.warning {
+      "BasicReport $externalBasicReportId references ReportingSet " +
+        "${campaignGroupKey.externalCampaignGroupId} as its Campaign Group, but it cannot be " +
+        "repaired automatically. Leaving the BasicReport unchanged and marking the environment " +
+        "not ready to remove the read-path fallback."
+    }
+  }
+
   private fun recordCreateTime(createTime: Timestamp) {
     val earliest = earliestCreateTime
     if (earliest == null || Timestamps.compare(createTime, earliest) < 0) {
@@ -352,7 +399,7 @@ class BasicReportReportingSetBackfiller(
         "BasicReports examined" to result.examined.toString(),
         "Already valid" to result.alreadyValid.toString(),
         "Backfilled" to result.updated.toString(),
-        "Skipped (unresolved components)" to result.skipped.toString(),
+        "Unbackfilled (blocking)" to result.skipped.toString(),
         "Component summaries filled" to result.componentSummariesFilled.toString(),
         "Backfilled create_time from" to formatTime(result.earliestCreateTime),
         "Backfilled create_time to" to formatTime(result.latestCreateTime),
@@ -360,6 +407,11 @@ class BasicReportReportingSetBackfiller(
         "ReportingSets created" to result.reportingSetsCreated.toString(),
         "Unresolved components" to result.unresolvedComponents.toString(),
         "Unresolvable metric_set components" to result.unresolvableMetricSetComponents.toString(),
+        "Campaign Groups repaired" to result.campaignGroupsRepaired.toString(),
+        "Unresolvable Campaign Group references" to
+          result.unresolvableCampaignGroupReferences.toString(),
+        "Ready to remove read-path fallback" to
+          if (result.readyToRemoveReadPathFallback) "yes" else "no",
       )
     val width = rows.maxOf { it.first.length }
     println()
@@ -375,8 +427,24 @@ class BasicReportReportingSetBackfiller(
   private suspend fun readCampaignGroupMembershipIndex(
     campaignGroupKey: CampaignGroupKey
   ): MutableMap<Set<ReportingSet.Primitive.EventGroupKey>, String> {
-    val readContext = postgresClient.singleUse()
-    val reportingSets: List<ReportingSet> =
+    val campaignGroupBeforeRepair: ReportingSet =
+      RepairLegacyCampaignGroup(
+          cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId,
+          externalReportingSetId = campaignGroupKey.externalCampaignGroupId,
+          dryRun = dryRun,
+        )
+        .execute(postgresClient, idGenerator)
+    val wasRepaired = campaignGroupBeforeRepair.externalCampaignGroupId.isEmpty()
+    if (wasRepaired) {
+      campaignGroupsRepaired++
+      logger.info {
+        val prefix = if (dryRun) "[dry run] Would repair" else "Repaired"
+        "$prefix legacy Campaign Group ${campaignGroupKey.externalCampaignGroupId}"
+      }
+    }
+
+    val readContext = postgresClient.readTransaction()
+    val reportingSets: MutableList<ReportingSet> =
       try {
         ReportingSetReader(readContext)
           .readReportingSets(
@@ -391,9 +459,14 @@ class BasicReportReportingSetBackfiller(
           )
           .map { it.reportingSet }
           .toList()
+          .toMutableList()
       } finally {
         readContext.close()
       }
+    if (dryRun && wasRepaired) {
+      reportingSets.add(campaignGroupBeforeRepair)
+      reportingSets.sortBy { it.externalReportingSetId }
+    }
 
     // Matches the read path: unfiltered primitives only, keyed by exact EventGroup membership.
     return reportingSets
