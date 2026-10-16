@@ -1,0 +1,75 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.reporting;
+
+import "google/type/interval.proto";
+
+option java_package = "org.wfanet.measurement.config.reporting";
+option java_multiple_files = true;
+option java_outer_classname = "DataProviderReportingConfigProto";
+
+// Declares which real event template fields each DataProvider provides
+// values for, and over which reporting windows. For enum fields it also
+// declares which values. The slicing layer consults this registry to decide
+// whether a DataProvider's impressions can be classified into a value, or
+// fall to the field's zero value.
+//
+// A DataProvider is treated as supporting a field for a reporting window
+// only if a single FieldSupport entry's range covers the entire window.
+message DataProviderReportingConfig {
+  // The fields supported by a single DataProvider.
+  message DataProviderFieldSupport {
+    // Resource name of the DataProvider.
+    string data_provider = 1;
+
+    // Display name of the DataProvider.
+    string display_name = 2;
+
+    // Each field this DataProvider supports, with its period of support.
+    repeated FieldSupport field_support = 3;
+  }
+
+  // Support for a single field over a time interval.
+  message FieldSupport {
+    // A field path with respect to the local market Event message with `.`
+    // as the traversal operator, e.g. `common.us_state`.
+    //
+    // The field at this path must be tagged GROUPABLE. It may be real or
+    // virtual. There may be at most one policy per field path.
+    // Must reference a non-virtual field.
+    string field_path = 1;
+
+    // Interval over which the field is supported. Required.
+    google.type.Interval supported_interval = 2;
+
+    // Whether the DataProvider populates every value of the enum.
+    //
+    // Only valid when `field` is of enum type. Must not be set together with
+    // `enum_values`.
+    bool all_enum_values = 3;
+
+    // The enum values the DataProvider populates, as symbols rather than
+    // stringified numbers, e.g. `US_STATE_UNSPECIFIED` not `0`.
+    //
+    // Only valid when `field` is of enum type. The zero value is always
+    // treated as supported. A list containing only the zero value declares
+    // that the DataProvider does not populate the field.
+    repeated string enum_values = 4;
+  }
+
+  repeated DataProviderFieldSupport data_provider_field_supports = 1;
+}
