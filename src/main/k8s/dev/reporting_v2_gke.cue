@@ -57,7 +57,6 @@ _accessPublicApiAddressName:                          "access-public"
 	}
 }
 
-#CronJobMaxHeapSize:          "128M"
 #CronJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "10m"
@@ -197,7 +196,6 @@ reporting: #Reporting & {
 		"report-scheduling": {
 			_container: {
 				_javaOptions: {
-					maxHeapSize:          #CronJobMaxHeapSize
 					nativeMemoryTracking: "summary"
 					gcLogging:            true
 				}
@@ -207,7 +205,6 @@ reporting: #Reporting & {
 		"report-result-post-processor": {
 			_container: {
 				_javaOptions: {
-					maxHeapSize:          #CronJobMaxHeapSize
 					nativeMemoryTracking: "summary"
 					gcLogging:            true
 				}
@@ -215,7 +212,6 @@ reporting: #Reporting & {
 			}
 			spec: jobTemplate: spec: template: spec: _initContainers: "basic-reports-reports": {
 				_javaOptions: {
-					maxHeapSize:          #CronJobMaxHeapSize
 					nativeMemoryTracking: "summary"
 					gcLogging:            true
 				}

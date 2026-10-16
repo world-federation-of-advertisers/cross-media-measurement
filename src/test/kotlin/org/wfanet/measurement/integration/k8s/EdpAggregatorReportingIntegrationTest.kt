@@ -649,6 +649,8 @@ class EdpAggregatorReportingIntegrationTest {
    * Non-cumulative reach is only required to be non-negative: the `e7-meta-video` flight ends
    * inside the interval, so a later week legitimately reaches nobody.
    */
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4672): Compare weekly metrics
+  // against expectations generated from the synthetic spec.
   private fun assertWeeklyShape(report: BasicReport) {
     assertThat(report.resultGroupsList.map { it.title })
       .containsExactly(WEEKLY_GROUP_TITLE, TOTAL_GROUP_TITLE)
