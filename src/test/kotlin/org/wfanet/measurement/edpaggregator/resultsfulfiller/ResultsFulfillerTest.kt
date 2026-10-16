@@ -487,6 +487,7 @@ class ResultsFulfillerTest {
           kmsClient = null,
           impressionsStorageConfig = StorageConfig(rootDirectory = tmpDir),
           fulfillerSelector = NoOpFulfillerSelector(),
+          eventGroupReferenceIdEntityKeyMapping = null,
           metrics = metrics,
         )
 
@@ -618,6 +619,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -676,6 +678,7 @@ class ResultsFulfillerTest {
       kmsClient = null,
       impressionsStorageConfig = StorageConfig(rootDirectory = tmpDir),
       fulfillerSelector = NoOpFulfillerSelector(),
+      eventGroupReferenceIdEntityKeyMapping = null,
       metrics = metrics,
       listMaxAttempts = listMaxAttempts,
       listRetryBackoff = listRetryBackoff,
@@ -787,6 +790,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -936,6 +940,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -1061,6 +1066,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -1199,6 +1205,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          eventGroupReferenceIdEntityKeyMapping = null,
           metrics = metrics,
         )
 
@@ -1348,6 +1355,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          eventGroupReferenceIdEntityKeyMapping = null,
           metrics = metrics,
         )
 
@@ -1485,6 +1493,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          eventGroupReferenceIdEntityKeyMapping = null,
           metrics = metrics,
         )
 
@@ -1622,6 +1631,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -1741,6 +1751,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -1853,6 +1864,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -1989,6 +2001,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -2104,6 +2117,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -2217,6 +2231,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
     assertFailsWith<IllegalStateException> { resultsFulfiller.fulfillRequisitions() }
@@ -2337,6 +2352,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          eventGroupReferenceIdEntityKeyMapping = null,
           metrics = metrics,
         )
 
@@ -2474,6 +2490,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -2595,6 +2612,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          eventGroupReferenceIdEntityKeyMapping = null,
           metrics = metrics,
         )
 
@@ -2707,6 +2725,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          eventGroupReferenceIdEntityKeyMapping = null,
           metrics = metrics,
         )
 
@@ -2818,6 +2837,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          eventGroupReferenceIdEntityKeyMapping = null,
           metrics = metrics,
         )
 
@@ -2949,6 +2969,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          eventGroupReferenceIdEntityKeyMapping = null,
           metrics = metrics,
         )
 
@@ -3080,6 +3101,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = testMetrics,
       )
 
@@ -3279,6 +3301,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -3405,6 +3428,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 
@@ -3544,6 +3568,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
       .fulfillRequisitions()
@@ -3809,6 +3834,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          eventGroupReferenceIdEntityKeyMapping = null,
           metrics = metrics,
         )
 
@@ -3939,6 +3965,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          eventGroupReferenceIdEntityKeyMapping = null,
           metrics = metrics,
         )
 
@@ -4049,6 +4076,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = null,
         metrics = metrics,
       )
 

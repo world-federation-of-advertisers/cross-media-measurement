@@ -369,6 +369,7 @@ class StorageEventSourceTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
           descriptor = Empty.getDescriptor(),
           batchSize = 1000,
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       }
     assertThat(exception.message).isEqualTo("eventGroupDetailsList must not be empty")
@@ -396,6 +397,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
         readConcurrency = 0,
       )
     }
@@ -423,6 +425,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
         readMaxAttempts = 0,
       )
     }
@@ -447,6 +450,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
         readMaxAttempts = 3,
         readRetryBackoff = FAST_BACKOFF,
         eventReaderFactory = { _ ->
@@ -504,6 +508,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = Empty.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     // The entire operation should fail when metadata reading fails
@@ -569,6 +574,7 @@ class StorageEventSourceTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           descriptor = TestEvent.getDescriptor(),
           batchSize = 1000,
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
 
       val batches = eventSource.generateEventBatches().toList()
@@ -647,6 +653,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val batches = eventSource.generateEventBatches().toList()
@@ -714,6 +721,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
@@ -782,6 +790,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val batches = eventSource.generateEventBatches().toList()
@@ -843,6 +852,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val batches = eventSource.generateEventBatches().toList()
@@ -922,6 +932,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     // getKekUri should fail because blobs have different project IDs
@@ -952,6 +963,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     // getKekUri should return null when no data sources are available
@@ -996,6 +1008,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     // getKekUri should return the KEK URI from the most recent data source (sorted by interval end
@@ -1042,6 +1055,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
@@ -1083,6 +1097,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
@@ -1124,6 +1139,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val result = eventSource.getKekUri()
@@ -1167,6 +1183,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     assertFailsWith<IllegalArgumentException> { eventSource.getKekUri() }
@@ -1230,6 +1247,7 @@ class StorageEventSourceTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           descriptor = TestEvent.getDescriptor(),
           batchSize = 1000,
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
 
       val batches = eventSource.generateEventBatches().toList()
@@ -1289,6 +1307,7 @@ class StorageEventSourceTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           descriptor = TestEvent.getDescriptor(),
           batchSize = 1000,
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
 
       val batches = eventSource.generateEventBatches().toList()
@@ -1339,6 +1358,7 @@ class StorageEventSourceTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           descriptor = TestEvent.getDescriptor(),
           batchSize = 1000,
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
 
       val batches = eventSource.generateEventBatches().toList()
@@ -1399,6 +1419,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     eventSource.generateEventBatches().toList()
@@ -1464,6 +1485,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val batches = eventSource.generateEventBatches().toList()
@@ -1524,6 +1546,7 @@ class StorageEventSourceTest {
             impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
             descriptor = TestEvent.getDescriptor(),
             batchSize = 1000,
+            eventGroupReferenceIdEntityKeyMapping = null,
           )
         }
       assertThat(exception.message).isEqualTo("Cannot mix entity-key and reference-id event groups")
@@ -1568,6 +1591,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
         readConcurrency = 2,
         eventReaderFactory = { _ ->
           object : EventReader<Message> {
@@ -1607,6 +1631,7 @@ class StorageEventSourceTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
         descriptor = TestEvent.getDescriptor(),
         batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
         readMaxAttempts = 3,
         readRetryBackoff = FAST_BACKOFF,
         eventReaderFactory = { _ ->
@@ -1652,6 +1677,7 @@ class StorageEventSourceTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
           descriptor = TestEvent.getDescriptor(),
           batchSize = 1000,
+          eventGroupReferenceIdEntityKeyMapping = null,
           readMaxAttempts = 3,
           readRetryBackoff = FAST_BACKOFF,
           eventReaderFactory = { _ ->
@@ -1668,7 +1694,94 @@ class StorageEventSourceTest {
       assertThat(attempts.get()).isEqualTo(1)
     }
 
+  @Test
+  fun `generateEventBatches queries reference ID for mapped entity key`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
+    val eventGroupDetails = eventGroupDetails {
+      entityKey =
+        EventGroupDetailsKt.entityKey {
+          entityType = "campaign"
+          entityId = "entity/123"
+        }
+      collectionIntervals += interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+    }
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = CAMPAIGN_MAPPING,
+      )
+
+    eventSource.generateEventBatches().toList()
+
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(captor.capture())
+    assertThat(captor.allValues.map { it.filter.entityKeysList.toList() })
+      .contains(
+        listOf(
+          org.wfanet.measurement.edpaggregator.v1alpha.entityKey {
+            entityType = "campaign"
+            entityId = "entity/123"
+          }
+        )
+      )
+    assertThat(captor.allValues.map { it.filter.eventGroupReferenceIdsList.toList() })
+      .contains(listOf("ref/123"))
+  }
+
+  @Test
+  fun `generateEventBatches queries entity keys for mapped reference IDs`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
+        eventGroupDetailsList =
+          listOf(
+            createEventGroupDetails("ref/123", date, date.plusDays(1), ZoneId.of("UTC")),
+            createEventGroupDetails("ref/456", date, date.plusDays(1), ZoneId.of("UTC")),
+          ),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = CAMPAIGN_MAPPING,
+      )
+
+    eventSource.generateEventBatches().toList()
+
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(captor.capture())
+    val entityKeyFilter = captor.allValues.single { it.filter.entityKeysCount > 0 }.filter
+    assertThat(entityKeyFilter.entityKeysList.map { it.entityType })
+      .containsExactly("campaign", "campaign")
+    assertThat(entityKeyFilter.entityKeysList.map { it.entityId })
+      .containsExactly("entity/123", "entity/456")
+    val referenceIdFilter =
+      captor.allValues.single { it.filter.eventGroupReferenceIdsCount > 0 }.filter
+    assertThat(referenceIdFilter.eventGroupReferenceIdsList).containsExactly("ref/123", "ref/456")
+  }
+
   companion object {
+    private val CAMPAIGN_MAPPING =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "ref/",
+        entityIdPrefix = "entity/",
+      )
+
     private val TEST_EVENT = testEvent {
       person = person {
         ageGroup = Person.AgeGroup.YEARS_18_TO_34

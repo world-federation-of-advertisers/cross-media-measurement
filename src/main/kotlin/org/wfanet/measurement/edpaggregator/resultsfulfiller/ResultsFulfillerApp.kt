@@ -238,6 +238,16 @@ class ResultsFulfillerApp(
           }
         }
       }
+    val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? =
+      fulfillerParams.eventGroupReferenceIdEntityKeyMapping
+        .takeIf { it.enabled }
+        ?.let { params ->
+          EventGroupReferenceIdEntityKeyMapping(
+            entityType = params.entityType,
+            eventGroupReferenceIdPrefix = params.eventGroupReferenceIdPrefix,
+            entityIdPrefix = params.entityIdPrefix,
+          )
+        }
 
     ResultsFulfiller(
         dataProvider = fulfillerParams.dataProvider,
@@ -253,6 +263,7 @@ class ResultsFulfillerApp(
         impressionsStorageConfig = impressionsStorageConfig,
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
         metrics = metrics,
       )
       .fulfillRequisitions()

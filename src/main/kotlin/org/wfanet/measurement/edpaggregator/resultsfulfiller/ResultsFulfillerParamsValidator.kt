@@ -128,6 +128,13 @@ object ResultsFulfillerParamsValidator {
       params.trusTeeV2Config.impressionCountMode,
       params.trusTeeV2Config.maxFrequencyPerUserOrNull,
     )
+
+    if (params.eventGroupReferenceIdEntityKeyMapping.enabled) {
+      require(params.eventGroupReferenceIdEntityKeyMapping.entityType.isNotEmpty()) {
+        "Missing 'entity_type' in " +
+          "results_fulfiller_params.event_group_reference_id_entity_key_mapping when enabled."
+      }
+    }
   }
 
   private fun NoiseType.isSupported(): Boolean {

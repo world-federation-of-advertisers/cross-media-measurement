@@ -285,6 +285,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_batch",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_group_identifier",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_group_reference_id_entity_key_mapping",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_processor",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:filter_spec",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:labeled_event",
@@ -305,6 +306,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.StorageEventSourceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_group_reference_id_entity_key_mapping",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_reader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:impression_data_source_provider",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:impression_query_selector",

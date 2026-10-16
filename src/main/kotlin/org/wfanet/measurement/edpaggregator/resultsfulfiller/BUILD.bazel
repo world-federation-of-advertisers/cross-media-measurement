@@ -23,6 +23,7 @@ kt_jvm_library(
         ":continuous_gaussian_noiser_selector",
         ":deterministic_truncated_laplace_noiser_selector",
         ":event_batch",
+        ":event_group_reference_id_entity_key_mapping",
         ":event_processing_orchestrator",
         ":event_reader",
         ":event_source",
@@ -132,9 +133,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "event_group_reference_id_entity_key_mapping",
+    srcs = ["EventGroupReferenceIdEntityKeyMapping.kt"],
+)
+
+kt_jvm_library(
     name = "event_group_identifier",
     srcs = ["EventGroupIdentifier.kt"],
     deps = [
+        ":event_group_reference_id_entity_key_mapping",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
     ],
 )
@@ -171,6 +178,7 @@ kt_jvm_library(
     deps = [
         ":event_batch",
         ":event_group_identifier",
+        ":event_group_reference_id_entity_key_mapping",
         ":event_reader",
         ":event_source",
         ":impression_data_source_provider",
@@ -194,6 +202,7 @@ kt_jvm_library(
     srcs = ["FilterSpec.kt"],
     deps = [
         ":event_group_identifier",
+        ":event_group_reference_id_entity_key_mapping",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",

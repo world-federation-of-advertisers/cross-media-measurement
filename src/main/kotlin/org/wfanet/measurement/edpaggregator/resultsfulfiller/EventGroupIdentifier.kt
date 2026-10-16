@@ -19,14 +19,26 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 
 /**
- * Sealed class identifying how an [EventBatch] is associated with its event group.
+ * Identifies how an [EventBatch]'s blob metadata represents its event group.
  *
- * A batch is produced from a single blob whose metadata was queried by exactly one strategy. This
- * type encodes that strategy so downstream processors (e.g. [FilterProcessor]) can dispatch without
- * carrying two mutually-exclusive nullable fields.
+ * The mapped variants retain the configured equivalence between the two representations so that
+ * downstream processors can match and filter either selector form.
  */
 sealed class EventGroupIdentifier {
   data class ByReferenceId(val refId: String) : EventGroupIdentifier()
 
   data class ByEntityKeys(val entityKeys: List<EntityKeyGroup>) : EventGroupIdentifier()
+
+  /** A reference ID that can be mapped to an entity key using [mapping]. */
+  data class ByMappedReferenceId(
+    val refId: String,
+    val mapping: EventGroupReferenceIdEntityKeyMapping,
+  ) : EventGroupIdentifier()
+
+  /** Entity keys and an optional direct [refId] that can be mapped using [mapping]. */
+  data class ByMappedEntityKeys(
+    val entityKeys: List<EntityKeyGroup>,
+    val refId: String,
+    val mapping: EventGroupReferenceIdEntityKeyMapping,
+  ) : EventGroupIdentifier()
 }

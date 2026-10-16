@@ -18,7 +18,9 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.type.Interval
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
 
 /** Thrown when a [FilterSpec] is constructed with an empty `eventGroupReferenceIds` selector. */
 class EmptyEventGroupReferenceIdsException :
@@ -35,8 +37,7 @@ class InvalidCollectionIntervalException :
   IllegalArgumentException("collectionInterval startTime must be before endTime")
 
 /**
- * Thrown by [FilterSpec.ByEntityKeys.matchBatch] when the batch carries
- * [EventGroupIdentifier.ByEntityKeys] with an empty entity keys list.
+ * Thrown by [FilterSpec.matchBatch] when the batch identifier carries an empty entity-keys list.
  */
 class MissingBatchEntityKeysException :
   IllegalStateException("Batch EventGroupIdentifier.ByEntityKeys has an empty entity keys list")
@@ -98,9 +99,8 @@ sealed class FilterSpec {
    * @return [BatchMatchResult.NoMatch] if the batch should be skipped,
    *   [BatchMatchResult.MatchedAllEvents] or [BatchMatchResult.MatchedByEntityKeys] if it passed.
    * @throws MismatchedBatchIdentifierException when [identifier]'s variant does not match this
-   *   [FilterSpec] variant.
-   * @throws MissingBatchEntityKeysException when this is [ByEntityKeys] and [identifier] is
-   *   [EventGroupIdentifier.ByEntityKeys] with an empty entity keys list.
+   *   [FilterSpec] variant and does not carry an ID mapping.
+   * @throws MissingBatchEntityKeysException when [identifier] carries an empty entity-keys list.
    */
   abstract fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult
 
@@ -127,18 +127,56 @@ sealed class FilterSpec {
     }
 
     override fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
-      when (identifier) {
+      return when (identifier) {
         is EventGroupIdentifier.ByEntityKeys ->
           throw MismatchedBatchIdentifierException(
             "ByEventGroupReferenceIds filter requires EventGroupIdentifier.ByReferenceId"
           )
-        is EventGroupIdentifier.ByReferenceId -> {
-          return if (eventGroupReferenceIds.contains(identifier.refId)) {
-            BatchMatchResult.MatchedAllEvents
-          } else {
-            BatchMatchResult.NoMatch
+        is EventGroupIdentifier.ByReferenceId -> matchReferenceId(identifier.refId)
+        is EventGroupIdentifier.ByMappedReferenceId -> matchReferenceId(identifier.refId)
+        is EventGroupIdentifier.ByMappedEntityKeys -> matchMappedEntityKeys(identifier)
+      }
+    }
+
+    private fun matchReferenceId(refId: String): BatchMatchResult {
+      return if (refId in eventGroupReferenceIds) {
+        BatchMatchResult.MatchedAllEvents
+      } else {
+        BatchMatchResult.NoMatch
+      }
+    }
+
+    private fun matchMappedEntityKeys(
+      identifier: EventGroupIdentifier.ByMappedEntityKeys
+    ): BatchMatchResult {
+      if (identifier.refId in eventGroupReferenceIds) {
+        return BatchMatchResult.MatchedAllEvents
+      }
+      if (identifier.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
+      val mappedEntityIds: Set<String> =
+        identifier.entityKeys
+          .asSequence()
+          .filter { it.entityType == identifier.mapping.entityType }
+          .flatMap { it.entityIdsList.asSequence() }
+          .toSet()
+      val filterEntityKeys: Set<LabeledImpression.EntityKey> =
+        eventGroupReferenceIds
+          .mapNotNull { identifier.mapping.toEntityId(it) }
+          .map { entityId ->
+            entityKey {
+              entityType = identifier.mapping.entityType
+              this.entityId = entityId
+            }
           }
-        }
+          .toSet()
+      val filterEntityIds: Set<String> = filterEntityKeys.map { it.entityId }.toSet()
+      if (mappedEntityIds.none { it in filterEntityIds }) {
+        return BatchMatchResult.NoMatch
+      }
+      return if (mappedEntityIds.size == 1) {
+        BatchMatchResult.MatchedAllEvents
+      } else {
+        BatchMatchResult.MatchedByEntityKeys(filterEntityKeys)
       }
     }
   }
@@ -165,26 +203,71 @@ sealed class FilterSpec {
       entityKeys.map { Pair(it.entityType, it.entityId) }.toSet()
 
     override fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
-      when (identifier) {
+      return when (identifier) {
         is EventGroupIdentifier.ByReferenceId ->
           throw MismatchedBatchIdentifierException(
             "ByEntityKeys filter requires EventGroupIdentifier.ByEntityKeys"
           )
-        is EventGroupIdentifier.ByEntityKeys -> {
-          if (identifier.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
-          val batchKeyPairs: Set<Pair<String, String>> =
-            identifier.entityKeys
-              .flatMap { g -> g.entityIdsList.map { id -> Pair(g.entityType, id) } }
-              .toSet()
-          if (filterKeyPairs.none { it in batchKeyPairs }) {
-            return BatchMatchResult.NoMatch
+        is EventGroupIdentifier.ByEntityKeys -> matchEntityKeys(identifier.entityKeys, null)
+        is EventGroupIdentifier.ByMappedReferenceId ->
+          matchMappedReferenceId(identifier.refId, identifier.mapping)
+        is EventGroupIdentifier.ByMappedEntityKeys -> matchMappedEntityKeys(identifier)
+      }
+    }
+
+    private fun matchMappedReferenceId(
+      refId: String,
+      mapping: EventGroupReferenceIdEntityKeyMapping,
+    ): BatchMatchResult {
+      if (refId.isEmpty()) {
+        return BatchMatchResult.NoMatch
+      }
+      val entityId = mapping.toEntityId(refId) ?: return BatchMatchResult.NoMatch
+      return if (Pair(mapping.entityType, entityId) in filterKeyPairs) {
+        BatchMatchResult.MatchedAllEvents
+      } else {
+        BatchMatchResult.NoMatch
+      }
+    }
+
+    private fun matchMappedEntityKeys(
+      identifier: EventGroupIdentifier.ByMappedEntityKeys
+    ): BatchMatchResult {
+      val entityKeyMatch = matchEntityKeys(identifier.entityKeys, identifier.mapping)
+      return if (entityKeyMatch == BatchMatchResult.NoMatch) {
+        matchMappedReferenceId(identifier.refId, identifier.mapping)
+      } else {
+        entityKeyMatch
+      }
+    }
+
+    private fun matchEntityKeys(
+      batchEntityKeys: List<EntityKeyGroup>,
+      mapping: EventGroupReferenceIdEntityKeyMapping?,
+    ): BatchMatchResult {
+      if (batchEntityKeys.isEmpty()) throw MissingBatchEntityKeysException()
+      val batchKeyPairs: Set<Pair<String, String>> =
+        batchEntityKeys
+          .flatMap { group ->
+            group.entityIdsList.map { entityId -> Pair(group.entityType, entityId) }
           }
-          return if (batchKeyPairs.all { it in filterKeyPairs }) {
-            BatchMatchResult.MatchedAllEvents
-          } else {
-            BatchMatchResult.MatchedByEntityKeys(entityKeyFilter = entityKeys)
-          }
+          .toSet()
+      if (filterKeyPairs.none { it in batchKeyPairs }) {
+        return BatchMatchResult.NoMatch
+      }
+      if (mapping != null) {
+        val mappedBatchIds: Set<String> =
+          batchKeyPairs.filter { it.first == mapping.entityType }.map { it.second }.toSet()
+        val mappedFilterIds: Set<String> =
+          filterKeyPairs.filter { it.first == mapping.entityType }.map { it.second }.toSet()
+        if (mappedBatchIds.size == 1 && mappedBatchIds.single() in mappedFilterIds) {
+          return BatchMatchResult.MatchedAllEvents
         }
+      }
+      return if (batchKeyPairs.all { it in filterKeyPairs }) {
+        BatchMatchResult.MatchedAllEvents
+      } else {
+        BatchMatchResult.MatchedByEntityKeys(entityKeyFilter = entityKeys)
       }
     }
   }

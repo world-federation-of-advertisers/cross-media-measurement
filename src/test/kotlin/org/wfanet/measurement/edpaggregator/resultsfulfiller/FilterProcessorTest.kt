@@ -1046,4 +1046,139 @@ class FilterProcessorTest {
 
     assertThat(result).isInstanceOf(BatchMatchResult.MatchedByEntityKeys::class.java)
   }
+
+  @Test
+  fun `processBatch accepts mapped reference ID for an entity-key filter`() {
+    val filterSpec =
+      createTestFilterSpec(entityKeys = setOf(makeEntityKey("campaign", "entity/123")))
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+    val events =
+      listOf(
+        createTestLabeledEvent(1, entityKeys = emptyList()),
+        createTestLabeledEvent(2, entityKeys = emptyList()),
+      )
+
+    val result =
+      filterProcessor.processBatch(
+        createEventBatch(
+          events,
+          EventGroupIdentifier.ByMappedReferenceId(refId = "ref/123", mapping = CAMPAIGN_MAPPING),
+        )
+      )
+
+    assertThat(result.events.map { it.vid }).containsExactly(1L, 2L).inOrder()
+  }
+
+  @Test
+  fun `processBatch accepts all events when mapped blob has one requested campaign`() {
+    val filterSpec = createTestFilterSpec(eventGroupReferenceIds = listOf("ref/123"))
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+    val events =
+      listOf(
+        createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "A"))),
+        createTestLabeledEvent(2, entityKeys = listOf(makeEntityKey("ad", "B"))),
+      )
+
+    val result =
+      filterProcessor.processBatch(
+        createEventBatch(
+          events,
+          EventGroupIdentifier.ByMappedEntityKeys(
+            listOf(
+              makeEntityKeyGroup("campaign", "entity/123"),
+              makeEntityKeyGroup("ad", "A", "B"),
+            ),
+            refId = "",
+            mapping = CAMPAIGN_MAPPING,
+          ),
+        )
+      )
+
+    assertThat(result.events.map { it.vid }).containsExactly(1L, 2L).inOrder()
+  }
+
+  @Test
+  fun `processBatch entity filter accepts all events when mapped blob has one requested campaign`() {
+    val filterSpec =
+      createTestFilterSpec(entityKeys = setOf(makeEntityKey("campaign", "entity/123")))
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+    val events =
+      listOf(
+        createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "A"))),
+        createTestLabeledEvent(2, entityKeys = listOf(makeEntityKey("ad", "B"))),
+      )
+
+    val result =
+      filterProcessor.processBatch(
+        createEventBatch(
+          events,
+          EventGroupIdentifier.ByMappedEntityKeys(
+            listOf(
+              makeEntityKeyGroup("campaign", "entity/123"),
+              makeEntityKeyGroup("ad", "A", "B"),
+            ),
+            refId = "",
+            mapping = CAMPAIGN_MAPPING,
+          ),
+        )
+      )
+
+    assertThat(result.events.map { it.vid }).containsExactly(1L, 2L).inOrder()
+  }
+
+  @Test
+  fun `processBatch filters events when mapped blob has multiple campaigns`() {
+    val filterSpec = createTestFilterSpec(eventGroupReferenceIds = listOf("ref/123"))
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+    val matchingCampaign = makeEntityKey("campaign", "entity/123")
+    val events =
+      listOf(
+        createTestLabeledEvent(1, entityKeys = listOf(matchingCampaign)),
+        createTestLabeledEvent(2, entityKeys = listOf(makeEntityKey("campaign", "entity/456"))),
+      )
+
+    val result =
+      filterProcessor.processBatch(
+        createEventBatch(
+          events,
+          EventGroupIdentifier.ByMappedEntityKeys(
+            listOf(makeEntityKeyGroup("campaign", "entity/123", "entity/456")),
+            refId = "",
+            mapping = CAMPAIGN_MAPPING,
+          ),
+        )
+      )
+
+    assertThat(result.events.map { it.vid }).containsExactly(1L)
+  }
+
+  @Test
+  fun `processBatch accepts direct reference ID on mapped entity blob`() {
+    val filterSpec = createTestFilterSpec(eventGroupReferenceIds = listOf("direct-reference-id"))
+    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+    val events = listOf(createTestLabeledEvent(1, entityKeys = emptyList()))
+
+    val result =
+      filterProcessor.processBatch(
+        createEventBatch(
+          events,
+          EventGroupIdentifier.ByMappedEntityKeys(
+            listOf(makeEntityKeyGroup("campaign", "entity/456")),
+            refId = "direct-reference-id",
+            mapping = CAMPAIGN_MAPPING,
+          ),
+        )
+      )
+
+    assertThat(result.events.map { it.vid }).containsExactly(1L)
+  }
+
+  companion object {
+    private val CAMPAIGN_MAPPING =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "ref/",
+        entityIdPrefix = "entity/",
+      )
+  }
 }

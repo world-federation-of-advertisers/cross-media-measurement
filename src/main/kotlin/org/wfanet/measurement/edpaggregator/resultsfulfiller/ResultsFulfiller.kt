@@ -127,6 +127,7 @@ class ResultsFulfiller(
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
+  private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping?,
   private val responsePageSize: Int? = null,
   private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
@@ -340,6 +341,7 @@ class ResultsFulfiller(
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
+        eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
         readConcurrency = pipelineConfiguration.readConcurrency,
       )
 
