@@ -86,17 +86,14 @@ class PotentialDirectResultMinimumThresholds:
     ) -> dict[int, Measurement]:
         k_reach = dict(k_reach)
         # TODO(world-federation-of-advertisers/cross-media-measurement#4464):
-        # Model partial fold-down if correction is expected to reconstruct the
-        # pre-threshold histogram rather than preserve displayed values.
-        if k_reach and all(
-            measurement.value == 0 for measurement in k_reach.values()
-        ):
-            # Fold-down reaches the lowest bin before suppression. Relax only
-            # that bin so reach can be restored without inventing
-            # higher-frequency users.
-            first_frequency = min(k_reach)
-            k_reach[first_frequency] = self._add_uncertainty(
-                k_reach[first_frequency],
+        # Model redistribution among nonzero bins if correction is expected to
+        # reconstruct the histogram before higher-frequency fold-down.
+        one_plus_reach = k_reach.get(1)
+        if one_plus_reach is not None:
+            # Only a suppressed 1+ bucket can leave the displayed histogram
+            # short of total reach.
+            k_reach[1] = self._add_uncertainty(
+                one_plus_reach,
                 max(self.min_users, self.min_impressions),
             )
 
