@@ -77,7 +77,7 @@ class ParallelBatchedPipelineTest {
           events = events,
           minTime = minTime,
           maxTime = maxTime,
-          eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("test-group"),
+          eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("test-group", null),
         )
       }
     }
@@ -106,9 +106,9 @@ class ParallelBatchedPipelineTest {
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
                   eventGroupReferenceIds = listOf("test-group"),
+                  mappedEntityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
-              eventGroupReferenceIdEntityKeyMapping = null,
             ),
         )
       )
@@ -152,9 +152,9 @@ class ParallelBatchedPipelineTest {
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
                   eventGroupReferenceIds = listOf("test-group"),
+                  mappedEntityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
-              eventGroupReferenceIdEntityKeyMapping = null,
             ),
         )
       )
@@ -219,9 +219,9 @@ class ParallelBatchedPipelineTest {
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
                   eventGroupReferenceIds = listOf("test-group"),
+                  mappedEntityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
-              eventGroupReferenceIdEntityKeyMapping = null,
             ),
         )
       )
@@ -278,9 +278,9 @@ class ParallelBatchedPipelineTest {
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
                   eventGroupReferenceIds = listOf("test-group"),
+                  mappedEntityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
-              eventGroupReferenceIdEntityKeyMapping = null,
             ),
         )
       )
@@ -377,9 +377,9 @@ class ParallelBatchedPipelineTest {
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
                   eventGroupReferenceIds = listOf("test-group"),
+                  mappedEntityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
-              eventGroupReferenceIdEntityKeyMapping = null,
             ),
         )
       )
@@ -427,9 +427,9 @@ class ParallelBatchedPipelineTest {
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
                 eventGroupReferenceIds = listOf("test-group"),
+                mappedEntityKeys = emptySet(),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
-            eventGroupReferenceIdEntityKeyMapping = null,
           ),
         frequencyVector = StripedByteFrequencyVector(testVidIndexMap.size.toInt()),
         vidIndexMap = testVidIndexMap,
@@ -483,7 +483,7 @@ class ParallelBatchedPipelineTest {
                 events = listOf(e),
                 minTime = now,
                 maxTime = now.plusSeconds(1),
-                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1"),
+                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1", null),
               )
             )
           }
@@ -504,9 +504,9 @@ class ParallelBatchedPipelineTest {
                       endTime = timestamp { seconds = now.epochSecond + 3600 }
                     },
                   eventGroupReferenceIds = listOf("test-group"),
+                  mappedEntityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
-              eventGroupReferenceIdEntityKeyMapping = null,
             ),
           frequencyVector = StripedByteFrequencyVector(1024),
           vidIndexMap = InMemoryVidIndexMap.build(TEST_POPULATION_SPEC),
@@ -551,9 +551,9 @@ class ParallelBatchedPipelineTest {
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
                 eventGroupReferenceIds = listOf("test-group"),
+                mappedEntityKeys = emptySet(),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
-            eventGroupReferenceIdEntityKeyMapping = null,
           ),
         frequencyVector = StripedByteFrequencyVector(testVidIndexMap.size.toInt()),
         vidIndexMap = testVidIndexMap,
@@ -571,9 +571,9 @@ class ParallelBatchedPipelineTest {
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
                 eventGroupReferenceIds = listOf("test-group"),
+                mappedEntityKeys = emptySet(),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
-            eventGroupReferenceIdEntityKeyMapping = null,
           ),
         frequencyVector = StripedByteFrequencyVector(testVidIndexMap.size.toInt()),
         vidIndexMap = testVidIndexMap,
@@ -630,7 +630,7 @@ class ParallelBatchedPipelineTest {
                 events = listOf(e),
                 minTime = now,
                 maxTime = now.plusSeconds(1),
-                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1"),
+                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1", null),
               )
             )
           }
@@ -651,9 +651,9 @@ class ParallelBatchedPipelineTest {
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
                 eventGroupReferenceIds = listOf("test-group"),
+                mappedEntityKeys = emptySet(),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
-            eventGroupReferenceIdEntityKeyMapping = null,
           ),
         frequencyVector = StripedByteFrequencyVector(testVidIndexMap.size.toInt()),
         vidIndexMap = testVidIndexMap,
@@ -702,7 +702,7 @@ class ParallelBatchedPipelineTest {
                 events = listOf(e),
                 minTime = now,
                 maxTime = now.plusSeconds(1),
-                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1"),
+                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1", null),
               )
             )
             kotlinx.coroutines.yield() // Allow cancellation
@@ -724,9 +724,9 @@ class ParallelBatchedPipelineTest {
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
                 eventGroupReferenceIds = listOf("test-group"),
+                mappedEntityKeys = emptySet(),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
-            eventGroupReferenceIdEntityKeyMapping = null,
           ),
         frequencyVector = StripedByteFrequencyVector(1024),
         vidIndexMap = InMemoryVidIndexMap.build(TEST_POPULATION_SPEC),

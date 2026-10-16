@@ -118,10 +118,7 @@ class EventProcessingIntegrationTest {
 
     // Create EventProcessingOrchestrator
     eventProcessingOrchestrator =
-      EventProcessingOrchestrator(
-        privateEncryptionKey = privateEncryptionKey,
-        eventGroupReferenceIdEntityKeyMapping = null,
-      )
+      EventProcessingOrchestrator(privateEncryptionKey = privateEncryptionKey)
   }
 
   @Test
@@ -195,7 +192,8 @@ class EventProcessingIntegrationTest {
         requisitions = requisitions,
         eventGroupSelector =
           FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-            createEventGroupReferenceIdMap(requisitions)
+            map = createEventGroupReferenceIdMap(requisitions),
+            mappedEntityKeyMap = emptyMap(),
           ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
@@ -328,7 +326,8 @@ class EventProcessingIntegrationTest {
         requisitions = requisitions,
         eventGroupSelector =
           FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-            createEventGroupReferenceIdMap(requisitions)
+            map = createEventGroupReferenceIdMap(requisitions),
+            mappedEntityKeyMap = emptyMap(),
           ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
@@ -442,7 +441,8 @@ class EventProcessingIntegrationTest {
         requisitions = requisitions,
         eventGroupSelector =
           FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-            createEventGroupReferenceIdMap(requisitions)
+            map = createEventGroupReferenceIdMap(requisitions),
+            mappedEntityKeyMap = emptyMap(),
           ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
@@ -543,7 +543,8 @@ class EventProcessingIntegrationTest {
         requisitions = listOf(requisitionYesterday, requisitionBothDays),
         eventGroupSelector =
           FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-            createEventGroupReferenceIdMap(listOf(requisitionYesterday, requisitionBothDays))
+            map = createEventGroupReferenceIdMap(listOf(requisitionYesterday, requisitionBothDays)),
+            mappedEntityKeyMap = emptyMap(),
           ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
@@ -678,7 +679,8 @@ class EventProcessingIntegrationTest {
         requisitions = requisitions,
         eventGroupSelector =
           FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-            createEventGroupReferenceIdMap(requisitions)
+            map = createEventGroupReferenceIdMap(requisitions),
+            mappedEntityKeyMap = emptyMap(),
           ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
@@ -808,7 +810,8 @@ class EventProcessingIntegrationTest {
         requisitions = requisitions,
         eventGroupSelector =
           FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-            createEventGroupReferenceIdMap(requisitions)
+            map = createEventGroupReferenceIdMap(requisitions),
+            mappedEntityKeyMap = emptyMap(),
           ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
@@ -925,7 +928,8 @@ class EventProcessingIntegrationTest {
         requisitions = requisitions,
         eventGroupSelector =
           FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-            createEventGroupReferenceIdMap(requisitions)
+            map = createEventGroupReferenceIdMap(requisitions),
+            mappedEntityKeyMap = emptyMap(),
           ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
@@ -1072,7 +1076,8 @@ class EventProcessingIntegrationTest {
         requisitions = requisitions,
         eventGroupSelector =
           FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-            createEventGroupReferenceIdMap(requisitions)
+            map = createEventGroupReferenceIdMap(requisitions),
+            mappedEntityKeyMap = emptyMap(),
           ),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
@@ -1167,7 +1172,8 @@ class EventProcessingIntegrationTest {
                   eventList,
                   minTime,
                   maxTime,
-                  eventGroupIdentifier = EventGroupIdentifier.ByReferenceId(eventGroupReferenceId),
+                  eventGroupIdentifier =
+                    EventGroupIdentifier.ByReferenceId(eventGroupReferenceId, null),
                 )
               )
             }
@@ -1200,7 +1206,8 @@ class EventProcessingIntegrationTest {
                 eventList,
                 minTime,
                 maxTime,
-                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId(eventGroupReferenceId),
+                eventGroupIdentifier =
+                  EventGroupIdentifier.ByReferenceId(eventGroupReferenceId, null),
               )
             )
           }
@@ -1517,7 +1524,9 @@ class EventProcessingIntegrationTest {
         requisitions = listOf(req),
         eventGroupSelector =
           FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(
-            mapOf("eventGroups/eg1" to entityKey1, "eventGroups/eg2" to entityKey2)
+            map = mapOf("eventGroups/eg1" to entityKey1, "eventGroups/eg2" to entityKey2),
+            mappedEventGroupReferenceIdMap =
+              mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2"),
           ),
         privateEncryptionKey = privateEncryptionKey,
       )
@@ -1525,6 +1534,7 @@ class EventProcessingIntegrationTest {
     val spec = index.requisitionNameToFilterSpec.getValue(req.name)
     assertThat(spec).isInstanceOf(FilterSpec.ByEntityKeys::class.java)
     assertThat((spec as FilterSpec.ByEntityKeys).entityKeys).containsExactly(entityKey1, entityKey2)
+    assertThat(spec.mappedEventGroupReferenceIds).containsExactly("ref1", "ref2")
   }
 
   @Test
@@ -1536,13 +1546,17 @@ class EventProcessingIntegrationTest {
         eventGroupsMap = mapOf("eventGroups/eg1" to timeRange, "eventGroups/eg2" to timeRange),
         filter = "common.age_group == 1",
       )
+    val entityKey1 = labeledImpressionEntityKey("campaign", "X")
+    val entityKey2 = labeledImpressionEntityKey("campaign", "Y")
 
     val index =
       FilterSpecIndex.fromRequisitions(
         requisitions = listOf(req),
         eventGroupSelector =
           FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-            mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2")
+            map = mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2"),
+            mappedEntityKeyMap =
+              mapOf("eventGroups/eg1" to entityKey1, "eventGroups/eg2" to entityKey2),
           ),
         privateEncryptionKey = privateEncryptionKey,
       )
@@ -1552,6 +1566,7 @@ class EventProcessingIntegrationTest {
     assertThat((spec as FilterSpec.ByEventGroupReferenceIds).eventGroupReferenceIds)
       .containsExactly("ref1", "ref2")
       .inOrder()
+    assertThat(spec.mappedEntityKeys).containsExactly(entityKey1, entityKey2)
   }
 
   @Test
@@ -1571,7 +1586,8 @@ class EventProcessingIntegrationTest {
           // Only eg1 has an entity key — eg2 missing → all-or-nothing rule → must throw.
           eventGroupSelector =
             FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(
-              mapOf("eventGroups/eg1" to labeledImpressionEntityKey("ad", "X"))
+              map = mapOf("eventGroups/eg1" to labeledImpressionEntityKey("ad", "X")),
+              mappedEventGroupReferenceIdMap = emptyMap(),
             ),
           privateEncryptionKey = privateEncryptionKey,
         )
@@ -1694,10 +1710,12 @@ class EventProcessingIntegrationTest {
           requisitions = requisitions,
           eventGroupSelector =
             FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(
-              mapOf(
-                requisitionEventGroupName(req1) to entityKey1,
-                requisitionEventGroupName(req2) to entityKey2,
-              )
+              map =
+                mapOf(
+                  requisitionEventGroupName(req1) to entityKey1,
+                  requisitionEventGroupName(req2) to entityKey2,
+                ),
+              mappedEventGroupReferenceIdMap = emptyMap(),
             ),
           config = config,
           eventDescriptor = TestEvent.getDescriptor(),
@@ -1772,7 +1790,7 @@ class EventProcessingIntegrationTest {
               labeledEvents,
               minTime,
               maxTime,
-              eventGroupIdentifier = EventGroupIdentifier.ByEntityKeys(groupedBatchEntityKeys),
+              eventGroupIdentifier = EventGroupIdentifier.ByEntityKeys(groupedBatchEntityKeys, null),
             )
           )
         }

@@ -40,7 +40,10 @@ import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 
 /** Result of processing a single EventReader. */
@@ -315,35 +318,70 @@ class StorageEventSource(
     return result
   }
 
+  private fun mappedEntityKey(referenceId: String): LabeledImpression.EntityKey? {
+    val mapping = eventGroupReferenceIdEntityKeyMapping ?: return null
+    val entityId = mapping.toEntityId(referenceId) ?: return null
+    return LabeledImpressionKt.entityKey {
+      entityType = mapping.entityType
+      this.entityId = entityId
+    }
+  }
+
+  private fun mappedReferenceId(
+    entityKeys: List<EntityKeyGroup>,
+    directReferenceId: String,
+  ): String? {
+    val mapping = eventGroupReferenceIdEntityKeyMapping ?: return null
+    val mappedEntityId =
+      entityKeys
+        .asSequence()
+        .filter { it.entityType == mapping.entityType }
+        .flatMap { it.entityIdsList.asSequence() }
+        .distinct()
+        .singleOrNull() ?: return null
+    return directReferenceId.takeIf { it.isNotEmpty() }
+      ?: mapping.toEventGroupReferenceId(mapping.entityType, mappedEntityId)
+  }
+
+  private fun eventGroupIdentifier(blobDetails: BlobDetails): EventGroupIdentifier {
+    fun byEntityKeys(): EventGroupIdentifier.ByEntityKeys {
+      return EventGroupIdentifier.ByEntityKeys(
+        entityKeys = blobDetails.entityKeysList,
+        refId = mappedReferenceId(blobDetails.entityKeysList, blobDetails.eventGroupReferenceId),
+      )
+    }
+
+    fun byReferenceId(): EventGroupIdentifier.ByReferenceId {
+      return EventGroupIdentifier.ByReferenceId(
+        refId = blobDetails.eventGroupReferenceId,
+        entityKey = mappedEntityKey(blobDetails.eventGroupReferenceId),
+      )
+    }
+
+    if (eventGroupReferenceIdEntityKeyMapping == null) {
+      return if (useEntityKeyStrategy) byEntityKeys() else byReferenceId()
+    }
+    return when {
+      useEntityKeyStrategy && blobDetails.entityKeysList.isNotEmpty() -> byEntityKeys()
+      !useEntityKeyStrategy && blobDetails.eventGroupReferenceId.isNotEmpty() -> byReferenceId()
+      blobDetails.entityKeysList.isNotEmpty() -> byEntityKeys()
+      blobDetails.eventGroupReferenceId.isNotEmpty() -> byReferenceId()
+      else ->
+        error(
+          "BlobDetails for ${blobDetails.blobUri} has neither entity keys nor an " +
+            "event-group reference ID"
+        )
+    }
+  }
+
   private suspend fun createEventReaders(): List<ResolvedEventReader> {
     logger.info("Creating event readers... ")
     val uniqueSources = getUniqueImpressionDataSources()
 
     return uniqueSources.map { source ->
-      val eventGroupIdentifier =
-        if (eventGroupReferenceIdEntityKeyMapping == null) {
-          if (useEntityKeyStrategy) {
-            EventGroupIdentifier.ByEntityKeys(source.blobDetails.entityKeysList)
-          } else {
-            EventGroupIdentifier.ByReferenceId(source.blobDetails.eventGroupReferenceId)
-          }
-        } else if (useEntityKeyStrategy && source.blobDetails.entityKeysList.isNotEmpty()) {
-          EventGroupIdentifier.ByEntityKeys(source.blobDetails.entityKeysList)
-        } else if (!useEntityKeyStrategy && source.blobDetails.eventGroupReferenceId.isNotEmpty()) {
-          EventGroupIdentifier.ByReferenceId(source.blobDetails.eventGroupReferenceId)
-        } else if (source.blobDetails.entityKeysList.isNotEmpty()) {
-          EventGroupIdentifier.ByEntityKeys(source.blobDetails.entityKeysList)
-        } else if (source.blobDetails.eventGroupReferenceId.isNotEmpty()) {
-          EventGroupIdentifier.ByReferenceId(source.blobDetails.eventGroupReferenceId)
-        } else {
-          error(
-            "BlobDetails for ${source.blobDetails.blobUri} has neither entity keys nor an " +
-              "event-group reference ID"
-          )
-        }
       ResolvedEventReader(
         reader = eventReaderFactory(source.blobDetails),
-        eventGroupIdentifier = eventGroupIdentifier,
+        eventGroupIdentifier = eventGroupIdentifier(source.blobDetails),
         blobUri = source.blobDetails.blobUri,
       )
     }

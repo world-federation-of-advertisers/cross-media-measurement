@@ -17,10 +17,15 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
 /** Identifies how an [EventBatch]'s blob metadata represents its event group. */
 sealed class EventGroupIdentifier {
-  data class ByReferenceId(val refId: String) : EventGroupIdentifier()
+  /** A legacy reference ID and its equivalent entity key, when configured. */
+  data class ByReferenceId(val refId: String, val entityKey: LabeledImpression.EntityKey?) :
+    EventGroupIdentifier()
 
-  data class ByEntityKeys(val entityKeys: List<EntityKeyGroup>) : EventGroupIdentifier()
+  /** Entity keys and their equivalent reference ID when exactly one mapped entity is present. */
+  data class ByEntityKeys(val entityKeys: List<EntityKeyGroup>, val refId: String?) :
+    EventGroupIdentifier()
 }

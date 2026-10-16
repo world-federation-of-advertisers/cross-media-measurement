@@ -35,13 +35,10 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
  *
  * @param filterSpec immutable specification containing all filtering criteria
  * @param eventDescriptor descriptor of the event message type.
- * @param eventGroupReferenceIdEntityKeyMapping optional equivalence between reference IDs and one
- *   entity-key type.
  */
 class FilterProcessor<T : Message>(
   val filterSpec: FilterSpec,
   val eventDescriptor: Descriptors.Descriptor,
-  private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping?,
 ) {
 
   /** Compiled CEL program for event filtering. */
@@ -97,8 +94,7 @@ class FilterProcessor<T : Message>(
       return batch
     }
 
-    val matchResult =
-      filterSpec.matchBatch(batch.eventGroupIdentifier, eventGroupReferenceIdEntityKeyMapping)
+    val matchResult = filterSpec.matchBatch(batch.eventGroupIdentifier)
     if (matchResult is BatchMatchResult.NoMatch) {
       return emptyBatchLike(batch)
     }

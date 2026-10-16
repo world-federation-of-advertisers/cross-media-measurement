@@ -69,6 +69,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.EventGroupDetailsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
@@ -76,10 +77,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -894,6 +897,38 @@ class StorageEventSourceTest {
     metadataFs.writeBlob(key, blobDetailsBytes)
   }
 
+  private suspend fun writeMetadataWithEntityKeys(
+    metadataTmpPath: File,
+    date: LocalDate,
+    sourceId: String,
+    entityKeys: List<EntityKeyGroup>,
+    directReferenceId: String,
+  ) {
+    val metadataBucketDir = File(metadataTmpPath, "meta-bucket")
+    metadataBucketDir.mkdirs()
+    val metadataFs = FileSystemStorageClient(metadataBucketDir)
+    val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$sourceId/metadata"
+    val blobDetailsBytes =
+      blobDetails {
+          blobUri = "file:///impressions/$date/$sourceId"
+          encryptedDek = encryptedDek {
+            this.kekUri = this@StorageEventSourceTest.kekUri
+            typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+            protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+            ciphertext = ByteString.copyFromUtf8("fake-ciphertext")
+          }
+          this.modelLine = this@StorageEventSourceTest.modelLine
+          eventGroupReferenceId = directReferenceId
+          interval = interval {
+            startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          }
+          this.entityKeys += entityKeys
+        }
+        .toByteString()
+    metadataFs.writeBlob(key, blobDetailsBytes)
+  }
+
   @Test
   fun `getKekUri fails when blobs have different GCP project IDs`(): Unit = runBlocking {
     val metadataTmpPath = tmp.root
@@ -1570,6 +1605,143 @@ class StorageEventSourceTest {
       writeMetadataWithKekUri(metadataTmpPath, date, refId, kekUri, modelLine)
     }
   }
+
+  @Test
+  fun `generateEventBatches maps a reference ID to an entity key`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val metadataTmpPath = tmp.newFolder("metadata-mapped-reference-id")
+    seedMetadataSources(metadataTmpPath, date, listOf("ref/123"))
+
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+        eventGroupDetailsList =
+          listOf(createEventGroupDetails("ref/123", date, date.plusDays(1), ZoneId.of("UTC"))),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = CAMPAIGN_MAPPING,
+        eventReaderFactory = { _ -> eventReader(date) },
+      )
+
+    val batch = eventSource.generateEventBatches().toList().single()
+
+    assertThat(batch.eventGroupIdentifier)
+      .isEqualTo(
+        EventGroupIdentifier.ByReferenceId(
+          refId = "ref/123",
+          entityKey = labeledImpressionEntityKey("campaign", "entity/123"),
+        )
+      )
+  }
+
+  @Test
+  fun `generateEventBatches maps only a single campaign entity key to a reference ID`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val metadataTmpPath = tmp.newFolder("metadata-mapped-entity-keys")
+      val singleCampaignEntityKeys =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "entity/123"
+          },
+          entityKeyGroup {
+            entityType = "ad"
+            entityIds += listOf("A", "B")
+          },
+        )
+      val multipleCampaignEntityKeys =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += listOf("entity/123", "entity/456")
+          }
+        )
+      val sourceIds = listOf("single-campaign", "multiple-campaigns")
+      val metadataList =
+        sourceIds.flatMap {
+          createImpressionMetadataList(listOf(date), it, "meta-bucket", modelLine)
+        }
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+      writeMetadataWithEntityKeys(
+        metadataTmpPath,
+        date,
+        sourceIds[0],
+        singleCampaignEntityKeys,
+        directReferenceId = "",
+      )
+      writeMetadataWithEntityKeys(
+        metadataTmpPath,
+        date,
+        sourceIds[1],
+        multipleCampaignEntityKeys,
+        directReferenceId = "ref/123",
+      )
+      val eventGroupDetails = eventGroupDetails {
+        entityKey =
+          EventGroupDetailsKt.entityKey {
+            entityType = "campaign"
+            entityId = "entity/123"
+          }
+        collectionIntervals += interval {
+          startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        }
+      }
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+          eventGroupDetailsList = listOf(eventGroupDetails),
+          modelLine = modelLine,
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+          eventGroupReferenceIdEntityKeyMapping = CAMPAIGN_MAPPING,
+          eventReaderFactory = { _ -> eventReader(date) },
+        )
+
+      val identifiers = eventSource.generateEventBatches().toList().map { it.eventGroupIdentifier }
+
+      assertThat(identifiers)
+        .containsExactly(
+          EventGroupIdentifier.ByEntityKeys(
+            entityKeys = singleCampaignEntityKeys,
+            refId = "ref/123",
+          ),
+          EventGroupIdentifier.ByEntityKeys(entityKeys = multipleCampaignEntityKeys, refId = null),
+        )
+    }
+
+  private fun eventReader(date: LocalDate): EventReader<Message> {
+    return object : EventReader<Message> {
+      override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> = flow {
+        emit(
+          listOf(
+            LabeledEvent(
+              timestamp = date.atStartOfDay(ZoneId.of("UTC")).toInstant(),
+              vid = 1L,
+              message = TEST_EVENT,
+              entityKeys = emptyList(),
+            )
+          )
+        )
+      }
+    }
+  }
+
+  private fun labeledImpressionEntityKey(
+    entityType: String,
+    entityId: String,
+  ): LabeledImpression.EntityKey =
+    LabeledImpressionKt.entityKey {
+      this.entityType = entityType
+      this.entityId = entityId
+    }
 
   @Test
   fun `generateEventBatches bounds concurrent reads to readConcurrency`(): Unit = runBlocking {
