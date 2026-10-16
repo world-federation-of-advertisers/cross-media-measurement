@@ -1,0 +1,108 @@
+# proto-file: wfa/measurement/config/edpaggregator/requisition_fetcher_config.proto
+# proto-message: wfa.measurement.config.edpaggregator.RequisitionFetcherConfig
+configs {
+  data_provider: "dataProviders/Z1YwJJmvvN8"
+  requisition_storage {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  storage_path_prefix: "edp7/requisitions"
+  cmms_connection {
+    cert_file_path: "/secrets/cert/edp7_tls.pem"
+    private_key_file_path: "/secrets/key/edp7_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom_root.pem"
+  }
+  edp_private_key_path: "/secrets/private/edp7_enc_private.tink"
+  requisition_metadata_storage_connection {
+    cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
+    private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
+    cert_collection_file_path: "/secrets/ca/cert_metadata_storage/edp_aggregator_root.pem"
+  }
+  work_item_dispatch {
+    storage_path_prefix: "edp7/requisitions-v2"
+    control_plane_connection {
+      cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
+      private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
+      cert_collection_file_path: "/secrets/secure-computation-ca/secure_computation_root.pem"
+    }
+    queue: "results-fulfiller-queue"
+    results_fulfiller_params {
+      data_provider: "dataProviders/Z1YwJJmvvN8"
+      storage_params {
+        labeled_impressions_blob_details_uri_prefix: "gs://secure-computation-storage-head-bucket"
+        gcs_project_id: "halo-cmm-head"
+      }
+      consent_params {
+        result_cs_cert_der_resource_path: "/tmp/edp_certs/edp7_cs_cert.der"
+        result_cs_private_key_der_resource_path: "/tmp/edp_certs/edp7_cs_private.der"
+        private_encryption_key_resource_path: "/tmp/edp_certs/edp7_enc_private.tink"
+        edp_certificate_name: "dataProviders/Z1YwJJmvvN8/certificates/e7YFhbL1Qxk"
+      }
+      cmms_connection {
+        client_cert_resource_path: "/tmp/edp_certs/edp7_tls.pem"
+        client_private_key_resource_path: "/tmp/edp_certs/edp7_tls.key"
+      }
+      noise_params {
+        noise_type: CONTINUOUS_GAUSSIAN
+      }
+      trustee_params {
+        kek_uri_to_key_name {
+          key: "gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
+          value: "edp7-trustee-reencryption-key"
+        }
+      }
+    }
+  }
+}
+configs {
+  data_provider: "dataProviders/YpCPT-x89j4"
+  requisition_storage {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  storage_path_prefix: "edpa_meta/requisitions"
+  cmms_connection {
+    cert_file_path: "/secrets/cert-edp2/edpa_meta_tls.pem"
+    private_key_file_path: "/secrets/key-edp2/edpa_meta_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom_root.pem"
+  }
+  edp_private_key_path: "/secrets/private-edp2/edpa_meta_enc_private.tink"
+  requisition_metadata_storage_connection {
+    cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
+    private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
+    cert_collection_file_path: "/secrets/ca/cert_metadata_storage/edp_aggregator_root.pem"
+  }
+  work_item_dispatch {
+    storage_path_prefix: "edpa_meta/requisitions-v2"
+    control_plane_connection {
+      cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
+      private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
+      cert_collection_file_path: "/secrets/secure-computation-ca/secure_computation_root.pem"
+    }
+    queue: "results-fulfiller-queue"
+    results_fulfiller_params {
+      data_provider: "dataProviders/YpCPT-x89j4"
+      storage_params {
+        labeled_impressions_blob_details_uri_prefix: "gs://secure-computation-storage-head-bucket"
+        gcs_project_id: "halo-cmm-head"
+      }
+      consent_params {
+        result_cs_cert_der_resource_path: "/tmp/edp_certs/edpa_meta_cs_cert.der"
+        result_cs_private_key_der_resource_path: "/tmp/edp_certs/edpa_meta_cs_private.der"
+        private_encryption_key_resource_path: "/tmp/edp_certs/edpa_meta_enc_private.tink"
+        edp_certificate_name: "dataProviders/YpCPT-x89j4/certificates/Cn5XAux89eU"
+      }
+      cmms_connection {
+        client_cert_resource_path: "/tmp/edp_certs/edpa_meta_tls.pem"
+        client_private_key_resource_path: "/tmp/edp_certs/edpa_meta_tls.key"
+      }
+      noise_params {
+        noise_type: CONTINUOUS_GAUSSIAN
+      }
+    }
+  }
+}

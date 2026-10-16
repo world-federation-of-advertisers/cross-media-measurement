@@ -66,12 +66,7 @@ jobs:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
       GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       GCLOUD_ZONE: ${{ vars.GCLOUD_ZONE }}
-      DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
       DATA_WATCHER_DELETE_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_DELETE_CONFIG_CONTENT }}
-      REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
-      EDPA_EDPS_CONFIG: ${{ vars.EDPA_EDPS_CONFIG }}
-      EVENT_GROUP_SYNC_CONFIG_CONTENT: ${{ vars.EVENT_GROUP_SYNC_CONFIG_CONTENT }}
-      DATA_AVAILABILITY_SYNC_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT }}
       DATA_AVAILABILITY_MONITOR_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_MONITOR_CONFIG_CONTENT }}
       VID_LABELING_DISPATCHER_CONFIG_CONTENT: ${{ vars.VID_LABELING_DISPATCHER_CONFIG_CONTENT }}
       VID_LABELING_MONITOR_CONFIG_CONTENT: ${{ vars.VID_LABELING_MONITOR_CONFIG_CONTENT }}
@@ -132,17 +127,12 @@ jobs:
         distribution: zulu
         java-version: '17'
 
-    - name: Write edpa cloud function configs to files
+    - name: Write remaining EDPA cloud function configs to files
       env:
         CONFIG_DIR: ${{ runner.temp }}/configs
       run: |
         mkdir -p "$CONFIG_DIR"
-        echo "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
         echo "$DATA_WATCHER_DELETE_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-delete-config.textproto"
-        echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
-        echo "$EDPA_EDPS_CONFIG" > "$CONFIG_DIR/event-data-provider-configs.textproto"
-        echo "$EVENT_GROUP_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/event-group-sync-config.textproto"
-        echo "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/data-availability-sync-config.textproto"
         echo "$DATA_AVAILABILITY_MONITOR_CONFIG_CONTENT" > "$CONFIG_DIR/data-availability-monitor-config.textproto"
         echo "$VID_LABELING_DISPATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/vid-labeling-dispatcher-config.textproto"
         echo "$VID_LABELING_MONITOR_CONFIG_CONTENT" > "$CONFIG_DIR/vid-labeling-monitor-config.textproto"
@@ -321,11 +311,8 @@ jobs:
         DATA_WATCHER_DELETE_ENV_VAR: ${{ vars.DATA_WATCHER_DELETE_ENV_VAR }}
         DATA_WATCHER_DELETE_SECRET_MAPPING: ${{ vars.DATA_WATCHER_DELETE_SECRET_MAPPING }}
         REQUISITION_FETCHER_ENV_VAR: ${{ vars.REQUISITION_FETCHER_ENV_VAR }}
-        REQUISITION_FETCHER_SECRET_MAPPING: ${{ vars.REQUISITION_FETCHER_SECRET_MAPPING }}
         EVENT_GROUP_ENV_VAR: ${{ vars.EVENT_GROUP_ENV_VAR }}
-        EVENT_GROUP_SECRET_MAPPING: ${{ vars.EVENT_GROUP_SECRET_MAPPING }}
         DATA_AVAILABILITY_ENV_VAR: ${{ vars.DATA_AVAILABILITY_ENV_VAR }}
-        DATA_AVAILABILITY_SECRET_MAPPING: ${{ vars.DATA_AVAILABILITY_SECRET_MAPPING }}
         DATA_AVAILABILITY_CLEANUP_ENV_VAR: ${{ vars.DATA_AVAILABILITY_CLEANUP_ENV_VAR }}
         DATA_AVAILABILITY_CLEANUP_SECRET_MAPPING: ${{ vars.DATA_AVAILABILITY_CLEANUP_SECRET_MAPPING }}
         DATA_AVAILABILITY_MONITOR_ENV_VAR: ${{ vars.DATA_AVAILABILITY_MONITOR_ENV_VAR }}
@@ -356,23 +343,15 @@ jobs:
         -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -var="postgres_password=$POSTGRES_PASSWORD"
-        -var="data_watcher_config_file_path=$CONFIG_DIR/data-watcher-config.textproto"
         -var="data_watcher_delete_config_file_path=$CONFIG_DIR/data-watcher-delete-config.textproto"
-        -var="requisition_fetcher_config_file_path=$CONFIG_DIR/requisition-fetcher-config.textproto"
-        -var="event_data_provider_configs_file_path=$CONFIG_DIR/event-data-provider-configs.textproto"
-        -var="event_group_sync_config_file_path=$CONFIG_DIR/event-group-sync-config.textproto"
-        -var="data_availability_sync_config_file_path=$CONFIG_DIR/data-availability-sync-config.textproto"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
         -var="metadata_storage_public_api_target=$METADATA_STORAGE_PUBLIC_API_TARGET"
         -var="data_watcher_env_var=$DATA_WATCHER_ENV_VAR"
         -var="data_watcher_secret_mapping=$DATA_WATCHER_SECRET_MAPPING"
         -var="requisition_fetcher_env_var=$REQUISITION_FETCHER_ENV_VAR"
-        -var="requisition_fetcher_secret_mapping=$REQUISITION_FETCHER_SECRET_MAPPING"
         -var="event_group_env_var=$EVENT_GROUP_ENV_VAR"
-        -var="event_group_secret_mapping=$EVENT_GROUP_SECRET_MAPPING"
         -var="data_availability_env_var=$DATA_AVAILABILITY_ENV_VAR"
-        -var="data_availability_secret_mapping=$DATA_AVAILABILITY_SECRET_MAPPING"
         -var="data_watcher_uber_jar_path=${{ steps.download-uber-jars.outputs.data_watcher_source_path }}"
         -var="data_watcher_delete_env_var=$DATA_WATCHER_DELETE_ENV_VAR"
         -var="data_watcher_delete_secret_mapping=$DATA_WATCHER_DELETE_SECRET_MAPPING"

@@ -203,28 +203,13 @@ variable "requisition_fetcher_env_var" {
   type        = string
 }
 
-variable "requisition_fetcher_secret_mapping" {
-  description = "RequisitionFetcher secret mapping"
-  type        = string
-}
-
 variable "event_group_env_var" {
   description = "EventGroupSync extra env variables"
   type        = string
 }
 
-variable "event_group_secret_mapping" {
-  description = "EventGroupSync secret mapping"
-  type        = string
-}
-
 variable "data_availability_env_var" {
   description = "DataAvailabilitySync extra env variables"
-  type        = string
-}
-
-variable "data_availability_secret_mapping" {
-  description = "DataAvailabilitySync secret mapping"
   type        = string
 }
 

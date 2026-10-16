@@ -53,9 +53,10 @@ EDP's `DataProvider` in the Kingdom. The `v2alpha` `DataProvidersService`
 does not expose `ListDataProviders`, so look it up from the source of truth
 where it's already recorded:
 
-*   **`EDPA_EDPS_CONFIG` GitHub environment variable** — each entry has a
-    `data_provider: "dataProviders/<id>"` field. The portion after the slash
-    is the resource ID.
+*   **The selected environment's `event-data-provider-configs.textproto`**
+    under `src/main/terraform/gcloud/cmms/envs/` — each entry has a
+    `data_provider: "dataProviders/<id>"` field. The portion after the slash is
+    the resource ID.
 *   The EDP's registration record (whatever you used during the initial
     `DataProvider` creation).
 

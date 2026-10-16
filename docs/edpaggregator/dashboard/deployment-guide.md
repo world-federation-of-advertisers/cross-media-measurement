@@ -199,7 +199,7 @@ fails the deploy rather than silently falling back to a Terraform default:
 | `operators` | string[] | IAM principals granted platform-wide access to the dashboard tables (`user:` / `group:`). Use Google Groups for shared/non-dev environments. |
 | `edps` | object[] | The EDPs the dashboard exposes; each is isolated to its own rows. |
 | `edps[].name` | string | Short EDP name used for per-EDP resource naming (e.g. `"meta"`): SA `edp-<name>-dashboard`, row policy `<name>_filter`, and CI matrix entry. |
-| `edps[].resource_id` | string | The **bare** `DataProvider` resource ID — final path segment only (e.g. `"J3-pzhqS9Lo"`), **not** the full `dataProviders/...` name. Must match the value in Spanner / `EDPA_EDPS_CONFIG`. |
+| `edps[].resource_id` | string | The **bare** `DataProvider` resource ID — final path segment only (e.g. `"J3-pzhqS9Lo"`), **not** the full `dataProviders/...` name. Must match the value in Spanner and the selected environment's `event-data-provider-configs.textproto`. |
 
 Example (pretty-printed here; store it as compact JSON in the variable):
 
@@ -415,8 +415,10 @@ re-create them. MERGE-based scheduled queries preserve policies across runs.
 
 Verify the EDP's `resource_id` in `DASHBOARD_CONFIG_CONTENT` matches the value
 `externalIdToApiId` produces for that EDP's internal Spanner ID — cross-check
-against `EDPA_EDPS_CONFIG`. It flows into the row access policy filter, so a
-wrong value matches no rows. Correct it and re-run the deploy.
+against the selected environment's `event-data-provider-configs.textproto`
+under `src/main/terraform/gcloud/cmms/envs/`. It flows into the row access
+policy filter, so a wrong value matches no rows. Correct it and re-run the
+deploy.
 
 ### `report_detail_edp is empty` on a freshly-onboarded EDP
 
