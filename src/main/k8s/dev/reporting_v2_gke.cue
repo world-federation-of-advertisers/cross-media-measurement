@@ -195,26 +195,14 @@ reporting: #Reporting & {
 	cronJobs: {
 		"report-scheduling": {
 			_container: {
-				_javaOptions: {
-					nativeMemoryTracking: "summary"
-					gcLogging:            true
-				}
 				resources: #CronJobResourceRequirements
 			}
 		}
 		"report-result-post-processor": {
 			_container: {
-				_javaOptions: {
-					nativeMemoryTracking: "summary"
-					gcLogging:            true
-				}
 				resources: #CronJobResourceRequirements
 			}
 			spec: jobTemplate: spec: template: spec: _initContainers: "basic-reports-reports": {
-				_javaOptions: {
-					nativeMemoryTracking: "summary"
-					gcLogging:            true
-				}
 				resources: #CronJobResourceRequirements
 			}
 		}
