@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+from dataclasses import dataclass
 import numpy as np
 import random
 from functools import reduce
@@ -26,6 +27,7 @@ from typing import TypeAlias
 from absl import logging
 from qpsolvers import Solution
 
+from noiseninja import noise_correction_value_logging
 from noiseninja.noised_measurements import KReachMeasurements
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
@@ -39,6 +41,25 @@ ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessor
 ReportQuality = report_post_processor_result_pb2.ReportQuality
 
 EdpCombination: TypeAlias = FrozenSet[str]
+
+
+@dataclass(frozen=True)
+class ConstraintViolation:
+  """A semantic pre-correction constraint violation."""
+
+  constraint_name: str
+  relation: str
+  left_metric: str
+  right_metric: str
+  data_providers: tuple[str, ...]
+  window_type: str
+  period: int | None
+  left_measurement_names: tuple[str, ...]
+  right_measurement_names: tuple[str, ...]
+  left_value: float
+  right_value: float
+  difference: float
+  tolerance: float
 
 MIN_STANDARD_VARIATION_RATIO = 0.001
 UNIT_SCALING_FACTOR = 1.0
@@ -805,11 +826,15 @@ class Report:
           STANDARD_DEVIATION_TEST_THRESHOLD*measurement.sigma,
           LARGE_CORRECTION_THRESHOLD
         ):
-          logging.warning(
-            f"Measurement {measurement.name} has a large correction: original="
-            f"{measurement.value}, corrected={corrected_measurement.value}, "
-            f"sigma={measurement.sigma}."
-          )
+          if noise_correction_value_logging.is_enabled():
+            logging.warning(
+              f"Measurement {measurement.name} has a large correction: original="
+              f"{measurement.value}, corrected={corrected_measurement.value}, "
+              f"sigma={measurement.sigma}."
+            )
+          else:
+            logging.warning(
+                "Measurement %s has a large correction.", measurement.name)
           report_post_processor_result.large_corrections.add(
             metric_title=measurement_name,
             original_value=round(measurement.value),
@@ -1955,166 +1980,372 @@ class Report:
 
     return all(val == 0.0 for val in standard_deviations)
 
-  def _are_edp_measurements_consistent(
-      self, edp_combination: EdpCombination
-  ) -> bool:
-    """Checks if all measurements of a specific edp combination are consistent."""
-    # Check for the consistency within a metric.
-    for metric in self._metric_reports.keys():
-      metric_report = self._metric_reports[metric]
+  @staticmethod
+  def _constraint_violation(
+      constraint_name: str,
+      relation: str,
+      left_metric: str,
+      right_metric: str,
+      edp_combination: EdpCombination,
+      window_type: str,
+      period: int | None,
+      left_measurements: list[Measurement],
+      right_measurements: list[Measurement],
+      left_value: float,
+      right_value: float,
+      tolerance: float,
+  ) -> ConstraintViolation:
+    return ConstraintViolation(
+        constraint_name=constraint_name,
+        relation=relation,
+        left_metric=left_metric,
+        right_metric=right_metric,
+        data_providers=tuple(sorted(edp_combination)),
+        window_type=window_type,
+        period=period,
+        left_measurement_names=tuple(
+            measurement.name for measurement in left_measurements
+        ),
+        right_measurement_names=tuple(
+            measurement.name for measurement in right_measurements
+        ),
+        left_value=left_value,
+        right_value=right_value,
+        difference=left_value - right_value,
+        tolerance=tolerance,
+    )
 
-      # Gets cumulative and whole campaign measurements.
-      cumulative_reach_measurements = (
+  def _get_edp_measurement_constraint_violations(
+      self, edp_combination: EdpCombination
+  ) -> list[ConstraintViolation]:
+    """Returns semantic constraint violations for one EDP combination."""
+    violations = []
+
+    for metric, metric_report in self._metric_reports.items():
+      cumulative_reaches = (
           metric_report.get_weekly_cumulative_reach_measurements(
               edp_combination
           )
-      )
-      whole_campaign_reach = metric_report.get_whole_campaign_reach_measurement(
+      ) or []
+      whole_reach = metric_report.get_whole_campaign_reach_measurement(
           edp_combination
       )
-      whole_campaign_impression = (
+      whole_impression = (
           metric_report.get_whole_campaign_impression_measurement(
               edp_combination
           )
       )
-      whole_campaign_k_reaches = {
+      whole_k_reaches = {
           frequency: metric_report.get_whole_campaign_k_reach_measurement(
               edp_combination, frequency
           )
           for frequency in range(1, self._num_frequencies + 1)
       }
 
-      # Perform consistency checks for cumulative measurements.
-      if cumulative_reach_measurements:
-        # Cumulative measurements are non-decreasing.
-        for period in range(0, self._num_periods - 1):
-          if not fuzzy_less_equal(
-              cumulative_reach_measurements[period].value,
-              cumulative_reach_measurements[period + 1].value,
-              CONSISTENCY_TEST_TOLERANCE,
-          ):
-            return False
-
-        # Whole campaign reach matches last cumulative reach.
-        if cumulative_reach_measurements and whole_campaign_reach and not fuzzy_equal(
-            cumulative_reach_measurements[-1].value,
-            whole_campaign_reach.value,
+      for period in range(len(cumulative_reaches) - 1):
+        earlier = cumulative_reaches[period]
+        later = cumulative_reaches[period + 1]
+        if not fuzzy_less_equal(
+            earlier.value,
+            later.value,
             CONSISTENCY_TEST_TOLERANCE,
         ):
-          return False
+          violations.append(
+              self._constraint_violation(
+                  "CUMULATIVE_REACH_MONOTONIC",
+                  "LESS_THAN_OR_EQUAL",
+                  metric,
+                  metric,
+                  edp_combination,
+                  "CUMULATIVE",
+                  period,
+                  [earlier],
+                  [later],
+                  earlier.value,
+                  later.value,
+                  CONSISTENCY_TEST_TOLERANCE,
+              )
+          )
 
-      if whole_campaign_reach and all(whole_campaign_k_reaches.values()):
-        # Whole campaign reach equals to the sum of k-reaches.
-        sum_of_k_reach_values = sum(
-            measurement.value
-            for measurement in whole_campaign_k_reaches.values()
+      if (
+          cumulative_reaches
+          and whole_reach
+          and not fuzzy_equal(
+              cumulative_reaches[-1].value,
+              whole_reach.value,
+              CONSISTENCY_TEST_TOLERANCE,
+          )
+      ):
+        violations.append(
+            self._constraint_violation(
+                "LAST_CUMULATIVE_REACH_EQUALS_WHOLE_CAMPAIGN",
+                "EQUAL",
+                metric,
+                metric,
+                edp_combination,
+                "WHOLE_CAMPAIGN",
+                len(cumulative_reaches) - 1,
+                [cumulative_reaches[-1]],
+                [whole_reach],
+                cumulative_reaches[-1].value,
+                whole_reach.value,
+                CONSISTENCY_TEST_TOLERANCE,
+            )
         )
-        if not fuzzy_equal(
-            whole_campaign_reach.value,
-            sum_of_k_reach_values,
-            sum(whole_campaign_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE,
-        ):
-          return False
 
-      if whole_campaign_impression and all(whole_campaign_k_reaches.values()):
-        # Impression is greater than or equal to weighted sum of k-reaches.
-        weighted_sum_of_k_reach_values = sum(
-            freq * measurement.value
-            for freq, measurement in whole_campaign_k_reaches.items()
+      if whole_reach and all(whole_k_reaches.values()):
+        bucket_sum = sum(
+            measurement.value for measurement in whole_k_reaches.values()
+        )
+        tolerance = (
+            sum(whole_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE
+        )
+        if not fuzzy_equal(whole_reach.value, bucket_sum, tolerance):
+          violations.append(
+              self._constraint_violation(
+                  "REACH_EQUALS_FREQUENCY_BUCKET_SUM",
+                  "EQUAL",
+                  metric,
+                  metric,
+                  edp_combination,
+                  "WHOLE_CAMPAIGN",
+                  None,
+                  [whole_reach],
+                  list(whole_k_reaches.values()),
+                  whole_reach.value,
+                  bucket_sum,
+                  tolerance,
+              )
+          )
+
+      if whole_impression and all(whole_k_reaches.values()):
+        weighted_sum = sum(
+            frequency * measurement.value
+            for frequency, measurement in whole_k_reaches.items()
+        )
+        tolerance = (
+            sum(whole_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE
         )
         if not fuzzy_less_equal(
-            weighted_sum_of_k_reach_values,
-            whole_campaign_impression.value,
-            sum(whole_campaign_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE,
+            weighted_sum, whole_impression.value, tolerance
         ):
-          return False
+          violations.append(
+              self._constraint_violation(
+                  "IMPRESSION_COUNT_AT_LEAST_WEIGHTED_FREQUENCY_SUM",
+                  "LESS_THAN_OR_EQUAL",
+                  metric,
+                  metric,
+                  edp_combination,
+                  "WHOLE_CAMPAIGN",
+                  None,
+                  list(whole_k_reaches.values()),
+                  [whole_impression],
+                  weighted_sum,
+                  whole_impression.value,
+                  tolerance,
+              )
+          )
 
-      # Check for weekly non-cumulative measurements.
-      for period in range(0, self._num_periods):
-        weekly_reach = metric_report.get_weekly_non_cumulative_reach_measurement(
-            edp_combination, period)
-        weekly_impression = metric_report.get_weekly_non_cumulative_impression_measurement(
-            edp_combination, period)
+      for period in range(self._num_periods):
+        weekly_reach = (
+            metric_report.get_weekly_non_cumulative_reach_measurement(
+                edp_combination, period
+            )
+        )
+        weekly_impression = (
+            metric_report.get_weekly_non_cumulative_impression_measurement(
+                edp_combination, period
+            )
+        )
         weekly_k_reaches = {
-            frequency: metric_report.get_weekly_non_cumulative_k_reach_measurement(
-                edp_combination, period, frequency)
+            frequency: (
+                metric_report.get_weekly_non_cumulative_k_reach_measurement(
+                    edp_combination, period, frequency
+                )
+            )
             for frequency in range(1, self._num_frequencies + 1)
         }
 
         if weekly_reach and all(weekly_k_reaches.values()):
-          sum_of_k_reach_values = sum(
-              measurement.value
-              for measurement in weekly_k_reaches.values())
-          # Weekly non-cumulative reach equals to the sum of k-reaches.
-          if not fuzzy_equal(
-              weekly_reach.value,
-              sum_of_k_reach_values,
-              sum(weekly_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE,
-          ):
-            return False
+          bucket_sum = sum(
+              measurement.value for measurement in weekly_k_reaches.values()
+          )
+          tolerance = (
+              sum(weekly_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE
+          )
+          if not fuzzy_equal(weekly_reach.value, bucket_sum, tolerance):
+            violations.append(
+                self._constraint_violation(
+                    "REACH_EQUALS_FREQUENCY_BUCKET_SUM",
+                    "EQUAL",
+                    metric,
+                    metric,
+                    edp_combination,
+                    "NON_CUMULATIVE",
+                    period,
+                    [weekly_reach],
+                    list(weekly_k_reaches.values()),
+                    weekly_reach.value,
+                    bucket_sum,
+                    tolerance,
+                )
+            )
 
         if weekly_impression and all(weekly_k_reaches.values()):
-          weighted_sum_of_k_reach_values = sum(
-              freq * measurement.value
-              for freq, measurement in weekly_k_reaches.items())
-          # Impression is >= weighted sum of k-reaches for each week.
+          weighted_sum = sum(
+              frequency * measurement.value
+              for frequency, measurement in weekly_k_reaches.items()
+          )
+          tolerance = (
+              sum(weekly_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE
+          )
           if not fuzzy_less_equal(
-              weighted_sum_of_k_reach_values, weekly_impression.value,
-              sum(weekly_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE,
+              weighted_sum, weekly_impression.value, tolerance
           ):
-            return False
+            violations.append(
+                self._constraint_violation(
+                    "IMPRESSION_COUNT_AT_LEAST_WEIGHTED_FREQUENCY_SUM",
+                    "LESS_THAN_OR_EQUAL",
+                    metric,
+                    metric,
+                    edp_combination,
+                    "NON_CUMULATIVE",
+                    period,
+                    list(weekly_k_reaches.values()),
+                    [weekly_impression],
+                    weighted_sum,
+                    weekly_impression.value,
+                    tolerance,
+                )
+            )
 
-    # Check for the consistency between ordered metrics.
-    for parent_metric in self._metric_subsets_by_parent:
-      for child_metric in self._metric_subsets_by_parent[parent_metric]:
-        if self._is_ami_mrc_exempted(parent_metric, child_metric,
-                                     edp_combination):
+    for parent_metric, child_metrics in self._metric_subsets_by_parent.items():
+      for child_metric in child_metrics:
+        if self._is_ami_mrc_exempted(
+            parent_metric, child_metric, edp_combination
+        ):
           continue
 
-        parent_metric_report = self._metric_reports[parent_metric]
-        child_metric_report = self._metric_reports[child_metric]
-
-        # Handles cumulative measurements.
-        cumulative_edp_combinations = \
-          parent_metric_report.get_weekly_cumulative_reach_edp_combinations().intersection(
-              child_metric_report.get_weekly_cumulative_reach_edp_combinations())
-        if edp_combination in cumulative_edp_combinations:
-          for period in range(0, self._num_periods):
+        parent_report = self._metric_reports[parent_metric]
+        child_report = self._metric_reports[child_metric]
+        common_cumulative = (
+            parent_report.get_weekly_cumulative_reach_edp_combinations()
+            .intersection(
+                child_report.get_weekly_cumulative_reach_edp_combinations()
+            )
+        )
+        if edp_combination in common_cumulative:
+          for period in range(self._num_periods):
+            child = child_report.get_weekly_cumulative_reach_measurement(
+                edp_combination, period
+            )
+            parent = parent_report.get_weekly_cumulative_reach_measurement(
+                edp_combination, period
+            )
             if not fuzzy_less_equal(
-                child_metric_report.get_weekly_cumulative_reach_measurement(
-                    edp_combination, period).value,
-                parent_metric_report.get_weekly_cumulative_reach_measurement(
-                    edp_combination, period).value,
-                CONSISTENCY_TEST_TOLERANCE):
-              return False
+                child.value, parent.value, CONSISTENCY_TEST_TOLERANCE
+            ):
+              violations.append(
+                  self._constraint_violation(
+                      "METRIC_CUMULATIVE_REACH_ORDERING",
+                      "LESS_THAN_OR_EQUAL",
+                      child_metric,
+                      parent_metric,
+                      edp_combination,
+                      "CUMULATIVE",
+                      period,
+                      [child],
+                      [parent],
+                      child.value,
+                      parent.value,
+                      CONSISTENCY_TEST_TOLERANCE,
+                  )
+              )
 
-        # Handles whole campaign measurements.
-        whole_campaign_edp_combinations = \
-          parent_metric_report.get_whole_campaign_reach_edp_combinations().intersection(
-              child_metric_report.get_whole_campaign_reach_edp_combinations())
-        if edp_combination in whole_campaign_edp_combinations:
+        common_whole_reach = (
+            parent_report.get_whole_campaign_reach_edp_combinations()
+            .intersection(
+                child_report.get_whole_campaign_reach_edp_combinations()
+            )
+        )
+        if edp_combination in common_whole_reach:
+          child = child_report.get_whole_campaign_reach_measurement(
+              edp_combination
+          )
+          parent = parent_report.get_whole_campaign_reach_measurement(
+              edp_combination
+          )
           if not fuzzy_less_equal(
-              child_metric_report.get_whole_campaign_reach_measurement(
-                  edp_combination).value,
-              parent_metric_report.get_whole_campaign_reach_measurement(
-                  edp_combination).value,
-              CONSISTENCY_TEST_TOLERANCE):
-            return False
+              child.value, parent.value, CONSISTENCY_TEST_TOLERANCE
+          ):
+            violations.append(
+                self._constraint_violation(
+                    "METRIC_WHOLE_CAMPAIGN_REACH_ORDERING",
+                    "LESS_THAN_OR_EQUAL",
+                    child_metric,
+                    parent_metric,
+                    edp_combination,
+                    "WHOLE_CAMPAIGN",
+                    None,
+                    [child],
+                    [parent],
+                    child.value,
+                    parent.value,
+                    CONSISTENCY_TEST_TOLERANCE,
+                )
+            )
 
-        # Handles impression measurements.
-        impression_edp_combinations = \
-          parent_metric_report.get_whole_campaign_impression_edp_combinations().intersection(
-              child_metric_report.get_whole_campaign_impression_edp_combinations())
-        if edp_combination in impression_edp_combinations:
+        common_impressions = (
+            parent_report.get_whole_campaign_impression_edp_combinations()
+            .intersection(
+                child_report.get_whole_campaign_impression_edp_combinations()
+            )
+        )
+        if edp_combination in common_impressions:
+          child = child_report.get_whole_campaign_impression_measurement(
+              edp_combination
+          )
+          parent = parent_report.get_whole_campaign_impression_measurement(
+              edp_combination
+          )
           if not fuzzy_less_equal(
-              child_metric_report.get_whole_campaign_impression_measurement(
-                  edp_combination).value,
-              parent_metric_report.get_whole_campaign_impression_measurement(
-                  edp_combination).value,
-              CONSISTENCY_TEST_TOLERANCE):
-            return False
+              child.value, parent.value, CONSISTENCY_TEST_TOLERANCE
+          ):
+            violations.append(
+                self._constraint_violation(
+                    "METRIC_WHOLE_CAMPAIGN_IMPRESSION_ORDERING",
+                    "LESS_THAN_OR_EQUAL",
+                    child_metric,
+                    parent_metric,
+                    edp_combination,
+                    "WHOLE_CAMPAIGN",
+                    None,
+                    [child],
+                    [parent],
+                    child.value,
+                    parent.value,
+                    CONSISTENCY_TEST_TOLERANCE,
+                )
+            )
 
-    return True
+    return violations
+
+  def _are_edp_measurements_consistent(
+      self, edp_combination: EdpCombination
+  ) -> bool:
+    """Checks whether measurements of an EDP combination are consistent."""
+    return not self._get_edp_measurement_constraint_violations(edp_combination)
+
+  def get_pre_correction_constraint_violations(
+      self,
+  ) -> list[ConstraintViolation]:
+    """Returns semantic violations used by the zero-variance quality check."""
+    violations = []
+    for edp_combination in self._get_zero_variance_edps():
+      violations.extend(
+          self._get_edp_measurement_constraint_violations(edp_combination)
+      )
+    return violations
 
   def _validate_independence_checks(
       self, edp_combination: EdpCombination

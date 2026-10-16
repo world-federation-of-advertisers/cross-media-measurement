@@ -17,6 +17,9 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 from unittest.mock import ANY
 
+from noiseninja import noise_correction_value_logging
+from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import (
+    NoiseCorrectionFailure, )
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import (
     PostProcessReportResult, )
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import compute_basic_metric_set
@@ -25,6 +28,7 @@ from tools.potential_direct_result_minimum_thresholds import (
 )
 from wfa.measurement.internal.reporting.postprocessing import (
     report_post_processor_result_pb2, )
+from wfa.measurement.internal.reporting.postprocessing import report_summary_v2_pb2
 
 from google.protobuf import text_format
 from wfa.measurement.internal.reporting.v2 import report_result_pb2
@@ -366,9 +370,25 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertTrue(
             any('Could not fully reconcile' in m for m in cm.output),
             f"expected reconciliation warning, got: {cm.output}")
-        self.assertTrue(
+        self.assertFalse(
             any('reach=None' in m for m in cm.output),
-            f"warning should render reach=None, got: {cm.output}")
+            f"warning should redact reach, got: {cm.output}")
+        self.assertFalse(
+            any('impressions=5' in m for m in cm.output),
+            f"warning should redact impressions, got: {cm.output}")
+
+    def test_compute_basic_metric_set_value_logging_can_be_enabled(self):
+        with noise_correction_value_logging.measurement_value_logging(True):
+            with self.assertLogs(level='WARNING') as cm:
+                compute_basic_metric_set(
+                    reach=None,
+                    frequency_values=[100],
+                    impressions=5,
+                    population=1000,
+                )
+
+        self.assertTrue(any('reach=None' in m for m in cm.output))
+        self.assertTrue(any('impressions=5' in m for m in cm.output))
 
     def test_compute_basic_metric_set_zero_reach_zeros_k_plus_reach(self):
         """reach=0 (rather than None) means "nobody was reached"; the
@@ -646,6 +666,297 @@ class PostProcessReportResultTest(unittest.TestCase):
             },
         )
 
+    @patch(
+        'src.main.python.wfa.measurement.reporting.postprocessing.tools.'
+        'post_process_report_result.ReportSummaryV2Processor'
+    )
+    def test_failed_result_context_reports_threshold_uncertainty(
+        self, mock_processor_class
+    ):
+        response = self.mock_list_reporing_set_results_response
+        source_result = response.reporting_set_results[0]
+        noisy_reach = (
+            source_result.reporting_window_results[0]
+            .value.unprocessed_report_result_values.cumulative_results.reach
+        )
+        noisy_reach.value = 0
+        noisy_reach.univariate_statistics.standard_deviation = 0
+        self.mock_report_results_stub.ListReportingSetResults.return_value = (
+            response
+        )
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            self.mock_batch_get_reporting_set_response
+        )
+        failed_result = report_post_processor_result_pb2.ReportPostProcessorResult(
+            status=report_post_processor_result_pb2.ReportPostProcessorStatus(
+                status_code=(
+                    report_post_processor_result_pb2.ReportPostProcessorStatus
+                    .SOLUTION_NOT_FOUND
+                )
+            )
+        )
+        mock_processor_class.return_value.process.return_value = failed_result
+        mock_processor_class.return_value.pre_correction_constraint_violations = (
+            ()
+        )
+        processor = PostProcessReportResult(
+            self.mock_report_results_stub,
+            self.mock_reporting_sets_stub,
+            potential_direct_result_minimum_thresholds=(
+                PotentialDirectResultMinimumThresholds(
+                    min_users=100,
+                    min_impressions=1000,
+                )
+            ),
+            potential_direct_thresholding_edps=["dataProviders/edp1"],
+        )
+
+        with self.assertRaises(NoiseCorrectionFailure) as raised:
+            processor.process(
+                self.cmms_measurement_consumer_id,
+                self.external_report_result_id,
+                [],
+            )
+
+        contexts = [
+            context
+            for summary_result in raised.exception.summary_results
+            for context in summary_result.measurement_contexts
+            if (
+                context.external_reporting_set_result_id
+                == source_result.external_reporting_set_result_id
+                and context.is_cumulative
+            )
+        ]
+        self.assertTrue(contexts)
+        self.assertTrue(
+            all(
+                context.potential_direct_thresholding_eligible
+                for context in contexts
+            )
+        )
+        self.assertTrue(
+            any(
+                "REACH" in context.threshold_uncertainty_applied_to
+                for context in contexts
+            )
+        )
+        self.assertEqual(contexts[0].threshold_min_users, 100)
+        self.assertEqual(contexts[0].threshold_min_impressions, 1000)
+
+    def _set_up_failed_post_processor(self, mock_processor_class):
+        self.mock_report_results_stub.ListReportingSetResults.return_value = (
+            self.mock_list_reporing_set_results_response
+        )
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            self.mock_batch_get_reporting_set_response
+        )
+        report_summary = report_summary_v2_pb2.ReportSummaryV2(
+            cmms_measurement_consumer_id="mc-diagnostic",
+            external_report_result_id=987654321,
+        )
+        set_result = report_summary.report_summary_set_results.add(
+            external_reporting_set_result_id=123456789,
+            impression_filter="ami",
+            set_operation="union",
+            data_providers=["reporting-set-1"],
+        )
+        set_result.whole_campaign_result.reach.value = 918273645
+        set_result.whole_campaign_result.reach.standard_deviation = 12.5
+        set_result.whole_campaign_result.reach.metric = "synthetic-reach"
+        result = report_post_processor_result_pb2.ReportPostProcessorResult(
+            status=report_post_processor_result_pb2.ReportPostProcessorStatus(
+                status_code=(
+                    report_post_processor_result_pb2.ReportPostProcessorStatus.SOLUTION_NOT_FOUND
+                ),
+                primal_equality_residual=3.5,
+                primal_inequality_residual=4.5,
+            )
+        )
+        result.pre_correction_report_summary_v2.CopyFrom(report_summary)
+        mock_processor_class.return_value.process.return_value = result
+        processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub
+        )
+        return processor, report_summary, result
+
+    @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
+    def test_failed_correction_raises_typed_failure(
+        self, mock_processor_class
+    ):
+        processor, unused_summary, expected_result = (
+            self._set_up_failed_post_processor(mock_processor_class)
+        )
+
+        with noise_correction_value_logging.measurement_value_logging(True):
+            with self.assertRaises(NoiseCorrectionFailure) as raised:
+                processor.process(
+                    self.cmms_measurement_consumer_id,
+                    self.external_report_result_id,
+                    [],
+                )
+
+        self.assertEqual(
+            len(raised.exception.summary_results),
+            mock_processor_class.call_count,
+        )
+        self.assertTrue(
+            all(
+                result.result == expected_result
+                for result in raised.exception.summary_results
+            )
+        )
+        self.assertNotIn('918273645', str(raised.exception))
+        self.assertNotIn('12.5', str(raised.exception))
+
+        contexts = [
+            context
+            for summary_result in raised.exception.summary_results
+            for context in summary_result.reporting_set_contexts
+        ]
+        expected_identifiers = {
+            (
+                result.dimension.external_reporting_set_id,
+                result.external_reporting_set_result_id,
+            )
+            for result in self.mock_list_reporing_set_results_response.reporting_set_results
+        }
+        self.assertEqual(
+            {
+                (
+                    context.external_reporting_set_id,
+                    context.external_reporting_set_result_id,
+                )
+                for context in contexts
+            },
+            expected_identifiers,
+        )
+        self.assertTrue(
+            all(context.data_provider_resource_names for context in contexts)
+        )
+        measurement_contexts = [
+            context
+            for summary_result in raised.exception.summary_results
+            for context in summary_result.measurement_contexts
+        ]
+        self.assertTrue(measurement_contexts)
+        self.assertEqual(
+            {
+                context.impression_qualification_filter_type
+                for context in measurement_contexts
+            },
+            {"CUSTOM", "EXTERNAL"},
+        )
+        self.assertEqual(
+            {
+                context.source_reporting_set_type
+                for context in measurement_contexts
+            },
+            {"PRIMITIVE", "COMPOSITE"},
+        )
+        self.assertEqual(
+            {
+                context.source_reporting_set_root_operation
+                for context in measurement_contexts
+                if context.source_reporting_set_root_operation
+            },
+            {"UNION"},
+        )
+        self.assertTrue(
+            all(context.data_provider_count > 0 for context in measurement_contexts)
+        )
+
+        frequency_context = next(
+            context
+            for context in measurement_contexts
+            if context.frequency_bucket_count
+            and context.reach_value is not None
+            and context.impression_count_value is not None
+        )
+        self.assertEqual(
+            frequency_context.frequency_bucket_count,
+            len(frequency_context.frequency_buckets),
+        )
+        self.assertEqual(
+            frequency_context.frequency_bucket_sum,
+            sum(
+                bucket.value
+                for bucket in frequency_context.frequency_buckets
+            ),
+        )
+        self.assertEqual(
+            frequency_context.reach_minus_frequency_bucket_sum,
+            frequency_context.reach_value
+            - frequency_context.frequency_bucket_sum,
+        )
+        self.assertEqual(
+            frequency_context.minimum_impressions_from_frequency,
+            sum(
+                bucket.frequency * bucket.value
+                for bucket in frequency_context.frequency_buckets
+            ),
+        )
+        self.assertEqual(
+            frequency_context.impressions_minus_minimum_from_frequency,
+            frequency_context.impression_count_value
+            - frequency_context.minimum_impressions_from_frequency,
+        )
+
+    @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
+    def test_all_summaries_are_processed_and_internal_errors_are_preserved(
+        self, mock_processor_class
+    ):
+        processor, first_summary, unused_result = (
+            self._set_up_failed_post_processor(mock_processor_class)
+        )
+        second_summary = report_summary_v2_pb2.ReportSummaryV2(
+            cmms_measurement_consumer_id="mc-diagnostic",
+            external_report_result_id=987654321,
+        )
+        successful_result = (
+            report_post_processor_result_pb2.ReportPostProcessorResult(
+                status=report_post_processor_result_pb2.ReportPostProcessorStatus(
+                    status_code=(
+                        report_post_processor_result_pb2.ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS
+                    )
+                )
+            )
+        )
+        successful_result.pre_correction_report_summary_v2.CopyFrom(
+            second_summary
+        )
+        mock_processor_class.return_value.process.side_effect = [
+            RuntimeError("synthetic internal failure"),
+            successful_result,
+        ]
+
+        with patch(
+            'src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.report_conversion.report_summaries_from_reporting_set_results',
+            return_value=[first_summary, second_summary],
+        ):
+            with self.assertRaises(NoiseCorrectionFailure) as raised:
+                processor.process(
+                    self.cmms_measurement_consumer_id,
+                    self.external_report_result_id,
+                    [],
+                )
+
+        self.assertEqual(mock_processor_class.call_count, 2)
+        self.assertEqual(len(raised.exception.summary_results), 2)
+        internal_error = raised.exception.summary_results[0]
+        self.assertEqual(
+            internal_error.result.status.status_code,
+            report_post_processor_result_pb2.ReportPostProcessorStatus.INTERNAL_ERROR,
+        )
+        self.assertEqual(internal_error.internal_error_type, "RuntimeError")
+        self.assertEqual(
+            internal_error.result.pre_correction_report_summary_v2,
+            first_summary,
+        )
+        self.assertEqual(
+            raised.exception.summary_results[1].result, successful_result
+        )
+
     def test_post_process_report_result_raises_on_large_corrections(self):
         # Loads a real fixture whose noisy values force the solver to apply
         # corrections that exceed 7 sigma (e.g. reach going from 16.6M to 0).
@@ -664,10 +975,21 @@ class PostProcessReportResultTest(unittest.TestCase):
         report_result_processor = PostProcessReportResult(
             self.mock_report_results_stub, self.mock_reporting_sets_stub)
 
-        with self.assertRaisesRegex(ValueError, 'large corrections'):
+        with self.assertRaises(NoiseCorrectionFailure) as raised:
             report_result_processor.process(
                 self.cmms_measurement_consumer_id,
                 self.external_report_result_id, [])
+
+        message = str(raised.exception)
+        self.assertTrue(
+            any(
+                summary_result.result.large_corrections
+                for summary_result in raised.exception.summary_results
+            )
+        )
+        self.assertNotIn('original_value', message)
+        self.assertNotIn('corrected_value', message)
+        self.assertNotIn('sigma', message)
 
     def test_get_data_provider_ids_returns_empty_map_without_rpc(self):
         report_result_processor = PostProcessReportResult(
@@ -1073,8 +1395,23 @@ class PostProcessReportResultTest(unittest.TestCase):
         self._set_window_reach(request, 2, end_day=15, reach=1000,
                                k_plus_reach=[1000, 500, 200])
 
-        processor._reconcile_cross_window_identities(
-            request, reporting_set_results)
+        with self.assertLogs(level='INFO') as captured:
+            processor._reconcile_cross_window_identities(
+                request, reporting_set_results)
+
+        logs = '\n'.join(captured.output)
+        self.assertIn('total=1 weekly=2', logs)
+        self.assertNotIn('whole=0', logs)
+        self.assertNotIn('last_weekly=1000', logs)
+
+        with noise_correction_value_logging.measurement_value_logging(True):
+            with self.assertLogs(level='INFO') as captured:
+                processor._reconcile_cross_window_identities(
+                    request, reporting_set_results
+                )
+        logs = '\n'.join(captured.output)
+        self.assertIn('whole=0', logs)
+        self.assertIn('last_weekly=1000', logs)
 
         last_weekly = request.reporting_set_results[
             2].reporting_window_results[0]
