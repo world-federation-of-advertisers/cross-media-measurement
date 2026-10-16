@@ -76,75 +76,88 @@ to show where it joins the flow; its format is documented separately.
 ### Detailed EDP Aggregator and TrusTEE flow
 
 ```mermaid
-flowchart LR
+flowchart TB
   P["Publisher or data exporter"]
-  OTHER["Other participating EDPs"]
-  ADV["Advertiser / report consumer"]
-  RS["Reporting Server / Kingdom"]
+  ADV_REQUEST["Advertiser<br/>requests report"]
 
-  subgraph EDPA["EDP Aggregator"]
+  subgraph PREP["EDP Aggregator: data preparation"]
     direction TB
 
-    subgraph INPUTS["Private object storage: uploaded inputs<br/>Sensitive payloads are KMS-encrypted"]
+    subgraph INPUTS["Private object storage: uploaded inputs"]
       direction TB
       EG["Campaign metadata<br/>Protobuf or JSON<br/>(IAM-protected)"]
       RAW["Raw impressions<br/>KMS-encrypted Parquet<br/>+ plaintext done marker"]
     end
 
-    VL["VID Labeling<br/>Confidential Space TEE<br/>Maps fields and assigns VID"]
-    STORE["VID-labeled impression store<br/>Private object storage<br/>KMS-encrypted RecordIO<br/>+ plaintext BlobDetails and done marker"]
-    RP["ResultsFulfiller<br/>Confidential Space TEE<br/>Filters impressions and builds vector"]
+    VL["VID Labeling<br/>Confidential Space TEE"]
+    STORE["Labeled-impression storage<br/>KMS-encrypted RecordIO<br/>+ plaintext metadata"]
+    SYNC["Campaign and<br/>data-availability sync"]
 
     RAW -->|"Encrypted Parquet columns"| VL
     VL -->|"Encrypted labeled impressions"| STORE
-    STORE -->|"Qualifying impressions"| RP
+    EG --> SYNC
+    STORE --> SYNC
   end
 
-  subgraph TRUSTEE["TrusTEE: separate trust boundary"]
-    direction BT
-    FVSTORE["KMS-encrypted frequency-vector handoff"]
-    TT["TrusTEE processing<br/>Confidential Space TEE<br/>Combines publisher vectors"]
-    FVSTORE -->|"Encrypted vectors"| TT
+  RS_REQUEST["Reporting Server / Kingdom<br/>Registers data and issues requisition"]
+
+  subgraph FULFILL["EDP Aggregator: requisition fulfillment"]
+    RP["ResultsFulfiller<br/>Confidential Space TEE<br/>Filters impressions and builds vector"]
   end
+
+  OTHER["Other EDP<br/>ResultsFulfiller TEEs"]
+
+  subgraph TRUSTEE["TrusTEE: separate trust boundary"]
+    TT["Aggregator Duchy<br/>TrusTEE mill<br/>Confidential Space TEE"]
+  end
+
+  RS_RESULT["Reporting Server / Kingdom<br/>Completes report"]
+  ADV_RESULT["Advertiser / report consumer<br/>receives report"]
 
   P -->|"Uploads"| EG
   P -->|"Primary path"| RAW
   P -->|"Optional: already labeled<br/>+ BlobDetails sidecar"| STORE
-  EG -->|"Registers campaigns"| RS
-  STORE -->|"Publishes data availability"| RS
-  ADV -->|"Requests report"| RS
-  RS -->|"Issues requisition"| RP
-  RP -->|"Encrypted frequency vector"| FVSTORE
-  OTHER -->|"Encrypted frequency vectors"| FVSTORE
-  TT -->|"Aggregated result with<br/>configured privacy controls"| RS
-  RS -->|"Completed report"| ADV
+  SYNC --> RS_REQUEST
+  ADV_REQUEST --> RS_REQUEST
+  RS_REQUEST -->|"Requisition"| RP
+  STORE -->|"Qualifying impressions"| RP
+  RP -->|"FulfillRequisition RPC<br/>encrypted frequency vector"| TT
+  OTHER -->|"FulfillRequisition RPC<br/>encrypted frequency vectors"| TT
+  TT -->|"Aggregate result with<br/>configured privacy controls"| RS_RESULT
+  RS_RESULT --> ADV_RESULT
 
   classDef publisher fill:#EAF2FF,stroke:#3974D0,stroke-width:2px,color:#111827,font-weight:bold;
   classDef metadata fill:#EAF2FF,stroke:#5A87CC,stroke-width:2px,color:#111827;
   classDef tee fill:#FFF2DA,stroke:#C87512,stroke-width:2px,color:#111827;
   classDef storage fill:#E6F7F5,stroke:#17827B,stroke-width:2px,color:#111827;
+  classDef service fill:#F3F4F6,stroke:#667085,stroke-width:2px,color:#111827;
   classDef server fill:#E8F5EC,stroke:#2E8B57,stroke-width:2px,color:#111827,font-weight:bold;
   classDef consumer fill:#F3E8FF,stroke:#8B4AC2,stroke-width:2px,color:#111827,font-weight:bold;
 
-  class P,OTHER publisher;
+  class P publisher;
   class EG metadata;
-  class VL,RP,TT tee;
-  class RAW,STORE,FVSTORE storage;
-  class RS server;
-  class ADV consumer;
+  class VL,RP,OTHER,TT tee;
+  class RAW,STORE storage;
+  class SYNC service;
+  class RS_REQUEST,RS_RESULT server;
+  class ADV_REQUEST,ADV_RESULT consumer;
   style INPUTS fill:#F7FAFC,stroke:#17827B,stroke-width:2px;
-  style EDPA fill:#F7FAFC,stroke:#667085,stroke-width:2px;
+  style PREP fill:#F7FAFC,stroke:#667085,stroke-width:2px;
+  style FULFILL fill:#F7FAFC,stroke:#667085,stroke-width:2px;
   style TRUSTEE fill:#FFF9F0,stroke:#C87512,stroke-width:3px;
 ```
 
 The detailed view keeps the same two input options as the source architecture:
 raw Parquet passes through VID Labeling, while already-labeled RecordIO joins at
 the VID-labeled impression store. Both paths converge before ResultsFulfiller
-processes a requisition.
+processes a requisition. EDPA, the Reporting Server, and the advertiser are each
+shown in more than one stage so the lifecycle remains readable from top to
+bottom; the repeated stages do not represent duplicate systems or parties.
 
 Each trusted workload is shown in its own Confidential Space TEE. Sensitive data
-passes between ResultsFulfiller and TrusTEE as an encrypted contribution; the
-two components do not share one TEE boundary.
+passes from ResultsFulfiller to the aggregator Duchy as an encrypted contribution
+over the `FulfillRequisition` RPC. There is no frequency-vector storage bucket in
+this handoff, and the two components do not share one TEE boundary.
 
 Both diagrams use KMS labels only for sensitive payloads. Campaign metadata,
 `BlobDetails`, and `done` markers remain readable to services authorized to
@@ -243,8 +256,8 @@ requisition specification and the relevant labeled-impression blobs, then:
 The vector contains counts at positions defined by the configured population.
 It contains neither impression records nor explicit VID values.
 
-For a non-empty TrusTEE contribution, ResultsFulfiller encrypts that vector for
-TrusTEE before sending it outside the EDPA TEE.
+For a non-empty TrusTEE contribution, ResultsFulfiller encrypts that vector and
+streams it to the aggregator Duchy over the `FulfillRequisition` RPC.
 
 ### 7. TrusTEE computes the measurement result
 
