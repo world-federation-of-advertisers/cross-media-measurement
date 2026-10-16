@@ -57,6 +57,16 @@ _accessPublicApiAddressName:                          "access-public"
 	}
 }
 
+#CronJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "10m"
+		memory: "512Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 // External exposure for the MCP server (Option B): a GKE Ingress terminates
 // HTTPS with a Google-managed certificate and forwards HTTP to the in-cluster
 // plain-HTTP MCP service, so the server itself stays unchanged.
@@ -178,6 +188,22 @@ reporting: #Reporting & {
 		"access-internal-api-server": {
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalAccessServerServiceAccount
+			}
+		}
+	}
+
+	cronJobs: {
+		"report-scheduling": {
+			_container: {
+				resources: #CronJobResourceRequirements
+			}
+		}
+		"report-result-post-processor": {
+			_container: {
+				resources: #CronJobResourceRequirements
+			}
+			spec: jobTemplate: spec: template: spec: _initContainers: "basic-reports-reports": {
+				resources: #CronJobResourceRequirements
 			}
 		}
 	}
