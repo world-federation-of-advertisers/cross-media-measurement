@@ -2,3 +2,5 @@
 # We don't use a default ownership rule that applies to all files.
 
 /.github/CODEOWNERS @TNATALI @laureanobrs
+
+# DO_NOT_SUBMIT: dummy change to test the setup
