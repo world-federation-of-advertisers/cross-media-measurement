@@ -149,7 +149,7 @@ class FilterProcessorTest {
     runBlocking {
       val celExpression = "person.age_group == 1" // YEARS_18_TO_34
       val filterSpec = createTestFilterSpec(celExpression = celExpression)
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -182,7 +182,7 @@ class FilterProcessorTest {
   fun `processBatch with empty CEL expression matches all events`() {
     runBlocking {
       val filterSpec = createTestFilterSpec(celExpression = "")
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -224,7 +224,7 @@ class FilterProcessorTest {
           .build()
 
       val filterSpec = createTestFilterSpec(celExpression = "", collectionInterval = interval)
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -264,7 +264,7 @@ class FilterProcessorTest {
           celExpression = "",
           eventGroupReferenceIds = listOf(targetEventGroupId),
         )
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -302,7 +302,7 @@ class FilterProcessorTest {
           collectionInterval = interval,
           eventGroupReferenceIds = listOf(targetEventGroupId),
         )
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -346,7 +346,7 @@ class FilterProcessorTest {
     runBlocking {
       val celExpression = "person.age_group == 1 && person.gender == 1" // YEARS_18_TO_34 && MALE
       val filterSpec = createTestFilterSpec(celExpression = celExpression)
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -397,7 +397,7 @@ class FilterProcessorTest {
           .build()
 
       val filterSpec = createTestFilterSpec(celExpression = "", collectionInterval = interval)
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       // All events are outside the collection interval (before it starts)
       val events =
@@ -440,7 +440,7 @@ class FilterProcessorTest {
           .build()
 
       val filterSpec = createTestFilterSpec(celExpression = "", collectionInterval = interval)
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       // Batch spans across filter interval (some events before, some during, some after)
       val events =
@@ -484,7 +484,7 @@ class FilterProcessorTest {
           .build()
 
       val filterSpec = createTestFilterSpec(celExpression = "", collectionInterval = interval)
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       // All events are after the collection interval
       val events =
@@ -527,7 +527,7 @@ class FilterProcessorTest {
           .build()
 
       val filterSpec = createTestFilterSpec(celExpression = "", collectionInterval = interval)
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -572,7 +572,7 @@ class FilterProcessorTest {
     runBlocking {
       // Regression: existing behavior preserved when no entity-key filter is requested.
       val filterSpec = createTestFilterSpec()
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -595,7 +595,7 @@ class FilterProcessorTest {
     runBlocking {
       val targetKey = makeEntityKey("ad", "X")
       val filterSpec = createTestFilterSpec(entityKeys = setOf(targetKey))
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -619,7 +619,7 @@ class FilterProcessorTest {
   fun `processBatch with entityKeys filter drops events whose keys do not intersect`() {
     runBlocking {
       val filterSpec = createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -645,7 +645,7 @@ class FilterProcessorTest {
   fun `processBatch throws MissingBatchEntityKeysException when ByEntityKeys filter is given a batch with empty entity_keys`() {
     runBlocking {
       val filterSpec = createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events = listOf(createTestLabeledEvent(1, entityKeys = emptyList()))
 
@@ -661,7 +661,7 @@ class FilterProcessorTest {
   fun `processBatch throws MismatchedBatchIdentifierException when ByEntityKeys filter receives ByReferenceId batch`() {
     runBlocking {
       val filterSpec = createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events = listOf(createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))))
       val batch =
@@ -680,7 +680,7 @@ class FilterProcessorTest {
   fun `processBatch with ByEventGroupReferenceIds filter throws on ByEntityKeys batch`() {
     runBlocking {
       val filterSpec = createTestFilterSpec(eventGroupReferenceIds = listOf("test-group"))
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events = listOf(createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "X"))))
       val batch =
@@ -701,7 +701,7 @@ class FilterProcessorTest {
     runBlocking {
       val targetKey = makeEntityKey("ad", "X")
       val filterSpec = createTestFilterSpec(entityKeys = setOf(targetKey))
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events = listOf(createTestLabeledEvent(1, entityKeys = listOf(targetKey)))
       val batch =
@@ -728,7 +728,7 @@ class FilterProcessorTest {
           celExpression = "person.age_group == 1", // YEARS_18_TO_34
           entityKeys = setOf(targetKey),
         )
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -776,7 +776,7 @@ class FilterProcessorTest {
           eventGroupReferenceIds = listOf("some-other-group"),
           entityKeys = setOf(targetKey),
         )
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -867,7 +867,7 @@ class FilterProcessorTest {
     runBlocking {
       val targetKey = makeEntityKey("ad", "X")
       val filterSpec = createTestFilterSpec(entityKeys = setOf(targetKey))
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       // Batch carries an EntityKeyGroup that overlaps the filter — batch-level check passes.
       // Per-event check then keeps only events whose own entity_keys intersect the filter.
@@ -891,7 +891,7 @@ class FilterProcessorTest {
   fun `processBatch with batch entityKeys not overlapping the filter returns empty batch`() {
     runBlocking {
       val filterSpec = createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X")))
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       // Events would match per-event but the batch's own entity_keys do not overlap the
       // filter — the entire batch is dropped before the per-event check runs.
@@ -912,7 +912,7 @@ class FilterProcessorTest {
     runBlocking {
       val filterSpec =
         createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X"), makeEntityKey("ad", "Y")))
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -944,7 +944,7 @@ class FilterProcessorTest {
               makeEntityKey("placement", "P"),
             )
         )
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -972,7 +972,7 @@ class FilterProcessorTest {
     runBlocking {
       val filterSpec =
         createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X"), makeEntityKey("ad", "Y")))
-      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor, null)
 
       val events =
         listOf(
@@ -1007,7 +1007,8 @@ class FilterProcessorTest {
 
     val result =
       filterSpec.matchBatch(
-        EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("placement", "P")))
+        EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("placement", "P"))),
+        mapping = null,
       )
 
     assertThat(result).isEqualTo(BatchMatchResult.NoMatch)
@@ -1024,7 +1025,8 @@ class FilterProcessorTest {
 
     val result =
       filterSpec.matchBatch(
-        EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X")))
+        EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X"))),
+        mapping = null,
       )
 
     assertThat(result).isEqualTo(BatchMatchResult.MatchedAllEvents)
@@ -1041,7 +1043,8 @@ class FilterProcessorTest {
 
     val result =
       filterSpec.matchBatch(
-        EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X", "Y")))
+        EventGroupIdentifier.ByEntityKeys(listOf(makeEntityKeyGroup("ad", "X", "Y"))),
+        mapping = null,
       )
 
     assertThat(result).isInstanceOf(BatchMatchResult.MatchedByEntityKeys::class.java)
@@ -1051,7 +1054,8 @@ class FilterProcessorTest {
   fun `processBatch accepts mapped reference ID for an entity-key filter`() {
     val filterSpec =
       createTestFilterSpec(entityKeys = setOf(makeEntityKey("campaign", "entity/123")))
-    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+    val filterProcessor =
+      FilterProcessor<Message>(filterSpec, testEventDescriptor, CAMPAIGN_MAPPING)
     val events =
       listOf(
         createTestLabeledEvent(1, entityKeys = emptyList()),
@@ -1060,10 +1064,7 @@ class FilterProcessorTest {
 
     val result =
       filterProcessor.processBatch(
-        createEventBatch(
-          events,
-          EventGroupIdentifier.ByMappedReferenceId(refId = "ref/123", mapping = CAMPAIGN_MAPPING),
-        )
+        createEventBatch(events, EventGroupIdentifier.ByReferenceId("ref/123"))
       )
 
     assertThat(result.events.map { it.vid }).containsExactly(1L, 2L).inOrder()
@@ -1072,7 +1073,8 @@ class FilterProcessorTest {
   @Test
   fun `processBatch accepts all events when mapped blob has one requested campaign`() {
     val filterSpec = createTestFilterSpec(eventGroupReferenceIds = listOf("ref/123"))
-    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+    val filterProcessor =
+      FilterProcessor<Message>(filterSpec, testEventDescriptor, CAMPAIGN_MAPPING)
     val events =
       listOf(
         createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "A"))),
@@ -1083,13 +1085,8 @@ class FilterProcessorTest {
       filterProcessor.processBatch(
         createEventBatch(
           events,
-          EventGroupIdentifier.ByMappedEntityKeys(
-            listOf(
-              makeEntityKeyGroup("campaign", "entity/123"),
-              makeEntityKeyGroup("ad", "A", "B"),
-            ),
-            refId = "",
-            mapping = CAMPAIGN_MAPPING,
+          EventGroupIdentifier.ByEntityKeys(
+            listOf(makeEntityKeyGroup("campaign", "entity/123"), makeEntityKeyGroup("ad", "A", "B"))
           ),
         )
       )
@@ -1101,7 +1098,8 @@ class FilterProcessorTest {
   fun `processBatch entity filter accepts all events when mapped blob has one requested campaign`() {
     val filterSpec =
       createTestFilterSpec(entityKeys = setOf(makeEntityKey("campaign", "entity/123")))
-    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+    val filterProcessor =
+      FilterProcessor<Message>(filterSpec, testEventDescriptor, CAMPAIGN_MAPPING)
     val events =
       listOf(
         createTestLabeledEvent(1, entityKeys = listOf(makeEntityKey("ad", "A"))),
@@ -1112,13 +1110,8 @@ class FilterProcessorTest {
       filterProcessor.processBatch(
         createEventBatch(
           events,
-          EventGroupIdentifier.ByMappedEntityKeys(
-            listOf(
-              makeEntityKeyGroup("campaign", "entity/123"),
-              makeEntityKeyGroup("ad", "A", "B"),
-            ),
-            refId = "",
-            mapping = CAMPAIGN_MAPPING,
+          EventGroupIdentifier.ByEntityKeys(
+            listOf(makeEntityKeyGroup("campaign", "entity/123"), makeEntityKeyGroup("ad", "A", "B"))
           ),
         )
       )
@@ -1129,7 +1122,8 @@ class FilterProcessorTest {
   @Test
   fun `processBatch filters events when mapped blob has multiple campaigns`() {
     val filterSpec = createTestFilterSpec(eventGroupReferenceIds = listOf("ref/123"))
-    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+    val filterProcessor =
+      FilterProcessor<Message>(filterSpec, testEventDescriptor, CAMPAIGN_MAPPING)
     val matchingCampaign = makeEntityKey("campaign", "entity/123")
     val events =
       listOf(
@@ -1141,10 +1135,8 @@ class FilterProcessorTest {
       filterProcessor.processBatch(
         createEventBatch(
           events,
-          EventGroupIdentifier.ByMappedEntityKeys(
-            listOf(makeEntityKeyGroup("campaign", "entity/123", "entity/456")),
-            refId = "",
-            mapping = CAMPAIGN_MAPPING,
+          EventGroupIdentifier.ByEntityKeys(
+            listOf(makeEntityKeyGroup("campaign", "entity/123", "entity/456"))
           ),
         )
       )
@@ -1153,21 +1145,15 @@ class FilterProcessorTest {
   }
 
   @Test
-  fun `processBatch accepts direct reference ID on mapped entity blob`() {
+  fun `processBatch accepts direct reference ID when mapping is configured`() {
     val filterSpec = createTestFilterSpec(eventGroupReferenceIds = listOf("direct-reference-id"))
-    val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+    val filterProcessor =
+      FilterProcessor<Message>(filterSpec, testEventDescriptor, CAMPAIGN_MAPPING)
     val events = listOf(createTestLabeledEvent(1, entityKeys = emptyList()))
 
     val result =
       filterProcessor.processBatch(
-        createEventBatch(
-          events,
-          EventGroupIdentifier.ByMappedEntityKeys(
-            listOf(makeEntityKeyGroup("campaign", "entity/456")),
-            refId = "direct-reference-id",
-            mapping = CAMPAIGN_MAPPING,
-          ),
-        )
+        createEventBatch(events, EventGroupIdentifier.ByReferenceId("direct-reference-id"))
       )
 
     assertThat(result.events.map { it.vid }).containsExactly(1L)

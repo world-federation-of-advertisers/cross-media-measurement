@@ -124,7 +124,11 @@ class VidLabelingDemoCorrectionIntegrationTest {
   @Before
   fun initOrchestrator() {
     kmsClient = TestEncryptedStorage.buildFakeKmsClient(kekUri, keyTemplate = "AES128_GCM")
-    orchestrator = EventProcessingOrchestrator(PRIVATE_ENCRYPTION_KEY)
+    orchestrator =
+      EventProcessingOrchestrator(
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        eventGroupReferenceIdEntityKeyMapping = null,
+      )
   }
 
   @Test

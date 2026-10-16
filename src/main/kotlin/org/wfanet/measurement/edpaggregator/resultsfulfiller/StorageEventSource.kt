@@ -327,17 +327,14 @@ class StorageEventSource(
           } else {
             EventGroupIdentifier.ByReferenceId(source.blobDetails.eventGroupReferenceId)
           }
+        } else if (useEntityKeyStrategy && source.blobDetails.entityKeysList.isNotEmpty()) {
+          EventGroupIdentifier.ByEntityKeys(source.blobDetails.entityKeysList)
+        } else if (!useEntityKeyStrategy && source.blobDetails.eventGroupReferenceId.isNotEmpty()) {
+          EventGroupIdentifier.ByReferenceId(source.blobDetails.eventGroupReferenceId)
         } else if (source.blobDetails.entityKeysList.isNotEmpty()) {
-          EventGroupIdentifier.ByMappedEntityKeys(
-            source.blobDetails.entityKeysList,
-            source.blobDetails.eventGroupReferenceId,
-            eventGroupReferenceIdEntityKeyMapping,
-          )
+          EventGroupIdentifier.ByEntityKeys(source.blobDetails.entityKeysList)
         } else if (source.blobDetails.eventGroupReferenceId.isNotEmpty()) {
-          EventGroupIdentifier.ByMappedReferenceId(
-            source.blobDetails.eventGroupReferenceId,
-            eventGroupReferenceIdEntityKeyMapping,
-          )
+          EventGroupIdentifier.ByReferenceId(source.blobDetails.eventGroupReferenceId)
         } else {
           error(
             "BlobDetails for ${source.blobDetails.blobUri} has neither entity keys nor an " +

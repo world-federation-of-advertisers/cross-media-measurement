@@ -135,7 +135,10 @@ class ResultsFulfiller(
 ) {
 
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
-    EventProcessingOrchestrator<Message>(privateEncryptionKey)
+    EventProcessingOrchestrator<Message>(
+      privateEncryptionKey = privateEncryptionKey,
+      eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
+    )
   }
 
   /**

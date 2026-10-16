@@ -117,7 +117,11 @@ class EventProcessingIntegrationTest {
       )
 
     // Create EventProcessingOrchestrator
-    eventProcessingOrchestrator = EventProcessingOrchestrator(privateEncryptionKey)
+    eventProcessingOrchestrator =
+      EventProcessingOrchestrator(
+        privateEncryptionKey = privateEncryptionKey,
+        eventGroupReferenceIdEntityKeyMapping = null,
+      )
   }
 
   @Test

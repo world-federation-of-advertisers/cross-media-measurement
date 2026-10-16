@@ -193,8 +193,13 @@ data class FilterSpecIndex(
  *   multiple requisitions specify identical filters.
  *
  * @param privateEncryptionKey Private key used to decrypt requisition specs.
+ * @param eventGroupReferenceIdEntityKeyMapping optional equivalence between reference IDs and one
+ *   entity-key type.
  */
-class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey: PrivateKeyHandle) {
+class EventProcessingOrchestrator<T : Message>(
+  private val privateEncryptionKey: PrivateKeyHandle,
+  private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping?,
+) {
 
   /**
    * Runs the event processing pipeline for a list of requisitions.
@@ -379,7 +384,8 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     eventDescriptor: Descriptors.Descriptor,
   ): Map<FilterSpec, FrequencyVectorSink<T>> {
     return filterSpecs.associateWith { spec ->
-      val filterProcessor = FilterProcessor<T>(spec, eventDescriptor)
+      val filterProcessor =
+        FilterProcessor<T>(spec, eventDescriptor, eventGroupReferenceIdEntityKeyMapping)
       val frequencyVector = StripedByteFrequencyVector(populationSpec.size.toInt())
       FrequencyVectorSink<T>(
         filterProcessor = filterProcessor,

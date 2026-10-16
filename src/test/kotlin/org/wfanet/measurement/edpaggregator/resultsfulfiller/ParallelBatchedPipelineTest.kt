@@ -108,6 +108,7 @@ class ParallelBatchedPipelineTest {
                   eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             ),
         )
       )
@@ -153,6 +154,7 @@ class ParallelBatchedPipelineTest {
                   eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             ),
         )
       )
@@ -219,6 +221,7 @@ class ParallelBatchedPipelineTest {
                   eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             ),
         )
       )
@@ -277,6 +280,7 @@ class ParallelBatchedPipelineTest {
                   eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             ),
         )
       )
@@ -375,6 +379,7 @@ class ParallelBatchedPipelineTest {
                   eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             ),
         )
       )
@@ -424,6 +429,7 @@ class ParallelBatchedPipelineTest {
                 eventGroupReferenceIds = listOf("test-group"),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
+            eventGroupReferenceIdEntityKeyMapping = null,
           ),
         frequencyVector = StripedByteFrequencyVector(testVidIndexMap.size.toInt()),
         vidIndexMap = testVidIndexMap,
@@ -500,6 +506,7 @@ class ParallelBatchedPipelineTest {
                   eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             ),
           frequencyVector = StripedByteFrequencyVector(1024),
           vidIndexMap = InMemoryVidIndexMap.build(TEST_POPULATION_SPEC),
@@ -546,6 +553,7 @@ class ParallelBatchedPipelineTest {
                 eventGroupReferenceIds = listOf("test-group"),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
+            eventGroupReferenceIdEntityKeyMapping = null,
           ),
         frequencyVector = StripedByteFrequencyVector(testVidIndexMap.size.toInt()),
         vidIndexMap = testVidIndexMap,
@@ -565,6 +573,7 @@ class ParallelBatchedPipelineTest {
                 eventGroupReferenceIds = listOf("test-group"),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
+            eventGroupReferenceIdEntityKeyMapping = null,
           ),
         frequencyVector = StripedByteFrequencyVector(testVidIndexMap.size.toInt()),
         vidIndexMap = testVidIndexMap,
@@ -644,6 +653,7 @@ class ParallelBatchedPipelineTest {
                 eventGroupReferenceIds = listOf("test-group"),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
+            eventGroupReferenceIdEntityKeyMapping = null,
           ),
         frequencyVector = StripedByteFrequencyVector(testVidIndexMap.size.toInt()),
         vidIndexMap = testVidIndexMap,
@@ -716,6 +726,7 @@ class ParallelBatchedPipelineTest {
                 eventGroupReferenceIds = listOf("test-group"),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
+            eventGroupReferenceIdEntityKeyMapping = null,
           ),
         frequencyVector = StripedByteFrequencyVector(1024),
         vidIndexMap = InMemoryVidIndexMap.build(TEST_POPULATION_SPEC),

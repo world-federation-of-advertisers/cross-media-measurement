@@ -141,7 +141,6 @@ kt_jvm_library(
     name = "event_group_identifier",
     srcs = ["EventGroupIdentifier.kt"],
     deps = [
-        ":event_group_reference_id_entity_key_mapping",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
     ],
 )
@@ -245,6 +244,7 @@ kt_jvm_library(
     srcs = ["FilterProcessor.kt"],
     deps = [
         ":event_batch",
+        ":event_group_reference_id_entity_key_mapping",
         ":event_source",
         ":filter_spec",
         ":labeled_event",
@@ -505,6 +505,7 @@ kt_jvm_library(
     name = "event_processing_orchestrator",
     srcs = ["EventProcessingOrchestrator.kt"],
     deps = [
+        ":event_group_reference_id_entity_key_mapping",
         ":event_processing_pipeline",
         ":event_source",
         ":filter_processor",
