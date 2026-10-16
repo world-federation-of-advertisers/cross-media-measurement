@@ -20,6 +20,8 @@ import com.google.common.truth.Truth.assertThat
 import java.nio.file.Files
 import java.nio.file.Paths
 import org.junit.Test
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.testing.DashboardSqlTemplates.readSqlFile
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.testing.DashboardSqlTemplates.render
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools.DashboardComplianceMetrics
 
 /** Validates dashboard SQL templates for correct EDP isolation structure. */
@@ -37,54 +39,11 @@ class DashboardViewIsolationLocalTest {
       )
   }
 
-  private fun readSqlFile(fileName: String): String {
-    val runfilesDir = System.getenv("TEST_SRCDIR") ?: "."
-    val workspace = System.getenv("TEST_WORKSPACE") ?: "__main__"
-    val path = Paths.get(runfilesDir, workspace, "src/main/terraform/gcloud/cmms/sql", fileName)
-    return Files.readString(path)
-  }
-
   private fun readTerraformFile(fileName: String): String {
     val runfilesDir = System.getenv("TEST_SRCDIR") ?: "."
     val workspace = System.getenv("TEST_WORKSPACE") ?: "__main__"
     val path = Paths.get(runfilesDir, workspace, "src/main/terraform/gcloud/cmms", fileName)
     return Files.readString(path)
-  }
-
-  /**
-   * Renders a templatefile-style SQL template by resolving the `include_platform_columns`
-   * conditionals. Handles both the positive (`%{ if include_platform_columns }`) and negated (`%{
-   * if !include_platform_columns }`) directives, plus `%{ else }`. Assumes the conditionals are not
-   * nested (true for the dashboard SQL).
-   */
-  private fun render(template: String, platformEnabled: Boolean): String {
-    val result = StringBuilder()
-    var inConditional = false
-    var conditionMet = false
-    var keep = true
-
-    for (line in template.lines()) {
-      val trimmed = line.trim()
-      when {
-        trimmed == "%{ if include_platform_columns }" -> {
-          inConditional = true
-          conditionMet = platformEnabled
-          keep = conditionMet
-        }
-        trimmed == "%{ if !include_platform_columns }" -> {
-          inConditional = true
-          conditionMet = !platformEnabled
-          keep = conditionMet
-        }
-        trimmed == "%{ else }" -> keep = inConditional && !conditionMet
-        trimmed == "%{ endif }" -> {
-          inConditional = false
-          keep = true
-        }
-        keep -> result.appendLine(line)
-      }
-    }
-    return result.toString()
   }
 
   @Test
@@ -196,6 +155,60 @@ class DashboardViewIsolationLocalTest {
       assertThat(rendered).contains("ON eg.MeasurementConsumerId = mcs.MeasurementConsumerId")
       assertThat(rendered).doesNotContain("externalIdToApiId`(eg.MeasurementConsumerId)")
     }
+  }
+
+  @Test
+  fun reportDetailResolvesCompositeCampaignGroups() {
+    // A composite campaign group owns a SetExpression tree rather than direct
+    // ReportingSetEventGroups rows, so the old `setexpressionid IS NULL` filter
+    // silently dropped every report built on one. The Postgres subquery must walk
+    // the tree instead, following both operand kinds: nested expressions within
+    // the same ReportingSet, and references to other ReportingSets.
+    val sql = readSqlFile("report_detail.sql")
+    for (platformEnabled in listOf(true, false)) {
+      val rendered = render(sql, platformEnabled)
+      assertThat(rendered).doesNotContain("WHERE rs.setexpressionid IS NULL")
+      assertThat(rendered).contains("WITH RECURSIVE")
+      assertThat(rendered).contains("campaign_group_members")
+      for (operand in
+        listOf(
+          "lefthandsetexpressionid",
+          "righthandsetexpressionid",
+          "lefthandreportingsetid",
+          "righthandreportingsetid",
+        )) {
+        assertThat(rendered).contains(operand)
+      }
+    }
+  }
+
+  @Test
+  fun reportDetailScopesJoinsByMeasurementConsumerAndDataProvider() {
+    // ExternalReportingSetId and ExternalReportId are unique only within a
+    // MeasurementConsumer, and ExternalEventGroupId only within a DataProvider. Joining or
+    // grouping on those alone lets one consumer's report pick up another's event groups, or
+    // one provider's metadata land on another's row. Every join that crosses a federated
+    // database boundary must therefore carry the owning key.
+    val sql = readSqlFile("report_detail.sql")
+    for (platformEnabled in listOf(true, false)) {
+      val rendered = render(sql, platformEnabled)
+      // Campaign-group join is scoped by MeasurementConsumer.
+      assertThat(rendered)
+        .contains("ON br.CmmsMeasurementConsumerId = cg.CmmsMeasurementConsumerId")
+      assertThat(rendered).contains("AND br.ExternalCampaignGroupId = cg.ExternalCampaignGroupId")
+      // Kingdom metadata join is scoped by DataProvider.
+      assertThat(rendered).contains("ON cg.CmmsDataProvider = keg.CmmsDataProvider")
+      assertThat(rendered).contains("AND cg.CmmsEventGroupId = keg.CmmsEventGroupId")
+      // The key is carried into the output and the grouping.
+      assertThat(rendered).contains("base.CmmsMeasurementConsumer")
+      assertThat(rendered)
+        .contains(
+          "GROUP BY base.CmmsMeasurementConsumer, base.ExternalReportId, base.CmmsDataProvider"
+        )
+    }
+    // EdpCount counts providers within one consumer's report, not across consumers.
+    assertThat(render(sql, platformEnabled = true))
+      .contains("PARTITION BY CmmsMeasurementConsumer, ExternalReportId")
   }
 
   @Test

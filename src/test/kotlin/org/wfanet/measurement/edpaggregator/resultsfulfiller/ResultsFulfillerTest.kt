@@ -180,6 +180,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.TrusTeeV2Config.ImpressionCountMode
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
@@ -764,6 +765,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -910,6 +913,8 @@ class ResultsFulfillerTest {
         resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -1034,6 +1039,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -1170,6 +1177,8 @@ class ResultsFulfillerTest {
               awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       // Load grouped requisitions from storage
@@ -1317,6 +1326,8 @@ class ResultsFulfillerTest {
               awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       // Load grouped requisitions from storage
@@ -1452,6 +1463,8 @@ class ResultsFulfillerTest {
               awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       // Load grouped requisitions from storage
@@ -1585,6 +1598,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     val resultsFulfiller =
@@ -1704,6 +1719,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -1815,6 +1832,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -1948,6 +1967,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -2061,6 +2082,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -2172,6 +2195,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -2291,6 +2316,8 @@ class ResultsFulfillerTest {
               awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -2426,6 +2453,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -2545,6 +2574,8 @@ class ResultsFulfillerTest {
           resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -2655,6 +2686,8 @@ class ResultsFulfillerTest {
               awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -2763,6 +2796,8 @@ class ResultsFulfillerTest {
               awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       // Load grouped requisitions from storage
@@ -2892,6 +2927,8 @@ class ResultsFulfillerTest {
               awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       // Load grouped requisitions from storage
@@ -3020,6 +3057,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -3219,6 +3258,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -3343,6 +3384,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -3403,6 +3446,8 @@ class ResultsFulfillerTest {
   private suspend fun fulfillTrusTeeV2Requisition(
     resultMinimumThresholds: ResultMinimumThresholds?,
     vidCounts: Map<Long, Int> = (1L..130L).associateWith { 1 },
+    trusTeeV2ImpressionCountMode: ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+    trusTeeV2MaxFrequencyPerUser: Int? = null,
   ): TrusTeeV2Fulfillment {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
@@ -3480,6 +3525,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = trusTeeV2ImpressionCountMode,
+        trusTeeV2MaxFrequencyPerUser = trusTeeV2MaxFrequencyPerUser,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -3534,7 +3581,7 @@ class ResultsFulfillerTest {
     assertThat(header.trusTeeV2.trusTee.dataFormat)
       .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR)
     assertThat(header.trusTeeV2.trusTee.envelopeEncryption.hasEncryptedDek()).isTrue()
-    // Nothing computes an impression count until the EDPA populates FulfillmentDetails.
+    // No impression_counts_params is configured here, so the TEE derives the count itself.
     assertThat(header.trusTeeV2.hasFulfillmentDetails()).isFalse()
     assertThat(header.trusTeeV2.hasEncryptedFulfillmentDetails()).isFalse()
     assertThat(fulfillment.requests[1].bodyChunk.data).isNotEmpty()
@@ -3563,6 +3610,72 @@ class ResultsFulfillerTest {
       .getPrimitive(StreamingAead::class.java)
       .newDecryptingStream(encryptedPayload.newInput(), byteArrayOf())
       .use { it.readAllBytes() }
+  }
+
+  /** Unwraps the DEK from the header and decrypts the `FulfillmentDetails` it carried. */
+  private fun decryptFulfillmentDetails(
+    fulfillment: TrusTeeV2Fulfillment
+  ): FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails {
+    val trusTeeV2 = fulfillment.requests[0].header.trusTeeV2
+    val encryptedDetails = trusTeeV2.encryptedFulfillmentDetails
+    val dekKeysetHandle =
+      KeysetHandle.read(
+        BinaryKeysetReader.withInputStream(
+          trusTeeV2.trusTee.envelopeEncryption.encryptedDek.data.newInput()
+        ),
+        fulfillment.kmsClient.getAead(fulfillment.kekUri),
+      )
+    val plaintext =
+      dekKeysetHandle
+        .getPrimitive(StreamingAead::class.java)
+        .newDecryptingStream(
+          encryptedDetails.ciphertext.newInput(),
+          encryptedDetails.typeUrl.toByteArray(),
+        )
+        .use { it.readAllBytes() }
+    return FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails.parseFrom(plaintext)
+  }
+
+  /** VID 1 seen 5 times, VID 2 seen 200 times, VIDs 3 to 130 once each. Totals 333 impressions. */
+  private val skewedVidCounts: Map<Long, Int> = buildMap {
+    put(1L, 5)
+    put(2L, 200)
+    for (vid in 3L..130L) {
+      put(vid, 1)
+    }
+  }
+
+  @Test
+  fun `runWork sends an unnoised TrusTeeV2 impression count`() = runBlocking {
+    val fulfillment =
+      fulfillTrusTeeV2Requisition(
+        resultMinimumThresholds = null,
+        vidCounts = skewedVidCounts,
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNNOISED,
+      )
+
+    val details = decryptFulfillmentDetails(fulfillment)
+    // 5 + 200 + 128, counted before a cell saturates at 127.
+    assertThat(details.impression.value).isEqualTo(333L)
+    assertThat(details.impression.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertThat(details.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(0)
+  }
+
+  @Test
+  fun `runWork sends a clipped and noised TrusTeeV2 impression count`() = runBlocking {
+    val fulfillment =
+      fulfillTrusTeeV2Requisition(
+        resultMinimumThresholds = null,
+        vidCounts = skewedVidCounts,
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.NOISED,
+        trusTeeV2MaxFrequencyPerUser = 3,
+      )
+
+    val details = decryptFulfillmentDetails(fulfillment)
+    // Clipped to 3 + 3 + 128 before a seeded draw, so the clip travels rather than the value.
+    assertThat(details.impression.noiseMechanism)
+      .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+    assertThat(details.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(3)
   }
 
   @Test
@@ -3675,6 +3788,8 @@ class ResultsFulfillerTest {
               awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       // Load grouped requisitions from storage
@@ -3784,6 +3899,8 @@ class ResultsFulfillerTest {
               awsKmsParams = null,
             ),
           kekUriToKeyNameMap = emptyMap(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       val groupedReqs = groupedRequisitions {
@@ -3893,6 +4010,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
 
     val groupedReqs = groupedRequisitions {
@@ -4195,6 +4314,8 @@ class ResultsFulfillerTest {
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         kekUriToKeyNameMap = mapOf("uri" to "invalid/key/name"),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
     }
   }
@@ -4217,6 +4338,8 @@ class ResultsFulfillerTest {
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         kekUriToKeyNameMap = mapOf("uri" to longKeyName),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
       )
     }
   }
@@ -4241,6 +4364,8 @@ class ResultsFulfillerTest {
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4274,6 +4399,8 @@ class ResultsFulfillerTest {
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4307,6 +4434,8 @@ class ResultsFulfillerTest {
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4345,6 +4474,8 @@ class ResultsFulfillerTest {
               ProtocolConfig.NoiseMechanism.NONE,
               ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
             ),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4380,6 +4511,8 @@ class ResultsFulfillerTest {
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4414,6 +4547,8 @@ class ResultsFulfillerTest {
           resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4444,6 +4579,8 @@ class ResultsFulfillerTest {
           resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
+          trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+          trusTeeV2MaxFrequencyPerUser = null,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
