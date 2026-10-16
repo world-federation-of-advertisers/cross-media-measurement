@@ -96,4 +96,11 @@ message Requisition {
   // Context information related to the fulfillment of the [Requisition][]. May
   // only be set when [state][] is [FULFILLED][Requisition.State.FULFILLED].
   FulfillmentContext fulfillment_context = 7;
+
+  // Index of this [Requisition][]'s base vector among the `Computation`'s
+  // vectors, which is what [VectorSet.base_vectors][] references.
+  //
+  // Assigned by the Kingdom. A Duchy resolves a base vector from the
+  // [Requisition][] its blob arrived on. Set only for a multimeasurement.
+  int32 vector_index = 8;
 }

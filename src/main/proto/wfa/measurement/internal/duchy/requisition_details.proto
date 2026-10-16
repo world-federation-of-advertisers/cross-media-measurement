@@ -107,13 +107,46 @@ message RequisitionDetails {
       AwsKmsParams aws_kms_params = 7;
     }
 
+    // TrusTEE multimeasurement protocol specific details, written by the
+    // Duchy from the `DataProvider`'s fulfillment header.
+    message TrusTeeV2 {
+      // The envelope encryption parameters and data format the mill decrypts
+      // with, which v2 does not change.
+      TrusTee trus_tee = 1;
+
+      // Values the `DataProvider` supplied alongside the frequency vector,
+      // recorded verbatim for the mill to read inside the TEE. A serialized
+      // public API
+      // `FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails`.
+      oneof details {
+        // Values in plaintext, when [TrusTee.data_format][] is
+        // `FREQUENCY_VECTOR`.
+        bytes fulfillment_details = 2;
+
+        // Values encrypted with the same Data Encryption Key as the frequency
+        // vector, when [TrusTee.data_format][] is
+        // `ENCRYPTED_FREQUENCY_VECTOR`.
+        bytes encrypted_fulfillment_details = 3;
+      }
+    }
+
     oneof protocol {
       HonestMajorityShareShuffle honest_majority_share_shuffle = 1;
 
       TrusTee trus_tee = 2;
+
+      TrusTeeV2 trus_tee_v2 = 3;
     }
   }
   RequisitionProtocol protocol = 5;
+
+  // Index of this Requisition's base vector among the computation's vectors,
+  // which is what [VectorSet.base_vectors][] references.
+  //
+  // Copied from the System API `Requisition` by the Herald, so it is in place
+  // before any fulfillment arrives. Set only for a TrusTEE multimeasurement
+  // computation.
+  int32 vector_index = 6;
 }
 
 // Lookup key for Requisition by external ID.

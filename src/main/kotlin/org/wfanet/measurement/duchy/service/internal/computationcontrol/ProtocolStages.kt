@@ -54,6 +54,7 @@ sealed class ProtocolStages(val stageType: ComputationStage.StageCase) {
         ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HonestMajorityShareShuffleStages()
         ComputationStage.StageCase.TRUS_TEE -> TrusTeeStages()
+        ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
         ComputationStage.StageCase.STAGE_NOT_SET -> null
       }
     }
