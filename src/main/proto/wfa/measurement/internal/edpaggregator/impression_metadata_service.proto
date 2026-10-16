@@ -137,6 +137,8 @@ message ListImpressionMetadataRequest {
     repeated EntityKey entity_keys = 6;
     // Filter by exact blob URIs.
     repeated string blob_uris = 7;
+    // Filter by the RawImpressionUpload that produced the metadata.
+    string raw_impression_upload_resource_id = 8;
   }
   Filter filter = 4;
 }

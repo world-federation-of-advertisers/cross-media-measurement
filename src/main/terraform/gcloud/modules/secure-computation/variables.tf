@@ -40,4 +40,3 @@ variable "spanner_database_name" {
   default     = "secure-computation"
   nullable    = false
 }
-
