@@ -88,7 +88,7 @@ internal suspend fun SpannerWriter.TransactionScope.updateEventGroup(
 
   if (result.eventGroup.state == EventGroup.State.DELETED) {
     throw EventGroupStateIllegalException(
-      externalEventGroupId,
+      ExternalId(result.eventGroup.externalDataProviderId),
       externalEventGroupId,
       result.eventGroup.state,
     )
