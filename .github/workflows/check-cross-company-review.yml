@@ -1,0 +1,164 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Check Cross-company review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-company-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  cross-company-review-policy:
+    name: Check Cross-company review
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Fetch approvers
+        id: fetch-approvers
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            // Remove this before merge
+            const deleteMeBeforeMerge = 14;
+            const { owner, repo } = context.repo;
+            const pullNumber = context.payload.pull_request.number;
+            const pullAuthor = context.payload.pull_request.user.login;
+
+            // The list of reviews returns in chronological order
+            const reviews = await github.paginate(
+              github.rest.pulls.listReviews,
+              {
+                owner,
+                repo,
+                pull_number: pullNumber,
+                per_page: 100,
+              }
+            );
+
+            // Calculate effective state for every reviewer
+            const reviewStates = new Map();
+            for (const review of reviews) {
+              const username = review.user.login;
+              if (
+                review.state === 'APPROVED' ||
+                review.state === 'CHANGES_REQUESTED' ||
+                review.state === 'DISMISSED'
+              ) {
+                reviewStates.set(username, review.state);
+              }
+            }
+
+            // Get effective approvers, excluding PR author
+            const approvers = [...reviewStates.entries()]
+              .filter(
+                ([username, state]) =>
+                  username !== pullAuthor &&
+                  state === 'APPROVED'
+              )
+              .map(([username]) => username);
+            console.log(`Effective approvers for PR ${pullNumber} authored by ${pullAuthor}: ${approvers}`)
+
+            const output = JSON.stringify(approvers);
+            console.log(`Output: ${output}`);
+            core.setOutput('json', output);
+
+      - name: Check cross-company review policy
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          CROSS_COMPANY_TEAMS: ${{ vars.CROSS_COMPANY_TEAMS }}
+          PR_APPROVERS_JSON: ${{ steps.fetch-approvers.outputs.json }}
+        with:
+          script: |
+            const teamMembers = new Map(
+              JSON.parse(process.env.CROSS_COMPANY_TEAMS)
+                .map(({ name, members }) => [name, new Set(members)])
+            );
+            const prApprovers = new Set(
+              JSON.parse(process.env.PR_APPROVERS_JSON)
+            );
+            const teams = [...teamMembers.keys()]
+
+            console.log("Team members:", teamMembers)
+
+            function getUserTeam(username){
+              const userTeams = teams.filter(team => teamMembers.get(team).has(username));
+              if (userTeams.length > 1) {
+                throw new Error(
+                  `User ${username} belongs to multiple configured teams: ${userTeams.join(', ')}`
+                );
+              }
+              return userTeams[0] ?? null;
+            }
+
+            function getAuthorTeam(username) {
+              const userTeam = getUserTeam(username);
+              if (userTeam === null) {
+                throw new Error(
+                  `User ${username} does not belong to any of the configured team: ${teams.join(', ')}`
+                );
+              }
+              return userTeam;
+            }
+
+            function computeApproverTeamMap(approvers){
+              const approverToTeam = new Map();
+              for (const approver of approvers) {
+                const team = getUserTeam(approver);
+                if (team !== null){
+                  approverToTeam.set(approver, team);
+                }
+              }
+              console.log("Approver to team:", approverToTeam);
+              return approverToTeam;                
+            }
+
+            const pullAuthor = context.payload.pull_request.user.login;
+            const authorTeam = getAuthorTeam(pullAuthor);
+            
+            const approverToTeam = computeApproverTeamMap(prApprovers);
+            const crossCompanyTeams = teams.filter(team => team !== authorTeam);
+
+            console.log(`Author team: ${pullAuthor} - ${authorTeam}`);
+            console.log(`Candidate cross-company teams: ${crossCompanyTeams.join(', ')}`);
+
+            const crossCompanyApprovers = Array.from(approverToTeam.entries())
+              .filter(([_, team]) => crossCompanyTeams.includes(team))
+              .map(([approver]) => approver);
+
+            if (crossCompanyApprovers.length === 0) {
+              core.setFailed(
+                `Cross-company review policy not met: PR author ${pullAuthor} belongs to team '${authorTeam}', ` + 
+                `and the PR has not been approved by any reviewers belonging to teams from other companies: ` + 
+                `${crossCompanyTeams.join(', ')}.`
+              );
+              return;
+            }
+
+            core.summary.addHeading('Cross-company review policy satisfied.', '3');
+            core.summary.addEOL();
+            core.summary.addRaw('Cross-company approver(s):');
+            core.summary.addList(crossCompanyApprovers);
+            console.log(core.summary.stringify())
+            core.summary.write()
