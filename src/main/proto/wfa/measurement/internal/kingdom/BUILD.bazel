@@ -66,6 +66,7 @@ DETAILS_LIBS = [
     "exchange",
     "event_group_metadata_descriptor",
     "event_group",
+    "event_group_hierarchy",
     "exchange_step_attempt",
     "population",
     "recurring_exchange",
@@ -368,6 +369,12 @@ proto_library(
     deps = [
         ":event_template_proto",
     ],
+)
+
+proto_library(
+    name = "event_group_hierarchy_details_proto",
+    srcs = ["event_group_hierarchy_details.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
 )
 
 proto_library(
