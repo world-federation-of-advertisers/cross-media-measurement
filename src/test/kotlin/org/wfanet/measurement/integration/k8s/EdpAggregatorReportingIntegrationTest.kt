@@ -23,7 +23,6 @@ import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import com.google.type.DayOfWeek
-import com.google.type.interval
 import io.grpc.Channel
 import io.grpc.ManagedChannel
 import java.io.File
@@ -86,7 +85,6 @@ import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualification
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
