@@ -18,7 +18,8 @@ run-name: >-
   Update CMMS [${{ inputs.environment }}] |
   apply=${{ inputs.apply }},
   test=${{ inputs.run-tests }},
-  image-tag=${{ inputs.existing-image-tag }}
+  image-tag=${{ inputs.existing-image-tag }},
+  seed=${{ inputs.run-seeding }}
 
 concurrency:
   group: update-cmms-${{ inputs.environment }}
@@ -38,6 +39,10 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
+      run-seeding:
+        description: "Re-seed the high overlap dataset"
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       environment:
@@ -54,6 +59,10 @@ on:
         default: true
       apply:
         description: "Apply the new configuration"
+        type: boolean
+        default: false
+      run-seeding:
+        description: "Re-seed the high overlap dataset"
         type: boolean
         default: false
       existing-image-tag:
@@ -413,9 +422,11 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
 
-  # Provisions the high overlap dataset and reports over it.
-  run-edpa-reporting-integration-test:
-    if: inputs.run-tests
+  # Seeding is skipped unless asked for: what it writes persists and the dataset is deterministic,
+  # so re-running it every deploy repeats ~40 minutes of identical work. Ask for it when the specs
+  # change or an environment gains an EDP.
+  run-high-overlap-seeding:
+    if: inputs.run-seeding
     needs: [
       update-kingdom,
       update-population-fulfiller,
@@ -426,6 +437,33 @@ jobs:
       update-reporting-v2,
       update-secure-computation,
       update-edp-aggregator-service
+    ]
+    uses: ./.github/workflows/high-overlap-seeding.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: ${{ inputs.environment }}
+
+  # Reports over the high overlap dataset.
+  run-edpa-reporting-integration-test:
+    # Seeding is optional, so this tolerates it being skipped but not failing: a half-seeded
+    # dataset would be reported over as though it were whole.
+    if: >-
+      ${{ inputs.run-tests && !cancelled()
+      && needs.run-high-overlap-seeding.result != 'failure' }}
+    needs: [
+      update-kingdom,
+      update-population-fulfiller,
+      update-aggregator-duchy,
+      update-worker1-duchy,
+      update-worker2-duchy,
+      update-simulators,
+      update-reporting-v2,
+      update-secure-computation,
+      update-edp-aggregator-service,
+      run-high-overlap-seeding
     ]
     uses: ./.github/workflows/edpa-reporting-integration-test.yml
     secrets: inherit

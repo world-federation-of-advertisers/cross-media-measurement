@@ -1,0 +1,54 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.integration.k8s.testing;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.measurement.integration.k8s.testing";
+option java_multiple_files = true;
+option java_outer_classname = "HighOverlapDatasetManifestProto";
+
+// What the seeding job wrote for one ModelLine.
+//
+// Seeding is a separate job, so the data a test reports over was produced by an
+// earlier run against a possibly different revision of the specs. Tests compare
+// this against what they would seed themselves and refuse to run on a mismatch,
+// which would otherwise surface as results that disagree with expectations for
+// no visible reason.
+message HighOverlapDatasetManifest {
+  // Fingerprint of the specs the impressions were generated from.
+  //
+  // Covers the `ImpressionTestDataConfig` and the `PopulationSpec`, which
+  // between them determine every impression.
+  string spec_fingerprint = 1;
+
+  // EDPs that were seeded, by `edp_name`.
+  //
+  // Checked separately from `spec_fingerprint` because adding an EDP leaves the
+  // specs untouched: the dataset already describes every EDP, and which of them
+  // get written is the seeder's input.
+  repeated string seeded_edps = 2;
+
+  // ModelLine the impressions were stamped with.
+  string model_line = 3;
+
+  // When seeding finished.
+  google.protobuf.Timestamp generate_time = 4;
+
+  // Impression rows exported to BigQuery.
+  int64 impression_row_count = 5;
+}

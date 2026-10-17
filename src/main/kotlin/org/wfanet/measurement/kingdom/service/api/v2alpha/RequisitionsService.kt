@@ -224,6 +224,7 @@ class RequisitionsService(
           Status.Code.NOT_FOUND -> Status.NOT_FOUND
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
           Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
+          Status.Code.RESOURCE_EXHAUSTED -> Status.RESOURCE_EXHAUSTED
           else -> Status.UNKNOWN
         }.toExternalStatusRuntimeException(e)
       }
