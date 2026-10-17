@@ -42,6 +42,8 @@ class TrusTeeMeasurementFulfiller(
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionsThrottler: Throttler,
   private val encryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams?,
+  private val fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? =
+    null,
 ) : MeasurementFulfiller {
   override suspend fun fulfillRequisition() {
     logger.info("Fulfilling requisition ${requisition.name}...")
@@ -60,6 +62,7 @@ class TrusTeeMeasurementFulfiller(
                 requisitionNonce,
                 sampledFrequencyVector,
                 encryptionParams,
+                fulfillmentDetails,
               )
               .asFlow()
           } else {
@@ -67,6 +70,7 @@ class TrusTeeMeasurementFulfiller(
                 requisition,
                 requisitionNonce,
                 sampledFrequencyVector,
+                fulfillmentDetails,
               )
               .asFlow()
           }

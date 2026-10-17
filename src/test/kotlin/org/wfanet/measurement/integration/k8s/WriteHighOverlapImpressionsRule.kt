@@ -88,8 +88,10 @@ class WriteHighOverlapImpressionsRule(
   private val exporter: HighOverlapImpressionExporter,
 ) : TestRule {
 
-  /** EDPs whose impressions are encrypted with a Google Cloud KMS KEK, by KEK URI. */
+  /** KEK URI per EDP, for those encrypting with a Google Cloud KMS KEK. */
   private val gcpKmsKekUriByEdp: Map<String, String> =
+    // Use the KMS belonging to edp7 for all of these EDPs to avoid having to set up a separate KMS
+    // for each. In a real deployment, each EDP would have its own KMS.
     GCP_KMS_EDPS.associateWith {
       edp7KekUri.ifEmpty { Edp7StorageKek.BY_PROJECT[PROJECT_ID].orEmpty() }
     }
@@ -274,11 +276,7 @@ class WriteHighOverlapImpressionsRule(
 
     private val PROJECT_ID: String = env("GOOGLE_CLOUD_PROJECT")
 
-    /**
-     * EDPs whose impressions are encrypted with a Google Cloud KMS KEK, all of them edp7's: the
-     * synthetic EDPs have no KMS project of their own, and the Workload Identity condition gating
-     * the key admits the ResultsFulfiller service account and image signature, not an EDP.
-     */
+    /** EDPs whose impressions are encrypted with a Google Cloud KMS KEK. */
     private val GCP_KMS_EDPS: Set<String> =
       setOf(EDP7_NAME, EDPA_VIDEO_PUB_NAME, EDPA_RETAIL_PUB_NAME)
 

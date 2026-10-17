@@ -64,6 +64,20 @@ kt_jvm_library(
 )
 
 kt_jvm_test(
+    name = "HighOverlapExpectedReachTest",
+    srcs = ["HighOverlapExpectedReachTest.kt"],
+    test_class = "org.wfanet.measurement.integration.common.HighOverlapExpectedReachTest",
+    deps = [
+        ":high_overlap_expected_reach",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
+        "@com_google_protobuf//:protobuf_java",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "HighOverlapSpecsContractTest",
     srcs = ["HighOverlapSpecsContractTest.kt"],
     data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],

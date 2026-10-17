@@ -1,0 +1,6 @@
+# Rules are evaluated in order. If a file matches multiple patterns, the last matching rule takes precedence.
+# We don't use a default ownership rule that applies to all files.
+
+/.github/CODEOWNERS @TNATALI @laureanobrs
+
+/src/main/kotlin/org/wfanet/measurement/api/ @SanjayVas @kungfucraig @TNATALI @laureanobrs
