@@ -694,7 +694,8 @@ class ResultsFulfiller(
         } catch (e: StatusException) {
           val retryable =
             e.status.code == Status.Code.UNAVAILABLE ||
-              e.status.code == Status.Code.DEADLINE_EXCEEDED
+              e.status.code == Status.Code.DEADLINE_EXCEEDED ||
+              e.status.code == Status.Code.RESOURCE_EXHAUSTED
           if (!retryable || attempt >= listMaxAttempts) {
             throw Exception(
               "Error listing requisition metadata for dataProvider=$dataProvider, " +
