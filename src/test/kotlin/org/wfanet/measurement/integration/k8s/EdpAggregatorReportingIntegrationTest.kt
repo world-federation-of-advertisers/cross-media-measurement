@@ -54,7 +54,6 @@ import okhttp3.tls.HeldCertificate
 import okhttp3.tls.decodeCertificatePem
 import org.junit.ClassRule
 import org.junit.FixMethodOrder
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -427,8 +426,6 @@ class EdpAggregatorReportingIntegrationTest {
     }
   }
 
-  // DO_NOT_SUBMIT: temporarily ignored to shorten runs while calibrating weekly tolerances.
-  @Ignore
   @Test
   fun `media type and impression qualification filter report succeeds`() = runBlocking {
     check(MODEL_LINE.isNotEmpty()) { "model_line must be set to run this test" }
@@ -1509,19 +1506,18 @@ class EdpAggregatorReportingIntegrationTest {
         kingdomPublicApiTarget = TEST_CONFIG.kingdomPublicApiTarget,
         kingdomPublicApiCertHost = TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
       )
-    // DO_NOT_SUBMIT: seeding rules disabled while calibrating weekly tolerances.
-    // private val uploadEventGroups = UploadEventGroups()
-    // private val writeImpressions =
-    //   WriteHighOverlapImpressionsRule(
-    //     configProvider = { PROVISIONED_CONFIG },
-    //     populationSpecProvider = { POPULATION_SPEC },
-    //     bucket = TEST_CONFIG.storageBucket,
-    //     modelLineProvider = { MODEL_LINE.ifEmpty { null } },
-    //     edp7KekUri = TEST_CONFIG.edp7KekUri,
-    //     edpaMetaKekUri = TEST_CONFIG.edpaMetaKekUri,
-    //     edpaMetaAwsRoleArn = TEST_CONFIG.edpaMetaAwsRoleArn,
-    //     edpaMetaAwsRegion = TEST_CONFIG.edpaMetaAwsRegion,
-    //   )
+    private val uploadEventGroups = UploadEventGroups()
+    private val writeImpressions =
+      WriteHighOverlapImpressionsRule(
+        configProvider = { PROVISIONED_CONFIG },
+        populationSpecProvider = { POPULATION_SPEC },
+        bucket = TEST_CONFIG.storageBucket,
+        modelLineProvider = { MODEL_LINE.ifEmpty { null } },
+        edp7KekUri = TEST_CONFIG.edp7KekUri,
+        edpaMetaKekUri = TEST_CONFIG.edpaMetaKekUri,
+        edpaMetaAwsRoleArn = TEST_CONFIG.edpaMetaAwsRoleArn,
+        edpaMetaAwsRegion = TEST_CONFIG.edpaMetaAwsRegion,
+      )
     private val createDoneBlobs = CreateDoneBlobs()
     private val reportingSystem = ReportingSystem()
 
@@ -1530,10 +1526,8 @@ class EdpAggregatorReportingIntegrationTest {
     val chainedRule =
       chainRulesSequentially(
         provisionModelResources,
-        // DO_NOT_SUBMIT: seeding is skipped while calibrating weekly tolerances; the dataset is
-        // already seeded in the environment under test.
-        // uploadEventGroups,
-        // writeImpressions,
+        uploadEventGroups,
+        writeImpressions,
         createDoneBlobs,
         reportingSystem,
       )
