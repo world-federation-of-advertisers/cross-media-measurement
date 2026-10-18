@@ -17,6 +17,7 @@ package org.wfanet.measurement.integration.common
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import kotlin.math.ln
 import kotlin.math.sqrt
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
@@ -42,6 +43,12 @@ object HighOverlapExpectedReach {
     val reach: ClosedFloatingPointRange<Double>,
     /** Indexed by frequency - 1, so element `i` is the reach at frequency `i + 1` or more. */
     val kPlusReach: List<ClosedFloatingPointRange<Double>>,
+    /** Impressions, truncated per VID at the impression metric's maximum frequency per user. */
+    val impressions: ClosedFloatingPointRange<Double> = 0.0..0.0,
+    /** Impressions divided by reach, a ratio of two independently noised values. */
+    val averageFrequency: ClosedFloatingPointRange<Double> = 0.0..0.0,
+    /** Reach divided by the cell's population size, which the report returns unnoised. */
+    val percentReach: ClosedFloatingPointRange<Double> = 0.0..0.0,
     /** VIDs the population spec declares for this cell, which the report returns unnoised. */
     val populationSize: Long = 0L,
     /**
@@ -49,6 +56,12 @@ object HighOverlapExpectedReach {
      * component adds to the union of the components before it.
      */
     val stackedIncrementalReach: List<ClosedFloatingPointRange<Double>> = emptyList(),
+  )
+
+  /** Expected cumulative and non-cumulative metrics for one week of a weekly series. */
+  data class ExpectedWeeklyMetrics(
+    val cumulative: ExpectedMetrics,
+    val nonCumulative: ExpectedMetrics,
   )
 
   /** The demographic cell [common] belongs to, matching the report's `gender/ageGroup` grouping. */
@@ -268,6 +281,179 @@ object HighOverlapExpectedReach {
     return byCell
   }
 
+  /**
+   * Expected cumulative and non-cumulative metrics per week, keyed by demographic cell and filter.
+   *
+   * Weeks partition `[reportStart, reportStart + 7 * weekCount)`, matching the periods the report's
+   * weekly metric frequency produces. The single generation pass the whole-interval path already
+   * makes is reused: each event is bucketed by the week its date falls in, so cumulative values are
+   * prefix unions over those buckets rather than separate passes.
+   */
+  fun computeWeeklyRangesByDemographic(
+    config: ImpressionTestDataConfig,
+    eventGroupReferenceIds: Set<String>,
+    populationSpec: PopulationSpec,
+    reportStart: LocalDate,
+    weekCount: Int,
+    metricSpecConfig: MetricSpecConfig,
+    maxFrequency: Int,
+  ): Map<String, Map<String, List<ExpectedWeeklyMetrics>>> {
+    val demographics = DemographicIndex(populationSpec)
+    val weeklyFrequencies =
+      weeklyFrequenciesByEdpAndFilter(
+        config,
+        eventGroupReferenceIds,
+        populationSpec,
+        reportStart,
+        weekCount,
+      )
+    val params = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+    val impressionParams = metricSpecConfig.impressionCountParams
+
+    val byCell = mutableMapOf<String, MutableMap<String, List<ExpectedWeeklyMetrics>>>()
+    for (label in FILTER_PREDICATES.keys) {
+      // Union across EDPs, bucketed by cell: a VID reached through more than one EDP in a week is
+      // one person with the impressions of both.
+      val unionByCell = mutableMapOf<String, MutableMap<Long, IntArray>>()
+      for (byFilter in weeklyFrequencies.values) {
+        for ((vid, perWeek) in byFilter.getValue(label)) {
+          val key = demographics.keyOf(vid) ?: continue
+          val merged = unionByCell.getOrPut(key) { mutableMapOf() }
+          val target = merged.getOrPut(vid) { IntArray(weekCount) }
+          for (week in 0 until weekCount) {
+            target[week] += perWeek[week]
+          }
+        }
+      }
+
+      for ((key, perVid) in unionByCell) {
+        val weeks =
+          (0 until weekCount).map { week ->
+            val nonCumulative = mutableMapOf<Long, Int>()
+            val cumulative = mutableMapOf<Long, Int>()
+            for ((vid, perWeek) in perVid) {
+              if (perWeek[week] > 0) {
+                nonCumulative[vid] = perWeek[week]
+              }
+              var total = 0
+              for (earlier in 0..week) {
+                total += perWeek[earlier]
+              }
+              if (total > 0) {
+                cumulative[vid] = total
+              }
+            }
+            val populationSize = demographics.populationSizeByKey.getValue(key)
+            ExpectedWeeklyMetrics(
+              cumulative =
+                expectedMetrics(cumulative, params, maxFrequency, WEEKLY_RELATIVE_TOLERANCE)
+                  .withDerivedMetrics(cumulative, impressionParams, populationSize),
+              nonCumulative =
+                expectedMetrics(nonCumulative, params, maxFrequency, WEEKLY_RELATIVE_TOLERANCE)
+                  .withDerivedMetrics(nonCumulative, impressionParams, populationSize),
+            )
+          }
+        byCell.getOrPut(key) { mutableMapOf() }[label] = weeks
+      }
+    }
+    return byCell
+  }
+
+  /**
+   * Returns the impression count per VID per week matching each filter, by EDP.
+   *
+   * The same single generation pass as [frequenciesByEdpAndFilter], except each event is bucketed
+   * by the week its shard's date falls in. Events outside `[reportStart, reportStart + 7 *
+   * weekCount)` are dropped.
+   */
+  private fun weeklyFrequenciesByEdpAndFilter(
+    config: ImpressionTestDataConfig,
+    eventGroupReferenceIds: Set<String>,
+    populationSpec: PopulationSpec,
+    reportStart: LocalDate,
+    weekCount: Int,
+  ): Map<String, Map<String, MutableMap<Long, IntArray>>> {
+    val reportEnd = reportStart.plusWeeks(weekCount.toLong())
+    val start = reportStart.atStartOfDay().toInstant(ZoneOffset.UTC)
+    val endExclusive = reportEnd.atStartOfDay().toInstant(ZoneOffset.UTC)
+    val timeRange: OpenEndRange<Instant> = start..<endExclusive
+
+    val byEdp = mutableMapOf<String, Map<String, MutableMap<Long, IntArray>>>()
+    for (eventGroup in config.eventGroupsList) {
+      for (entityKeySpec in eventGroup.entityKeySpecsList) {
+        val referenceId = "${entityKeySpec.entityType}-${entityKeySpec.entityId}"
+        if (referenceId !in eventGroupReferenceIds) continue
+
+        val frequenciesByFilter =
+          byEdp.getOrPut(eventGroup.edpName) {
+            FILTER_PREDICATES.keys.associateWith { mutableMapOf() }
+          }
+        val spec =
+          ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(
+            entityKeySpec.dataSpecResourcePath
+          )
+        for (shard in
+          SyntheticDataGeneration.generateEvents(
+            TestEvent.getDefaultInstance(),
+            populationSpec,
+            spec,
+            timeRange,
+          )) {
+          val week = ChronoUnit.DAYS.between(reportStart, shard.localDate).toInt() / DAYS_PER_WEEK
+          if (week !in 0 until weekCount) continue
+          for (event in shard.labeledEvents) {
+            for ((label, predicate) in FILTER_PREDICATES) {
+              if (predicate(event.message)) {
+                val frequencies = frequenciesByFilter.getValue(label)
+                frequencies.getOrPut(event.vid) { IntArray(weekCount) }[week]++
+              }
+            }
+          }
+        }
+      }
+    }
+    return byEdp
+  }
+
+  /**
+   * Adds the metrics derived from [frequencies] that reach and K+ reach do not cover.
+   *
+   * `impressions` truncates each VID at [MetricSpecConfig.ImpressionCountParams]'s maximum
+   * frequency per user, which is both what the metric counts and what scales its noise: the
+   * sensitivity of an impression count is that maximum, so sigma is multiplied by it.
+   *
+   * `average_frequency` and `percent_reach` are ratios the report derives rather than measures.
+   * Their ranges are taken relative to the noiseless ratio rather than from a sigma, since the
+   * noise of a quotient of two noised values has no closed form here.
+   */
+  private fun ExpectedMetrics.withDerivedMetrics(
+    frequencies: Map<Long, Int>,
+    impressionCountParams: MetricSpecConfig.ImpressionCountParams,
+    populationSize: Long,
+  ): ExpectedMetrics {
+    val maxPerUser = impressionCountParams.maximumFrequencyPerUser
+    val impressionCount =
+      frequencies.values.sumOf { if (maxPerUser > 0) minOf(it, maxPerUser) else it }.toDouble()
+    val impressionTolerance =
+      maxOf(maxPerUser, 1) *
+        tolerance(
+          impressionCountParams.params.privacyParams,
+          impressionCountParams.params.vidSamplingInterval,
+        )
+    val reachCount = frequencies.size.toDouble()
+
+    return copy(
+      impressions = rangeAround(impressionCount, impressionTolerance, WEEKLY_RELATIVE_TOLERANCE),
+      averageFrequency =
+        if (reachCount == 0.0) 0.0..0.0
+        else rangeAround(impressionCount / reachCount, 0.0, RATIO_RELATIVE_TOLERANCE),
+      percentReach =
+        if (populationSize == 0L) 0.0..0.0
+        else rangeAround(reachCount / populationSize, 0.0, RATIO_RELATIVE_TOLERANCE),
+      populationSize = populationSize,
+    )
+  }
+
   private fun expectedMetrics(
     frequencies: Map<Long, Int>,
     reachAndFrequencyParams: MetricSpecConfig.ReachAndFrequencySamplingAndPrivacyParams,
@@ -424,6 +610,25 @@ object HighOverlapExpectedReach {
   private const val DEMOGRAPHIC_RELATIVE_TOLERANCE = 0.35
 
   /** Minimum margin for one stacked incremental contribution. */
+  private const val DAYS_PER_WEEK = 7
+
+  /**
+   * Relative tolerance for weekly values.
+   *
+   * A week carries roughly a ninth of the interval's reach while the additive noise per metric is
+   * unchanged, so weekly values sit closer to the noise floor than the whole-interval ones and need
+   * more room than [DEMOGRAPHIC_RELATIVE_TOLERANCE].
+   */
+  private const val WEEKLY_RELATIVE_TOLERANCE = 0.50
+
+  /**
+   * Relative tolerance for metrics the report derives as a ratio of two noised values.
+   *
+   * Both numerator and denominator carry their own noise, so the quotient's error is wider than
+   * either, and no closed form is available from the params the BasicReport exposes.
+   */
+  private const val RATIO_RELATIVE_TOLERANCE = 0.60
+
   private const val STACKED_RELATIVE_TOLERANCE = 0.50
 
   /** Two independently noised prefix reaches are subtracted, so their variances add. */
