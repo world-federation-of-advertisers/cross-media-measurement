@@ -349,14 +349,15 @@ object HighOverlapExpectedReach {
                 val reached = perVidInEdp.values.count { it[week] > 0 }.toDouble()
                 rangeAround(reached, reachTolerance, WEEKLY_RELATIVE_TOLERANCE)
               }
+            val cumulativeMetrics =
+              expectedMetrics(cumulative.toMap(), params, maxFrequency, WEEKLY_RELATIVE_TOLERANCE)
+                .copy(populationSize = populationSize)
             ExpectedWeeklyMetrics(
-              cumulative =
-                expectedMetrics(cumulative.toMap(), params, maxFrequency, WEEKLY_RELATIVE_TOLERANCE)
-                  .copy(populationSize = populationSize),
+              cumulative = cumulativeMetrics,
               nonCumulative =
                 expectedMetrics(nonCumulative, params, maxFrequency, WEEKLY_RELATIVE_TOLERANCE)
                   .copy(populationSize = populationSize),
-              cumulativePercentReach = percentReach(cumulative.size, populationSize),
+              cumulativePercentReach = percentReach(cumulativeMetrics.reach, populationSize),
               nonCumulativeImpressions = impressions(nonCumulative, impressionParams),
               nonCumulativeAverageFrequency = averageFrequency(nonCumulative, impressionParams),
               componentNonCumulativeReach = componentReach,
@@ -464,11 +465,19 @@ object HighOverlapExpectedReach {
     return rangeAround(count / frequencies.size, 0.0, RATIO_RELATIVE_TOLERANCE)
   }
 
-  /** Expected reach as a percentage of [populationSize], which is how the report reports it. */
-  private fun percentReach(reach: Int, populationSize: Long): ClosedFloatingPointRange<Double> {
-    if (populationSize == 0L || reach == 0) return 0.0..0.0
-    val percent = reach.toDouble() / populationSize * PERCENT
-    return rangeAround(percent, 0.0, RATIO_RELATIVE_TOLERANCE)
+  /**
+   * Expected reach as a percentage of [populationSize], which is how the report reports it.
+   *
+   * Scaled from [reach] rather than given its own tolerance: the report derives percent reach from
+   * the same noised reach by an unnoised constant, so the band is that transform of [reach]'s.
+   */
+  private fun percentReach(
+    reach: ClosedFloatingPointRange<Double>,
+    populationSize: Long,
+  ): ClosedFloatingPointRange<Double> {
+    if (populationSize == 0L) return 0.0..0.0
+    val scale = PERCENT / populationSize
+    return (reach.start * scale)..(reach.endInclusive * scale)
   }
 
   private fun expectedMetrics(
