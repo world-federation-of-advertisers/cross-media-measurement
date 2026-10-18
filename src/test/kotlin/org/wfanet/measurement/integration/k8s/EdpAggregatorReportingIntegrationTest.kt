@@ -802,10 +802,7 @@ class EdpAggregatorReportingIntegrationTest {
 
     val expectedWeekEnds: List<Long> =
       (1..WEEKLY_PERIOD_COUNT).map {
-        WEEKLY_REPORT_START.plusWeeks(it.toLong())
-          .atStartOfDay(ZONE_ID)
-          .toInstant()
-          .epochSecond
+        WEEKLY_REPORT_START.plusWeeks(it.toLong()).atStartOfDay(ZONE_ID).toInstant().epochSecond
       }
 
     val comparisons = mutableListOf<MetricComparison>()

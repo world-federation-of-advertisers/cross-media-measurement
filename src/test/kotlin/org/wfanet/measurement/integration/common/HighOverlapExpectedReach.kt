@@ -322,9 +322,8 @@ object HighOverlapExpectedReach {
           for (week in 0 until weekCount) {
             target[week] += perWeek[week]
           }
-          perEdpByCell
-            .getOrPut(key) { mutableMapOf() }
-            .getOrPut(edpName) { mutableMapOf() }[vid] = perWeek
+          perEdpByCell.getOrPut(key) { mutableMapOf() }.getOrPut(edpName) { mutableMapOf() }[vid] =
+            perWeek
         }
       }
 
@@ -352,12 +351,7 @@ object HighOverlapExpectedReach {
               }
             ExpectedWeeklyMetrics(
               cumulative =
-                expectedMetrics(
-                    cumulative.toMap(),
-                    params,
-                    maxFrequency,
-                    WEEKLY_RELATIVE_TOLERANCE,
-                  )
+                expectedMetrics(cumulative.toMap(), params, maxFrequency, WEEKLY_RELATIVE_TOLERANCE)
                   .copy(populationSize = populationSize),
               nonCumulative =
                 expectedMetrics(nonCumulative, params, maxFrequency, WEEKLY_RELATIVE_TOLERANCE)
@@ -378,9 +372,9 @@ object HighOverlapExpectedReach {
     for (key in demographics.keys) {
       val byFilter = byCell[key]
       require(byFilter != null && byFilter.keys.containsAll(FILTER_PREDICATES.keys)) {
-        "No weekly expectations for demographic cell $key under filters " +
-          "${FILTER_PREDICATES.keys - byFilter?.keys.orEmpty()}: the dataset reaches nobody there, " +
-          "but the report returns a result for every cell and filter"
+        "No weekly expectations for cell $key under filters " +
+          "${FILTER_PREDICATES.keys - byFilter?.keys.orEmpty()}: the dataset reaches nobody " +
+          "there, but the report returns a result for every cell and filter"
       }
     }
     return byCell
@@ -471,10 +465,7 @@ object HighOverlapExpectedReach {
   }
 
   /** Expected reach divided by [populationSize]. */
-  private fun percentReach(
-    reach: Int,
-    populationSize: Long,
-  ): ClosedFloatingPointRange<Double> {
+  private fun percentReach(reach: Int, populationSize: Long): ClosedFloatingPointRange<Double> {
     if (populationSize == 0L) return 0.0..0.0
     return rangeAround(reach.toDouble() / populationSize, 0.0, RATIO_RELATIVE_TOLERANCE)
   }
