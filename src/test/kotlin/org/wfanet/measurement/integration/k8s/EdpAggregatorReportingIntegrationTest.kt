@@ -847,18 +847,42 @@ class EdpAggregatorReportingIntegrationTest {
             expected.cumulativePercentReach,
           )
 
-        comparisons +=
-          MetricComparison(
-            "$prefix non-cumulative impressions",
-            metricSet.nonCumulative.impressions.toDouble(),
-            expected.nonCumulativeImpressions,
-          )
-        comparisons +=
-          MetricComparison(
-            "$prefix non-cumulative average frequency",
-            metricSet.nonCumulative.averageFrequency.toDouble(),
-            expected.nonCumulativeAverageFrequency,
-          )
+        // DO_NOT_SUBMIT: impressions and average frequency are not measurable in these
+        // environments with the current config, so asserting on them cannot pass or fail
+        // meaningfully.
+        //
+        // `impression_count_params.maximum_frequency_per_user` is 60 in
+        // `basic_report_metric_spec_config.textproto`, and it sets the DP sensitivity of an
+        // impression count. The high overlap dataset caps a VID at frequency 5 (FREQUENCY_MIX),
+        // so the noise is scaled 12x larger than the data warrants:
+        //
+        //   sigma = 60 * sqrt(2 * ln(1.25 / 1e-12)) / (0.011 * 0.20666666) = ~197,000
+        //
+        // against per-week, per-cell expectations of ~100,000. The noise exceeds the signal, so
+        // any tolerance wide enough to avoid false failures also admits a 150x error. Measured
+        // deviations in a dev run were 0.25, 0.48, 2.83 and 0.61 sigma, with expectations
+        // verified exact against the seeded data.
+        //
+        // Average frequency is impressions / reach as computed by the report, so it inherits the
+        // same noise.
+        //
+        // The alternative is to lower `maximum_frequency_per_user` to match the dataset, which
+        // would cut sigma to ~16,000 and make both metrics measurable. That config is deployed to
+        // the Reporting server in every environment, so it would need checking against the other
+        // datasets that use it for truncation bias.
+        //
+        // comparisons +=
+        //   MetricComparison(
+        //     "$prefix non-cumulative impressions",
+        //     metricSet.nonCumulative.impressions.toDouble(),
+        //     expected.nonCumulativeImpressions,
+        //   )
+        // comparisons +=
+        //   MetricComparison(
+        //     "$prefix non-cumulative average frequency",
+        //     metricSet.nonCumulative.averageFrequency.toDouble(),
+        //     expected.nonCumulativeAverageFrequency,
+        //   )
 
         metricSet.nonCumulative.kPlusReachList.forEachIndexed { index, value ->
           if (index < expected.nonCumulative.kPlusReach.size) {

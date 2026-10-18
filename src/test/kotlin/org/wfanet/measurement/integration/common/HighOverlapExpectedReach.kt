@@ -464,10 +464,11 @@ object HighOverlapExpectedReach {
     return rangeAround(count / frequencies.size, 0.0, RATIO_RELATIVE_TOLERANCE)
   }
 
-  /** Expected reach divided by [populationSize]. */
+  /** Expected reach as a percentage of [populationSize], which is how the report reports it. */
   private fun percentReach(reach: Int, populationSize: Long): ClosedFloatingPointRange<Double> {
-    if (populationSize == 0L) return 0.0..0.0
-    return rangeAround(reach.toDouble() / populationSize, 0.0, RATIO_RELATIVE_TOLERANCE)
+    if (populationSize == 0L || reach == 0) return 0.0..0.0
+    val percent = reach.toDouble() / populationSize * PERCENT
+    return rangeAround(percent, 0.0, RATIO_RELATIVE_TOLERANCE)
   }
 
   private fun expectedMetrics(
@@ -627,6 +628,8 @@ object HighOverlapExpectedReach {
 
   /** Minimum margin for one stacked incremental contribution. */
   private const val DAYS_PER_WEEK = 7
+
+  private const val PERCENT = 100.0
 
   /**
    * Relative tolerance for weekly values.
