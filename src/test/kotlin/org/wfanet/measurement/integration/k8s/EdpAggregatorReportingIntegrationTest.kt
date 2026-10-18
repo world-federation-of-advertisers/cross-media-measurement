@@ -483,6 +483,9 @@ class EdpAggregatorReportingIntegrationTest {
   /** Component EDPs of the weekly reporting unit, in the order the request lists them. */
   private lateinit var weeklyComponentEdpNames: List<String>
 
+  /** EDP display name per DataProvider resource name. */
+  private lateinit var weeklyEdpNameByDataProvider: Map<String, String>
+
   /** Expected weekly metrics per demographic cell and filter, indexed by week. */
   private val expectedWeeklyMetrics:
     Map<String, Map<String, List<HighOverlapExpectedReach.ExpectedWeeklyMetrics>>> by lazy {
@@ -534,6 +537,7 @@ class EdpAggregatorReportingIntegrationTest {
         it.cmmsDataProvider to EDP_NAME_BY_EVENT_GROUP_REF_ID.getValue(it.eventGroupReferenceId)
       }
     weeklyComponentEdpNames = dataProviderNames.map { edpNameByDataProvider.getValue(it) }
+    weeklyEdpNameByDataProvider = edpNameByDataProvider
 
     return listOf(
       resultGroupSpec {
@@ -787,21 +791,7 @@ class EdpAggregatorReportingIntegrationTest {
     }
   }
 
-  /**
-   * Checks the whole-interval group against the values the synthetic specs imply, per demographic
-   * cell.
-   *
-   * Every metric is compared before anything fails, so one bad cell reads differently from a
-   * systematic shift across all of them.
-   */
-  /**
-   * Checks every weekly value against expectations derived from the synthetic specs.
-   *
-   * Both cumulative and non-cumulative reach and K+ reach are compared, per demographic cell, per
-   * filter, per week. Week boundaries are asserted first: the expectations partition the interval
-   * into [WEEKLY_PERIOD_COUNT] whole weeks from [WEEKLY_REPORT_START], so a report whose periods
-   * end elsewhere would otherwise be compared against the wrong windows.
-   */
+  /** Checks every weekly value against expectations derived from the synthetic specs. */
   private fun assertWeeklyMetricsMatchSpecs(report: BasicReport) {
     val resultGroup = resultGroupOf(report, WEEKLY_GROUP_TITLE)
     val expectedByCell = expectedWeeklyMetrics
@@ -850,26 +840,24 @@ class EdpAggregatorReportingIntegrationTest {
             expected.nonCumulative.reach,
           )
 
-        // Requested on the cumulative set only; the population size it divides by is unnoised.
         comparisons +=
           MetricComparison(
             "$prefix cumulative percent reach",
             metricSet.cumulative.percentReach.toDouble(),
-            expected.cumulative.percentReach,
+            expected.cumulativePercentReach,
           )
 
-        // Requested on the non-cumulative set only.
         comparisons +=
           MetricComparison(
             "$prefix non-cumulative impressions",
             metricSet.nonCumulative.impressions.toDouble(),
-            expected.nonCumulative.impressions,
+            expected.nonCumulativeImpressions,
           )
         comparisons +=
           MetricComparison(
             "$prefix non-cumulative average frequency",
             metricSet.nonCumulative.averageFrequency.toDouble(),
-            expected.nonCumulative.averageFrequency,
+            expected.nonCumulativeAverageFrequency,
           )
 
         metricSet.nonCumulative.kPlusReachList.forEachIndexed { index, value ->
@@ -887,6 +875,23 @@ class EdpAggregatorReportingIntegrationTest {
         assertWithMessage("$prefix population size")
           .that(result.metricSet.populationSize)
           .isEqualTo(expected.nonCumulative.populationSize)
+
+        // Components are keyed by DataProvider resource name; expectations by EDP display name.
+        val componentsByEdp =
+          result.metricSet.componentsList.associate { entry ->
+            weeklyEdpNameByDataProvider.getValue(entry.key) to entry.value
+          }
+        assertWithMessage("$prefix components")
+          .that(componentsByEdp.keys)
+          .containsExactlyElementsIn(expected.componentNonCumulativeReach.keys)
+        for ((edpName, componentMetricSet) in componentsByEdp) {
+          comparisons +=
+            MetricComparison(
+              "$prefix $edpName non-cumulative reach",
+              componentMetricSet.nonCumulative.reach.toDouble(),
+              expected.componentNonCumulativeReach.getValue(edpName),
+            )
+        }
       }
     }
 
@@ -903,6 +908,13 @@ class EdpAggregatorReportingIntegrationTest {
       .isEmpty()
   }
 
+  /**
+   * Checks the whole-interval group against the values the synthetic specs imply, per demographic
+   * cell.
+   *
+   * Every metric is compared before anything fails, so one bad cell reads differently from a
+   * systematic shift across all of them.
+   */
   private fun assertWholeIntervalMetricsMatchSpecs(report: BasicReport) {
     val resultGroup = resultGroupOf(report, TOTAL_GROUP_TITLE)
     val expectedByCell = expectedWholeIntervalMetrics
