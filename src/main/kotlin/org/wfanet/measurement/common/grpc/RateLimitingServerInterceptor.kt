@@ -46,6 +46,6 @@ class RateLimitingServerInterceptor(
 
   companion object {
     private val RATE_LIMIT_EXCEEDED_STATUS =
-      Status.RESOURCE_EXHAUSTED.withDescription("Rate limit exceeded")
+      Status.UNAVAILABLE.withDescription("Rate limit exceeded")
   }
 }
