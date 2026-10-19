@@ -1226,9 +1226,12 @@ class FilterProcessorTest {
   }
 
   @Test
-  fun `processBatch accepts mapped reference ID for an entity-key filter`() {
+  fun `processBatch accepts reference-only batch using equivalent reference ID`() {
     val filterSpec =
-      createTestFilterSpec(entityKeys = setOf(makeEntityKey("campaign", "entity/123")))
+      createTestFilterSpec(
+        eventGroupReferenceIds = setOf("ref/123"),
+        entityKeys = setOf(makeEntityKey("campaign", "entity/123")),
+      )
     val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
     val events =
       listOf(
@@ -1242,8 +1245,8 @@ class FilterProcessorTest {
           events,
           EventGroupIdentifier(
             eventGroupReferenceId = "ref/123",
-            entityKeys = setOf(makeEntityKey("campaign", "entity/123")),
-            wholeBlobEntityKeyGroups = setOf(makeEntityKeyGroup("campaign", "entity/123")),
+            entityKeys = emptySet(),
+            wholeBlobEntityKeyGroups = emptySet(),
           ),
         )
       )
