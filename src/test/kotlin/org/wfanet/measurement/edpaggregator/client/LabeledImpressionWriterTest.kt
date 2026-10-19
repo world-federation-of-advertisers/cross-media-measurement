@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -45,6 +46,12 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 
 class LabeledImpressionWriterTest {
   @get:Rule val temporaryFolder = TemporaryFolder()
+
+  @Before
+  fun createBuckets() {
+    temporaryFolder.root.resolve("operator-bucket").mkdir()
+    temporaryFolder.root.resolve("another-bucket").mkdir()
+  }
 
   @Test
   fun `write produces decryptable RecordIO and matching sidecar`() = runBlocking {
