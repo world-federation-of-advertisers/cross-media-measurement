@@ -21,6 +21,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.Any
+import com.google.protobuf.ByteString
 import com.google.type.interval
 import java.nio.file.Files
 import java.time.Instant
@@ -42,6 +43,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
+import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 class LabeledImpressionWriterTest {
@@ -186,10 +188,11 @@ class LabeledImpressionWriterTest {
     }
 
   @Test
-  fun `write does not publish metadata when an impression is invalid`() = runBlocking {
+  fun `write removes both objects when a later impression is invalid`() = runBlocking {
     val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
+    val validImpression = impression(vid = 101L, entityKeys = listOf("campaign" to "campaign-1"))
     val invalidImpression =
-      impression(vid = 101L, entityKeys = listOf("campaign" to "campaign-1"))
+      impression(vid = 102L, entityKeys = listOf("campaign" to "campaign-1"))
         .toBuilder()
         .clearEntityKeys()
         .build()
@@ -197,7 +200,7 @@ class LabeledImpressionWriterTest {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         writer.write(
-          impressions = flowOf(invalidImpression),
+          impressions = flowOf(validImpression, invalidImpression),
           blobUri = BLOB_URI,
           metadataUri = METADATA_URI,
           kekUri = KEK_URI,
@@ -207,6 +210,7 @@ class LabeledImpressionWriterTest {
       }
 
     assertThat(exception).hasMessageThat().contains("at least one entity key")
+    assertThat(getBlob(BLOB_URI)).isNull()
     assertThat(getBlob(METADATA_URI)).isNull()
   }
 
@@ -232,6 +236,7 @@ class LabeledImpressionWriterTest {
       }
 
     assertThat(exception).hasMessageThat().contains("event must have a type URL")
+    assertThat(getBlob(BLOB_URI)).isNull()
     assertThat(getBlob(METADATA_URI)).isNull()
   }
 
@@ -257,6 +262,7 @@ class LabeledImpressionWriterTest {
       }
 
     assertThat(exception).hasMessageThat().contains("event time must be within interval")
+    assertThat(getBlob(BLOB_URI)).isNull()
     assertThat(getBlob(METADATA_URI)).isNull()
   }
 
@@ -277,7 +283,102 @@ class LabeledImpressionWriterTest {
       }
 
     assertThat(exception).hasMessageThat().contains("must not be empty")
+    assertThat(getBlob(BLOB_URI)).isNull()
     assertThat(getBlob(METADATA_URI)).isNull()
+  }
+
+  @Test
+  fun `write rejects a non URL-safe entity type without publishing objects`() = runBlocking {
+    val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        writer.write(
+          impressions = flowOf(impression(vid = 101L, entityKeys = listOf("ad/type" to "ad-1"))),
+          blobUri = BLOB_URI,
+          metadataUri = METADATA_URI,
+          kekUri = KEK_URI,
+          modelLine = MODEL_LINE,
+          interval = INTERVAL,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("type must be URL-safe")
+    assertThat(getBlob(BLOB_URI)).isNull()
+    assertThat(getBlob(METADATA_URI)).isNull()
+  }
+
+  @Test
+  fun `write rejects a non URL-safe entity ID without publishing objects`() = runBlocking {
+    val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        writer.write(
+          impressions = flowOf(impression(vid = 101L, entityKeys = listOf("ad" to "ad%2F1"))),
+          blobUri = BLOB_URI,
+          metadataUri = METADATA_URI,
+          kekUri = KEK_URI,
+          modelLine = MODEL_LINE,
+          interval = INTERVAL,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("ID must be URL-safe")
+    assertThat(getBlob(BLOB_URI)).isNull()
+    assertThat(getBlob(METADATA_URI)).isNull()
+  }
+
+  @Test
+  fun `write refuses to overwrite an existing publication`() = runBlocking {
+    val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
+    writer.write(
+      impressions = flowOf(impression(vid = 101L, entityKeys = listOf("ad" to "ad-1"))),
+      blobUri = BLOB_URI,
+      metadataUri = METADATA_URI,
+      kekUri = KEK_URI,
+      modelLine = MODEL_LINE,
+      interval = INTERVAL,
+    )
+    val originalBlob = readRawBlob(BLOB_URI)
+    val originalMetadata = readRawBlob(METADATA_URI)
+
+    assertFailsWith<BlobChangedException> {
+      writer.write(
+        impressions = flowOf(impression(vid = 202L, entityKeys = listOf("ad" to "ad-2"))),
+        blobUri = BLOB_URI,
+        metadataUri = METADATA_URI,
+        kekUri = KEK_URI,
+        modelLine = MODEL_LINE,
+        interval = INTERVAL,
+      )
+    }
+
+    assertThat(readRawBlob(BLOB_URI)).isEqualTo(originalBlob)
+    assertThat(readRawBlob(METADATA_URI)).isEqualTo(originalMetadata)
+  }
+
+  @Test
+  fun `write removes the new blob when the metadata destination already exists`() = runBlocking {
+    val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
+    val existingMetadata = ByteString.copyFromUtf8("existing metadata")
+    val metadataUri = SelectedStorageClient.parseBlobUri(METADATA_URI)
+    SelectedStorageClient(metadataUri, temporaryFolder.root)
+      .writeBlob(metadataUri.key, existingMetadata)
+
+    assertFailsWith<BlobChangedException> {
+      writer.write(
+        impressions = flowOf(impression(vid = 101L, entityKeys = listOf("ad" to "ad-1"))),
+        blobUri = BLOB_URI,
+        metadataUri = METADATA_URI,
+        kekUri = KEK_URI,
+        modelLine = MODEL_LINE,
+        interval = INTERVAL,
+      )
+    }
+
+    assertThat(getBlob(BLOB_URI)).isNull()
+    assertThat(readRawBlob(METADATA_URI)).isEqualTo(existingMetadata)
   }
 
   @Test
@@ -314,6 +415,8 @@ class LabeledImpressionWriterTest {
   private suspend fun getBlob(uri: String) =
     SelectedStorageClient(uri, temporaryFolder.root)
       .getBlob(SelectedStorageClient.parseBlobUri(uri).key)
+
+  private suspend fun readRawBlob(uri: String): ByteString = getBlob(uri)!!.read().flatten()
 
   private fun buildKmsClient(): FakeKmsClient {
     AeadConfig.register()
