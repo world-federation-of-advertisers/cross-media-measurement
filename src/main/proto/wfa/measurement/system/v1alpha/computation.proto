@@ -48,6 +48,9 @@ message Computation {
   ];
 
   // Serialized `MeasurementSpec` from public API. Required.
+  //
+  // For a multimeasurement, this is the `Measurement`'s
+  // `unsigned_measurement_spec`.
   bytes measurement_spec = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE

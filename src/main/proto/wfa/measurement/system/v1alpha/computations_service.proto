@@ -96,26 +96,28 @@ message SetComputationResultRequest {
   ];
 
   // Resource name of a `Certificate` belonging to the aggregator `Duchy`.
-  string aggregator_certificate = 2 [
-    (google.api.resource_reference).type = "halo.wfanet.org/Certificate",
-    (google.api.field_behavior) = REQUIRED
-  ];
+  //
+  // Required unless `result` is set.
+  string aggregator_certificate = 2
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 
   // Serialized `EncryptionPublicKey` message from the public API.
-  bytes result_public_key = 3 [(google.api.field_behavior) = REQUIRED];
+  //
+  // Required unless `result` is set.
+  bytes result_public_key = 3;
 
   // Encrypted `SignedData` message from the public API containing a serialized
   // `Result` message from the public API, which can be verified using
-  // `aggregator_certificate.
+  // `aggregator_certificate`.
   //
-  // A multimeasurement sets `result` instead.
-  bytes encrypted_result = 4 [(google.api.field_behavior) = REQUIRED];
+  // Exactly one of `encrypted_result` and `result` is set.
+  bytes encrypted_result = 4;
 
   // Serialized `Result` message from the public API, neither signed nor
   // encrypted.
   //
-  // Set instead of `encrypted_result` for a multimeasurement, whose one
-  // `Result` carries every cell in `Result.multimeasurement_result`.
+  // Set only when the `Result` is a `MultimeasurementResult`, which carries
+  // every cell of a multimeasurement.
   bytes result = 6;
 
   // Version of the public API for serialized message definitions.

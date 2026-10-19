@@ -25,14 +25,8 @@ option java_multiple_files = true;
 message PopulationAttributeValue {
   // Value type selector.
   oneof selector {
-    // Value as a string.
-    string string_value = 1;
     // Value as the symbol of an enum value, e.g. "VIDEO" rather than "1".
-    string enum_value = 2;
-    // Value as a Boolean.
-    bool bool_value = 3;
-    // Value as a float.
-    float float_value = 4;
+    string enum_value = 1;
   }
 }
 
@@ -74,10 +68,11 @@ message Query {
   // GROUP BY. One result per combination of the values these fields take
   // across [PopulationSpec.subpopulations][], resolved per VID from the
   // subpopulation it falls in. Each entry is the path of a
-  // population attribute field.
+  // population attribute field. Entries are distinct.
   repeated string grouping_paths = 4;
 
   // Counts above this fold into the top bin of the frequency histogram.
+  // Greater than 0.
   //
   // Every cell reports reach, frequency and impressions; they read off one
   // histogram, so producing all three costs no more than producing one.
