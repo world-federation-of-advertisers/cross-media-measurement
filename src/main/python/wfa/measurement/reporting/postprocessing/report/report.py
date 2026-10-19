@@ -74,6 +74,16 @@ CONSISTENCY_TEST_TOLERANCE = 1.0
 LARGE_CORRECTION_THRESHOLD = 1.0
 
 
+def _sorted_edp_combinations(
+    edp_combinations: set[EdpCombination],
+) -> list[EdpCombination]:
+  """Returns EDP combinations in a stable order."""
+  return sorted(
+      edp_combinations,
+      key=lambda combination: tuple(sorted(combination)),
+  )
+
+
 def fuzzy_equal(val: float, target: float, tolerance: float) -> bool:
   """Checks if two float values are approximately equal within an absolute tolerance."""
   return math.isclose(val, target, rel_tol=0.0, abs_tol=tolerance)
@@ -682,10 +692,12 @@ class Report:
     self._index_to_measurement_name = {}
     self._measurement_name_to_measurement = {}
     self._max_standard_deviation = UNIT_SCALING_FACTOR
-    for metric in metric_reports.keys():
+    for metric in sorted(metric_reports):
       metric_report = metric_reports[metric]
       # Assigns an index for whole campaign reaches.
-      for edp_combination in metric_report.get_whole_campaign_reach_edp_combinations():
+      for edp_combination in _sorted_edp_combinations(
+          metric_report.get_whole_campaign_reach_edp_combinations()
+      ):
         measurement = metric_report.get_whole_campaign_reach_measurement(
           edp_combination)
         self._measurement_name_to_index[measurement.name] = measurement_index
@@ -696,7 +708,9 @@ class Report:
         measurement_index += 1
 
       # Assigns an index for cumulative reaches.
-      for edp_combination in metric_report.get_weekly_cumulative_reach_edp_combinations():
+      for edp_combination in _sorted_edp_combinations(
+          metric_report.get_weekly_cumulative_reach_edp_combinations()
+      ):
         for period in range(0, self._num_periods):
           measurement = metric_report.get_weekly_cumulative_reach_measurement(
             edp_combination, period)
@@ -708,7 +722,9 @@ class Report:
           measurement_index += 1
 
       # Assign an index for whole campaign k_reach.
-      for edp_combination in metric_report.get_whole_campaign_k_reach_edp_combinations():
+      for edp_combination in _sorted_edp_combinations(
+          metric_report.get_whole_campaign_k_reach_edp_combinations()
+      ):
         for frequency in range(1, self._num_frequencies + 1):
           measurement = metric_report.get_whole_campaign_k_reach_measurement(
                   edp_combination, frequency)
@@ -720,7 +736,9 @@ class Report:
           measurement_index += 1
 
       # Assigns an index for whole campaign impressions.
-      for edp_combination in metric_report.get_whole_campaign_impression_edp_combinations():
+      for edp_combination in _sorted_edp_combinations(
+          metric_report.get_whole_campaign_impression_edp_combinations()
+      ):
         measurement = metric_report.get_whole_campaign_impression_measurement(
           edp_combination)
         self._measurement_name_to_index[measurement.name] = measurement_index
@@ -731,7 +749,9 @@ class Report:
         measurement_index += 1
 
       # Assign an index for weekly non cumulative reach.
-      for edp_combination in metric_report.get_weekly_non_cumulative_reach_edp_combinations():
+      for edp_combination in _sorted_edp_combinations(
+          metric_report.get_weekly_non_cumulative_reach_edp_combinations()
+      ):
         for period in range(0, self._num_periods):
           measurement = metric_report.get_weekly_non_cumulative_reach_measurement(
             edp_combination, period)
@@ -743,7 +763,9 @@ class Report:
           measurement_index += 1
 
       # Assign an index for weekly non cumulative k-reach.
-      for edp_combination in metric_report.get_weekly_non_cumulative_k_reach_edp_combinations():
+      for edp_combination in _sorted_edp_combinations(
+          metric_report.get_weekly_non_cumulative_k_reach_edp_combinations()
+      ):
         for period in range(0, self._num_periods):
           for frequency in range(1, self._num_frequencies + 1):
             measurement = metric_report.get_weekly_non_cumulative_k_reach_measurement(
@@ -756,7 +778,9 @@ class Report:
             measurement_index += 1
 
       # Assign an index for weekly non cumulative impression.
-      for edp_combination in metric_report.get_weekly_non_cumulative_impression_edp_combinations():
+      for edp_combination in _sorted_edp_combinations(
+          metric_report.get_weekly_non_cumulative_impression_edp_combinations()
+      ):
         for period in range(0, self._num_periods):
           measurement = metric_report.get_weekly_non_cumulative_impression_measurement(
             edp_combination, period)
@@ -1241,13 +1265,13 @@ class Report:
               set_id_one=self._get_measurement_index(
                   metric_report.get_whole_campaign_impression_measurement(
                       edp_combination)),
-              set_id_two=[
+              set_id_two=sorted([
                   self._get_measurement_index(
                       metric_report.get_whole_campaign_impression_measurement(
                           child_edp)
                   )
                   for child_edp in single_edp_subset
-              ]
+              ])
           )
 
       # Gets relations for weekly non cumulative impression.
@@ -1270,13 +1294,13 @@ class Report:
                   set_id_one=self._get_measurement_index(
                       metric_report.get_weekly_non_cumulative_impression_measurement(
                           edp_combination, period)),
-                  set_id_two=[
+                  set_id_two=sorted([
                       self._get_measurement_index(
                           metric_report.get_weekly_non_cumulative_impression_measurement(
                               child_edp, period)
                       )
                       for child_edp in single_edp_subset
-                  ]
+                  ])
               )
 
 
