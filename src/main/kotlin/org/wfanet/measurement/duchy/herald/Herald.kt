@@ -325,8 +325,15 @@ class Herald(
             blobStorageBucket,
           )
         }
-        Computation.MpcProtocolConfig.ProtocolCase.TRUS_TEE_V2 ->
-          error("TrusTEE v2 is not implemented")
+        Computation.MpcProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> {
+          TrusTeeV2Starter.createComputation(
+            duchyId,
+            internalComputationsClient,
+            systemComputation,
+            protocolsSetupConfig.trusTee,
+            blobStorageBucket,
+          )
+        }
         Computation.MpcProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET ->
           error("Unknown or unsupported protocol for creation.")
       }
@@ -428,7 +435,9 @@ class Herald(
         ComputationDetails.ProtocolCase.TRUS_TEE -> {
           TrusTeeStarter.startComputation(token, internalComputationsClient)
         }
-        ComputationDetails.ProtocolCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+        ComputationDetails.ProtocolCase.TRUS_TEE_V2 -> {
+          TrusTeeV2Starter.startComputation(token, internalComputationsClient)
+        }
         ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
           error("Unknown or unsupported protocol.")
       }
@@ -485,7 +494,9 @@ class Herald(
         (token.computationDetails.hasHonestMajorityShareShuffle() &&
           token.computationStage == HonestMajorityShareShuffleStarter.TERMINAL_STAGE) ||
         (token.computationDetails.hasTrusTee() &&
-          token.computationStage == TrusTeeStarter.TERMINAL_STAGE)
+          token.computationStage == TrusTeeStarter.TERMINAL_STAGE) ||
+        (token.computationDetails.hasTrusTeeV2() &&
+          token.computationStage == TrusTeeV2Starter.TERMINAL_STAGE)
     ) {
       return
     }
@@ -501,7 +512,7 @@ class Herald(
           ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
             HonestMajorityShareShuffleStarter.TERMINAL_STAGE
           ComputationDetails.ProtocolCase.TRUS_TEE -> TrusTeeStarter.TERMINAL_STAGE
-          ComputationDetails.ProtocolCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+          ComputationDetails.ProtocolCase.TRUS_TEE_V2 -> TrusTeeV2Starter.TERMINAL_STAGE
           ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
             error { "Unknown or unsupported protocol." }
         }
