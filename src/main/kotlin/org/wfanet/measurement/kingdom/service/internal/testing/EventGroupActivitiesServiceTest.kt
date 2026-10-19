@@ -197,6 +197,42 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
     }
 
   @Test
+  fun `batchUpdateEventGroupActivities uses parent EventGroup ID when child omits it`() =
+    runBlocking {
+      val activityDate = date {
+        year = 2025
+        month = 12
+        day = 1
+      }
+      val request = batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+        requests += updateEventGroupActivityRequest {
+          allowMissing = true
+          eventGroupActivity = eventGroupActivity { date = activityDate }
+        }
+      }
+
+      val startTime = Instant.now()
+      val activity =
+        eventGroupActivitiesService
+          .batchUpdateEventGroupActivities(request)
+          .eventGroupActivitiesList
+          .single()
+
+      assertThat(activity)
+        .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+        .isEqualTo(
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = activityDate
+          }
+        )
+      assertThat(activity.createTime.toInstant()).isGreaterThan(startTime)
+    }
+
+  @Test
   fun `batchUpdateEventGroupActivities creates activities under multiple EventGroups`() =
     runBlocking {
       val secondEventGroup = createEventGroup(dataProvider)
@@ -295,6 +331,56 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
           .eventGroupActivitiesList
       assertThat(activities).isEmpty()
     }
+
+  @Test
+  fun `batchUpdateEventGroupActivities is atomic when an activity does not exist`() = runBlocking {
+    val secondEventGroup = createEventGroup(dataProvider)
+    val firstDate = date {
+      year = 2025
+      month = 12
+      day = 1
+    }
+    val secondDate = date {
+      year = 2025
+      month = 12
+      day = 2
+    }
+    val request = batchUpdateEventGroupActivitiesRequest {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = firstDate
+        }
+      }
+      requests += updateEventGroupActivityRequest {
+        allowMissing = false
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = secondEventGroup.externalEventGroupId
+          date = secondDate
+        }
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("EventGroupActivity not found")
+
+    val activities =
+      eventGroupActivitiesService
+        .listEventGroupActivities(
+          listEventGroupActivitiesRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+          }
+        )
+        .eventGroupActivitiesList
+    assertThat(activities).isEmpty()
+  }
 
   @Test
   fun `batchUpdateEventGroupActivities returns updated existing EventGroupActivities`() =

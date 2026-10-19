@@ -156,6 +156,8 @@ class SpannerEventGroupActivitiesService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: EventGroupNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: EventGroupActivityNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
