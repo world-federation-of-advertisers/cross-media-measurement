@@ -38,8 +38,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
@@ -606,9 +606,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
         val metadataFiles =
           scanDir
             .walkTopDown()
-            .filter {
-              it.isFile && it.length() > 0L && it.name.matchesMetadataScan(metadataPrefix)
-            }
+            .filter { it.isFile && it.length() > 0L && it.name.matchesMetadataScan(metadataPrefix) }
             .toList()
             .sorted()
         check(metadataFiles.isNotEmpty()) {
@@ -720,9 +718,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
           val expectedEntityKeys =
             blobDetails.entityKeysList
               .flatMap { group ->
-                check(group.entityType.isNotEmpty()) {
-                  "BlobDetails contains an empty entity_type"
-                }
+                check(group.entityType.isNotEmpty()) { "BlobDetails contains an empty entity_type" }
                 check(URL_SAFE_STRING.matches(group.entityType)) {
                   "BlobDetails contains a non-URL-safe entity_type"
                 }
@@ -774,7 +770,6 @@ class VerifyVidLabeledImpressions : Callable<Int> {
               ?: throw IllegalStateException("Impression blob not found: $blobKey")
           var blobImpressionCount = 0L
           val blobImpressionsByEntityKey = mutableMapOf<EntityKey, Long>()
-          val actualEntityKeys = mutableSetOf<EntityKey>()
 
           impressionsBlob.read().collect { record ->
             val index = blobImpressionCount
@@ -813,7 +808,6 @@ class VerifyVidLabeledImpressions : Callable<Int> {
               }
               impressionEntityKeys += EntityKey(entityKey.entityType, entityKey.entityId)
             }
-            actualEntityKeys += impressionEntityKeys
             for (entityKey in impressionEntityKeys) {
               blobImpressionsByEntityKey.merge(entityKey, 1L, Long::plus)
             }
@@ -843,7 +837,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
           check(blobImpressionCount > 0L) { "Impression blob is empty" }
 
           if (expectedEntityKeys.isNotEmpty()) {
-            check(actualEntityKeys == expectedEntityKeys) {
+            check(blobImpressionsByEntityKey.keys == expectedEntityKeys) {
               "BlobDetails.entity_keys does not match the entity keys in the impression blob"
             }
           }
