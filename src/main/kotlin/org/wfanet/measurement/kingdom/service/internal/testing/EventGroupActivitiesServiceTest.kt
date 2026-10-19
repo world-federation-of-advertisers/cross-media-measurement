@@ -318,7 +318,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         assertFailsWith<StatusRuntimeException> {
           eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
 
       val activities =
         eventGroupActivitiesService
@@ -733,7 +733,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
           eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
       assertThat(exception).hasMessageThat().contains("DataProvider not found")
     }
 
@@ -761,7 +761,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
           eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
       assertThat(exception).hasMessageThat().contains("EventGroup not found")
     }
 

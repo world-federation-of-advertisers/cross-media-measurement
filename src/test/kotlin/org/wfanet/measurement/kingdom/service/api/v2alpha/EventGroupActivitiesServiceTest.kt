@@ -220,14 +220,19 @@ class EventGroupActivitiesServiceTest {
       }
     }
 
+    val internalResponse = internalBatchUpdateEventGroupActivitiesResponse {
+      eventGroupActivities += createInternalEventGroupActivity(firstDate, EVENT_GROUP_EXTERNAL_ID)
+      eventGroupActivities +=
+        createInternalEventGroupActivity(secondDate, SECOND_EVENT_GROUP_EXTERNAL_ID)
+    }
     internalServiceMock.stub {
-      onBlocking { batchUpdateEventGroupActivities(any()) }
-        .thenReturn(InternalBatchUpdateEventGroupActivitiesResponse.getDefaultInstance())
+      onBlocking { batchUpdateEventGroupActivities(any()) }.thenReturn(internalResponse)
     }
 
-    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-      runBlocking { service.batchUpdateEventGroupActivities(request) }
-    }
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.batchUpdateEventGroupActivities(request) }
+      }
 
     verifyProtoArgument(
         internalServiceMock,
@@ -245,6 +250,20 @@ class EventGroupActivitiesServiceTest {
             eventGroupActivity =
               createInternalEventGroupActivity(secondDate, SECOND_EVENT_GROUP_EXTERNAL_ID)
             allowMissing = true
+          }
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(
+        batchUpdateEventGroupActivitiesResponse {
+          eventGroupActivities += eventGroupActivity {
+            name = "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+            date = firstDate
+          }
+          eventGroupActivities += eventGroupActivity {
+            name = "$SECOND_EVENT_GROUP_NAME/eventGroupActivities/2023-10-11"
+            date = secondDate
           }
         }
       )
@@ -275,7 +294,7 @@ class EventGroupActivitiesServiceTest {
   }
 
   @Test
-  fun `batchUpdateEventGroupActivities rejects wildcard child under another DataProvider`() {
+  fun `batchUpdateEventGroupActivities rejects child under another DataProvider when parent EventGroup is wildcard`() {
     val request = batchUpdateEventGroupActivitiesRequest {
       parent = "$DATA_PROVIDER_NAME/eventGroups/-"
       requests += updateEventGroupActivityRequest {
@@ -293,6 +312,92 @@ class EventGroupActivitiesServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchUpdateEventGroupActivities rejects wildcard activity ID`() {
+    val activityDate = date {
+      year = 2026
+      month = 1
+      day = 1
+    }
+    val request = batchUpdateEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      requests += updateEventGroupActivityRequest {
+        eventGroupActivity = eventGroupActivity {
+          name = "$EVENT_GROUP_NAME/eventGroupActivities/-"
+          date = activityDate
+        }
+        allowMissing = true
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchUpdateEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ISO-8601")
+  }
+
+  @Test
+  fun `batchUpdateEventGroupActivities rejects non-date activity ID`() {
+    val activityDate = date {
+      year = 2026
+      month = 1
+      day = 1
+    }
+    val request = batchUpdateEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      requests += updateEventGroupActivityRequest {
+        eventGroupActivity = eventGroupActivity {
+          name = "$EVENT_GROUP_NAME/eventGroupActivities/not-a-date"
+          date = activityDate
+        }
+        allowMissing = true
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchUpdateEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ISO-8601")
+  }
+
+  @Test
+  fun `batchUpdateEventGroupActivities rejects activity ID differing from date`() {
+    val request = batchUpdateEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      requests += updateEventGroupActivityRequest {
+        eventGroupActivity = eventGroupActivity {
+          name = "$EVENT_GROUP_NAME/eventGroupActivities/2026-01-01"
+          date = date {
+            year = 2026
+            month = 1
+            day = 2
+          }
+        }
+        allowMissing = true
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchUpdateEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("does not match")
   }
 
   @Test

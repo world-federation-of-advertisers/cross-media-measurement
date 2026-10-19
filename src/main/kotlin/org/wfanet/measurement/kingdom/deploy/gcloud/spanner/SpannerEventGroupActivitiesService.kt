@@ -153,9 +153,9 @@ class SpannerEventGroupActivitiesService(
     try {
       return BatchUpdateEventGroupActivities(normalizedRequest).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: EventGroupNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: EventGroupActivityNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: KingdomInternalException) {
