@@ -17,6 +17,7 @@ package org.wfanet.measurement.edpaggregator.client
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
@@ -140,6 +141,7 @@ private constructor(
         keysetHandle,
         kmsClient.getAead(kekUri),
         EMPTY_ASSOCIATED_DATA,
+        RegistryConfiguration.get(),
       )
     )
   }
