@@ -81,6 +81,12 @@ private constructor(
     require(parsedMetadataUri.key.endsWith(BINARY_PROTO_SUFFIX)) {
       "metadataUri must end with $BINARY_PROTO_SUFFIX"
     }
+    require(
+      parsedMetadataUri.key.substringAfterLast('/').contains(METADATA_FILE_NAME, ignoreCase = true)
+    ) {
+      "metadataUri filename must contain $METADATA_FILE_NAME"
+    }
+    require(kekUri.isNotEmpty()) { "kekUri must not be empty" }
     require(MODEL_LINE_RESOURCE_NAME.matches(modelLine)) {
       "modelLine must be a full ModelLine resource name"
     }
@@ -97,7 +103,7 @@ private constructor(
     var impressionCount = 0L
     val records =
       impressions.map { impression ->
-        validateImpression(impression)
+        validateImpression(impression, interval)
         for (entityKey in impression.entityKeysList) {
           entityIdsByType.getOrPut(entityKey.entityType) { TreeSet() }.add(entityKey.entityId)
         }
@@ -140,11 +146,20 @@ private constructor(
     return ByteString.copyFrom(outputStream.toByteArray())
   }
 
-  private fun validateImpression(impression: LabeledImpression) {
+  private fun validateImpression(impression: LabeledImpression, interval: Interval) {
     require(impression.vid > 0L) { "Each impression must have a positive VID" }
     require(impression.hasEvent()) { "Each impression must have an event" }
+    require(impression.event.typeUrl.isNotEmpty()) {
+      "Each impression event must have a type URL"
+    }
     require(impression.hasEventTime()) { "Each impression must have an event time" }
     Timestamps.checkValid(impression.eventTime)
+    require(
+      Timestamps.compare(impression.eventTime, interval.startTime) >= 0 &&
+        Timestamps.compare(impression.eventTime, interval.endTime) < 0
+    ) {
+      "Each impression event time must be within interval"
+    }
     require(impression.entityKeysCount > 0) { "Each impression must have at least one entity key" }
     for (entityKey in impression.entityKeysList) {
       require(entityKey.entityType.isNotEmpty()) { "Entity key type must not be empty" }
@@ -154,6 +169,7 @@ private constructor(
 
   companion object {
     private const val BINARY_PROTO_SUFFIX = ".binpb"
+    private const val METADATA_FILE_NAME = "metadata"
     private const val STREAMING_AEAD_KEY_TEMPLATE = "AES128_GCM_HKDF_1MB"
     private const val TINK_KEYSET_TYPE_URL = "type.googleapis.com/google.crypto.tink.Keyset"
     private val EMPTY_ASSOCIATED_DATA = ByteArray(0)
