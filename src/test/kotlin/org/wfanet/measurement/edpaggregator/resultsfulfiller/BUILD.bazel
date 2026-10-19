@@ -292,6 +292,20 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "EventGroupIdentifierTest",
+    srcs = ["EventGroupIdentifierTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.EventGroupIdentifierTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:event_group_identifier",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "FilterProcessorTest",
     srcs = ["FilterProcessorTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.FilterProcessorTest",

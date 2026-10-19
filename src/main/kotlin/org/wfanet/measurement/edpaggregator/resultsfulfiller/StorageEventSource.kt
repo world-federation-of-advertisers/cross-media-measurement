@@ -39,8 +39,10 @@ import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 
 /** Result of processing a single EventReader. */
 data class EventReaderResult(val batchCount: Int, val eventCount: Int)
@@ -233,8 +235,41 @@ class StorageEventSource(
     return result
   }
 
-  private fun flattenEntityKeys(blobDetails: BlobDetails): Set<LabeledImpression.EntityKey> {
-    return blobDetails.entityKeysList
+  private fun validateAndCanonicalizeEntityKeyGroups(
+    blobDetails: BlobDetails
+  ): Set<EntityKeyGroup> {
+    val entityKeyGroups: List<EntityKeyGroup> = blobDetails.entityKeysList
+    require(entityKeyGroups.all { it.entityType.isNotBlank() }) {
+      "BlobDetails for ${blobDetails.blobUri} has a blank entity type"
+    }
+    require(entityKeyGroups.map { it.entityType }.toSet().size == entityKeyGroups.size) {
+      "BlobDetails for ${blobDetails.blobUri} has duplicate entity types"
+    }
+    require(entityKeyGroups.all { it.entityIdsList.isNotEmpty() }) {
+      "BlobDetails for ${blobDetails.blobUri} has an empty entity-key group"
+    }
+    require(entityKeyGroups.all { group -> group.entityIdsList.all { it.isNotBlank() } }) {
+      "BlobDetails for ${blobDetails.blobUri} has a blank entity ID"
+    }
+    require(
+      entityKeyGroups.all { group -> group.entityIdsList.toSet().size == group.entityIdsCount }
+    ) {
+      "BlobDetails for ${blobDetails.blobUri} has duplicate entity IDs"
+    }
+    return entityKeyGroups
+      .map { group ->
+        entityKeyGroup {
+          entityType = group.entityType
+          entityIds += group.entityIdsList.sorted()
+        }
+      }
+      .toSet()
+  }
+
+  private fun flattenEntityKeys(
+    entityKeyGroups: Set<EntityKeyGroup>
+  ): Set<LabeledImpression.EntityKey> {
+    return entityKeyGroups
       .asSequence()
       .flatMap { group ->
         group.entityIdsList.asSequence().map { entityId ->
@@ -248,7 +283,8 @@ class StorageEventSource(
   }
 
   private fun eventGroupIdentifier(blobDetails: BlobDetails): EventGroupIdentifier {
-    val entityKeys: Set<LabeledImpression.EntityKey> = flattenEntityKeys(blobDetails)
+    val entityKeyGroups: Set<EntityKeyGroup> = validateAndCanonicalizeEntityKeyGroups(blobDetails)
+    val entityKeys: Set<LabeledImpression.EntityKey> = flattenEntityKeys(entityKeyGroups)
     val directReferenceId: String? = blobDetails.eventGroupReferenceId.takeIf { it.isNotBlank() }
     val mappedEntityType: String? = resolvedEventGroups.mappedEntityType
     val mappedEntityKeys: Set<LabeledImpression.EntityKey> =
@@ -264,16 +300,12 @@ class StorageEventSource(
           "event-group reference ID"
       )
     }
-    val wholeBlobEntityIdsByType: Map<String, Set<String>> =
-      entityKeys
-        .asSequence()
-        .filter { it.entityType in resolvedEventGroups.wholeBlobEntityTypes }
-        .groupBy({ it.entityType }, { it.entityId })
-        .mapValues { (_, entityIds) -> entityIds.toSet() }
+    val wholeBlobEntityKeyGroups: Set<EntityKeyGroup> =
+      entityKeyGroups.filter { it.entityType in resolvedEventGroups.wholeBlobEntityTypes }.toSet()
     return EventGroupIdentifier(
       eventGroupReferenceId = eventGroupReferenceId,
       entityKeys = entityKeys,
-      wholeBlobEntityIdsByType = wholeBlobEntityIdsByType,
+      wholeBlobEntityKeyGroups = wholeBlobEntityKeyGroups,
     )
   }
 

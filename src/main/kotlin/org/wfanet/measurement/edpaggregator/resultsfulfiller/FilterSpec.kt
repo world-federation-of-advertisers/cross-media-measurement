@@ -103,8 +103,8 @@ data class FilterSpec(
     }
 
     if (
-      identifier.wholeBlobEntityIdsByType.any { (entityType, entityIds) ->
-        entityIds.all { Pair(entityType, it) in entityKeyPairs }
+      identifier.wholeBlobEntityKeyGroups.any { group ->
+        group.entityIdsList.all { Pair(group.entityType, it) in entityKeyPairs }
       }
     ) {
       return BatchMatchResult.MatchedAllEvents

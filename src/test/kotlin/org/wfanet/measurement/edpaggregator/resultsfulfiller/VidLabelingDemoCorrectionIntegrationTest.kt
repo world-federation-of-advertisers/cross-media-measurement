@@ -351,7 +351,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
                 EventGroupIdentifier(
                   eventGroupReferenceId = eventGroupReferenceId,
                   entityKeys = emptySet(),
-                  wholeBlobEntityIdsByType = emptyMap(),
+                  wholeBlobEntityKeyGroups = emptySet(),
                 ),
             )
           )

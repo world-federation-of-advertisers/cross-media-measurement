@@ -81,7 +81,7 @@ class ParallelBatchedPipelineTest {
             EventGroupIdentifier(
               eventGroupReferenceId = "test-group",
               entityKeys = emptySet(),
-              wholeBlobEntityIdsByType = emptyMap(),
+              wholeBlobEntityKeyGroups = emptySet(),
             ),
         )
       }
@@ -492,7 +492,7 @@ class ParallelBatchedPipelineTest {
                   EventGroupIdentifier(
                     eventGroupReferenceId = "reference-id-1",
                     entityKeys = emptySet(),
-                    wholeBlobEntityIdsByType = emptyMap(),
+                    wholeBlobEntityKeyGroups = emptySet(),
                   ),
               )
             )
@@ -644,7 +644,7 @@ class ParallelBatchedPipelineTest {
                   EventGroupIdentifier(
                     eventGroupReferenceId = "reference-id-1",
                     entityKeys = emptySet(),
-                    wholeBlobEntityIdsByType = emptyMap(),
+                    wholeBlobEntityKeyGroups = emptySet(),
                   ),
               )
             )
@@ -721,7 +721,7 @@ class ParallelBatchedPipelineTest {
                   EventGroupIdentifier(
                     eventGroupReferenceId = "reference-id-1",
                     entityKeys = emptySet(),
-                    wholeBlobEntityIdsByType = emptyMap(),
+                    wholeBlobEntityKeyGroups = emptySet(),
                   ),
               )
             )

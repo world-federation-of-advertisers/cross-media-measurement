@@ -59,7 +59,7 @@ class FrequencyVectorSinkTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "test-group",
             entityKeys = emptySet(),
-            wholeBlobEntityIdsByType = emptyMap(),
+            wholeBlobEntityKeyGroups = emptySet(),
           ),
       )
     }

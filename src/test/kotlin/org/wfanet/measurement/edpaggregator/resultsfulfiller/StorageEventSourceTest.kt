@@ -987,6 +987,192 @@ class StorageEventSourceTest {
     metadataFs.writeBlob(key, blobDetailsBytes)
   }
 
+  private suspend fun createEntityKeyEventSource(
+    date: LocalDate,
+    sourceId: String,
+    entityKeyGroups: List<EntityKeyGroup>,
+    wholeBlobEntityTypes: Set<String>,
+  ): StorageEventSource {
+    val metadataTmpPath = tmp.newFolder("metadata-$sourceId")
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata +=
+            createImpressionMetadataList(listOf(date), sourceId, "meta-bucket", modelLine)
+        }
+      )
+    writeMetadataWithEntityKeys(
+      metadataTmpPath,
+      date,
+      sourceId,
+      entityKeyGroups,
+      directReferenceId = "",
+    )
+    val eventGroupDetails = eventGroupDetails {
+      entityKey =
+        EventGroupDetailsKt.entityKey {
+          entityType = "campaign"
+          entityId = "requested"
+        }
+      collectionIntervals += interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+    }
+    return StorageEventSource(
+      impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+      resolvedEventGroups =
+        resolveEventGroups(
+          eventGroupDetailsList = listOf(eventGroupDetails),
+          mapping = null,
+          wholeBlobEntityTypes = wholeBlobEntityTypes,
+        ),
+      modelLine = modelLine,
+      kmsClient = null,
+      impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+      descriptor = TestEvent.getDescriptor(),
+      batchSize = 1000,
+      eventReaderFactory = { _ -> eventReader(date) },
+    )
+  }
+
+  @Test
+  fun `generateEventBatches rejects duplicate entity types before converting to a set`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val duplicateGroup = entityKeyGroup {
+        entityType = "campaign"
+        entityIds += "123"
+      }
+      val eventSource =
+        createEntityKeyEventSource(
+          date,
+          sourceId = "duplicate-entity-types",
+          entityKeyGroups = listOf(duplicateGroup, duplicateGroup),
+          wholeBlobEntityTypes = setOf("campaign"),
+        )
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+
+      assertThat(exception).hasMessageThat().contains("duplicate entity types")
+    }
+
+  @Test
+  fun `generateEventBatches rejects duplicate entity IDs within a type`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val eventSource =
+      createEntityKeyEventSource(
+        date,
+        sourceId = "duplicate-entity-ids",
+        entityKeyGroups =
+          listOf(
+            entityKeyGroup {
+              entityType = "campaign"
+              entityIds += listOf("123", "123")
+            }
+          ),
+        wholeBlobEntityTypes = setOf("campaign"),
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+
+    assertThat(exception).hasMessageThat().contains("duplicate entity IDs")
+  }
+
+  @Test
+  fun `generateEventBatches rejects blank entity type`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val eventSource =
+      createEntityKeyEventSource(
+        date,
+        sourceId = "blank-entity-type",
+        entityKeyGroups =
+          listOf(
+            entityKeyGroup {
+              entityType = "   "
+              entityIds += "123"
+            }
+          ),
+        wholeBlobEntityTypes = emptySet(),
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+
+    assertThat(exception).hasMessageThat().contains("blank entity type")
+  }
+
+  @Test
+  fun `generateEventBatches rejects empty entity ID group`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val eventSource =
+      createEntityKeyEventSource(
+        date,
+        sourceId = "empty-entity-id-group",
+        entityKeyGroups = listOf(entityKeyGroup { entityType = "campaign" }),
+        wholeBlobEntityTypes = setOf("campaign"),
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+
+    assertThat(exception).hasMessageThat().contains("empty entity-key group")
+  }
+
+  @Test
+  fun `generateEventBatches rejects blank entity ID`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val eventSource =
+      createEntityKeyEventSource(
+        date,
+        sourceId = "blank-entity-id",
+        entityKeyGroups =
+          listOf(
+            entityKeyGroup {
+              entityType = "campaign"
+              entityIds += "   "
+            }
+          ),
+        wholeBlobEntityTypes = setOf("campaign"),
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+
+    assertThat(exception).hasMessageThat().contains("blank entity ID")
+  }
+
+  @Test
+  fun `generateEventBatches canonicalizes entity ID order`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val eventSource =
+      createEntityKeyEventSource(
+        date,
+        sourceId = "unordered-entity-ids",
+        entityKeyGroups =
+          listOf(
+            entityKeyGroup {
+              entityType = "campaign"
+              entityIds += listOf("C", "A", "B")
+            }
+          ),
+        wholeBlobEntityTypes = setOf("campaign"),
+      )
+
+    val entityKeyGroup =
+      eventSource
+        .generateEventBatches()
+        .toList()
+        .single()
+        .eventGroupIdentifier
+        .wholeBlobEntityKeyGroups
+        .single()
+
+    assertThat(entityKeyGroup.entityIdsList).containsExactly("A", "B", "C").inOrder()
+  }
+
   @Test
   fun `getKekUri fails when blobs have different GCP project IDs`(): Unit = runBlocking {
     val metadataTmpPath = tmp.root
@@ -1767,7 +1953,7 @@ class StorageEventSourceTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "ref/123",
             entityKeys = emptySet(),
-            wholeBlobEntityIdsByType = emptyMap(),
+            wholeBlobEntityKeyGroups = emptySet(),
           )
         )
     }
@@ -1856,7 +2042,13 @@ class StorageEventSourceTest {
                 labeledImpressionEntityKey("ad", "A"),
                 labeledImpressionEntityKey("ad", "B"),
               ),
-            wholeBlobEntityIdsByType = mapOf("campaign" to setOf("entity/123")),
+            wholeBlobEntityKeyGroups =
+              setOf(
+                entityKeyGroup {
+                  entityType = "campaign"
+                  entityIds += "entity/123"
+                }
+              ),
           ),
           EventGroupIdentifier(
             eventGroupReferenceId = null,
@@ -1865,7 +2057,13 @@ class StorageEventSourceTest {
                 labeledImpressionEntityKey("campaign", "entity/123"),
                 labeledImpressionEntityKey("campaign", "entity/456"),
               ),
-            wholeBlobEntityIdsByType = mapOf("campaign" to setOf("entity/123", "entity/456")),
+            wholeBlobEntityKeyGroups =
+              setOf(
+                entityKeyGroup {
+                  entityType = "campaign"
+                  entityIds += listOf("entity/123", "entity/456")
+                }
+              ),
           ),
         )
     }
@@ -1938,8 +2136,17 @@ class StorageEventSourceTest {
 
     val identifier = eventSource.generateEventBatches().toList().single().eventGroupIdentifier
 
-    assertThat(identifier.wholeBlobEntityIdsByType)
-      .containsExactlyEntriesIn(mapOf("campaign" to setOf("123"), "placement" to setOf("P")))
+    assertThat(identifier.wholeBlobEntityKeyGroups)
+      .containsExactly(
+        entityKeyGroup {
+          entityType = "campaign"
+          entityIds += "123"
+        },
+        entityKeyGroup {
+          entityType = "placement"
+          entityIds += "P"
+        },
+      )
   }
 
   @Test
