@@ -124,7 +124,7 @@ generates a fresh streaming DEK, applies the correct associated data, writes
 Mesos RecordIO, derives the sidecar's entity-key index from the records, and
 writes the binary `BlobDetails` sidecar only after the encrypted blob succeeds.
 Use the artifact version that matches the Halo release selected with the
-operator. The
+operator; it is the release tag without the leading `v`. The
 [`LabeledImpressionWriterTest`](../../src/test/kotlin/org/wfanet/measurement/edpaggregator/client/LabeledImpressionWriterTest.kt)
 shows the supported Cloud Storage and local-filesystem APIs.
 
