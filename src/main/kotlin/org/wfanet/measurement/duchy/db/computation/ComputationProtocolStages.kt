@@ -72,7 +72,11 @@ object ComputationProtocolStages :
           ComputationTypes.protocolEnumToLong(TRUS_TEE),
           TrusTeeProtocol.EnumStages.enumToLong(value.trusTee),
         )
-      ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+      ComputationStage.StageCase.TRUS_TEE_V2 ->
+        ComputationStageLongValues(
+          ComputationTypes.protocolEnumToLong(TRUS_TEE_V2),
+          TrusTeeV2Protocol.EnumStages.enumToLong(value.trusTeeV2),
+        )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -91,7 +95,7 @@ object ComputationProtocolStages :
       HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.EnumStages.longToEnum(value.stage).toProtocolStage()
       TRUS_TEE -> TrusTeeProtocol.EnumStages.longToEnum(value.stage).toProtocolStage()
-      TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+      TRUS_TEE_V2 -> TrusTeeV2Protocol.EnumStages.longToEnum(value.stage).toProtocolStage()
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }
@@ -107,7 +111,7 @@ object ComputationProtocolStages :
       HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.ComputationStages.validInitialStages
       TRUS_TEE -> TrusTeeProtocol.ComputationStages.validInitialStages
-      TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+      TRUS_TEE_V2 -> TrusTeeV2Protocol.ComputationStages.validInitialStages
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }
@@ -123,7 +127,7 @@ object ComputationProtocolStages :
       HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.ComputationStages.validTerminalStages
       TRUS_TEE -> TrusTeeProtocol.ComputationStages.validTerminalStages
-      TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+      TRUS_TEE_V2 -> TrusTeeV2Protocol.ComputationStages.validTerminalStages
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }
@@ -149,7 +153,8 @@ object ComputationProtocolStages :
         ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HonestMajorityShareShuffleProtocol.ComputationStages.validSuccessors
         ComputationStage.StageCase.TRUS_TEE -> TrusTeeProtocol.ComputationStages.validSuccessors
-        ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+        ComputationStage.StageCase.TRUS_TEE_V2 ->
+          TrusTeeV2Protocol.ComputationStages.validSuccessors
         ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
       }.getOrDefault(currentStage, setOf())
   }

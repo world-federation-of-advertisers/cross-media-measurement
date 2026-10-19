@@ -25,6 +25,7 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
 
 class IllegalStageException(val computationStage: ComputationStage, buildMessage: () -> String) :
   IllegalArgumentException(buildMessage())
@@ -54,7 +55,7 @@ sealed class ProtocolStages(val stageType: ComputationStage.StageCase) {
         ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HonestMajorityShareShuffleStages()
         ComputationStage.StageCase.TRUS_TEE -> TrusTeeStages()
-        ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+        ComputationStage.StageCase.TRUS_TEE_V2 -> TrusTeeV2Stages()
         ComputationStage.StageCase.STAGE_NOT_SET -> null
       }
     }
@@ -310,6 +311,30 @@ class TrusTeeStages() : ProtocolStages(ComputationStage.StageCase.TRUS_TEE) {
       TrusTee.Stage.COMPLETE,
       TrusTee.Stage.STAGE_UNSPECIFIED,
       TrusTee.Stage.UNRECOGNIZED ->
+        throw IllegalStageException(stage) {
+          "Next $stageType stage unknown for $protocolStage, $role"
+        }
+    }.toProtocolStage()
+  }
+}
+
+/** [ProtocolStages] for the TrusTEE multimeasurement protocol. */
+class TrusTeeV2Stages() : ProtocolStages(ComputationStage.StageCase.TRUS_TEE_V2) {
+  override fun outputBlob(
+    token: ComputationToken,
+    dataOrigin: String,
+  ): ComputationStageBlobMetadata = error("TrusTEE v2 protocol does not have output blobs")
+
+  override fun nextStage(stage: ComputationStage, role: RoleInComputation): ComputationStage {
+    require(stage.stageCase == ComputationStage.StageCase.TRUS_TEE_V2)
+
+    return when (val protocolStage = stage.trusTeeV2) {
+      TrusTeeV2.Stage.INITIALIZED -> TrusTeeV2.Stage.WAIT_TO_START
+      TrusTeeV2.Stage.WAIT_TO_START -> TrusTeeV2.Stage.COMPUTING
+      TrusTeeV2.Stage.COMPUTING -> TrusTeeV2.Stage.COMPLETE
+      TrusTeeV2.Stage.COMPLETE,
+      TrusTeeV2.Stage.STAGE_UNSPECIFIED,
+      TrusTeeV2.Stage.UNRECOGNIZED ->
         throw IllegalStageException(stage) {
           "Next $stageType stage unknown for $protocolStage, $role"
         }

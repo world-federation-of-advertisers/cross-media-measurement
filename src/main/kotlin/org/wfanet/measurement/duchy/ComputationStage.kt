@@ -23,6 +23,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage as RoLlv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
 import org.wfanet.measurement.system.v1alpha.ComputationStage as SystemComputationStage
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffleStage
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2Stage
@@ -71,6 +72,10 @@ fun HonestMajorityShareShuffle.Stage.toProtocolStage(): ComputationStage = compu
 
 fun TrusTee.Stage.toProtocolStage(): ComputationStage = computationStage {
   trusTee = this@toProtocolStage
+}
+
+fun TrusTeeV2.Stage.toProtocolStage(): ComputationStage = computationStage {
+  trusTeeV2 = this@toProtocolStage
 }
 
 fun SystemComputationStage.toComputationStage(): ComputationStage {
