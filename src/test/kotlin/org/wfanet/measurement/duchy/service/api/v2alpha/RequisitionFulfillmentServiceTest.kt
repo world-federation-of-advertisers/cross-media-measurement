@@ -52,11 +52,14 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.envelopeEncryption
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeV2Kt.fulfillmentDetails
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.trusTee
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.trusTeeV2
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
@@ -85,6 +88,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage as HmssStage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage as Llv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage as TrusTeeStage
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2.Stage as TrusTeeV2Stage
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
@@ -199,6 +203,38 @@ private val TRUS_TEE_REQUISITION_METADATA = requisitionMetadata {
     nonceHash = NONCE_HASH.bytes
   }
 }
+private val FULFILLMENT_DETAILS = fulfillmentDetails { impression = impression { value = 1000L } }
+private val ENCRYPTED_FULFILLMENT_DETAILS = encryptedMessage {
+  ciphertext = "encrypted details".toByteStringUtf8()
+  typeUrl =
+    ProtoReflection.getTypeUrl(
+      FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails.getDescriptor()
+    )
+}
+private val PLAIN_TRUS_TEE_V2_HEADER = header {
+  name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
+  requisitionFingerprint = REQUISITION_FINGERPRINT
+  trusTeeV2 = trusTeeV2 {
+    trusTee = PLAIN_TRUS_TEE_HEADER.trusTee
+    fulfillmentDetails = FULFILLMENT_DETAILS
+  }
+}
+private val ENCRYPTED_TRUS_TEE_V2_HEADER = header {
+  name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
+  requisitionFingerprint = REQUISITION_FINGERPRINT
+  trusTeeV2 = trusTeeV2 {
+    trusTee = ENCRYPTED_TRUS_TEE_HEADER.trusTee
+    encryptedFulfillmentDetails = ENCRYPTED_FULFILLMENT_DETAILS
+  }
+}
+private val TRUS_TEE_V2_REQUISITION_METADATA = requisitionMetadata {
+  externalKey = REQUISITION_KEY
+  details = requisitionDetails {
+    externalFulfillingDuchyId = DUCHY_ID
+    vectorIndex = 1
+  }
+}
+
 private val REQUISITION_BLOB_CONTEXT = RequisitionBlobContext(COMPUTATION_ID, REQUISITION_API_ID)
 
 /** Test for [RequisitionFulfillmentService]. */
@@ -514,6 +550,178 @@ class RequisitionFulfillmentServiceTest {
           nonce = NONCE
         }
       )
+  }
+
+  @Test
+  fun `fulfillRequisition writes plain fulfillment data for TrusTEE v2 protocol`() = runBlocking {
+    val fakeToken = computationToken {
+      globalComputationId = COMPUTATION_ID
+      computationStage = computationStage { trusTeeV2 = TrusTeeV2Stage.INITIALIZED }
+      computationDetails = COMPUTATION_DETAILS
+      requisitions += TRUS_TEE_V2_REQUISITION_METADATA
+    }
+    computationsServiceMock.stub {
+      onBlocking { getComputationToken(any()) }
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
+    }
+
+    val response =
+      withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+        service.fulfillRequisition(PLAIN_TRUS_TEE_V2_HEADER.withContent(TEST_REQUISITION_DATA))
+      }
+
+    assertThat(response).isEqualTo(FULFILLED_RESPONSE)
+    val blob = assertNotNull(requisitionStore.get(REQUISITION_BLOB_CONTEXT))
+    assertThat(blob).contentEqualTo(TEST_REQUISITION_DATA)
+    verifyProtoArgument(
+        computationsServiceMock,
+        ComputationsCoroutineImplBase::recordRequisitionFulfillment,
+      )
+      .isEqualTo(
+        recordRequisitionFulfillmentRequest {
+          token = fakeToken
+          key = REQUISITION_KEY
+          blobPath = blob.blobKey
+          publicApiVersion = Version.V2_ALPHA.string
+          protocolDetails =
+            RequisitionDetailsKt.requisitionProtocol {
+              trusTeeV2 =
+                RequisitionDetailsKt.RequisitionProtocolKt.trusTeeV2 {
+                  trusTee =
+                    RequisitionDetailsKt.RequisitionProtocolKt.trusTee {
+                      dataFormat =
+                        RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat.FREQUENCY_VECTOR
+                      populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
+                    }
+                  fulfillmentDetails = FULFILLMENT_DETAILS.toByteString()
+                }
+            }
+        }
+      )
+    verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
+      .isEqualTo(systemFulfillRequisitionRequest { name = SYSTEM_REQUISITION_KEY.toName() })
+  }
+
+  @Test
+  fun `fulfillRequisition writes encrypted fulfillment data for TrusTEE v2 protocol`() =
+    runBlocking {
+      val fakeToken = computationToken {
+        globalComputationId = COMPUTATION_ID
+        computationStage = computationStage { trusTeeV2 = TrusTeeV2Stage.INITIALIZED }
+        computationDetails = COMPUTATION_DETAILS
+        requisitions += TRUS_TEE_V2_REQUISITION_METADATA
+      }
+      computationsServiceMock.stub {
+        onBlocking { getComputationToken(any()) }
+          .thenReturn(getComputationTokenResponse { token = fakeToken })
+      }
+
+      val response =
+        withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+          service.fulfillRequisition(
+            ENCRYPTED_TRUS_TEE_V2_HEADER.withContent(TEST_REQUISITION_DATA)
+          )
+        }
+
+      assertThat(response).isEqualTo(FULFILLED_RESPONSE)
+      val blob = assertNotNull(requisitionStore.get(REQUISITION_BLOB_CONTEXT))
+      verifyProtoArgument(
+          computationsServiceMock,
+          ComputationsCoroutineImplBase::recordRequisitionFulfillment,
+        )
+        .isEqualTo(
+          recordRequisitionFulfillmentRequest {
+            token = fakeToken
+            key = REQUISITION_KEY
+            blobPath = blob.blobKey
+            publicApiVersion = Version.V2_ALPHA.string
+            protocolDetails =
+              RequisitionDetailsKt.requisitionProtocol {
+                trusTeeV2 =
+                  RequisitionDetailsKt.RequisitionProtocolKt.trusTeeV2 {
+                    trusTee =
+                      RequisitionDetailsKt.RequisitionProtocolKt.trusTee {
+                        dataFormat =
+                          RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat
+                            .ENCRYPTED_FREQUENCY_VECTOR
+                        encryptedDekCiphertext = ENCRYPTED_DEK_DATA
+                        kmsKekUri = KMS_KEK_URI
+                        workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
+                        impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
+                        populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
+                      }
+                    encryptedFulfillmentDetails = ENCRYPTED_FULFILLMENT_DETAILS.toByteString()
+                  }
+              }
+          }
+        )
+    }
+
+  @Test
+  fun `fulfillRequisition fails when TrusTEE v2 details do not match the data format`() =
+    runBlocking {
+      val fakeToken = computationToken {
+        globalComputationId = COMPUTATION_ID
+        computationStage = computationStage { trusTeeV2 = TrusTeeV2Stage.INITIALIZED }
+        computationDetails = COMPUTATION_DETAILS
+        requisitions += TRUS_TEE_V2_REQUISITION_METADATA
+      }
+      computationsServiceMock.stub {
+        onBlocking { getComputationToken(any()) }
+          .thenReturn(getComputationTokenResponse { token = fakeToken })
+      }
+      val mismatchedHeader =
+        PLAIN_TRUS_TEE_V2_HEADER.copy {
+          trusTeeV2 = trusTeeV2.copy { encryptedFulfillmentDetails = ENCRYPTED_FULFILLMENT_DETAILS }
+        }
+
+      val e =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+            service.fulfillRequisition(mismatchedHeader.withContent(TEST_REQUISITION_DATA))
+          }
+        }
+
+      assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `fulfillRequisition fails when a TrusTEE v2 header carries a nonce`() = runBlocking {
+    val e =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+          service.fulfillRequisition(
+            PLAIN_TRUS_TEE_V2_HEADER.copy { nonce = NONCE }.withContent(TEST_REQUISITION_DATA)
+          )
+        }
+      }
+
+    assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(e.message).contains("nonce")
+  }
+
+  @Test
+  fun `fulfillRequisition fails when a TrusTEE v2 computation gets a v1 header`() = runBlocking {
+    val fakeToken = computationToken {
+      globalComputationId = COMPUTATION_ID
+      computationStage = computationStage { trusTeeV2 = TrusTeeV2Stage.INITIALIZED }
+      computationDetails = COMPUTATION_DETAILS
+      requisitions += TRUS_TEE_V2_REQUISITION_METADATA
+    }
+    computationsServiceMock.stub {
+      onBlocking { getComputationToken(any()) }
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
+    }
+
+    val e =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+          service.fulfillRequisition(PLAIN_TRUS_TEE_HEADER.withContent(TEST_REQUISITION_DATA))
+        }
+      }
+
+    assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(e.message).contains("trus_tee_v2")
   }
 
   @Test
