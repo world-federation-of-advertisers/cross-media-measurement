@@ -40,7 +40,6 @@ import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
@@ -159,18 +158,16 @@ class StorageEventSource(
   init {
     require(readConcurrency > 0) { "readConcurrency must be positive" }
     require(readMaxAttempts >= 1) { "readMaxAttempts must be at least 1" }
+    require(eventGroupDetailsList.isNotEmpty()) { "eventGroupDetailsList must not be empty" }
+    require(
+      eventGroupDetailsList.all { hasEntityKey(it) || it.eventGroupReferenceId.isNotEmpty() }
+    ) {
+      "Each event group must have an entity key or event-group reference ID"
+    }
   }
 
   /** Cache for unique impression data sources to avoid duplicate API calls. */
   private var cachedImpressionDataSources: List<ImpressionDataSource>? = null
-
-  private val useEntityKeyStrategy: Boolean = run {
-    require(eventGroupDetailsList.isNotEmpty()) { "eventGroupDetailsList must not be empty" }
-    val allEntityKey = eventGroupDetailsList.all { hasEntityKey(it) }
-    val noneEntityKey = eventGroupDetailsList.none { hasEntityKey(it) }
-    require(allEntityKey || noneEntityKey) { "Cannot mix entity-key and reference-id event groups" }
-    allEntityKey
-  }
 
   /**
    * Generates batches of events by reading from storage in parallel.
@@ -241,79 +238,77 @@ class StorageEventSource(
       return it
     }
 
-    val allSources =
-      if (useEntityKeyStrategy) {
-        eventGroupDetailsList.flatMap { details ->
-          logger.info("EventGroup details: $details")
-          val selectors = buildList {
-            add(
-              ImpressionQuerySelector.ByEntityKeys(
-                listOf(
-                  entityKey {
-                    entityType = details.entityKey.entityType
-                    entityId = details.entityKey.entityId
-                  }
-                )
-              )
-            )
-            eventGroupReferenceIdEntityKeyMapping
-              ?.toEventGroupReferenceId(details.entityKey.entityType, details.entityKey.entityId)
-              ?.let { add(ImpressionQuerySelector.ByEventGroupReferenceId(it)) }
-          }
-          details.collectionIntervalsList.flatMap { interval ->
-            logger.info("EventGroup collection interval: $interval")
-            selectors.flatMap { selector ->
-              impressionDataSourceProvider.listImpressionDataSources(modelLine, selector, interval)
-            }
-          }
-        }
-      } else {
-        // Batch every event-group reference ID that shares a collection interval into ONE paginated
-        // ListImpressionMetadata call (an IN UNNEST query) instead of one call per event group.
-        // This collapses hundreds of metadata RPCs per report into a handful.
-        val referenceIdsByInterval: Map<Interval, List<String>> =
-          eventGroupDetailsList
-            .flatMap { details ->
-              details.collectionIntervalsList.map { interval ->
-                interval to details.eventGroupReferenceId
-              }
-            }
-            .groupBy({ it.first }, { it.second })
-            .mapValues { (_, referenceIds) -> referenceIds.distinct() }
-        referenceIdsByInterval.flatMap { (interval, referenceIds) ->
-          logger.info(
-            "Batching ${referenceIds.size} event-group reference IDs for interval: $interval"
-          )
-          buildList {
-            addAll(
-              impressionDataSourceProvider.listImpressionDataSources(
-                modelLine,
-                ImpressionQuerySelector.ByEventGroupReferenceIds(referenceIds),
-                interval,
-              )
-            )
-            val mappedEntityKeys =
-              referenceIds.mapNotNull { referenceId ->
-                eventGroupReferenceIdEntityKeyMapping?.toEntityId(referenceId)?.let { entityId ->
-                  entityKey {
-                    entityType = eventGroupReferenceIdEntityKeyMapping.entityType
-                    this.entityId = entityId
-                  }
+    val entityKeySources: List<ImpressionDataSource> =
+      eventGroupDetailsList.filter(::hasEntityKey).flatMap { details ->
+        logger.info("EventGroup details: $details")
+        val selectors = buildList {
+          add(
+            ImpressionQuerySelector.ByEntityKeys(
+              listOf(
+                entityKey {
+                  entityType = details.entityKey.entityType
+                  entityId = details.entityKey.entityId
                 }
-              }
-            if (mappedEntityKeys.isNotEmpty()) {
-              addAll(
-                impressionDataSourceProvider.listImpressionDataSources(
-                  modelLine,
-                  ImpressionQuerySelector.ByEntityKeys(mappedEntityKeys),
-                  interval,
-                )
               )
-            }
+            )
+          )
+          eventGroupReferenceIdEntityKeyMapping
+            ?.toEventGroupReferenceId(details.entityKey.entityType, details.entityKey.entityId)
+            ?.let { add(ImpressionQuerySelector.ByEventGroupReferenceId(it)) }
+        }
+        details.collectionIntervalsList.flatMap { interval ->
+          logger.info("EventGroup collection interval: $interval")
+          selectors.flatMap { selector ->
+            impressionDataSourceProvider.listImpressionDataSources(modelLine, selector, interval)
           }
         }
       }
-    val result = allSources.distinctBy { it.blobDetails.blobUri }
+
+    // Batch every legacy reference ID that shares a collection interval into one paginated call.
+    val referenceIdsByInterval: Map<Interval, List<String>> =
+      eventGroupDetailsList
+        .filterNot(::hasEntityKey)
+        .flatMap { details ->
+          details.collectionIntervalsList.map { interval ->
+            interval to details.eventGroupReferenceId
+          }
+        }
+        .groupBy({ it.first }, { it.second })
+        .mapValues { (_, referenceIds) -> referenceIds.distinct() }
+    val referenceIdSources: List<ImpressionDataSource> =
+      referenceIdsByInterval.flatMap { (interval, referenceIds) ->
+        logger.info(
+          "Batching ${referenceIds.size} event-group reference IDs for interval: $interval"
+        )
+        buildList {
+          addAll(
+            impressionDataSourceProvider.listImpressionDataSources(
+              modelLine,
+              ImpressionQuerySelector.ByEventGroupReferenceIds(referenceIds),
+              interval,
+            )
+          )
+          val mappedEntityKeys =
+            referenceIds.mapNotNull { referenceId ->
+              eventGroupReferenceIdEntityKeyMapping?.toEntityId(referenceId)?.let { entityId ->
+                entityKey {
+                  entityType = eventGroupReferenceIdEntityKeyMapping.entityType
+                  this.entityId = entityId
+                }
+              }
+            }
+          if (mappedEntityKeys.isNotEmpty()) {
+            addAll(
+              impressionDataSourceProvider.listImpressionDataSources(
+                modelLine,
+                ImpressionQuerySelector.ByEntityKeys(mappedEntityKeys),
+                interval,
+              )
+            )
+          }
+        }
+      }
+    val result = (entityKeySources + referenceIdSources).distinctBy { it.blobDetails.blobUri }
     cachedImpressionDataSources = result
     return result
   }
@@ -327,51 +322,64 @@ class StorageEventSource(
     }
   }
 
-  private fun mappedReferenceId(
-    entityKeys: List<EntityKeyGroup>,
-    directReferenceId: String,
-  ): String? {
-    val mapping = eventGroupReferenceIdEntityKeyMapping ?: return null
-    val mappedEntityId =
-      entityKeys
-        .asSequence()
-        .filter { it.entityType == mapping.entityType }
-        .flatMap { it.entityIdsList.asSequence() }
-        .distinct()
-        .singleOrNull() ?: return null
-    return directReferenceId.takeIf { it.isNotEmpty() }
-      ?: mapping.toEventGroupReferenceId(mapping.entityType, mappedEntityId)
+  private fun flattenEntityKeys(blobDetails: BlobDetails): Set<LabeledImpression.EntityKey> {
+    return blobDetails.entityKeysList
+      .asSequence()
+      .flatMap { group ->
+        group.entityIdsList.asSequence().map { entityId ->
+          LabeledImpressionKt.entityKey {
+            entityType = group.entityType
+            this.entityId = entityId
+          }
+        }
+      }
+      .toSet()
   }
 
   private fun eventGroupIdentifier(blobDetails: BlobDetails): EventGroupIdentifier {
-    fun byEntityKeys(): EventGroupIdentifier.ByEntityKeys {
-      return EventGroupIdentifier.ByEntityKeys(
-        entityKeys = blobDetails.entityKeysList,
-        refId = mappedReferenceId(blobDetails.entityKeysList, blobDetails.eventGroupReferenceId),
+    val entityKeys: Set<LabeledImpression.EntityKey> = flattenEntityKeys(blobDetails)
+    val mapping: EventGroupReferenceIdEntityKeyMapping? = eventGroupReferenceIdEntityKeyMapping
+    val directReferenceId: String? = blobDetails.eventGroupReferenceId.takeIf { it.isNotEmpty() }
+    if (mapping == null) {
+      return EventGroupIdentifier(
+        eventGroupReferenceId = directReferenceId,
+        entityKeys = entityKeys,
+        wholeBlobEntityKey = null,
       )
     }
 
-    fun byReferenceId(): EventGroupIdentifier.ByReferenceId {
-      return EventGroupIdentifier.ByReferenceId(
-        refId = blobDetails.eventGroupReferenceId,
-        entityKey = mappedEntityKey(blobDetails.eventGroupReferenceId),
+    val mappedEntityKeys: Set<LabeledImpression.EntityKey> =
+      entityKeys.filter { it.entityType == mapping.entityType }.toSet()
+    val wholeBlobEntityKey: LabeledImpression.EntityKey? =
+      mappedEntityKeys.singleOrNull()
+        ?: if (mappedEntityKeys.isEmpty() && directReferenceId != null) {
+          mappedEntityKey(directReferenceId)
+        } else {
+          null
+        }
+    val eventGroupReferenceId: String? =
+      when {
+        mappedEntityKeys.size > 1 -> null
+        directReferenceId != null -> directReferenceId
+        wholeBlobEntityKey != null ->
+          mapping.toEventGroupReferenceId(
+            wholeBlobEntityKey.entityType,
+            wholeBlobEntityKey.entityId,
+          )
+        else -> null
+      }
+
+    if (eventGroupReferenceId == null && entityKeys.isEmpty()) {
+      error(
+        "BlobDetails for ${blobDetails.blobUri} has neither entity keys nor an " +
+          "event-group reference ID"
       )
     }
-
-    if (eventGroupReferenceIdEntityKeyMapping == null) {
-      return if (useEntityKeyStrategy) byEntityKeys() else byReferenceId()
-    }
-    return when {
-      useEntityKeyStrategy && blobDetails.entityKeysList.isNotEmpty() -> byEntityKeys()
-      !useEntityKeyStrategy && blobDetails.eventGroupReferenceId.isNotEmpty() -> byReferenceId()
-      blobDetails.entityKeysList.isNotEmpty() -> byEntityKeys()
-      blobDetails.eventGroupReferenceId.isNotEmpty() -> byReferenceId()
-      else ->
-        error(
-          "BlobDetails for ${blobDetails.blobUri} has neither entity keys nor an " +
-            "event-group reference ID"
-        )
-    }
+    return EventGroupIdentifier(
+      eventGroupReferenceId = eventGroupReferenceId,
+      entityKeys = entityKeys,
+      wholeBlobEntityKey = wholeBlobEntityKey,
+    )
   }
 
   private suspend fun createEventReaders(): List<ResolvedEventReader> {

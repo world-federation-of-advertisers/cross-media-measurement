@@ -1537,10 +1537,8 @@ class StorageEventSourceTest {
   }
 
   @Test
-  fun `construction throws when mixing entity-key and reference-id event groups`(): Unit =
+  fun `generateEventBatches queries mixed entity-key and reference-id event groups`(): Unit =
     runBlocking {
-      val (kmsClient, _, _) = createKmsSetup()
-
       whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
         .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
 
@@ -1569,22 +1567,25 @@ class StorageEventSourceTest {
           ),
         )
 
-      val impressionService = createImpressionDataSourceProvider(tmp.root)
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
+          eventGroupDetailsList = eventGroupDetailsList,
+          modelLine = modelLine,
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+          eventGroupReferenceIdEntityKeyMapping = null,
+        )
 
-      val exception =
-        assertFailsWith<IllegalArgumentException> {
-          StorageEventSource(
-            impressionDataSourceProvider = impressionService,
-            eventGroupDetailsList = eventGroupDetailsList,
-            modelLine = modelLine,
-            kmsClient = kmsClient,
-            impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
-            descriptor = TestEvent.getDescriptor(),
-            batchSize = 1000,
-            eventGroupReferenceIdEntityKeyMapping = null,
-          )
-        }
-      assertThat(exception.message).isEqualTo("Cannot mix entity-key and reference-id event groups")
+      eventSource.generateEventBatches().toList()
+
+      val captor = argumentCaptor<ListImpressionMetadataRequest>()
+      verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(captor.capture())
+      assertThat(captor.allValues.map { it.filter.eventGroupReferenceIdsList.toList() })
+        .containsExactly(emptyList<String>(), listOf("standard-ref"))
+      assertThat(captor.allValues.map { it.filter.entityKeysCount }).containsExactly(1, 0)
     }
 
   /**
@@ -1630,9 +1631,10 @@ class StorageEventSourceTest {
 
     assertThat(batch.eventGroupIdentifier)
       .isEqualTo(
-        EventGroupIdentifier.ByReferenceId(
-          refId = "ref/123",
-          entityKey = labeledImpressionEntityKey("campaign", "entity/123"),
+        EventGroupIdentifier(
+          eventGroupReferenceId = "ref/123",
+          entityKeys = emptySet(),
+          wholeBlobEntityKey = labeledImpressionEntityKey("campaign", "entity/123"),
         )
       )
   }
@@ -1709,11 +1711,25 @@ class StorageEventSourceTest {
 
       assertThat(identifiers)
         .containsExactly(
-          EventGroupIdentifier.ByEntityKeys(
-            entityKeys = singleCampaignEntityKeys,
-            refId = "ref/123",
+          EventGroupIdentifier(
+            eventGroupReferenceId = "ref/123",
+            entityKeys =
+              setOf(
+                labeledImpressionEntityKey("campaign", "entity/123"),
+                labeledImpressionEntityKey("ad", "A"),
+                labeledImpressionEntityKey("ad", "B"),
+              ),
+            wholeBlobEntityKey = labeledImpressionEntityKey("campaign", "entity/123"),
           ),
-          EventGroupIdentifier.ByEntityKeys(entityKeys = multipleCampaignEntityKeys, refId = null),
+          EventGroupIdentifier(
+            eventGroupReferenceId = null,
+            entityKeys =
+              setOf(
+                labeledImpressionEntityKey("campaign", "entity/123"),
+                labeledImpressionEntityKey("campaign", "entity/456"),
+              ),
+            wholeBlobEntityKey = null,
+          ),
         )
     }
 

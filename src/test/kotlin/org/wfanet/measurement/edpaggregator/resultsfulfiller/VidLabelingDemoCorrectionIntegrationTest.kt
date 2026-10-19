@@ -248,10 +248,9 @@ class VidLabelingDemoCorrectionIntegrationTest {
       vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
       populationSpec = POPULATION_SPEC,
       requisitions = requisitions,
-      eventGroupSelector =
-        FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-          map = mapOf(EVENT_GROUP to EVENT_GROUP),
-          mappedEntityKeyMap = emptyMap(),
+      eventGroupSelectorMap =
+        mapOf(
+          EVENT_GROUP to EventGroupSelector(eventGroupReferenceId = EVENT_GROUP, entityKey = null)
         ),
       config =
         PipelineConfiguration(
@@ -337,7 +336,12 @@ class VidLabelingDemoCorrectionIntegrationTest {
               events,
               times.min(),
               times.max(),
-              eventGroupIdentifier = EventGroupIdentifier.ByReferenceId(eventGroupReferenceId, null),
+              eventGroupIdentifier =
+                EventGroupIdentifier(
+                  eventGroupReferenceId = eventGroupReferenceId,
+                  entityKeys = emptySet(),
+                  wholeBlobEntityKey = null,
+                ),
             )
           )
         }

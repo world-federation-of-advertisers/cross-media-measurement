@@ -55,7 +55,12 @@ class FrequencyVectorSinkTest {
         events = events,
         minTime = testInstant,
         maxTime = testInstant,
-        eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("test-group", null),
+        eventGroupIdentifier =
+          EventGroupIdentifier(
+            eventGroupReferenceId = "test-group",
+            entityKeys = emptySet(),
+            wholeBlobEntityKey = null,
+          ),
       )
     }
 
@@ -64,11 +69,11 @@ class FrequencyVectorSinkTest {
         startTime = timestamp { seconds = testInstant.epochSecond }
         endTime = timestamp { seconds = testInstant.epochSecond + 3600 }
       }
-      return FilterSpec.ByEventGroupReferenceIds(
+      return FilterSpec(
         celExpression = "true",
         collectionInterval = interval,
-        eventGroupReferenceIds = listOf("test-event-group-1"),
-        mappedEntityKeys = emptySet(),
+        eventGroupReferenceIds = setOf("test-event-group-1"),
+        entityKeys = emptySet(),
       )
     }
   }

@@ -141,7 +141,6 @@ kt_jvm_library(
     name = "event_group_identifier",
     srcs = ["EventGroupIdentifier.kt"],
     deps = [
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
     ],
 )

@@ -77,7 +77,12 @@ class ParallelBatchedPipelineTest {
           events = events,
           minTime = minTime,
           maxTime = maxTime,
-          eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("test-group", null),
+          eventGroupIdentifier =
+            EventGroupIdentifier(
+              eventGroupReferenceId = "test-group",
+              entityKeys = emptySet(),
+              wholeBlobEntityKey = null,
+            ),
         )
       }
     }
@@ -102,11 +107,11 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec.ByEventGroupReferenceIds(
+                FilterSpec(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
-                  eventGroupReferenceIds = listOf("test-group"),
-                  mappedEntityKeys = emptySet(),
+                  eventGroupReferenceIds = setOf("test-group"),
+                  entityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -148,11 +153,11 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec.ByEventGroupReferenceIds(
+                FilterSpec(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
-                  eventGroupReferenceIds = listOf("test-group"),
-                  mappedEntityKeys = emptySet(),
+                  eventGroupReferenceIds = setOf("test-group"),
+                  entityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -215,11 +220,11 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec.ByEventGroupReferenceIds(
+                FilterSpec(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
-                  eventGroupReferenceIds = listOf("test-group"),
-                  mappedEntityKeys = emptySet(),
+                  eventGroupReferenceIds = setOf("test-group"),
+                  entityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -274,11 +279,11 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec.ByEventGroupReferenceIds(
+                FilterSpec(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
-                  eventGroupReferenceIds = listOf("test-group"),
-                  mappedEntityKeys = emptySet(),
+                  eventGroupReferenceIds = setOf("test-group"),
+                  entityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -373,11 +378,11 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec.ByEventGroupReferenceIds(
+                FilterSpec(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
-                  eventGroupReferenceIds = listOf("test-group"),
-                  mappedEntityKeys = emptySet(),
+                  eventGroupReferenceIds = setOf("test-group"),
+                  entityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -419,15 +424,15 @@ class ParallelBatchedPipelineTest {
         filterProcessor =
           FilterProcessor<TestEvent>(
             filterSpec =
-              FilterSpec.ByEventGroupReferenceIds(
+              FilterSpec(
                 celExpression = "",
                 collectionInterval =
                   interval {
                     startTime = timestamp { seconds = now.epochSecond - 3600 }
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
-                eventGroupReferenceIds = listOf("test-group"),
-                mappedEntityKeys = emptySet(),
+                eventGroupReferenceIds = setOf("test-group"),
+                entityKeys = emptySet(),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
           ),
@@ -483,7 +488,12 @@ class ParallelBatchedPipelineTest {
                 events = listOf(e),
                 minTime = now,
                 maxTime = now.plusSeconds(1),
-                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1", null),
+                eventGroupIdentifier =
+                  EventGroupIdentifier(
+                    eventGroupReferenceId = "reference-id-1",
+                    entityKeys = emptySet(),
+                    wholeBlobEntityKey = null,
+                  ),
               )
             )
           }
@@ -496,15 +506,15 @@ class ParallelBatchedPipelineTest {
           filterProcessor =
             FilterProcessor<TestEvent>(
               filterSpec =
-                FilterSpec.ByEventGroupReferenceIds(
+                FilterSpec(
                   celExpression = "",
                   collectionInterval =
                     interval {
                       startTime = timestamp { seconds = now.epochSecond - 3600 }
                       endTime = timestamp { seconds = now.epochSecond + 3600 }
                     },
-                  eventGroupReferenceIds = listOf("test-group"),
-                  mappedEntityKeys = emptySet(),
+                  eventGroupReferenceIds = setOf("test-group"),
+                  entityKeys = emptySet(),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -543,15 +553,15 @@ class ParallelBatchedPipelineTest {
         filterProcessor =
           FilterProcessor<TestEvent>(
             filterSpec =
-              FilterSpec.ByEventGroupReferenceIds(
+              FilterSpec(
                 celExpression = "",
                 collectionInterval =
                   interval {
                     startTime = timestamp { seconds = now.epochSecond - 3600 }
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
-                eventGroupReferenceIds = listOf("test-group"),
-                mappedEntityKeys = emptySet(),
+                eventGroupReferenceIds = setOf("test-group"),
+                entityKeys = emptySet(),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
           ),
@@ -563,15 +573,15 @@ class ParallelBatchedPipelineTest {
         filterProcessor =
           FilterProcessor<TestEvent>(
             filterSpec =
-              FilterSpec.ByEventGroupReferenceIds(
+              FilterSpec(
                 celExpression = "person.age_group == 1", // YEARS_18_TO_34 enum value
                 collectionInterval =
                   interval {
                     startTime = timestamp { seconds = now.epochSecond - 3600 }
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
-                eventGroupReferenceIds = listOf("test-group"),
-                mappedEntityKeys = emptySet(),
+                eventGroupReferenceIds = setOf("test-group"),
+                entityKeys = emptySet(),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
           ),
@@ -630,7 +640,12 @@ class ParallelBatchedPipelineTest {
                 events = listOf(e),
                 minTime = now,
                 maxTime = now.plusSeconds(1),
-                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1", null),
+                eventGroupIdentifier =
+                  EventGroupIdentifier(
+                    eventGroupReferenceId = "reference-id-1",
+                    entityKeys = emptySet(),
+                    wholeBlobEntityKey = null,
+                  ),
               )
             )
           }
@@ -643,15 +658,15 @@ class ParallelBatchedPipelineTest {
         filterProcessor =
           FilterProcessor<TestEvent>(
             filterSpec =
-              FilterSpec.ByEventGroupReferenceIds(
+              FilterSpec(
                 celExpression = "",
                 collectionInterval =
                   interval {
                     startTime = timestamp { seconds = now.epochSecond - 3600 }
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
-                eventGroupReferenceIds = listOf("test-group"),
-                mappedEntityKeys = emptySet(),
+                eventGroupReferenceIds = setOf("test-group"),
+                entityKeys = emptySet(),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
           ),
@@ -702,7 +717,12 @@ class ParallelBatchedPipelineTest {
                 events = listOf(e),
                 minTime = now,
                 maxTime = now.plusSeconds(1),
-                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("reference-id-1", null),
+                eventGroupIdentifier =
+                  EventGroupIdentifier(
+                    eventGroupReferenceId = "reference-id-1",
+                    entityKeys = emptySet(),
+                    wholeBlobEntityKey = null,
+                  ),
               )
             )
             kotlinx.coroutines.yield() // Allow cancellation
@@ -716,15 +736,15 @@ class ParallelBatchedPipelineTest {
         filterProcessor =
           FilterProcessor<TestEvent>(
             filterSpec =
-              FilterSpec.ByEventGroupReferenceIds(
+              FilterSpec(
                 celExpression = "",
                 collectionInterval =
                   interval {
                     startTime = timestamp { seconds = now.epochSecond - 3600 }
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
-                eventGroupReferenceIds = listOf("test-group"),
-                mappedEntityKeys = emptySet(),
+                eventGroupReferenceIds = setOf("test-group"),
+                entityKeys = emptySet(),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
           ),
