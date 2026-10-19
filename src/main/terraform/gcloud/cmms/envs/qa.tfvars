@@ -13,5 +13,6 @@ edpa_model_line_population_spec_blob_uris = {
   "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/YiaaInsYiRo" = "gs://edpa-configs-storage-qa-bucket/results-fulfiller-population-spec.textproto"
   "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/TCufUiq5VqE" = "gs://edpa-configs-storage-qa-bucket/high-overlap-population-spec.textproto"
 }
-vid_labeler_population_spec_file_path = "../../../proto/wfa/measurement/loadtest/dataprovider/hashonly_model_population_spec.textproto"
-vid_labeler_population_spec_blob_uri  = "gs://edpa-configs-storage-qa-bucket/vid-labeler-population-spec.textproto"
+vid_labeler_population_spec_file_path  = "../../../proto/wfa/measurement/loadtest/dataprovider/hashonly_model_population_spec.textproto"
+vid_labeler_population_spec_blob_uri   = "gs://edpa-configs-storage-qa-bucket/vid-labeler-population-spec.textproto"
+meta_impression_query_artifact_version = "0.1.0"
