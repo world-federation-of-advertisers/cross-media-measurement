@@ -263,6 +263,14 @@ message ListImpressionMetadataRequest {
     //     aip.dev/not-precedent: This is a filter input field, not a resource
     //     state field. --)
     ImpressionMetadata.State state = 7 [(google.api.field_behavior) = OPTIONAL];
+
+    // Raw impression upload that produced the metadata.
+    string raw_impression_upload = 8 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+      }
+    ];
   }
 
   // Whether to include soft-deleted entries in addition to active entries.
