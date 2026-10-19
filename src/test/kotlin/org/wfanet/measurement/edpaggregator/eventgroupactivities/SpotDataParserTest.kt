@@ -48,10 +48,42 @@ class SpotDataParserTest {
 
     assertThat(records)
       .containsExactly(
-        SpotRecord("dataProviders/dp1/eventGroups/eg1", Instant.parse("2026-01-01T00:00:00Z")),
-        SpotRecord("dataProviders/dp1/eventGroups/eg2", Instant.parse("2026-01-02T12:30:00Z")),
+        SpotRecord(
+          "dataProviders/dp1/eventGroups/eg1",
+          Instant.parse("2026-01-01T00:00:00Z"),
+          null,
+        ),
+        SpotRecord("dataProviders/dp1/eventGroups/eg2", Instant.parse("2026-01-02T12:30:00Z"), null),
       )
       .inOrder()
+  }
+
+  @Test
+  fun `parseJson parses PATCH operations case-insensitively`() {
+    val json =
+      """
+      [
+        {"parent": "dataProviders/dp1/eventGroups/eg1", "event_group_activity_date": "2026-01-01T00:00:00Z", "operation": "append"},
+        {"parent": "dataProviders/dp1/eventGroups/eg2", "event_group_activity_date": "2026-01-02T00:00:00Z", "operation": "DELETE"}
+      ]
+      """
+        .trimIndent()
+
+    val records = parse(json)
+
+    assertThat(records.map { it.operation })
+      .containsExactly(SpotOperation.APPEND, SpotOperation.DELETE)
+      .inOrder()
+  }
+
+  @Test
+  fun `parseJson fails on invalid PATCH operation`() {
+    val json =
+      """[{"parent": "dataProviders/dp1/eventGroups/eg1", "event_group_activity_date": "2026-01-01T00:00:00Z", "operation": "replace"}]"""
+
+    val exception = assertFailsWith<IllegalArgumentException> { parse(json) }
+
+    assertThat(exception).hasMessageThat().contains("operation")
   }
 
   @Test

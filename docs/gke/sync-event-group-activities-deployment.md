@@ -33,10 +33,17 @@ isolation, retries, sync modes), see the KDoc on `EventGroupActivitySync`.
     {"parent": "dataProviders/<dp>/eventGroups/<eg>", "event_group_activity_date": "2026-06-30T00:00:00Z"}
     ```
 
+    PATCH input additionally requires an explicit `operation` of `append` or
+    `delete`. Every record in a PATCH file must include it:
+
+    ```json
+    {"parent": "dataProviders/<dp>/eventGroups/<eg>", "event_group_activity_date": "2026-06-30T00:00:00Z", "operation": "append"}
+    ```
+
     In production this file is produced by an upstream pipeline. In
     environments without such a pipeline yet (currently qa/head), seed a
     minimal file by hand — a few dates against one real EventGroup are
-    enough to exercise the CronJob wiring end-to-end in `--mode=preview`:
+    enough to exercise the CronJob wiring end-to-end with `--mode=sync --preview`:
 
     ```shell
     cat > /tmp/spot-data.json <<'EOF'
@@ -152,8 +159,8 @@ The workflow stages three new files into the kustomization dir before
 
 ## Validate a Run
 
-The dev overlay deploys with `--mode=preview` by default; the cron computes
-creates and deletes and reports them via metrics without touching the Kingdom.
+The dev overlay deploys with `--mode=sync --preview` by default; the cron
+computes creates and deletes and reports them via metrics without touching the Kingdom.
 To validate against a fresh deploy, trigger an immediate run instead of
 waiting for the schedule:
 
@@ -196,17 +203,19 @@ grpcurl \
 
 ## Switch to Mutating Modes
 
-The cron ships in `--mode=preview` (no mutations). Progress through the
-modes as confidence grows:
+The cron ships in `--mode=sync --preview` (no mutations). Select input semantics
+explicitly for each run:
 
--   `preview` — compute creates and would-deletes, apply nothing. Verify
-    counts via metrics or the `Sync result:` log block.
--   `append` — apply creates only; compute and meter would-deletes without
-    applying. Safe for input files that may be truncated.
--   `sync` — apply both creates and deletes. Enable only after the
-    upstream pipeline is producing full, non-truncated files.
+-   `patch` — apply only explicit `append` and `delete` operations. Dates omitted
+    from the file remain untouched, so partial files cannot cause mass deletion.
+-   `sync` — apply creates and omission-based deletes until the Kingdom exactly
+    matches the input. Use only when the input is complete and authoritative.
 
-To change modes, edit the `--mode=...` entry in
+Add `--preview` to either mode to report its planned changes without applying
+mutations.
+
+To change input semantics or enable writes, edit the `--mode=...` and
+`--preview` entries in
 [`_syncEventGroupActivitiesArgs.edp7`](../../src/main/k8s/dev/edp_aggregator_gke.cue)
 and redeploy via `configure-edp-aggregator.yml`.
 
@@ -219,16 +228,15 @@ OpenTelemetry metrics published by `EventGroupActivitySyncMetrics`:
 -   `edpa.event_group_activity.activities_unchanged`
 -   `edpa.event_group_activity.event_groups_processed{outcome=success|failed}`
 -   `edpa.event_group_activity.sync_errors{error_type=...}`
--   `edpa.event_group_activity.would_delete_count{mode=append|preview}`
+-   `edpa.event_group_activity.would_delete_count{mode=sync|patch}`
 -   `edpa.event_group_activity.sync_latency`
 
 All metrics carry a `data_provider_name` attribute, so dashboards/alerts
 split cleanly per EDP across multiple CronJob entries.
 
 A run exits non-zero only when `eventGroupsFailed > 0` (an RPC failure
-during list/batch). `preview` and `append` runs that suppress deletes exit
-zero — alert on the `would_delete_count` counter, not the K8s Job failure
-count.
+during list/batch). `--preview` runs that suppress planned mutations exit zero —
+alert on the `would_delete_count` counter, not the K8s Job failure count.
 
 ## Adding More EDPs
 
@@ -309,10 +317,9 @@ garbage-collected on next deploy. Verify with
 -   **`Record parent ... is not an EventGroup under DataProvider`:** the
     input file contains records for a different DataProvider, or has a
     malformed parent. This aborts the entire sync; fix the input upstream.
--   **`activitiesWouldDelete > 0` on a `preview` / `append` run:** the sync
-    would have deleted the reported number of activities in `sync` mode.
-    Confirm this matches expectations before switching modes; if the count
-    looks high, the input file is probably truncated — fix upstream.
+-   **`activitiesWouldDelete > 0` on a `--preview` run:** PATCH mode counts only
+    explicit deletes. SYNC mode counts omission-based deletes; an unexpectedly
+    high count can indicate a truncated input file.
 -   **Workflow fails at "Write sync-event-group-activities config" with
     `vars.EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT is empty for environment <env>`:**
     the GitHub variable is unset on this environment. Set it (Settings
