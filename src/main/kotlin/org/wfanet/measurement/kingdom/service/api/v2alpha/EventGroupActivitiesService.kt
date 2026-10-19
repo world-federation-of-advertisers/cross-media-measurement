@@ -19,6 +19,7 @@ import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
+import java.time.DateTimeException
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlin.coroutines.CoroutineContext
@@ -127,6 +128,31 @@ class EventGroupActivitiesService(
               "the EventGroup component of parent and child's EventGroupActivity do not match"
             )
             .asRuntimeException()
+        }
+
+        val activityIdDate: LocalDate =
+          try {
+            LocalDate.parse(eventGroupActivityKey.eventGroupActivityId)
+          } catch (_: DateTimeParseException) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "the EventGroupActivity component of the child name is not a date in ISO-8601 format"
+              )
+              .asRuntimeException()
+          }
+        grpcRequire(child.eventGroupActivity.hasDate()) {
+          "Child request event group activity date is unspecified"
+        }
+        val activityDate: LocalDate =
+          try {
+            child.eventGroupActivity.date.toLocalDate()
+          } catch (_: DateTimeException) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "Child request event group activity date is invalid"
+              )
+              .asRuntimeException()
+          }
+        grpcRequire(activityIdDate == activityDate) {
+          "the EventGroupActivity component of the child name does not match its date"
         }
 
         internalUpdateEventGroupActivityRequest {
