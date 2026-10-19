@@ -28,8 +28,11 @@ import java.util.SortedMap
 import java.util.SortedSet
 import java.util.TreeMap
 import java.util.TreeSet
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -37,8 +40,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
+import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 
 /** Writes VID-labeled impressions in the encrypted format accepted by EDP Aggregator. */
 class LabeledImpressionWriter
@@ -52,7 +57,9 @@ private constructor(
    *
    * [blobUri] and [metadataUri] must be distinct objects in the same bucket. A fresh streaming AEAD
    * data encryption key is generated for each invocation and encrypted with [kekUri]. Entity keys
-   * in the sidecar are derived from the records written to the blob.
+   * in the sidecar are derived from the records written to the blob. Both destination objects must
+   * be new; the writer never overwrites an existing blob or sidecar and removes objects created by
+   * a failed invocation.
    *
    * @return the [BlobDetails] written to [metadataUri]
    */
@@ -110,28 +117,66 @@ private constructor(
         impression.toByteString()
       }
 
+    val blobStorageClient = SelectedStorageClient(parsedBlobUri, rootDirectory, gcsProjectId)
     val encryptedStorageClient =
-      SelectedStorageClient(parsedBlobUri, rootDirectory, gcsProjectId)
-        .withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
-    MesosRecordIoStorageClient(encryptedStorageClient).writeBlob(parsedBlobUri.key, records)
-
-    check(impressionCount > 0L) { "impressions must not be empty" }
-    val details = blobDetails {
-      this.blobUri = blobUri
-      this.encryptedDek = encryptedDek
-      this.modelLine = modelLine
-      this.interval = interval
-      entityKeys +=
-        entityIdsByType.map { (entityType, entityIds) ->
-          entityKeyGroup {
-            this.entityType = entityType
-            this.entityIds += entityIds
-          }
-        }
+      blobStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+    try {
+      MesosRecordIoStorageClient(encryptedStorageClient)
+        .writeBlobIfNotFound(parsedBlobUri.key, records)
+    } catch (e: BlobChangedException) {
+      throw e
+    } catch (e: Throwable) {
+      cleanupBlob(blobStorageClient, parsedBlobUri.key, e)
+      throw e
     }
-    SelectedStorageClient(parsedMetadataUri, rootDirectory, gcsProjectId)
-      .writeBlob(parsedMetadataUri.key, details.toByteString())
-    return details
+
+    try {
+      check(impressionCount > 0L) { "impressions must not be empty" }
+      val details = blobDetails {
+        this.blobUri = blobUri
+        this.encryptedDek = encryptedDek
+        this.modelLine = modelLine
+        this.interval = interval
+        entityKeys +=
+          entityIdsByType.map { (entityType, entityIds) ->
+            entityKeyGroup {
+              this.entityType = entityType
+              this.entityIds += entityIds
+            }
+          }
+      }
+      val metadataStorageClient =
+        SelectedStorageClient(parsedMetadataUri, rootDirectory, gcsProjectId)
+      try {
+        metadataStorageClient.writeBlobIfNotFound(
+          parsedMetadataUri.key,
+          flowOf(details.toByteString()),
+        )
+      } catch (e: BlobChangedException) {
+        throw e
+      } catch (e: Throwable) {
+        cleanupBlob(metadataStorageClient, parsedMetadataUri.key, e)
+        throw e
+      }
+      return details
+    } catch (e: Throwable) {
+      cleanupBlob(blobStorageClient, parsedBlobUri.key, e)
+      throw e
+    }
+  }
+
+  private suspend fun cleanupBlob(
+    storageClient: StorageClient,
+    blobKey: String,
+    originalFailure: Throwable,
+  ) {
+    withContext(NonCancellable) {
+      try {
+        storageClient.getBlob(blobKey)?.delete()
+      } catch (cleanupFailure: Throwable) {
+        originalFailure.addSuppressed(cleanupFailure)
+      }
+    }
   }
 
   private fun generateSerializedEncryptionKey(kekUri: String): ByteString {
@@ -162,6 +207,8 @@ private constructor(
     for (entityKey in impression.entityKeysList) {
       require(entityKey.entityType.isNotEmpty()) { "Entity key type must not be empty" }
       require(entityKey.entityId.isNotEmpty()) { "Entity key ID must not be empty" }
+      require(URL_SAFE_STRING.matches(entityKey.entityType)) { "Entity key type must be URL-safe" }
+      require(URL_SAFE_STRING.matches(entityKey.entityId)) { "Entity key ID must be URL-safe" }
     }
   }
 
@@ -173,6 +220,7 @@ private constructor(
     private val EMPTY_ASSOCIATED_DATA = ByteArray(0)
     private val MODEL_LINE_RESOURCE_NAME =
       Regex("modelProviders/[^/]+/modelSuites/[^/]+/modelLines/[^/]+")
+    private val URL_SAFE_STRING = Regex("^[a-zA-Z0-9._~-]+$")
 
     init {
       StreamingAeadConfig.register()
