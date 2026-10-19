@@ -87,11 +87,13 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_reports_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
 
