@@ -51,6 +51,7 @@ import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
+import org.wfanet.measurement.edpaggregator.tools.VerifyVidLabeledImpressions
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -62,14 +63,14 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import picocli.CommandLine
 
 /**
- * End-to-end tests for [GenerateSyntheticData] and [VerifySyntheticData] driven through their
- * picocli command line surface, covering the multi-event-group flow where a single CLI invocation
- * coalesces multiple
+ * End-to-end tests for [GenerateSyntheticData] and [VerifyVidLabeledImpressions] driven through
+ * their picocli command line surface, covering the multi-event-group flow where a single CLI
+ * invocation coalesces multiple
  * [`SyntheticEventGroupSpec`][org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec]
  * inputs into a single tree of encrypted impression blobs.
  */
 @RunWith(JUnit4::class)
-class GenerateAndVerifySyntheticDataTest {
+class GenerateAndVerifyVidLabeledImpressionsTest {
 
   @Rule @JvmField val tempFolder = TemporaryFolder()
 
@@ -148,7 +149,7 @@ class GenerateAndVerifySyntheticDataTest {
   fun `verify decrypts all impressions from both event group streams`() {
     runGenerate()
 
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     val exitCode =
       CommandLine(verifyCmd)
         .execute(
@@ -174,9 +175,18 @@ class GenerateAndVerifySyntheticDataTest {
         SPEC_B.eventGroupReferenceId,
         SPEC_B.expectedImpressions,
       )
+    assertThat(result.impressionsByEntityKey)
+      .containsExactly(
+        VerifyVidLabeledImpressions.EntityKey(SPEC_A.entityKeyType, SPEC_A.entityKeyIds[0]),
+        SPEC_A.expectedImpressions,
+        VerifyVidLabeledImpressions.EntityKey(SPEC_A.entityKeyType, SPEC_A.entityKeyIds[1]),
+        SPEC_A.expectedImpressions,
+        VerifyVidLabeledImpressions.EntityKey(SPEC_B.entityKeyType, SPEC_B.entityKeyIds[0]),
+        SPEC_B.expectedImpressions,
+      )
 
     // Verify edpa_meta data with its own KMS key.
-    val verifyMeta = VerifySyntheticData()
+    val verifyMeta = VerifyVidLabeledImpressions()
     val verifyMetaExit =
       CommandLine(verifyMeta)
         .execute(
@@ -213,7 +223,7 @@ class GenerateAndVerifySyntheticDataTest {
       binaryMetadataFile.resolveSibling(binaryMetadataFile.nameWithoutExtension + ".json")
     jsonMetadataFile.writeText(JsonFormat.printer().print(blobDetails))
 
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     val jsonUri = "file:///" + jsonMetadataFile.relativeTo(tempFolder.root).path
     val exitCode =
       CommandLine(verifyCmd)
@@ -254,7 +264,7 @@ class GenerateAndVerifySyntheticDataTest {
       binaryMetadataFile.resolveSibling(binaryMetadataFile.nameWithoutExtension + ".json")
     jsonMetadataFile.writeText(jsonWithUnknown)
 
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     val jsonUri = "file:///" + jsonMetadataFile.relativeTo(tempFolder.root).path
     val exitCode =
       CommandLine(verifyCmd)
@@ -270,6 +280,40 @@ class GenerateAndVerifySyntheticDataTest {
     assertThat(result.errors).isEqualTo(0)
     assertThat(result.totalBlobsProcessed).isEqualTo(1)
     assertThat(result.totalImpressions).isGreaterThan(0)
+  }
+
+  @Test
+  fun `verify fails when sidecar entity keys do not match impression records`() {
+    runGenerate()
+
+    val originalMetadataFile =
+      tempFolder.root.resolve(OUTPUT_BUCKET).resolve(OUTPUT_BASE_PATH).walkTopDown().first {
+        it.isFile && it.name == "metadata.binpb"
+      }
+    val originalDetails = BlobDetails.parseFrom(originalMetadataFile.readBytes())
+    val mismatchedGroup =
+      originalDetails.entityKeysList.first().toBuilder().clearEntityIds().addEntityIds("missing-id")
+    val mismatchedDetails =
+      originalDetails.toBuilder().clearEntityKeys().addEntityKeys(mismatchedGroup).build()
+    val mismatchedMetadataFile = originalMetadataFile.resolveSibling("metadata-mismatched.binpb")
+    mismatchedMetadataFile.writeBytes(mismatchedDetails.toByteArray())
+
+    val verifyCmd = VerifyVidLabeledImpressions()
+    val metadataUri = "file:///" + mismatchedMetadataFile.relativeTo(tempFolder.root).path
+    val exitCode =
+      CommandLine(verifyCmd)
+        .execute(
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--local-storage-path=${tempFolder.root.path}",
+          "--metadata-uri=$metadataUri",
+        )
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.errors).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.totalImpressions).isEqualTo(0)
+    assertThat(verifyCmd.lastResult!!.impressionsByEntityKey).isEmpty()
   }
 
   @Test
@@ -293,7 +337,7 @@ class GenerateAndVerifySyntheticDataTest {
         }
     check(renamed.isNotEmpty()) { "Test setup failed — no metadata files were generated" }
 
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     val exitCode =
       CommandLine(verifyCmd)
         .execute(
@@ -320,7 +364,7 @@ class GenerateAndVerifySyntheticDataTest {
 
     // Keep the default-prefix files in place; the custom prefix must NOT match them,
     // so the scan must fail with a no-metadata-found check failure.
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     val exitCode =
       CommandLine(verifyCmd)
         .execute(
@@ -334,7 +378,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--metadata-prefix=no-such-prefix",
         )
     // The scan throws an IllegalStateException, which picocli converts to a non-zero
-    // exit code; verifyCmd.lastResult is never assigned because run() aborted.
+    // exit code; verifyCmd.lastResult is never assigned because execution aborted.
     assertThat(exitCode).isNotEqualTo(0)
     assertThat(verifyCmd.lastResult).isNull()
   }
@@ -343,7 +387,7 @@ class GenerateAndVerifySyntheticDataTest {
   fun `verify rejects empty --metadata-prefix at run time`() {
     runGenerate()
 
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     CommandLine(verifyCmd)
       .parseArgs(
         "--kms-type=FAKE",
@@ -355,16 +399,16 @@ class GenerateAndVerifySyntheticDataTest {
         "--base-path=$OUTPUT_BASE_PATH",
         "--metadata-prefix=",
       )
-    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.run() }
+    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.call() }
     assertThat(failure).hasMessageThat().contains("--metadata-prefix must not be empty")
   }
 
   @Test
   fun `verify decrypts JSON-format EncryptionKey DEK end-to-end via --metadata-uri`() {
-    // Production EDP writers emit `EncryptedDek { typeUrl = EncryptionKey, format = JSON }`,
-    // which `GenerateSyntheticData` never produces locally. This test hand-builds that exact
+    // Some EDP writers emit `EncryptedDek { typeUrl = EncryptionKey, format = JSON }`, which
+    // `GenerateSyntheticData` never produces locally. This test hand-builds that exact
     // wire shape so the JSON-DEK dispatch in `EncryptedStorage.buildEncryptedMesosStorageClient`
-    // is exercised end-to-end through `VerifySyntheticData`.
+    // is exercised end-to-end through `VerifyVidLabeledImpressions`.
 
     // 1. Materialize the FAKE KEK keyset that GenerateSyntheticData.buildFakeKmsClient consumes.
     runGenerate()
@@ -432,6 +476,17 @@ class GenerateAndVerifySyntheticDataTest {
             entityType = "creative"
             entityId = "creative-1"
           }
+          // The same ID under a different type is a different association.
+          addEntityKeysBuilder().apply {
+            entityType = "campaign"
+            entityId = "creative-1"
+          }
+          // A malformed producer may repeat an entity key. Verification counts distinct entity
+          // associations per impression, so this duplicate must not inflate the total.
+          addEntityKeysBuilder().apply {
+            entityType = "creative"
+            entityId = "creative-1"
+          }
         }
         .build()
     runBlocking {
@@ -452,7 +507,7 @@ class GenerateAndVerifySyntheticDataTest {
     metadataFile.writeText(JsonFormat.printer().print(metadataBlobDetails))
 
     // 5. Run the verifier against the JSON metadata URI.
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     val metadataUri = "file:///$OUTPUT_BUCKET/$OUTPUT_BASE_PATH/json-dek-fixture/metadata.json"
     val exitCode =
       CommandLine(verifyCmd)
@@ -468,6 +523,14 @@ class GenerateAndVerifySyntheticDataTest {
     assertThat(result.errors).isEqualTo(0)
     assertThat(result.totalBlobsProcessed).isEqualTo(1)
     assertThat(result.totalImpressions).isEqualTo(1)
+    assertThat(result.impressionsByEventGroupReferenceId).containsExactly("eg-json-dek", 1)
+    assertThat(result.impressionsByEntityKey)
+      .containsExactly(
+        VerifyVidLabeledImpressions.EntityKey("creative", "creative-1"),
+        1,
+        VerifyVidLabeledImpressions.EntityKey("campaign", "creative-1"),
+        1,
+      )
   }
 
   @Test
@@ -475,7 +538,7 @@ class GenerateAndVerifySyntheticDataTest {
     // runGenerate() materializes the FAKE KEK keyset file the verifier requires up front;
     // the require we are exercising fires after that check but before any storage I/O.
     runGenerate()
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     CommandLine(verifyCmd)
       .parseArgs(
         "--kms-type=FAKE",
@@ -483,7 +546,7 @@ class GenerateAndVerifySyntheticDataTest {
         "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
         "--metadata-uri=file:///some/path/metadata.json",
       )
-    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.run() }
+    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.call() }
     assertThat(failure)
       .hasMessageThat()
       .contains("--local-storage-path is required when any --metadata-uri uses file:///")
@@ -492,7 +555,7 @@ class GenerateAndVerifySyntheticDataTest {
   @Test
   fun `verify rejects --metadata-uri paired with explicit --scheme`() {
     runGenerate()
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     CommandLine(verifyCmd)
       .parseArgs(
         "--kms-type=FAKE",
@@ -502,7 +565,7 @@ class GenerateAndVerifySyntheticDataTest {
         "--metadata-uri=file:///some/path/metadata.json",
         "--scheme=gs://",
       )
-    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.run() }
+    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.call() }
     assertThat(failure)
       .hasMessageThat()
       .contains("--scheme is only used with --output-bucket/--base-path scans")
@@ -511,7 +574,7 @@ class GenerateAndVerifySyntheticDataTest {
   @Test
   fun `verify rejects --metadata-uri paired with explicit --metadata-prefix`() {
     runGenerate()
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     CommandLine(verifyCmd)
       .parseArgs(
         "--kms-type=FAKE",
@@ -521,7 +584,7 @@ class GenerateAndVerifySyntheticDataTest {
         "--metadata-uri=file:///some/path/metadata.json",
         "--metadata-prefix=other",
       )
-    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.run() }
+    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.call() }
     assertThat(failure)
       .hasMessageThat()
       .contains("--metadata-prefix is only used with --output-bucket/--base-path scans")
@@ -711,8 +774,12 @@ class GenerateAndVerifySyntheticDataTest {
         )
     assertThat(exitCode).isEqualTo(0)
 
-    // Verify by running VerifySyntheticData with the explicit flag too.
-    val verifyCmd = VerifySyntheticData()
+    // Verify by running VerifyVidLabeledImpressions with the explicit flag too.
+    val descriptorSetFile = TEST_EVENT_DESCRIPTOR_SET_RUNTIME_PATH.toFile()
+    check(descriptorSetFile.exists()) {
+      "TestEvent descriptor set runfile not found at $descriptorSetFile"
+    }
+    val verifyCmd = VerifyVidLabeledImpressions()
     val verifyExitCode =
       CommandLine(verifyCmd)
         .execute(
@@ -724,6 +791,7 @@ class GenerateAndVerifySyntheticDataTest {
           "--output-bucket=$OUTPUT_BUCKET",
           "--base-path=$OUTPUT_BASE_PATH",
           "--event-message-type-url=${GenerateSyntheticData.DEFAULT_EVENT_MESSAGE_TYPE_URL}",
+          "--event-message-descriptor-set=${descriptorSetFile.path}",
         )
     assertThat(verifyExitCode).isEqualTo(0)
     assertThat(verifyCmd.lastResult!!.errors).isEqualTo(0)
@@ -772,10 +840,10 @@ class GenerateAndVerifySyntheticDataTest {
         )
     assertThat(generateExitCode).isEqualTo(0)
 
-    // Verify with the same descriptor flags. VerifySyntheticData should validate that the
+    // Verify with the same descriptor flags. VerifyVidLabeledImpressions should validate that the
     // impression event type URLs match the supplied --event-message-type-url and that each
     // event payload parses cleanly into the dynamic message instance.
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     val verifyExitCode =
       CommandLine(verifyCmd)
         .execute(
@@ -903,7 +971,7 @@ class GenerateAndVerifySyntheticDataTest {
       "MarketEvent descriptor set runfile not found at $descriptorSetFile"
     }
 
-    val verifyCmd = VerifySyntheticData()
+    val verifyCmd = VerifyVidLabeledImpressions()
     val exitCode =
       CommandLine(verifyCmd)
         .execute(
@@ -917,14 +985,13 @@ class GenerateAndVerifySyntheticDataTest {
           // Impressions on disk were written with the TestEvent type URL but we deliberately ask
           // the verifier to expect MarketEvent. The resolver will succeed (the descriptor set
           // contains MarketEvent), so the failure must come from the per-impression type URL
-          // check inside verifySyntheticData(). Every blob (= EXPECTED_DATES.size * 2) must be
+          // check inside the verifier. Every blob (= EXPECTED_DATES.size * 2) must be
           // marked as an error and totalImpressions must remain 0.
           "--event-message-type-url=$MARKET_EVENT_TYPE_URL",
           "--event-message-descriptor-set=${descriptorSetFile.path}",
         )
 
-    // The CLI exits 0 even when verification reports errors (errors are reported via lastResult).
-    assertThat(exitCode).isEqualTo(0)
+    assertThat(exitCode).isEqualTo(1)
     val result = verifyCmd.lastResult!!
     assertThat(result.errors).isEqualTo(EXPECTED_DATES.size * 2)
     assertThat(result.totalBlobsProcessed).isEqualTo(0)
@@ -1098,7 +1165,8 @@ class GenerateAndVerifySyntheticDataTest {
     /**
      * Type URL for the test-only [MarketEvent] message
      * (`wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent`). Used to
-     * exercise GenerateSyntheticData/VerifySyntheticData against a non-`TestEvent` message type.
+     * exercise GenerateSyntheticData/VerifyVidLabeledImpressions against a non-`TestEvent` message
+     * type.
      */
     private const val MARKET_EVENT_TYPE_URL =
       "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent"
@@ -1144,6 +1212,24 @@ class GenerateAndVerifySyntheticDataTest {
           "market",
           "v1",
           "market_event_descriptor_set.pb",
+        )
+      )!!
+
+    private val TEST_EVENT_DESCRIPTOR_SET_RUNTIME_PATH =
+      getRuntimePath(
+        Paths.get(
+          "wfa_measurement_system",
+          "src",
+          "main",
+          "proto",
+          "wfa",
+          "measurement",
+          "api",
+          "v2alpha",
+          "event_templates",
+          "testing",
+          "v1",
+          "test_event_descriptor_set.pb",
         )
       )!!
   }
