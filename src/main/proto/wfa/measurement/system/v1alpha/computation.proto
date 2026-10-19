@@ -214,7 +214,7 @@ message Computation {
     }
 
     // Configuration for the TrusTEE multimeasurement protocol. The attested
-    // image fixes the noise mechanism and the result minimum thresholds.
+    // image fixes the result minimum thresholds.
     message TrusTeeV2 {}
 
     // Configuration for the specific protocol. Required.
