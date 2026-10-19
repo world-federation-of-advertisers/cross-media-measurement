@@ -252,7 +252,6 @@ expand_template(
         "{access_public_api_target}": "$(access_public_api_target)",
         "{access_public_api_cert_host}": "localhost",
         "{model_line}": "$(high_overlap_model_line)",
-        "{edp_names}": "$(high_overlap_edps)",
         "{population_data_provider}": "$(pdp_name)",
         "{edp7_kek_uri}": "$(edp7_kek_uri)",
         "{edpa_meta_kek_uri}": "$(edpa_meta_kek_uri)",
@@ -312,6 +311,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_impression_qualification_filter_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:result_group_kt_jvm_proto",
         "//src/test/kotlin/org/wfanet/measurement/integration/common:high_overlap_expected_reach",
@@ -324,6 +324,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:dayofweek_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/com/google/type:interval_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/aws/kms:aws_kms_client_factory",
@@ -486,9 +487,13 @@ java_test(
 
 kt_jvm_library(
     name = "dashboard_isolation_test_lib",
-    srcs = ["DashboardIsolationTest.kt"],
+    srcs = [
+        "DashboardIsolationTest.kt",
+        "ReportDetailFixtureQuery.kt",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard:dashboard_isolation_checks",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/testing",
         "@maven//:com_google_auth_google_auth_library_oauth2_http",
         "@maven//:com_google_cloud_google_cloud_bigquery",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -499,6 +504,7 @@ kt_jvm_library(
 java_test(
     name = "DashboardIsolationTest",
     timeout = "moderate",
+    data = ["//src/main/terraform/gcloud/cmms/sql:report_detail.sql"],
     tags = [
         "exclusive",
         "external",

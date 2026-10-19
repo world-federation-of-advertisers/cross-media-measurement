@@ -14,7 +14,7 @@
 
 locals {
 
-  edp_display_names = ["edp7", "edpa_meta"]
+  edp_display_names = ["edp7", "edpa_meta", "edpa_video_pub", "edpa_retail_pub"]
 
   edpa_tee_app_tls_key = {
     secret_id         = "edpa-tee-app-tls-key",
@@ -128,13 +128,13 @@ locals {
       mig_service_account_name    = "results-fulfiller-sa"
       single_instance_assignment  = 1
       min_replicas                = 0
-      max_replicas                = 10
+      max_replicas                = 20
       # Using n2d for better Confidential VM availability.
       # Large production workloads may require c4d-standard-32 (124 GB)
       # with hyperdisk-balanced disk (provisioned_iops=5000,
       # provisioned_throughput=1250) and -Xmx96G.
-      machine_type                  = "n2d-standard-8"
-      java_tool_options             = "-Xmx24G"
+      machine_type                  = "n2d-highmem-8"
+      java_tool_options             = "-Xmx48G"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
       app_flags = concat(
@@ -181,7 +181,7 @@ locals {
   }
 
   requisition_fetcher_scheduler_config = {
-    schedule                  = "*/15 * * * *" # Every 15 minutes
+    schedule                  = "*/5 * * * *" # Every 5 minutes
     time_zone                 = "UTC"
     name                      = "requisition-fetcher-scheduler"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/requisition-fetcher"
@@ -266,6 +266,11 @@ locals {
       extra_env_vars = join(",", compact([
         var.requisition_fetcher_env_var,
         "SECURE_COMPUTATION_CONTROL_PLANE_TARGET=${var.secure_computation_public_api_target}",
+        # Below the module's timeout_seconds, so the drain ticker fires before the function dies.
+        "FLUSH_INTERVAL=1m",
+        # Bounds the fulfiller's heap: it holds one ~360MB frequency vector per unique filter spec,
+        # and a group's specs never exceed its requisitions.
+        "MAX_REQUISITIONS_PER_GROUP=100",
       ]))
       secret_mappings = join(",", compact([
         var.requisition_fetcher_secret_mapping,

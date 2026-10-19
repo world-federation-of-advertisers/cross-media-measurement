@@ -139,9 +139,8 @@ class SyncEventGroupActivities : Runnable {
         preview = preview,
       )
 
-    // `exitProcess` skips `finally`, so shut down the channel before converting per-EventGroup
-    // RPC
-    // failures to a nonzero exit.
+    // `exitProcess` skips `finally`, so shut down the channel before reporting RPC failures with a
+    // nonzero exit.
     val hasFailures: Boolean =
       try {
         runBlocking {

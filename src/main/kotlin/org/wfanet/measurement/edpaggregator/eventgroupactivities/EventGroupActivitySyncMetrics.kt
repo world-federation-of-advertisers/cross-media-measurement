@@ -78,7 +78,7 @@ class EventGroupActivitySyncMetrics(meter: Meter) {
     meter
       .counterBuilder("edpa.event_group_activity.would_delete_count")
       .setDescription(
-        "Number of EventGroupActivity deletes computed but not applied due to delete mode"
+        "Number of EventGroupActivity deletes computed but not applied during preview"
       )
       .build()
 
