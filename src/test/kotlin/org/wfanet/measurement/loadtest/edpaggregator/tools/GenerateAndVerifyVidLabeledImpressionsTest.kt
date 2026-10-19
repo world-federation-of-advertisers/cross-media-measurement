@@ -476,6 +476,11 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
             entityType = "creative"
             entityId = "creative-1"
           }
+          // The same ID under a different type is a different association.
+          addEntityKeysBuilder().apply {
+            entityType = "campaign"
+            entityId = "creative-1"
+          }
           // A malformed producer may repeat an entity key. Verification counts distinct entity
           // associations per impression, so this duplicate must not inflate the total.
           addEntityKeysBuilder().apply {
@@ -520,7 +525,12 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     assertThat(result.totalImpressions).isEqualTo(1)
     assertThat(result.impressionsByEventGroupReferenceId).containsExactly("eg-json-dek", 1)
     assertThat(result.impressionsByEntityKey)
-      .containsExactly(VerifyVidLabeledImpressions.EntityKey("creative", "creative-1"), 1)
+      .containsExactly(
+        VerifyVidLabeledImpressions.EntityKey("creative", "creative-1"),
+        1,
+        VerifyVidLabeledImpressions.EntityKey("campaign", "creative-1"),
+        1,
+      )
   }
 
   @Test
