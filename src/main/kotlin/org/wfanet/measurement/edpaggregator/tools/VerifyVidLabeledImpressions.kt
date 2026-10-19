@@ -537,7 +537,11 @@ class VerifyVidLabeledImpressions : Callable<Int> {
 
     private fun buildFakeKmsClient(kekUri: String, keysetFile: File): KmsClient {
       val keysetHandle =
-        TinkProtoKeysetFormat.parseKeyset(keysetFile.readBytes(), InsecureSecretKeyAccess.get())
+        TinkProtoKeysetFormat.parseKeyset(
+          keysetFile.readBytes(),
+          InsecureSecretKeyAccess.get(),
+          RegistryConfiguration.get(),
+        )
       val aead = keysetHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java)
       return object : KmsClient {
         override fun doesSupport(keyUri: String): Boolean = keyUri == kekUri
