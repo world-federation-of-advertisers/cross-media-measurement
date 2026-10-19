@@ -34,8 +34,8 @@ kt_jvm_library(
 java_binary(
     name = "VerifyVidLabeledImpressions",
     main_class = "org.wfanet.measurement.edpaggregator.tools.VerifyVidLabeledImpressionsKt",
-    runtime_deps = [":verify_vid_labeled_impressions"],
     visibility = ["//visibility:public"],
+    runtime_deps = [":verify_vid_labeled_impressions"],
 )
 
 kt_jvm_library(
