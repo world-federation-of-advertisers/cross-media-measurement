@@ -528,3 +528,11 @@ variable "meta_impression_query_uber_jar_path" {
   nullable    = true
   default     = null
 }
+
+variable "meta_expected_ad_account_ids" {
+  description = "Meta ad account IDs the hourly access check reads, from the per-environment META_IMPRESSION_QUERY_CONFIG_CONTENT variable. Empty skips deploying the check."
+  type        = list(string)
+  nullable    = false
+  default     = []
+  sensitive   = true
+}

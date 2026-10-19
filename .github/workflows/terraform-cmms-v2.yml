@@ -243,6 +243,30 @@ jobs:
         mkdir -p "$dest_dir"
         cp "$jar_path" "$dest_dir/${version}-function.jar"
         echo "jar_path=$dest_dir/${version}-function.jar" >> "$GITHUB_OUTPUT"
+    - name: Write Meta impression-query tfvars
+      if: steps.download-meta-impression-query.outputs.jar_path != ''
+      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
+      env:
+        CONFIG_CONTENT: ${{ vars.META_IMPRESSION_QUERY_CONFIG_CONTENT }}
+      run: |
+        set -euo pipefail
+        # Expected ad accounts live in the per-environment config variable rather than the public
+        # tfvars. Absent leaves the list empty, which skips the hourly access check.
+        config="${CONFIG_CONTENT:-}"
+        [[ -n "$config" ]] || config='{}'
+        ids="$(jq -ce '
+          .expected_ad_account_ids // []
+          | select(type == "array" and all(type == "string" and test("^(act_)?[0-9]+$")))
+        ' <<< "$config")" || {
+          echo "META_IMPRESSION_QUERY_CONFIG_CONTENT.expected_ad_account_ids must be an array of numeric ad account ID strings" >&2
+          exit 1
+        }
+        # The repository is public, so keep the IDs out of the job log.
+        for id in $(jq -r '.[]' <<< "$ids"); do
+          echo "::add-mask::$id"
+          echo "::add-mask::${id#act_}"
+        done
+        jq -n --argjson ids "$ids" '{meta_expected_ad_account_ids: $ids}' > meta-impression-query.auto.tfvars.json
 
     - name: Build test event proto descriptors
       id: build-test-event-descriptors
