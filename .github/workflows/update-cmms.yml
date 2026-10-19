@@ -517,7 +517,9 @@ jobs:
         id: target
         env:
           TFVARS_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}.tfvars
-          TEST_CONFIG_CONTENT: ${{ vars.META_IMPRESSION_QUERY_TEST_CONFIG_CONTENT }}
+          # One JSON source for the Meta function's per-environment settings; the test target is
+          # its "test" object. Kept out of the public tfvars because it names a real campaign.
+          CONFIG_CONTENT: ${{ vars.META_IMPRESSION_QUERY_CONFIG_CONTENT }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -539,11 +541,11 @@ jobs:
           fi
           # The test skips rather than fails when unconfigured, so a missing target is an error here.
           fail() { echo "$1" >&2; exit 1; }
-          [[ -n "$TEST_CONFIG_CONTENT" ]] || fail "vars.META_IMPRESSION_QUERY_TEST_CONFIG_CONTENT is empty"
+          [[ -n "$CONFIG_CONTENT" ]] || fail "vars.META_IMPRESSION_QUERY_CONFIG_CONTENT is empty"
           read_field() {
             local value
-            value="$(jq -r --arg f "$1" '.[$f] // empty' <<<"$TEST_CONFIG_CONTENT")"
-            [[ -n "$value" ]] || fail "META_IMPRESSION_QUERY_TEST_CONFIG_CONTENT.$1 is missing"
+            value="$(jq -r --arg f "$1" '.test[$f] // empty' <<<"$CONFIG_CONTENT")"
+            [[ -n "$value" ]] || fail "META_IMPRESSION_QUERY_CONFIG_CONTENT.test.$1 is missing"
             printf '%s' "$value"
           }
           expected="$(read_field expected_impressions)"
