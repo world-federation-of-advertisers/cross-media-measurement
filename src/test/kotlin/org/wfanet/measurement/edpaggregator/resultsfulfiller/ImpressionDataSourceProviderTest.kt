@@ -121,9 +121,9 @@ class ImpressionDataSourceProviderTest {
       )
 
     val sources =
-      svc.listImpressionDataSources(
+      svc.listImpressionDataSourcesByEventGroupReferenceIds(
         modelLine = modelLine,
-        selector = ImpressionQuerySelector.ByEventGroupReferenceIds(listOf(eventGroupRef)),
+        referenceIds = listOf(eventGroupRef),
         period =
           interval {
             startTime = timestamp {
@@ -165,9 +165,9 @@ class ImpressionDataSourceProviderTest {
     val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
 
     try {
-      svc.listImpressionDataSources(
+      svc.listImpressionDataSourcesByEventGroupReferenceIds(
         modelLine = modelLine,
-        selector = ImpressionQuerySelector.ByEventGroupReferenceIds(listOf("eg-3")),
+        referenceIds = listOf("eg-3"),
         period =
           interval {
             startTime = timestamp {
@@ -236,9 +236,9 @@ class ImpressionDataSourceProviderTest {
       )
 
     val sources =
-      svc.listImpressionDataSources(
+      svc.listImpressionDataSourcesByEntityKeys(
         modelLine = modelLine,
-        selector = ImpressionQuerySelector.ByEntityKeys(listOf(queryEntityKey)),
+        entityKeys = listOf(queryEntityKey),
         period =
           interval {
             startTime = timestamp {
@@ -326,9 +326,9 @@ class ImpressionDataSourceProviderTest {
         }
 
       val sources =
-        svc.listImpressionDataSources(
+        svc.listImpressionDataSourcesByEntityKeys(
           modelLine = modelLine,
-          selector = ImpressionQuerySelector.ByEntityKeys(listOf(queryEntityKey)),
+          entityKeys = listOf(queryEntityKey),
           period =
             interval {
               startTime = timestamp {
@@ -376,9 +376,9 @@ class ImpressionDataSourceProviderTest {
       val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
 
       val sources =
-        svc.listImpressionDataSources(
+        svc.listImpressionDataSourcesByEntityKeys(
           modelLine = modelLine,
-          selector = ImpressionQuerySelector.ByEntityKeys(listOf(queryEntityKey)),
+          entityKeys = listOf(queryEntityKey),
           period =
             interval {
               startTime = timestamp {
@@ -424,11 +424,7 @@ class ImpressionDataSourceProviderTest {
     }
 
     val results =
-      svc.listImpressionDataSources(
-        modelLine,
-        ImpressionQuerySelector.ByEntityKeys(listOf(queryEntityKey)),
-        period,
-      )
+      svc.listImpressionDataSourcesByEntityKeys(modelLine, listOf(queryEntityKey), period)
 
     assertThat(results).isEmpty()
 
@@ -466,9 +462,9 @@ class ImpressionDataSourceProviderTest {
       }
 
       val results =
-        svc.listImpressionDataSources(
+        svc.listImpressionDataSourcesByEventGroupReferenceIds(
           modelLine,
-          ImpressionQuerySelector.ByEventGroupReferenceIds(listOf("eg-1", "eg-2", "eg-3")),
+          listOf("eg-1", "eg-2", "eg-3"),
           period,
         )
 
@@ -543,9 +539,9 @@ class ImpressionDataSourceProviderTest {
       )
 
     val sources =
-      svc.listImpressionDataSources(
+      svc.listImpressionDataSourcesByEventGroupReferenceIds(
         modelLine = modelLine,
-        selector = ImpressionQuerySelector.ByEventGroupReferenceIds(listOf(eventGroupRef)),
+        referenceIds = listOf(eventGroupRef),
         period = period,
       )
 

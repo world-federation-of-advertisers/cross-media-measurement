@@ -260,18 +260,18 @@ class StorageEventSource(
         buildList {
           if (entityKeys.isNotEmpty()) {
             addAll(
-              impressionDataSourceProvider.listImpressionDataSources(
+              impressionDataSourceProvider.listImpressionDataSourcesByEntityKeys(
                 modelLine,
-                ImpressionQuerySelector.ByEntityKeys(entityKeys.toList()),
+                entityKeys.toList(),
                 interval,
               )
             )
           }
           if (referenceIds.isNotEmpty()) {
             addAll(
-              impressionDataSourceProvider.listImpressionDataSources(
+              impressionDataSourceProvider.listImpressionDataSourcesByEventGroupReferenceIds(
                 modelLine,
-                ImpressionQuerySelector.ByEventGroupReferenceIds(referenceIds.toList()),
+                referenceIds.toList(),
                 interval,
               )
             )
