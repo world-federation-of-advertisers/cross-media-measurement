@@ -889,7 +889,8 @@ class SyntheticDataGenerationTest {
   fun `generateEvents with PopulationSpec works for a different compiled event template (MarketEvent)`() {
     // This test exercises the engine layer with a *different* compiled event-template class
     // (MarketEvent) than the default TestEvent. It is the engine-level analogue of the
-    // GenerateAndVerifyVidLabeledImpressionsTest CLI MarketEvent case: it proves the generator handles
+    // GenerateAndVerifyVidLabeledImpressionsTest CLI MarketEvent case: it proves the generator
+    // handles
     // arbitrary user-defined event templates without going through DynamicMessage. It also
     // exercises non-population fields whose paths and types differ from anything on TestEvent
     // (e.g. boolean engagement-bucket fields under `video.*`).

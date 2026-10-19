@@ -324,9 +324,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
             requireNotNull(fakeKekKeysetFile) {
               "--fake-kek-keyset-file is required when --kms-type=FAKE"
             }
-          require(file.exists()) {
-            "--fake-kek-keyset-file '$file' does not exist"
-          }
+          require(file.exists()) { "--fake-kek-keyset-file '$file' does not exist" }
           buildFakeKmsClient(kekUri, file)
         }
         KmsType.GCP -> GcpKmsClient().withDefaultCredentials()
@@ -445,9 +443,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
       result.impressionsByEntityKey.toSortedMap(
         compareBy<EntityKey> { it.entityType }.thenBy { it.entityId }
       )) {
-      logger.info(
-        "  Entity '${entityKey.entityType}=${entityKey.entityId}': $count impressions"
-      )
+      logger.info("  Entity '${entityKey.entityType}=${entityKey.entityId}': $count impressions")
     }
     logger.info("  Errors: ${result.errors}")
     if (result.errors == 0) {
@@ -528,10 +524,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
 
     private fun buildFakeKmsClient(kekUri: String, keysetFile: File): KmsClient {
       val keysetHandle =
-        TinkProtoKeysetFormat.parseKeyset(
-          keysetFile.readBytes(),
-          InsecureSecretKeyAccess.get(),
-        )
+        TinkProtoKeysetFormat.parseKeyset(keysetFile.readBytes(), InsecureSecretKeyAccess.get())
       val aead = keysetHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java)
       return object : KmsClient {
         override fun doesSupport(keyUri: String): Boolean = keyUri == kekUri
@@ -679,9 +672,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
           check(blobDetails.blobUri.isNotEmpty()) { "BlobDetails.blob_uri is empty" }
           check(blobDetails.hasEncryptedDek()) { "BlobDetails.encrypted_dek is missing" }
           check(blobDetails.modelLine.isNotEmpty()) { "BlobDetails.model_line is empty" }
-          check(
-            blobDetails.eventGroupReferenceId.isNotEmpty() || blobDetails.entityKeysCount > 0
-          ) {
+          check(blobDetails.eventGroupReferenceId.isNotEmpty() || blobDetails.entityKeysCount > 0) {
             "BlobDetails must contain event_group_reference_id or entity_keys"
           }
 

@@ -63,9 +63,9 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import picocli.CommandLine
 
 /**
- * End-to-end tests for [GenerateSyntheticData] and [VerifyVidLabeledImpressions] driven through their
- * picocli command line surface, covering the multi-event-group flow where a single CLI invocation
- * coalesces multiple
+ * End-to-end tests for [GenerateSyntheticData] and [VerifyVidLabeledImpressions] driven through
+ * their picocli command line surface, covering the multi-event-group flow where a single CLI
+ * invocation coalesces multiple
  * [`SyntheticEventGroupSpec`][org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec]
  * inputs into a single tree of encrypted impression blobs.
  */
@@ -287,11 +287,9 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     runGenerate()
 
     val originalMetadataFile =
-      tempFolder.root
-        .resolve(OUTPUT_BUCKET)
-        .resolve(OUTPUT_BASE_PATH)
-        .walkTopDown()
-        .first { it.isFile && it.name == "metadata.binpb" }
+      tempFolder.root.resolve(OUTPUT_BUCKET).resolve(OUTPUT_BASE_PATH).walkTopDown().first {
+        it.isFile && it.name == "metadata.binpb"
+      }
     val originalDetails = BlobDetails.parseFrom(originalMetadataFile.readBytes())
     val mismatchedGroup =
       originalDetails.entityKeysList.first().toBuilder().clearEntityIds().addEntityIds("missing-id")
@@ -1157,7 +1155,8 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     /**
      * Type URL for the test-only [MarketEvent] message
      * (`wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent`). Used to
-     * exercise GenerateSyntheticData/VerifyVidLabeledImpressions against a non-`TestEvent` message type.
+     * exercise GenerateSyntheticData/VerifyVidLabeledImpressions against a non-`TestEvent` message
+     * type.
      */
     private const val MARKET_EVENT_TYPE_URL =
       "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent"
