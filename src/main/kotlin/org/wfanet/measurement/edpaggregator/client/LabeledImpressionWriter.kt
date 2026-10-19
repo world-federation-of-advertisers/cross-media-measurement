@@ -18,6 +18,7 @@ import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.RegistryConfiguration
+import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
@@ -28,12 +29,13 @@ import java.util.SortedMap
 import java.util.SortedSet
 import java.util.TreeMap
 import java.util.TreeSet
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.common.crypto.tink.StreamingAeadStorageClient
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -98,12 +100,12 @@ private constructor(
     }
     validateInterval(interval)
 
-    val serializedEncryptionKey = generateSerializedEncryptionKey(kekUri)
+    val dataEncryptionKey = generateDataEncryptionKey(kekUri)
     val encryptedDek = encryptedDek {
       this.kekUri = kekUri
       typeUrl = TINK_KEYSET_TYPE_URL
       protobufFormat = EncryptedDek.ProtobufFormat.BINARY
-      ciphertext = serializedEncryptionKey
+      ciphertext = dataEncryptionKey.serializedEncryptedKeyset
     }
     val entityIdsByType: SortedMap<String, SortedSet<String>> = TreeMap()
     var impressionCount = 0L
@@ -119,7 +121,7 @@ private constructor(
 
     val blobStorageClient = SelectedStorageClient(parsedBlobUri, rootDirectory, gcsProjectId)
     val encryptedStorageClient =
-      blobStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+      StreamingAeadStorageClient(blobStorageClient, dataEncryptionKey.streamingAead, Dispatchers.IO)
     try {
       MesosRecordIoStorageClient(encryptedStorageClient)
         .writeBlobIfNotFound(parsedBlobUri.key, records)
@@ -179,17 +181,21 @@ private constructor(
     }
   }
 
-  private fun generateSerializedEncryptionKey(kekUri: String): ByteString {
-    val keysetHandle = KeysetHandle.generateNew(KeyTemplates.get(STREAMING_AEAD_KEY_TEMPLATE))
-    return ByteString.copyFrom(
-      TinkProtoKeysetFormat.serializeEncryptedKeyset(
-        keysetHandle,
-        kmsClient.getAead(kekUri),
-        EMPTY_ASSOCIATED_DATA,
-        RegistryConfiguration.get(),
+  private suspend fun generateDataEncryptionKey(kekUri: String): DataEncryptionKey =
+    withContext(Dispatchers.IO) {
+      val keysetHandle = KeysetHandle.generateNew(KeyTemplates.get(STREAMING_AEAD_KEY_TEMPLATE))
+      DataEncryptionKey(
+        keysetHandle.getPrimitive(RegistryConfiguration.get(), StreamingAead::class.java),
+        ByteString.copyFrom(
+          TinkProtoKeysetFormat.serializeEncryptedKeyset(
+            keysetHandle,
+            kmsClient.getAead(kekUri),
+            EMPTY_ASSOCIATED_DATA,
+            RegistryConfiguration.get(),
+          )
+        ),
       )
-    )
-  }
+    }
 
   private fun validateImpression(impression: LabeledImpression, interval: Interval) {
     require(impression.vid > 0L) { "Each impression must have a positive VID" }
@@ -248,4 +254,9 @@ private constructor(
       }
     }
   }
+
+  private data class DataEncryptionKey(
+    val streamingAead: StreamingAead,
+    val serializedEncryptedKeyset: ByteString,
+  )
 }
