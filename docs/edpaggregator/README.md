@@ -1,318 +1,496 @@
-# Onboard a publisher to the EDP Aggregator
+# Onboard an Event Data Provider to the EDP Aggregator
 
-This guide explains how a publisher joins Halo cross-media measurement using the
-EDP Aggregator (EDPA). In Halo documentation, a publisher that supplies impression
-data is called an **Event Data Provider (EDP)**.
+This guide contains the onboarding steps shared by every publisher or other data
+provider that sends impression data to the EDP Aggregator (EDPA), a component of
+the Halo cross-media measurement system. Halo calls that organization an
+**Event Data Provider (EDP)**.
 
-This guide covers the recommended integration:
+Complete this guide once per market, then follow exactly one impression guide:
 
-* the publisher uploads raw impressions as encrypted Parquet files;
-* EDPA assigns Virtual Person IDs (VIDs) inside trusted hardware; and
-* cross-publisher measurements use the TrusTEE protocol.
+| Input supplied by the EDP | Use this guide |
+| --- | --- |
+| Raw impressions without Virtual Person IDs (VIDs) | [Encrypted Parquet onboarding](parquet-onboarding.md) — recommended |
+| Impressions to which the EDP has already assigned VIDs | [Already VID-labeled onboarding](vid-labeled-onboarding.md) |
 
-> **Already assigning VIDs yourself?** Use
-> [Upload already VID-labeled impressions](vid-labeled-impression-upload.md).
-> That path uses encrypted RecordIO files and metadata sidecars, not Parquet.
-
-After onboarding, the publisher has two recurring responsibilities:
-
-1. Publish campaign information when campaigns are added, changed, or removed.
-2. Upload each day's encrypted Parquet files, followed by an empty `done`
-   object.
-
-The market operator runs the VID-labeling and measurement services. The publisher
-does not deploy Halo software, run the VID model, or respond to individual
-measurement requests.
+Both paths publish campaign information separately, use an EDP-owned encryption
+key, and place data in operator-provided private object storage. The difference is
+who assigns the VID and therefore which impression format is uploaded.
 
 ## Contents
 
-1. [How the integration works](#1-how-the-integration-works)
+1. [Understand the shared integration](#1-understand-the-shared-integration)
 2. [Exchange onboarding information](#2-exchange-onboarding-information)
-3. [Set up encryption and workload trust](#3-set-up-encryption-and-workload-trust)
-4. [Agree on the Parquet contract](#4-agree-on-the-parquet-contract)
+3. [Set up KMS and workload trust](#3-set-up-kms-and-workload-trust)
+4. [Set up storage access](#4-set-up-storage-access)
 5. [Publish campaign information](#5-publish-campaign-information)
-6. [Upload daily impressions](#6-upload-daily-impressions)
-7. [Validate onboarding](#7-validate-onboarding)
-8. [Operate the feed](#8-operate-the-feed)
-9. [Troubleshooting](#9-troubleshooting)
-10. [Other EDPA guides](#10-other-edpa-guides)
+6. [Complete common validation](#6-complete-common-validation)
+7. [Continue with the selected impression path](#7-continue-with-the-selected-impression-path)
 
-## 1. How the integration works
+## 1. Understand the shared integration
 
-The publisher sends two independent feeds to one or more private Cloud Storage
-locations supplied by the operator:
+The EDP sends two independent feeds:
 
 ```text
-Campaign information ──────────────► Halo registers the campaigns
+Campaign information ──────────────► Halo registers and updates campaigns
 
-Encrypted Parquet + done ──────────► EDPA assigns VIDs in trusted hardware
-                                    ► EDPA writes encrypted labeled impressions
-                                    ► Halo records that the date is available
-                                    ► EDPA answers measurement requests
-                                    ► TrusTEE combines publisher contributions
+Encrypted impression files ────────► EDPA registers data availability
+                                    ► Trusted workloads answer measurements
 ```
 
-After upload, Halo keeps the impression columns encrypted at rest and decrypts
-them only inside Google Confidential Space, a trusted execution environment
-(TEE). Before the publisher's cloud key manager grants access, the workload
-presents a hardware-signed attestation describing the software and environment
-that are running.
+With the recommended Parquet path, EDPA first assigns VIDs inside Google
+Confidential Space, a trusted execution environment (TEE). With the already
+VID-labeled path, the EDP assigns the VIDs before upload. After data is uploaded,
+Halo decrypts sensitive impression data only inside approved TEE workloads.
 
-For the complete lifecycle, including the separate EDPA and TrusTEE trust
-boundaries, see [How data moves through the EDP Aggregator](data-flow.md).
+Before the EDP's cloud key manager grants access, a workload presents a
+hardware-signed attestation describing the software and environment that are
+running. Object-storage access alone does not grant decryption access.
 
-Storage access does not grant decryption access. The publisher keeps control of
-the encryption key and can revoke future use by changing the key policy.
+For the full lifecycle and the separate EDPA and TrusTEE trust boundaries, see
+[How data moves through the EDP Aggregator](data-flow.md).
 
-### What each organization owns
+### Terms used in these guides
 
-| The publisher owns | The market operator owns |
+| Term | Meaning |
 | --- | --- |
-| The encryption key in the publisher's cloud account | The private buckets and assigned upload prefixes |
-| The policy deciding which trusted workloads may use the key | Registration of the publisher in Halo |
-| The raw-impression and campaign exports | Configuration of VID models and Parquet field mappings |
-| The identity used to upload files | The trusted VID-labeling, fulfillment, and TrusTEE workloads |
+| EDP | Event Data Provider: the publisher or other organization supplying impression data |
+| VID | Virtual Person ID assigned by a market-specific model or by the EDP |
+| KEK | Key-encryption key owned by the EDP in Google Cloud KMS or AWS KMS |
+| DEK | Data-encryption key used to protect a particular file or batch |
+| TEE | Trusted execution environment; Halo uses Google Confidential Space |
+| EventGroup | Halo's representation of a campaign |
+| Model line | A version of the market's VID model |
 
-The publisher never gives the operator a private encryption key or a downloaded
-cloud credential.
+### Responsibilities
 
-### This guide assumes TrusTEE is enabled
+| The EDP owns | The market operator owns |
+| --- | --- |
+| The KMS key in the EDP's cloud account | Registration of the EDP in Halo |
+| The policy deciding which attested workloads may use the key | Private storage and assigned upload prefixes |
+| The campaign and impression exports | VID models, field mappings, and trusted Halo workloads |
+| The identity that uploads files | Operation of labeling, fulfillment, and optional TrusTEE services |
 
-TrusTEE support is a capability enabled during onboarding; it is not mandatory
-for every possible Halo integration. This guide assumes the publisher and market
-have chosen to enable it. After it is enabled, EDPA automatically fulfills
-eligible TrusTEE requisitions rather than asking the publisher to approve each
-request.
+The EDP never gives the operator a private key or downloaded cloud credential.
+The EDP authorizes approved workload classes through attestation policy instead
+of approving individual VMs, jobs, or measurement requests.
 
 ## 2. Exchange onboarding information
 
-The operator gives the publisher:
+The operator gives the EDP:
 
 * its Halo `DataProvider` resource name;
-* the bucket URIs and exact prefixes for campaign and raw-impression uploads;
-* the trusted workload projects, runtime identities, and official Halo
-  image-signing fingerprint needed by the publisher's key policy;
-* the event fields and identity signals required by the market's VID model;
-* the event fields that measurement filters may use;
-* the active versions of the VID model, called model lines; and
-* the campaign identifier that connects an impression to campaign information.
+* the private bucket URI and exact campaign and impression prefixes;
+* the operator projects, runtime identities, and Halo image-signing key IDs that
+  the EDP must allow in its attestation policy;
+* the active model lines;
+* the campaign/entity-key convention;
+* the event message type and fields used by measurement filters; and
+* for the Parquet path, the identity and demographic inputs required by the VID
+  model plus the operator's target file size.
 
-The publisher gives the operator:
+The EDP gives the operator:
 
 * the cloud identity that will upload files;
-* its KMS key URI and cloud-specific federation settings;
-* a sample Parquet schema;
-* the mapping from Parquet columns to model, event, and campaign fields; and
-* whether TrusTEE will reuse the primary key or use a second re-encryption key.
+* the selected impression path: encrypted Parquet or already VID-labeled
+  RecordIO;
+* its KMS key URI and the cloud-specific federation values from Section 3;
+* whether TrusTEE is enabled and whether it uses the input key or a separate
+  re-encryption key; and
+* for the Parquet path, a sample schema and the proposed column mapping.
 
-Onboarding is per market. Keys, models, identifiers, and storage locations may
-differ between markets.
+Onboarding is per market. Do not assume that keys, identifiers, models, storage
+locations, or trusted workload identities are shared between markets.
 
-## 3. Set up encryption and workload trust
+## 3. Set up KMS and workload trust
 
-The publisher creates a symmetric key in its own Google Cloud or AWS account.
-This is the key-encryption key (KEK), sometimes called the master key.
+Create a symmetric KEK in an EDP-owned Google Cloud project or AWS account. Use
+separate identities for the EDP's export process and Halo's attested workloads.
 
-Use separate identities for the publisher's export and Halo's trusted workloads:
+### Configure TrusTEE if enabled
 
-| Identity | Required key access | Why |
+TrusTEE is an optional integration capability, not a prerequisite for every EDPA
+deployment. Before assigning KMS permissions, ask the operator whether this
+market and integration use it.
+
+When enabled, ResultsFulfiller encrypts the EDP's frequency-vector contribution
+and sends it to the TrusTEE aggregation workload. That TEE decrypts and combines
+contributions from participating EDPs.
+
+Choose one key arrangement:
+
+* **Reuse the input KEK.** ResultsFulfiller needs encrypt and decrypt, and the
+  TrusTEE workload needs decrypt.
+* **Create a dedicated re-encryption key.** ResultsFulfiller uses it to protect
+  the contribution and TrusTEE decrypts it. This permits independent rotation
+  and narrower artifact access. Keep the input key's existing permissions. Give
+  ResultsFulfiller encrypt access and the TrusTEE workload decrypt access on the
+  new key; if one federated identity represents both workloads, it needs both
+  operations. For Google Cloud KMS, create the new key on the same key ring as
+  the input KEK. For AWS KMS, create it in the same account and region.
+
+Add the exact TrusTEE workload identity and project to the attestation policy.
+Do not enable it by broadening the policy to every operator workload. Give the
+operator the re-encryption key name and any new federation values so they can
+configure the EDP's TrusTEE key mapping.
+
+### Required key operations
+
+| Identity or workload | Already VID-labeled path | Parquet path |
 | --- | --- | --- |
-| Publisher export | Encrypt | Writes PME-encrypted Parquet |
-| VID-labeling workloads | Encrypt and decrypt | Read raw impressions and protect intermediate and labeled output |
-| ResultsFulfiller | Decrypt, plus encrypt for TrusTEE | Reads labeled data and encrypts the TrusTEE contribution |
-| TrusTEE workload | Decrypt | Reads the encrypted contribution inside its TEE |
+| EDP export | Encrypt; decrypt only for EDP-operated validation | Encrypt; decrypt only for EDP-operated validation |
+| VID-labeling workloads | Not used | Encrypt and decrypt |
+| ResultsFulfiller without TrusTEE | Decrypt | Decrypt |
+| ResultsFulfiller with TrusTEE | Decrypt input and encrypt the TrusTEE contribution | Decrypt labeled data and encrypt the TrusTEE contribution |
+| TrusTEE workload, when enabled | Decrypt the contribution | Decrypt the contribution |
 
-Grant the publisher export decrypt access only if a publisher-operated validation
-process needs it.
-
-The publisher may reuse the primary key for TrusTEE or create a dedicated
-re-encryption key. A second key provides independent rotation and artifact
-isolation. It does not by itself separate IAM roles if the same federated
-identity has encrypt and decrypt access to both keys. Follow the cloud-specific
-placement rules: for example, a dedicated Google Cloud re-encryption key must be
-on the same key ring as the primary key.
+If one key is used for both input and TrusTEE, grant the combined operations that
+the row requires. A separate TrusTEE re-encryption key can narrow access and be
+rotated independently; Section 6 describes that choice.
 
 ### Trust workload classes, not individual jobs
 
-The publisher does not approve each queue item, VM, or measurement request.
-Instead, its policy accepts approved classes of attested workloads.
-
-The production policy should verify:
+A production policy should verify:
 
 * genuine Confidential Space;
 * a stable, non-debug Confidential Space image;
-* a container image signed by the approved Halo signing key;
-* an approved operator project; and
-* the approved runtime service account or image identity, when exposed by the
-  cloud's attestation path.
+* a container image signed by an operator-provided Halo signing key;
+* an approved workload project; and
+* the exact runtime service accounts used for this EDP, when the attestation path
+  exposes them.
 
-For this integration, the approved workloads are:
+Depending on the selected path and market configuration, the approved workloads
+can include:
 
 * VidLabeler and, for memoized model lines, SubpoolAssigner and VidRankBuilder;
 * ResultsFulfiller; and
 * the TrusTEE aggregation workload.
 
-The operator supplies the exact identities enabled in that market. Do not
-allowlist an unused workload merely because it exists in another deployment.
+The operator must provide the exact set. Do not allow an unused workload merely
+because another market deploys it. A signing key approves a class of Halo-signed
+builds, not one immutable build, so retain the project and workload-identity
+conditions as well.
 
-The signing key identifies an approved publisher of builds; it does not pin one
-exact container build. A new build signed by that same key can satisfy the
-signature condition, so the project and workload-identity conditions are also
-important.
+Never grant the operator's human accounts, upload functions, file watchers, or
+general-purpose VMs access to the KEK.
 
-Do not grant the operator's human accounts, upload functions, file watchers, or
-general-purpose VMs access to the key.
+### Google Cloud KMS
 
-For cloud-specific setup, use:
+Create the key, the service account used by attested workloads, and the Workload
+Identity Pool in the EDP's project. Replace every placeholder before running the
+commands.
 
-* [Google Cloud KMS setup](edp-onboarding.md#22-kms-setup--google-cloud); or
-* [AWS KMS setup](aws-kms-setup.md). Direct Confidential Space attestation is
-  the preferred AWS path for a new integration.
+```bash
+gcloud kms keyrings create <KEY_RING> \
+  --project=<EDP_PROJECT_ID> \
+  --location=<KMS_LOCATION>
 
-For Google Cloud, follow the linked guide's
-[EDPA-managed VID-labeling variant](edp-onboarding.md#edpa-managed-vid-labeling-variant).
-For either cloud, allow only the VID-labeling, ResultsFulfiller, and TrusTEE
-workload classes enabled for this market. Use exact runtime service accounts
-when the attestation path exposes them. Direct AWS attestation instead uses the
-approved workload projects together with the image-signature claims.
+gcloud kms keys create <KEY_NAME> \
+  --project=<EDP_PROJECT_ID> \
+  --location=<KMS_LOCATION> \
+  --keyring=<KEY_RING> \
+  --purpose=encryption
 
-## 4. Agree on the Parquet contract
+gcloud iam service-accounts create <HALO_KMS_SERVICE_ACCOUNT> \
+  --project=<EDP_PROJECT_ID>
 
-Complete the mapping before building the production export. Raw impressions do
-not contain a VID. They are flat Parquet files with one row per impression.
+gcloud iam workload-identity-pools create <WORKLOAD_IDENTITY_POOL> \
+  --project=<EDP_PROJECT_ID> \
+  --location=global
 
-### If an advertiser or another data aggregator prepares the export
+gcloud iam service-accounts add-iam-policy-binding \
+  <HALO_KMS_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
+  --project=<EDP_PROJECT_ID> \
+  --member="principalSet://iam.googleapis.com/projects/<EDP_PROJECT_NUMBER>/locations/global/workloadIdentityPools/<WORKLOAD_IDENTITY_POOL>/*" \
+  --role=roles/iam.workloadIdentityUser
+```
 
-An advertiser or another data aggregator can produce the daily files. EDPA
-does not require a live database connector, a Halo SDK in the source system,
-or an API call for each measurement. The integration boundary is the two file
-feeds in this guide.
+The KEK URI is:
 
-The impression feed must contain the approved **impression-level rows**, not an
-aggregated reach, frequency, or campaign result. Each exported row needs the
-identity inputs, event fields, and campaign identifier agreed with the operator.
-If the exporter's policy does not permit those rows to leave in plaintext, the
-Parquet encryption step must run inside its controlled environment and emit
-only PME-encrypted files.
+```text
+gcp-kms://projects/<EDP_PROJECT_ID>/locations/<KMS_LOCATION>/keyRings/<KEY_RING>/cryptoKeys/<KEY_NAME>
+```
 
-A native Parquet export is sufficient only if it can also:
+Grant the EDP's export identity encrypt-only access:
 
-* add the `event_date` file metadata described below;
-* apply Parquet Modular Encryption with a plaintext footer; and
-* produce files near the agreed size target.
+```bash
+gcloud kms keys add-iam-policy-binding \
+  projects/<EDP_PROJECT_ID>/locations/<KMS_LOCATION>/keyRings/<KEY_RING>/cryptoKeys/<KEY_NAME> \
+  --member=serviceAccount:<EXPORT_SERVICE_ACCOUNT> \
+  --role=roles/cloudkms.cryptoKeyEncrypter
+```
 
-If the native export cannot do all three, add an exporter-controlled step,
-inside its controlled environment when policy requires it, that reads the
-approved rows, validates and shards them, adds the footer, applies PME with the
-publisher's KMS key, and writes the encrypted objects to the operator-provided
-prefix. Do not write plaintext impression files to the operator's bucket. Use
-a separate, prefix-scoped upload identity and publish `done` only after every
-encrypted object for the date is present.
+Grant the federated Halo service account the least-privilege role for the chosen
+path. The Parquet path requires encrypt and decrypt. The already VID-labeled path
+without TrusTEE requires decrypt only:
 
-Campaign information remains a separate feed. It may come from the same
-exporter or from the publisher's campaign system, but its entity keys must
-match the values in the impression export.
+```bash
+# Parquet, or one-key already-labeled + TrusTEE configuration
+gcloud kms keys add-iam-policy-binding \
+  projects/<EDP_PROJECT_ID>/locations/<KMS_LOCATION>/keyRings/<KEY_RING>/cryptoKeys/<KEY_NAME> \
+  --member=serviceAccount:<HALO_KMS_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
+  --role=roles/cloudkms.cryptoKeyEncrypterDecrypter
 
-Column names belong to the publisher. The operator maps them into the market's
-VID model and event schema. The names below are examples from the reference
-writer, not required names.
+# Already VID-labeled without TrusTEE
+gcloud kms keys add-iam-policy-binding \
+  projects/<EDP_PROJECT_ID>/locations/<KMS_LOCATION>/keyRings/<KEY_RING>/cryptoKeys/<KEY_NAME> \
+  --member=serviceAccount:<HALO_KMS_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
+  --role=roles/cloudkms.cryptoKeyDecrypter
+```
 
-| Concept | Reference column | Parquet type | Requirement |
-| --- | --- | --- | --- |
-| Unique impression ID | `event_id` | STRING | Required; mapped to `event_id.id` |
-| Impression time | `event_time_usec` | INT64 | Required; Unix epoch microseconds in UTC |
-| Person or device input | `person_id` | STRING | As required by the VID model |
-| Demographic/model input | `person_gender`, `person_age_group`, … | Configured type | As required by the VID model |
-| Campaign/entity ID | `creative_id`, … | STRING | At least one entity-key mapping; required mappings must be non-empty |
-| Measurement filter input | `video_completed_fraction`, … | Configured type | Required when a measurement filter reads it |
+Run only the command matching the selected profile. Grant the export identity
+decrypt access only when an EDP-operated validation process needs it.
 
-The reference writer calls the video completion column
-`video_completed_fraction`. A publisher may use another name if the operator's
-mapping points the event field to that column.
+Create an OIDC provider in the pool. The following production condition requires
+Confidential Space, a stable image, one of the exact workload service accounts,
+and an approved image signature:
 
-Every configured column must exist with the agreed type. A renamed, missing, or
-retyped mapped column fails schema validation when EDPA opens the file. A filter
-field that is not mapped can instead remain at its event-schema default and cause
-impressions to fail that filter, so agree on filter inputs explicitly.
+```bash
+EDPA_ATTRIBUTE_CONDITION="assertion.swname == 'CONFIDENTIAL_SPACE' &&
+  'STABLE' in assertion.submods.confidential_space.support_attributes &&
+  ['<WORKLOAD_SA_1>','<WORKLOAD_SA_2>'].exists(
+    sa, sa in assertion.google_service_accounts) &&
+  ['<SIGNATURE_ALGORITHM>:<SIGNING_KEY_ID>'].exists(
+    fingerprint,
+    fingerprint in assertion.submods.container.image_signatures.map(
+      sig, sig.signature_algorithm + ':' + sig.key_id))"
 
-The operator configures:
+gcloud iam workload-identity-pools providers create-oidc <PROVIDER_NAME> \
+  --project=<EDP_PROJECT_ID> \
+  --location=global \
+  --workload-identity-pool=<WORKLOAD_IDENTITY_POOL> \
+  --issuer-uri=https://confidentialcomputing.googleapis.com/ \
+  --allowed-audiences=https://sts.googleapis.com \
+  --attribute-mapping=google.subject=assertion.sub \
+  --attribute-condition="$EDPA_ATTRIBUTE_CONDITION"
+```
 
-* how columns populate the VID model input;
-* how columns populate the market's event schema;
-* required and optional entity-key mappings;
-* enum and age-bucket translations, where needed; and
-* the active model lines and their population definitions.
+Use only service accounts that the operator confirms are enabled for this EDP.
+Share the KEK URI, federated service-account email, and provider resource name
+with the operator.
 
-### File dates and size
+### AWS KMS
 
-Each file must represent exactly one UTC calendar date. A date may contain any
-number of files.
+For a new AWS integration, use direct Confidential Space attestation. It does
+not require an EDP-owned Google Cloud project:
 
-Ask the operator for the per-file target and keep each Parquet object at or
-below it. The target should not exceed the operator-configured
-`max_file_batch_size_bytes`, which depends on worker capacity. An oversized
-file is dispatched alone on a best-effort basis and cannot be split across
-labeling jobs.
+```text
+Confidential Space workload
+  └─ attestation token ─► AWS STS AssumeRoleWithWebIdentity
+                           └─ temporary credentials ─► AWS KMS
+```
 
-Approximately **1 GB** is a best-practice starting point when the operator has
-not specified a smaller target; it is not a protocol limit. The operator's
-target always takes precedence. Several moderately sized files also allow more
-parallelism than one very large file.
+#### 1. Create the key and export permission
 
-Splitting by campaign and date is a useful default because it produces natural
-backfill and correction boundaries.
+Create a symmetric customer-managed AWS KMS key. Its URI is:
 
-### Plaintext footer
+```text
+aws-kms://arn:aws:kms:<REGION>:<AWS_ACCOUNT_ID>:key/<KEY_ID>
+```
 
-Every file's Parquet key-value metadata must contain:
+Give the EDP's export principal `kms:Encrypt`. Give it `kms:Decrypt` only if an
+EDP-operated validation process needs it. The export principal is not part of
+the Confidential Space trust policy.
 
-| Key | Value |
+#### 2. Register the Confidential Space issuer
+
+Create an AWS IAM OpenID Connect provider with:
+
+| Setting | Value |
 | --- | --- |
-| `event_date` | The file's UTC date in `YYYY-MM-DD` format |
+| Provider URL | `https://confidentialcomputing.googleapis.com` |
+| Audience | An EDP-chosen value other than `https://sts.google.com`, such as `https://<EDP_NAME>.confidential-space` |
 
-The schema and footer remain plaintext so EDPA can register the file and select
-the applicable model without decrypting the impression columns.
+Do not use the AWS console's **Google** preset; that preset uses
+`accounts.google.com` and belongs to the alternative federation path below.
 
-### Parquet Modular Encryption
+#### 3. Create the attested workload role
 
-Encrypt the data columns using Parquet Modular Encryption (PME), with the
-publisher's KMS key URI as the uniform master key. Leave the footer plaintext:
+Create an AWS role that allows both `sts:AssumeRoleWithWebIdentity` and
+`sts:TagSession`. The attestation claims arrive as session tags. Gate the role on
+the audience, Confidential Space software name, stable-image support attribute,
+operator-provided signing key IDs, and approved operator projects:
 
-```text
-parquet.encryption.uniform.key      = <EDP_KEY_URI>
-parquet.encryption.plaintext.footer = true
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<AWS_ACCOUNT_ID>:oidc-provider/confidentialcomputing.googleapis.com"
+      },
+      "Action": ["sts:AssumeRoleWithWebIdentity", "sts:TagSession"],
+      "Condition": {
+        "StringEquals": {
+          "confidentialcomputing.googleapis.com:aud": "<AUDIENCE>",
+          "aws:RequestTag/swname": "CONFIDENTIAL_SPACE",
+          "aws:RequestTag/confidential_space.support_attributes": "LATEST=STABLE=USABLE",
+          "aws:RequestTag/container.signatures.key_ids": [
+            "<SIGNING_KEY_ID_1>",
+            "<SIGNING_KEY_ID_2>",
+            "<SIGNING_KEY_ID_1>=<SIGNING_KEY_ID_2>"
+          ],
+          "aws:RequestTag/gce.project_id": ["<OPERATOR_PROJECT_1>", "<OPERATOR_PROJECT_2>"]
+        }
+      }
+    }
+  ]
+}
 ```
 
-`<EDP_KEY_URI>` is a URI such as `gcp-kms://...` or `aws-kms://...`.
-The exact library integration depends on the publisher's data platform. The
-repository's
-[reference writer](../../src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing/RawImpressionsWriter.kt)
-shows the contract used by EDPA.
+If an image can carry multiple approved signatures, Confidential Space supplies
+one alphabetically sorted `=`-joined tag. Enumerate each combination that the
+operator can deploy. Do not use `ForAnyValue` or `ForAllValues` with
+`aws:RequestTag/tag-key`; AWS defines it as a single-valued context key.
 
-Do not create a metadata sidecar for raw Parquet. EDPA registers the Parquet
-objects when it sees `done` and creates the encrypted labeled output and its
-metadata later.
+Grant the role the KMS actions from the permissions table. For example, the
+Parquet path uses:
 
-### Match impressions to campaigns
-
-Halo calls a registered campaign an `EventGroup`. New integrations identify it
-with an `entity_key`:
-
-```text
-entity type + entity ID
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["kms:Decrypt", "kms:Encrypt"],
+      "Resource": "arn:aws:kms:<REGION>:<AWS_ACCOUNT_ID>:key/<KEY_ID>"
+    }
+  ]
+}
 ```
 
-For example, a market may use entity type `campaign` and the publisher's
-campaign ID. The Parquet mapping must produce the same entity type and ID on the
-related impressions.
+#### 4. Give the operator the direct-AWS configuration
 
-If the campaign and impressions use different identifiers, the files can process
-successfully while measurements return no matching impressions.
+Provide the KEK URI, role ARN, region, role-session name, and audience. The
+operator configures:
+
+```textproto
+event_data_provider_config {
+  data_provider: "dataProviders/<DATA_PROVIDER_ID>"
+  kms_config {
+    kms_type: AWS_CONFIDENTIAL_SPACE
+    aws_role_arn: "arn:aws:iam::<AWS_ACCOUNT_ID>:role/<ROLE_NAME>"
+    aws_role_session_name: "<SESSION_NAME>"
+    aws_region: "<REGION>"
+    aws_audience: "<AUDIENCE>"
+    kek_uri: "aws-kms://arn:aws:kms:<REGION>:<AWS_ACCOUNT_ID>:key/<KEY_ID>"
+  }
+}
+```
+
+#### 5. Verify direct AWS access
+
+Run an onboarding test that exercises the chosen path. Confirm in AWS CloudTrail
+that `AssumeRoleWithWebIdentity` succeeds and that only the expected KMS actions
+occur. CloudTrail includes the session tags on successful calls but redacts them
+on `AccessDenied`; compare a denial with a successful call when diagnosing a
+claim mismatch.
+
+#### Alternative: AWS through an EDP-owned Google Cloud project
+
+Use this supported path only when the EDP needs a Google Cloud Workload Identity
+Pool in the chain. The pool and service account must be in the EDP's project, not
+the operator's project:
+
+```text
+Confidential Space attestation
+  └─► EDP Workload Identity Pool
+       └─► EDP Google service account ID token
+            └─► AWS STS ─► AWS KMS
+```
+
+Create an `accounts.google.com` OIDC provider in AWS and an AWS role restricted
+to the Google service account's numeric unique ID. In the EDP's Google Cloud
+project, create the attestation-gated Workload Identity Pool as described in the
+Google Cloud section, then create the bridge service account:
+
+```bash
+gcloud iam service-accounts create <AWS_BRIDGE_SERVICE_ACCOUNT> \
+  --project=<EDP_PROJECT_ID> \
+  --display-name="EDP AWS KMS bridge"
+
+gcloud iam service-accounts add-iam-policy-binding \
+  <AWS_BRIDGE_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
+  --project=<EDP_PROJECT_ID> \
+  --role=roles/iam.serviceAccountTokenCreator \
+  --member="principalSet://iam.googleapis.com/projects/<EDP_PROJECT_NUMBER>/locations/global/workloadIdentityPools/<WORKLOAD_IDENTITY_POOL>/*"
+
+gcloud iam service-accounts add-iam-policy-binding \
+  <AWS_BRIDGE_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
+  --project=<EDP_PROJECT_ID> \
+  --role=roles/iam.serviceAccountOpenIdTokenCreator \
+  --member="serviceAccount:<AWS_BRIDGE_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com"
+
+gcloud iam service-accounts describe \
+  <AWS_BRIDGE_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
+  --project=<EDP_PROJECT_ID> \
+  --format="value(uniqueId)"
+```
+
+Add that numeric ID both as an audience on the AWS OIDC provider and as the
+`accounts.google.com:sub` condition on the AWS role:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<AWS_ACCOUNT_ID>:oidc-provider/accounts.google.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "accounts.google.com:sub": ["<SERVICE_ACCOUNT_UNIQUE_ID>"]
+        }
+      }
+    }
+  ]
+}
+```
+
+Provide the operator with the following configuration:
+
+```textproto
+event_data_provider_config {
+  data_provider: "dataProviders/<DATA_PROVIDER_ID>"
+  kms_config {
+    kms_type: AWS
+    kms_audience: "//iam.googleapis.com/projects/<EDP_PROJECT_NUMBER>/locations/global/workloadIdentityPools/<WORKLOAD_IDENTITY_POOL>/providers/<PROVIDER_NAME>"
+    service_account: "<AWS_BRIDGE_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com"
+    aws_role_arn: "arn:aws:iam::<AWS_ACCOUNT_ID>:role/<ROLE_NAME>"
+    aws_role_session_name: "<SESSION_NAME>"
+    aws_region: "<REGION>"
+    aws_audience: "<SERVICE_ACCOUNT_UNIQUE_ID>"
+    kek_uri: "aws-kms://arn:aws:kms:<REGION>:<AWS_ACCOUNT_ID>:key/<KEY_ID>"
+  }
+}
+```
+
+This alternative requires `serviceAccountTokenCreator`, rather than only
+`workloadIdentityUser`, because the bridge must generate an OIDC ID token for
+AWS. It also requires `serviceAccountOpenIdTokenCreator` on itself.
+
+## 4. Set up storage access
+
+The market operator owns the private object-storage bucket and assigns prefixes
+for campaign information and impressions. The operator grants the EDP's upload
+identity write access only to those prefixes.
+
+Use a dedicated, keyless workload identity for automated exports. Do not share a
+downloaded service-account key with the operator. The upload identity needs
+storage write access and the KMS encrypt permission described above; it does not
+need access to run Halo workloads or answer measurement requests.
+
+The operator must provide the exact bucket, prefixes, path pattern, and retention
+expectations. Do not upload plaintext impression files to the operator's bucket.
 
 ## 5. Publish campaign information
 
-Publish campaign information before the first measurement, then again when a
-campaign is added, changed, or removed. It is not part of every daily upload.
+Campaign information is common to both impression paths. Publish it before the
+first measurement, then again when a campaign is added, changed, or removed. It
+is not part of every daily impression upload.
 
 The operator provides a path similar to:
 
@@ -321,11 +499,14 @@ gs://<BUCKET>/<EDP_PREFIX>/event-groups/<FILENAME>.json
 gs://<BUCKET>/<EDP_PREFIX>/event-groups/<FILENAME>.binpb
 ```
 
-Campaign information may be JSON or protobuf. JSON files contain an
-`EventGroups` wrapper. Protobuf files contain RecordIO-framed `EventGroup`
-messages. Filenames must end in the lowercase suffix `.json` or `.binpb`;
-otherwise EDPA ignores them. The authoritative schema is
-[event_group.proto](../../src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha/event_group.proto).
+Campaign files may use either format:
+
+* JSON files contain an `EventGroups` wrapper.
+* Binary protobuf files contain Mesos RecordIO-framed `EventGroup` messages.
+
+Filenames must end with lowercase `.json` or `.binpb`; otherwise EDPA ignores
+them. Generate against the authoritative
+[EventGroup schema](../../src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha/event_group.proto).
 
 Each campaign includes:
 
@@ -333,134 +514,50 @@ Each campaign includes:
 * the interval for which impression data is available;
 * media types such as video or display;
 * the advertiser identity; and
-* the entity key that connects it to Parquet rows.
+* the entity key that connects the campaign to impression rows or records.
 
 Identify the advertiser by setting either:
 
 1. `measurement_consumer` to the advertiser's Halo resource name; or
-2. `client_account_reference_id` to the publisher's account ID after the
-   operator links it to the advertiser. See the
+2. `client_account_reference_id` to the EDP's account ID after the operator
+   links it to the advertiser. See the
    [Self-Serve Onboarding Guide](self-serve-onboarding.md).
 
-Use `entity_key` for new integrations. `event_group_reference_id` is the
-legacy alternative.
+Use `entity_key` for new integrations. `event_group_reference_id` is the legacy
+alternative. The entity type and ID must exactly match the corresponding values
+produced by the selected impression path.
 
 Omitting a campaign from a later file does not delete it. To remove a campaign,
-upload an `EventGroup` tombstone with `state` set to `DELETED`, a complete
-`entity_key`, and an explicit `measurement_consumer`. A
-`client_account_reference_id` alone is not sufficient for a deletion.
+upload an `EventGroup` tombstone with `state = DELETED`, a complete `entity_key`,
+and an explicit `measurement_consumer`. A `client_account_reference_id` alone is
+not sufficient for deletion.
 
-## 6. Upload daily impressions
+## 6. Complete common validation
 
-The operator provides the raw-impression prefix. A typical date folder is:
+Before sending production data, confirm with the operator that:
 
-```text
-gs://<BUCKET>/<RAW_IMPRESSION_PREFIX>/<YYYY-MM-DD>/part-000.parquet
-gs://<BUCKET>/<RAW_IMPRESSION_PREFIX>/<YYYY-MM-DD>/part-001.parquet
-gs://<BUCKET>/<RAW_IMPRESSION_PREFIX>/<YYYY-MM-DD>/done
-```
+1. The `DataProvider` is registered for the correct market.
+2. The EDP upload identity can write only to its assigned prefixes.
+3. The export process can encrypt with the KEK without a downloaded credential.
+4. Each required Halo workload can obtain attested credentials and perform only
+   its expected KMS operations.
+5. A sample campaign file registers the expected campaign and advertiser.
+6. Cloud audit logs show only the expected federated identities or AWS role using
+   the key.
+7. If TrusTEE is enabled, its workload can use the selected re-encryption key.
 
-For each date:
+Then complete the impression-path validation in the selected guide. Onboarding
+is complete only after a representative end-to-end measurement succeeds; a file
+upload by itself is not sufficient.
 
-1. Write every encrypted Parquet file into the assigned date directory.
-2. Confirm that every intended object is present and each `event_date` footer
-   matches the directory date.
-3. Write an empty object named exactly `done` **last**.
-4. Do not add, replace, or remove files after publishing `done`.
+## 7. Continue with the selected impression path
 
-`done` is the publication boundary. EDPA takes a snapshot of the directory and
-starts processing it.
+* [Onboard with encrypted Parquet impressions](parquet-onboarding.md) — agree on
+  the schema, apply Parquet Modular Encryption, publish dates, and validate EDPA
+  VID labeling.
+* [Onboard with already VID-labeled impressions](vid-labeled-onboarding.md) —
+  construct `LabeledImpression` RecordIO, envelope-encrypt it, publish
+  `BlobDetails`, and validate decryption before `done`.
 
-EDPA then:
-
-1. registers the raw files and selects the applicable model lines;
-2. decrypts and labels impressions inside trusted hardware;
-3. writes encrypted, VID-labeled impressions and metadata sidecars;
-4. publishes labeled-output `done` objects; and
-5. registers data availability with Halo.
-
-For additive backfills and corrections, follow the
-[Reference VID impression upload guide](reference-vid-impression-upload-guide.md).
-Do not overwrite bad data or rewrite `done` before coordinating a correction
-with the operator.
-
-## 7. Validate onboarding
-
-Test one small but representative date end to end. A successful upload alone is
-not sufficient.
-
-Confirm:
-
-1. **Campaign registration:** the campaign is active in Halo and belongs to the
-   correct advertiser.
-2. **Raw upload:** EDPA registered every expected Parquet object and date.
-3. **VID labeling:** processing completed for every expected model line.
-4. **Data availability:** Halo shows the date as available.
-5. **Measurement:** a TrusTEE test measurement completes and includes the
-   campaign.
-6. **Key audit:** cloud audit logs show only the expected federated identity or
-   role using the key through the approved attestation path.
-
-If a test returns zero, first compare the campaign's entity key with one Parquet
-row, confirm the measurement interval overlaps `event_date`, and check every
-field used by the measurement filter.
-
-## 8. Operate the feed
-
-For each day:
-
-1. Generate Parquet files with the agreed schema.
-2. Encrypt their columns with PME.
-3. Check the schema, `event_date` footer, date directory, and file sizes.
-4. Upload every Parquet file.
-5. Upload `done` last.
-6. Confirm that labeling and data availability complete.
-
-When campaigns change or are removed, publish the update or explicit deletion
-tombstone and confirm registration before relying on it in a measurement.
-
-Coordinate key-policy changes before the operator rolls out new workload
-identities, projects, or signing keys. Add the new trust values first, verify the
-new build, and remove the old values after rollout.
-
-## 9. Troubleshooting
-
-| Symptom | Likely cause | First check |
-| --- | --- | --- |
-| Nothing happens after upload | Wrong prefix or missing `done` | Compare the full URI with the operator-provided prefix; confirm `done` is lowercase and empty |
-| Registration fails | Missing `event_date`, unreadable footer, or schema mismatch | Read the plaintext footer and schema |
-| KMS returns permission denied | Missing permission or mismatched attestation claim | Compare the project, workload identity, stable status, and signature with the key policy |
-| Labeling succeeds but measurement is zero | Entity keys, dates, or filter fields do not match | Compare one campaign, one Parquet row, and the measurement filter |
-| Direct fulfillment works but TrusTEE fails | TrusTEE is not trusted or its re-encryption mapping is wrong | Check the TrusTEE workload identity, key permission, and operator mapping |
-| Previously published data is wrong | A finalized upload needs correction | Stop modifying the folder and follow the reference upload guide with the operator |
-
-For deeper investigation, use the
+For a stuck or failed measurement after onboarding, use the
 [Report Debugging Guide](report-debugging-guide.md).
-
-## 10. Other EDPA guides
-
-### Publisher integration
-
-| Guide | Purpose |
-| --- | --- |
-| [Data flow and trust boundaries](data-flow.md) | Follow data from export through VID labeling, TrusTEE, and result delivery |
-| [Upload already VID-labeled impressions](vid-labeled-impression-upload.md) | Canonical RecordIO, encryption, metadata, and validation contract when the publisher assigns VIDs |
-| [General EDP Onboarding Guide](edp-onboarding.md) | KMS, attestation, and optional TrusTEE setup for publisher-managed labeled uploads |
-| [AWS KMS Setup Guide](aws-kms-setup.md) | Configure either supported AWS KMS federation path |
-| [Reference VID impression upload guide](reference-vid-impression-upload-guide.md) | Backfill or correct raw Parquet uploads |
-| [Dashboard EDP Onboarding Guide](dashboard/onboarding-guide.md) | Obtain access to publisher dashboard data |
-
-### Market operation
-
-| Guide | Purpose |
-| --- | --- |
-| [Deployment Guide](deployment-guide.md) | Deploy and configure EDPA |
-| [Metadata Operator Guide](metadata-operator-guide.md) | Operate requisition and impression bookkeeping |
-| [Report Debugging Guide](report-debugging-guide.md) | Trace a report end to end |
-| [Self-Serve Onboarding Guide](self-serve-onboarding.md) | Link publisher account IDs to advertisers |
-| [High Overlap Data Shape](high-overlap-data-shape.md) | Understand the high-overlap synthetic dataset |
-| [Dashboard Deployment Guide](dashboard/deployment-guide.md) | Deploy the reporting dashboard |
-
-The guides use placeholders such as `<BUCKET>`, `<EDP_PREFIX>`, and
-`dataProviders/<DATA_PROVIDER_ID>`. Replace them with values supplied by the
-market operator.

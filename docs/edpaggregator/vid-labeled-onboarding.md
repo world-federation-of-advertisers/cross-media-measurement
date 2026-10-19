@@ -1,7 +1,8 @@
-# Upload already VID-labeled impressions
+# Onboard with already VID-labeled impressions
 
-Use this guide when the publisher assigns a Virtual Person ID (VID) to every
-impression before uploading it to the EDP Aggregator (EDPA).
+Use this guide after completing the [common EDP onboarding steps](README.md),
+when the EDP assigns a Virtual Person ID (VID) to every impression before
+uploading it to the EDP Aggregator (EDPA).
 
 > **Impression blobs are never JSON.** They contain binary
 > `LabeledImpression` protobuf messages in Mesos RecordIO framing. Only campaign
@@ -9,33 +10,44 @@ impression before uploading it to the EDP Aggregator (EDPA).
 
 This is the alternative to EDPA-managed VID labeling:
 
-| EDPA-managed labeling | Publisher-managed labeling |
+| EDPA-managed labeling | EDP-managed labeling |
 | --- | --- |
 | Input is PME-encrypted Parquet | Input is envelope-encrypted RecordIO |
 | EDPA assigns VIDs | Every input record already has a VID |
-| EDPA creates labeled metadata | The publisher creates a `BlobDetails` sidecar |
+| EDPA creates labeled metadata | The EDP creates a `BlobDetails` sidecar |
 
 After the labeled data are registered, both paths use the same measurement
 pipeline. See [How data moves through the EDP Aggregator](data-flow.md) for the
 data-availability, ResultsFulfiller, and TrusTEE stages.
 
-For the recommended Parquet path and the rest of publisher onboarding, return to
-[Onboard a publisher to the EDP Aggregator](README.md).
+For the recommended alternative, use
+[Onboard with encrypted Parquet impressions](parquet-onboarding.md). In that
+path, the EDP uploads raw impressions and EDPA assigns the VIDs.
+
+## Contents
+
+1. [Before uploading](#before-uploading)
+2. [Build the labeled records](#1-build-the-labeled-records)
+3. [Encrypt the RecordIO file](#2-encrypt-the-recordio-file)
+4. [Create the metadata sidecar](#3-create-the-metadata-sidecar)
+5. [Upload one date](#4-upload-one-date)
+6. [Validate before publishing `done`](#5-validate-before-publishing-done)
+7. [Common problems](#common-problems)
 
 ## Before uploading
 
 Obtain these values from the market operator:
 
-* the publisher's Halo `DataProvider` resource name;
+* the EDP's Halo `DataProvider` resource name;
 * the full `ModelLine` resource name;
 * the storage bucket and labeled-impression prefix;
 * the market's event protobuf type and descriptor;
 * the campaign/entity-key convention; and
 * the trusted ResultsFulfiller and, if enabled, TrusTEE workload identities.
 
-Set up the publisher-owned KMS key and attestation policy using the
-[Google Cloud KMS instructions](edp-onboarding.md#22-kms-setup--google-cloud) or
-the [AWS KMS Setup Guide](aws-kms-setup.md).
+The common guide defines the EDP-owned KMS key, attestation policy, storage
+access, campaign publication, and optional TrusTEE setup. Publish the campaign's
+`EventGroup` before using its entity key in this guide.
 
 ## 1. Build the labeled records
 
@@ -61,16 +73,16 @@ length.
 | Field | Requirement | Meaning |
 | --- | --- | --- |
 | `event_time` | Required | Timestamp of the impression |
-| `vid` | Required | VID assigned by the publisher |
+| `vid` | Required | VID assigned by the EDP |
 | `event` | Required | An `Any` containing the market's event message |
-| `entity_keys` | Required for new writers | One or more publisher entity identifiers used to select and filter impressions |
+| `entity_keys` | Required for new writers | One or more EDP entity identifiers used to select and filter impressions |
 | `event_group_reference_id` | Legacy | Older campaign reference; new writers use `entity_keys` |
 
 An entity key contains:
 
 * `entity_type`: a URL-safe type such as `campaign`, `creative`, or
   `placement`; and
-* `entity_id`: the publisher's URL-safe identifier for that entity.
+* `entity_id`: the EDP's URL-safe identifier for that entity.
 
 At least one entity key on each impression must match the `entity_key` of the
 campaign registered with Halo. Otherwise, the file may process successfully
@@ -87,15 +99,17 @@ For each daily batch:
    using Mesos RecordIO framing. You may split the batch into multiple blobs.
 3. Encrypt each complete RecordIO stream with the matching Tink AEAD primitive.
    Use the blob's exact object key—the path within the bucket—as associated data.
-4. Wrap the serialized DEK with the publisher's KMS key.
+4. Wrap the serialized DEK with the EDP's KMS key.
 
-The associated data is the object key, not the full `gs://` URI. For example,
-for `gs://example-bucket/publisher/impressions.enc.recordio`, use
-`publisher/impressions.enc.recordio`. `BlobDetails.blob_uri` must resolve to
-that same bucket and object key. Renaming or moving an encrypted blob without
-re-encrypting it changes the associated data and makes decryption fail.
+EDPA uses the exact object key parsed from `BlobDetails.blob_uri` as the
+associated data; the bucket name and `gs://` scheme are not included. For
+`gs://example-bucket/edp/impressions.enc.recordio`, the associated data is
+`edp/impressions.enc.recordio`. The URI must point to the uploaded object
+in the same operator-provided bucket, and its object key must exactly match the
+key used during encryption. Renaming the object or moving it to another
+directory changes its key, so it must be re-encrypted using the new key.
 
-The publisher keeps the KMS key in its own cloud account. The wrapped DEK is
+The EDP keeps the KMS key in its own cloud account. The wrapped DEK is
 recorded in every metadata sidecar for a blob protected by that DEK; the
 plaintext DEK is not uploaded.
 
@@ -131,7 +145,7 @@ The nested `EncryptedDek` contains:
 
 | Field | Meaning |
 | --- | --- |
-| `kek_uri` | URI of the publisher's KMS key |
+| `kek_uri` | URI of the EDP's KMS key |
 | `ciphertext` | Wrapped DEK representation selected by `type_url` and `protobuf_format` |
 
 Use one of the two supported `type_url` and `protobuf_format` pairs:
@@ -173,10 +187,10 @@ gs://<BUCKET>/<LABELED_PREFIX>/model-line/<MODEL_LINE_ID>/<YYYY-MM-DD>/
   done
 ```
 
-The encrypted data blob may use another directory tree within the same
-operator-provided bucket if `BlobDetails.blob_uri` points to it. Cross-bucket
-references are not currently supported. Co-locating the three objects is easier
-to operate.
+Prefer placing each encrypted data blob in this date folder beside its
+`BlobDetails` sidecar. `BlobDetails.blob_uri` may instead point to another
+directory tree in the same operator-provided bucket. Cross-bucket references are
+not currently supported.
 
 For each date:
 
@@ -194,7 +208,7 @@ resource name. It must agree with `BlobDetails.model_line`.
 
 Validate the encrypted blob and metadata yourself before uploading `done`. The
 repository's `VerifySyntheticData` command also works for non-synthetic,
-publisher-produced labeled impressions. From a repository checkout, run:
+EDP-produced labeled impressions. From a repository checkout, run:
 
 ```bash
 bazel run \
@@ -207,10 +221,10 @@ bazel run \
   --event-message-descriptor-set='<FILE_DESCRIPTOR_SET>'
 ```
 
-Run it with a publisher-controlled validation identity that has read access to
+Run it with an EDP-controlled validation identity that has read access to
 the upload objects and decrypt access to the KEK. Prefer keyless application
 default credentials, such as service-account impersonation or workload identity,
-over a downloaded service-account key. The publisher's ordinary upload identity
+over a downloaded service-account key. The EDP's ordinary upload identity
 does not need decrypt access.
 
 The command also supports AWS and GCP-to-AWS KMS. Run the same target with
@@ -226,8 +240,8 @@ until every metadata sidecar passes.
 After self-validation, confirm all of the following with the operator:
 
 1. EDPA discovered every metadata sidecar.
-2. The publisher's attested ResultsFulfiller can unwrap the DEK and read the
-   RecordIO file.
+2. The attested ResultsFulfiller authorized by the EDP can unwrap the DEK and
+   read the RecordIO file.
 3. Halo published data availability for the expected date and model line.
 4. A test measurement selects the expected impressions.
 5. If TrusTEE is enabled, a TrusTEE test measurement completes successfully.
@@ -240,17 +254,10 @@ After self-validation, confirm all of the following with the operator:
 | Metadata is ignored | Filename contains `metadata`, ends in `.binpb` or `.json`, and is non-empty |
 | Metadata parsing fails | Sidecar is `BlobDetails`, not a bare `EncryptedDek` |
 | KMS permission denied before RecordIO parsing | For the `Keyset`/`BINARY` form, `ciphertext` is a serialized Tink `EncryptedKeyset`, not raw KMS ciphertext |
-| Streaming decryption fails | The exact object key used as associated data matches `BlobDetails.blob_uri`; the object was not moved after encryption |
+| Streaming decryption fails | The exact object key parsed from `BlobDetails.blob_uri` matches the key used as associated data; re-encrypt after any rename or directory move |
 | RecordIO cannot be read | Each frame is ASCII byte length, newline, then bare protobuf bytes without a protobuf-delimited prefix |
 | Measurement returns zero | Campaign entity key matches at least one key on each relevant impression and in `BlobDetails` |
 
-For campaign registration and TrusTEE key setup, see the
-[General EDP Onboarding Guide](edp-onboarding.md). For a stuck measurement, use
-the [Report Debugging Guide](report-debugging-guide.md).
-
-## For market operators
-
-Market-specific onboarding material should link to this guide for the wire
-format instead of copying it. Keep only market-owned values in the market guide:
-bucket and prefix assignments, KEK and workload identities, event descriptors,
-model lines, entity-key conventions, contacts, and timelines.
+For campaign registration, KMS, and optional TrusTEE setup, see the
+[common onboarding guide](README.md). For a stuck measurement, use the
+[Report Debugging Guide](report-debugging-guide.md).

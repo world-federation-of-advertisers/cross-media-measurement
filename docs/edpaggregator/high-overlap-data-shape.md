@@ -413,4 +413,4 @@ Terraform resource tracks it — recreating the config bucket drops it silently.
 ## See Also
 
 *   [Deployment Guide](deployment-guide.md) — seeding and `--create-done-blobs`
-*   [EDP Onboarding](edp-onboarding.md) — registering a new aggregator EDP
+*   [EDP Onboarding](README.md) — registering a new aggregator EDP

@@ -1,14 +1,15 @@
 # How data moves through the EDP Aggregator
 
 This guide follows impression data from a partner's export through the EDP
-Aggregator (EDPA) and TrusTEE to a Halo measurement result. It is for technical
-and security teams that want to understand the system before building or
-approving an integration.
+Aggregator (EDPA) and, when enabled, TrusTEE to a Halo measurement result. It is
+for technical and security teams that want to understand the system before
+building or approving an integration.
 
 For the files to produce and the onboarding steps to complete, start with
-[Onboard a publisher to the EDP Aggregator](README.md). This guide uses that
-recommended path: encrypted Parquet input, EDPA-managed Virtual Person ID (VID)
-labeling, and TrusTEE fulfillment.
+[common EDP onboarding](README.md), then follow the
+[Parquet onboarding guide](parquet-onboarding.md). This guide uses that
+recommended path: encrypted Parquet input and EDPA-managed Virtual Person ID
+(VID) labeling. It shows TrusTEE fulfillment where that capability is enabled.
 
 A publisher may produce the export itself, or an advertiser or another data
 aggregator may prepare it on the publisher's behalf. Halo identifies the data as
@@ -171,11 +172,11 @@ Encryption (PME), upload every file for the date, and create the raw-upload
 `done` marker last.
 
 See the onboarding guide for the authoritative
-[Parquet contract](README.md#4-agree-on-the-parquet-contract),
+[Parquet contract](parquet-onboarding.md#1-agree-on-the-parquet-contract),
 [campaign format](README.md#5-publish-campaign-information), and
-[daily upload layout](README.md#6-upload-daily-impressions). The market operator
-provides the market-specific event schema and VID-model inputs; they are not a
-universal EDPA schema.
+[daily upload layout](parquet-onboarding.md#2-upload-daily-impressions). The
+market operator provides the market-specific event schema and VID-model inputs;
+they are not a universal EDPA schema.
 
 ## 3. What happens after upload
 
@@ -194,7 +195,7 @@ versions, and determines which VID model lines apply. The marker is a completion
 signal; it contains no impression data.
 
 A new generation of `done` can create another upload revision. Follow the
-[Reference VID impression upload guide](reference-vid-impression-upload-guide.md):
+[raw-impression backfill and correction guide](reference-vid-impression-upload-guide.md):
 additive backfills may add new object versions, while correcting or removing
 previously processed data requires operator-managed eviction.
 
@@ -316,7 +317,7 @@ VID-labeling stages. It uploads encrypted RecordIO, one `BlobDetails` sidecar pe
 blob, and a labeled-output `done` marker. From data-availability synchronization
 onward, it joins the same flow shown above.
 
-See [Upload already VID-labeled impressions](vid-labeled-impression-upload.md)
+See [Onboard with already VID-labeled impressions](vid-labeled-onboarding.md)
 for that format and upload procedure. The alternative path is not a native
 Parquet upload and should not use the raw-upload directory layout.
 
@@ -324,10 +325,11 @@ Parquet upload and should not use the raw-upload directory layout.
 
 | Document | Use it for |
 | --- | --- |
-| [Publisher onboarding](README.md) | The recommended Parquet integration and recurring upload procedure |
-| [Already VID-labeled uploads](vid-labeled-impression-upload.md) | The alternative encrypted RecordIO and `BlobDetails` contract |
-| [Google Cloud KMS onboarding](edp-onboarding.md#22-kms-setup--google-cloud) | Google Cloud key and attestation policy setup |
-| [AWS KMS setup](aws-kms-setup.md) | AWS key and Confidential Space federation setup |
+| [Common EDP onboarding](README.md) | Registration, KMS, workload trust, storage access, and campaign publication shared by both paths |
+| [Parquet onboarding](parquet-onboarding.md) | The recommended raw-impression format and recurring upload procedure |
+| [Already VID-labeled onboarding](vid-labeled-onboarding.md) | The alternative encrypted RecordIO and `BlobDetails` contract |
+| [Google Cloud KMS onboarding](README.md#google-cloud-kms) | Google Cloud key and attestation policy setup |
+| [AWS KMS onboarding](README.md#aws-kms) | AWS key and Confidential Space federation setup |
 | [EDPA deployment guide](deployment-guide.md) | Operator-owned services and infrastructure |
 | [`EventGroup` schema](../../src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha/event_group.proto) | Authoritative campaign metadata fields |
 | [`LabeledImpression` schema](../../src/main/proto/wfa/measurement/edpaggregator/v1alpha/labeled_impression.proto) | Authoritative labeled-record fields |
