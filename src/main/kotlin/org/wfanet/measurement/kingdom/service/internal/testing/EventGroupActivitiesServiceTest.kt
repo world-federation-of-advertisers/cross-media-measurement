@@ -408,6 +408,87 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
     }
 
   @Test
+  fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when requests is empty`() =
+    runBlocking {
+      val request = batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("requests")
+    }
+
+  @Test
+  fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when requests exceeds limit`() =
+    runBlocking {
+      val activityDate = date {
+        year = 2025
+        month = 12
+        day = 1
+      }
+      val request = batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+        repeat(1001) {
+          requests += updateEventGroupActivityRequest {
+            allowMissing = true
+            eventGroupActivity = eventGroupActivity {
+              externalEventGroupId = eventGroup.externalEventGroupId
+              date = activityDate
+            }
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("cannot contain more than 1000 requests")
+    }
+
+  @Test
+  fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT for duplicate activities`() =
+    runBlocking {
+      val activityDate = date {
+        year = 2025
+        month = 12
+        day = 1
+      }
+      val request = batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+        repeat(2) {
+          requests += updateEventGroupActivityRequest {
+            allowMissing = true
+            eventGroupActivity = eventGroupActivity {
+              externalEventGroupId = eventGroup.externalEventGroupId
+              date = activityDate
+            }
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("requests contains duplicate EventGroupActivity resources")
+    }
+
+  @Test
   fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when EventGroup id is not set`() =
     runBlocking {
       val request = batchUpdateEventGroupActivitiesRequest {

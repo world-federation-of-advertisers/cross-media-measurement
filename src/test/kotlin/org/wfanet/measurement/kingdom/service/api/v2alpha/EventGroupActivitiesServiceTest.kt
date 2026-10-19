@@ -232,6 +232,30 @@ class EventGroupActivitiesServiceTest {
   }
 
   @Test
+  fun `batchUpdateEventGroupActivities rejects wildcard EventGroup child`() {
+    val request = batchUpdateEventGroupActivitiesRequest {
+      parent = "$DATA_PROVIDER_NAME/eventGroups/-"
+      requests += updateEventGroupActivityRequest {
+        eventGroupActivity = eventGroupActivity {
+          name = "$DATA_PROVIDER_NAME/eventGroups/-/eventGroupActivities/2023-10-10"
+        }
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchUpdateEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("Wildcard ID is not supported for the EventGroup in child request")
+  }
+
+  @Test
   fun `batchUpdateEventGroupActivities rejects wildcard child under another DataProvider`() {
     val request = batchUpdateEventGroupActivitiesRequest {
       parent = "$DATA_PROVIDER_NAME/eventGroups/-"

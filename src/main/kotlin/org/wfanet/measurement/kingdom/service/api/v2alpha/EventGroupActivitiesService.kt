@@ -111,6 +111,10 @@ class EventGroupActivitiesService(
             "Child request event group activity name is either unspecified or invalid"
           }
 
+        grpcRequire(eventGroupActivityKey.eventGroupId != ResourceKey.WILDCARD_ID) {
+          "Wildcard ID is not supported for the EventGroup in child request"
+        }
+
         if (eventGroupActivityKey.dataProviderId != parentKey.dataProviderId) {
           throw Status.INVALID_ARGUMENT.withDescription(
               "the DataProvider component of parent and child's EventGroupActivity do not match"
