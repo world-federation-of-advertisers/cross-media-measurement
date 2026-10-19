@@ -32,18 +32,15 @@ description, its linked Issue(s) and the diff (`https://github.com/<org>/<repo>/
 Then check the PR's metadata against dev-standards.md, because the PR title and description
 become the final commit message and release automation parses it:
 
-- **Title** follows Conventional Commits (`feat:`, `fix:`, `refactor:`, `build:`, `ci:`, `docs:`,
-  `perf:`, `test:`), is an imperative sentence, and uses `!` for any breaking change
-  (dev-standards.md → Commit Message Format).
-- **Body** is concise plain text — no headers, bullet lists or code blocks, which break trailer
-  parsing. Background belongs in the Issue, not repeated in the PR.
-- **Trailers**: `BREAKING-CHANGE:` (hyphenated) for breaking changes; `Issue:` using short-link
-  form (`#123` or `org/repo#123`, not a full URL); `RELNOTES:` if relevant.
-- **Issue link**: every significant PR should be tied to an existing Issue; if it is tied to one,
-  the `Issue` trailer is mandatory (dev-standards.md → Pull Requests). A linked Issue with no
-  trailer is 🔴. A significant PR with no Issue at all is 🟡 — ask for one, don't hold the code
-  review hostage to it.
-- **`DO_NOT_SUBMIT`** markers are present only on things meant to be removed before merge.
+- **Title** is an imperative sentence. Do not flag, comment on, or suggest changes to PR titles 
+  regarding Conventional Commits compliance. This is already enforced by a required GitHub status check.
+- **Body** follows the guidelines specified in dev-standards.md.
+- **Trailers**: Do not flag, comment on, or suggest changes to trailers in the PR body. This is already 
+  enforced by a required GitHub status check.
+- **Issue link**: Do not flag, comment on, or suggest changes to issue links. This is already 
+  enforced by a required GitHub status check.
+- **`DO_NOT_SUBMIT`**: Do not flag, comment on, or suggest removing DO_NOT_SUBMIT markers. Their 
+  presence is already checked by a required GitHub status check.
 
 A design doc is optional. Use one if the user gives it or the Issue links it, and review against
 its goals and non-goals. Only stop and ask when the change's intent genuinely can't be worked out
