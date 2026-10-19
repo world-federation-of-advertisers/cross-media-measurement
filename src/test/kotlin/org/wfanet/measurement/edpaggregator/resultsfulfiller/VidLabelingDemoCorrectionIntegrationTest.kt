@@ -249,10 +249,17 @@ class VidLabelingDemoCorrectionIntegrationTest {
       vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
       populationSpec = POPULATION_SPEC,
       requisitions = requisitions,
-      eventGroupSelectorMap =
-        mapOf(
-          EVENT_GROUP_KEY to
-            EventGroupSelector(eventGroupReferenceId = EVENT_GROUP, entityKey = null)
+      resolvedEventGroups =
+        ResolvedEventGroups(
+          eventGroups =
+            listOf(
+              ResolvedEventGroup(
+                key = EVENT_GROUP_KEY,
+                collectionIntervals = emptyList(),
+                selector = EventGroupSelector(eventGroupReferenceId = EVENT_GROUP, entityKey = null),
+              )
+            ),
+          mappedEntityType = null,
         ),
       config =
         PipelineConfiguration(

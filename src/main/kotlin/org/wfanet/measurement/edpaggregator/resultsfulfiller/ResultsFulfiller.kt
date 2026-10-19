@@ -39,11 +39,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
-import org.jetbrains.annotations.VisibleForTesting
-import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -68,8 +65,6 @@ import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
@@ -128,7 +123,7 @@ class ResultsFulfiller(
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
-  private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping?,
+  private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? = null,
   private val responsePageSize: Int? = null,
   private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
@@ -236,8 +231,8 @@ class ResultsFulfiller(
         entry.requisition.unpack(Requisition::class.java)
       }
 
-    val eventGroupSelectorMap: Map<EventGroupKey, EventGroupSelector> =
-      buildEventGroupSelectorMap(
+    val resolvedEventGroups: ResolvedEventGroups =
+      ResolvedEventGroups.fromEventGroupMapEntries(
         groupedRequisitions.eventGroupMapList,
         eventGroupReferenceIdEntityKeyMapping,
       )
@@ -325,13 +320,12 @@ class ResultsFulfiller(
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionDataSourceProvider,
-        eventGroupDetailsList = groupedRequisitions.eventGroupMapList.map { it.details },
+        resolvedEventGroups = resolvedEventGroups,
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
-        eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
         readConcurrency = pipelineConfiguration.readConcurrency,
       )
 
@@ -360,7 +354,7 @@ class ResultsFulfiller(
             vidIndexMap = vidIndexMap,
             populationSpec = populationSpec,
             requisitions = filteredRequisitions,
-            eventGroupSelectorMap = eventGroupSelectorMap,
+            resolvedEventGroups = resolvedEventGroups,
             config = pipelineConfiguration,
             eventDescriptor = eventDescriptor,
           )
@@ -961,67 +955,6 @@ class ResultsFulfiller(
      * Default maximum total attempts (first attempt + retries) per ListRequisitionMetadata page.
      */
     private const val DEFAULT_LIST_MAX_ATTEMPTS = 4
-
-    /**
-     * Builds normalized selectors from grouped requisition entries.
-     *
-     * A default entity-key sentinel with a blank entity ID is treated as absent. When [mapping] is
-     * present, the equivalent representation is included alongside the native selector.
-     */
-    @VisibleForTesting
-    fun buildEventGroupSelectorMap(
-      eventGroupMapList: List<GroupedRequisitions.EventGroupMapEntry>,
-      mapping: EventGroupReferenceIdEntityKeyMapping?,
-    ): Map<EventGroupKey, EventGroupSelector> {
-      val hasEntityKeys: List<Boolean> = eventGroupMapList.map { detailsHasEntityKey(it.details) }
-      if (mapping == null && hasEntityKeys.any { it }) {
-        require(hasEntityKeys.all { it }) {
-          "Cannot mix entity-key and event-group-reference-ID selectors without a mapping"
-        }
-      }
-
-      return eventGroupMapList.associate { entry ->
-        val details: GroupedRequisitions.EventGroupDetails = entry.details
-        val nativeEntityKey: LabeledImpression.EntityKey? =
-          if (detailsHasEntityKey(details)) {
-            val key = details.entityKey
-            LabeledImpressionKt.entityKey {
-              entityType = key.entityType
-              entityId = key.entityId
-            }
-          } else {
-            null
-          }
-        val referenceId: String? =
-          if (nativeEntityKey == null) {
-            details.eventGroupReferenceId.takeIf { it.isNotBlank() }
-          } else {
-            mapping?.toEventGroupReferenceId(nativeEntityKey.entityType, nativeEntityKey.entityId)
-          }
-        val entityKey: LabeledImpression.EntityKey? =
-          nativeEntityKey
-            ?: if (mapping == null || referenceId == null) {
-              null
-            } else {
-              mapping.toEntityId(referenceId)?.let { entityId ->
-                LabeledImpressionKt.entityKey {
-                  entityType = mapping.entityType
-                  this.entityId = entityId
-                }
-              }
-            }
-        val eventGroupKey: EventGroupKey =
-          requireNotNull(EventGroupKey.fromName(entry.eventGroup)) {
-            "Invalid event-group resource name: ${entry.eventGroup}"
-          }
-        eventGroupKey to
-          EventGroupSelector(eventGroupReferenceId = referenceId, entityKey = entityKey)
-      }
-    }
-
-    private fun detailsHasEntityKey(details: GroupedRequisitions.EventGroupDetails): Boolean {
-      return details.hasEntityKey() && details.entityKey.entityId.isNotBlank()
-    }
 
     // Memory-based parallelism limit to prevent OOM with large frequency vectors
     // With 360M sized frequency vector sampled at 10%, we get 36M x 16 bytes for

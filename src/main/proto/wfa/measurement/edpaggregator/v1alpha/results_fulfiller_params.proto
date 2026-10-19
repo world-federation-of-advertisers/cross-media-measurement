@@ -250,27 +250,24 @@ message ResultsFulfillerParams {
 
   // Mapping between an event-group reference ID and an entity key.
   message EventGroupReferenceIdEntityKeyMapping {
-    // Whether the mapping is applied during impression lookup and filtering.
-    bool enabled = 1;
-
     // Entity type whose IDs are equivalent to event-group reference IDs.
-    string entity_type = 2;
+    string entity_type = 1;
 
     // Prefix on event-group reference IDs.
     //
     // Conversion removes the source prefix and adds the destination prefix.
     // A non-empty source prefix must be present for an ID to be mappable.
-    string event_group_reference_id_prefix = 3;
+    string event_group_reference_id_prefix = 2;
 
     // Prefix on entity IDs.
     //
     // Conversion removes the source prefix and adds the destination prefix.
     // A non-empty source prefix must be present for an ID to be mappable.
-    string entity_id_prefix = 4;
+    string entity_id_prefix = 3;
   }
 
-  // Mapping used to read and filter impression data written with either
-  // event-group reference IDs or entity keys.
+  // Optional mapping used to read and filter impression data written with
+  // either event-group reference IDs or entity keys. Presence enables mapping.
   EventGroupReferenceIdEntityKeyMapping
       event_group_reference_id_entity_key_mapping = 13;
 }

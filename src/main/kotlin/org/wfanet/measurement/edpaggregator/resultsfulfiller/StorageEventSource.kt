@@ -41,7 +41,6 @@ import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
@@ -112,7 +111,7 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
 /**
  * Event source that builds readers from an impression metadata facade.
  *
- * Resolves data sources via [ImpressionMetadataService] for each configured event group interval,
+ * Resolves data sources via [ImpressionMetadataService] for each resolved event group interval,
  * then creates [EventReader]s and streams batches in parallel. This class is agnostic to storage
  * layout and transport.
  *
@@ -121,14 +120,12 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
  * - Memory: bounded by batch size and number of concurrent readers
  *
  * @property impressionDataSourceProvider facade providing data sources for intervals.
- * @property eventGroupDetailsList event groups with their collection intervals.
+ * @property resolvedEventGroups event groups normalized for storage lookup and filtering.
  * @property modelLine model line to use for fetching impressions
  * @property kmsClient KMS client for decryption operations
  * @property impressionsStorageConfig storage configuration for reading impressions
  * @property descriptor protobuf descriptor for parsing events
  * @property batchSize batch size for event reading
- * @property eventGroupReferenceIdEntityKeyMapping optional equivalence between reference IDs and
- *   one entity-key type.
  * @property readConcurrency maximum number of blobs read + decrypted concurrently. Bounds the
  *   outbound Cloud Storage / Cloud KMS fan-out so one work item cannot exhaust Cloud NAT ports or
  *   overwhelm KMS.
@@ -142,13 +139,12 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
  */
 class StorageEventSource(
   private val impressionDataSourceProvider: ImpressionDataSourceProvider,
-  private val eventGroupDetailsList: List<EventGroupDetails>,
+  private val resolvedEventGroups: ResolvedEventGroups,
   private val modelLine: String,
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val descriptor: Descriptors.Descriptor,
   private val batchSize: Int,
-  private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping?,
   private val readConcurrency: Int = DEFAULT_READ_CONCURRENCY,
   private val readMaxAttempts: Int = DEFAULT_READ_MAX_ATTEMPTS,
   private val readRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
@@ -159,17 +155,8 @@ class StorageEventSource(
   init {
     require(readConcurrency > 0) { "readConcurrency must be positive" }
     require(readMaxAttempts >= 1) { "readMaxAttempts must be at least 1" }
-    require(eventGroupDetailsList.isNotEmpty()) { "eventGroupDetailsList must not be empty" }
-    val hasEntityKeys: List<Boolean> = eventGroupDetailsList.map(::hasEntityKey)
-    if (eventGroupReferenceIdEntityKeyMapping == null && hasEntityKeys.any { it }) {
-      require(hasEntityKeys.all { it }) {
-        "Cannot mix entity-key and event-group-reference-ID selectors without a mapping"
-      }
-    }
-    require(
-      eventGroupDetailsList.all { hasEntityKey(it) || it.eventGroupReferenceId.isNotBlank() }
-    ) {
-      "Each event group must have an entity key or event-group reference ID"
+    require(resolvedEventGroups.eventGroups.isNotEmpty()) {
+      "resolvedEventGroups must not be empty"
     }
   }
 
@@ -210,7 +197,7 @@ class StorageEventSource(
       val eventReaders: List<ResolvedEventReader> = createEventReaders()
       ProgressTracker(eventReaders.size).use { progressTracker ->
         logger.info(
-          "Processing ${eventReaders.size} EventReaders across ${eventGroupDetailsList.size} event groups"
+          "Processing ${eventReaders.size} EventReaders across ${resolvedEventGroups.eventGroups.size} event groups"
         )
         // Launch one coroutine per EventReader, but bound how many read + decrypt concurrently via
         // a semaphore so the outbound Cloud Storage / Cloud KMS fan-out cannot exhaust Cloud NAT
@@ -234,11 +221,6 @@ class StorageEventSource(
     }
   }
 
-  /** Returns true if [details] has an entity key with a non-blank entity ID. */
-  private fun hasEntityKey(details: EventGroupDetails): Boolean {
-    return details.hasEntityKey() && details.entityKey.entityId.isNotBlank()
-  }
-
   /** Collects all impression data sources and deduplicates by blob URI. */
   private suspend fun getUniqueImpressionDataSources(): List<ImpressionDataSource> {
     cachedImpressionDataSources?.let {
@@ -246,45 +228,26 @@ class StorageEventSource(
     }
 
     val entityKeysByInterval: Map<Interval, Set<EntityKey>> =
-      eventGroupDetailsList
-        .flatMap { details ->
-          val nativeEntityKey: EntityKey? =
-            if (hasEntityKey(details)) {
+      resolvedEventGroups.eventGroups
+        .flatMap { eventGroup ->
+          val queryEntityKey: EntityKey? =
+            eventGroup.selector.entityKey?.let { selector ->
               entityKey {
-                entityType = details.entityKey.entityType
-                entityId = details.entityKey.entityId
+                entityType = selector.entityType
+                entityId = selector.entityId
               }
-            } else {
-              null
             }
-          val mappedEntityKey: EntityKey? =
-            if (nativeEntityKey == null) {
-              details.eventGroupReferenceId.takeIf { it.isNotBlank() }?.let(::mappedQueryEntityKey)
-            } else {
-              null
-            }
-          details.collectionIntervalsList.flatMap { interval ->
-            listOfNotNull(nativeEntityKey, mappedEntityKey).map { interval to it }
+          eventGroup.collectionIntervals.flatMap { interval ->
+            listOfNotNull(queryEntityKey).map { interval to it }
           }
         }
         .groupBy({ it.first }, { it.second })
         .mapValues { (_, entityKeys) -> entityKeys.toSet() }
     val referenceIdsByInterval: Map<Interval, Set<String>> =
-      eventGroupDetailsList
-        .flatMap { details ->
-          val nativeReferenceId: String? =
-            details.eventGroupReferenceId.takeIf { !hasEntityKey(details) && it.isNotBlank() }
-          val mappedReferenceId: String? =
-            if (hasEntityKey(details)) {
-              eventGroupReferenceIdEntityKeyMapping?.toEventGroupReferenceId(
-                details.entityKey.entityType,
-                details.entityKey.entityId,
-              )
-            } else {
-              null
-            }
-          details.collectionIntervalsList.flatMap { interval ->
-            listOfNotNull(nativeReferenceId, mappedReferenceId).map { interval to it }
+      resolvedEventGroups.eventGroups
+        .flatMap { eventGroup ->
+          eventGroup.collectionIntervals.flatMap { interval ->
+            listOfNotNull(eventGroup.selector.eventGroupReferenceId).map { interval to it }
           }
         }
         .groupBy({ it.first }, { it.second })
@@ -320,24 +283,6 @@ class StorageEventSource(
     return result
   }
 
-  private fun mappedQueryEntityKey(referenceId: String): EntityKey? {
-    val mapping = eventGroupReferenceIdEntityKeyMapping ?: return null
-    val entityId = mapping.toEntityId(referenceId) ?: return null
-    return entityKey {
-      entityType = mapping.entityType
-      this.entityId = entityId
-    }
-  }
-
-  private fun mappedEntityKey(referenceId: String): LabeledImpression.EntityKey? {
-    val mapping = eventGroupReferenceIdEntityKeyMapping ?: return null
-    val entityId = mapping.toEntityId(referenceId) ?: return null
-    return LabeledImpressionKt.entityKey {
-      entityType = mapping.entityType
-      this.entityId = entityId
-    }
-  }
-
   private fun flattenEntityKeys(blobDetails: BlobDetails): Set<LabeledImpression.EntityKey> {
     return blobDetails.entityKeysList
       .asSequence()
@@ -354,9 +299,9 @@ class StorageEventSource(
 
   private fun eventGroupIdentifier(blobDetails: BlobDetails): EventGroupIdentifier {
     val entityKeys: Set<LabeledImpression.EntityKey> = flattenEntityKeys(blobDetails)
-    val mapping: EventGroupReferenceIdEntityKeyMapping? = eventGroupReferenceIdEntityKeyMapping
     val directReferenceId: String? = blobDetails.eventGroupReferenceId.takeIf { it.isNotBlank() }
-    if (mapping == null) {
+    val mappedEntityType: String? = resolvedEventGroups.mappedEntityType
+    if (mappedEntityType == null) {
       return EventGroupIdentifier(
         eventGroupReferenceId = directReferenceId,
         entityKeys = entityKeys,
@@ -365,23 +310,12 @@ class StorageEventSource(
     }
 
     val mappedEntityKeys: Set<LabeledImpression.EntityKey> =
-      entityKeys.filter { it.entityType == mapping.entityType }.toSet()
-    val wholeBlobEntityKey: LabeledImpression.EntityKey? =
-      mappedEntityKeys.singleOrNull()
-        ?: if (mappedEntityKeys.isEmpty() && directReferenceId != null) {
-          mappedEntityKey(directReferenceId)
-        } else {
-          null
-        }
+      entityKeys.filter { it.entityType == mappedEntityType }.toSet()
+    val wholeBlobEntityKey: LabeledImpression.EntityKey? = mappedEntityKeys.singleOrNull()
     val eventGroupReferenceId: String? =
       when {
         mappedEntityKeys.size > 1 -> null
         directReferenceId != null -> directReferenceId
-        wholeBlobEntityKey != null ->
-          mapping.toEventGroupReferenceId(
-            wholeBlobEntityKey.entityType,
-            wholeBlobEntityKey.entityId,
-          )
         else -> null
       }
 

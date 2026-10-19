@@ -239,15 +239,17 @@ class ResultsFulfillerApp(
         }
       }
     val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? =
-      fulfillerParams.eventGroupReferenceIdEntityKeyMapping
-        .takeIf { it.enabled }
-        ?.let { params ->
+      if (fulfillerParams.hasEventGroupReferenceIdEntityKeyMapping()) {
+        fulfillerParams.eventGroupReferenceIdEntityKeyMapping.let { params ->
           EventGroupReferenceIdEntityKeyMapping(
             entityType = params.entityType,
             eventGroupReferenceIdPrefix = params.eventGroupReferenceIdPrefix,
             entityIdPrefix = params.entityIdPrefix,
           )
         }
+      } else {
+        null
+      }
 
     ResultsFulfiller(
         dataProvider = fulfillerParams.dataProvider,

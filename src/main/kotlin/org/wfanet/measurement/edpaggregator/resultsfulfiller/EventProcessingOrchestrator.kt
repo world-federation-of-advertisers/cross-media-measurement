@@ -33,23 +33,8 @@ import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.size
-
-/** Native and equivalent selectors for one requisition event group. */
-data class EventGroupSelector(
-  val eventGroupReferenceId: String?,
-  val entityKey: LabeledImpression.EntityKey?,
-) {
-  init {
-    require(
-      eventGroupReferenceId?.isNotBlank() == true || entityKey?.entityId?.isNotBlank() == true
-    ) {
-      "At least one event-group selector must be present"
-    }
-  }
-}
 
 /**
  * Index containing mappings between requisitions and their canonical [FilterSpec]s.
@@ -80,14 +65,14 @@ data class FilterSpecIndex(
      * - A reverse lookup from requisition name to its canonical [FilterSpec].
      *
      * @param requisitions Requisitions to analyze.
-     * @param eventGroupSelectorMap Selectors keyed by parsed event-group resource key.
+     * @param resolvedEventGroups Event groups normalized for storage lookup and filtering.
      * @return [FilterSpecIndex] containing the bidirectional mapping.
      * @throws IllegalArgumentException if a requisition has no event groups or groups are
      *   inconsistent in expression or interval.
      */
     fun fromRequisitions(
       requisitions: List<Requisition>,
-      eventGroupSelectorMap: Map<EventGroupKey, EventGroupSelector>,
+      resolvedEventGroups: ResolvedEventGroups,
       privateEncryptionKey: PrivateKeyHandle,
     ): FilterSpecIndex {
       val filterSpecToReqNames = mutableMapOf<FilterSpec, MutableList<String>>()
@@ -125,9 +110,10 @@ data class FilterSpecIndex(
               requireNotNull(EventGroupKey.fromName(entry.key)) {
                 "Invalid event-group resource name in requisition ${requisition.name}: ${entry.key}"
               }
-            requireNotNull(eventGroupSelectorMap[eventGroupKey]) {
-              "Missing selector for requisition ${requisition.name} event group $eventGroupKey"
-            }
+            requireNotNull(resolvedEventGroups.byKey[eventGroupKey]) {
+                "Missing selector for requisition ${requisition.name} event group $eventGroupKey"
+              }
+              .selector
           }
         val filterSpec =
           FilterSpec(
@@ -198,8 +184,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @param populationSpec Population spec defining index space for frequency vectors.
    * @param config Pipeline configuration (batch size, workers, etc.).
    * @param requisitions Requisitions to fulfill
-   * @param eventGroupSelectorMap Native and equivalent selectors keyed by parsed event-group
-   *   resource key.
+   * @param resolvedEventGroups Event groups normalized for storage lookup and filtering.
    * @param eventDescriptor Descriptor of the packed event messages (for CEL evaluation).
    * @return Map from requisition name to computed [StripedByteFrequencyVector].
    * @throws ImpressionReadException on impression read failures
@@ -211,7 +196,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     vidIndexMap: VidIndexMap,
     populationSpec: PopulationSpec,
     requisitions: List<Requisition>,
-    eventGroupSelectorMap: Map<EventGroupKey, EventGroupSelector>,
+    resolvedEventGroups: ResolvedEventGroups,
     config: PipelineConfiguration,
     eventDescriptor: Descriptors.Descriptor,
   ): Map<String, StripedByteFrequencyVector> {
@@ -232,8 +217,8 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
 
     try {
       // Build a mapping from requisitions to canonical FilterSpecs
-      val filterSpecIndex =
-        FilterSpecIndex.fromRequisitions(requisitions, eventGroupSelectorMap, privateEncryptionKey)
+      val filterSpecIndex: FilterSpecIndex =
+        FilterSpecIndex.fromRequisitions(requisitions, resolvedEventGroups, privateEncryptionKey)
       logger.info("Found ${filterSpecIndex.filterSpecToRequisitionNames.size} unique filter specs")
 
       // Create one sink per unique FilterSpec

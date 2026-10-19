@@ -135,8 +135,6 @@ class ImpressionDataSourceProvider(
                   ListImpressionMetadataRequestKt.filter {
                     modelLine = reportModelLine
                     when (selector) {
-                      is ImpressionQuerySelector.ByEventGroupReferenceId ->
-                        eventGroupReferenceIds += selector.refId
                       is ImpressionQuerySelector.ByEventGroupReferenceIds ->
                         eventGroupReferenceIds += selector.refIds
                       is ImpressionQuerySelector.ByEntityKeys ->

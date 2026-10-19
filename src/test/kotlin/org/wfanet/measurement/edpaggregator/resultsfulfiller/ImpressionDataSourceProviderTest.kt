@@ -123,7 +123,7 @@ class ImpressionDataSourceProviderTest {
     val sources =
       svc.listImpressionDataSources(
         modelLine = modelLine,
-        selector = ImpressionQuerySelector.ByEventGroupReferenceId(eventGroupRef),
+        selector = ImpressionQuerySelector.ByEventGroupReferenceIds(listOf(eventGroupRef)),
         period =
           interval {
             startTime = timestamp {
@@ -167,7 +167,7 @@ class ImpressionDataSourceProviderTest {
     try {
       svc.listImpressionDataSources(
         modelLine = modelLine,
-        selector = ImpressionQuerySelector.ByEventGroupReferenceId("eg-3"),
+        selector = ImpressionQuerySelector.ByEventGroupReferenceIds(listOf("eg-3")),
         period =
           interval {
             startTime = timestamp {

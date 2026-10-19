@@ -191,8 +191,8 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupSelectorMap =
-          createEventGroupSelectorMap(
+        resolvedEventGroups =
+          createResolvedEventGroups(
             eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
             entityKeyMap = emptyMap(),
           ),
@@ -325,8 +325,8 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupSelectorMap =
-          createEventGroupSelectorMap(
+        resolvedEventGroups =
+          createResolvedEventGroups(
             eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
             entityKeyMap = emptyMap(),
           ),
@@ -440,8 +440,8 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupSelectorMap =
-          createEventGroupSelectorMap(
+        resolvedEventGroups =
+          createResolvedEventGroups(
             eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
             entityKeyMap = emptyMap(),
           ),
@@ -542,8 +542,8 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = listOf(requisitionYesterday, requisitionBothDays),
-        eventGroupSelectorMap =
-          createEventGroupSelectorMap(
+        resolvedEventGroups =
+          createResolvedEventGroups(
             eventGroupReferenceIdMap =
               createEventGroupReferenceIdMap(listOf(requisitionYesterday, requisitionBothDays)),
             entityKeyMap = emptyMap(),
@@ -679,8 +679,8 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupSelectorMap =
-          createEventGroupSelectorMap(
+        resolvedEventGroups =
+          createResolvedEventGroups(
             eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
             entityKeyMap = emptyMap(),
           ),
@@ -810,8 +810,8 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupSelectorMap =
-          createEventGroupSelectorMap(
+        resolvedEventGroups =
+          createResolvedEventGroups(
             eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
             entityKeyMap = emptyMap(),
           ),
@@ -928,8 +928,8 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupSelectorMap =
-          createEventGroupSelectorMap(
+        resolvedEventGroups =
+          createResolvedEventGroups(
             eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
             entityKeyMap = emptyMap(),
           ),
@@ -1076,8 +1076,8 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupSelectorMap =
-          createEventGroupSelectorMap(
+        resolvedEventGroups =
+          createResolvedEventGroups(
             eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
             entityKeyMap = emptyMap(),
           ),
@@ -1429,17 +1429,25 @@ class EventProcessingIntegrationTest {
     return eventGroupReferenceIdMap
   }
 
-  private fun createEventGroupSelectorMap(
+  private fun createResolvedEventGroups(
     eventGroupReferenceIdMap: Map<String, String>,
     entityKeyMap: Map<String, LabeledImpression.EntityKey>,
-  ): Map<EventGroupKey, EventGroupSelector> {
-    return (eventGroupReferenceIdMap.keys + entityKeyMap.keys).associate { eventGroup ->
-      eventGroupKey(eventGroup) to
-        EventGroupSelector(
-          eventGroupReferenceId = eventGroupReferenceIdMap[eventGroup],
-          entityKey = entityKeyMap[eventGroup],
-        )
-    }
+  ): ResolvedEventGroups {
+    return ResolvedEventGroups(
+      eventGroups =
+        (eventGroupReferenceIdMap.keys + entityKeyMap.keys).map { eventGroup ->
+          ResolvedEventGroup(
+            key = eventGroupKey(eventGroup),
+            collectionIntervals = emptyList(),
+            selector =
+              EventGroupSelector(
+                eventGroupReferenceId = eventGroupReferenceIdMap[eventGroup],
+                entityKey = entityKeyMap[eventGroup],
+              ),
+          )
+        },
+      mappedEntityType = null,
+    )
   }
 
   private fun createRequisition(
@@ -1549,8 +1557,8 @@ class EventProcessingIntegrationTest {
     val index =
       FilterSpecIndex.fromRequisitions(
         requisitions = listOf(req),
-        eventGroupSelectorMap =
-          createEventGroupSelectorMap(
+        resolvedEventGroups =
+          createResolvedEventGroups(
             eventGroupReferenceIdMap =
               mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2"),
             entityKeyMap = mapOf("eventGroups/eg1" to entityKey1, "eventGroups/eg2" to entityKey2),
@@ -1578,8 +1586,8 @@ class EventProcessingIntegrationTest {
     val index =
       FilterSpecIndex.fromRequisitions(
         requisitions = listOf(req),
-        eventGroupSelectorMap =
-          createEventGroupSelectorMap(
+        resolvedEventGroups =
+          createResolvedEventGroups(
             eventGroupReferenceIdMap =
               mapOf("eventGroups/eg1" to "ref1", "eventGroups/eg2" to "ref2"),
             entityKeyMap = mapOf("eventGroups/eg1" to entityKey1, "eventGroups/eg2" to entityKey2),
@@ -1606,8 +1614,8 @@ class EventProcessingIntegrationTest {
       assertFailsWith<IllegalArgumentException> {
         FilterSpecIndex.fromRequisitions(
           requisitions = listOf(req),
-          eventGroupSelectorMap =
-            createEventGroupSelectorMap(
+          resolvedEventGroups =
+            createResolvedEventGroups(
               eventGroupReferenceIdMap = emptyMap(),
               entityKeyMap = mapOf("eventGroups/eg1" to labeledImpressionEntityKey("ad", "X")),
             ),
@@ -1619,7 +1627,7 @@ class EventProcessingIntegrationTest {
   }
 
   @Test
-  fun `buildEventGroupSelectorMap supports mixed formats and adds mapped equivalents`() {
+  fun `fromEventGroupMapEntries supports mixed formats and adds mapped equivalents`() {
     val mapping =
       EventGroupReferenceIdEntityKeyMapping(
         entityType = "campaign",
@@ -1632,9 +1640,9 @@ class EventProcessingIntegrationTest {
         mapEntryWithEntityKey("eventGroups/campaign", "campaign", "entity/campaign", "ignored"),
         mapEntryWithEntityKey("eventGroups/ad", "ad", "ad-1", "ignored"),
       )
-    val map = ResultsFulfiller.buildEventGroupSelectorMap(entries, mapping)
+    val resolvedEventGroups = ResolvedEventGroups.fromEventGroupMapEntries(entries, mapping)
 
-    assertThat(map)
+    assertThat(resolvedEventGroups.byKey.mapValues { it.value.selector })
       .containsExactly(
         eventGroupKey("eventGroups/legacy"),
         EventGroupSelector(
@@ -1652,10 +1660,11 @@ class EventProcessingIntegrationTest {
           entityKey = labeledImpressionEntityKey("ad", "ad-1"),
         ),
       )
+    assertThat(resolvedEventGroups.mappedEntityType).isEqualTo("campaign")
   }
 
   @Test
-  fun `buildEventGroupSelectorMap rejects mixed formats without mapping`() {
+  fun `fromEventGroupMapEntries rejects mixed formats without mapping`() {
     val entries =
       listOf(
         mapEntryWithEntityKey("eventGroups/legacy", "campaign", "", "legacy-ref"),
@@ -1663,8 +1672,24 @@ class EventProcessingIntegrationTest {
       )
 
     assertFailsWith<IllegalArgumentException> {
-      ResultsFulfiller.buildEventGroupSelectorMap(entries, mapping = null)
+      ResolvedEventGroups.fromEventGroupMapEntries(entries, mapping = null)
     }
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries rejects duplicate event groups`() {
+    val entries =
+      listOf(
+        mapEntryWithEntityKey("eventGroups/duplicate", "campaign", "campaign-1", "ignored"),
+        mapEntryWithEntityKey("eventGroups/duplicate", "campaign", "campaign-2", "ignored"),
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResolvedEventGroups.fromEventGroupMapEntries(entries, mapping = null)
+      }
+
+    assertThat(exception).hasMessageThat().contains("unique")
   }
 
   @Test
@@ -1749,8 +1774,8 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
-        eventGroupSelectorMap =
-          createEventGroupSelectorMap(
+        resolvedEventGroups =
+          createResolvedEventGroups(
             eventGroupReferenceIdMap = emptyMap(),
             entityKeyMap =
               mapOf(

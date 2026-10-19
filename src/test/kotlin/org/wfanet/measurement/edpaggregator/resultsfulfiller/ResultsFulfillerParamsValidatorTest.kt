@@ -284,12 +284,11 @@ class ResultsFulfillerParamsValidatorTest {
   }
 
   @Test
-  fun `enabled event group reference ID mapping requires entity type`() {
+  fun `event group reference ID mapping requires entity type`() {
     val invalidParams =
       VALID_PARAMS.copy {
         eventGroupReferenceIdEntityKeyMapping =
           ResultsFulfillerParamsKt.eventGroupReferenceIdEntityKeyMapping {
-            enabled = true
             eventGroupReferenceIdPrefix = "ref/"
             entityIdPrefix = "entity/"
           }
@@ -304,12 +303,11 @@ class ResultsFulfillerParamsValidatorTest {
   }
 
   @Test
-  fun `enabled event group reference ID mapping rejects blank entity type`() {
+  fun `event group reference ID mapping rejects blank entity type`() {
     val invalidParams =
       VALID_PARAMS.copy {
         eventGroupReferenceIdEntityKeyMapping =
           ResultsFulfillerParamsKt.eventGroupReferenceIdEntityKeyMapping {
-            enabled = true
             entityType = "   "
             eventGroupReferenceIdPrefix = "ref/"
             entityIdPrefix = "entity/"
