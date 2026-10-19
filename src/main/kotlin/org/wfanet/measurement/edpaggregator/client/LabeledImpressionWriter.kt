@@ -14,15 +14,16 @@
 
 package org.wfanet.measurement.edpaggregator.client
 
+import com.google.crypto.tink.BinaryKeysetWriter
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
-import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.SortedMap
 import java.util.SortedSet
@@ -41,7 +42,8 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /** Writes VID-labeled impressions in the encrypted format accepted by EDP Aggregator. */
-class LabeledImpressionWriter private constructor(
+class LabeledImpressionWriter
+private constructor(
   private val kmsClient: KmsClient,
   private val rootDirectory: File?,
   private val gcsProjectId: String?,
@@ -114,12 +116,13 @@ class LabeledImpressionWriter private constructor(
       this.encryptedDek = encryptedDek
       this.modelLine = modelLine
       this.interval = interval
-      entityKeys += entityIdsByType.map { (entityType, entityIds) ->
-        entityKeyGroup {
-          this.entityType = entityType
-          this.entityIds += entityIds
+      entityKeys +=
+        entityIdsByType.map { (entityType, entityIds) ->
+          entityKeyGroup {
+            this.entityType = entityType
+            this.entityIds += entityIds
+          }
         }
-      }
     }
     SelectedStorageClient(parsedMetadataUri, rootDirectory, gcsProjectId)
       .writeBlob(parsedMetadataUri.key, details.toByteString())
@@ -128,13 +131,9 @@ class LabeledImpressionWriter private constructor(
 
   private fun generateSerializedEncryptionKey(kekUri: String): ByteString {
     val keysetHandle = KeysetHandle.generateNew(KeyTemplates.get(STREAMING_AEAD_KEY_TEMPLATE))
-    return ByteString.copyFrom(
-      TinkProtoKeysetFormat.serializeEncryptedKeyset(
-        keysetHandle,
-        kmsClient.getAead(kekUri),
-        EMPTY_ASSOCIATED_DATA,
-      )
-    )
+    val outputStream = ByteArrayOutputStream()
+    keysetHandle.write(BinaryKeysetWriter.withOutputStream(outputStream), kmsClient.getAead(kekUri))
+    return ByteString.copyFrom(outputStream.toByteArray())
   }
 
   private fun validateImpression(impression: LabeledImpression) {
@@ -153,7 +152,6 @@ class LabeledImpressionWriter private constructor(
     private const val BINARY_PROTO_SUFFIX = ".binpb"
     private const val STREAMING_AEAD_KEY_TEMPLATE = "AES128_GCM_HKDF_1MB"
     private const val TINK_KEYSET_TYPE_URL = "type.googleapis.com/google.crypto.tink.Keyset"
-    private val EMPTY_ASSOCIATED_DATA = ByteArray(0)
     private val MODEL_LINE_RESOURCE_NAME =
       Regex("modelProviders/[^/]+/modelSuites/[^/]+/modelLines/[^/]+")
 
