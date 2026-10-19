@@ -118,6 +118,41 @@ class CmmsEventGroupActivityPublisherTest {
   }
 
   @Test
+  fun `publish deduplicates activity across metadata and entity keys`() = runBlocking {
+    seedMap(
+      mapping("campaign", "123", "$DATA_PROVIDER/eventGroups/eg1"),
+      mapping("ad", "456", "$DATA_PROVIDER/eventGroups/eg1"),
+    )
+    val metadata = impressionMetadata {
+      interval = interval {
+        startTime = Timestamps.parse("2026-01-02T12:00:00Z")
+        endTime = Timestamps.parse("2026-01-02T13:00:00Z")
+      }
+      entityKeys += entityKey {
+        entityType = "campaign"
+        entityId = "123"
+      }
+      entityKeys += entityKey {
+        entityType = "ad"
+        entityId = "456"
+      }
+    }
+
+    val published =
+      newPublisher(ZoneId.of("UTC"), EventGroupActivityPublisherMetrics(Instrumentation.meter))
+        .publish(listOf(metadata, metadata))
+
+    assertThat(published).isEqualTo(1)
+    val updateRequest = argumentCaptor<BatchUpdateEventGroupActivitiesRequest>()
+    verifyBlocking(eventGroupActivitiesServiceMock) {
+      batchUpdateEventGroupActivities(updateRequest.capture())
+    }
+    assertThat(updateRequest.firstValue.requestsList.map { it.eventGroupActivity.name })
+      .containsExactly("$DATA_PROVIDER/eventGroups/eg1/eventGroupActivities/2026-01-02")
+    Unit
+  }
+
+  @Test
   fun `publish handles every mapped entity hierarchy level`() = runBlocking {
     seedMap(
       mapping("campaign", "123", "$DATA_PROVIDER/eventGroups/campaign-eg"),
