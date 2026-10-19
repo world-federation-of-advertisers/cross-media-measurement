@@ -19,6 +19,7 @@ package org.wfanet.measurement.loadtest.edpaggregator.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.DynamicMessage
@@ -1271,6 +1272,8 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
   )
 
   companion object {
+    private val RUNFILES = Runfiles.preload().withSourceRepository("")
+
     @BeforeClass
     @JvmStatic
     fun registerTink() {
@@ -1398,7 +1401,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
      * target's `data` deps and resolved through the Bazel runfiles tree.
      */
     private val MARKET_EVENT_DESCRIPTOR_SET_RUNTIME_PATH =
-      getRuntimePath(
+      RUNFILES.getRuntimePath(
         Paths.get(
           "wfa_measurement_system",
           "src",
@@ -1417,7 +1420,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
       )!!
 
     private val TEST_EVENT_DESCRIPTOR_SET_RUNTIME_PATH =
-      getRuntimePath(
+      RUNFILES.getRuntimePath(
         Paths.get(
           "wfa_measurement_system",
           "src",
