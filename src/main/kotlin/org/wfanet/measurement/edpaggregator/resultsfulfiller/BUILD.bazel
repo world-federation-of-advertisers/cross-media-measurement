@@ -511,6 +511,7 @@ kt_jvm_library(
         ":frequency_vector_sink",
         ":parallel_batched_pipeline",
         ":pipeline_configuration",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",

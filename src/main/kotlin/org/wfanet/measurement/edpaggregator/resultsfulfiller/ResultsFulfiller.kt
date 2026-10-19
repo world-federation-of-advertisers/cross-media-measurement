@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.VisibleForTesting
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -235,7 +236,7 @@ class ResultsFulfiller(
         entry.requisition.unpack(Requisition::class.java)
       }
 
-    val eventGroupSelectorMap: Map<String, EventGroupSelector> =
+    val eventGroupSelectorMap: Map<EventGroupKey, EventGroupSelector> =
       buildEventGroupSelectorMap(
         groupedRequisitions.eventGroupMapList,
         eventGroupReferenceIdEntityKeyMapping,
@@ -964,20 +965,25 @@ class ResultsFulfiller(
     /**
      * Builds normalized selectors from grouped requisition entries.
      *
-     * Each entry independently prefers a meaningful native entity key. A default entity-key
-     * sentinel with an empty entity ID is treated as absent, so a grouped report may safely contain
-     * both legacy reference-ID entries and entity-key entries. When [mapping] is present, the
-     * equivalent representation is included alongside the native selector.
+     * A default entity-key sentinel with a blank entity ID is treated as absent. When [mapping] is
+     * present, the equivalent representation is included alongside the native selector.
      */
     @VisibleForTesting
     fun buildEventGroupSelectorMap(
       eventGroupMapList: List<GroupedRequisitions.EventGroupMapEntry>,
       mapping: EventGroupReferenceIdEntityKeyMapping?,
-    ): Map<String, EventGroupSelector> =
-      eventGroupMapList.associate { entry ->
+    ): Map<EventGroupKey, EventGroupSelector> {
+      val hasEntityKeys: List<Boolean> = eventGroupMapList.map { detailsHasEntityKey(it.details) }
+      if (mapping == null && hasEntityKeys.any { it }) {
+        require(hasEntityKeys.all { it }) {
+          "Cannot mix entity-key and event-group-reference-ID selectors without a mapping"
+        }
+      }
+
+      return eventGroupMapList.associate { entry ->
         val details: GroupedRequisitions.EventGroupDetails = entry.details
         val nativeEntityKey: LabeledImpression.EntityKey? =
-          if (details.hasEntityKey() && details.entityKey.entityId.isNotEmpty()) {
+          if (detailsHasEntityKey(details)) {
             val key = details.entityKey
             LabeledImpressionKt.entityKey {
               entityType = key.entityType
@@ -986,33 +992,36 @@ class ResultsFulfiller(
           } else {
             null
           }
-        val selector: EventGroupSelector =
-          if (nativeEntityKey != null) {
-            EventGroupSelector(
-              eventGroupReferenceId =
-                mapping?.toEventGroupReferenceId(
-                  nativeEntityKey.entityType,
-                  nativeEntityKey.entityId,
-                ),
-              entityKey = nativeEntityKey,
-            )
+        val referenceId: String? =
+          if (nativeEntityKey == null) {
+            details.eventGroupReferenceId.takeIf { it.isNotBlank() }
           } else {
-            val referenceId: String? = details.eventGroupReferenceId.takeIf { it.isNotEmpty() }
-            val mappedEntityKey: LabeledImpression.EntityKey? =
-              if (mapping == null || referenceId == null) {
-                null
-              } else {
-                mapping.toEntityId(referenceId)?.let { entityId ->
-                  LabeledImpressionKt.entityKey {
-                    entityType = mapping.entityType
-                    this.entityId = entityId
-                  }
+            mapping?.toEventGroupReferenceId(nativeEntityKey.entityType, nativeEntityKey.entityId)
+          }
+        val entityKey: LabeledImpression.EntityKey? =
+          nativeEntityKey
+            ?: if (mapping == null || referenceId == null) {
+              null
+            } else {
+              mapping.toEntityId(referenceId)?.let { entityId ->
+                LabeledImpressionKt.entityKey {
+                  entityType = mapping.entityType
+                  this.entityId = entityId
                 }
               }
-            EventGroupSelector(eventGroupReferenceId = referenceId, entityKey = mappedEntityKey)
+            }
+        val eventGroupKey: EventGroupKey =
+          requireNotNull(EventGroupKey.fromName(entry.eventGroup)) {
+            "Invalid event-group resource name: ${entry.eventGroup}"
           }
-        entry.eventGroup to selector
+        eventGroupKey to
+          EventGroupSelector(eventGroupReferenceId = referenceId, entityKey = entityKey)
       }
+    }
+
+    private fun detailsHasEntityKey(details: GroupedRequisitions.EventGroupDetails): Boolean {
+      return details.hasEntityKey() && details.entityKey.entityId.isNotBlank()
+    }
 
     // Memory-based parallelism limit to prevent OOM with large frequency vectors
     // With 360M sized frequency vector sampled at 10%, we get 36M x 16 bytes for

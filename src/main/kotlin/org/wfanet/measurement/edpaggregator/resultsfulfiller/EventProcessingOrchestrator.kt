@@ -25,6 +25,7 @@ import java.util.logging.Logger
 import kotlin.collections.toList
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
@@ -42,7 +43,9 @@ data class EventGroupSelector(
   val entityKey: LabeledImpression.EntityKey?,
 ) {
   init {
-    require(eventGroupReferenceId?.isNotEmpty() == true || entityKey != null) {
+    require(
+      eventGroupReferenceId?.isNotBlank() == true || entityKey?.entityId?.isNotBlank() == true
+    ) {
       "At least one event-group selector must be present"
     }
   }
@@ -77,14 +80,14 @@ data class FilterSpecIndex(
      * - A reverse lookup from requisition name to its canonical [FilterSpec].
      *
      * @param requisitions Requisitions to analyze.
-     * @param eventGroupSelectorMap Selectors keyed by event-group resource name.
+     * @param eventGroupSelectorMap Selectors keyed by parsed event-group resource key.
      * @return [FilterSpecIndex] containing the bidirectional mapping.
      * @throws IllegalArgumentException if a requisition has no event groups or groups are
      *   inconsistent in expression or interval.
      */
     fun fromRequisitions(
       requisitions: List<Requisition>,
-      eventGroupSelectorMap: Map<String, EventGroupSelector>,
+      eventGroupSelectorMap: Map<EventGroupKey, EventGroupSelector>,
       privateEncryptionKey: PrivateKeyHandle,
     ): FilterSpecIndex {
       val filterSpecToReqNames = mutableMapOf<FilterSpec, MutableList<String>>()
@@ -118,8 +121,12 @@ data class FilterSpecIndex(
 
         val eventGroupSelectors: List<EventGroupSelector> =
           eventGroups.map { entry ->
-            requireNotNull(eventGroupSelectorMap[entry.key]) {
-              "Missing selector for requisition ${requisition.name} event group ${entry.key}"
+            val eventGroupKey: EventGroupKey =
+              requireNotNull(EventGroupKey.fromName(entry.key)) {
+                "Invalid event-group resource name in requisition ${requisition.name}: ${entry.key}"
+              }
+            requireNotNull(eventGroupSelectorMap[eventGroupKey]) {
+              "Missing selector for requisition ${requisition.name} event group $eventGroupKey"
             }
           }
         val filterSpec =
@@ -191,8 +198,8 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @param populationSpec Population spec defining index space for frequency vectors.
    * @param config Pipeline configuration (batch size, workers, etc.).
    * @param requisitions Requisitions to fulfill
-   * @param eventGroupSelectorMap Native and equivalent selectors keyed by event-group resource
-   *   name.
+   * @param eventGroupSelectorMap Native and equivalent selectors keyed by parsed event-group
+   *   resource key.
    * @param eventDescriptor Descriptor of the packed event messages (for CEL evaluation).
    * @return Map from requisition name to computed [StripedByteFrequencyVector].
    * @throws ImpressionReadException on impression read failures
@@ -204,7 +211,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     vidIndexMap: VidIndexMap,
     populationSpec: PopulationSpec,
     requisitions: List<Requisition>,
-    eventGroupSelectorMap: Map<String, EventGroupSelector>,
+    eventGroupSelectorMap: Map<EventGroupKey, EventGroupSelector>,
     config: PipelineConfiguration,
     eventDescriptor: Descriptors.Descriptor,
   ): Map<String, StripedByteFrequencyVector> {

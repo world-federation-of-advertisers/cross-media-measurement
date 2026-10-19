@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -77,6 +78,17 @@ class EventGroupReferenceIdEntityKeyMappingTest {
     assertThat(mapping.toEntityId("ref/123")).isEqualTo("entity/123")
     assertThat(mapping.toEventGroupReferenceId(ENTITY_TYPE, "123")).isNull()
     assertThat(mapping.toEntityId("123")).isNull()
+  }
+
+  @Test
+  fun `construction rejects blank entity type`() {
+    assertFailsWith<IllegalArgumentException> {
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "   ",
+        eventGroupReferenceIdPrefix = "ref/",
+        entityIdPrefix = "entity/",
+      )
+    }
   }
 
   companion object {

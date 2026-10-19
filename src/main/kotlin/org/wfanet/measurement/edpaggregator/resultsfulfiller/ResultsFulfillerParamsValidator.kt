@@ -130,7 +130,7 @@ object ResultsFulfillerParamsValidator {
     )
 
     if (params.eventGroupReferenceIdEntityKeyMapping.enabled) {
-      require(params.eventGroupReferenceIdEntityKeyMapping.entityType.isNotEmpty()) {
+      require(params.eventGroupReferenceIdEntityKeyMapping.entityType.isNotBlank()) {
         "Missing 'entity_type' in " +
           "results_fulfiller_params.event_group_reference_id_entity_key_mapping when enabled."
       }

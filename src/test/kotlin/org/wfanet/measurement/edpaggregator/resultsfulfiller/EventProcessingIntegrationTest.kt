@@ -38,6 +38,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -1421,9 +1422,8 @@ class EventProcessingIntegrationTest {
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, PRIVATE_ENCRYPTION_KEY)
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       for (eventGroup in requisitionSpec.events.eventGroupsList) {
-        // Extract event group reference ID from the event group resource name
-        // In test data, the event group resource name IS the reference ID
-        eventGroupReferenceIdMap[eventGroup.key] = eventGroup.key
+        val eventGroupKey: EventGroupKey = checkNotNull(EventGroupKey.fromName(eventGroup.key))
+        eventGroupReferenceIdMap[eventGroup.key] = eventGroupKey.eventGroupId
       }
     }
     return eventGroupReferenceIdMap
@@ -1432,12 +1432,13 @@ class EventProcessingIntegrationTest {
   private fun createEventGroupSelectorMap(
     eventGroupReferenceIdMap: Map<String, String>,
     entityKeyMap: Map<String, LabeledImpression.EntityKey>,
-  ): Map<String, EventGroupSelector> {
-    return (eventGroupReferenceIdMap.keys + entityKeyMap.keys).associateWith { eventGroup ->
-      EventGroupSelector(
-        eventGroupReferenceId = eventGroupReferenceIdMap[eventGroup],
-        entityKey = entityKeyMap[eventGroup],
-      )
+  ): Map<EventGroupKey, EventGroupSelector> {
+    return (eventGroupReferenceIdMap.keys + entityKeyMap.keys).associate { eventGroup ->
+      eventGroupKey(eventGroup) to
+        EventGroupSelector(
+          eventGroupReferenceId = eventGroupReferenceIdMap[eventGroup],
+          entityKey = entityKeyMap[eventGroup],
+        )
     }
   }
 
@@ -1486,7 +1487,7 @@ class EventProcessingIntegrationTest {
             eventGroups +=
               eventGroupsMap.map { (eventGroupName, timeRange) ->
                 RequisitionSpecKt.eventGroupEntry {
-                  key = eventGroupName
+                  key = eventGroupKey(eventGroupName).toName()
                   value =
                     RequisitionSpecKt.EventGroupEntryKt.value {
                       collectionInterval =
@@ -1511,6 +1512,11 @@ class EventProcessingIntegrationTest {
           DATA_PROVIDER_PUBLIC_KEY,
         )
     }
+  }
+
+  private fun eventGroupKey(name: String): EventGroupKey {
+    return EventGroupKey.fromName(name)
+      ?: EventGroupKey(EDP_DISPLAY_NAME, name.substringAfterLast('/'))
   }
 
   // Extension functions for StripedByteFrequencyVector analysis
@@ -1609,7 +1615,7 @@ class EventProcessingIntegrationTest {
         )
       }
     assertThat(exception).hasMessageThat().contains("Missing selector")
-    assertThat(exception).hasMessageThat().contains("eventGroups/eg2")
+    assertThat(exception).hasMessageThat().contains("eg2")
   }
 
   @Test
@@ -1630,17 +1636,17 @@ class EventProcessingIntegrationTest {
 
     assertThat(map)
       .containsExactly(
-        "eventGroups/legacy",
+        eventGroupKey("eventGroups/legacy"),
         EventGroupSelector(
           eventGroupReferenceId = "ref/legacy",
           entityKey = labeledImpressionEntityKey("campaign", "entity/legacy"),
         ),
-        "eventGroups/campaign",
+        eventGroupKey("eventGroups/campaign"),
         EventGroupSelector(
           eventGroupReferenceId = "ref/campaign",
           entityKey = labeledImpressionEntityKey("campaign", "entity/campaign"),
         ),
-        "eventGroups/ad",
+        eventGroupKey("eventGroups/ad"),
         EventGroupSelector(
           eventGroupReferenceId = null,
           entityKey = labeledImpressionEntityKey("ad", "ad-1"),
@@ -1649,24 +1655,33 @@ class EventProcessingIntegrationTest {
   }
 
   @Test
-  fun `buildEventGroupSelectorMap keeps only native selectors without mapping`() {
+  fun `buildEventGroupSelectorMap rejects mixed formats without mapping`() {
     val entries =
       listOf(
         mapEntryWithEntityKey("eventGroups/legacy", "campaign", "", "legacy-ref"),
         mapEntryWithEntityKey("eventGroups/campaign", "campaign", "campaign-1", "ignored"),
       )
-    val map = ResultsFulfiller.buildEventGroupSelectorMap(entries, mapping = null)
 
-    assertThat(map)
-      .containsExactly(
-        "eventGroups/legacy",
-        EventGroupSelector(eventGroupReferenceId = "legacy-ref", entityKey = null),
-        "eventGroups/campaign",
-        EventGroupSelector(
-          eventGroupReferenceId = null,
-          entityKey = labeledImpressionEntityKey("campaign", "campaign-1"),
-        ),
+    assertFailsWith<IllegalArgumentException> {
+      ResultsFulfiller.buildEventGroupSelectorMap(entries, mapping = null)
+    }
+  }
+
+  @Test
+  fun `EventGroupSelector rejects blank reference ID`() {
+    assertFailsWith<IllegalArgumentException> {
+      EventGroupSelector(eventGroupReferenceId = "   ", entityKey = null)
+    }
+  }
+
+  @Test
+  fun `EventGroupSelector rejects blank entity ID`() {
+    assertFailsWith<IllegalArgumentException> {
+      EventGroupSelector(
+        eventGroupReferenceId = null,
+        entityKey = labeledImpressionEntityKey("campaign", "   "),
       )
+    }
   }
 
   @Test
@@ -1766,7 +1781,7 @@ class EventProcessingIntegrationTest {
     entityId: String,
     eventGroupReferenceId: String,
   ): GroupedRequisitions.EventGroupMapEntry = eventGroupMapEntry {
-    eventGroup = eventGroupName
+    eventGroup = eventGroupKey(eventGroupName).toName()
     details = eventGroupDetails {
       this.eventGroupReferenceId = eventGroupReferenceId
       entityKey =

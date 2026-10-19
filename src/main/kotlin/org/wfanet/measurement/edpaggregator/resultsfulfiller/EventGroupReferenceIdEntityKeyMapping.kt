@@ -29,7 +29,7 @@ data class EventGroupReferenceIdEntityKeyMapping(
   val entityIdPrefix: String,
 ) {
   init {
-    require(entityType.isNotEmpty()) { "entityType must not be empty" }
+    require(entityType.isNotBlank()) { "entityType must not be blank" }
   }
 
   /**

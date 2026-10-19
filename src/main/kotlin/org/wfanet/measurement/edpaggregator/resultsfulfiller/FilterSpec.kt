@@ -20,10 +20,6 @@ import com.google.type.Interval
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
-/** Thrown when a [FilterSpec] is constructed without an event-group selector. */
-class EmptyEventGroupSelectorsException :
-  IllegalArgumentException("At least one event-group selector must be present")
-
 /**
  * Thrown when a [FilterSpec] is constructed with a `collectionInterval` whose `startTime` is not
  * strictly before its `endTime`.
@@ -74,8 +70,8 @@ data class FilterSpec(
   val entityKeys: Set<LabeledImpression.EntityKey>,
 ) {
   init {
-    if (eventGroupReferenceIds.isEmpty() && entityKeys.isEmpty()) {
-      throw EmptyEventGroupSelectorsException()
+    require(eventGroupReferenceIds.isNotEmpty() || entityKeys.isNotEmpty()) {
+      "At least one event-group selector must be present"
     }
     if (
       !collectionInterval.startTime.toInstant().isBefore(collectionInterval.endTime.toInstant())

@@ -1537,56 +1537,68 @@ class StorageEventSourceTest {
   }
 
   @Test
-  fun `generateEventBatches queries mixed entity-key and reference-id event groups`(): Unit =
-    runBlocking {
-      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
-        .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
-
-      // One event group with entity key, one without
-      val eventGroupDetailsList =
-        listOf(
-          eventGroupDetails {
-            eventGroupReferenceId = "creative-id/creative-a"
-            entityKey =
-              EventGroupDetailsKt.entityKey {
-                entityType = "creative-id"
-                entityId = "creative-a"
-              }
-            collectionIntervals += interval {
-              startTime =
-                LocalDate.of(2025, 1, 1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
-              endTime =
-                LocalDate.of(2025, 1, 2).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+  fun `construction rejects mixed entity-key and reference-id event groups without mapping`() {
+    val eventGroupDetailsList =
+      listOf(
+        eventGroupDetails {
+          eventGroupReferenceId = "creative-id/creative-a"
+          entityKey =
+            EventGroupDetailsKt.entityKey {
+              entityType = "creative-id"
+              entityId = "creative-a"
             }
-          },
-          createEventGroupDetails(
-            "standard-ref",
-            LocalDate.of(2025, 1, 1),
-            LocalDate.of(2025, 1, 2),
-            ZoneId.of("UTC"),
-          ),
-        )
+          collectionIntervals += interval {
+            startTime =
+              LocalDate.of(2025, 1, 1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            endTime =
+              LocalDate.of(2025, 1, 2).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          }
+        },
+        createEventGroupDetails(
+          "standard-ref",
+          LocalDate.of(2025, 1, 1),
+          LocalDate.of(2025, 1, 2),
+          ZoneId.of("UTC"),
+        ),
+      )
 
-      val eventSource =
-        StorageEventSource(
-          impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
-          eventGroupDetailsList = eventGroupDetailsList,
-          modelLine = modelLine,
-          kmsClient = null,
-          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
-          descriptor = TestEvent.getDescriptor(),
-          batchSize = 1000,
-          eventGroupReferenceIdEntityKeyMapping = null,
-        )
-
-      eventSource.generateEventBatches().toList()
-
-      val captor = argumentCaptor<ListImpressionMetadataRequest>()
-      verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(captor.capture())
-      assertThat(captor.allValues.map { it.filter.eventGroupReferenceIdsList.toList() })
-        .containsExactly(emptyList<String>(), listOf("standard-ref"))
-      assertThat(captor.allValues.map { it.filter.entityKeysCount }).containsExactly(1, 0)
+    assertFailsWith<IllegalArgumentException> {
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
+        eventGroupDetailsList = eventGroupDetailsList,
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
+      )
     }
+  }
+
+  @Test
+  fun `construction rejects blank event group reference ID`() {
+    assertFailsWith<IllegalArgumentException> {
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
+        eventGroupDetailsList =
+          listOf(
+            createEventGroupDetails(
+              "   ",
+              LocalDate.of(2025, 1, 1),
+              LocalDate.of(2025, 1, 2),
+              ZoneId.of("UTC"),
+            )
+          ),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        eventGroupReferenceIdEntityKeyMapping = null,
+      )
+    }
+  }
 
   /**
    * Seeds [refIds] as distinct impression data sources on [date]: mocks `listImpressionMetadata` to
@@ -1731,6 +1743,67 @@ class StorageEventSourceTest {
             wholeBlobEntityKey = null,
           ),
         )
+    }
+
+  @Test
+  fun `generateEventBatches processes blob returned by both mapped selectors once`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val metadataTmpPath = tmp.newFolder("metadata-dual-selector-dedup")
+      val sourceId = "both-representations"
+      val metadataList =
+        createImpressionMetadataList(listOf(date), sourceId, "meta-bucket", modelLine)
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+      writeMetadataWithEntityKeys(
+        metadataTmpPath,
+        date,
+        sourceId,
+        entityKeys =
+          listOf(
+            entityKeyGroup {
+              entityType = "campaign"
+              entityIds += "entity/123"
+            }
+          ),
+        directReferenceId = "ref/123",
+      )
+      val readerCount = AtomicInteger(0)
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+          eventGroupDetailsList =
+            listOf(
+              eventGroupDetails {
+                entityKey =
+                  EventGroupDetailsKt.entityKey {
+                    entityType = "campaign"
+                    entityId = "entity/123"
+                  }
+                collectionIntervals += interval {
+                  startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+                  endTime =
+                    date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+                }
+              }
+            ),
+          modelLine = modelLine,
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+          eventGroupReferenceIdEntityKeyMapping = CAMPAIGN_MAPPING,
+          eventReaderFactory = { _ ->
+            readerCount.incrementAndGet()
+            eventReader(date)
+          },
+        )
+
+      val batches = eventSource.generateEventBatches().toList()
+
+      assertThat(batches).hasSize(1)
+      assertThat(readerCount.get()).isEqualTo(1)
+      verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(any())
     }
 
   private fun eventReader(date: LocalDate): EventReader<Message> {

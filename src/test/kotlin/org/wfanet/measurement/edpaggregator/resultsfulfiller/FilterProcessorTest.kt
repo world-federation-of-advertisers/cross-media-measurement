@@ -891,7 +891,7 @@ class FilterProcessorTest {
 
   @Test
   fun `FilterSpec construction throws when all event group selectors are empty`() {
-    assertFailsWith<EmptyEventGroupSelectorsException> {
+    assertFailsWith<IllegalArgumentException> {
       FilterSpec(
         celExpression = "",
         collectionInterval = createDefaultInterval(),
