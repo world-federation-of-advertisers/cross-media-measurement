@@ -132,7 +132,11 @@ private constructor(
   private fun generateSerializedEncryptionKey(kekUri: String): ByteString {
     val keysetHandle = KeysetHandle.generateNew(KeyTemplates.get(STREAMING_AEAD_KEY_TEMPLATE))
     val outputStream = ByteArrayOutputStream()
-    keysetHandle.write(BinaryKeysetWriter.withOutputStream(outputStream), kmsClient.getAead(kekUri))
+    keysetHandle.writeWithAssociatedData(
+      BinaryKeysetWriter.withOutputStream(outputStream),
+      kmsClient.getAead(kekUri),
+      EMPTY_ASSOCIATED_DATA,
+    )
     return ByteString.copyFrom(outputStream.toByteArray())
   }
 
@@ -152,6 +156,7 @@ private constructor(
     private const val BINARY_PROTO_SUFFIX = ".binpb"
     private const val STREAMING_AEAD_KEY_TEMPLATE = "AES128_GCM_HKDF_1MB"
     private const val TINK_KEYSET_TYPE_URL = "type.googleapis.com/google.crypto.tink.Keyset"
+    private val EMPTY_ASSOCIATED_DATA = ByteArray(0)
     private val MODEL_LINE_RESOURCE_NAME =
       Regex("modelProviders/[^/]+/modelSuites/[^/]+/modelLines/[^/]+")
 

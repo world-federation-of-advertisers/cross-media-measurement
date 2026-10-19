@@ -18,11 +18,14 @@ import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.Any
 import com.google.type.interval
-import java.time.Instant
 import java.nio.file.Files
+import java.time.Instant
+import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -39,8 +42,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.storage.SelectedStorageClient
-import kotlin.test.assertFails
-import kotlin.test.assertFailsWith
 
 class LabeledImpressionWriterTest {
   @get:Rule val temporaryFolder = TemporaryFolder()
@@ -98,9 +99,7 @@ class LabeledImpressionWriterTest {
         kekUri = KEK_URI,
         encryptedDek = storedDetails.encryptedDek,
       )
-    assertFails {
-      storageWithDifferentAssociatedData.getBlob(copiedBlobUri.key)!!.read().toList()
-    }
+    assertFails { storageWithDifferentAssociatedData.getBlob(copiedBlobUri.key)!!.read().toList() }
   }
 
   @Test
@@ -133,28 +132,27 @@ class LabeledImpressionWriterTest {
   }
 
   @Test
-  fun `write rejects a metadata object in another bucket before creating either object`() {
+  fun `write rejects a metadata object in another bucket before creating either object`() =
+    runBlocking {
     val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
     val metadataUri = "file:///another-bucket/metadata.binpb"
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        runBlocking {
-          writer.write(
-            impressions = flowOf(impression(vid = 101L, entityKeys = listOf("ad" to "ad-1"))),
-            blobUri = BLOB_URI,
-            metadataUri = metadataUri,
-            kekUri = KEK_URI,
-            modelLine = MODEL_LINE,
-            interval = INTERVAL,
-          )
-        }
+        writer.write(
+          impressions = flowOf(impression(vid = 101L, entityKeys = listOf("ad" to "ad-1"))),
+          blobUri = BLOB_URI,
+          metadataUri = metadataUri,
+          kekUri = KEK_URI,
+          modelLine = MODEL_LINE,
+          interval = INTERVAL,
+        )
       }
 
     assertThat(exception).hasMessageThat().contains("must be in the same bucket")
     assertThat(getBlob(BLOB_URI)).isNull()
     assertThat(getBlob(metadataUri)).isNull()
-  }
+    }
 
   @Test
   fun `write does not publish metadata when an impression is invalid`() = runBlocking {
@@ -240,7 +238,10 @@ class LabeledImpressionWriterTest {
     AeadConfig.register()
     val kmsClient = FakeKmsClient()
     val keysetHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    kmsClient.setAead(KEK_URI, keysetHandle.getPrimitive(Aead::class.java))
+    kmsClient.setAead(
+      KEK_URI,
+      keysetHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java),
+    )
     return kmsClient
   }
 
@@ -266,8 +267,7 @@ class LabeledImpressionWriterTest {
       "file:///operator-bucket/2026-01-15/copied-impressions.enc.recordio"
     private const val SECOND_BLOB_URI =
       "file:///operator-bucket/2026-01-15/impressions-2.enc.recordio"
-    private const val SECOND_METADATA_URI =
-      "file:///operator-bucket/2026-01-15/metadata-2.binpb"
+    private const val SECOND_METADATA_URI = "file:///operator-bucket/2026-01-15/metadata-2.binpb"
     private const val MODEL_LINE =
       "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines/model-line-1"
     private val INTERVAL = interval {
