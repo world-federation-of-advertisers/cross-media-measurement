@@ -104,24 +104,23 @@ data class FilterSpecIndex(
           "All event groups must have the same collection interval"
         }
 
-        val eventGroupSelectors: List<EventGroupSelector> =
+        val resolvedEventGroupList: List<ResolvedEventGroup> =
           eventGroups.map { entry ->
             val eventGroupKey: EventGroupKey =
               requireNotNull(EventGroupKey.fromName(entry.key)) {
                 "Invalid event-group resource name in requisition ${requisition.name}: ${entry.key}"
               }
-            requireNotNull(resolvedEventGroups.byKey[eventGroupKey]) {
-                "Missing selector for requisition ${requisition.name} event group $eventGroupKey"
-              }
-              .selector
+            requireNotNull(resolvedEventGroups.eventGroupsByKey[eventGroupKey]) {
+              "Missing selector for requisition ${requisition.name} event group $eventGroupKey"
+            }
           }
         val filterSpec =
           FilterSpec(
             celExpression = firstEventGroup.value.filter.expression,
             collectionInterval = firstEventGroup.value.collectionInterval,
             eventGroupReferenceIds =
-              eventGroupSelectors.mapNotNull { it.eventGroupReferenceId }.toSet(),
-            entityKeys = eventGroupSelectors.mapNotNull { it.entityKey }.toSet(),
+              resolvedEventGroupList.mapNotNull { it.eventGroupReferenceId }.toSet(),
+            entityKeys = resolvedEventGroupList.mapNotNull { it.entityKey }.toSet(),
           )
 
         filterSpecToReqNames.getOrPut(filterSpec) { mutableListOf() }.add(requisition.name)

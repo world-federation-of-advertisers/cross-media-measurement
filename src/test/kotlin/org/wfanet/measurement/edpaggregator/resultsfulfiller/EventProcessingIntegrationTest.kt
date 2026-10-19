@@ -1434,17 +1434,14 @@ class EventProcessingIntegrationTest {
     entityKeyMap: Map<String, LabeledImpression.EntityKey>,
   ): ResolvedEventGroups {
     return ResolvedEventGroups(
-      eventGroups =
-        (eventGroupReferenceIdMap.keys + entityKeyMap.keys).map { eventGroup ->
-          ResolvedEventGroup(
-            key = eventGroupKey(eventGroup),
-            collectionIntervals = emptyList(),
-            selector =
-              EventGroupSelector(
-                eventGroupReferenceId = eventGroupReferenceIdMap[eventGroup],
-                entityKey = entityKeyMap[eventGroup],
-              ),
-          )
+      eventGroupsByKey =
+        (eventGroupReferenceIdMap.keys + entityKeyMap.keys).associate { eventGroup ->
+          eventGroupKey(eventGroup) to
+            ResolvedEventGroup(
+              collectionIntervals = emptyList(),
+              eventGroupReferenceId = eventGroupReferenceIdMap[eventGroup],
+              entityKey = entityKeyMap[eventGroup],
+            )
         },
       mappedEntityType = null,
     )
@@ -1642,25 +1639,63 @@ class EventProcessingIntegrationTest {
       )
     val resolvedEventGroups = ResolvedEventGroups.fromEventGroupMapEntries(entries, mapping)
 
-    assertThat(resolvedEventGroups.byKey.mapValues { it.value.selector })
+    assertThat(resolvedEventGroups.eventGroupsByKey)
       .containsExactly(
         eventGroupKey("eventGroups/legacy"),
-        EventGroupSelector(
+        ResolvedEventGroup(
+          collectionIntervals = emptyList(),
           eventGroupReferenceId = "ref/legacy",
           entityKey = labeledImpressionEntityKey("campaign", "entity/legacy"),
         ),
         eventGroupKey("eventGroups/campaign"),
-        EventGroupSelector(
+        ResolvedEventGroup(
+          collectionIntervals = emptyList(),
           eventGroupReferenceId = "ref/campaign",
           entityKey = labeledImpressionEntityKey("campaign", "entity/campaign"),
         ),
         eventGroupKey("eventGroups/ad"),
-        EventGroupSelector(
+        ResolvedEventGroup(
+          collectionIntervals = emptyList(),
           eventGroupReferenceId = null,
           entityKey = labeledImpressionEntityKey("ad", "ad-1"),
         ),
       )
     assertThat(resolvedEventGroups.mappedEntityType).isEqualTo("campaign")
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries maps equivalent selectors with empty prefixes`() {
+    val mapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "",
+        entityIdPrefix = "",
+      )
+    val entries =
+      listOf(
+        mapEntryWithEntityKey("eventGroups/legacy", "campaign", "", "legacy"),
+        mapEntryWithEntityKey("eventGroups/campaign", "campaign", "campaign", "ignored"),
+      )
+
+    val eventGroupsByKey: Map<EventGroupKey, ResolvedEventGroup> =
+      ResolvedEventGroups.fromEventGroupMapEntries(entries, mapping).eventGroupsByKey
+
+    assertThat(eventGroupsByKey.getValue(eventGroupKey("eventGroups/legacy")))
+      .isEqualTo(
+        ResolvedEventGroup(
+          collectionIntervals = emptyList(),
+          eventGroupReferenceId = "legacy",
+          entityKey = labeledImpressionEntityKey("campaign", "legacy"),
+        )
+      )
+    assertThat(eventGroupsByKey.getValue(eventGroupKey("eventGroups/campaign")))
+      .isEqualTo(
+        ResolvedEventGroup(
+          collectionIntervals = emptyList(),
+          eventGroupReferenceId = "campaign",
+          entityKey = labeledImpressionEntityKey("campaign", "campaign"),
+        )
+      )
   }
 
   @Test
@@ -1693,16 +1728,21 @@ class EventProcessingIntegrationTest {
   }
 
   @Test
-  fun `EventGroupSelector rejects blank reference ID`() {
+  fun `ResolvedEventGroup rejects blank reference ID`() {
     assertFailsWith<IllegalArgumentException> {
-      EventGroupSelector(eventGroupReferenceId = "   ", entityKey = null)
+      ResolvedEventGroup(
+        collectionIntervals = emptyList(),
+        eventGroupReferenceId = "   ",
+        entityKey = null,
+      )
     }
   }
 
   @Test
-  fun `EventGroupSelector rejects blank entity ID`() {
+  fun `ResolvedEventGroup rejects blank entity ID`() {
     assertFailsWith<IllegalArgumentException> {
-      EventGroupSelector(
+      ResolvedEventGroup(
+        collectionIntervals = emptyList(),
         eventGroupReferenceId = null,
         entityKey = labeledImpressionEntityKey("campaign", "   "),
       )

@@ -251,13 +251,14 @@ class VidLabelingDemoCorrectionIntegrationTest {
       requisitions = requisitions,
       resolvedEventGroups =
         ResolvedEventGroups(
-          eventGroups =
-            listOf(
-              ResolvedEventGroup(
-                key = EVENT_GROUP_KEY,
-                collectionIntervals = emptyList(),
-                selector = EventGroupSelector(eventGroupReferenceId = EVENT_GROUP, entityKey = null),
-              )
+          eventGroupsByKey =
+            mapOf(
+              EVENT_GROUP_KEY to
+                ResolvedEventGroup(
+                  collectionIntervals = emptyList(),
+                  eventGroupReferenceId = EVENT_GROUP,
+                  entityKey = null,
+                )
             ),
           mappedEntityType = null,
         ),

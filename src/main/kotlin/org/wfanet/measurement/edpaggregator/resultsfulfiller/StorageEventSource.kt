@@ -155,7 +155,7 @@ class StorageEventSource(
   init {
     require(readConcurrency > 0) { "readConcurrency must be positive" }
     require(readMaxAttempts >= 1) { "readMaxAttempts must be at least 1" }
-    require(resolvedEventGroups.eventGroups.isNotEmpty()) {
+    require(resolvedEventGroups.eventGroupsByKey.isNotEmpty()) {
       "resolvedEventGroups must not be empty"
     }
   }
@@ -197,7 +197,7 @@ class StorageEventSource(
       val eventReaders: List<ResolvedEventReader> = createEventReaders()
       ProgressTracker(eventReaders.size).use { progressTracker ->
         logger.info(
-          "Processing ${eventReaders.size} EventReaders across ${resolvedEventGroups.eventGroups.size} event groups"
+          "Processing ${eventReaders.size} EventReaders across ${resolvedEventGroups.eventGroupsByKey.size} event groups"
         )
         // Launch one coroutine per EventReader, but bound how many read + decrypt concurrently via
         // a semaphore so the outbound Cloud Storage / Cloud KMS fan-out cannot exhaust Cloud NAT
@@ -228,13 +228,13 @@ class StorageEventSource(
     }
 
     val entityKeysByInterval: Map<Interval, Set<EntityKey>> =
-      resolvedEventGroups.eventGroups
+      resolvedEventGroups.eventGroupsByKey.values
         .flatMap { eventGroup ->
           val queryEntityKey: EntityKey? =
-            eventGroup.selector.entityKey?.let { selector ->
+            eventGroup.entityKey?.let { resolvedEntityKey ->
               entityKey {
-                entityType = selector.entityType
-                entityId = selector.entityId
+                entityType = resolvedEntityKey.entityType
+                entityId = resolvedEntityKey.entityId
               }
             }
           eventGroup.collectionIntervals.flatMap { interval ->
@@ -244,10 +244,10 @@ class StorageEventSource(
         .groupBy({ it.first }, { it.second })
         .mapValues { (_, entityKeys) -> entityKeys.toSet() }
     val referenceIdsByInterval: Map<Interval, Set<String>> =
-      resolvedEventGroups.eventGroups
+      resolvedEventGroups.eventGroupsByKey.values
         .flatMap { eventGroup ->
           eventGroup.collectionIntervals.flatMap { interval ->
-            listOfNotNull(eventGroup.selector.eventGroupReferenceId).map { interval to it }
+            listOfNotNull(eventGroup.eventGroupReferenceId).map { interval to it }
           }
         }
         .groupBy({ it.first }, { it.second })

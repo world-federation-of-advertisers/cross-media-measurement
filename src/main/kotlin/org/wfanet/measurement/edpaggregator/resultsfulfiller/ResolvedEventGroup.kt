@@ -22,8 +22,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 
-/** Native and equivalent selectors for one requisition event group. */
-data class EventGroupSelector(
+/** A requisition event group normalized for both storage lookup and event filtering. */
+data class ResolvedEventGroup(
+  val collectionIntervals: List<Interval>,
   val eventGroupReferenceId: String?,
   val entityKey: LabeledImpression.EntityKey?,
 ) {
@@ -31,29 +32,16 @@ data class EventGroupSelector(
     require(
       eventGroupReferenceId?.isNotBlank() == true || entityKey?.entityId?.isNotBlank() == true
     ) {
-      "At least one event-group selector must be present"
+      "Event-group reference ID or entity key must be present"
     }
   }
 }
 
-/** A requisition event group normalized for both storage lookup and event filtering. */
-data class ResolvedEventGroup(
-  val key: EventGroupKey,
-  val collectionIntervals: List<Interval>,
-  val selector: EventGroupSelector,
-)
-
 /** Normalized event groups and the entity type that can identify a whole blob. */
 data class ResolvedEventGroups(
-  val eventGroups: List<ResolvedEventGroup>,
+  val eventGroupsByKey: Map<EventGroupKey, ResolvedEventGroup>,
   val mappedEntityType: String?,
 ) {
-  val byKey: Map<EventGroupKey, ResolvedEventGroup> = eventGroups.associateBy { it.key }
-
-  init {
-    require(byKey.size == eventGroups.size) { "Event-group keys must be unique" }
-  }
-
   companion object {
     /** Resolves native and equivalent selectors once for all downstream consumers. */
     fun fromEventGroupMapEntries(
@@ -67,63 +55,54 @@ data class ResolvedEventGroups(
         }
       }
 
-      return ResolvedEventGroups(
-        eventGroups =
-          entries.map { entry ->
-            val key: EventGroupKey =
-              requireNotNull(EventGroupKey.fromName(entry.eventGroup)) {
-                "Invalid event-group resource name: ${entry.eventGroup}"
-              }
-            ResolvedEventGroup(
-              key = key,
-              collectionIntervals = entry.details.collectionIntervalsList,
-              selector = resolveSelector(entry.details, mapping),
-            )
-          },
-        mappedEntityType = mapping?.entityType,
-      )
+      val eventGroupsByKey: Map<EventGroupKey, ResolvedEventGroup> =
+        entries.associate { entry ->
+          val key: EventGroupKey =
+            requireNotNull(EventGroupKey.fromName(entry.eventGroup)) {
+              "Invalid event-group resource name: ${entry.eventGroup}"
+            }
+          key to resolveEventGroup(entry.details, mapping)
+        }
+      require(eventGroupsByKey.size == entries.size) { "Event-group keys must be unique" }
+      return ResolvedEventGroups(eventGroupsByKey, mapping?.entityType)
     }
 
-    private fun resolveSelector(
+    private fun resolveEventGroup(
       details: GroupedRequisitions.EventGroupDetails,
       mapping: EventGroupReferenceIdEntityKeyMapping?,
-    ): EventGroupSelector {
-      val nativeEntityKey: LabeledImpression.EntityKey? =
-        if (detailsHasEntityKey(details)) {
-          val key: GroupedRequisitions.EventGroupDetails.EntityKey = details.entityKey
+    ): ResolvedEventGroup {
+      if (detailsHasEntityKey(details)) {
+        val detailsEntityKey: GroupedRequisitions.EventGroupDetails.EntityKey = details.entityKey
+        val entityKey: LabeledImpression.EntityKey =
           LabeledImpressionKt.entityKey {
-            entityType = key.entityType
-            entityId = key.entityId
+            entityType = detailsEntityKey.entityType
+            entityId = detailsEntityKey.entityId
           }
-        } else {
-          null
-        }
-      val nativeReferenceId: String? =
-        if (nativeEntityKey == null) {
-          details.eventGroupReferenceId.takeIf { it.isNotBlank() }
-        } else {
-          null
-        }
-      val referenceId: String? =
-        nativeReferenceId
-          ?: if (mapping == null || nativeEntityKey == null) {
-            null
-          } else {
-            mapping.toEventGroupReferenceId(nativeEntityKey.entityType, nativeEntityKey.entityId)
-          }
+        return ResolvedEventGroup(
+          collectionIntervals = details.collectionIntervalsList,
+          eventGroupReferenceId =
+            mapping?.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId),
+          entityKey = entityKey,
+        )
+      }
+
+      val referenceId: String? = details.eventGroupReferenceId.takeIf { it.isNotBlank() }
       val entityKey: LabeledImpression.EntityKey? =
-        nativeEntityKey
-          ?: if (mapping == null || nativeReferenceId == null) {
-            null
-          } else {
-            mapping.toEntityId(nativeReferenceId)?.let { entityId ->
-              LabeledImpressionKt.entityKey {
-                entityType = mapping.entityType
-                this.entityId = entityId
-              }
+        if (mapping == null || referenceId == null) {
+          null
+        } else {
+          mapping.toEntityId(referenceId)?.let { entityId ->
+            LabeledImpressionKt.entityKey {
+              entityType = mapping.entityType
+              this.entityId = entityId
             }
           }
-      return EventGroupSelector(eventGroupReferenceId = referenceId, entityKey = entityKey)
+        }
+      return ResolvedEventGroup(
+        collectionIntervals = details.collectionIntervalsList,
+        eventGroupReferenceId = referenceId,
+        entityKey = entityKey,
+      )
     }
 
     private fun detailsHasEntityKey(details: GroupedRequisitions.EventGroupDetails): Boolean {

@@ -253,16 +253,17 @@ message ResultsFulfillerParams {
     // Entity type whose IDs are equivalent to event-group reference IDs.
     string entity_type = 1;
 
-    // Prefix on event-group reference IDs.
+    // Optional prefix on event-group reference IDs.
     //
-    // Conversion removes the source prefix and adds the destination prefix.
-    // A non-empty source prefix must be present for an ID to be mappable.
+    // Conversion removes this prefix when converting from a reference ID and
+    // adds it when converting to one. When empty, reference IDs remain
+    // mappable.
     string event_group_reference_id_prefix = 2;
 
-    // Prefix on entity IDs.
+    // Optional prefix on entity IDs.
     //
-    // Conversion removes the source prefix and adds the destination prefix.
-    // A non-empty source prefix must be present for an ID to be mappable.
+    // Conversion removes this prefix when converting from an entity ID and
+    // adds it when converting to one. When empty, entity IDs remain mappable.
     string entity_id_prefix = 3;
   }
 
