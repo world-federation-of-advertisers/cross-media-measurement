@@ -121,13 +121,21 @@ marks the environment as not ready to remove the read-path fallback.
 
 For each component summary missing `external_reporting_set_id`:
 
-1.  The component's membership is taken from its own `event_group_summaries`,
-    paired with the component's `cmms_data_provider_id`.
+1.  The component's membership is taken from its own `event_group_summaries`. If
+    `cmms_data_provider_id` is populated, it is paired with each EventGroup ID.
+    If it is empty, the DataProvider is inferred only when the Campaign Group
+    universe contains exactly one matching EventGroup key. Missing or ambiguous
+    matches leave the `BasicReport` unchanged.
 2.  The Campaign Group's unfiltered primitive children are searched for a
     `ReportingSet` whose membership is exactly that set. If one is found, its ID
     is used.
 3.  Otherwise a `ReportingSet` with that membership is created under the
     Campaign Group, and its ID is used.
+
+When a composite Campaign Group reference is migrated, every component summary
+is re-resolved, including summaries that already contain an ID. This prevents a
+`BasicReport` from mixing ReportingSets associated with the legacy and new
+Campaign Groups.
 
 No component `ReportingSet` is created and no `BasicReport` is updated unless
 all of its component summaries resolve. Every membership is resolved before

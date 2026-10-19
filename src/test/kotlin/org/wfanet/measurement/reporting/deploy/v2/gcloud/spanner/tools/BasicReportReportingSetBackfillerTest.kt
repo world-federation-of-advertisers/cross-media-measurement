@@ -331,6 +331,131 @@ class BasicReportReportingSetBackfillerTest {
     }
 
   @Test
+  fun `composite migration rewrites a populated component from the legacy group`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroup(externalCampaignGroupId = "")
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID,
+        externalCampaignGroupId = COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        components = listOf(ComponentSpec(externalReportingSetId = INVALID_CAMPAIGN_GROUP_ID)),
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.compositeCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(result.skipped).isEqualTo(0)
+      assertThat(result.updated).isEqualTo(1)
+      val migratedBasicReport = readInternalBasicReport()
+      val migratedComponentId = readComponentSummaryReportingSetId()
+      assertThat(migratedComponentId).isNotEqualTo(INVALID_CAMPAIGN_GROUP_ID)
+      assertThat(readReportingSet(migratedComponentId).externalCampaignGroupId)
+        .isEqualTo(migratedBasicReport.externalCampaignGroupId)
+      assertThat(readReportingSet(migratedComponentId).primitive.eventGroupKeysList)
+        .containsExactly(eventGroupKey(EVENT_GROUP_ID_1), eventGroupKey(EVENT_GROUP_ID_2))
+    }
+
+  @Test
+  fun `composite migration infers blank DataProvider from the Campaign Group universe`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroup(externalCampaignGroupId = "")
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID,
+        externalCampaignGroupId = COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        components =
+          listOf(
+            ComponentSpec(
+              cmmsDataProviderId = "",
+              cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1, OTHER_EVENT_GROUP_ID),
+            )
+          ),
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.compositeCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(result.skipped).isEqualTo(0)
+      assertThat(result.updated).isEqualTo(1)
+      val componentReportingSet = readReportingSet(readComponentSummaryReportingSetId())
+      assertThat(componentReportingSet.primitive.eventGroupKeysList)
+        .containsExactly(
+          eventGroupKey(EVENT_GROUP_ID_1),
+          eventGroupKey(OTHER_EVENT_GROUP_ID, OTHER_CMMS_DATA_PROVIDER_ID),
+        )
+    }
+
+  @Test
+  fun `composite migration does not infer blank DataProvider outside the universe`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroup(externalCampaignGroupId = "")
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID,
+        externalCampaignGroupId = COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        components =
+          listOf(
+            ComponentSpec(
+              cmmsDataProviderId = "",
+              cmmsEventGroupIds = listOf(EVENT_GROUP_ID_NOT_IN_UNIVERSE),
+            )
+          ),
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.compositeCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(result.unresolvedComponents).isEqualTo(1)
+      assertThat(result.reportingSetsCreated).isEqualTo(0)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.updated).isEqualTo(0)
+      assertThat(readInternalBasicReport().externalCampaignGroupId)
+        .isEqualTo(COMPOSITE_NON_CAMPAIGN_GROUP_ID)
+      assertThat(readComponentSummaryReportingSetId()).isEmpty()
+    }
+
+  @Test
+  fun `does not infer blank DataProvider when EventGroup ID is ambiguous`() =
+    runBlocking<Unit> {
+      createAmbiguousCampaignGroup()
+      insertTestBasicReport(
+        listOf(ComponentSpec(cmmsDataProviderId = "", cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1)))
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.unresolvedComponents).isEqualTo(1)
+      assertThat(result.reportingSetsCreated).isEqualTo(0)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.updated).isEqualTo(0)
+      assertThat(readComponentSummaryReportingSetId()).isEmpty()
+      assertThat(readCampaignGroupReportingSets().map { it.externalReportingSetId })
+        .containsExactly(CAMPAIGN_GROUP_ID)
+    }
+
+  @Test
+  fun `composite migration treats an omitted right operand as empty`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroupWithMissingRhs()
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID,
+        externalCampaignGroupId = COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        components = listOf(ComponentSpec()),
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.compositeCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(result.skipped).isEqualTo(0)
+      assertThat(result.updated).isEqualTo(1)
+      val synthesizedCampaignGroup =
+        readReportingSet(readInternalBasicReport().externalCampaignGroupId)
+      assertThat(synthesizedCampaignGroup.primitive.eventGroupKeysList)
+        .containsExactly(eventGroupKey(EVENT_GROUP_ID_1), eventGroupKey(EVENT_GROUP_ID_2))
+    }
+
+  @Test
   fun `composite migration reuses an equivalent primitive Campaign Group`() =
     runBlocking<Unit> {
       createCompositeNonCampaignGroup(externalCampaignGroupId = "")
@@ -588,6 +713,23 @@ class BasicReportReportingSetBackfillerTest {
     )
   }
 
+  private suspend fun createAmbiguousCampaignGroup() {
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        externalReportingSetId = CAMPAIGN_GROUP_ID
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalCampaignGroupId = CAMPAIGN_GROUP_ID
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys += eventGroupKey(EVENT_GROUP_ID_1)
+              eventGroupKeys += eventGroupKey(EVENT_GROUP_ID_1, OTHER_CMMS_DATA_PROVIDER_ID)
+            }
+        }
+      }
+    )
+  }
+
   private suspend fun createNonCampaignGroup() {
     reportingSetsService.createReportingSet(
       createReportingSetRequest {
@@ -647,6 +789,35 @@ class BasicReportReportingSetBackfillerTest {
               primitiveReportingSetBases +=
                 ReportingSetKt.primitiveReportingSetBasis {
                   externalReportingSetId = OTHER_NON_CAMPAIGN_GROUP_ID
+                }
+            }
+        }
+      }
+    )
+  }
+
+  private suspend fun createCompositeNonCampaignGroupWithMissingRhs() {
+    createNonCampaignGroup()
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        externalReportingSetId = COMPOSITE_NON_CAMPAIGN_GROUP_ID
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          composite =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.UNION
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = INVALID_CAMPAIGN_GROUP_ID
+                }
+            }
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 1
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = INVALID_CAMPAIGN_GROUP_ID
                 }
             }
         }
@@ -963,6 +1134,7 @@ class BasicReportReportingSetBackfillerTest {
     private const val EVENT_GROUP_ID_2 = "eg2"
     private const val OTHER_CMMS_DATA_PROVIDER_ID = "dp2"
     private const val OTHER_EVENT_GROUP_ID = "eg3"
+    private const val EVENT_GROUP_ID_NOT_IN_UNIVERSE = "event-group-not-in-universe"
     private const val CAMPAIGN_GROUP_ID = "campaign-group"
     private const val INVALID_CAMPAIGN_GROUP_ID = "invalid-campaign-group"
     private const val OTHER_NON_CAMPAIGN_GROUP_ID = "other-invalid-campaign-group"
