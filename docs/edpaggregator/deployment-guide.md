@@ -19,7 +19,7 @@ uploads it) see the companion guides:
 | Guide | Audience | Purpose |
 | --- | --- | --- |
 | [Common EDP Onboarding](README.md) | EDP | Complete registration, KMS, workload trust, storage, and campaign setup |
-| [Parquet Onboarding](parquet-onboarding.md) | EDP | Upload encrypted raw impressions for EDPA-managed VID labeling |
+| [Parquet Onboarding](parquet-onboarding.md) | EDP | Upload encrypted pre-labeled reference VIDs for EDPA-managed VID labeling |
 | [Already VID-Labeled Onboarding](vid-labeled-onboarding.md) | EDP | Upload encrypted labeled RecordIO and `BlobDetails` sidecars |
 | [Metadata Operator Guide](metadata-operator-guide.md) | Operator | RequisitionFetcher + ImpressionMetadata internals, tuning, scaling |
 | [Report Debugging Guide](report-debugging-guide.md) | Operator | Trace a report end-to-end and diagnose failures |

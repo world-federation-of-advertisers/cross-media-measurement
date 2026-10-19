@@ -21,8 +21,9 @@ pipeline. See [How data moves through the EDP Aggregator](data-flow.md) for the
 data-availability, ResultsFulfiller, and TrusTEE stages.
 
 For the recommended alternative, use
-[Onboard with encrypted Parquet impressions](parquet-onboarding.md). In that
-path, the EDP uploads raw impressions and EDPA assigns the VIDs.
+[Onboard with encrypted Parquet containing pre-labeled reference VIDs](parquet-onboarding.md).
+In that path, the EDP uploads pre-labeled reference VIDs and EDPA assigns the
+final VIDs.
 
 ## Contents
 

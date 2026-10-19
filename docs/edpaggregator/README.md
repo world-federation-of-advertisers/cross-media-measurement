@@ -9,7 +9,7 @@ Complete this guide once per market, then follow exactly one impression guide:
 
 | Input supplied by the EDP | Use this guide |
 | --- | --- |
-| Raw impressions without Virtual Person IDs (VIDs) | [Encrypted Parquet onboarding](parquet-onboarding.md) — recommended |
+| Pre-labeled reference VIDs in encrypted Parquet | [Encrypted Parquet onboarding](parquet-onboarding.md) — recommended |
 | Impressions to which the EDP has already assigned VIDs | [Already VID-labeled onboarding](vid-labeled-onboarding.md) |
 
 Both paths publish campaign information separately, use an EDP-owned encryption
@@ -552,9 +552,9 @@ upload by itself is not sufficient.
 
 ## 7. Continue with the selected impression path
 
-* [Onboard with encrypted Parquet impressions](parquet-onboarding.md) — agree on
-  the schema, apply Parquet Modular Encryption, publish dates, and validate EDPA
-  VID labeling.
+* [Onboard with encrypted Parquet containing pre-labeled reference VIDs](parquet-onboarding.md)
+  — agree on the schema, apply Parquet Modular Encryption, publish dates, and
+  validate EDPA VID labeling.
 * [Onboard with already VID-labeled impressions](vid-labeled-onboarding.md) —
   construct `LabeledImpression` RecordIO, envelope-encrypt it, publish
   `BlobDetails`, and validate decryption before `done`.

@@ -1,9 +1,10 @@
-# Onboard with encrypted Parquet impressions
+# Onboard with encrypted Parquet containing pre-labeled reference VIDs
 
 Use this guide after completing the [common EDP onboarding steps](README.md).
 It covers the recommended integration:
 
-* the EDP or its data exporter uploads raw impressions as encrypted Parquet;
+* the EDP or its data exporter uploads pre-labeled reference VIDs as encrypted
+  Parquet;
 * EDPA assigns Virtual Person IDs (VIDs) inside trusted hardware; and
 * trusted fulfillment workloads use the labeled data for measurements.
 
@@ -36,7 +37,7 @@ Complete the [common onboarding guide](README.md) first. It covers registration,
 storage access, campaign metadata, KMS, attestation, and optional TrusTEE setup.
 For this path, confirm that the operator has also provided:
 
-* the raw-impression upload prefix;
+* the pre-labeled reference VID upload prefix;
 * the active model lines;
 * the fields and identity signals required by the market's VID model;
 * the event fields used by measurement filters; and
@@ -44,8 +45,10 @@ For this path, confirm that the operator has also provided:
 
 ## 1. Agree on the Parquet contract
 
-Complete the mapping before building the production export. Raw impressions do
-not contain a VID. They are flat Parquet files with one row per impression.
+Complete the mapping before building the production export. Pre-labeled
+reference VIDs are identifiers used as input to VID labeling; they are not the
+final VIDs assigned by EDPA. The input consists of flat Parquet files with one
+row per impression.
 
 ### If an advertiser or another data aggregator prepares the export
 
@@ -151,13 +154,12 @@ parquet.encryption.plaintext.footer = true
 
 `<EDP_KEY_URI>` is a URI such as `gcp-kms://...` or `aws-kms://...`.
 The exact library integration depends on the EDP's data platform. The
-repository's
-[reference writer](../../src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing/RawImpressionsWriter.kt)
-shows the contract used by EDPA.
+repository's [EDP aggregator load-test writers](../../src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing/)
+include a reference implementation of the contract used by EDPA.
 
-Do not create a metadata sidecar for raw Parquet. EDPA registers the Parquet
-objects when it sees `done` and creates the encrypted labeled output and its
-metadata later.
+Do not create a metadata sidecar for pre-labeled reference VID Parquet. EDPA
+registers the Parquet objects when it sees `done` and creates the encrypted
+labeled output and its metadata later.
 
 ### Match impressions to campaigns
 
@@ -181,12 +183,13 @@ validating that the mapped entity keys select impressions.
 
 ## 2. Upload daily impressions
 
-The operator provides the raw-impression prefix. A typical date folder is:
+The operator provides the pre-labeled reference VID prefix. A typical date
+folder is:
 
 ```text
-gs://<BUCKET>/<RAW_IMPRESSION_PREFIX>/<YYYY-MM-DD>/part-000.parquet
-gs://<BUCKET>/<RAW_IMPRESSION_PREFIX>/<YYYY-MM-DD>/part-001.parquet
-gs://<BUCKET>/<RAW_IMPRESSION_PREFIX>/<YYYY-MM-DD>/done
+gs://<BUCKET>/<PRE_LABELED_REFERENCE_VID_PREFIX>/<YYYY-MM-DD>/part-000.parquet
+gs://<BUCKET>/<PRE_LABELED_REFERENCE_VID_PREFIX>/<YYYY-MM-DD>/part-001.parquet
+gs://<BUCKET>/<PRE_LABELED_REFERENCE_VID_PREFIX>/<YYYY-MM-DD>/done
 ```
 
 For each date:
@@ -202,14 +205,15 @@ starts processing it.
 
 EDPA then:
 
-1. registers the raw files and selects the applicable model lines;
+1. registers the pre-labeled reference VID files and selects the applicable
+   model lines;
 2. decrypts and labels impressions inside trusted hardware;
 3. writes encrypted, VID-labeled impressions and metadata sidecars;
 4. publishes labeled-output `done` objects; and
 5. registers data availability with Halo.
 
 For additive backfills and corrections, follow the
-[raw-impression backfill and correction guide](reference-vid-impression-upload-guide.md).
+[pre-labeled reference VID backfill and correction guide](reference-vid-impression-upload-guide.md).
 Do not overwrite bad data or rewrite `done` before coordinating a correction
 with the operator.
 
@@ -222,7 +226,8 @@ Confirm:
 
 1. **Campaign registration:** the campaign is active in Halo and belongs to the
    correct advertiser.
-2. **Raw upload:** EDPA registered every expected Parquet object and date.
+2. **Pre-labeled reference VID upload:** EDPA registered every expected Parquet
+   object and date.
 3. **VID labeling:** processing completed for every expected model line.
 4. **Data availability:** Halo shows the date as available.
 5. **Measurement:** an end-to-end test measurement completes and includes the
@@ -270,8 +275,8 @@ For deeper investigation, use the
 
 * [Common EDP onboarding](README.md) — registration, KMS, attestation, campaign
   metadata, and shared validation.
-* [Raw-impression backfill and correction guide](reference-vid-impression-upload-guide.md)
-  — backfill or correct a finalized raw-impression upload.
+* [Pre-labeled reference VID backfill and correction guide](reference-vid-impression-upload-guide.md)
+  — backfill or correct a finalized pre-labeled reference VID upload.
 * [Data flow and trust boundaries](data-flow.md) — follow Parquet input through
   VID labeling, fulfillment, and TrusTEE.
 * [Report Debugging Guide](report-debugging-guide.md) — investigate a stuck or
