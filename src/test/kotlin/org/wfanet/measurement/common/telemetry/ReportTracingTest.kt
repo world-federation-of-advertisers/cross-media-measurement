@@ -64,6 +64,21 @@ class ReportTracingTest {
   }
 
   @Test
+  fun `recordSuccess creates attributed span`() {
+    val attributeKey = AttributeKey.stringKey("test.attribute")
+
+    ReportTracing.recordSuccess(
+      spanName = "successful-span",
+      attributes = Attributes.of(attributeKey, "test-value"),
+    )
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("successful-span")
+    assertThat(span.attributes.get(attributeKey)).isEqualTo("test-value")
+    assertThat(span.status.statusCode).isEqualTo(StatusCode.UNSET)
+  }
+
+  @Test
   fun `traceSuspending creates attributed span and binds it across suspension`() = runBlocking {
     val attributeKey = AttributeKey.stringKey("test.attribute")
 

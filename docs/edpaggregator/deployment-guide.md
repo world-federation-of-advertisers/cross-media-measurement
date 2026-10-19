@@ -264,6 +264,26 @@ data-availability health per model line. Per its config it flags:
 * **Spurious deletions** — `ImpressionMetadata` marked deleted while its blob still
   exists on the bucket (enabled when `spurious_deletion_lookback_days > 0`).
 
+For the `gap`, `zero_impression`, `without_done_blob`, `late_arriving`,
+`unprocessed_done`, `unpublished_availability`, and `spurious_deletion` statuses,
+`edpa.data_availability.date_count` includes
+the OpenTelemetry attribute `edpa.data_availability_monitor.data_date=YYYY-MM-DD`. The Google Cloud
+OpenTelemetry exporter replaces dots in attribute keys with underscores. Configure Cloud
+Monitoring alerts to filter on `edpa_data_availability_monitor_source=monitor` and preserve or
+group by `edpa_data_availability_monitor_data_date`,
+`edpa_data_availability_monitor_model_line`, and
+`edpa_data_availability_monitor_date_status`; `DataAvailabilitySync` emits the same metric without
+the data-date label. Aggregating away the data-date label preserves the total count but loses the
+date that an operator needs for targeted recovery. Healthy-date and legitimate-deletion count
+points omit the data-date label to avoid creating non-actionable per-date series.
+Alert when `edpa.data_availability.noncanonical_spurious_deletion_count` is greater than zero. This
+gauge counts spurious deletions whose blob URI does not contain the expected model-line prefix and
+`YYYY-MM-DD` folder, so the monitor cannot attach
+`edpa_data_availability_monitor_data_date`; inspect the warning logs for the resource names and
+blob URIs before attempting manual recovery.
+See [Recover missing ImpressionMetadata](../gke/recover-missing-impression-metadata.md) for the
+one-day manual Job procedure.
+
 Config: [`DataAvailabilityMonitorConfigs`](#dataavailabilitymonitor-config-dataavailabilitymonitorconfigs).
 
 ### ResultsFulfiller (TEE)
@@ -523,7 +543,7 @@ the standard OpenTelemetry variables `OTEL_SERVICE_NAME`, `OTEL_METRICS_EXPORTER
 | --- | --- |
 | `data_watcher` / `data_watcher_delete` | `CERT_FILE_PATH`, `PRIVATE_KEY_FILE_PATH`, `CERT_COLLECTION_FILE_PATH`, `CONTROL_PLANE_TARGET`, `CONTROL_PLANE_CERT_HOST`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `CONFIG_BLOB_KEY` |
 | `requisition_fetcher` | `KINGDOM_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `GRPC_REQUEST_INTERVAL`, `METADATA_STORAGE_TARGET`, `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` |
-| `event_group_sync` | `KINGDOM_TARGET` |
+| `event_group_sync` | `KINGDOM_TARGET`, `KINGDOM_REQUESTS_PER_SECOND` (default `4`), `THROTTLER_MILLIS` (deprecated fallback) |
 | `data_availability_sync` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_cleanup` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_monitor` | `IMPRESSION_METADATA_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `CONFIG_BLOB_KEY` |

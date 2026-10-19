@@ -278,12 +278,14 @@ abstract class MillBase(
       val message = "Failing computation due to too many failed ComputationStageAttempts."
       Span.current()
         .setStatus(StatusCode.ERROR, message)
-        .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+        .setAttribute(ReportTraceAttributes.OUTCOME, "permanent_failure")
         .setAttribute(ReportTraceAttributes.ERROR_TYPE, "AttemptsExhausted")
+        .setAttribute(ReportTraceAttributes.ERROR_RETRYABLE, false)
       token.logReportTraceLifecycle(
-        outcome = "failed",
+        outcome = "permanent_failure",
         errorType = "AttemptsExhausted",
         errorCode = null,
+        errorRetryable = false,
       )
       failComputation(token, message)
       return
@@ -335,7 +337,11 @@ abstract class MillBase(
   }
 
   private fun ComputationToken.reportTraceAttributes(): Attributes {
-    val builder = Attributes.builder().putAll(reportTraceAttributes(globalComputationId))
+    val builder =
+      Attributes.builder()
+        .putAll(reportTraceAttributes(globalComputationId))
+        .put(ReportTraceAttributes.COMPUTATION_STAGE, computationStage.name)
+        .put(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT, attempt.toLong())
     if (computationDetails.kingdomComputation.measurement.isNotEmpty()) {
       builder.put(
         ReportTraceAttributes.MEASUREMENT_NAME,
@@ -353,8 +359,9 @@ abstract class MillBase(
     outcome: String,
     errorType: String?,
     errorCode: String?,
+    errorRetryable: Boolean? = null,
   ) {
-    logReportTraceLifecycle(reportTraceAttributes(), outcome, errorType, errorCode)
+    logReportTraceLifecycle(reportTraceAttributes(), outcome, errorType, errorCode, errorRetryable)
   }
 
   private fun reportTraceAttributes(globalComputationId: String): Attributes {
@@ -370,6 +377,7 @@ abstract class MillBase(
     outcome: String,
     errorType: String?,
     errorCode: String?,
+    errorRetryable: Boolean? = null,
   ) {
     val fields = buildList {
       for ((key, value) in attributes.asMap()) {
@@ -378,6 +386,7 @@ abstract class MillBase(
       add(ReportTraceAttributes.OUTCOME_STRING to outcome)
       add(ReportTraceAttributes.ERROR_TYPE_STRING to errorType)
       add(ReportTraceAttributes.ERROR_CODE_STRING to errorCode)
+      add(ReportTraceAttributes.ERROR_RETRYABLE_STRING to errorRetryable?.toString())
     }
     ReportTraceLogging.log(logger, "duchy.mill.process_computation", *fields.toTypedArray())
   }
@@ -398,14 +407,24 @@ abstract class MillBase(
     val latestToken =
       try {
         getLatestComputationToken(globalId)
-      } catch (e: Exception) {
-        logger.log(Level.WARNING, e) {
+      } catch (tokenReadError: Exception) {
+        token.recordFailureClassification(
+          outcome = "failed_during_failure_handling",
+          error = tokenReadError,
+          retryable = null,
+        )
+        logger.log(Level.WARNING, tokenReadError) {
           "$globalId@$millId: Fail to get latest token during exception handling."
         }
         return
       }
 
     if (latestToken.computationStage == endingStage) {
+      latestToken.recordFailureClassification(
+        outcome = "failed_after_terminal",
+        error = e,
+        retryable = false,
+      )
       logger.log(Level.WARNING, e) {
         "$globalId@$millId: Skip exception handling as computation has been terminated."
       }
@@ -413,6 +432,11 @@ abstract class MillBase(
     }
 
     if (latestToken.attempt > maximumAttempts) {
+      latestToken.recordFailureClassification(
+        outcome = "permanent_failure",
+        error = e,
+        retryable = false,
+      )
       failComputation(
         latestToken,
         message = "Failing computation due to too many failed attempts. Last message: ${e.message}",
@@ -423,6 +447,11 @@ abstract class MillBase(
 
     when (e) {
       is ComputationDataClients.TransientErrorException -> {
+        latestToken.recordFailureClassification(
+          outcome = "retryable_failure",
+          error = e,
+          retryable = true,
+        )
         logger.log(Level.WARNING, e) { "$globalId@$millId: TRANSIENT error" }
         sendStatusUpdateToKingdom(
           globalId,
@@ -435,12 +464,42 @@ abstract class MillBase(
         // Enqueue the computation again for future retry
         enqueueComputation(latestToken)
       }
-      is StatusException -> throw IllegalStateException("Programming bug: uncaught gRPC error", e)
+      is StatusException -> {
+        latestToken.recordFailureClassification(
+          outcome = "failed_during_failure_handling",
+          error = e,
+          retryable = null,
+        )
+        throw IllegalStateException("Programming bug: uncaught gRPC error", e)
+      }
       else -> {
         // Treat any other exception type as a permanent computation error.
+        latestToken.recordFailureClassification(
+          outcome = "permanent_failure",
+          error = e,
+          retryable = false,
+        )
         failComputation(latestToken, cause = e)
       }
     }
+  }
+
+  private fun ComputationToken.recordFailureClassification(
+    outcome: String,
+    error: Exception,
+    retryable: Boolean?,
+  ) {
+    val errorType = ReportTraceAttributes.errorType(error)
+    val errorCode = ReportTraceAttributes.errorCode(error)
+    Span.current()
+      .setAllAttributes(reportTraceAttributes())
+      .setAttribute(ReportTraceAttributes.OUTCOME, outcome)
+      .also { span ->
+        if (retryable != null) {
+          span.setAttribute(ReportTraceAttributes.ERROR_RETRYABLE, retryable)
+        }
+      }
+    logReportTraceLifecycle(outcome, errorType, errorCode, retryable)
   }
 
   /**

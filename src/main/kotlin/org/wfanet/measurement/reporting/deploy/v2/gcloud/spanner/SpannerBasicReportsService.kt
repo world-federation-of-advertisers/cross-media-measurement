@@ -605,6 +605,8 @@ class SpannerBasicReportsService(
    * @throws ImpressionQualificationFilterNotFoundException
    */
   private fun validateBasicReport(basicReport: BasicReport) {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4551): Require
+    //   external_report_id after existing rows and callers have been migrated.
     if (basicReport.cmmsMeasurementConsumerId.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
     }

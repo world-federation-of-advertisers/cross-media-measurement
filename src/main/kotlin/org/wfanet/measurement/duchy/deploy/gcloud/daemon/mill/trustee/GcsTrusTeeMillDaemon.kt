@@ -22,6 +22,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.telemetry.OpenTelemetrySdkManager
 import org.wfanet.measurement.duchy.deploy.common.daemon.mill.trustee.TrusTeeMillDaemon
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
@@ -83,6 +84,7 @@ class GcsTrusTeeMillDaemon : TrusTeeMillDaemon() {
   private lateinit var csPrivateKeySecretId: String
 
   override fun run() {
+    OpenTelemetrySdkManager.ensureInitialized()
     saveCerts()
 
     val gcs = GcsFromFlags(gcsFlags)

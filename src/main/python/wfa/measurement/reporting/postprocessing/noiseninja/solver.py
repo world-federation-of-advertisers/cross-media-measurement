@@ -57,6 +57,8 @@ class Solver:
     self._add_equals(set_measurement_spec, variable_index_by_set_id)
     self._add_weighted_sum_upperbounds(set_measurement_spec,
                                        variable_index_by_set_id)
+    self._add_ordered_sets(set_measurement_spec,
+                           variable_index_by_set_id)
     self._add_covers(set_measurement_spec, variable_index_by_set_id)
     self._add_subsets(set_measurement_spec, variable_index_by_set_id)
     self._add_measurement_targets(set_measurement_spec,
@@ -70,7 +72,7 @@ class Solver:
   def _init_base_value(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     mean_measurement_by_variable: dict[int, float] = {}
-    for measured_set in set_measurement_spec.all_sets():
+    for measured_set in sorted(set_measurement_spec.all_sets()):
       mean_measurement_by_variable[
         variable_index_by_set_id[measured_set]] = (
           sum(v.value
@@ -101,7 +103,7 @@ class Solver:
     int, int]:
     variable_index_by_set_id: dict[int, int] = {}
     num_variables = 0
-    for measured_set in set_measurement_spec.all_sets():
+    for measured_set in sorted(set_measurement_spec.all_sets()):
       variable_index_by_set_id[measured_set] = num_variables
       num_variables += 1
     return variable_index_by_set_id
@@ -121,7 +123,10 @@ class Solver:
   def _add_equals(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding equal set constraints.")
-    for equal_set in set_measurement_spec.get_equal_sets():
+    for equal_set in sorted(
+        set_measurement_spec.get_equal_sets(),
+        key=lambda relation: (relation[0], tuple(sorted(relation[1]))),
+    ):
       variables = np.zeros(self.num_variables)
       variables[variable_index_by_set_id[equal_set[0]]] = 1
       variables.put([variable_index_by_set_id[i] for i in equal_set[1]], -1)
@@ -131,7 +136,9 @@ class Solver:
       set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding weighted sum upperbound constraints.")
-    for key, value in set_measurement_spec.get_weighted_sum_upperbound_sets().items():
+    for key, value in sorted(
+        set_measurement_spec.get_weighted_sum_upperbound_sets().items()
+    ):
       variables = np.zeros(self.num_variables)
       variables[variable_index_by_set_id[key]] = -1
       for entry in value:
@@ -141,42 +148,51 @@ class Solver:
   def _add_subsets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding subset constraints.")
-    for measured_set in set_measurement_spec.all_sets():
-      for subset in set(set_measurement_spec.get_subsets(measured_set)):
+    for measured_set in sorted(set_measurement_spec.all_sets()):
+      for subset in sorted(set(set_measurement_spec.get_subsets(measured_set))):
         self._add_parent_gt_child_term(
             variable_index_by_set_id[measured_set],
             variable_index_by_set_id[subset])
 
   def _add_ordered_sets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
-    logging.infor("Adding ordered sets constraints.")
-    ordered_sets: list[OrderedSets] = set_measurement_spec.get_ordered_sets()
-    for i in range(len(ordered_sets)):
-      if len(ordered_sets[i].larger_set) == 0 or len(
-          ordered_sets[i].smaller_set) == 0:
+    logging.info("Adding ordered sets constraints.")
+    ordered_sets: list[OrderedSets] = sorted(
+        set_measurement_spec.get_ordered_sets(),
+        key=lambda pair: (
+            tuple(sorted(pair.larger_set)),
+            tuple(sorted(pair.smaller_set)),
+        ),
+    )
+    for i, ordered_pair in enumerate(ordered_sets):
+      if len(ordered_pair.larger_set) == 0 or len(
+          ordered_pair.smaller_set) == 0:
         raise ValueError(
-            f'The {i}-th ordered set {ordered_sets[i]} has empty larger set or '
+            f'The {i}-th ordered set {ordered_pair} has empty larger set or '
             f'empty smaller set.'
         )
 
       if len(ordered_pair.larger_set) != len(ordered_pair.smaller_set):
         raise ValueError(
-            f'The {i}-th ordered set {ordered_sets[i]} has sets of different '
+            f'The {i}-th ordered set {ordered_pair} has sets of different '
             f'length.'
         )
 
       variables = np.zeros(self.num_variables)
-      for id in ordered_pair.larger_set:
-        variables[variable_index_by_set_id[id]] = -1
-      for id in ordered_pair.smaller_set:
-        variables[variable_index_by_set_id[id]] = 1
+      for set_id in ordered_pair.larger_set:
+        variables[variable_index_by_set_id[set_id]] -= 1
+      for set_id in ordered_pair.smaller_set:
+        variables[variable_index_by_set_id[set_id]] += 1
       self._add_gt_term(variables)
 
   def _add_covers(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding cover set constraints.")
-    for measured_set in set_measurement_spec.all_sets():
-      for cover in set_measurement_spec.get_covers_of_set(measured_set):
+    for measured_set in sorted(set_measurement_spec.all_sets()):
+      for cover in sorted(
+          set_measurement_spec.get_covers_of_set(measured_set),
+          key=lambda values: tuple(sorted(values)),
+      ):
         self._add_cover_set_constraint(
             list(variable_index_by_set_id[i] for i in cover),
             variable_index_by_set_id[measured_set])
@@ -260,7 +276,7 @@ class Solver:
     logging.info("Solving the quadratic program.")
     attempt_count = 0
     best_solution = Solution(False)
-    smallest_residual = float('inf')
+    smallest_primal_residual = float('inf')
     equality_residual = float('inf')
     inequality_residual = float('inf')
     status_code: StatusCode = StatusCode.SOLUTION_NOT_FOUND
@@ -275,7 +291,7 @@ class Solver:
 
       if self._validate_solution(solution):
         primal_residual = solution.primal_residual()
-        if primal_residual < smallest_residual:
+        if primal_residual < smallest_primal_residual:
           smallest_primal_residual = primal_residual
           best_solution = solution
 

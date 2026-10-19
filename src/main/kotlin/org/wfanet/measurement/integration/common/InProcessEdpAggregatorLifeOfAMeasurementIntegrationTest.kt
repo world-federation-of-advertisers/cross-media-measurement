@@ -46,6 +46,7 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -308,6 +309,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           .toName(),
         modelLineName = modelLineName,
         listEventGroupsEntityTypes = listOf("campaign", "ad_group", "creative-id"),
+        kingdomApiThrottler = FakeThrottler(),
       )
   }
 

@@ -39,7 +39,7 @@
 --           ├── ReportScheduleIterations
 --           └── ReportsReportSchedules
 
--- changeset tristanvuong2021:recreate-metrics-comparison-index dbms:postgresl
+-- changeset tristanvuong2021:recreate-metrics-comparison-index dbms:postgresql
 DROP INDEX metrics_comparison;
 CREATE INDEX metrics_comparison
   ON Metrics (MeasurementConsumerId, ReportingSetId, TimeIntervalStart, TimeIntervalEndExclusive, MetricId);

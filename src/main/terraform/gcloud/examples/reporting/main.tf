@@ -30,7 +30,7 @@ module "common" {
 
 resource "google_sql_database_instance" "postgres" {
   name             = var.postgres_instance_name
-  database_version = "POSTGRES_14"
+  database_version = "POSTGRES_16"
   settings {
     tier = "db-f1-micro"
 

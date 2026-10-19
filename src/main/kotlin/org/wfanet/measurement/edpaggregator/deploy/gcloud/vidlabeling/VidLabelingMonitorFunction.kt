@@ -298,6 +298,7 @@ class VidLabelingMonitorFunction : HttpFunction {
             config.vidLabeledImpressionsStorageParams.gcs.projectId,
           )
         },
+        poolAssignmentJobStub = poolAssignmentJobStub,
         rankerJobStub = rankerJobStub,
         vidLabelingJobStub = vidLabelingJobStub,
         workItemsStub = workItemsStub,

@@ -116,6 +116,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
     var.secret_mappings,
     var.uploaded_config_generation,
     var.timeout_seconds,
+    var.retry_on_failure,
   ]
 
   provisioner "local-exec" {
@@ -132,6 +133,7 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
       UBER_JAR_DIRECTORY      = dirname(var.uber_jar_path)
       TRIGGER_EVENT_TYPE      = var.trigger_event_type
       TIMEOUT_SECONDS         = var.timeout_seconds == null ? "" : tostring(var.timeout_seconds)
+      RETRY_ON_FAILURE        = tostring(var.retry_on_failure)
     }
     command = <<-EOT
       #!/bin/bash
@@ -151,6 +153,12 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
         "--trigger-service-account=$TRIGGER_SERVICE_ACCOUNT"
         "--no-allow-unauthenticated"
       )
+
+      if [[ "$RETRY_ON_FAILURE" == "true" ]]; then
+        args+=("--retry")
+      else
+        args+=("--no-retry")
+      fi
 
       if [[ -n "$EXTRA_ENV_VARS" ]]; then
         args+=("--set-env-vars=$EXTRA_ENV_VARS")
@@ -187,6 +195,7 @@ resource "terraform_data" "attach_dead_letter_policy" {
     var.secret_mappings,
     var.uploaded_config_generation,
     var.timeout_seconds,
+    var.retry_on_failure,
   ]
 
   provisioner "local-exec" {

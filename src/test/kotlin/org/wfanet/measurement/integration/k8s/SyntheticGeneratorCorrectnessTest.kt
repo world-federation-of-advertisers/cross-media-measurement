@@ -68,6 +68,7 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
@@ -248,6 +249,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         buildEventQuery(TEST_CONFIG.eventDataProvidersList),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        kingdomApiThrottler = MaximumRateThrottler(maxPerSecond = 5.0),
       )
     }
 

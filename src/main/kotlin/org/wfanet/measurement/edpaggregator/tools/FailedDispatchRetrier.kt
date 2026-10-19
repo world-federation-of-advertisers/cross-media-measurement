@@ -27,6 +27,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpc
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
@@ -219,10 +220,38 @@ class FailedDispatchRetrier(
     val candidatePhases =
       if (fromPhase == null) possiblePhases else possiblePhases.filter { it == fromPhase }
     for (phase in candidatePhases) {
+      if (phase == RawImpressionUploadModelLine.State.LABELING) {
+        val jobs = listVidLabelingJobs(uploadName, cmmsModelLine)
+        val unfinishedIds =
+          jobs
+            .filter { it.state != VidLabelingJob.State.SUCCEEDED }
+            .map { WorkItemIds.forVidLabeler(it.name) }
+        if (unfinishedIds.isNotEmpty()) {
+          val lineages = unfinishedIds.map { findRetryLineage(it, failureAttemptId) }
+          if (
+            lineages.all { it == RetryLineage.ACTIVE_OR_SUCCEEDED } ||
+              (phasePrecedes(phase, currentState) && lineages.all { it != RetryLineage.MISSING })
+          ) {
+            return phase
+          }
+          continue
+        }
+        val completedLineages =
+          jobs
+            .map { WorkItemIds.forVidLabeler(it.name) }
+            .map { findRetryLineage(it, failureAttemptId) }
+        if (completedLineages.any { it != RetryLineage.MISSING }) return phase
+        continue
+      }
       val originalWorkItemIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, phase)
+      val lineages = originalWorkItemIds.map { findRetryLineage(it, failureAttemptId) }
+      if (lineages.isNotEmpty() && lineages.all { it == RetryLineage.ACTIVE_OR_SUCCEEDED }) {
+        return phase
+      }
       if (
-        originalWorkItemIds.isNotEmpty() &&
-          originalWorkItemIds.all { retryWorkItemIsActiveOrSucceeded(it, failureAttemptId) }
+        phasePrecedes(phase, currentState) &&
+          lineages.isNotEmpty() &&
+          lineages.all { it != RetryLineage.MISSING }
       ) {
         return phase
       }
@@ -230,11 +259,12 @@ class FailedDispatchRetrier(
     return null
   }
 
-  private suspend fun retryWorkItemIsActiveOrSucceeded(
+  private suspend fun findRetryLineage(
     originalWorkItemId: String,
     failureAttemptId: String,
-  ): Boolean {
+  ): RetryLineage {
     var retryWorkItemId = RequestIds.forRetriedWorkItem(originalWorkItemId, failureAttemptId)
+    var retryExists = false
     while (true) {
       val retryWorkItem =
         try {
@@ -242,13 +272,16 @@ class FailedDispatchRetrier(
             workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$retryWorkItemId" })
           }
         } catch (e: StatusException) {
-          if (e.status.code == Status.Code.NOT_FOUND) return false
+          if (e.status.code == Status.Code.NOT_FOUND) {
+            return if (retryExists) RetryLineage.FAILED else RetryLineage.MISSING
+          }
           throw e
         }
+      retryExists = true
       when (retryWorkItem.state) {
         WorkItem.State.QUEUED,
         WorkItem.State.RUNNING,
-        WorkItem.State.SUCCEEDED -> return true
+        WorkItem.State.SUCCEEDED -> return RetryLineage.ACTIVE_OR_SUCCEEDED
         WorkItem.State.FAILED -> {
           val failureVersion =
             "${retryWorkItem.updateTime.seconds}:${retryWorkItem.updateTime.nanos}"
@@ -261,6 +294,33 @@ class FailedDispatchRetrier(
     }
   }
 
+  private fun phasePrecedes(
+    phase: RawImpressionUploadModelLine.State,
+    currentState: RawImpressionUploadModelLine.State,
+  ): Boolean =
+    when (phase) {
+      RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+        currentState in
+          setOf(
+            RawImpressionUploadModelLine.State.RANKING,
+            RawImpressionUploadModelLine.State.LABELING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+      RawImpressionUploadModelLine.State.RANKING ->
+        currentState in
+          setOf(
+            RawImpressionUploadModelLine.State.LABELING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+      RawImpressionUploadModelLine.State.LABELING ->
+        currentState == RawImpressionUploadModelLine.State.COMPLETED
+      RawImpressionUploadModelLine.State.CREATED,
+      RawImpressionUploadModelLine.State.COMPLETED,
+      RawImpressionUploadModelLine.State.FAILED,
+      RawImpressionUploadModelLine.State.STATE_UNSPECIFIED,
+      RawImpressionUploadModelLine.State.UNRECOGNIZED -> false
+    }
+
   /**
    * The furthest phase [cmmsModelLine] under [uploadName] reached, inferred from which per-phase
    * job rows exist: `VidLabelingJob`s ⇒ `LABELING`, else `RankerJob`s ⇒ `RANKING`, else
@@ -270,11 +330,11 @@ class FailedDispatchRetrier(
     uploadName: String,
     cmmsModelLine: String,
   ): PhaseWorkItems {
-    val vidLabelingJobNames = listVidLabelingJobNames(uploadName, cmmsModelLine)
-    if (vidLabelingJobNames.isNotEmpty()) {
+    val vidLabelingJobs = listVidLabelingJobs(uploadName, cmmsModelLine)
+    if (vidLabelingJobs.isNotEmpty()) {
       return PhaseWorkItems(
         RawImpressionUploadModelLine.State.LABELING,
-        vidLabelingJobNames.map { WorkItemIds.forVidLabeler(it) },
+        labelingPhaseWorkItemIds(vidLabelingJobs),
       )
     }
     val rankerJobNames = listRankerJobNames(uploadName, cmmsModelLine)
@@ -314,7 +374,7 @@ class FailedDispatchRetrier(
   ): List<String> =
     when (phase) {
       RawImpressionUploadModelLine.State.LABELING ->
-        listVidLabelingJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidLabeler(it) }
+        labelingPhaseWorkItemIds(uploadName, cmmsModelLine)
       RawImpressionUploadModelLine.State.RANKING ->
         listRankerJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidRankBuilder(it) }
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
@@ -324,11 +384,23 @@ class FailedDispatchRetrier(
       else -> error("unreachable: $phase is not a retry phase")
     }
 
-  private suspend fun listVidLabelingJobNames(
+  private suspend fun labelingPhaseWorkItemIds(
     uploadName: String,
     cmmsModelLine: String,
-  ): List<String> {
-    val names = mutableListOf<String>()
+  ): List<String> = labelingPhaseWorkItemIds(listVidLabelingJobs(uploadName, cmmsModelLine))
+
+  private fun labelingPhaseWorkItemIds(jobs: List<VidLabelingJob>): List<String> {
+    val unfinished = jobs.filter { it.state != VidLabelingJob.State.SUCCEEDED }
+    return (if (unfinished.isEmpty()) jobs.take(1) else unfinished).map {
+      WorkItemIds.forVidLabeler(it.name)
+    }
+  }
+
+  private suspend fun listVidLabelingJobs(
+    uploadName: String,
+    cmmsModelLine: String,
+  ): List<VidLabelingJob> {
+    val jobs = mutableListOf<VidLabelingJob>()
     var pageToken = ""
     do {
       val response =
@@ -341,10 +413,10 @@ class FailedDispatchRetrier(
             }
           )
         }
-      response.vidLabelingJobsList.forEach { names.add(it.name) }
+      jobs.addAll(response.vidLabelingJobsList)
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
-    return names
+    return jobs
   }
 
   private suspend fun listRankerJobNames(uploadName: String, cmmsModelLine: String): List<String> {
@@ -520,4 +592,10 @@ class FailedDispatchRetrier(
     val phase: RawImpressionUploadModelLine.State,
     val workItemIds: List<String>,
   )
+
+  private enum class RetryLineage {
+    MISSING,
+    ACTIVE_OR_SUCCEEDED,
+    FAILED,
+  }
 }

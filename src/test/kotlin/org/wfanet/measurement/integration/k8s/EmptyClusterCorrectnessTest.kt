@@ -85,6 +85,7 @@ import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
@@ -353,6 +354,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         buildEventQuery(resourceInfo.dataProviders.values.map { it.name }),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        kingdomApiThrottler = MaximumRateThrottler(maxPerSecond = 5.0),
       )
     }
 

@@ -203,6 +203,14 @@ module "trustee_mill" {
   tee_cmd                       = var.trustee_config.app_flags
   secrets_to_access             = local.trustee_secrets_to_access
   subnetwork_name               = google_compute_subnetwork.trustee_mill_subnetwork[0].name
+  extra_metadata                = {
+    "tee-env-OTEL_SERVICE_NAME"                     = "duchy.${var.name}.trustee-mill"
+    "tee-env-OTEL_METRICS_EXPORTER"                 = "google_cloud_monitoring"
+    "tee-env-OTEL_TRACES_EXPORTER"                  = "google_cloud_trace"
+    "tee-env-OTEL_LOGS_EXPORTER"                    = "logging"
+    "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = data.google_project.project.project_id
+    "tee-env-OTEL_METRIC_EXPORT_INTERVAL"           = "60000"
+  }
 }
 
 module "secrets" {
@@ -213,4 +221,3 @@ module "secrets" {
   secret_path      = each.value.secret_local_path
   is_binary_format = each.value.is_binary_format
 }
-

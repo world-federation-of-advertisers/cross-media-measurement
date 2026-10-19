@@ -303,6 +303,12 @@ variable "event_group_sync_service_account_name" {
   nullable    = false
 }
 
+variable "event_group_sync_additional_secret_ids" {
+  description = "Additional existing secret IDs that EventGroupSync may access."
+  type        = list(string)
+  default     = []
+}
+
 variable "data_availability_sync_service_account_name" {
   description = "Name of the DataAvailabilitySync service account."
   type        = string

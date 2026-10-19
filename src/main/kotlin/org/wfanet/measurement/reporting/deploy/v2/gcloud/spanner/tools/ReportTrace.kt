@@ -90,7 +90,8 @@ import picocli.CommandLine
 
 private const val REPORT_NOT_CREATED = "(not created)"
 private const val LOGGING_READ_SCOPE = "https://www.googleapis.com/auth/logging.read"
-private val FAILURE_OUTCOMES = setOf("failed", "failure", "error", "refused", "report_failed")
+private val FAILURE_OUTCOMES =
+  setOf("failed", "failure", "error", "refused", "report_failed", "permanent_failure")
 
 internal fun buildReportTraceLoggingOptions(
   project: String,
@@ -1678,7 +1679,15 @@ internal object ReportTraceOutput {
     observed: MutableMap<String, MutableList<LifecycleEvidence>>
   ) {
     val measurementsByComputation: Map<String, List<String>> =
-      listOf("duchy_computation", "duchy_mill_dispatch", "duchy_stage_attempt")
+      listOf(
+          "duchy_computation",
+          "duchy_mill_dispatch",
+          "duchy_stage_attempt",
+          "kingdom_participant_requisition_params_acceptance",
+          "kingdom_participant_confirmation",
+          "kingdom_participant_failure_acceptance",
+          "kingdom_computation_log_entry_acceptance",
+        )
         .flatMap { stage -> observed[stage].orEmpty() }
         .mapNotNull { evidence ->
           val computationName: String =
@@ -1691,7 +1700,15 @@ internal object ReportTraceOutput {
           keySelector = { (computationName) -> computationName },
           valueTransform = { (_, measurementName) -> measurementName },
         )
-    for (stage in listOf("duchy_stage_attempt", "kingdom_computation_result_acceptance")) {
+    for (stage in
+      listOf(
+        "duchy_stage_attempt",
+        "kingdom_participant_requisition_params_acceptance",
+        "kingdom_participant_confirmation",
+        "kingdom_participant_failure_acceptance",
+        "kingdom_computation_log_entry_acceptance",
+        "kingdom_computation_result_acceptance",
+      )) {
       val stageEvidence: MutableList<LifecycleEvidence> = observed[stage] ?: continue
       observed[stage] =
         stageEvidence
@@ -1839,12 +1856,17 @@ internal object ReportTraceOutput {
         "REFUSED" -> matchingEvidence.any { it.outcome?.lowercase() == "refused" }
         else -> false
       }
+    val acceptedEvidenceFound =
+      operation.stage in KINGDOM_ACCEPTANCE_LIFECYCLE_STAGES &&
+        matchingEvidence.any { it.outcome?.lowercase() in TERMINAL_SUCCESS_OUTCOMES }
     return ReportTraceLifecycleStage(
       name = operation.stage,
       resource = operation.resource,
       status =
         when {
           durableTerminalStatus != null && durableTerminalEvidenceFound -> durableTerminalStatus
+          requirement != ReportTraceStageRequirement.NOT_APPLICABLE && acceptedEvidenceFound ->
+            "SUCCEEDED"
           requirement == ReportTraceStageRequirement.NOT_APPLICABLE &&
             isFailureOutcome(latestOutcome) -> "FAILED"
           durableTerminalStatus != null -> "UNKNOWN"
@@ -1933,6 +1955,11 @@ internal object ReportTraceOutput {
       return null
     }
     return when (operation.stage) {
+      "measurement_cancellation" ->
+        routeResolution.measurementRoutes
+          .singleOrNull { it.name == operation.identifyingAttributes["xmm.measurement.name"] }
+          ?.takeIf { it.state.uppercase() == "CANCELLED" }
+          ?.let { "SUCCEEDED" }
       "kingdom_computation_result_acceptance" ->
         routeResolution.measurementRoutes
           .singleOrNull { it.name == operation.identifyingAttributes["xmm.measurement.name"] }
@@ -2420,6 +2447,52 @@ internal object ReportTraceOutput {
       return outcome != "refused" && isFailureOutcome(outcome)
     }
 
+    fun hasOutcomeEvidence(
+      stage: String,
+      identifyingAttributes: Map<String, String>,
+      outcomes: Set<String>? = null,
+    ): Boolean {
+      return observed[stage].orEmpty().any { evidence ->
+        identifyingAttributes.all { (attribute, value) ->
+          evidence.attributes[attribute] == value
+        } && (outcomes == null || evidence.outcome?.lowercase() in outcomes)
+      }
+    }
+
+    fun kingdomAcceptanceAttributes(
+      baseAttributes: Map<String, String>,
+      duchyEvidence: LifecycleEvidence,
+      retryable: Boolean? = null,
+    ): Map<String, String> {
+      return buildMap {
+        putAll(baseAttributes)
+        for (attribute in
+          listOf(
+            ReportTraceAttributes.COMPUTATION_NAME_STRING,
+            ReportTraceAttributes.COMPUTATION_STAGE_STRING,
+            ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING,
+          )) {
+          duchyEvidence.attributes[attribute]?.let { put(attribute, it) }
+        }
+        if (retryable != null) {
+          put(ReportTraceAttributes.ERROR_RETRYABLE_STRING, retryable.toString())
+        }
+      }
+    }
+
+    fun kingdomAcceptanceResource(
+      resource: String,
+      identifyingAttributes: Map<String, String>,
+    ): String {
+      val stage = identifyingAttributes[ReportTraceAttributes.COMPUTATION_STAGE_STRING]
+      val attempt = identifyingAttributes[ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING]
+      return if (stage == null && attempt == null) {
+        resource
+      } else {
+        "$resource @ stage ${stage ?: "unknown"} attempt ${attempt ?: "unknown"}"
+      }
+    }
+
     fun refusalOrigin(requisitionName: String): RequisitionRefusalOrigin {
       val origins =
         observed.values
@@ -2586,6 +2659,24 @@ internal object ReportTraceOutput {
           else -> ReportTraceStageRequirement.REQUIRED
         },
       )
+      if (
+        measurement.state.uppercase() == "CANCELLED" ||
+          hasOutcomeEvidence(
+            "measurement_cancellation",
+            mapOf("xmm.measurement.name" to measurement.name),
+          )
+      ) {
+        add(
+          "measurement_cancellation",
+          measurement.name,
+          "xmm.measurement.name",
+          if (measurement.state.uppercase() == "CANCELLED") {
+            ReportTraceStageRequirement.REQUIRED
+          } else {
+            ReportTraceStageRequirement.OPTIONAL
+          },
+        )
+      }
       when (measurement.route) {
         ReportTraceMeasurementRouteKind.DIRECT -> {
           add(
@@ -2632,6 +2723,77 @@ internal object ReportTraceOutput {
                 requiredPresenceAttributes = setOf("xmm.computation.name"),
               )
               add("duchy_stage_attempt", resource, attributes, duchyRequirement)
+              val duchyAttemptEvidence =
+                observed["duchy_stage_attempt"].orEmpty().filter { evidence ->
+                  attributes.all { (attribute, value) -> evidence.attributes[attribute] == value }
+                }
+              val retryableFailures =
+                duchyAttemptEvidence.filter { evidence ->
+                  evidence.outcome?.lowercase() == "retryable_failure" ||
+                    evidence.attributes[ReportTraceAttributes.ERROR_RETRYABLE_STRING] == "true"
+                }
+              val permanentFailures =
+                duchyAttemptEvidence.filter { evidence ->
+                  evidence.outcome?.lowercase() == "permanent_failure"
+                }
+              for (stage in
+                listOf(
+                  "kingdom_participant_requisition_params_acceptance",
+                  "kingdom_participant_confirmation",
+                )) {
+                if (hasOutcomeEvidence(stage, attributes)) {
+                  add(stage, resource, attributes, ReportTraceStageRequirement.OPTIONAL)
+                }
+              }
+              if (permanentFailures.isEmpty()) {
+                if (hasOutcomeEvidence("kingdom_participant_failure_acceptance", attributes)) {
+                  add(
+                    "kingdom_participant_failure_acceptance",
+                    resource,
+                    attributes,
+                    ReportTraceStageRequirement.OPTIONAL,
+                  )
+                }
+              } else {
+                for (failure in
+                  permanentFailures.distinctBy { evidence ->
+                    evidence.attributes[ReportTraceAttributes.COMPUTATION_STAGE_STRING] to
+                      evidence.attributes[ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING]
+                  }) {
+                  val acceptanceAttributes = kingdomAcceptanceAttributes(attributes, failure)
+                  add(
+                    "kingdom_participant_failure_acceptance",
+                    kingdomAcceptanceResource(resource, acceptanceAttributes),
+                    acceptanceAttributes,
+                    ReportTraceStageRequirement.REQUIRED,
+                  )
+                }
+              }
+              if (retryableFailures.isEmpty()) {
+                if (hasOutcomeEvidence("kingdom_computation_log_entry_acceptance", attributes)) {
+                  add(
+                    "kingdom_computation_log_entry_acceptance",
+                    resource,
+                    attributes,
+                    ReportTraceStageRequirement.OPTIONAL,
+                  )
+                }
+              } else {
+                for (failure in
+                  retryableFailures.distinctBy { evidence ->
+                    evidence.attributes[ReportTraceAttributes.COMPUTATION_STAGE_STRING] to
+                      evidence.attributes[ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING]
+                  }) {
+                  val acceptanceAttributes =
+                    kingdomAcceptanceAttributes(attributes, failure, retryable = true)
+                  add(
+                    "kingdom_computation_log_entry_acceptance",
+                    kingdomAcceptanceResource(resource, acceptanceAttributes),
+                    acceptanceAttributes,
+                    ReportTraceStageRequirement.REQUIRED,
+                  )
+                }
+              }
             }
           } else {
             val resource = "${measurement.name} @ unresolved Duchy participants"
@@ -3158,11 +3320,18 @@ internal object ReportTraceOutput {
       "metric_creation" to "MetricsService",
       "metric_result_sync" to "MetricsService",
       "measurement_creation" to "MetricsService / MeasurementsService (Kingdom)",
+      "measurement_cancellation" to
+        "MeasurementsService / PendingMeasurementsCancellation (Kingdom)",
       "measurement_linkage" to "MetricsService",
       "kingdom_measurement_sync" to "MetricsService",
       "duchy_computation" to "Herald",
       "duchy_mill_dispatch" to "MillJobScheduler (LLv2, Reach-Only LLv2, or HMSS)",
       "duchy_stage_attempt" to "MillBase (LLv2, Reach-Only LLv2, HMSS, or TrusTEE)",
+      "kingdom_participant_requisition_params_acceptance" to
+        "ComputationParticipantsService (Kingdom)",
+      "kingdom_participant_confirmation" to "ComputationParticipantsService (Kingdom)",
+      "kingdom_participant_failure_acceptance" to "ComputationParticipantsService (Kingdom)",
+      "kingdom_computation_log_entry_acceptance" to "ComputationLogEntriesService (Kingdom)",
       "kingdom_computation_result_acceptance" to "ComputationsService (Kingdom)",
       "requisition_available" to "RequisitionsService (Kingdom)",
       "requisition_refusal" to "RequisitionGrouper / ResultsFulfiller",
@@ -3190,6 +3359,8 @@ internal object ReportTraceOutput {
       "xmm.work_item_attempt.name",
       "xmm.work_item.name",
       "xmm.computation.name",
+      "xmm.computation.stage",
+      "xmm.computation.stage_attempt",
       "xmm.report.name",
       "xmm.basic_report.name",
     )
@@ -3203,11 +3374,16 @@ internal object ReportTraceOutput {
   private val MEASUREMENT_LIFECYCLE_STAGES =
     listOf(
       "measurement_creation",
+      "measurement_cancellation",
       "measurement_linkage",
       "kingdom_measurement_sync",
       "duchy_computation",
       "duchy_mill_dispatch",
       "duchy_stage_attempt",
+      "kingdom_participant_requisition_params_acceptance",
+      "kingdom_participant_confirmation",
+      "kingdom_participant_failure_acceptance",
+      "kingdom_computation_log_entry_acceptance",
       "kingdom_computation_result_acceptance",
     )
   private val REQUISITION_LIFECYCLE_STAGES =
@@ -3251,6 +3427,8 @@ internal object ReportTraceOutput {
       "xmm.work_item.name",
       "xmm.work_item_attempt.name",
       "xmm.computation.name",
+      ReportTraceAttributes.COMPUTATION_STAGE_STRING,
+      ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING,
       "xmm.duchy.id",
       "xmm.basic_report.state",
       "xmm.report.state",
@@ -3261,8 +3439,10 @@ internal object ReportTraceOutput {
       "xmm.outcome",
       "xmm.error.type",
       "xmm.error.code",
+      "xmm.cancellation.origin",
+      "xmm.computation_participant.state",
       "xmm.refusal.origin",
-      "xmm.error.retryable",
+      ReportTraceAttributes.ERROR_RETRYABLE_STRING,
       "xmm.operation.result",
     )
   private val DISCOVERABLE_IDENTIFIER_ATTRIBUTES =
@@ -3319,6 +3499,14 @@ internal object ReportTraceOutput {
     setOf("started", "prepared", "in_progress", "pending", "retryable_failure", "stale_delivery")
   private val REPORT_TERMINAL_SUPERSEDED_SYNC_STAGES =
     setOf("metric_result_sync", "kingdom_measurement_sync")
+  private val KINGDOM_ACCEPTANCE_LIFECYCLE_STAGES =
+    setOf(
+      "measurement_cancellation",
+      "kingdom_participant_requisition_params_acceptance",
+      "kingdom_participant_confirmation",
+      "kingdom_participant_failure_acceptance",
+      "kingdom_computation_log_entry_acceptance",
+    )
   private val FINAL_DISPOSITION_LIFECYCLE_STAGES =
     setOf(
       "report_result_assembly",

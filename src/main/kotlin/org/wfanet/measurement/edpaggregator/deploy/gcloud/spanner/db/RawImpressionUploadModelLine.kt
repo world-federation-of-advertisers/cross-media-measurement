@@ -90,6 +90,35 @@ suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadModelLineExists(
   ) != null
 }
 
+/** Returns the state of the model-line row identified by its CMMS resource name. */
+suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineStateByCmmsModelLine(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  cmmsModelLine: String,
+): State? {
+  val sql =
+    """
+    SELECT State
+    FROM RawImpressionUploadModelLine
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadId = @rawImpressionUploadId
+      AND CmmsModelLine = @cmmsModelLine
+    LIMIT 1
+    """
+      .trimIndent()
+  val row =
+    executeQuery(
+        statement(sql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("rawImpressionUploadId").to(rawImpressionUploadId)
+          bind("cmmsModelLine").to(cmmsModelLine)
+        },
+        Options.tag("action=getRawImpressionUploadModelLineStateByCmmsModelLine"),
+      )
+      .singleOrNullIfEmpty() ?: return null
+  return row.getProtoEnum("State", State::forNumber)
+}
+
 /** Returns whether [rawImpressionUploadId] has any registered model-line children. */
 suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadHasModelLines(
   dataProviderResourceId: String,

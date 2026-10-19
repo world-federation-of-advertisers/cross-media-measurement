@@ -161,8 +161,10 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.tools.DispatchFailerTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:vid_labeling_heal",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/io/grpc/netty",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -225,6 +227,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:vid_labeling_heal",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:watched_blobs",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/storage",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",

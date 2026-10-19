@@ -373,6 +373,16 @@ Lifecycle coverage is evaluated for each expected Metric, Measurement,
 Requisition, and applicable Duchy participant. Direct result acceptance is
 required per Requisition at the Kingdom Requisitions API. MPC result acceptance
 is instead required once per Measurement/computation at the Kingdom system API.
+For a cancelled Measurement, `measurement_cancellation` records whether the
+Kingdom accepted an API-requested or retention-policy cancellation. When a
+Duchy stage reports a permanent failure, the artifact also requires
+`kingdom_participant_failure_acceptance`; a transient failure requires
+`kingdom_computation_log_entry_acceptance` for the same stage attempt. Routine
+computation status entries do not satisfy this requirement. Participant
+requisition-parameter and confirmation updates are shown when observed but are
+not required for protocols that do not perform those operations. Failures which
+occur after the local computation is already terminal, or while determining how
+to handle an error, do not require a second Kingdom mutation.
 For a refused Requisition, the separate
 `kingdom_requisition_refusal_acceptance` stage records whether the Kingdom
 accepted or rejected that refusal; direct result acceptance is then
@@ -488,6 +498,9 @@ S3  Measurement → Requisitions (+ params)  [Kingdom]
       only then does the measurement become PENDING_REQUISITION_FULFILLMENT and
       requisitions become UNFULFILLED (visible to EDPs). Direct-protocol
       measurements skip straight to PENDING_REQUISITION_FULFILLMENT.
+      Kingdom system API spans record participant parameter, confirmation,
+      failure, and transient-log-entry acceptance without copying log messages
+      into trace attributes.
         └ containers: v2alpha-public-api-server, system-api-server,
                       gcp-kingdom-data-server
 

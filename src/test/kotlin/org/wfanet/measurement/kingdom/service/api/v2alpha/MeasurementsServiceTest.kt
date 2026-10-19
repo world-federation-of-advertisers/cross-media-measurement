@@ -1196,6 +1196,7 @@ class MeasurementsServiceTest {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
                 measurement =
                   MEASUREMENT.copy {
                     measurementSpec =
@@ -1216,6 +1217,10 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.domain).isEqualTo("halo.wfanet.org")
+    assertThat(exception.errorInfo?.reason).isEqualTo("REQUIRED_FIELD_NOT_SET")
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("fieldName", "measurement.measurement_spec.model_line")
   }
 
   @Test
@@ -2338,6 +2343,10 @@ class MeasurementsServiceTest {
 
   @Test
   fun `cancelMeasurement returns measurement`() {
+    internalMeasurementsMock.stub {
+      onBlocking { cancelMeasurement(any()) }
+        .thenReturn(INTERNAL_MEASUREMENT.copy { state = InternalState.CANCELLED })
+    }
     val request = cancelMeasurementRequest { name = MEASUREMENT_NAME }
 
     val result =
@@ -2345,7 +2354,7 @@ class MeasurementsServiceTest {
         runBlocking { service.cancelMeasurement(request) }
       }
 
-    val expected = MEASUREMENT
+    val expected = MEASUREMENT.copy { state = State.CANCELLED }
 
     verifyProtoArgument(
         internalMeasurementsMock,
@@ -2359,6 +2368,15 @@ class MeasurementsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.measurement.cancel")
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(MEASUREMENT_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_STATE)).isEqualTo("CANCELLED")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("measurement_cancellation")
+    assertThat(span.attributes.get(ReportTraceAttributes.CANCELLATION_ORIGIN)).isEqualTo("api")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
   }
 
   @Test
@@ -2601,6 +2619,41 @@ class MeasurementsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `batchCreateMeasurements identifies missing population model line in child request`() {
+    val populationMeasurementWithoutModelLine =
+      MEASUREMENT.copy {
+        measurementSpec =
+          measurementSpec.copy {
+            setMessage(
+              MEASUREMENT_SPEC.copy {
+                  clearReachAndFrequency()
+                  population = population {}
+                }
+                .pack()
+            )
+          }
+      }
+    val request = batchCreateMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      requests += createMeasurementRequest { measurement = MEASUREMENT }
+      requests += createMeasurementRequest { measurement = populationMeasurementWithoutModelLine }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.batchCreateMeasurements(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.domain).isEqualTo("halo.wfanet.org")
+    assertThat(exception.errorInfo?.reason).isEqualTo("REQUIRED_FIELD_NOT_SET")
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("fieldName", "requests[1].measurement.measurement_spec.model_line")
   }
 
   @Test
@@ -3162,6 +3215,14 @@ class MeasurementsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.measurement.cancel")
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(MEASUREMENT_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("measurement_cancellation")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.NOT_FOUND")
   }
 
   @Test

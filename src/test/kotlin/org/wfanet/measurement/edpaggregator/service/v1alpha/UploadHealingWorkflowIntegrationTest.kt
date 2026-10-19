@@ -376,10 +376,9 @@ class UploadHealingWorkflowIntegrationTest {
         requestId = UUID.randomUUID().toString()
       }
     )
-    val completedModelLine = completeModelLine(modelLine)
+    val completedModelLine = completeModelLine(modelLine, upload.name)
     val completedUpload =
       uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = upload.name })
-    createSnapshot(completedUpload.name)
     val outputUri =
       LabeledImpressionsBlobKeys.forInputUri(
         LABELED_OUTPUT_PREFIX,
@@ -476,8 +475,7 @@ class UploadHealingWorkflowIntegrationTest {
         )
         .rawImpressionUploadModelLinesList
         .single()
-    val completedModelLine = completeModelLine(createdModelLine)
-    createSnapshot(replacement.name)
+    val completedModelLine = completeModelLine(createdModelLine, replacement.name)
     impressionMetadataStub.batchUndeleteImpressionMetadata(
       batchUndeleteImpressionMetadataRequest {
         parent = DATA_PROVIDER
@@ -491,7 +489,8 @@ class UploadHealingWorkflowIntegrationTest {
   }
 
   private suspend fun completeModelLine(
-    created: RawImpressionUploadModelLine
+    created: RawImpressionUploadModelLine,
+    uploadName: String,
   ): RawImpressionUploadModelLine {
     val poolAssigning =
       modelLinesStub.markRawImpressionUploadModelLinePoolAssigning(
@@ -509,6 +508,7 @@ class UploadHealingWorkflowIntegrationTest {
           requestId = UUID.randomUUID().toString()
         }
       )
+    createSnapshot(uploadName)
     val labeling =
       modelLinesStub.markRawImpressionUploadModelLineLabeling(
         markRawImpressionUploadModelLineLabelingRequest {

@@ -356,7 +356,6 @@ class TestOriginReport(unittest.TestCase):
         report_summary, []).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
-    composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
 
     num_periods = 2
     num_frequencies = 5
@@ -562,44 +561,11 @@ class TestOriginReport(unittest.TestCase):
 
     # Verifies that difference measurements are mapped correctly to primitive
     # measurements.
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/ami/edp2_minus_edp1'],
-        corrected_measurements_map['reach_and_frequency/ami/edp1_edp2'] -
-        corrected_measurements_map['reach_and_frequency/ami/edp1'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/ami/edp1_minus_edp2'],
-        corrected_measurements_map['reach_and_frequency/ami/edp1_edp2'] -
-        corrected_measurements_map['reach_and_frequency/ami/edp2'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/mrc/edp2_minus_edp1'],
-        corrected_measurements_map['reach_and_frequency/mrc/edp1_edp2'] -
-        corrected_measurements_map['reach_and_frequency/mrc/edp1'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/mrc/edp1_minus_edp2'],
-        corrected_measurements_map['reach_and_frequency/mrc/edp1_edp2'] -
-        corrected_measurements_map['reach_and_frequency/mrc/edp2'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/custom/edp2_minus_edp1'],
-        corrected_measurements_map['reach_and_frequency/custom/edp1_edp2'] -
-        corrected_measurements_map['reach_and_frequency/custom/edp1'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/custom/edp1_minus_edp2'],
-        corrected_measurements_map['reach_and_frequency/custom/edp1_edp2'] -
-        corrected_measurements_map['reach_and_frequency/custom/edp2'],
-        TOLERANCE
-    )
+    self._assertDifferenceMeasurementsMapped(
+        corrected_measurements_map, 'reach_and_frequency')
 
-    # Verifies that mrc/custom measurements are less than or equal to ami ones.
+    # Verifies that primitive mrc/custom measurements are less than or equal
+    # to ami ones.
     for i in range(num_periods):
       for edp_combination in primitive_edp_combinations:
         self._assertFuzzyLessEqual(
@@ -645,17 +611,6 @@ class TestOriginReport(unittest.TestCase):
             'impression_count/ami/' + edp_combination],
           TOLERANCE
       )
-    for edp_combination in composite_edp_combinations:
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/mrc/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
-          TOLERANCE
-      )
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/custom/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
-          TOLERANCE
-      )
 
   def test_report_summary_without_whole_campaign_reach_is_corrected_successfully(
       self):
@@ -665,7 +620,6 @@ class TestOriginReport(unittest.TestCase):
         report_summary, []).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
-    composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
 
     num_periods = 2
     num_frequencies = 5
@@ -843,44 +797,11 @@ class TestOriginReport(unittest.TestCase):
 
     # Verifies that difference measurements are mapped correctly to primitive
     # measurements.
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/ami/edp2_minus_edp1'],
-        corrected_measurements_map['derived_reach/ami/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/ami/edp1'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/ami/edp1_minus_edp2'],
-        corrected_measurements_map['derived_reach/ami/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/ami/edp2'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/mrc/edp2_minus_edp1'],
-        corrected_measurements_map['derived_reach/mrc/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/mrc/edp1'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/mrc/edp1_minus_edp2'],
-        corrected_measurements_map['derived_reach/mrc/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/mrc/edp2'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/custom/edp2_minus_edp1'],
-        corrected_measurements_map['derived_reach/custom/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/custom/edp1'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/custom/edp1_minus_edp2'],
-        corrected_measurements_map['derived_reach/custom/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/custom/edp2'],
-        TOLERANCE
-    )
+    self._assertDifferenceMeasurementsMapped(
+        corrected_measurements_map, 'derived_reach')
 
-    # Verifies that mrc/custom measurements are less than or equal to ami ones.
+    # Verifies that primitive mrc/custom measurements are less than or equal
+    # to ami ones.
     for i in range(num_periods):
       for edp_combination in primitive_edp_combinations:
         self._assertFuzzyLessEqual(
@@ -926,17 +847,6 @@ class TestOriginReport(unittest.TestCase):
             'impression_count/ami/' + edp_combination],
           TOLERANCE
       )
-    for edp_combination in composite_edp_combinations:
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/mrc/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
-          TOLERANCE
-      )
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/custom/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
-          TOLERANCE
-      )
 
   def test_report_summary_without_cumulative_reaches_is_corrected_successfully(
       self):
@@ -946,7 +856,6 @@ class TestOriginReport(unittest.TestCase):
         report_summary, []).process()
 
     primitive_edp_combinations = ['edp1', 'edp2', 'edp1_edp2']
-    composite_edp_combinations = ['edp1_minus_edp2', 'edp2_minus_edp1']
 
     num_periods = 2
     num_frequencies = 5
@@ -1030,42 +939,8 @@ class TestOriginReport(unittest.TestCase):
 
     # Verifies that difference measurements are mapped correctly to primitive
     # measurements.
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/ami/edp2_minus_edp1'],
-        corrected_measurements_map['derived_reach/ami/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/ami/edp1'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/ami/edp1_minus_edp2'],
-        corrected_measurements_map['derived_reach/ami/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/ami/edp2'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/mrc/edp2_minus_edp1'],
-        corrected_measurements_map['derived_reach/mrc/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/mrc/edp1'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/mrc/edp1_minus_edp2'],
-        corrected_measurements_map['derived_reach/mrc/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/mrc/edp2'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/custom/edp2_minus_edp1'],
-        corrected_measurements_map['derived_reach/custom/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/custom/edp1'],
-        TOLERANCE
-    )
-    self._assertFuzzyEqual(
-        corrected_measurements_map['difference/custom/edp1_minus_edp2'],
-        corrected_measurements_map['derived_reach/custom/edp1_edp2'] -
-        corrected_measurements_map['derived_reach/custom/edp2'],
-        TOLERANCE
-    )
+    self._assertDifferenceMeasurementsMapped(
+        corrected_measurements_map, 'derived_reach')
 
     for edp_combination in primitive_edp_combinations:
       self._assertFuzzyLessEqual(
@@ -1096,17 +971,6 @@ class TestOriginReport(unittest.TestCase):
             'impression_count/ami/' + edp_combination],
           TOLERANCE
       )
-    for edp_combination in composite_edp_combinations:
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/mrc/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
-          TOLERANCE
-      )
-      self._assertFuzzyLessEqual(
-          corrected_measurements_map['difference/custom/' + edp_combination],
-          corrected_measurements_map['difference/ami/' + edp_combination],
-          TOLERANCE
-      )
 
   def test_report_summary_with_unreferenced_unique_reaches(self):
     report_summary = get_report_summary(
@@ -1131,6 +995,28 @@ class TestOriginReport(unittest.TestCase):
             'measurementConsumers/ONYdS_z_3xo/metrics/a81890700-9f0e-48bd-8554-055bdfb20873'
         ]
     )
+
+  def _assertDifferenceMeasurementsMapped(
+      self, corrected_measurements_map: dict[str, float],
+      reach_measurement_type: str):
+    excluded_edp_by_difference = {
+        'edp1_minus_edp2': 'edp2',
+        'edp2_minus_edp1': 'edp1',
+    }
+    for measurement_policy in ['ami', 'mrc', 'custom']:
+      for difference, excluded_edp in excluded_edp_by_difference.items():
+        expected_difference = (
+            corrected_measurements_map[
+              f'{reach_measurement_type}/{measurement_policy}/edp1_edp2'] -
+            corrected_measurements_map[
+              f'{reach_measurement_type}/{measurement_policy}/{excluded_edp}']
+        )
+        self._assertFuzzyEqual(
+            corrected_measurements_map[
+              f'difference/{measurement_policy}/{difference}'],
+            expected_difference,
+            TOLERANCE
+        )
 
   def _assertFuzzyEqual(self, x: int, y: int, tolerance: int):
     self.assertLessEqual(abs(x - y), tolerance)

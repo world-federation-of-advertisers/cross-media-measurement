@@ -3536,6 +3536,10 @@ class ReportTraceTest {
               "xmm.duchy.id" to duchyId,
             ),
           ),
+          lifecycleSpan(
+            "kingdom_participant_failure_acceptance",
+            mapOf("xmm.computation.name" to computationName, "xmm.duchy.id" to duchyId),
+          ),
         )
       }
     val spans =
@@ -4305,6 +4309,360 @@ class ReportTraceTest {
     assertThat(acceptance.status).isEqualTo("UNKNOWN")
     assertThat(acceptance.evidence).contains("no matching accepted telemetry")
     assertThat(acceptance.evidence).contains("Measurement correlated by computation")
+  }
+
+  @Test
+  fun `cancelled Measurement requires accepted cancellation evidence`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val successfulRouteResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val routeResolution =
+      successfulRouteResolution.copy(
+        measurementRoutes =
+          listOf(successfulRouteResolution.measurementRoutes.single().copy(state = "CANCELLED"))
+      )
+
+    val missingCoverage =
+      ReportTraceOutput.lifecycleCoverage(context, routeResolution, emptyList(), emptyList())
+    val acceptedCancellation =
+      lifecycleSpan("measurement_cancellation", "xmm.measurement.name", measurementName)
+        .copy(startTime = NOW)
+    val rejectedDuplicate =
+      failedLifecycleSpan(
+          "measurement_cancellation",
+          mapOf("xmm.measurement.name" to measurementName),
+        )
+        .copy(startTime = NOW.plusSeconds(1))
+    val acceptedCoverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(acceptedCancellation, rejectedDuplicate),
+        emptyList(),
+      )
+
+    assertThat(missingCoverage.single { it.name == "measurement_cancellation" }.status)
+      .isEqualTo("UNKNOWN")
+    assertThat(acceptedCoverage.single { it.name == "measurement_cancellation" }.status)
+      .isEqualTo("SUCCEEDED")
+  }
+
+  @Test
+  fun `failed Duchy attempt requires Kingdom participant failure acceptance`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val computationName = "computations/computation-1"
+    val duchyId = "aggregator"
+    val attributes =
+      mapOf(
+        "xmm.measurement.name" to measurementName,
+        "xmm.computation.name" to computationName,
+        "xmm.duchy.id" to duchyId,
+      )
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val stageName = "EXECUTION_PHASE"
+    val stageAttempt = "2"
+    val attemptAttributes =
+      attributes +
+        mapOf(
+          ReportTraceAttributes.COMPUTATION_STAGE_STRING to stageName,
+          ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING to stageAttempt,
+        )
+    val failedAttemptBase = failedLifecycleSpan("duchy_stage_attempt", attemptAttributes)
+    val failedAttempt =
+      failedAttemptBase.copy(
+        attributes = failedAttemptBase.attributes + ("xmm.outcome" to "permanent_failure")
+      )
+
+    val missingCoverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(failedAttempt),
+        emptyList(),
+      )
+    val acceptedCoverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(
+          failedAttempt,
+          lifecycleSpan(
+            "kingdom_participant_failure_acceptance",
+            mapOf(
+              "xmm.computation.name" to computationName,
+              "xmm.duchy.id" to duchyId,
+              ReportTraceAttributes.COMPUTATION_STAGE_STRING to stageName,
+              ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING to stageAttempt,
+            ),
+          ),
+        ),
+        emptyList(),
+      )
+
+    assertThat(
+        missingCoverage
+          .single {
+            it.name == "kingdom_participant_failure_acceptance" &&
+              it.resource ==
+                "$measurementName @ duchy $duchyId @ stage $stageName attempt $stageAttempt"
+          }
+          .status
+      )
+      .isEqualTo("MISSING")
+    assertThat(
+        acceptedCoverage
+          .single {
+            it.name == "kingdom_participant_failure_acceptance" &&
+              it.resource ==
+                "$measurementName @ duchy $duchyId @ stage $stageName attempt $stageAttempt"
+          }
+          .status
+      )
+      .isEqualTo("SUCCEEDED")
+  }
+
+  @Test
+  fun `retryable Duchy attempt requires Kingdom computation log acceptance`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val computationName = "computations/computation-1"
+    val duchyId = "worker1"
+    val attributes =
+      mapOf(
+        "xmm.measurement.name" to measurementName,
+        "xmm.computation.name" to computationName,
+        "xmm.duchy.id" to duchyId,
+      )
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val stageName = "EXECUTION_PHASE"
+    val stageAttempt = "3"
+    val attemptAttributes =
+      attributes +
+        mapOf(
+          ReportTraceAttributes.COMPUTATION_STAGE_STRING to stageName,
+          ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING to stageAttempt,
+        )
+    val retryableAttempt =
+      lifecycleSpan("duchy_stage_attempt", attemptAttributes)
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "duchy_stage_attempt",
+              "xmm.outcome" to "retryable_failure",
+              "xmm.error.type" to "ComputationDataClients.TransientErrorException",
+              ReportTraceAttributes.ERROR_RETRYABLE_STRING to "true",
+            ) + attemptAttributes
+        )
+    val routineLogEntry =
+      ReportTraceSpan(
+        sourceProject = "test",
+        traceId = "trace-1",
+        spanId = "routine-log-entry",
+        parentSpanId = null,
+        name = "kingdom.computation_log_entry.create",
+        service = "kingdom-system-api",
+        startTime = NOW,
+        endTime = NOW.plusSeconds(1),
+        attributes = attributes + ("xmm.outcome" to "accepted"),
+      )
+    val previousAttemptAcceptance =
+      lifecycleSpan(
+        "kingdom_computation_log_entry_acceptance",
+        mapOf(
+          "xmm.computation.name" to computationName,
+          "xmm.duchy.id" to duchyId,
+          ReportTraceAttributes.COMPUTATION_STAGE_STRING to stageName,
+          ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING to "2",
+          ReportTraceAttributes.ERROR_RETRYABLE_STRING to "true",
+        ),
+      )
+
+    val missingCoverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(retryableAttempt, routineLogEntry, previousAttemptAcceptance),
+        emptyList(),
+      )
+    val acceptedCoverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(
+          retryableAttempt,
+          lifecycleSpan(
+            "kingdom_computation_log_entry_acceptance",
+            mapOf(
+              "xmm.computation.name" to computationName,
+              "xmm.duchy.id" to duchyId,
+              ReportTraceAttributes.COMPUTATION_STAGE_STRING to stageName,
+              ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING to stageAttempt,
+              ReportTraceAttributes.ERROR_RETRYABLE_STRING to "true",
+            ),
+          ),
+        ),
+        emptyList(),
+      )
+
+    assertThat(
+        missingCoverage
+          .single {
+            it.name == "kingdom_computation_log_entry_acceptance" &&
+              it.resource ==
+                "$measurementName @ duchy $duchyId @ stage $stageName attempt $stageAttempt"
+          }
+          .status
+      )
+      .isEqualTo("MISSING")
+    assertThat(
+        acceptedCoverage
+          .single {
+            it.name == "kingdom_computation_log_entry_acceptance" &&
+              it.resource ==
+                "$measurementName @ duchy $duchyId @ stage $stageName attempt $stageAttempt"
+          }
+          .status
+      )
+      .isEqualTo("SUCCEEDED")
+    assertThat(
+        acceptedCoverage.none {
+          it.name == "kingdom_participant_failure_acceptance" &&
+            it.resource == "$measurementName @ duchy $duchyId"
+        }
+      )
+      .isTrue()
+  }
+
+  @Test
+  fun `log-only retryable failure retains exact stage attempt`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val computationName = "computations/computation-1"
+    val duchyId = "worker1"
+    val stageName = "EXECUTION_PHASE"
+    val stageAttempt = "3"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val failureLog =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "duchy-mill",
+        severity = "WARNING",
+        trace = null,
+        message =
+          mapOf(
+              "event" to "duchy.mill.process_computation",
+              "xmm.lifecycle.stage" to "duchy_stage_attempt",
+              "xmm.outcome" to "retryable_failure",
+              "xmm.measurement.name" to measurementName,
+              "xmm.computation.name" to computationName,
+              "xmm.duchy.id" to duchyId,
+              ReportTraceAttributes.COMPUTATION_STAGE_STRING to stageName,
+              ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING to stageAttempt,
+              ReportTraceAttributes.ERROR_RETRYABLE_STRING to "true",
+            )
+            .entries
+            .joinToString(" ") { (name, value) -> "$name=$value" },
+      )
+    val acceptanceSpan =
+      lifecycleSpan(
+        "kingdom_computation_log_entry_acceptance",
+        mapOf(
+          "xmm.computation.name" to computationName,
+          "xmm.duchy.id" to duchyId,
+          ReportTraceAttributes.COMPUTATION_STAGE_STRING to stageName,
+          ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING to stageAttempt,
+          ReportTraceAttributes.ERROR_RETRYABLE_STRING to "true",
+        ),
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(acceptanceSpan),
+        listOf(failureLog),
+      )
+
+    val exactAcceptance =
+      coverage.single {
+        it.name == "kingdom_computation_log_entry_acceptance" &&
+          it.resource ==
+            "$measurementName @ duchy $duchyId @ stage $stageName attempt $stageAttempt"
+      }
+    assertThat(exactAcceptance.status).isEqualTo("SUCCEEDED")
+  }
+
+  @Test
+  fun `failed Duchy attempt without a planned Kingdom mutation does not require acceptance`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val duchyId = "worker1"
+    val attributes =
+      mapOf(
+        "xmm.measurement.name" to measurementName,
+        "xmm.computation.name" to "computations/computation-1",
+        "xmm.duchy.id" to duchyId,
+      )
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+
+    for (outcome in listOf("failed_after_terminal", "failed_during_failure_handling")) {
+      val failedAttemptBase = failedLifecycleSpan("duchy_stage_attempt", attributes)
+      val failedAttempt =
+        failedAttemptBase.copy(
+          attributes = failedAttemptBase.attributes + ("xmm.outcome" to outcome)
+        )
+
+      val coverage =
+        ReportTraceOutput.lifecycleCoverage(
+          context,
+          routeResolution,
+          listOf(failedAttempt),
+          emptyList(),
+        )
+
+      assertThat(
+          coverage.none {
+            it.name in
+              setOf(
+                "kingdom_computation_log_entry_acceptance",
+                "kingdom_participant_failure_acceptance",
+              ) && it.resource.startsWith("$measurementName @ duchy $duchyId")
+          }
+        )
+        .isTrue()
+    }
   }
 
   @Test

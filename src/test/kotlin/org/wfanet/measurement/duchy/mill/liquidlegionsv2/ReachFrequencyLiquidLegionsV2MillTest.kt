@@ -80,8 +80,10 @@ import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
+import org.wfanet.measurement.duchy.db.computation.toDatabaseEditToken
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
@@ -98,6 +100,7 @@ import org.wfanet.measurement.duchy.utils.toDuchyEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -853,18 +856,25 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
       .isEqualTo("duchy_stage_attempt")
-    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME))
+      .isEqualTo("permanent_failure")
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
       .isEqualTo("AttemptsExhausted")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_RETRYABLE)).isFalse()
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE))
+      .isEqualTo(INITIALIZATION_PHASE.name)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT))
+      .isEqualTo(3L)
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
       .isEqualTo(measurementName)
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
       .isEqualTo(ComputationKey(GLOBAL_ID).toName())
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ONE_NAME)
     assertThat(lifecycleFields.map { it.getValue(ReportTraceAttributes.OUTCOME_STRING) })
-      .containsExactly("started", "failed")
+      .containsExactly("started", "permanent_failure")
       .inOrder()
-    val failureLog = lifecycleFields.single { it[ReportTraceAttributes.OUTCOME_STRING] == "failed" }
+    val failureLog =
+      lifecycleFields.single { it[ReportTraceAttributes.OUTCOME_STRING] == "permanent_failure" }
     assertThat(failureLog[ReportTraceAttributes.ERROR_TYPE_STRING]).isEqualTo("AttemptsExhausted")
     assertThat(failureLog[ReportTraceAttributes.MEASUREMENT_NAME_STRING]).isEqualTo(measurementName)
     assertThat(failureLog[ReportTraceAttributes.COMPUTATION_NAME_STRING])
@@ -3166,6 +3176,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
       nonAggregatorMill.claimAndProcessWork()
 
+      val failureSpan =
+        spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME))
+        .isEqualTo("retryable_failure")
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_RETRYABLE)).isTrue()
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE))
+        .isEqualTo(SETUP_PHASE.name)
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT))
+        .isEqualTo(1L)
+
       val blobKey = calculatedBlobContext.blobKey
       assertThat(fakeComputationDb[LOCAL_ID])
         .isEqualTo(
@@ -3190,6 +3210,72 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
       assertThat(fakeComputationDb.claimedComputations).isEmpty()
     }
+
+  @Test
+  fun `failure classification refreshes span from latest token`() = runBlocking {
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = SETUP_PHASE.toProtocolStage(),
+        )
+        .build()
+    val requisitionBlobContext =
+      RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
+    requisitionStore.writeString(requisitionBlobContext, "local_requisition")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
+      blobs = listOf(newEmptyOutputBlobMetadata(id = 1L)),
+    )
+    whenever(mockCryptoWorker.completeSetupPhase(any())).thenAnswer {
+      val currentToken = checkNotNull(fakeComputationDb[LOCAL_ID])
+      runBlocking {
+        fakeComputationDb.updateComputationStage(
+          token = currentToken.toDatabaseEditToken(),
+          nextStage = WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+          inputBlobPaths = emptyList(),
+          passThroughBlobPaths = emptyList(),
+          outputBlobs = 0,
+          afterTransition = AfterTransition.CONTINUE_WORKING,
+          nextStageDetails = ComputationStageDetails.getDefaultInstance(),
+          lockExtension = null,
+        )
+        val transitionedToken = checkNotNull(fakeComputationDb[LOCAL_ID])
+        fakeComputationDb.enqueue(
+          token = transitionedToken.toDatabaseEditToken(),
+          delaySecond = 0,
+          expectedOwner = MILL_ID,
+        )
+        fakeComputationDb.claimTask(
+          protocol = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+          ownerId = MILL_ID,
+          lockDuration = Duration.ZERO,
+        )
+      }
+      throw ComputationDataClients.TransientErrorException("test retryable failure")
+    }
+
+    val lifecycleFields = captureReportTraceLifecycleFields {
+      nonAggregatorMill.claimAndProcessWork()
+    }
+
+    val failureSpan =
+      spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME))
+      .isEqualTo("retryable_failure")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE))
+      .isEqualTo(WAIT_EXECUTION_PHASE_ONE_INPUTS.name)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT))
+      .isEqualTo(2L)
+    val classificationLog =
+      lifecycleFields.single { it[ReportTraceAttributes.OUTCOME_STRING] == "retryable_failure" }
+    assertThat(classificationLog[ReportTraceAttributes.COMPUTATION_STAGE_STRING])
+      .isEqualTo(WAIT_EXECUTION_PHASE_ONE_INPUTS.name)
+    assertThat(classificationLog[ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING])
+      .isEqualTo("2")
+  }
 }
 
 private fun ComputationBlobContext.toMetadata(dependencyType: ComputationBlobDependency) =

@@ -70,6 +70,20 @@ class RecoverMissingImpressionMetadataTest {
   }
 
   @Test
+  fun `main exits nonzero when exact dates and date range are both specified`() {
+    val configFile = writeConfigFile(validConfig())
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(
+        connectionArgs(configFile, apiTarget = "localhost:1") +
+          arrayOf("--data-date=2000-01-01", "--end-days-ago=0"),
+        ::main,
+      )
+
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+  }
+
+  @Test
   fun `main exits nonzero when end days ago is outside lookback horizon`() {
     val configFile = writeConfigFile(validConfig())
 
@@ -184,6 +198,53 @@ class RecoverMissingImpressionMetadataTest {
 
       CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
     } finally {
+      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
+  }
+
+  @Test
+  fun `main includes repeated exact dates and excludes unselected dates`() {
+    val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
+      onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
+        .thenReturn(listImpressionMetadataResponse {})
+    }
+    val server: Server =
+      NettyServerBuilder.forPort(0)
+        .sslContext(serverCerts.toServerTlsContext())
+        .addService(impressionMetadataServiceMock)
+        .build()
+        .start()
+    storageEmulator.createBucket(BUCKET_NAME)
+    try {
+      for (date in listOf("2000-01-01", "2000-01-02", "2000-01-03")) {
+        storageEmulator.storage.create(
+          BlobInfo.newBuilder(
+              BUCKET_NAME,
+              "$EDP_IMPRESSION_PATH/model-line/model-line-1/$date/placeholder",
+            )
+            .build(),
+          byteArrayOf(),
+        )
+      }
+      val configFile = writeConfigFile(validConfig())
+
+      val capturedOutput =
+        CommandLineTesting.capturingOutput(
+          connectionArgs(configFile, apiTarget = "localhost:${server.port}") +
+            arrayOf(
+              "--data-date=2000-01-01",
+              "--data-date=2000-01-03",
+              "--storage-api-endpoint=${storageEmulator.storage.options.host}",
+              "--throttler-minimum-interval=0s",
+            ),
+          ::main,
+        )
+
+      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
+      verifyBlocking(impressionMetadataServiceMock, times(2)) { listImpressionMetadata(any()) }
+    } finally {
+      server.shutdown()
+      server.awaitTermination(1, SECONDS)
       storageEmulator.deleteBucketRecursive(BUCKET_NAME)
     }
   }

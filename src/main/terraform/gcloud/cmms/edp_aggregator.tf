@@ -14,7 +14,7 @@
 
 locals {
 
-  edp_display_names = ["edp7", "edpa_meta"]
+  edp_display_names = ["edp7", "edpa_meta", "edpa_video_pub", "edpa_retail_pub"]
 
   edpa_tee_app_tls_key = {
     secret_id         = "edpa-tee-app-tls-key",
@@ -128,13 +128,13 @@ locals {
       mig_service_account_name    = "results-fulfiller-sa"
       single_instance_assignment  = 1
       min_replicas                = 0
-      max_replicas                = 10
+      max_replicas                = 20
       # Using n2d for better Confidential VM availability.
       # Large production workloads may require c4d-standard-32 (124 GB)
       # with hyperdisk-balanced disk (provisioned_iops=5000,
       # provisioned_throughput=1250) and -Xmx96G.
-      machine_type                  = "n2d-standard-8"
-      java_tool_options             = "-Xmx24G"
+      machine_type                  = "n2d-highmem-8"
+      java_tool_options             = "-Xmx48G"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
       app_flags = concat(
@@ -155,15 +155,12 @@ locals {
           "--subscription-id", "results-fulfiller-subscription",
           "--google-project-id", data.google_client_config.default.project,
         ],
-        # One --model-line group per configured model line, all
-        # sharing the same population-spec/event-descriptor blobs
-        # (those paths are not model-line-specific). Lets the
-        # results-fulfiller know about every model line whose
-        # measurements it may need to fulfill, instead of only one.
+        # One --model-line group per model line, each with its own population
+        # spec. The event template descriptor is shared by all lines.
         flatten([
-          for model_line in var.edpa_model_lines : [
+          for model_line, population_spec_blob_uri in var.edpa_model_line_population_spec_blob_uris : [
             "--model-line", model_line,
-            "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
+            "--population-spec-file-blob-uri", population_spec_blob_uri,
             "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
             "--event-template-type-name", var.results_fulfiller_event_template_type_name,
           ]
@@ -184,7 +181,7 @@ locals {
   }
 
   requisition_fetcher_scheduler_config = {
-    schedule                  = "*/15 * * * *" # Every 15 minutes
+    schedule                  = "*/5 * * * *" # Every 5 minutes
     time_zone                 = "UTC"
     name                      = "requisition-fetcher-scheduler"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/requisition-fetcher"
@@ -269,6 +266,11 @@ locals {
       extra_env_vars = join(",", compact([
         var.requisition_fetcher_env_var,
         "SECURE_COMPUTATION_CONTROL_PLANE_TARGET=${var.secure_computation_public_api_target}",
+        # Below the module's timeout_seconds, so the drain ticker fires before the function dies.
+        "FLUSH_INTERVAL=1m",
+        # Bounds the fulfiller's heap: it holds one ~360MB frequency vector per unique filter spec,
+        # and a group's specs never exceed its requisitions.
+        "MAX_REQUISITIONS_PER_GROUP=100",
       ]))
       secret_mappings = join(",", compact([
         var.requisition_fetcher_secret_mapping,
@@ -503,6 +505,7 @@ module "edp_aggregator" {
   results_fulfiller_event_descriptor               = local.results_fulfiller_event_descriptor
   results_fulfiller_population_spec                = local.results_fulfiller_population_spec
   vid_labeler_population_spec                      = local.vid_labeler_population_spec
+  event_group_sync_additional_secret_ids           = ["event_group_scale-tls-key", "event_group_scale-tls-pem"]
   event_group_sync_service_account_name            = "edpa-event-group-sync"
   event_group_sync_function_name                   = "event-group-sync"
   data_availability_sync_function_name             = "data-availability-sync"

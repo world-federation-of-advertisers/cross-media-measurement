@@ -30,6 +30,9 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -88,10 +91,34 @@ class DataAvailabilityMonitorTest {
         .thenAnswer { _ -> listImpressionMetadataResponse {} }
     }
 
+  private val noncanonicalDeletedEntriesServiceMock: ImpressionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { listImpressionMetadata(org.mockito.kotlin.any<ListImpressionMetadataRequest>()) }
+        .thenAnswer { _ ->
+          listImpressionMetadataResponse {
+            impressionMetadata += v1alphaImpressionMetadata {
+              name = "$DATA_PROVIDER_NAME/impressionMetadata/wrong-prefix"
+              blobUri =
+                "gs://$BUCKET_NAME/legacy/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata.json"
+              state = V1AlphaImpressionMetadata.State.DELETED
+            }
+            impressionMetadata += v1alphaImpressionMetadata {
+              name = "$DATA_PROVIDER_NAME/impressionMetadata/invalid-date"
+              blobUri =
+                "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/not-a-date/metadata.json"
+              state = V1AlphaImpressionMetadata.State.DELETED
+            }
+          }
+        }
+    }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { addService(impressionMetadataServiceMock) }
 
   @get:Rule val grpcTestServerRule2 = GrpcTestServerRule { addService(noDeletedEntriesServiceMock) }
+
+  @get:Rule
+  val grpcTestServerRule3 = GrpcTestServerRule { addService(noncanonicalDeletedEntriesServiceMock) }
 
   private val impressionMetadataStubForTest: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
@@ -99,6 +126,10 @@ class DataAvailabilityMonitorTest {
 
   private val noDeletedEntriesStub: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule2.channel)
+  }
+
+  private val noncanonicalDeletedEntriesStub: ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceCoroutineStub(grpcTestServerRule3.channel)
   }
 
   companion object {
@@ -110,6 +141,8 @@ class DataAvailabilityMonitorTest {
 
     private const val STALE_DAYS_METRIC = "edpa.data_availability.stale_days"
     private const val DATE_COUNT_METRIC = "edpa.data_availability.date_count"
+    private const val NONCANONICAL_SPURIOUS_DELETION_COUNT_METRIC =
+      "edpa.data_availability.noncanonical_spurious_deletion_count"
     private const val TEST_SYNC_ID = "test-sync-id"
   }
 
@@ -145,9 +178,19 @@ class DataAvailabilityMonitorTest {
 
   private fun getDateStatusCount(metrics: List<MetricData>, status: String): Long? {
     val dateCountMetric = metrics.find { it.name == DATE_COUNT_METRIC } ?: return null
+    val points =
+      dateCountMetric.longSumData.points.filter {
+        it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status
+      }
+    return points.takeIf { it.isNotEmpty() }?.sumOf { it.value }
+  }
+
+  private fun getDataDates(metrics: List<MetricData>, status: String): Set<String> {
+    val dateCountMetric = metrics.find { it.name == DATE_COUNT_METRIC } ?: return emptySet()
     return dateCountMetric.longSumData.points
-      .find { it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status }
-      ?.value
+      .filter { it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status }
+      .mapNotNull { it.attributes.get(DataAvailabilityMonitorMetrics.DATA_DATE_ATTR) }
+      .toSet()
   }
 
   private fun createDoneBlob(
@@ -1083,15 +1126,18 @@ class DataAvailabilityMonitorTest {
     val metrics = collectMetrics()
     val dateCountMetric = metrics.find { it.name == DATE_COUNT_METRIC }
     assertThat(dateCountMetric).isNotNull()
-    val gapPoint =
-      dateCountMetric!!.longSumData.points.find {
+    val gapPoints =
+      dateCountMetric!!.longSumData.points.filter {
         it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) ==
           DataAvailabilityMonitorMetrics.STATUS_GAP
       }
-    assertThat(gapPoint).isNotNull()
-    assertThat(gapPoint!!.value).isEqualTo(2)
-    assertThat(gapPoint.attributes.get(MODEL_LINE_ATTR)).isEqualTo(MODEL_LINE_A.toName())
-    assertThat(gapPoint.attributes.get(EDP_IMPRESSION_PATH_ATTR)).isEqualTo(EDP_IMPRESSION_PATH)
+    assertThat(gapPoints.map { it.value }).containsExactly(1L, 1L)
+    assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_GAP))
+      .containsExactly("2026-03-13", "2026-03-14")
+    gapPoints.forEach { gapPoint ->
+      assertThat(gapPoint.attributes.get(MODEL_LINE_ATTR)).isEqualTo(MODEL_LINE_A.toName())
+      assertThat(gapPoint.attributes.get(EDP_IMPRESSION_PATH_ATTR)).isEqualTo(EDP_IMPRESSION_PATH)
+    }
   }
 
   @Test
@@ -1131,6 +1177,7 @@ class DataAvailabilityMonitorTest {
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_HEALTHY))
       .isEqualTo(3)
 
+    assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_HEALTHY)).isEmpty()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_GAP)).isNull()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION))
       .isNull()
@@ -1266,9 +1313,11 @@ class DataAvailabilityMonitorTest {
   fun `checkFullStatus emits late-arriving dates metric`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
-    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
+    for (date in listOf("2026-03-14", "2026-03-15")) {
+      ensureDirectories(MODEL_LINE_A.modelLineId, date)
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, date)
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, date, synced = false)
+    }
 
     val monitor =
       DataAvailabilityMonitor(
@@ -1289,7 +1338,9 @@ class DataAvailabilityMonitorTest {
 
     val metrics = collectMetrics()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING))
-      .isEqualTo(1)
+      .isEqualTo(2)
+    assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING))
+      .containsExactly("2026-03-14", "2026-03-15")
   }
 
   @Test
@@ -1504,7 +1555,96 @@ class DataAvailabilityMonitorTest {
     val metrics = collectMetrics()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION))
       .isEqualTo(1)
+    assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION))
+      .containsExactly("2026-03-10")
   }
+
+  @Test
+  fun `checkFullStatus preserves and logs spurious deletions with noncanonical paths`(): Unit =
+    runBlocking {
+      val storageClient = createStorageClient()
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+      val wrongPrefixBlobPath = "legacy/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata.json"
+      val invalidDateBlobPath =
+        "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/not-a-date/metadata.json"
+      storageClient.writeBlob(wrongPrefixBlobPath, ByteString.copyFromUtf8("data"))
+      storageClient.writeBlob(invalidDateBlobPath, ByteString.copyFromUtf8("data"))
+      val logRecords = mutableListOf<LogRecord>()
+      val logHandler =
+        object : Handler() {
+          override fun publish(record: LogRecord) {
+            logRecords += record
+          }
+
+          override fun flush() {}
+
+          override fun close() {}
+        }
+      val rootLogger = Logger.getLogger("")
+      rootLogger.addHandler(logHandler)
+
+      val result =
+        try {
+          DataAvailabilityMonitor(
+              storageClient = storageClient,
+              edpImpressionPath = EDP_IMPRESSION_PATH,
+              activeModelLines = setOf(MODEL_LINE_A),
+              impressionMetadataStub = noncanonicalDeletedEntriesStub,
+              dataProviderName = DATA_PROVIDER_NAME,
+            )
+            .checkFullStatus(
+              maxStaleDays = 3,
+              timeZone = TIME_ZONE,
+              clock = { TODAY },
+              unprocessedDoneThreshold = Duration.ofHours(24),
+              spuriousDeletionLookbackDays = 90,
+            )
+        } finally {
+          rootLogger.removeHandler(logHandler)
+        }
+
+      val status = result.statuses.single()
+      assertThat(status.spuriousDeletionCount).isEqualTo(2)
+      assertThat(status.spuriousDeletionCountsByDate).isEmpty()
+      val metrics = collectMetrics()
+      assertThat(
+          getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION)
+        )
+        .isEqualTo(2)
+      assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION))
+        .isEmpty()
+      val noncanonicalCountPoint =
+        metrics
+          .single { it.name == NONCANONICAL_SPURIOUS_DELETION_COUNT_METRIC }
+          .longGaugeData
+          .points
+          .single()
+      assertThat(noncanonicalCountPoint.value).isEqualTo(2)
+      assertThat(noncanonicalCountPoint.attributes.get(MODEL_LINE_ATTR))
+        .isEqualTo(MODEL_LINE_A.toName())
+      assertThat(noncanonicalCountPoint.attributes.get(EDP_IMPRESSION_PATH_ATTR))
+        .isEqualTo(EDP_IMPRESSION_PATH)
+      assertThat(noncanonicalCountPoint.attributes.get(DataAvailabilityMonitorMetrics.SOURCE_ATTR))
+        .isEqualTo(DataAvailabilityMonitorMetrics.SOURCE_MONITOR)
+      val noncanonicalWarnings =
+        logRecords.filter { it.message.startsWith("Cannot determine the data date") }
+      assertThat(noncanonicalWarnings).hasSize(2)
+      assertThat(noncanonicalWarnings.map { it.message })
+        .containsAtLeast(
+          "Cannot determine the data date for spurious deletion " +
+            "$DATA_PROVIDER_NAME/impressionMetadata/wrong-prefix: blob URI " +
+            "gs://$BUCKET_NAME/$wrongPrefixBlobPath does not use the expected prefix and " +
+            "YYYY-MM-DD folder structure " +
+            "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/{date}/",
+          "Cannot determine the data date for spurious deletion " +
+            "$DATA_PROVIDER_NAME/impressionMetadata/invalid-date: blob URI " +
+            "gs://$BUCKET_NAME/$invalidDateBlobPath does not use the expected prefix and " +
+            "YYYY-MM-DD folder structure " +
+            "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/{date}/",
+        )
+    }
 
   @Test
   fun `checkFullStatus does not flag late-arrival when done blob lacks marker`(): Unit =
@@ -1656,6 +1796,11 @@ class DataAvailabilityMonitorTest {
         getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_UNPUBLISHED_AVAILABILITY)
       )
       .isEqualTo(1)
+    assertThat(
+        getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_UNPUBLISHED_AVAILABILITY)
+      )
+      .containsExactly("2026-03-15")
+      .inOrder()
   }
 
   @Test
@@ -1766,9 +1911,11 @@ class DataAvailabilityMonitorTest {
   @Test
   fun `checkFullStatus emits unprocessed_done metric`(): Unit = runBlocking {
     val storageClient = createStorageClient()
-    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
-    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    for (date in listOf("2026-03-14", "2026-03-15")) {
+      ensureDirectories(MODEL_LINE_A.modelLineId, date)
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, date, synced = false)
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, date)
+    }
 
     val monitor =
       DataAvailabilityMonitor(
@@ -1790,6 +1937,8 @@ class DataAvailabilityMonitorTest {
 
     val metrics = collectMetrics()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_UNPROCESSED_DONE))
-      .isEqualTo(1)
+      .isEqualTo(2)
+    assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_UNPROCESSED_DONE))
+      .containsExactly("2026-03-14", "2026-03-15")
   }
 }

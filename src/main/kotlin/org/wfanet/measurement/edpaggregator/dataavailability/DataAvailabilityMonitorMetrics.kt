@@ -43,11 +43,16 @@ object DataAvailabilityMonitorMetrics {
    *
    * Keyed by `edpa.data_availability_monitor.model_line`,
    * `edpa.data_availability_monitor.edp_impression_path`, [DATE_STATUS_ATTR], and [SOURCE_ATTR].
+   * Monitor-emitted issue points are also keyed by [DATA_DATE_ATTR]. Date-based statuses add one
+   * for each affected date, while spurious-deletion points add the number of affected resources
+   * grouped by date. Summing across that attribute preserves the count by status. Healthy-date and
+   * legitimate-deletion points omit [DATA_DATE_ATTR]. A spurious-deletion point has a date when its
+   * blob URI follows the expected date-folder convention.
+   *
    * Both [DataAvailabilityMonitor] (periodic, full status set) and [DataAvailabilitySync]
    * (per-batch, gap/without-done-blob/healthy only) write to this counter; the [SOURCE_ATTR]
-   * distinguishes them so dashboards can filter or split by emitter. Each invocation adds the
-   * number of dates found in that check run. Use `rate()` or `increase()` in queries to isolate
-   * per-run values.
+   * distinguishes them so dashboards can filter or split by emitter. Use `rate()` or `increase()`
+   * in queries to isolate per-run values.
    */
   val dateStatusCounter: LongCounter
     get() =
@@ -55,6 +60,23 @@ object DataAvailabilityMonitorMetrics {
         .counterBuilder("edpa.data_availability.date_count")
         .setDescription("Number of dates by availability status")
         .setUnit("{date}")
+        .build()
+
+  /**
+   * Number of spurious deletions whose blob URI has no canonical data-date folder.
+   *
+   * Keyed by `edpa.data_availability_monitor.model_line`,
+   * `edpa.data_availability_monitor.edp_impression_path`, and [SOURCE_ATTR]. A nonzero value means
+   * the monitor could not attach [DATA_DATE_ATTR] to those spurious-deletion points; inspect the
+   * warning logs for their resource names and blob URIs.
+   */
+  val noncanonicalSpuriousDeletionCountGauge: LongGauge
+    get() =
+      Instrumentation.meter
+        .gaugeBuilder("edpa.data_availability.noncanonical_spurious_deletion_count")
+        .setDescription("Number of spurious deletions without a canonical data date")
+        .setUnit("{resource}")
+        .ofLongs()
         .build()
 
   val MODEL_LINE_ATTR: AttributeKey<String> =
@@ -65,6 +87,8 @@ object DataAvailabilityMonitorMetrics {
     AttributeKey.stringKey("edpa.data_availability_monitor.date_status")
   val SOURCE_ATTR: AttributeKey<String> =
     AttributeKey.stringKey("edpa.data_availability_monitor.source")
+  val DATA_DATE_ATTR: AttributeKey<String> =
+    AttributeKey.stringKey("edpa.data_availability_monitor.data_date")
 
   const val SOURCE_MONITOR = "monitor"
   const val SOURCE_SYNC = "sync"

@@ -38,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
@@ -61,6 +62,7 @@ import org.wfanet.measurement.loadtest.dataprovider.EventQuery
  * @param trustedCertificates Map of trusted certificate fingerprints to [X509Certificate]s.
  * @param eventQuery Synthetic event query used to filter and retrieve user virtual IDs.
  * @param expectedDirectNoiseMechanism The expected noise mechanism for direct measurement.
+ * @param kingdomApiThrottler Throttler for requests to the Kingdom public API.
  * @param filterExpression Expression used to filter events (default: filters for male gender and
  *   video ad viewed fraction > 0.25).
  * @param eventRange Time range for events to be considered (default: March 15–17, 2021). This range
@@ -82,6 +84,7 @@ class EventQueryMeasurementConsumerSimulator(
   trustedCertificates: Map<ByteString, X509Certificate>,
   private val eventQuery: EventQuery<Message>,
   expectedDirectNoiseMechanism: NoiseMechanism,
+  kingdomApiThrottler: Throttler,
   private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
   private val eventRange: OpenEndTimeRange = DEFAULT_EVENT_RANGE,
   initialResultPollingDelay: Duration = Duration.ofSeconds(1),
@@ -98,6 +101,7 @@ class EventQueryMeasurementConsumerSimulator(
     certificatesClient,
     trustedCertificates,
     expectedDirectNoiseMechanism,
+    kingdomApiThrottler,
     initialResultPollingDelay,
     maximumResultPollingDelay,
     onMeasurementsCreated = onMeasurementsCreated,

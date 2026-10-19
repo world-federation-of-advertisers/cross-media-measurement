@@ -60,6 +60,7 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -434,6 +435,7 @@ class BaseTeeApplicationTest {
       spanExporter.finishedSpanItems.single { it.name == "secure_computation.work_item.process" }
     assertThat(processingSpan.attributes.get(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME))
       .isEqualTo(testWorkItemAttempt.name)
+    assertThat(processingSpan.attributes.get(XmmTraceAttributes.WORK_ITEM_GENERATION)).isEqualTo(7L)
   }
 
   @Test

@@ -14,26 +14,13 @@
 
 package org.wfanet.measurement.edpaggregator.telemetry
 
-import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.api.metrics.Meter
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.api.trace.Tracer
-import io.opentelemetry.instrumentation.runtimemetrics.java8.Classes
-import io.opentelemetry.instrumentation.runtimemetrics.java8.Cpu
-import io.opentelemetry.instrumentation.runtimemetrics.java8.GarbageCollector
-import io.opentelemetry.instrumentation.runtimemetrics.java8.MemoryPools
-import io.opentelemetry.instrumentation.runtimemetrics.java8.Threads
-import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk
-import io.opentelemetry.sdk.logs.SdkLoggerProvider
-import io.opentelemetry.sdk.metrics.SdkMeterProvider
-import io.opentelemetry.sdk.trace.SdkTracerProvider
 import java.time.Duration
-import java.util.concurrent.TimeUnit
-import java.util.logging.Level
-import java.util.logging.Logger
 import kotlin.coroutines.cancellation.CancellationException
+import org.wfanet.measurement.common.telemetry.OpenTelemetrySdkManager
 
 /**
  * OpenTelemetry SDK initialization for EDPA components using autoconfiguration.
@@ -50,52 +37,9 @@ import kotlin.coroutines.cancellation.CancellationException
  * See: https://opentelemetry.io/docs/languages/java/configuration/
  */
 object EdpaTelemetry {
-  private val logger = Logger.getLogger(EdpaTelemetry::class.java.name)
-
-  private lateinit var openTelemetry: OpenTelemetry
-  private var meterProvider: SdkMeterProvider
-  private var tracerProvider: SdkTracerProvider
-  private var loggerProvider: SdkLoggerProvider
-  private var meter: Meter
-  private var tracer: Tracer
-
   /** Ensure the init block of this object is being executed. */
   fun ensureInitialized() {
-    logger.info("Ensuring EdpaTelemetry is initialized")
-  }
-
-  /**
-   * Initializes OpenTelemetry SDK using autoconfiguration.
-   *
-   * Following env vars should be set:
-   * - OTEL_SERVICE_NAME: Service identifier
-   * - OTEL_METRICS_EXPORTER: Metric exporter
-   * - OTEL_TRACES_EXPORTER: Trace exporter
-   * - OTEL_METRIC_EXPORT_INTERVAL: Export interval in ms
-   */
-  init {
-    logger.info("Initializing OpenTelemetry SDK jusing autoconfiguration")
-
-    // Initialize SDK using autoconfiguration
-    val openTelemetry = AutoConfiguredOpenTelemetrySdk.initialize().openTelemetrySdk
-
-    // Get providers for flush/shutdown operations
-    meterProvider = openTelemetry.sdkMeterProvider
-    tracerProvider = openTelemetry.sdkTracerProvider
-    loggerProvider = openTelemetry.sdkLoggerProvider
-
-    // Install JVM runtime metrics instrumentation
-    Classes.registerObservers(openTelemetry)
-    Cpu.registerObservers(openTelemetry)
-    GarbageCollector.registerObservers(openTelemetry)
-    MemoryPools.registerObservers(openTelemetry)
-    Threads.registerObservers(openTelemetry)
-
-    // Create meter and tracer instances
-    meter = openTelemetry.getMeter("edpa-instrumentation")
-    tracer = openTelemetry.getTracer("edpa-instrumentation")
-
-    logger.info("OpenTelemetry SDK initialized successfully")
+    OpenTelemetrySdkManager.ensureInitialized()
   }
 
   /**
@@ -123,31 +67,7 @@ object EdpaTelemetry {
    * @return true if flush completed successfully, false if timeout or error
    */
   fun flush(timeout: Duration = Duration.ofSeconds(5)): Boolean {
-    return try {
-      // Start all flushes in parallel
-      val metricFlush = meterProvider.forceFlush()
-      val traceFlush = tracerProvider.forceFlush()
-      val logFlush = loggerProvider.forceFlush()
-
-      // Wait for all to complete (parallel execution)
-      val metricFlushResult = metricFlush.join(timeout.toMillis(), TimeUnit.MILLISECONDS).isSuccess
-      val traceFlushResult = traceFlush.join(timeout.toMillis(), TimeUnit.MILLISECONDS).isSuccess
-      val logFlushResult = logFlush.join(timeout.toMillis(), TimeUnit.MILLISECONDS).isSuccess
-
-      when {
-        metricFlushResult && traceFlushResult && logFlushResult -> {
-          logger.fine("OpenTelemetry flush completed successfully")
-          true
-        }
-        else -> {
-          logger.warning("OpenTelemetry flush completed with errors")
-          false
-        }
-      }
-    } catch (e: Exception) {
-      logger.log(Level.WARNING, "Error during OpenTelemetry flush", e)
-      false
-    }
+    return OpenTelemetrySdkManager.flush(timeout)
   }
 
   /**
@@ -156,14 +76,7 @@ object EdpaTelemetry {
    * Only needed for testing.
    */
   fun shutdown() {
-    try {
-      meterProvider.shutdown().join(10, TimeUnit.SECONDS)
-      tracerProvider.shutdown().join(10, TimeUnit.SECONDS)
-      loggerProvider.shutdown().join(10, TimeUnit.SECONDS)
-      logger.info("OpenTelemetry SDK shut down successfully")
-    } catch (e: Exception) {
-      logger.log(Level.WARNING, "Error during OpenTelemetry shutdown", e)
-    }
+    OpenTelemetrySdkManager.shutdown()
   }
 }
 

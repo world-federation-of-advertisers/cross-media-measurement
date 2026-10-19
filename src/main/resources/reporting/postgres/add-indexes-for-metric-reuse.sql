@@ -36,10 +36,10 @@
 --           ├── ReportTimeIntervals
 --           └── MetricCalculationSpecReportingMetrics
 
--- changeset tristanvuong2021:add-metrics-comparison-index dbms:postgresl
+-- changeset tristanvuong2021:add-metrics-comparison-index dbms:postgresql
 CREATE INDEX metrics_comparison
   ON Metrics (MeasurementConsumerId, ReportingSetId, TimeIntervalStart, TimeIntervalEndExclusive);
 
--- changeset tristanvuong2021:add-metric-calculation-spec-reporting-metrics-metric-id-index dbms:postgresl
+-- changeset tristanvuong2021:add-metric-calculation-spec-reporting-metrics-metric-id-index dbms:postgresql
 CREATE INDEX metric_calculation_spec_reporting_metrics_metric_id
   ON MetricCalculationSpecReportingMetrics (MeasurementConsumerId, MetricId);

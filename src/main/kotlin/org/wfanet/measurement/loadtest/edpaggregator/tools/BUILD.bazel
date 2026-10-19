@@ -83,3 +83,23 @@ java_binary(
     main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.VerifySyntheticDataKt",
     runtime_deps = [":verify_synthetic_data"],
 )
+
+kt_jvm_library(
+    name = "generate_high_overlap_specs",
+    srcs = ["GenerateHighOverlapSpecs.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
+    ],
+)
+
+java_binary(
+    name = "GenerateHighOverlapSpecs",
+    main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateHighOverlapSpecs",
+    visibility = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:__pkg__"],
+    runtime_deps = [":generate_high_overlap_specs"],
+)
