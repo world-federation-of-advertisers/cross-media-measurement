@@ -105,13 +105,19 @@ Before resolving a component summary, the tool verifies that the ReportingSet
 referenced by the `BasicReport` is a valid Campaign Group. A legacy primitive
 ReportingSet with EventGroups and a null `CampaignGroupId` is repaired by
 self-linking it (`CampaignGroupId = ReportingSetId`). This recovers the
-Campaign Group identity already recorded on the `BasicReport`; it does not
-invent a new group or change membership.
+Campaign Group identity already recorded on the `BasicReport`.
 
-A missing ReportingSet, a composite, an empty primitive, or a ReportingSet
-already assigned to another Campaign Group cannot be repaired safely. The tool
-leaves that `BasicReport` unchanged, continues the audit, and marks the
-environment as not ready to remove the read-path fallback.
+When the referenced ReportingSet is a composite with a null `CampaignGroupId`,
+the tool recursively collects the EventGroups from its primitive leaves and
+reuses or creates a primitive, self-linked Campaign Group for that universe.
+The `BasicReport` is moved to the primitive Campaign Group in the same Spanner
+mutation that fills its component summaries. The legacy composite remains
+unchanged.
+
+A missing ReportingSet, an empty primitive or composite universe, or a
+ReportingSet already assigned to another Campaign Group cannot be repaired
+safely. The tool leaves that `BasicReport` unchanged, continues the audit, and
+marks the environment as not ready to remove the read-path fallback.
 
 For each component summary missing `external_reporting_set_id`:
 
@@ -125,10 +131,11 @@ For each component summary missing `external_reporting_set_id`:
 
 No component `ReportingSet` is created and no `BasicReport` is updated unless
 all of its component summaries resolve. Every membership is resolved before
-any component `ReportingSet` is created. A safe legacy Campaign Group repair
-may be committed independently and is idempotent. A component summary with no
-`event_group_summaries` cannot be resolved; the `BasicReport` is left
-unmodified and the environment is reported as not ready.
+any component `ReportingSet` is created. A safe legacy Campaign Group repair or
+composite-to-primitive migration may be committed independently and is
+idempotent. A component summary with no `event_group_summaries` cannot be
+resolved; the `BasicReport` is left unmodified and the environment is reported
+as not ready.
 
 Note that `metric_set.reporting_set_components` entries carry no membership, so
 an entry missing `external_reporting_set_id` cannot be backfilled. Any such
@@ -143,8 +150,8 @@ rather than failing, so an incomplete resource is served without any error.
 An applied, unbounded run reports `Ready to remove read-path fallback: yes`
 only when every examined `SUCCEEDED` row has complete component summaries. A
 bounded run never reports ready because it does not examine older rows. A dry
-run reports ready only when it finds that no writes or Campaign Group repairs
-would be needed.
+run reports ready only when it finds that no writes, Campaign Group repairs, or
+composite Campaign Group migrations would be needed.
 
 Each such `BasicReport` is logged once per read, at `WARNING`, by the Reporting
 public API server:
@@ -265,8 +272,8 @@ include the full path to the executable.
 
 Each run ends with a summary of the `BasicReport`s examined, those already
 valid, those updated, any blocking unbackfilled records, the Campaign Groups
-repaired, the `ReportingSet`s reused and created, and any components that could
-not be resolved.
+repaired or migrated, the `ReportingSet`s reused and created, and any
+components that could not be resolved.
 
 Run with `--dry-run` first. A non-zero blocking count means some component
 summaries would remain incomplete; the per-`BasicReport` reasons are logged and
