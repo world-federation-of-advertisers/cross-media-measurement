@@ -24,7 +24,9 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
 import com.google.protobuf.TextFormat
+import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
+import com.google.type.interval
 import java.io.File
 import java.nio.file.Paths
 import java.util.Base64
@@ -56,6 +58,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -78,6 +81,26 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     val configFile = tempFolder.newFile("test_config.textproto")
     configFile.writeText(TextFormat.printer().printToString(config))
     return configFile
+  }
+
+  private fun firstGeneratedMetadataFile(): File =
+    tempFolder.root.resolve(OUTPUT_BUCKET).resolve(OUTPUT_BASE_PATH).walkTopDown().first {
+      it.isFile && it.name == "metadata.binpb"
+    }
+
+  private fun runVerifyMetadata(metadataFile: File): Pair<Int, VerifyVidLabeledImpressions> {
+    val verifyCmd = VerifyVidLabeledImpressions()
+    val metadataUri = "file:///" + metadataFile.relativeTo(tempFolder.root).path
+    val exitCode =
+      CommandLine(verifyCmd)
+        .execute(
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--local-storage-path=${tempFolder.root.path}",
+          "--metadata-uri=$metadataUri",
+        )
+    return exitCode to verifyCmd
   }
 
   /** Runs `GenerateSyntheticData` against [tempFolder] with both [SPEC_A] and [SPEC_B]. */
@@ -167,22 +190,22 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     assertThat(result.errors).isEqualTo(0)
     assertThat(result.totalBlobsProcessed).isEqualTo(EXPECTED_DATES.size * 2)
     assertThat(result.totalImpressions)
-      .isEqualTo(SPEC_A.expectedImpressions * 2 + SPEC_B.expectedImpressions)
+      .isEqualTo((SPEC_A.expectedImpressions * 2 + SPEC_B.expectedImpressions).toLong())
     assertThat(result.impressionsByEventGroupReferenceId)
       .containsExactly(
         SPEC_A.eventGroupReferenceId,
-        SPEC_A.expectedImpressions * 2,
+        (SPEC_A.expectedImpressions * 2).toLong(),
         SPEC_B.eventGroupReferenceId,
-        SPEC_B.expectedImpressions,
+        SPEC_B.expectedImpressions.toLong(),
       )
     assertThat(result.impressionsByEntityKey)
       .containsExactly(
         VerifyVidLabeledImpressions.EntityKey(SPEC_A.entityKeyType, SPEC_A.entityKeyIds[0]),
-        SPEC_A.expectedImpressions,
+        SPEC_A.expectedImpressions.toLong(),
         VerifyVidLabeledImpressions.EntityKey(SPEC_A.entityKeyType, SPEC_A.entityKeyIds[1]),
-        SPEC_A.expectedImpressions,
+        SPEC_A.expectedImpressions.toLong(),
         VerifyVidLabeledImpressions.EntityKey(SPEC_B.entityKeyType, SPEC_B.entityKeyIds[0]),
-        SPEC_B.expectedImpressions,
+        SPEC_B.expectedImpressions.toLong(),
       )
 
     // Verify edpa_meta data with its own KMS key.
@@ -201,7 +224,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     assertThat(verifyMetaExit).isEqualTo(0)
     val metaResult = verifyMeta.lastResult!!
     assertThat(metaResult.errors).isEqualTo(0)
-    assertThat(metaResult.totalImpressions).isEqualTo(SPEC_A.expectedImpressions)
+    assertThat(metaResult.totalImpressions).isEqualTo(SPEC_A.expectedImpressions.toLong())
   }
 
   @Test
@@ -238,7 +261,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     val result = verifyCmd.lastResult!!
     assertThat(result.errors).isEqualTo(0)
     assertThat(result.totalBlobsProcessed).isEqualTo(1)
-    assertThat(result.totalImpressions).isGreaterThan(0)
+    assertThat(result.totalImpressions).isGreaterThan(0L)
   }
 
   @Test
@@ -279,7 +302,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     val result = verifyCmd.lastResult!!
     assertThat(result.errors).isEqualTo(0)
     assertThat(result.totalBlobsProcessed).isEqualTo(1)
-    assertThat(result.totalImpressions).isGreaterThan(0)
+    assertThat(result.totalImpressions).isGreaterThan(0L)
   }
 
   @Test
@@ -312,8 +335,153 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
 
     assertThat(exitCode).isEqualTo(1)
     assertThat(verifyCmd.lastResult!!.errors).isEqualTo(1)
-    assertThat(verifyCmd.lastResult!!.totalImpressions).isEqualTo(0)
+    assertThat(verifyCmd.lastResult!!.totalImpressions).isEqualTo(0L)
     assertThat(verifyCmd.lastResult!!.impressionsByEntityKey).isEmpty()
+  }
+
+  @Test
+  fun `verify default scan matches metadata substring anywhere in filename`() {
+    runGenerate()
+
+    val metadataFiles =
+      tempFolder.root
+        .resolve(OUTPUT_BUCKET)
+        .resolve(OUTPUT_BASE_PATH)
+        .walkTopDown()
+        .filter { it.isFile && it.name.startsWith("metadata") && it.name.endsWith(".binpb") }
+        .toList()
+    for (original in metadataFiles) {
+      check(original.renameTo(original.resolveSibling("campaign-${original.name}")))
+    }
+
+    val verifyCmd = VerifyVidLabeledImpressions()
+    val exitCode =
+      CommandLine(verifyCmd)
+        .execute(
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--scheme=file:///",
+          "--local-storage-path=${tempFolder.root.path}",
+          "--output-bucket=$OUTPUT_BUCKET",
+          "--base-path=$OUTPUT_BASE_PATH",
+        )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(verifyCmd.lastResult!!.errors).isEqualTo(0)
+    assertThat(verifyCmd.lastResult!!.totalBlobsProcessed)
+      .isEqualTo(EXPECTED_DATES.size * 2)
+  }
+
+  @Test
+  fun `verify scan reports unsupported discoverable metadata extension`() {
+    runGenerate()
+    tempFolder.root
+      .resolve(OUTPUT_BUCKET)
+      .resolve(OUTPUT_BASE_PATH)
+      .resolve("campaign-metadata.txt")
+      .writeText("unsupported metadata")
+
+    val verifyCmd = VerifyVidLabeledImpressions()
+    val exitCode =
+      CommandLine(verifyCmd)
+        .execute(
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--scheme=file:///",
+          "--local-storage-path=${tempFolder.root.path}",
+          "--output-bucket=$OUTPUT_BUCKET",
+          "--base-path=$OUTPUT_BASE_PATH",
+        )
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.errors).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.totalBlobsProcessed)
+      .isEqualTo(EXPECTED_DATES.size * 2)
+  }
+
+  @Test
+  fun `verify rejects metadata without an interval`() {
+    runGenerate()
+    val originalMetadataFile = firstGeneratedMetadataFile()
+    val invalidMetadataFile = originalMetadataFile.resolveSibling("metadata-no-interval.binpb")
+    invalidMetadataFile.writeBytes(
+      BlobDetails.parseFrom(originalMetadataFile.readBytes()).copy { clearInterval() }.toByteArray()
+    )
+
+    val (exitCode, verifyCmd) = runVerifyMetadata(invalidMetadataFile)
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.errors).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.totalImpressions).isEqualTo(0L)
+  }
+
+  @Test
+  fun `verify rejects an event time outside the metadata interval`() {
+    runGenerate()
+    val originalMetadataFile = firstGeneratedMetadataFile()
+    val invalidMetadataFile = originalMetadataFile.resolveSibling("metadata-wrong-interval.binpb")
+    invalidMetadataFile.writeBytes(
+      BlobDetails.parseFrom(originalMetadataFile.readBytes())
+        .copy {
+          interval = interval {
+            startTime = timestamp { seconds = 2_000_000_000L }
+            endTime = timestamp { seconds = 2_000_086_400L }
+          }
+        }
+        .toByteArray()
+    )
+
+    val (exitCode, verifyCmd) = runVerifyMetadata(invalidMetadataFile)
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.errors).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.totalImpressions).isEqualTo(0L)
+  }
+
+  @Test
+  fun `verify rejects an invalid model line resource name`() {
+    runGenerate()
+    val originalMetadataFile = firstGeneratedMetadataFile()
+    val invalidMetadataFile = originalMetadataFile.resolveSibling("metadata-invalid-model-line.binpb")
+    invalidMetadataFile.writeBytes(
+      BlobDetails.parseFrom(originalMetadataFile.readBytes())
+        .copy { modelLine = "not-a-model-line-resource-name" }
+        .toByteArray()
+    )
+
+    val (exitCode, verifyCmd) = runVerifyMetadata(invalidMetadataFile)
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.errors).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.totalImpressions).isEqualTo(0L)
+  }
+
+  @Test
+  fun `verify rejects an impression without entity keys for an entity-key sidecar`() {
+    runGenerate()
+    val metadataFile = firstGeneratedMetadataFile()
+    val details = BlobDetails.parseFrom(metadataFile.readBytes())
+    assertThat(details.entityKeysList).isNotEmpty()
+    val blobUri = SelectedStorageClient.parseBlobUri(details.blobUri)
+    val encryptedStorage =
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        SelectedStorageClient(blobUri, tempFolder.root),
+        GenerateSyntheticData.buildFakeKmsClient(KEK_URI, fakeKekKeysetFile()),
+        KEK_URI,
+        details.encryptedDek,
+      )
+    val records =
+      runBlocking { encryptedStorage.getBlob(blobUri.key)!!.read().toList() }.toMutableList()
+    records[0] = LabeledImpression.parseFrom(records[0]).copy { entityKeys.clear() }.toByteString()
+    runBlocking { encryptedStorage.writeBlob(blobUri.key, flowOf(*records.toTypedArray())) }
+
+    val (exitCode, verifyCmd) = runVerifyMetadata(metadataFile)
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.errors).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.totalImpressions).isEqualTo(0L)
   }
 
   @Test
@@ -355,7 +523,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     assertThat(result.errors).isEqualTo(0)
     assertThat(result.totalBlobsProcessed).isEqualTo(EXPECTED_DATES.size * 2)
     assertThat(result.totalImpressions)
-      .isEqualTo(SPEC_A.expectedImpressions * 2 + SPEC_B.expectedImpressions)
+      .isEqualTo((SPEC_A.expectedImpressions * 2 + SPEC_B.expectedImpressions).toLong())
   }
 
   @Test
@@ -502,6 +670,10 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
       this.encryptedDek = encryptedDek
       eventGroupReferenceId = "eg-json-dek"
       modelLine = MODEL_LINE
+      interval = interval {
+        startTime = timestamp { seconds = 1_699_999_999L }
+        endTime = timestamp { seconds = 1_700_000_001L }
+      }
     }
     val metadataFile = datedDir.resolve("metadata.json")
     metadataFile.writeText(JsonFormat.printer().print(metadataBlobDetails))
@@ -522,14 +694,14 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     val result = verifyCmd.lastResult!!
     assertThat(result.errors).isEqualTo(0)
     assertThat(result.totalBlobsProcessed).isEqualTo(1)
-    assertThat(result.totalImpressions).isEqualTo(1)
-    assertThat(result.impressionsByEventGroupReferenceId).containsExactly("eg-json-dek", 1)
+    assertThat(result.totalImpressions).isEqualTo(1L)
+    assertThat(result.impressionsByEventGroupReferenceId).containsExactly("eg-json-dek", 1L)
     assertThat(result.impressionsByEntityKey)
       .containsExactly(
         VerifyVidLabeledImpressions.EntityKey("creative", "creative-1"),
-        1,
+        1L,
         VerifyVidLabeledImpressions.EntityKey("campaign", "creative-1"),
-        1,
+        1L,
       )
   }
 
@@ -795,7 +967,8 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
         )
     assertThat(verifyExitCode).isEqualTo(0)
     assertThat(verifyCmd.lastResult!!.errors).isEqualTo(0)
-    assertThat(verifyCmd.lastResult!!.totalImpressions).isEqualTo(SPEC_A.expectedImpressions)
+    assertThat(verifyCmd.lastResult!!.totalImpressions)
+      .isEqualTo(SPEC_A.expectedImpressions.toLong())
   }
 
   @Test
@@ -860,9 +1033,9 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     assertThat(verifyExitCode).isEqualTo(0)
     val result = verifyCmd.lastResult!!
     assertThat(result.errors).isEqualTo(0)
-    assertThat(result.totalImpressions).isEqualTo(MARKET_EVENT_EXPECTED_IMPRESSIONS)
+    assertThat(result.totalImpressions).isEqualTo(MARKET_EVENT_EXPECTED_IMPRESSIONS.toLong())
     assertThat(result.impressionsByEventGroupReferenceId)
-      .containsExactly("eg-market", MARKET_EVENT_EXPECTED_IMPRESSIONS)
+      .containsExactly("eg-market", MARKET_EVENT_EXPECTED_IMPRESSIONS.toLong())
 
     // Independently re-decrypt one impression and parse it as a compiled MarketEvent to confirm
     // the bytes are valid wire form for the real MarketEvent message and carry the expected
@@ -995,7 +1168,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     val result = verifyCmd.lastResult!!
     assertThat(result.errors).isEqualTo(EXPECTED_DATES.size * 2)
     assertThat(result.totalBlobsProcessed).isEqualTo(0)
-    assertThat(result.totalImpressions).isEqualTo(0)
+    assertThat(result.totalImpressions).isEqualTo(0L)
     assertThat(result.impressionsByEventGroupReferenceId).isEmpty()
   }
 

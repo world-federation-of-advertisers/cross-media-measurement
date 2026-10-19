@@ -28,14 +28,17 @@ import com.google.protobuf.DynamicMessage
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Message
 import com.google.protobuf.util.JsonFormat
+import com.google.protobuf.util.Timestamps
 import java.io.File
 import java.util.concurrent.Callable
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.system.exitProcess
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.ProtoReflection
@@ -152,9 +155,10 @@ class VerifyVidLabeledImpressions : Callable<Int> {
     description =
       [
         "Filename prefix used to identify metadata blobs during scans. Defaults to " +
-          "\"metadata\" (matches files read by DataAvailabilitySync). " +
-          "Set to a different prefix when verifying data produced " +
-          "by a writer that uses a different naming convention. Must not be empty. " +
+          "\"metadata\". The default matches every nonempty file whose name contains " +
+          "\"metadata\", as DataAvailabilitySync does. Set a different value only to add a " +
+          "stricter filename-prefix filter. Metadata filenames must still contain \"metadata\". " +
+          "Must not be empty. " +
           "Only consulted with --output-bucket/--base-path scans; ignored when " +
           "--metadata-uri is given."
       ],
@@ -468,8 +472,6 @@ class VerifyVidLabeledImpressions : Callable<Int> {
    * @property totalImpressions Total number of [LabeledImpression] records successfully decrypted
    *   and parsed across all metadata blobs.
    * @property totalBlobsProcessed Total number of metadata blobs that were processed without error.
-   *   Each blob corresponds to a single (date, event group) shard, so multi-event-group runs report
-   *   a count greater than the number of distinct dates.
    * @property errors Number of metadata blobs that failed to be processed.
    * @property impressionsByEventGroupReferenceId Number of impressions decrypted per
    *   `event_group_reference_id` recorded in `BlobDetails`. Useful for asserting that all streams
@@ -477,11 +479,11 @@ class VerifyVidLabeledImpressions : Callable<Int> {
    * @property impressionsByEntityKey Number of impressions carrying each distinct entity key.
    */
   data class VerificationResult(
-    val totalImpressions: Int,
+    val totalImpressions: Long,
     val totalBlobsProcessed: Int,
     val errors: Int,
-    val impressionsByEventGroupReferenceId: Map<String, Int>,
-    val impressionsByEntityKey: Map<EntityKey, Int>,
+    val impressionsByEventGroupReferenceId: Map<String, Long>,
+    val impressionsByEntityKey: Map<EntityKey, Long>,
   )
 
   /**
@@ -507,15 +509,26 @@ class VerifyVidLabeledImpressions : Callable<Int> {
     /** Default value of the --scheme flag (local filesystem). */
     const val DEFAULT_SCHEME = "file:///"
 
-    /** Default value of the --metadata-prefix flag used by `DataAvailabilitySync`. */
+    /** Default value of the --metadata-prefix flag. */
     const val DEFAULT_METADATA_PREFIX = "metadata"
 
     /**
-     * True if this filename ends in a metadata extension the verifier knows how to parse (`.binpb`
-     * for binary protobuf or `.json` for JSON).
+     * True if this filename ends, case-insensitively, in a metadata extension the verifier knows
+     * how to parse (`.binpb` for binary protobuf or `.json` for JSON).
      */
-    private fun String.isSupportedMetadataExtension(): Boolean =
-      endsWith(".binpb") || endsWith(".json")
+    private fun String.isSupportedMetadataExtension(): Boolean {
+      val lowercaseName = lowercase()
+      return lowercaseName.endsWith(".binpb") || lowercaseName.endsWith(".json")
+    }
+
+    /** True if this filename is discoverable by `DataAvailabilitySync`. */
+    private fun String.isDiscoverableMetadataName(): Boolean =
+      contains(DEFAULT_METADATA_PREFIX, ignoreCase = true)
+
+    /** Applies EDPA discovery and an optional stricter caller-supplied prefix. */
+    private fun String.matchesMetadataScan(metadataPrefix: String): Boolean =
+      isDiscoverableMetadataName() &&
+        (metadataPrefix == DEFAULT_METADATA_PREFIX || startsWith(metadataPrefix))
 
     init {
       AeadConfig.register()
@@ -565,8 +578,10 @@ class VerifyVidLabeledImpressions : Callable<Int> {
     /**
      * Scans for metadata files under the given storage prefix.
      *
-     * Constructs the base URI as [scheme][outputBucket]/[basePath] and lists all blobs whose keys
-     * begin with [metadataPrefix] and end in a supported extension. Returns fully qualified URIs.
+     * Constructs the base URI as [scheme][outputBucket]/[basePath] and lists every nonempty blob
+     * discoverable by `DataAvailabilitySync`. A non-default [metadataPrefix] adds a stricter prefix
+     * filter. Unsupported extensions are returned so verification can report them as errors rather
+     * than silently approving a directory that EDPA will reject. Returns fully qualified URIs.
      */
     private suspend fun scanForMetadata(
       scheme: String,
@@ -584,12 +599,13 @@ class VerifyVidLabeledImpressions : Callable<Int> {
         val metadataFiles =
           scanDir
             .walkTopDown()
-            .filter { it.name.startsWith(metadataPrefix) && it.name.isSupportedMetadataExtension() }
+            .filter {
+              it.isFile && it.length() > 0L && it.name.matchesMetadataScan(metadataPrefix)
+            }
             .toList()
             .sorted()
         check(metadataFiles.isNotEmpty()) {
-          "No metadata files found under: $scanDir (looking for files starting with " +
-            "\"$metadataPrefix\" and ending in .binpb or .json)"
+          "No nonempty metadata files discoverable by DataAvailabilitySync found under: $scanDir"
         }
         logger.info("Found ${metadataFiles.size} metadata files")
 
@@ -611,13 +627,13 @@ class VerifyVidLabeledImpressions : Callable<Int> {
           .toList()
           .filter {
             val name = it.blobKey.substringAfterLast("/")
-            name.startsWith(metadataPrefix) && name.isSupportedMetadataExtension()
+            it.size > 0L && name.matchesMetadataScan(metadataPrefix)
           }
           .map { "$baseUri/${it.blobKey}" }
           .sorted()
       check(uris.isNotEmpty()) {
-        "No metadata files found under: $baseUri/$prefix (looking for files starting with " +
-          "\"$metadataPrefix\" and ending in .binpb or .json)"
+        "No nonempty metadata files discoverable by DataAvailabilitySync found under: " +
+          "$baseUri/$prefix"
       }
       logger.info("Found ${uris.size} metadata files")
       return uris
@@ -626,8 +642,8 @@ class VerifyVidLabeledImpressions : Callable<Int> {
     /**
      * Verifies impression blobs by reading metadata from the given URIs.
      *
-     * Supports both binary protobuf and JSON metadata formats, detected by file extension (`.json`
-     * for JSON, anything else for binary protobuf).
+     * Supports both binary protobuf and JSON metadata formats, detected by the `.binpb` and `.json`
+     * file extensions.
      */
     private suspend fun verifyMetadata(
       kmsClient: KmsClient,
@@ -637,17 +653,24 @@ class VerifyVidLabeledImpressions : Callable<Int> {
       eventMessageInstance: Message?,
       expectedEventTypeUrl: String,
     ): VerificationResult {
-      var totalImpressions = 0
+      var totalImpressions = 0L
       var totalBlobsProcessed = 0
       var errors = 0
-      val impressionsByEventGroupReferenceId = mutableMapOf<String, Int>()
-      val impressionsByEntityKey = mutableMapOf<EntityKey, Int>()
+      val impressionsByEventGroupReferenceId = mutableMapOf<String, Long>()
+      val impressionsByEntityKey = mutableMapOf<EntityKey, Long>()
 
       for (metadataUri in metadataUris) {
         try {
           logger.info("\n=== Processing: $metadataUri ===")
 
           val metadataBlobUri = SelectedStorageClient.parseBlobUri(metadataUri)
+          val metadataFileName = metadataBlobUri.key.substringAfterLast("/")
+          check(metadataFileName.isDiscoverableMetadataName()) {
+            "Metadata filename must contain \"metadata\": $metadataFileName"
+          }
+          check(metadataFileName.isSupportedMetadataExtension()) {
+            "Unsupported file extension for metadata: $metadataFileName"
+          }
           val metadataStorageClient = SelectedStorageClient(metadataBlobUri, storagePath)
 
           val metadataBlob =
@@ -655,7 +678,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
               ?: throw IllegalStateException("Metadata not found: ${metadataBlobUri.key}")
           val metadataBytes = metadataBlob.read().flatten()
 
-          val isJson = metadataUri.endsWith(".json")
+          val isJson = metadataFileName.lowercase().endsWith(".json")
           val blobDetails: BlobDetails
           val encryptedDek: EncryptedDek
 
@@ -671,10 +694,37 @@ class VerifyVidLabeledImpressions : Callable<Int> {
 
           check(blobDetails.blobUri.isNotEmpty()) { "BlobDetails.blob_uri is empty" }
           check(blobDetails.hasEncryptedDek()) { "BlobDetails.encrypted_dek is missing" }
-          check(blobDetails.modelLine.isNotEmpty()) { "BlobDetails.model_line is empty" }
+          check(ModelLineKey.fromName(blobDetails.modelLine) != null) {
+            "Invalid model line resource name: ${blobDetails.modelLine}"
+          }
+          check(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
+            "BlobDetails.interval must have start_time and end_time"
+          }
+          Timestamps.checkValid(blobDetails.interval.startTime)
+          Timestamps.checkValid(blobDetails.interval.endTime)
+          check(
+            Timestamps.compare(blobDetails.interval.startTime, blobDetails.interval.endTime) < 0
+          ) {
+            "BlobDetails.interval start_time must be before end_time"
+          }
           check(blobDetails.eventGroupReferenceId.isNotEmpty() || blobDetails.entityKeysCount > 0) {
             "BlobDetails must contain event_group_reference_id or entity_keys"
           }
+          val expectedEntityKeys =
+            blobDetails.entityKeysList
+              .flatMap { group ->
+                check(group.entityType.isNotEmpty()) {
+                  "BlobDetails contains an empty entity_type"
+                }
+                check(group.entityIdsCount > 0) {
+                  "BlobDetails contains an entity key group with no entity_ids"
+                }
+                group.entityIdsList.map { entityId ->
+                  check(entityId.isNotEmpty()) { "BlobDetails contains an empty entity_id" }
+                  EntityKey(group.entityType, entityId)
+                }
+              }
+              .toSet()
 
           logger.info("  Blob URI: ${blobDetails.blobUri}")
           logger.info("  KEK URI: ${encryptedDek.kekUri}")
@@ -709,19 +759,30 @@ class VerifyVidLabeledImpressions : Callable<Int> {
           val impressionsBlob =
             mesosClient.getBlob(blobKey)
               ?: throw IllegalStateException("Impression blob not found: $blobKey")
-          val records = impressionsBlob.read().toList()
-          logger.info("  Decrypted ${records.size} impression records")
-          check(records.isNotEmpty()) { "Impression blob is empty" }
-          val blobImpressionsByEntityKey = mutableMapOf<EntityKey, Int>()
+          var blobImpressionCount = 0L
+          val blobImpressionsByEntityKey = mutableMapOf<EntityKey, Long>()
           val actualEntityKeys = mutableSetOf<EntityKey>()
 
-          for ((index, record) in records.withIndex()) {
+          impressionsBlob.read().collect { record ->
+            val index = blobImpressionCount
             val impression = LabeledImpression.parseFrom(record)
             check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
             check(impression.hasEvent()) { "Missing event in impression $index" }
             check(impression.hasEventTime()) { "Missing event time in impression $index" }
+            Timestamps.checkValid(impression.eventTime)
+            check(
+              Timestamps.compare(impression.eventTime, blobDetails.interval.startTime) >= 0 &&
+                Timestamps.compare(impression.eventTime, blobDetails.interval.endTime) < 0
+            ) {
+              "Event time on impression $index is outside BlobDetails.interval"
+            }
             check(impression.event.typeUrl.isNotEmpty()) {
               "Missing event type URL in impression $index"
+            }
+            if (expectedEntityKeys.isNotEmpty()) {
+              check(impression.entityKeysCount > 0) {
+                "Impression $index must have at least one entity key"
+              }
             }
             val impressionEntityKeys = mutableSetOf<EntityKey>()
             for ((entityKeyIndex, entityKey) in impression.entityKeysList.withIndex()) {
@@ -735,7 +796,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
             }
             actualEntityKeys += impressionEntityKeys
             for (entityKey in impressionEntityKeys) {
-              blobImpressionsByEntityKey.merge(entityKey, 1, Int::plus)
+              blobImpressionsByEntityKey.merge(entityKey, 1L, Long::plus)
             }
 
             if (expectedEventTypeUrl.isNotEmpty()) {
@@ -757,39 +818,30 @@ class VerifyVidLabeledImpressions : Callable<Int> {
                   "eventTime=${impression.eventTime}, entityKeys=[$entityKeysSummary]"
               )
             }
+            blobImpressionCount++
           }
+          logger.info("  Decrypted $blobImpressionCount impression records")
+          check(blobImpressionCount > 0L) { "Impression blob is empty" }
 
-          if (blobDetails.entityKeysCount > 0) {
-            val expectedEntityKeys =
-              blobDetails.entityKeysList
-                .flatMap { group ->
-                  check(group.entityType.isNotEmpty()) {
-                    "BlobDetails contains an empty entity_type"
-                  }
-                  group.entityIdsList.map { entityId ->
-                    check(entityId.isNotEmpty()) { "BlobDetails contains an empty entity_id" }
-                    EntityKey(group.entityType, entityId)
-                  }
-                }
-                .toSet()
+          if (expectedEntityKeys.isNotEmpty()) {
             check(actualEntityKeys == expectedEntityKeys) {
               "BlobDetails.entity_keys does not match the entity keys in the impression blob"
             }
           }
 
-          totalImpressions += records.size
+          totalImpressions += blobImpressionCount
           totalBlobsProcessed++
           if (blobDetails.eventGroupReferenceId.isNotEmpty()) {
             impressionsByEventGroupReferenceId.merge(
               blobDetails.eventGroupReferenceId,
-              records.size,
-              Int::plus,
+              blobImpressionCount,
+              Long::plus,
             )
           }
           for ((entityKey, count) in blobImpressionsByEntityKey) {
-            impressionsByEntityKey.merge(entityKey, count, Int::plus)
+            impressionsByEntityKey.merge(entityKey, count, Long::plus)
           }
-          logger.info("  PASS: $metadataUri - ${records.size} impressions verified")
+          logger.info("  PASS: $metadataUri - $blobImpressionCount impressions verified")
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {

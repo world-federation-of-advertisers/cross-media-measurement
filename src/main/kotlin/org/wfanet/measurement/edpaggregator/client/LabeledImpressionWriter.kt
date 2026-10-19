@@ -14,16 +14,14 @@
 
 package org.wfanet.measurement.edpaggregator.client
 
-import com.google.crypto.tink.BinaryKeysetWriter
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
-import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.SortedMap
 import java.util.SortedSet
@@ -137,13 +135,13 @@ private constructor(
 
   private fun generateSerializedEncryptionKey(kekUri: String): ByteString {
     val keysetHandle = KeysetHandle.generateNew(KeyTemplates.get(STREAMING_AEAD_KEY_TEMPLATE))
-    val outputStream = ByteArrayOutputStream()
-    keysetHandle.writeWithAssociatedData(
-      BinaryKeysetWriter.withOutputStream(outputStream),
-      kmsClient.getAead(kekUri),
-      EMPTY_ASSOCIATED_DATA,
+    return ByteString.copyFrom(
+      TinkProtoKeysetFormat.serializeEncryptedKeyset(
+        keysetHandle,
+        kmsClient.getAead(kekUri),
+        EMPTY_ASSOCIATED_DATA,
+      )
     )
-    return ByteString.copyFrom(outputStream.toByteArray())
   }
 
   private fun validateImpression(impression: LabeledImpression, interval: Interval) {
@@ -175,7 +173,6 @@ private constructor(
       Regex("modelProviders/[^/]+/modelSuites/[^/]+/modelLines/[^/]+")
 
     init {
-      AeadConfig.register()
       StreamingAeadConfig.register()
     }
 
