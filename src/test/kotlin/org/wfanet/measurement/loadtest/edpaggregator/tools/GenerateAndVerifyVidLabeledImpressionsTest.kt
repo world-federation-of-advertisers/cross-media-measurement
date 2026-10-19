@@ -459,6 +459,34 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
   }
 
   @Test
+  fun `verify rejects a non URL-safe sidecar entity key`() {
+    runGenerate()
+    val originalMetadataFile = firstGeneratedMetadataFile()
+    val invalidMetadataFile =
+      originalMetadataFile.resolveSibling("metadata-invalid-entity-key.binpb")
+    val originalDetails = BlobDetails.parseFrom(originalMetadataFile.readBytes())
+    invalidMetadataFile.writeBytes(
+      originalDetails
+        .toBuilder()
+        .setEntityKeys(
+          0,
+          originalDetails.entityKeysList[0]
+            .toBuilder()
+            .setEntityType("campaign/type")
+            .build(),
+        )
+        .build()
+        .toByteArray()
+    )
+
+    val (exitCode, verifyCmd) = runVerifyMetadata(invalidMetadataFile)
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.errors).isEqualTo(1)
+    assertThat(verifyCmd.lastResult!!.totalImpressions).isEqualTo(0L)
+  }
+
+  @Test
   fun `verify rejects an impression without entity keys for an entity-key sidecar`() {
     runGenerate()
     val metadataFile = firstGeneratedMetadataFile()

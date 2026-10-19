@@ -512,6 +512,9 @@ class VerifyVidLabeledImpressions : Callable<Int> {
     /** Default value of the --metadata-prefix flag. */
     const val DEFAULT_METADATA_PREFIX = "metadata"
 
+    /** Unreserved characters from RFC 3986. */
+    private val URL_SAFE_STRING = Regex("^[a-zA-Z0-9._~-]+$")
+
     /**
      * True if this filename ends, case-insensitively, in a metadata extension the verifier knows
      * how to parse (`.binpb` for binary protobuf or `.json` for JSON).
@@ -720,11 +723,17 @@ class VerifyVidLabeledImpressions : Callable<Int> {
                 check(group.entityType.isNotEmpty()) {
                   "BlobDetails contains an empty entity_type"
                 }
+                check(URL_SAFE_STRING.matches(group.entityType)) {
+                  "BlobDetails contains a non-URL-safe entity_type"
+                }
                 check(group.entityIdsCount > 0) {
                   "BlobDetails contains an entity key group with no entity_ids"
                 }
                 group.entityIdsList.map { entityId ->
                   check(entityId.isNotEmpty()) { "BlobDetails contains an empty entity_id" }
+                  check(URL_SAFE_STRING.matches(entityId)) {
+                    "BlobDetails contains a non-URL-safe entity_id"
+                  }
                   EntityKey(group.entityType, entityId)
                 }
               }
@@ -795,6 +804,12 @@ class VerifyVidLabeledImpressions : Callable<Int> {
               }
               check(entityKey.entityId.isNotEmpty()) {
                 "EntityKey[$entityKeyIndex] on impression $index has empty entity_id"
+              }
+              check(URL_SAFE_STRING.matches(entityKey.entityType)) {
+                "EntityKey[$entityKeyIndex] on impression $index has non-URL-safe entity_type"
+              }
+              check(URL_SAFE_STRING.matches(entityKey.entityId)) {
+                "EntityKey[$entityKeyIndex] on impression $index has non-URL-safe entity_id"
               }
               impressionEntityKeys += EntityKey(entityKey.entityType, entityKey.entityId)
             }
