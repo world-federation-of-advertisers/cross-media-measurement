@@ -149,9 +149,7 @@ private constructor(
   private fun validateImpression(impression: LabeledImpression, interval: Interval) {
     require(impression.vid > 0L) { "Each impression must have a positive VID" }
     require(impression.hasEvent()) { "Each impression must have an event" }
-    require(impression.event.typeUrl.isNotEmpty()) {
-      "Each impression event must have a type URL"
-    }
+    require(impression.event.typeUrl.isNotEmpty()) { "Each impression event must have a type URL" }
     require(impression.hasEventTime()) { "Each impression must have an event time" }
     Timestamps.checkValid(impression.eventTime)
     require(
