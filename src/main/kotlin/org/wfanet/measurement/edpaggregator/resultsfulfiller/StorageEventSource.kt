@@ -264,12 +264,16 @@ class StorageEventSource(
           "event-group reference ID"
       )
     }
-    val wholeBlobEntityKeys: Set<LabeledImpression.EntityKey> =
-      entityKeys.filter { it.entityType in resolvedEventGroups.wholeBlobEntityTypes }.toSet()
+    val wholeBlobEntityIdsByType: Map<String, Set<String>> =
+      entityKeys
+        .asSequence()
+        .filter { it.entityType in resolvedEventGroups.wholeBlobEntityTypes }
+        .groupBy({ it.entityType }, { it.entityId })
+        .mapValues { (_, entityIds) -> entityIds.toSet() }
     return EventGroupIdentifier(
       eventGroupReferenceId = eventGroupReferenceId,
       entityKeys = entityKeys,
-      wholeBlobEntityKeys = wholeBlobEntityKeys,
+      wholeBlobEntityIdsByType = wholeBlobEntityIdsByType,
     )
   }
 

@@ -24,14 +24,18 @@ data class EventGroupIdentifier(
   val eventGroupReferenceId: String?,
   /** Entity keys summarized by the blob metadata. */
   val entityKeys: Set<LabeledImpression.EntityKey>,
-  /**
-   * Keys for exhaustive entity types. All keys of one type must match to identify the whole blob.
-   */
-  val wholeBlobEntityKeys: Set<LabeledImpression.EntityKey>,
+  /** IDs for exhaustive entity types. All IDs of one type must match to identify the whole blob. */
+  val wholeBlobEntityIdsByType: Map<String, Set<String>>,
 ) {
   init {
-    require(entityKeys.containsAll(wholeBlobEntityKeys)) {
-      "Whole-blob entity keys must be present in the blob's entity keys"
+    val entityKeyPairs: Set<Pair<String, String>> =
+      entityKeys.map { Pair(it.entityType, it.entityId) }.toSet()
+    require(
+      wholeBlobEntityIdsByType.all { (entityType, entityIds) ->
+        entityIds.isNotEmpty() && entityIds.all { Pair(entityType, it) in entityKeyPairs }
+      }
+    ) {
+      "Whole-blob entity IDs must be non-empty and present in the blob's entity keys"
     }
   }
 }

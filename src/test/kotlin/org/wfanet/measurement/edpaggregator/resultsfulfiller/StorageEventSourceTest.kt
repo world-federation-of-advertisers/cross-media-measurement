@@ -1767,7 +1767,7 @@ class StorageEventSourceTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "ref/123",
             entityKeys = emptySet(),
-            wholeBlobEntityKeys = emptySet(),
+            wholeBlobEntityIdsByType = emptyMap(),
           )
         )
     }
@@ -1856,7 +1856,7 @@ class StorageEventSourceTest {
                 labeledImpressionEntityKey("ad", "A"),
                 labeledImpressionEntityKey("ad", "B"),
               ),
-            wholeBlobEntityKeys = setOf(labeledImpressionEntityKey("campaign", "entity/123")),
+            wholeBlobEntityIdsByType = mapOf("campaign" to setOf("entity/123")),
           ),
           EventGroupIdentifier(
             eventGroupReferenceId = null,
@@ -1865,17 +1865,13 @@ class StorageEventSourceTest {
                 labeledImpressionEntityKey("campaign", "entity/123"),
                 labeledImpressionEntityKey("campaign", "entity/456"),
               ),
-            wholeBlobEntityKeys =
-              setOf(
-                labeledImpressionEntityKey("campaign", "entity/123"),
-                labeledImpressionEntityKey("campaign", "entity/456"),
-              ),
+            wholeBlobEntityIdsByType = mapOf("campaign" to setOf("entity/123", "entity/456")),
           ),
         )
     }
 
   @Test
-  fun `generateEventBatches identifies only configured singleton entity types as whole blob`():
+  fun `generateEventBatches identifies only configured exhaustive entity types as whole blob`():
     Unit = runBlocking {
     val date = LocalDate.of(2025, 1, 1)
     val metadataTmpPath = tmp.newFolder("metadata-unmapped-entity-keys")
@@ -1942,11 +1938,8 @@ class StorageEventSourceTest {
 
     val identifier = eventSource.generateEventBatches().toList().single().eventGroupIdentifier
 
-    assertThat(identifier.wholeBlobEntityKeys)
-      .containsExactly(
-        labeledImpressionEntityKey("campaign", "123"),
-        labeledImpressionEntityKey("placement", "P"),
-      )
+    assertThat(identifier.wholeBlobEntityIdsByType)
+      .containsExactlyEntriesIn(mapOf("campaign" to setOf("123"), "placement" to setOf("P")))
   }
 
   @Test
