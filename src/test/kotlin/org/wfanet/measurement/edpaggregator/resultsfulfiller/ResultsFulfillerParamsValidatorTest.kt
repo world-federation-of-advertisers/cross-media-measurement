@@ -322,6 +322,26 @@ class ResultsFulfillerParamsValidatorTest {
     assertThat(exception).hasMessageThat().contains("entity_type")
   }
 
+  @Test
+  fun `whole blob entity types accepts nonblank values`() {
+    ResultsFulfillerParamsValidator.validate(
+      VALID_PARAMS.copy { wholeBlobEntityTypes += listOf("campaign", "placement") },
+      DATA_PROVIDER,
+    )
+  }
+
+  @Test
+  fun `whole blob entity types rejects blank value`() {
+    val invalidParams = VALID_PARAMS.copy { wholeBlobEntityTypes += listOf("campaign", "   ") }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResultsFulfillerParamsValidator.validate(invalidParams)
+      }
+
+    assertThat(exception).hasMessageThat().contains("whole_blob_entity_types")
+  }
+
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp1"
     private val VALID_PARAMS: ResultsFulfillerParams = resultsFulfillerParams {

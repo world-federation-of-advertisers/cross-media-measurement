@@ -265,6 +265,7 @@ class ResultsFulfillerApp(
         impressionsStorageConfig = impressionsStorageConfig,
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = fulfillerParams.wholeBlobEntityTypesList.toSet(),
         eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
         metrics = metrics,
       )

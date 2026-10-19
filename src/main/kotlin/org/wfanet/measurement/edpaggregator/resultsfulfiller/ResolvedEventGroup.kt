@@ -37,16 +37,25 @@ data class ResolvedEventGroup(
   }
 }
 
-/** Normalized event groups and the entity type that can identify a whole blob. */
+/** Normalized event groups and blob-level entity-key configuration. */
 data class ResolvedEventGroups(
   val eventGroupsByKey: Map<EventGroupKey, ResolvedEventGroup>,
   val mappedEntityType: String?,
+  /** Entity types whose blob metadata IDs are guaranteed to be exhaustive at that entity level. */
+  val wholeBlobEntityTypes: Set<String>,
 ) {
+  init {
+    require(wholeBlobEntityTypes.all { it.isNotBlank() }) {
+      "Whole-blob entity types must not be blank"
+    }
+  }
+
   companion object {
     /** Resolves native and equivalent selectors once for all downstream consumers. */
     fun fromEventGroupMapEntries(
       entries: List<GroupedRequisitions.EventGroupMapEntry>,
       mapping: EventGroupReferenceIdEntityKeyMapping?,
+      wholeBlobEntityTypes: Set<String>,
     ): ResolvedEventGroups {
       val hasEntityKeys: List<Boolean> = entries.map { detailsHasEntityKey(it.details) }
       if (mapping == null && hasEntityKeys.any { it }) {
@@ -64,7 +73,11 @@ data class ResolvedEventGroups(
           key to resolveEventGroup(entry.details, mapping)
         }
       require(eventGroupsByKey.size == entries.size) { "Event-group keys must be unique" }
-      return ResolvedEventGroups(eventGroupsByKey, mapping?.entityType)
+      return ResolvedEventGroups(
+        eventGroupsByKey = eventGroupsByKey,
+        mappedEntityType = mapping?.entityType,
+        wholeBlobEntityTypes = wholeBlobEntityTypes,
+      )
     }
 
     private fun resolveEventGroup(

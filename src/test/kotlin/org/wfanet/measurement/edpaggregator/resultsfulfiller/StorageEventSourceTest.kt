@@ -356,6 +356,7 @@ class StorageEventSourceTest {
   private fun resolveEventGroups(
     eventGroupDetailsList: List<GroupedRequisitions.EventGroupDetails>,
     mapping: EventGroupReferenceIdEntityKeyMapping?,
+    wholeBlobEntityTypes: Set<String>,
   ): ResolvedEventGroups {
     return ResolvedEventGroups.fromEventGroupMapEntries(
       eventGroupDetailsList.mapIndexed { index, details ->
@@ -365,6 +366,7 @@ class StorageEventSourceTest {
         }
       },
       mapping,
+      wholeBlobEntityTypes,
     )
   }
 
@@ -383,7 +385,11 @@ class StorageEventSourceTest {
         StorageEventSource(
           impressionDataSourceProvider = impressionService,
           resolvedEventGroups =
-            resolveEventGroups(eventGroupDetailsList = emptyList(), mapping = null),
+            resolveEventGroups(
+              eventGroupDetailsList = emptyList(),
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
+            ),
           modelLine = modelLine,
           kmsClient = kmsClient,
           impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -414,6 +420,7 @@ class StorageEventSourceTest {
                 )
               ),
             mapping = null,
+            wholeBlobEntityTypes = emptySet(),
           ),
         modelLine = modelLine,
         kmsClient = kmsClient,
@@ -445,6 +452,7 @@ class StorageEventSourceTest {
                 )
               ),
             mapping = null,
+            wholeBlobEntityTypes = emptySet(),
           ),
         modelLine = modelLine,
         kmsClient = kmsClient,
@@ -473,6 +481,7 @@ class StorageEventSourceTest {
                 createEventGroupDetails("corrupt-group", date, date.plusDays(1), ZoneId.of("UTC"))
               ),
             mapping = null,
+            wholeBlobEntityTypes = emptySet(),
           ),
         modelLine = modelLine,
         kmsClient = null,
@@ -531,7 +540,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = eventGroupDetailsList, mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = eventGroupDetailsList,
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -597,7 +610,11 @@ class StorageEventSourceTest {
         StorageEventSource(
           impressionDataSourceProvider = impressionService,
           resolvedEventGroups =
-            resolveEventGroups(eventGroupDetailsList = eventGroupDetailsList, mapping = null),
+            resolveEventGroups(
+              eventGroupDetailsList = eventGroupDetailsList,
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
+            ),
           modelLine = modelLine,
           kmsClient = kmsClient,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -676,7 +693,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = eventGroupDetailsList, mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = eventGroupDetailsList,
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -744,7 +765,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = listOf(eventGroupDetails), mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -813,7 +838,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = eventGroupDetails, mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = eventGroupDetails,
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -875,7 +904,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = listOf(eventGroupDetails), mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -987,7 +1020,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = listOf(eventGroupDetails), mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1018,7 +1055,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = listOf(eventGroupDetails), mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1063,7 +1104,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = listOf(eventGroupDetails), mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1110,7 +1155,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = listOf(eventGroupDetails), mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1152,7 +1201,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = listOf(eventGroupDetails), mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1194,7 +1247,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = listOf(eventGroupDetails), mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1238,7 +1295,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = listOf(eventGroupDetails), mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1302,7 +1363,11 @@ class StorageEventSourceTest {
         StorageEventSource(
           impressionDataSourceProvider = impressionService,
           resolvedEventGroups =
-            resolveEventGroups(eventGroupDetailsList = eventGroupDetailsList, mapping = null),
+            resolveEventGroups(
+              eventGroupDetailsList = eventGroupDetailsList,
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
+            ),
           modelLine = modelLine,
           kmsClient = kmsClient,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1362,7 +1427,11 @@ class StorageEventSourceTest {
         StorageEventSource(
           impressionDataSourceProvider = impressionService,
           resolvedEventGroups =
-            resolveEventGroups(eventGroupDetailsList = eventGroupDetailsList, mapping = null),
+            resolveEventGroups(
+              eventGroupDetailsList = eventGroupDetailsList,
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
+            ),
           modelLine = modelLine,
           kmsClient = kmsClient,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1413,7 +1482,11 @@ class StorageEventSourceTest {
         StorageEventSource(
           impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
           resolvedEventGroups =
-            resolveEventGroups(eventGroupDetailsList = eventGroupDetailsList, mapping = null),
+            resolveEventGroups(
+              eventGroupDetailsList = eventGroupDetailsList,
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
+            ),
           modelLine = modelLine,
           kmsClient = kmsClient,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1474,7 +1547,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = eventGroupDetailsList, mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = eventGroupDetailsList,
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1540,7 +1617,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = eventGroupDetailsList, mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = eventGroupDetailsList,
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1591,7 +1672,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = eventGroupDetailsList, mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = eventGroupDetailsList,
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1618,6 +1703,7 @@ class StorageEventSourceTest {
                 )
               ),
             mapping = null,
+            wholeBlobEntityTypes = emptySet(),
           ),
         modelLine = modelLine,
         kmsClient = null,
@@ -1664,6 +1750,7 @@ class StorageEventSourceTest {
                   createEventGroupDetails("ref/123", date, date.plusDays(1), ZoneId.of("UTC"))
                 ),
               mapping = CAMPAIGN_MAPPING,
+              wholeBlobEntityTypes = emptySet(),
             ),
           modelLine = modelLine,
           kmsClient = null,
@@ -1686,102 +1773,109 @@ class StorageEventSourceTest {
     }
 
   @Test
-  fun `generateEventBatches identifies only a single campaign entity key as the whole blob`():
-    Unit = runBlocking {
-    val date = LocalDate.of(2025, 1, 1)
-    val metadataTmpPath = tmp.newFolder("metadata-mapped-entity-keys")
-    val singleCampaignEntityKeys =
-      listOf(
-        entityKeyGroup {
-          entityType = "campaign"
-          entityIds += "entity/123"
-        },
-        entityKeyGroup {
-          entityType = "ad"
-          entityIds += listOf("A", "B")
-        },
-      )
-    val multipleCampaignEntityKeys =
-      listOf(
-        entityKeyGroup {
-          entityType = "campaign"
-          entityIds += listOf("entity/123", "entity/456")
+  fun `generateEventBatches retains all keys for a configured exhaustive entity type`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val metadataTmpPath = tmp.newFolder("metadata-mapped-entity-keys")
+      val singleCampaignEntityKeys =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "entity/123"
+          },
+          entityKeyGroup {
+            entityType = "ad"
+            entityIds += listOf("A", "B")
+          },
+        )
+      val multipleCampaignEntityKeys =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += listOf("entity/123", "entity/456")
+          }
+        )
+      val sourceIds = listOf("single-campaign", "multiple-campaigns")
+      val metadataList =
+        sourceIds.flatMap {
+          createImpressionMetadataList(listOf(date), it, "meta-bucket", modelLine)
         }
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+      writeMetadataWithEntityKeys(
+        metadataTmpPath,
+        date,
+        sourceIds[0],
+        singleCampaignEntityKeys,
+        directReferenceId = "",
       )
-    val sourceIds = listOf("single-campaign", "multiple-campaigns")
-    val metadataList =
-      sourceIds.flatMap { createImpressionMetadataList(listOf(date), it, "meta-bucket", modelLine) }
-    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
-      .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
-    writeMetadataWithEntityKeys(
-      metadataTmpPath,
-      date,
-      sourceIds[0],
-      singleCampaignEntityKeys,
-      directReferenceId = "",
-    )
-    writeMetadataWithEntityKeys(
-      metadataTmpPath,
-      date,
-      sourceIds[1],
-      multipleCampaignEntityKeys,
-      directReferenceId = "ref/123",
-    )
-    val eventGroupDetails = eventGroupDetails {
-      entityKey =
-        EventGroupDetailsKt.entityKey {
-          entityType = "campaign"
-          entityId = "entity/123"
+      writeMetadataWithEntityKeys(
+        metadataTmpPath,
+        date,
+        sourceIds[1],
+        multipleCampaignEntityKeys,
+        directReferenceId = "ref/123",
+      )
+      val eventGroupDetails = eventGroupDetails {
+        entityKey =
+          EventGroupDetailsKt.entityKey {
+            entityType = "campaign"
+            entityId = "entity/123"
+          }
+        collectionIntervals += interval {
+          startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
         }
-      collectionIntervals += interval {
-        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
-        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
       }
-    }
-    val eventSource =
-      StorageEventSource(
-        impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
-        resolvedEventGroups =
-          resolveEventGroups(
-            eventGroupDetailsList = listOf(eventGroupDetails),
-            mapping = CAMPAIGN_MAPPING,
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+          resolvedEventGroups =
+            resolveEventGroups(
+              eventGroupDetailsList = listOf(eventGroupDetails),
+              mapping = CAMPAIGN_MAPPING,
+              wholeBlobEntityTypes = setOf("campaign"),
+            ),
+          modelLine = modelLine,
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+          eventReaderFactory = { _ -> eventReader(date) },
+        )
+
+      val identifiers = eventSource.generateEventBatches().toList().map { it.eventGroupIdentifier }
+
+      assertThat(identifiers)
+        .containsExactly(
+          EventGroupIdentifier(
+            eventGroupReferenceId = null,
+            entityKeys =
+              setOf(
+                labeledImpressionEntityKey("campaign", "entity/123"),
+                labeledImpressionEntityKey("ad", "A"),
+                labeledImpressionEntityKey("ad", "B"),
+              ),
+            wholeBlobEntityKeys = setOf(labeledImpressionEntityKey("campaign", "entity/123")),
           ),
-        modelLine = modelLine,
-        kmsClient = null,
-        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
-        descriptor = TestEvent.getDescriptor(),
-        batchSize = 1000,
-        eventReaderFactory = { _ -> eventReader(date) },
-      )
-
-    val identifiers = eventSource.generateEventBatches().toList().map { it.eventGroupIdentifier }
-
-    assertThat(identifiers)
-      .containsExactly(
-        EventGroupIdentifier(
-          eventGroupReferenceId = null,
-          entityKeys =
-            setOf(
-              labeledImpressionEntityKey("campaign", "entity/123"),
-              labeledImpressionEntityKey("ad", "A"),
-              labeledImpressionEntityKey("ad", "B"),
-            ),
-          wholeBlobEntityKeys = setOf(labeledImpressionEntityKey("campaign", "entity/123")),
-        ),
-        EventGroupIdentifier(
-          eventGroupReferenceId = null,
-          entityKeys =
-            setOf(
-              labeledImpressionEntityKey("campaign", "entity/123"),
-              labeledImpressionEntityKey("campaign", "entity/456"),
-            ),
-          wholeBlobEntityKeys = emptySet(),
-        ),
-      )
-  }
+          EventGroupIdentifier(
+            eventGroupReferenceId = null,
+            entityKeys =
+              setOf(
+                labeledImpressionEntityKey("campaign", "entity/123"),
+                labeledImpressionEntityKey("campaign", "entity/456"),
+              ),
+            wholeBlobEntityKeys =
+              setOf(
+                labeledImpressionEntityKey("campaign", "entity/123"),
+                labeledImpressionEntityKey("campaign", "entity/456"),
+              ),
+          ),
+        )
+    }
 
   @Test
-  fun `generateEventBatches identifies singleton entity keys as whole blob without mapping`():
+  fun `generateEventBatches identifies only configured singleton entity types as whole blob`():
     Unit = runBlocking {
     val date = LocalDate.of(2025, 1, 1)
     val metadataTmpPath = tmp.newFolder("metadata-unmapped-entity-keys")
@@ -1811,6 +1905,10 @@ class StorageEventSourceTest {
             entityType = "placement"
             entityIds += "P"
           },
+          entityKeyGroup {
+            entityType = "publisher"
+            entityIds += "publisher-1"
+          },
         ),
       directReferenceId = "",
     )
@@ -1829,7 +1927,11 @@ class StorageEventSourceTest {
       StorageEventSource(
         impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
         resolvedEventGroups =
-          resolveEventGroups(eventGroupDetailsList = listOf(eventGroupDetails), mapping = null),
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = setOf("campaign", "placement"),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1892,6 +1994,7 @@ class StorageEventSourceTest {
                   }
                 ),
               mapping = CAMPAIGN_MAPPING,
+              wholeBlobEntityTypes = emptySet(),
             ),
           modelLine = modelLine,
           kmsClient = null,
@@ -1957,6 +2060,7 @@ class StorageEventSourceTest {
                 createEventGroupDetails(refIds.first(), date, date.plusDays(1), ZoneId.of("UTC"))
               ),
             mapping = null,
+            wholeBlobEntityTypes = emptySet(),
           ),
         modelLine = modelLine,
         kmsClient = null,
@@ -2002,6 +2106,7 @@ class StorageEventSourceTest {
                 createEventGroupDetails("retry-group", date, date.plusDays(1), ZoneId.of("UTC"))
               ),
             mapping = null,
+            wholeBlobEntityTypes = emptySet(),
           ),
         modelLine = modelLine,
         kmsClient = null,
@@ -2051,6 +2156,7 @@ class StorageEventSourceTest {
                   )
                 ),
               mapping = null,
+              wholeBlobEntityTypes = emptySet(),
             ),
           modelLine = modelLine,
           kmsClient = null,
@@ -2096,6 +2202,7 @@ class StorageEventSourceTest {
           resolveEventGroups(
             eventGroupDetailsList = listOf(eventGroupDetails),
             mapping = CAMPAIGN_MAPPING,
+            wholeBlobEntityTypes = emptySet(),
           ),
         modelLine = modelLine,
         kmsClient = null,
@@ -2137,6 +2244,7 @@ class StorageEventSourceTest {
                 createEventGroupDetails("ref/456", date, date.plusDays(1), ZoneId.of("UTC")),
               ),
             mapping = CAMPAIGN_MAPPING,
+            wholeBlobEntityTypes = emptySet(),
           ),
         modelLine = modelLine,
         kmsClient = null,

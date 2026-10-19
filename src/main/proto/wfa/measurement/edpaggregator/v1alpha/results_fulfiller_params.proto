@@ -271,4 +271,11 @@ message ResultsFulfillerParams {
   // either event-group reference IDs or entity keys. Presence enables mapping.
   EventGroupReferenceIdEntityKeyMapping
       event_group_reference_id_entity_key_mapping = 13;
+
+  // Entity types whose IDs in blob metadata are guaranteed to exhaustively
+  // describe every event in the blob at that entity level.
+  //
+  // The whole blob matches when a selector contains every ID recorded for any
+  // one of these types. A type can have more than one ID.
+  repeated string whole_blob_entity_types = 14;
 }

@@ -102,6 +102,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  * @param kmsClient KMS client for accessing encrypted resources in storage.
  * @param impressionsStorageConfig Storage configuration for impression/event ingestion.
  * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
+ * @param wholeBlobEntityTypes entity types whose blob metadata IDs are exhaustive at that level.
  * @param responsePageSize
  * @param listMaxAttempts maximum total attempts for each `ListRequisitionMetadata` page before
  *   giving up. Transient gRPC failures (`UNAVAILABLE` / `DEADLINE_EXCEEDED`, e.g. a server-side
@@ -123,6 +124,7 @@ class ResultsFulfiller(
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
+  private val wholeBlobEntityTypes: Set<String>,
   private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? = null,
   private val responsePageSize: Int? = null,
   private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
@@ -235,6 +237,7 @@ class ResultsFulfiller(
       ResolvedEventGroups.fromEventGroupMapEntries(
         groupedRequisitions.eventGroupMapList,
         eventGroupReferenceIdEntityKeyMapping,
+        wholeBlobEntityTypes,
       )
 
     // Filter requisitions that are not in the requisitions metadata storage or have been either

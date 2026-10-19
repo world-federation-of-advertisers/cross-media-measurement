@@ -1444,6 +1444,7 @@ class EventProcessingIntegrationTest {
             )
         },
       mappedEntityType = null,
+      wholeBlobEntityTypes = emptySet(),
     )
   }
 
@@ -1637,7 +1638,12 @@ class EventProcessingIntegrationTest {
         mapEntryWithEntityKey("eventGroups/campaign", "campaign", "entity/campaign", "ignored"),
         mapEntryWithEntityKey("eventGroups/ad", "ad", "ad-1", "ignored"),
       )
-    val resolvedEventGroups = ResolvedEventGroups.fromEventGroupMapEntries(entries, mapping)
+    val resolvedEventGroups =
+      ResolvedEventGroups.fromEventGroupMapEntries(
+        entries,
+        mapping,
+        wholeBlobEntityTypes = setOf("campaign"),
+      )
 
     assertThat(resolvedEventGroups.eventGroupsByKey)
       .containsExactly(
@@ -1661,6 +1667,7 @@ class EventProcessingIntegrationTest {
         ),
       )
     assertThat(resolvedEventGroups.mappedEntityType).isEqualTo("campaign")
+    assertThat(resolvedEventGroups.wholeBlobEntityTypes).containsExactly("campaign")
   }
 
   @Test
@@ -1678,7 +1685,12 @@ class EventProcessingIntegrationTest {
       )
 
     val eventGroupsByKey: Map<EventGroupKey, ResolvedEventGroup> =
-      ResolvedEventGroups.fromEventGroupMapEntries(entries, mapping).eventGroupsByKey
+      ResolvedEventGroups.fromEventGroupMapEntries(
+          entries,
+          mapping,
+          wholeBlobEntityTypes = emptySet(),
+        )
+        .eventGroupsByKey
 
     assertThat(eventGroupsByKey.getValue(eventGroupKey("eventGroups/legacy")))
       .isEqualTo(
@@ -1707,7 +1719,11 @@ class EventProcessingIntegrationTest {
       )
 
     assertFailsWith<IllegalArgumentException> {
-      ResolvedEventGroups.fromEventGroupMapEntries(entries, mapping = null)
+      ResolvedEventGroups.fromEventGroupMapEntries(
+        entries,
+        mapping = null,
+        wholeBlobEntityTypes = emptySet(),
+      )
     }
   }
 
@@ -1721,7 +1737,11 @@ class EventProcessingIntegrationTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        ResolvedEventGroups.fromEventGroupMapEntries(entries, mapping = null)
+        ResolvedEventGroups.fromEventGroupMapEntries(
+          entries,
+          mapping = null,
+          wholeBlobEntityTypes = emptySet(),
+        )
       }
 
     assertThat(exception).hasMessageThat().contains("unique")

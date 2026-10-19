@@ -251,29 +251,25 @@ class StorageEventSource(
     val entityKeys: Set<LabeledImpression.EntityKey> = flattenEntityKeys(blobDetails)
     val directReferenceId: String? = blobDetails.eventGroupReferenceId.takeIf { it.isNotBlank() }
     val mappedEntityType: String? = resolvedEventGroups.mappedEntityType
-    if (mappedEntityType == null) {
-      val wholeBlobEntityKeys: Set<LabeledImpression.EntityKey> =
-        entityKeys.groupBy { it.entityType }.values.mapNotNull { it.singleOrNull() }.toSet()
-      return EventGroupIdentifier(
-        eventGroupReferenceId = directReferenceId,
-        entityKeys = entityKeys,
-        wholeBlobEntityKeys = wholeBlobEntityKeys,
-      )
-    }
-
     val mappedEntityKeys: Set<LabeledImpression.EntityKey> =
-      entityKeys.filter { it.entityType == mappedEntityType }.toSet()
+      if (mappedEntityType == null) {
+        emptySet()
+      } else {
+        entityKeys.filter { it.entityType == mappedEntityType }.toSet()
+      }
     val eventGroupReferenceId: String? = directReferenceId.takeUnless { mappedEntityKeys.size > 1 }
-    if (eventGroupReferenceId == null && entityKeys.isEmpty()) {
+    if (mappedEntityType != null && eventGroupReferenceId == null && entityKeys.isEmpty()) {
       error(
         "BlobDetails for ${blobDetails.blobUri} has neither entity keys nor an " +
           "event-group reference ID"
       )
     }
+    val wholeBlobEntityKeys: Set<LabeledImpression.EntityKey> =
+      entityKeys.filter { it.entityType in resolvedEventGroups.wholeBlobEntityTypes }.toSet()
     return EventGroupIdentifier(
       eventGroupReferenceId = eventGroupReferenceId,
       entityKeys = entityKeys,
-      wholeBlobEntityKeys = mappedEntityKeys.singleOrNull()?.let(::setOf).orEmpty(),
+      wholeBlobEntityKeys = wholeBlobEntityKeys,
     )
   }
 

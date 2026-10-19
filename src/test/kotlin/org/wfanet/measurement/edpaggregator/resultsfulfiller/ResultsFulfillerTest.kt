@@ -490,6 +490,7 @@ class ResultsFulfillerTest {
           kmsClient = null,
           impressionsStorageConfig = StorageConfig(rootDirectory = tmpDir),
           fulfillerSelector = NoOpFulfillerSelector(),
+          wholeBlobEntityTypes = emptySet(),
           metrics = metrics,
         )
 
@@ -621,6 +622,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -679,6 +681,7 @@ class ResultsFulfillerTest {
       kmsClient = null,
       impressionsStorageConfig = StorageConfig(rootDirectory = tmpDir),
       fulfillerSelector = NoOpFulfillerSelector(),
+      wholeBlobEntityTypes = emptySet(),
       metrics = metrics,
       listMaxAttempts = listMaxAttempts,
       listRetryBackoff = listRetryBackoff,
@@ -790,6 +793,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -939,6 +943,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -1064,6 +1069,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -1202,6 +1208,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          wholeBlobEntityTypes = emptySet(),
           metrics = metrics,
         )
 
@@ -1351,6 +1358,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          wholeBlobEntityTypes = emptySet(),
           metrics = metrics,
         )
 
@@ -1488,6 +1496,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          wholeBlobEntityTypes = emptySet(),
           metrics = metrics,
         )
 
@@ -1625,6 +1634,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -1744,6 +1754,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -1856,6 +1867,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -1992,6 +2004,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -2107,6 +2120,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -2220,6 +2234,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
     assertFailsWith<IllegalStateException> { resultsFulfiller.fulfillRequisitions() }
@@ -2340,6 +2355,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          wholeBlobEntityTypes = emptySet(),
           metrics = metrics,
         )
 
@@ -2477,6 +2493,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -2598,6 +2615,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          wholeBlobEntityTypes = emptySet(),
           metrics = metrics,
         )
 
@@ -2710,6 +2728,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          wholeBlobEntityTypes = emptySet(),
           metrics = metrics,
         )
 
@@ -2821,6 +2840,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          wholeBlobEntityTypes = emptySet(),
           metrics = metrics,
         )
 
@@ -2952,6 +2972,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          wholeBlobEntityTypes = emptySet(),
           metrics = metrics,
         )
 
@@ -3083,6 +3104,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = testMetrics,
       )
 
@@ -3282,6 +3304,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -3408,6 +3431,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -3547,6 +3571,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
       .fulfillRequisitions()
@@ -3812,6 +3837,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          wholeBlobEntityTypes = emptySet(),
           metrics = metrics,
         )
 
@@ -3942,6 +3968,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          wholeBlobEntityTypes = emptySet(),
           metrics = metrics,
         )
 
@@ -4052,6 +4079,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
         metrics = metrics,
       )
 
@@ -4237,6 +4265,7 @@ class ResultsFulfillerTest {
             eventGroupReferenceIdPrefix = "ref/",
             entityIdPrefix = "entity/",
           ),
+        wholeBlobEntityTypes = setOf("campaign"),
         metrics = metrics,
       )
 

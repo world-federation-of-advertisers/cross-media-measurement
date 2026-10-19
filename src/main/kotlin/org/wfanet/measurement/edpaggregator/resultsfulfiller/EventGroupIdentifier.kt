@@ -24,7 +24,9 @@ data class EventGroupIdentifier(
   val eventGroupReferenceId: String?,
   /** Entity keys summarized by the blob metadata. */
   val entityKeys: Set<LabeledImpression.EntityKey>,
-  /** Entity keys that each identify the whole blob. Must be a subset of [entityKeys]. */
+  /**
+   * Keys for exhaustive entity types. All keys of one type must match to identify the whole blob.
+   */
   val wholeBlobEntityKeys: Set<LabeledImpression.EntityKey>,
 ) {
   init {

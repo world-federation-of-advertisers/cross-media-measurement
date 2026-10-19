@@ -261,6 +261,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
                 )
             ),
           mappedEntityType = null,
+          wholeBlobEntityTypes = emptySet(),
         ),
       config =
         PipelineConfiguration(

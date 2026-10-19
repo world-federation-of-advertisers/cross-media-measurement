@@ -102,7 +102,13 @@ data class FilterSpec(
       return BatchMatchResult.MatchedAllEvents
     }
 
-    if (identifier.wholeBlobEntityKeys.any { Pair(it.entityType, it.entityId) in entityKeyPairs }) {
+    val wholeBlobEntityKeyGroups: Collection<List<LabeledImpression.EntityKey>> =
+      identifier.wholeBlobEntityKeys.groupBy { it.entityType }.values
+    if (
+      wholeBlobEntityKeyGroups.any { group ->
+        group.all { Pair(it.entityType, it.entityId) in entityKeyPairs }
+      }
+    ) {
       return BatchMatchResult.MatchedAllEvents
     }
 
