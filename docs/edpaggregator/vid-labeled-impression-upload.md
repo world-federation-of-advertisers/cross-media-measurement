@@ -11,6 +11,10 @@ This is the alternative to EDPA-managed VID labeling:
 | EDPA assigns VIDs | Every input record already has a VID |
 | EDPA creates labeled metadata | The publisher creates a `BlobDetails` sidecar |
 
+After the labeled data are registered, both paths use the same measurement
+pipeline. See [How data moves through the EDP Aggregator](data-flow.md) for the
+data-availability, ResultsFulfiller, and TrusTEE stages.
+
 For the recommended Parquet path and the rest of publisher onboarding, return to
 [Onboard a publisher to the EDP Aggregator](README.md).
 
