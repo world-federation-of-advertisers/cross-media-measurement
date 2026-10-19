@@ -253,10 +253,17 @@ then run:
 java -jar VerifyVidLabeledImpressions_deploy.jar \
   --kms-type=GCP \
   --kek-uri='<EDP_KEY_URI>' \
-  --metadata-uri='gs://<BUCKET>/<LABELED_PREFIX>/model-line/<MODEL_LINE_ID>/<YYYY-MM-DD>/metadata.binpb' \
+  --scheme='gs://' \
+  --output-bucket='<BUCKET>' \
+  --base-path='<LABELED_PREFIX>/model-line/<MODEL_LINE_ID>/<YYYY-MM-DD>' \
   --event-message-type-url='type.googleapis.com/<MARKET_EVENT_MESSAGE>' \
   --event-message-descriptor-set='<FILE_DESCRIPTOR_SET>'
 ```
+
+The date-folder scan verifies every nonempty file whose filename contains
+`metadata`, including every sidecar for a split upload. To verify explicitly
+selected sidecars instead, repeat `--metadata-uri='<URI>'` once for each one;
+do not combine `--metadata-uri` with the scan flags.
 
 Run it with an EDP-controlled validation identity that has read access to
 the upload objects and decrypt access to the KEK. Prefer keyless application
