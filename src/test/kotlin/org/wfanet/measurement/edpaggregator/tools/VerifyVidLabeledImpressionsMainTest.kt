@@ -29,6 +29,8 @@ class VerifyVidLabeledImpressionsMainTest {
     CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
   }
 
+  // CommandLineTesting uses this security manager to observe the real main function's exit code.
+  @Suppress("DEPRECATION")
   companion object {
     init {
       System.setSecurityManager(ExitInterceptingSecurityManager)

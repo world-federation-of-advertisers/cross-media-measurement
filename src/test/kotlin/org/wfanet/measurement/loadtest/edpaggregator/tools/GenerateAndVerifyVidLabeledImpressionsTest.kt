@@ -18,6 +18,7 @@ package org.wfanet.measurement.loadtest.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.proto.EncryptedKeyset
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.ByteString
@@ -28,9 +29,14 @@ import com.google.protobuf.TextFormat
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.file.Files
 import java.nio.file.Paths
 import java.util.Base64
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -53,8 +59,11 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.testing.CommandLineTesting
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.tools.VerifyVidLabeledImpressions
+import org.wfanet.measurement.edpaggregator.tools.main as verifyVidLabeledImpressionsMain
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -370,8 +379,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
 
     assertThat(exitCode).isEqualTo(0)
     assertThat(verifyCmd.lastResult!!.errors).isEqualTo(0)
-    assertThat(verifyCmd.lastResult!!.totalBlobsProcessed)
-      .isEqualTo(EXPECTED_DATES.size * 2)
+    assertThat(verifyCmd.lastResult!!.totalBlobsProcessed).isEqualTo(EXPECTED_DATES.size * 2)
   }
 
   @Test
@@ -398,8 +406,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
 
     assertThat(exitCode).isEqualTo(1)
     assertThat(verifyCmd.lastResult!!.errors).isEqualTo(1)
-    assertThat(verifyCmd.lastResult!!.totalBlobsProcessed)
-      .isEqualTo(EXPECTED_DATES.size * 2)
+    assertThat(verifyCmd.lastResult!!.totalBlobsProcessed).isEqualTo(EXPECTED_DATES.size * 2)
   }
 
   @Test
@@ -445,7 +452,8 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
   fun `verify rejects an invalid model line resource name`() {
     runGenerate()
     val originalMetadataFile = firstGeneratedMetadataFile()
-    val invalidMetadataFile = originalMetadataFile.resolveSibling("metadata-invalid-model-line.binpb")
+    val invalidMetadataFile =
+      originalMetadataFile.resolveSibling("metadata-invalid-model-line.binpb")
     invalidMetadataFile.writeBytes(
       BlobDetails.parseFrom(originalMetadataFile.readBytes())
         .copy { modelLine = "not-a-model-line-resource-name" }
@@ -471,10 +479,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
         .toBuilder()
         .setEntityKeys(
           0,
-          originalDetails.entityKeysList[0]
-            .toBuilder()
-            .setEntityType("campaign/type")
-            .build(),
+          originalDetails.entityKeysList[0].toBuilder().setEntityType("campaign/type").build(),
         )
         .build()
         .toByteArray()
@@ -511,6 +516,77 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     assertThat(exitCode).isEqualTo(1)
     assertThat(verifyCmd.lastResult!!.errors).isEqualTo(1)
     assertThat(verifyCmd.lastResult!!.totalImpressions).isEqualTo(0L)
+  }
+
+  @Test
+  fun `verify main rejects raw KMS ciphertext without a Tink envelope`() {
+    runGenerate()
+    val originalMetadataFile = firstGeneratedMetadataFile()
+    val originalDetails = BlobDetails.parseFrom(originalMetadataFile.readBytes())
+    val rawKmsCiphertext =
+      EncryptedKeyset.parseFrom(originalDetails.encryptedDek.ciphertext).encryptedKeyset
+    val invalidEncryptedDek = originalDetails.encryptedDek.copy { ciphertext = rawKmsCiphertext }
+    val invalidMetadataFile =
+      originalMetadataFile.resolveSibling("metadata-raw-kms-ciphertext.binpb")
+    invalidMetadataFile.writeBytes(
+      originalDetails.copy { encryptedDek = invalidEncryptedDek }.toByteArray()
+    )
+
+    val result = runVerifyMetadataMain(invalidMetadataFile)
+
+    CommandLineTesting.assertThat(result.output).status().isEqualTo(1)
+    assertThat(result.logMessages.joinToString("\n"))
+      .contains("parsing and unwrapping the wrapped DEK")
+  }
+
+  @Test
+  fun `verify main rejects delimited protobuf inside a Mesos RecordIO record`() {
+    runGenerate()
+    val metadataFile = firstGeneratedMetadataFile()
+    val details = BlobDetails.parseFrom(metadataFile.readBytes())
+    val blobUri = SelectedStorageClient.parseBlobUri(details.blobUri)
+    val encryptedStorage =
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        SelectedStorageClient(blobUri, tempFolder.root),
+        GenerateSyntheticData.buildFakeKmsClient(KEK_URI, fakeKekKeysetFile()),
+        KEK_URI,
+        details.encryptedDek,
+      )
+    val record = runBlocking { encryptedStorage.getBlob(blobUri.key)!!.read().toList().first() }
+    val delimitedRecord =
+      ByteArrayOutputStream().use { output ->
+        LabeledImpression.parseFrom(record).writeDelimitedTo(output)
+        ByteString.copyFrom(output.toByteArray())
+      }
+    runBlocking { encryptedStorage.writeBlob(blobUri.key, flowOf(delimitedRecord)) }
+
+    val result = runVerifyMetadataMain(metadataFile)
+
+    CommandLineTesting.assertThat(result.output).status().isEqualTo(1)
+    assertThat(result.logMessages.joinToString("\n")).contains("parsing a bare LabeledImpression")
+  }
+
+  @Test
+  fun `verify main rejects ciphertext copied to a different object key`() {
+    runGenerate()
+    val originalMetadataFile = firstGeneratedMetadataFile()
+    val originalDetails = BlobDetails.parseFrom(originalMetadataFile.readBytes())
+    val originalBlobUri = SelectedStorageClient.parseBlobUri(originalDetails.blobUri)
+    val copiedBlobKey = originalBlobUri.key + "-copied"
+    Files.copy(
+      tempFolder.root.toPath().resolve(originalBlobUri.bucket).resolve(originalBlobUri.key),
+      tempFolder.root.toPath().resolve(originalBlobUri.bucket).resolve(copiedBlobKey),
+    )
+    val copiedBlobUri = "file:///${originalBlobUri.bucket}/$copiedBlobKey"
+    val invalidMetadataFile =
+      originalMetadataFile.resolveSibling("metadata-wrong-associated-data.binpb")
+    invalidMetadataFile.writeBytes(originalDetails.copy { blobUri = copiedBlobUri }.toByteArray())
+
+    val result = runVerifyMetadataMain(invalidMetadataFile)
+
+    CommandLineTesting.assertThat(result.output).status().isEqualTo(1)
+    assertThat(result.logMessages.joinToString("\n"))
+      .contains("decrypting the impression blob or decoding Mesos RecordIO")
   }
 
   @Test
@@ -1242,6 +1318,39 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
       .toList()
   }
 
+  private fun runVerifyMetadataMain(metadataFile: File): VerificationMainResult {
+    val logMessages = mutableListOf<String>()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          logMessages += record.message
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = Logger.getLogger(VerifyVidLabeledImpressions::class.java.name)
+    logger.addHandler(handler)
+    val output =
+      try {
+        val metadataUri = "file:///" + metadataFile.relativeTo(tempFolder.root).path
+        CommandLineTesting.capturingOutput(
+          arrayOf(
+            "--kms-type=FAKE",
+            "--kek-uri=$KEK_URI",
+            "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+            "--local-storage-path=${tempFolder.root.path}",
+            "--metadata-uri=$metadataUri",
+          ),
+          ::verifyVidLabeledImpressionsMain,
+        )
+      } finally {
+        logger.removeHandler(handler)
+      }
+    return VerificationMainResult(output, logMessages)
+  }
+
   /**
    * Recursively collects [com.google.protobuf.Descriptors.FileDescriptor] dependencies starting
    * from [root].
@@ -1271,14 +1380,22 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     val outputKey: String = "",
   )
 
+  private data class VerificationMainResult(
+    val output: CommandLineTesting.CapturedOutput,
+    val logMessages: List<String>,
+  )
+
   companion object {
     private val RUNFILES = Runfiles.preload().withSourceRepository("")
 
+    // CommandLineTesting uses this security manager to observe the real main function's exit code.
+    @Suppress("DEPRECATION")
     @BeforeClass
     @JvmStatic
     fun registerTink() {
       AeadConfig.register()
       StreamingAeadConfig.register()
+      System.setSecurityManager(ExitInterceptingSecurityManager)
     }
 
     private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "key1"

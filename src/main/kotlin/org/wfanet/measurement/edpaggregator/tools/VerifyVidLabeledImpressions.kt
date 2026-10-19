@@ -494,8 +494,20 @@ class VerifyVidLabeledImpressions : Callable<Int> {
    */
   data class EntityKey(val entityType: String, val entityId: String)
 
+  private enum class VerificationStage(val description: String) {
+    READING_METADATA("reading the metadata sidecar"),
+    PARSING_METADATA("parsing the BlobDetails sidecar"),
+    VALIDATING_METADATA("validating the BlobDetails sidecar"),
+    OPENING_DATA_ENCRYPTION_KEY("parsing and unwrapping the wrapped DEK"),
+    READING_IMPRESSIONS("decrypting the impression blob or decoding Mesos RecordIO"),
+    PARSING_IMPRESSION("parsing a bare LabeledImpression"),
+    VALIDATING_IMPRESSION("validating a LabeledImpression"),
+    PARSING_EVENT("parsing the event payload"),
+    VALIDATING_BLOB("validating the complete impression blob"),
+  }
+
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(VerifyVidLabeledImpressions::class.java.name)
 
     private val EVENT_MESSAGE_EXTENSION_REGISTRY: ExtensionRegistry =
       ExtensionRegistry.newInstance()
@@ -665,6 +677,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
       val impressionsByEntityKey = mutableMapOf<EntityKey, Long>()
 
       for (metadataUri in metadataUris) {
+        var stage = VerificationStage.READING_METADATA
         try {
           logger.info("\n=== Processing: $metadataUri ===")
 
@@ -683,6 +696,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
               ?: throw IllegalStateException("Metadata not found: ${metadataBlobUri.key}")
           val metadataBytes = metadataBlob.read().flatten()
 
+          stage = VerificationStage.PARSING_METADATA
           val isJson = metadataFileName.lowercase().endsWith(".json")
           val blobDetails: BlobDetails
           val encryptedDek: EncryptedDek
@@ -697,6 +711,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
             encryptedDek = blobDetails.encryptedDek
           }
 
+          stage = VerificationStage.VALIDATING_METADATA
           check(blobDetails.blobUri.isNotEmpty()) { "BlobDetails.blob_uri is empty" }
           check(blobDetails.hasEncryptedDek()) { "BlobDetails.encrypted_dek is missing" }
           check(ModelLineKey.fromName(blobDetails.modelLine) != null) {
@@ -754,6 +769,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
             "Metadata and impression blob must be in the same bucket"
           }
           val impressionsStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
+          stage = VerificationStage.OPENING_DATA_ENCRYPTION_KEY
           val mesosClient =
             EncryptedStorage.buildEncryptedMesosStorageClient(
               impressionsStorageClient,
@@ -765,6 +781,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
           val blobKey = impressionsBlobUri.key
           logger.info("  Decrypting from blob key: $blobKey")
 
+          stage = VerificationStage.READING_IMPRESSIONS
           val impressionsBlob =
             mesosClient.getBlob(blobKey)
               ?: throw IllegalStateException("Impression blob not found: $blobKey")
@@ -773,7 +790,9 @@ class VerifyVidLabeledImpressions : Callable<Int> {
 
           impressionsBlob.read().collect { record ->
             val index = blobImpressionCount
+            stage = VerificationStage.PARSING_IMPRESSION
             val impression = LabeledImpression.parseFrom(record)
+            stage = VerificationStage.VALIDATING_IMPRESSION
             check(impression.vid > 0) { "Invalid VID: ${impression.vid}" }
             check(impression.hasEvent()) { "Missing event in impression $index" }
             check(impression.hasEventTime()) { "Missing event time in impression $index" }
@@ -817,6 +836,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
                 "Event type URL mismatch on impression $index: " +
                   "expected $expectedEventTypeUrl, got ${impression.event.typeUrl}"
               }
+              stage = VerificationStage.PARSING_EVENT
               checkNotNull(eventMessageInstance)
                 .newBuilderForType()
                 .mergeFrom(impression.event.value)
@@ -832,8 +852,10 @@ class VerifyVidLabeledImpressions : Callable<Int> {
               )
             }
             blobImpressionCount++
+            stage = VerificationStage.READING_IMPRESSIONS
           }
           logger.info("  Decrypted $blobImpressionCount impression records")
+          stage = VerificationStage.VALIDATING_BLOB
           check(blobImpressionCount > 0L) { "Impression blob is empty" }
 
           if (expectedEntityKeys.isNotEmpty()) {
@@ -859,7 +881,11 @@ class VerifyVidLabeledImpressions : Callable<Int> {
           throw e
         } catch (e: Exception) {
           errors++
-          logger.log(Level.SEVERE, "  FAIL: $metadataUri - ${e.message}", e)
+          logger.log(
+            Level.SEVERE,
+            "  FAIL: $metadataUri while ${stage.description}: ${e.message}",
+            e,
+          )
         }
       }
 
