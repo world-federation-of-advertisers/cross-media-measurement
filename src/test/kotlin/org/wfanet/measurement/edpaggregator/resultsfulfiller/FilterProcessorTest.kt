@@ -135,15 +135,21 @@ class FilterProcessorTest {
     }
 
   private fun unmappedEntityKeys(entityKeys: List<EntityKeyGroup>): EventGroupIdentifier {
+    val flattenedEntityKeys: Set<LabeledImpression.EntityKey> =
+      entityKeys
+        .flatMap { group ->
+          group.entityIdsList.map { entityId -> makeEntityKey(group.entityType, entityId) }
+        }
+        .toSet()
     return EventGroupIdentifier(
       eventGroupReferenceId = null,
-      entityKeys =
-        entityKeys
-          .flatMap { group ->
-            group.entityIdsList.map { entityId -> makeEntityKey(group.entityType, entityId) }
-          }
+      entityKeys = flattenedEntityKeys,
+      wholeBlobEntityKeys =
+        flattenedEntityKeys
+          .groupBy { it.entityType }
+          .values
+          .mapNotNull { it.singleOrNull() }
           .toSet(),
-      wholeBlobEntityKey = null,
     )
   }
 
@@ -179,7 +185,7 @@ class FilterProcessorTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "test-group",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       val result = filterProcessor.processBatch(batch)
@@ -220,7 +226,7 @@ class FilterProcessorTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "test-group",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       val result = filterProcessor.processBatch(batch)
@@ -270,7 +276,7 @@ class FilterProcessorTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "test-group",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       val result = filterProcessor.processBatch(batch)
@@ -303,7 +309,7 @@ class FilterProcessorTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "test-group",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       val result = filterProcessor.processBatch(batch)
@@ -370,7 +376,7 @@ class FilterProcessorTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "test-group",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       val result = filterProcessor.processBatch(batch)
@@ -422,7 +428,7 @@ class FilterProcessorTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "test-group",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       val result = filterProcessor.processBatch(batch)
@@ -473,7 +479,7 @@ class FilterProcessorTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "test-group",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       val result = filterProcessor.processBatch(batch)
@@ -524,7 +530,7 @@ class FilterProcessorTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "test-group",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       val result = filterProcessor.processBatch(batch)
@@ -576,7 +582,7 @@ class FilterProcessorTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "test-group",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       val result = filterProcessor.processBatch(batch)
@@ -636,7 +642,7 @@ class FilterProcessorTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "test-group",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       val result = filterProcessor.processBatch(batch)
@@ -668,7 +674,7 @@ class FilterProcessorTest {
             EventGroupIdentifier(
               eventGroupReferenceId = "test-group",
               entityKeys = emptySet(),
-              wholeBlobEntityKey = null,
+              wholeBlobEntityKeys = emptySet(),
             ),
           )
         )
@@ -761,7 +767,7 @@ class FilterProcessorTest {
             EventGroupIdentifier(
               eventGroupReferenceId = "some-ref-id",
               entityKeys = emptySet(),
-              wholeBlobEntityKey = null,
+              wholeBlobEntityKeys = emptySet(),
             ),
         )
 
@@ -879,7 +885,7 @@ class FilterProcessorTest {
             EventGroupIdentifier(
               eventGroupReferenceId = "test-group",
               entityKeys = setOf(targetKey, makeEntityKey("ad", "Y")),
-              wholeBlobEntityKey = null,
+              wholeBlobEntityKeys = emptySet(),
             ),
           )
         )
@@ -1046,7 +1052,7 @@ class FilterProcessorTest {
   }
 
   @Test
-  fun `processBatch MatchedAllEvents keeps all events without per-event filtering`() {
+  fun `processBatch keeps all events when all match entity filter`() {
     runBlocking {
       val filterSpec =
         createTestFilterSpec(entityKeys = setOf(makeEntityKey("ad", "X"), makeEntityKey("ad", "Y")))
@@ -1088,7 +1094,7 @@ class FilterProcessorTest {
   }
 
   @Test
-  fun `matchBatch returns MatchedAllEvents when batch keys are subset of filter keys`() {
+  fun `matchBatch returns MatchedAllEvents when singleton entity type matches filter`() {
     val filterSpec =
       FilterSpec(
         celExpression = "",
@@ -1100,6 +1106,27 @@ class FilterProcessorTest {
     val result = filterSpec.matchBatch(unmappedEntityKeys(listOf(makeEntityKeyGroup("ad", "X"))))
 
     assertThat(result).isEqualTo(BatchMatchResult.MatchedAllEvents)
+  }
+
+  @Test
+  fun `matchBatch returns MatchedByEntityKeys when all values of multi-value type match filter`() {
+    val filterSpec =
+      FilterSpec(
+        celExpression = "",
+        collectionInterval = createDefaultInterval(),
+        entityKeys = setOf(makeEntityKey("ad", "X"), makeEntityKey("ad", "Y")),
+        eventGroupReferenceIds = emptySet(),
+      )
+
+    val result =
+      filterSpec.matchBatch(unmappedEntityKeys(listOf(makeEntityKeyGroup("ad", "X", "Y"))))
+
+    assertThat(result)
+      .isEqualTo(
+        BatchMatchResult.MatchedByEntityKeys(
+          entityKeyFilter = setOf(makeEntityKey("ad", "X"), makeEntityKey("ad", "Y"))
+        )
+      )
   }
 
   @Test
@@ -1135,8 +1162,8 @@ class FilterProcessorTest {
           events,
           EventGroupIdentifier(
             eventGroupReferenceId = "ref/123",
-            entityKeys = emptySet(),
-            wholeBlobEntityKey = makeEntityKey("campaign", "entity/123"),
+            entityKeys = setOf(makeEntityKey("campaign", "entity/123")),
+            wholeBlobEntityKeys = setOf(makeEntityKey("campaign", "entity/123")),
           ),
         )
       )
@@ -1166,7 +1193,7 @@ class FilterProcessorTest {
                 makeEntityKey("ad", "A"),
                 makeEntityKey("ad", "B"),
               ),
-            wholeBlobEntityKey = makeEntityKey("campaign", "entity/123"),
+            wholeBlobEntityKeys = setOf(makeEntityKey("campaign", "entity/123")),
           ),
         )
       )
@@ -1202,7 +1229,7 @@ class FilterProcessorTest {
                 makeEntityKey("ad", "A"),
                 makeEntityKey("ad", "B"),
               ),
-            wholeBlobEntityKey = makeEntityKey("campaign", "entity/123"),
+            wholeBlobEntityKeys = setOf(makeEntityKey("campaign", "entity/123")),
           ),
         )
       )
@@ -1238,7 +1265,7 @@ class FilterProcessorTest {
                 makeEntityKey("campaign", "entity/123"),
                 makeEntityKey("campaign", "entity/456"),
               ),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       )
@@ -1259,7 +1286,7 @@ class FilterProcessorTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "direct-reference-id",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           ),
         )
       )

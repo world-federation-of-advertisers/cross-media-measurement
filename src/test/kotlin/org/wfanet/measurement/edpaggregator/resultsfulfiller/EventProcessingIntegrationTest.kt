@@ -1178,7 +1178,7 @@ class EventProcessingIntegrationTest {
                     EventGroupIdentifier(
                       eventGroupReferenceId = eventGroupReferenceId,
                       entityKeys = emptySet(),
-                      wholeBlobEntityKey = null,
+                      wholeBlobEntityKeys = emptySet(),
                     ),
                 )
               )
@@ -1216,7 +1216,7 @@ class EventProcessingIntegrationTest {
                   EventGroupIdentifier(
                     eventGroupReferenceId = eventGroupReferenceId,
                     entityKeys = emptySet(),
-                    wholeBlobEntityKey = null,
+                    wholeBlobEntityKeys = emptySet(),
                   ),
               )
             )
@@ -1892,7 +1892,7 @@ class EventProcessingIntegrationTest {
                 EventGroupIdentifier(
                   eventGroupReferenceId = null,
                   entityKeys = blobEntityKeys.toSet(),
-                  wholeBlobEntityKey = null,
+                  wholeBlobEntityKeys = emptySet(),
                 ),
             )
           )

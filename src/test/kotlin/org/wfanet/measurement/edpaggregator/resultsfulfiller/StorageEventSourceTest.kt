@@ -1680,7 +1680,7 @@ class StorageEventSourceTest {
           EventGroupIdentifier(
             eventGroupReferenceId = "ref/123",
             entityKeys = emptySet(),
-            wholeBlobEntityKey = null,
+            wholeBlobEntityKeys = emptySet(),
           )
         )
     }
@@ -1766,7 +1766,7 @@ class StorageEventSourceTest {
               labeledImpressionEntityKey("ad", "A"),
               labeledImpressionEntityKey("ad", "B"),
             ),
-          wholeBlobEntityKey = labeledImpressionEntityKey("campaign", "entity/123"),
+          wholeBlobEntityKeys = setOf(labeledImpressionEntityKey("campaign", "entity/123")),
         ),
         EventGroupIdentifier(
           eventGroupReferenceId = null,
@@ -1775,8 +1775,75 @@ class StorageEventSourceTest {
               labeledImpressionEntityKey("campaign", "entity/123"),
               labeledImpressionEntityKey("campaign", "entity/456"),
             ),
-          wholeBlobEntityKey = null,
+          wholeBlobEntityKeys = emptySet(),
         ),
+      )
+  }
+
+  @Test
+  fun `generateEventBatches identifies singleton entity keys as whole blob without mapping`():
+    Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val metadataTmpPath = tmp.newFolder("metadata-unmapped-entity-keys")
+    val sourceId = "unmapped-entity-keys"
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata +=
+            createImpressionMetadataList(listOf(date), sourceId, "meta-bucket", modelLine)
+        }
+      )
+    writeMetadataWithEntityKeys(
+      metadataTmpPath,
+      date,
+      sourceId,
+      entityKeys =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "123"
+          },
+          entityKeyGroup {
+            entityType = "ad"
+            entityIds += listOf("A", "B")
+          },
+          entityKeyGroup {
+            entityType = "placement"
+            entityIds += "P"
+          },
+        ),
+      directReferenceId = "",
+    )
+    val eventGroupDetails = eventGroupDetails {
+      entityKey =
+        EventGroupDetailsKt.entityKey {
+          entityType = "campaign"
+          entityId = "123"
+        }
+      collectionIntervals += interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+    }
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+        resolvedEventGroups =
+          resolveEventGroups(eventGroupDetailsList = listOf(eventGroupDetails), mapping = null),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        eventReaderFactory = { _ -> eventReader(date) },
+      )
+
+    val identifier = eventSource.generateEventBatches().toList().single().eventGroupIdentifier
+
+    assertThat(identifier.wholeBlobEntityKeys)
+      .containsExactly(
+        labeledImpressionEntityKey("campaign", "123"),
+        labeledImpressionEntityKey("placement", "P"),
       )
   }
 

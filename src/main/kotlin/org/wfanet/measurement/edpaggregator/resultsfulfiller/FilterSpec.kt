@@ -43,8 +43,7 @@ sealed class BatchMatchResult {
   /**
    * All events in the batch match the filter; no per-event entity-key filtering needed.
    *
-   * Returned when matching a whole-blob selector, or when the batch's entity keys are fully
-   * contained within the filter's entity keys.
+   * Returned when matching a whole-blob selector.
    */
   object MatchedAllEvents : BatchMatchResult()
 
@@ -92,6 +91,10 @@ data class FilterSpec(
    * @throws EmptyEventGroupIdentifierException when [identifier] contains no selector.
    */
   fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
+    if (identifier.eventGroupReferenceId == null && identifier.entityKeys.isEmpty()) {
+      throw EmptyEventGroupIdentifierException()
+    }
+
     if (
       identifier.eventGroupReferenceId != null &&
         identifier.eventGroupReferenceId in eventGroupReferenceIds
@@ -99,20 +102,8 @@ data class FilterSpec(
       return BatchMatchResult.MatchedAllEvents
     }
 
-    val wholeBlobEntityKey: LabeledImpression.EntityKey? = identifier.wholeBlobEntityKey
-    if (
-      wholeBlobEntityKey != null &&
-        Pair(wholeBlobEntityKey.entityType, wholeBlobEntityKey.entityId) in entityKeyPairs
-    ) {
+    if (identifier.wholeBlobEntityKeys.any { Pair(it.entityType, it.entityId) in entityKeyPairs }) {
       return BatchMatchResult.MatchedAllEvents
-    }
-
-    val identifierIsEmpty: Boolean =
-      identifier.eventGroupReferenceId == null &&
-        identifier.entityKeys.isEmpty() &&
-        identifier.wholeBlobEntityKey == null
-    if (identifierIsEmpty) {
-      throw EmptyEventGroupIdentifierException()
     }
 
     if (identifier.entityKeys.isEmpty() || entityKeys.isEmpty()) {
@@ -123,10 +114,6 @@ data class FilterSpec(
     if (entityKeyPairs.none { it in batchKeyPairs }) {
       return BatchMatchResult.NoMatch
     }
-    return if (batchKeyPairs.all { it in entityKeyPairs }) {
-      BatchMatchResult.MatchedAllEvents
-    } else {
-      BatchMatchResult.MatchedByEntityKeys(entityKeyFilter = entityKeys)
-    }
+    return BatchMatchResult.MatchedByEntityKeys(entityKeyFilter = entityKeys)
   }
 }

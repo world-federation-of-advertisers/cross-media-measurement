@@ -38,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -70,41 +71,56 @@ class ImpressionDataSourceProvider(
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
 
-  /** Lists impression metadata matching any of [entityKeys] within [period]. */
-  suspend fun listImpressionMetadataByEntityKeys(
+  /** Lists impression data sources for [eventGroups], batching selectors by interval. */
+  suspend fun listImpressionDataSources(
     modelLine: String,
-    entityKeys: List<EntityKey>,
-    period: Interval,
-  ): List<ImpressionMetadata> {
-    val filter: ListImpressionMetadataRequest.Filter =
-      ListImpressionMetadataRequestKt.filter {
-        this.modelLine = modelLine
-        this.entityKeys += entityKeys
-        intervalOverlaps = period
-      }
-    return getImpressionsMetadata(filter).toList()
-  }
-
-  /** Lists impression metadata matching any of [referenceIds] within [period]. */
-  suspend fun listImpressionMetadataByEventGroupReferenceIds(
-    modelLine: String,
-    referenceIds: List<String>,
-    period: Interval,
-  ): List<ImpressionMetadata> {
-    val filter: ListImpressionMetadataRequest.Filter =
-      ListImpressionMetadataRequestKt.filter {
-        this.modelLine = modelLine
-        eventGroupReferenceIds += referenceIds
-        intervalOverlaps = period
-      }
-    return getImpressionsMetadata(filter).toList()
-  }
-
-  /** Reads data sources for [metadata], deduplicating metadata blob URIs before reading them. */
-  suspend fun readImpressionDataSources(
-    modelLine: String,
-    metadata: Iterable<ImpressionMetadata>,
+    eventGroups: Collection<ResolvedEventGroup>,
   ): List<ImpressionDataSource> {
+    val eventGroupsByInterval: Map<Interval, List<ResolvedEventGroup>> =
+      eventGroups
+        .flatMap { eventGroup ->
+          eventGroup.collectionIntervals.map { interval -> interval to eventGroup }
+        }
+        .groupBy({ it.first }, { it.second })
+    val metadata = mutableListOf<ImpressionMetadata>()
+    for ((interval, intervalEventGroups) in eventGroupsByInterval) {
+      val entityKeys: Set<EntityKey> =
+        intervalEventGroups
+          .mapNotNull { eventGroup ->
+            val labeledEntityKey = eventGroup.entityKey ?: return@mapNotNull null
+            entityKey {
+              entityType = labeledEntityKey.entityType
+              entityId = labeledEntityKey.entityId
+            }
+          }
+          .toSet()
+      if (entityKeys.isNotEmpty()) {
+        metadata +=
+          getImpressionsMetadata(
+              ListImpressionMetadataRequestKt.filter {
+                this.modelLine = modelLine
+                this.entityKeys += entityKeys
+                intervalOverlaps = interval
+              }
+            )
+            .toList()
+      }
+
+      val referenceIds: Set<String> =
+        intervalEventGroups.mapNotNull { it.eventGroupReferenceId }.toSet()
+      if (referenceIds.isNotEmpty()) {
+        metadata +=
+          getImpressionsMetadata(
+              ListImpressionMetadataRequestKt.filter {
+                this.modelLine = modelLine
+                eventGroupReferenceIds += referenceIds
+                intervalOverlaps = interval
+              }
+            )
+            .toList()
+      }
+    }
+
     return metadata
       .distinctBy { it.blobUri }
       .map { metadata ->
@@ -116,6 +132,7 @@ class ImpressionDataSourceProvider(
           blobDetails = blobDetails,
         )
       }
+      .distinctBy { it.blobDetails.blobUri }
   }
 
   /** Queries impression metadata using [filter]. */

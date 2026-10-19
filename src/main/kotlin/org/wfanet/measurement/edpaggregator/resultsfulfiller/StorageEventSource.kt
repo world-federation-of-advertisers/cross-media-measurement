@@ -26,7 +26,6 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Descriptors
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
-import com.google.type.Interval
 import java.io.IOException
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -40,11 +39,8 @@ import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
-import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 
 /** Result of processing a single EventReader. */
 data class EventReaderResult(val batchCount: Int, val eventCount: Int)
@@ -222,67 +218,17 @@ class StorageEventSource(
     }
   }
 
-  /** Collects all impression data sources and deduplicates by blob URI. */
+  /** Collects and caches all impression data sources. */
   private suspend fun getUniqueImpressionDataSources(): List<ImpressionDataSource> {
     cachedImpressionDataSources?.let {
       return it
     }
 
-    val entityKeysByInterval: Map<Interval, Set<EntityKey>> =
-      resolvedEventGroups.eventGroupsByKey.values
-        .flatMap { eventGroup ->
-          val queryEntityKey: EntityKey? =
-            eventGroup.entityKey?.let { resolvedEntityKey ->
-              entityKey {
-                entityType = resolvedEntityKey.entityType
-                entityId = resolvedEntityKey.entityId
-              }
-            }
-          eventGroup.collectionIntervals.flatMap { interval ->
-            listOfNotNull(queryEntityKey).map { interval to it }
-          }
-        }
-        .groupBy({ it.first }, { it.second })
-        .mapValues { (_, entityKeys) -> entityKeys.toSet() }
-    val referenceIdsByInterval: Map<Interval, Set<String>> =
-      resolvedEventGroups.eventGroupsByKey.values
-        .flatMap { eventGroup ->
-          eventGroup.collectionIntervals.flatMap { interval ->
-            listOfNotNull(eventGroup.eventGroupReferenceId).map { interval to it }
-          }
-        }
-        .groupBy({ it.first }, { it.second })
-        .mapValues { (_, referenceIds) -> referenceIds.toSet() }
-    val intervals: Set<Interval> = entityKeysByInterval.keys + referenceIdsByInterval.keys
-    val metadata: List<ImpressionMetadata> =
-      intervals.flatMap { interval ->
-        val entityKeys: Set<EntityKey> = entityKeysByInterval[interval].orEmpty()
-        val referenceIds: Set<String> = referenceIdsByInterval[interval].orEmpty()
-        buildList {
-          if (entityKeys.isNotEmpty()) {
-            addAll(
-              impressionDataSourceProvider.listImpressionMetadataByEntityKeys(
-                modelLine,
-                entityKeys.toList(),
-                interval,
-              )
-            )
-          }
-          if (referenceIds.isNotEmpty()) {
-            addAll(
-              impressionDataSourceProvider.listImpressionMetadataByEventGroupReferenceIds(
-                modelLine,
-                referenceIds.toList(),
-                interval,
-              )
-            )
-          }
-        }
-      }
-    val sources: List<ImpressionDataSource> =
-      impressionDataSourceProvider.readImpressionDataSources(modelLine, metadata)
-
-    val result: List<ImpressionDataSource> = sources.distinctBy { it.blobDetails.blobUri }
+    val result: List<ImpressionDataSource> =
+      impressionDataSourceProvider.listImpressionDataSources(
+        modelLine,
+        resolvedEventGroups.eventGroupsByKey.values,
+      )
     cachedImpressionDataSources = result
     return result
   }
@@ -306,23 +252,18 @@ class StorageEventSource(
     val directReferenceId: String? = blobDetails.eventGroupReferenceId.takeIf { it.isNotBlank() }
     val mappedEntityType: String? = resolvedEventGroups.mappedEntityType
     if (mappedEntityType == null) {
+      val wholeBlobEntityKeys: Set<LabeledImpression.EntityKey> =
+        entityKeys.groupBy { it.entityType }.values.mapNotNull { it.singleOrNull() }.toSet()
       return EventGroupIdentifier(
         eventGroupReferenceId = directReferenceId,
         entityKeys = entityKeys,
-        wholeBlobEntityKey = null,
+        wholeBlobEntityKeys = wholeBlobEntityKeys,
       )
     }
 
     val mappedEntityKeys: Set<LabeledImpression.EntityKey> =
       entityKeys.filter { it.entityType == mappedEntityType }.toSet()
-    val wholeBlobEntityKey: LabeledImpression.EntityKey? = mappedEntityKeys.singleOrNull()
-    val eventGroupReferenceId: String? =
-      when {
-        mappedEntityKeys.size > 1 -> null
-        directReferenceId != null -> directReferenceId
-        else -> null
-      }
-
+    val eventGroupReferenceId: String? = directReferenceId.takeUnless { mappedEntityKeys.size > 1 }
     if (eventGroupReferenceId == null && entityKeys.isEmpty()) {
       error(
         "BlobDetails for ${blobDetails.blobUri} has neither entity keys nor an " +
@@ -332,7 +273,7 @@ class StorageEventSource(
     return EventGroupIdentifier(
       eventGroupReferenceId = eventGroupReferenceId,
       entityKeys = entityKeys,
-      wholeBlobEntityKey = wholeBlobEntityKey,
+      wholeBlobEntityKeys = mappedEntityKeys.singleOrNull()?.let(::setOf).orEmpty(),
     )
   }
 
