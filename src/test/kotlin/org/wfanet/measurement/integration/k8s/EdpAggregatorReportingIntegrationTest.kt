@@ -24,6 +24,7 @@ import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
+import com.google.type.DayOfWeek
 import com.google.type.interval
 import io.grpc.Channel
 import io.grpc.ManagedChannel
@@ -52,9 +53,11 @@ import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
 import okhttp3.tls.decodeCertificatePem
 import org.junit.ClassRule
+import org.junit.FixMethodOrder
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.Description
+import org.junit.runners.MethodSorters
 import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.EdpaReportingIntegrationTestConfig
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
@@ -84,22 +87,36 @@ import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFilterKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
+import org.wfanet.measurement.reporting.v2alpha.EventGroup as ReportingEventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as ReportingEventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
+import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
+import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
+import org.wfanet.measurement.reporting.v2alpha.reportingUnit
+import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
+import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
- * Tests media type and impression qualification filter reporting over the EDP Aggregator, against a
- * deployed environment.
+ * Tests BasicReport reporting over the EDP Aggregator, against a deployed environment.
  *
- * The rules below provision the high overlap synthetic dataset the report is computed over. It is
+ * The rules below provision the high overlap synthetic dataset the reports are computed over. It is
  * pre-labeled and carries its own Population, ModelLine and EventGroups, so none of the VID
  * labeling pipeline or low overlap data set that `EdpAggregatorCorrectnessTest` sets up is needed
  * here. Every rule is a no-op unless `model_line` is set, so an environment opts in only once its
  * ModelLine has been provisioned.
+ *
+ * Test methods run in name order, so they must be named to sort lexicographically in ascending
+ * order of size. A cheaper report then reaches its result before a larger one can exhaust the test
+ * timeout.
  */
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class EdpAggregatorReportingIntegrationTest {
 
   /** Writes the high overlap EventGroup blob and waits for `EventGroupSync` to register them. */
@@ -405,7 +422,7 @@ class EdpAggregatorReportingIntegrationTest {
 
     companion object {
       private val channels = mutableListOf<ManagedChannel>()
-      private val REPORTING_HTTP_TIMEOUT: Duration = Duration.ofSeconds(30)
+      private val REPORTING_HTTP_TIMEOUT: Duration = Duration.ofMinutes(1)
     }
   }
 
@@ -414,20 +431,426 @@ class EdpAggregatorReportingIntegrationTest {
     check(MODEL_LINE.isNotEmpty()) { "model_line must be set to run this test" }
 
     val report =
-      reportingSystem.harness.createMediaTypeAndIqfBasicReport(
-        UUID.randomUUID().toString(),
-        SINGLE_EDP_EVENT_GROUP_REF_IDS,
-        REPORT_EVENT_GROUP_REF_IDS,
-        reportEventGroupEntityTypes,
-        REPORT_START,
-        REPORT_END,
-        K_PLUS_REACH,
+      reportingSystem.harness.createBasicReportOverEventGroups(
+        runId = UUID.randomUUID().toString(),
+        reportTitle = "Media type and impression qualification filter breakdown",
+        campaignGroupDisplayName = CAMPAIGN_GROUP_DISPLAY_NAME,
+        eventGroupReferenceIds = REPORT_EVENT_GROUP_REF_IDS,
+        eventGroupEntityTypes = reportEventGroupEntityTypes,
+        reportStart = REPORT_START,
+        reportEnd = REPORT_END,
+        qualificationFilters = ReportingUserSimulator.mediaTypeQualificationFilters(),
+        buildResultGroupSpecs = ::mediaTypeAndIqfResultGroupSpecs,
       )
 
     assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
     assertReportGroups(report)
     assertMetricsMatchSpecs(report)
   }
+
+  @Test
+  fun `weekly report grouped by demographic across EDPs succeeds`() = runBlocking {
+    check(MODEL_LINE.isNotEmpty()) { "model_line must be set to run this test" }
+
+    val report =
+      reportingSystem.harness.createBasicReportOverEventGroups(
+        runId = UUID.randomUUID().toString(),
+        reportTitle = "Weekly cumulative and non-cumulative metrics by demographic",
+        campaignGroupDisplayName = CAMPAIGN_GROUP_DISPLAY_NAME,
+        eventGroupReferenceIds = WEEKLY_REPORT_EVENT_GROUP_REF_IDS,
+        eventGroupEntityTypes = weeklyReportEventGroupEntityTypes,
+        reportStart = WEEKLY_REPORT_START,
+        reportEnd = WEEKLY_REPORT_END,
+        qualificationFilters =
+          listOf(
+            reportingImpressionQualificationFilter {
+              impressionQualificationFilter =
+                ImpressionQualificationFilterKey(ReportingUserSimulator.AMI_FILTER_ID).toName()
+            }
+          ),
+        buildResultGroupSpecs = ::buildWeeklyResultGroupSpecs,
+      )
+
+    assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertWeeklyShape(report)
+    assertCumulativeReachIsMonotonic(report)
+    assertStackedIncrementalReach(report)
+    assertPopulationSizeMatchesSpec(report)
+    assertWholeIntervalMetricsMatchSpecs(report)
+  }
+
+  /** Component EDPs of the weekly reporting unit, in the order the request lists them. */
+  private lateinit var weeklyComponentEdpNames: List<String>
+
+  /** Expected whole-interval metrics per demographic cell, by impression qualification filter. */
+  private val expectedWholeIntervalMetrics:
+    Map<String, Map<String, HighOverlapExpectedReach.ExpectedMetrics>> by lazy {
+    HighOverlapExpectedReach.computeWholeIntervalRangesByDemographic(
+      PROVISIONED_CONFIG,
+      WEEKLY_REPORT_EVENT_GROUP_REF_IDS,
+      weeklyComponentEdpNames,
+      POPULATION_SPEC,
+      WEEKLY_REPORT_START,
+      WEEKLY_REPORT_END,
+      BASIC_REPORT_METRIC_SPEC_CONFIG,
+      K_PLUS_REACH,
+    )
+  }
+
+  /**
+   * A single result group over every reported DataProvider, weekly, grouped by demographic.
+   *
+   * Only `reach` and `percent_reach` are requested cumulatively; the remaining basic metrics are
+   * not supported for cumulative weekly. `stacked_incremental_reach` is likewise rejected unless
+   * the frequency is total, so it is out of scope here.
+   */
+  private fun buildWeeklyResultGroupSpecs(
+    eventGroups: List<ReportingEventGroup>
+  ): List<ResultGroupSpec> {
+    val dataProviderNames: List<String> =
+      eventGroups.map { it.cmmsDataProvider }.distinct().sorted()
+    require(dataProviderNames.size == EDP_DISPLAY_NAMES.size) {
+      "Expected one DataProvider per EDP in $EDP_DISPLAY_NAMES, got $dataProviderNames"
+    }
+    // Taken from the requested EventGroups rather than the returned report, so the stacked
+    // expectation is anchored on the component order that was asked for.
+    val edpNameByDataProvider: Map<String, String> =
+      eventGroups.associate {
+        it.cmmsDataProvider to EDP_NAME_BY_EVENT_GROUP_REF_ID.getValue(it.eventGroupReferenceId)
+      }
+    weeklyComponentEdpNames = dataProviderNames.map { edpNameByDataProvider.getValue(it) }
+
+    return listOf(
+      resultGroupSpec {
+        title = WEEKLY_GROUP_TITLE
+        reportingUnit = reportingUnit { components += dataProviderNames }
+        metricFrequency = metricFrequencySpec { weekly = WEEKLY_METRIC_FREQUENCY }
+        dimensionSpec = dimensionSpec {
+          grouping =
+            DimensionSpecKt.grouping {
+              eventTemplateFields += GENDER_FIELD_PATH
+              eventTemplateFields += AGE_GROUP_FIELD_PATH
+            }
+        }
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          populationSize = true
+          reportingUnit =
+            ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+              cumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                }
+              nonCumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  kPlusReach = K_PLUS_REACH
+                  impressions = true
+                  averageFrequency = true
+                }
+            }
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+            }
+        }
+      },
+      // Stacked incremental reach is rejected unless the frequency is total, and non-cumulative
+      // metrics are rejected when it is, so it takes a result group of its own.
+      resultGroupSpec {
+        title = TOTAL_GROUP_TITLE
+        reportingUnit = reportingUnit { components += dataProviderNames }
+        metricFrequency = metricFrequencySpec { total = true }
+        dimensionSpec = dimensionSpec {
+          grouping =
+            DimensionSpecKt.grouping {
+              eventTemplateFields += GENDER_FIELD_PATH
+              eventTemplateFields += AGE_GROUP_FIELD_PATH
+            }
+        }
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          populationSize = true
+          reportingUnit =
+            ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+              cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              stackedIncrementalReach = true
+            }
+        }
+      },
+    )
+  }
+
+  /**
+   * One result group for a single DataProvider and one for every DataProvider the reported
+   * EventGroups span, both over the whole reporting interval.
+   */
+  private fun mediaTypeAndIqfResultGroupSpecs(
+    eventGroups: List<ReportingEventGroup>
+  ): List<ResultGroupSpec> {
+    val eventGroupsByReferenceId = eventGroups.associateBy { it.eventGroupReferenceId }
+    val singleEdpDataProviders =
+      SINGLE_EDP_EVENT_GROUP_REF_IDS.map { eventGroupsByReferenceId.getValue(it).cmmsDataProvider }
+        .distinct()
+    require(singleEdpDataProviders.size == 1) {
+      "The single-EDP EventGroups span more than one DataProvider: $singleEdpDataProviders"
+    }
+    val dataProviderNames: List<String> =
+      eventGroups.map { it.cmmsDataProvider }.distinct().sorted()
+    require(dataProviderNames.size >= 2) {
+      "The cross-publisher result group needs at least two DataProviders, got $dataProviderNames"
+    }
+
+    return listOf(
+      resultGroupSpec {
+        title = ReportingUserSimulator.SINGLE_EDP_GROUP_TITLE
+        reportingUnit = reportingUnit { components += singleEdpDataProviders.single() }
+        metricFrequency = metricFrequencySpec { total = true }
+        dimensionSpec = dimensionSpec {}
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          populationSize = true
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              cumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  kPlusReach = K_PLUS_REACH
+                }
+            }
+        }
+      },
+      resultGroupSpec {
+        title = ReportingUserSimulator.CROSS_PUB_GROUP_TITLE
+        reportingUnit = reportingUnit { components += dataProviderNames }
+        metricFrequency = metricFrequencySpec { total = true }
+        dimensionSpec = dimensionSpec {}
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          populationSize = true
+          reportingUnit =
+            ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+              cumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  kPlusReach = K_PLUS_REACH
+                }
+            }
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+            }
+        }
+      },
+    )
+  }
+
+  /**
+   * Checks that the report covers every week of the interval for every series, and that each
+   * period's metrics cohere.
+   *
+   * Non-cumulative reach is only required to be non-negative: the `e7-meta-video` flight ends
+   * inside the interval, so a later week legitimately reaches nobody.
+   */
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4672): Compare weekly metrics
+  // against expectations generated from the synthetic spec.
+  private fun assertWeeklyShape(report: BasicReport) {
+    assertThat(report.resultGroupsList.map { it.title })
+      .containsExactly(WEEKLY_GROUP_TITLE, TOTAL_GROUP_TITLE)
+    val resultGroup = resultGroupOf(report, WEEKLY_GROUP_TITLE)
+
+    // Every result carries both groupings, so that demographicOf identifies it.
+    for (result in resultGroup.resultsList) {
+      val groupings = result.metadata.dimensionSpecSummary.groupingsList
+      assertWithMessage("groupings of ${result.metadata.metricEndTime}")
+        .that(groupings.map { it.path })
+        .containsExactly(GENDER_FIELD_PATH, AGE_GROUP_FIELD_PATH)
+    }
+
+    assertThat(resultGroup.resultsList.map { demographicOf(it) }.toSet())
+      .hasSize(EXPECTED_DEMOGRAPHIC_COUNT)
+
+    for ((series, results) in weeklySeries(resultGroup)) {
+      assertWithMessage("$series periods").that(results).hasSize(WEEKLY_PERIOD_COUNT)
+      assertWithMessage("$series period ends")
+        .that(results.map { it.metadata.metricEndTime.seconds }.toSet())
+        .hasSize(WEEKLY_PERIOD_COUNT)
+
+      val byWeek = results.sortedBy { it.metadata.metricEndTime.seconds }
+      byWeek.forEachIndexed { index, result ->
+        val metricSet = result.metricSet.reportingUnit
+        val week = result.metadata.metricEndTime.seconds
+        if (index < NOISE_DOMINATED_WEEKS) {
+          assertWithMessage("$series week $week cumulative reach")
+            .that(metricSet.cumulative.reach)
+            .isAtLeast(0L)
+        } else {
+          assertWithMessage("$series week $week cumulative reach")
+            .that(metricSet.cumulative.reach)
+            .isGreaterThan(0L)
+        }
+        assertWithMessage("$series week $week non-cumulative reach")
+          .that(metricSet.nonCumulative.reach)
+          .isAtLeast(0L)
+        // The union over every EDP reaches at least as many people as any one of them.
+        for ((component, componentMetricSet) in
+          result.metricSet.componentsList.associate { it.key to it.value }) {
+          assertWithMessage("$series week $week $component vs union")
+            .that(componentMetricSet.nonCumulative.reach)
+            .isAtMost(metricSet.nonCumulative.reach)
+        }
+      }
+    }
+  }
+
+  /** Checks that cumulative reach never decreases as the interval extends. */
+  private fun assertCumulativeReachIsMonotonic(report: BasicReport) {
+    for ((series, results) in weeklySeries(resultGroupOf(report, WEEKLY_GROUP_TITLE))) {
+      val reachByWeek: List<Long> =
+        results
+          .sortedBy { it.metadata.metricEndTime.seconds }
+          .map { it.metricSet.reportingUnit.cumulative.reach }
+      assertWithMessage("$series cumulative reach by week").that(reachByWeek).isInOrder()
+    }
+  }
+
+  /**
+   * The weekly results keyed by the series each one belongs to.
+   *
+   * A result is identified by its grouping and its impression qualification filter together: the
+   * report carries one weekly series per (demographic cell, filter) pair, and the filters are the
+   * ones the Reporting system resolves rather than only those the request names.
+   */
+  private fun weeklySeries(resultGroup: ResultGroup): Map<String, List<ResultGroup.Result>> =
+    resultGroup.resultsList.groupBy { "${demographicOf(it)}/${filterLabel(it)}" }
+
+  /**
+   * Checks each group's population against the whole synthetic population.
+   *
+   * Bounded rather than exact: grouping splits the population, so each group reports only its own
+   * share.
+   */
+  private fun assertPopulationSizeMatchesSpec(report: BasicReport) {
+    for (resultGroup in report.resultGroupsList) {
+      for (result in resultGroup.resultsList) {
+        val populationSize = result.metricSet.populationSize
+        val message =
+          "${resultGroup.title} ${demographicOf(result)}/${filterLabel(result)} population size"
+        assertWithMessage(message).that(populationSize).isGreaterThan(0L)
+        assertWithMessage(message).that(populationSize).isAtMost(expectedPopulationSize)
+      }
+    }
+  }
+
+  /**
+   * Checks the stacked incremental reach of the whole-interval group.
+   *
+   * The components are reported in the order the reporting unit lists them, each contributing the
+   * reach it adds to those before it, so the contributions sum to the union's reach. The sum is
+   * compared within a tolerance because it and the union reach are separately noised measurements.
+   */
+  private fun assertStackedIncrementalReach(report: BasicReport) {
+    val resultGroup = resultGroupOf(report, TOTAL_GROUP_TITLE)
+    for (result in resultGroup.resultsList) {
+      val metricSet = result.metricSet.reportingUnit
+      val contributions: List<Long> = metricSet.stackedIncrementalReachList
+      val message = "${demographicOf(result)}/${filterLabel(result)} stacked incremental reach"
+
+      assertWithMessage(message).that(contributions).hasSize(EDP_DISPLAY_NAMES.size)
+      for (contribution in contributions) {
+        assertWithMessage(message).that(contribution).isAtLeast(0L)
+      }
+
+      val unionReach = metricSet.cumulative.reach
+      assertWithMessage("$message sums to union reach $unionReach")
+        .that(contributions.sum().toDouble())
+        .isWithin(STACKED_REACH_TOLERANCE * unionReach)
+        .of(unionReach.toDouble())
+    }
+  }
+
+  /**
+   * Checks the whole-interval group against the values the synthetic specs imply, per demographic
+   * cell.
+   *
+   * Every metric is compared before anything fails, so one bad cell reads differently from a
+   * systematic shift across all of them.
+   */
+  private fun assertWholeIntervalMetricsMatchSpecs(report: BasicReport) {
+    val resultGroup = resultGroupOf(report, TOTAL_GROUP_TITLE)
+    val expectedByCell = expectedWholeIntervalMetrics
+
+    assertWithMessage("expected demographic cells")
+      .that(expectedByCell)
+      .hasSize(EXPECTED_DEMOGRAPHIC_COUNT)
+
+    // The report carries a result per (demographic cell, filter): every configured impression
+    // qualification filter is reported, not only the one the request named.
+    val actualByKey =
+      resultGroup.resultsList.associateBy { "${demographicOf(it)}/${filterLabel(it)}" }
+    assertWithMessage("whole-interval results are unique per cell and filter")
+      .that(actualByKey)
+      .hasSize(resultGroup.resultsList.size)
+    assertWithMessage("demographic cells")
+      .that(resultGroup.resultsList.map { demographicOf(it) }.toSet())
+      .containsExactlyElementsIn(expectedByCell.keys)
+
+    val comparisons = mutableListOf<MetricComparison>()
+    for ((key, result) in actualByKey) {
+      val expected = expectedByCell.getValue(demographicOf(result)).getValue(filterLabel(result))
+      val metricSet = result.metricSet.reportingUnit
+      val prefix = "$TOTAL_GROUP_TITLE: $key"
+
+      assertWithMessage("$prefix metric frequency")
+        .that(result.metadata.metricFrequency.hasTotal())
+        .isTrue()
+
+      // Declared by the population spec, so the report returns it unnoised.
+      assertWithMessage("$prefix population size")
+        .that(result.metricSet.populationSize)
+        .isEqualTo(expected.populationSize)
+
+      comparisons +=
+        MetricComparison(
+          "$prefix cumulative reach",
+          metricSet.cumulative.reach.toDouble(),
+          expected.reach,
+        )
+
+      assertWithMessage("$prefix stacked incremental reach size")
+        .that(metricSet.stackedIncrementalReachList)
+        .hasSize(expected.stackedIncrementalReach.size)
+      metricSet.stackedIncrementalReachList.forEachIndexed { index, contribution ->
+        comparisons +=
+          MetricComparison(
+            "$prefix stacked incremental reach[$index]",
+            contribution.toDouble(),
+            expected.stackedIncrementalReach[index],
+          )
+      }
+    }
+
+    logger.info(
+      comparisons.joinToString("\n", prefix = "Whole-interval metrics measured against specs:\n")
+    )
+    val outOfRange = comparisons.filter { !it.inRange }
+    assertWithMessage(
+        outOfRange.size.toString() +
+          " of " +
+          comparisons.size +
+          " whole-interval metrics outside the expected range:\n" +
+          comparisons.joinToString("\n")
+      )
+      .that(outOfRange)
+      .isEmpty()
+  }
+
+  private fun resultGroupOf(report: BasicReport, title: String): ResultGroup =
+    report.resultGroupsList.single { it.title == title }
+
+  private fun groupingValue(result: ResultGroup.Result, path: String): String =
+    result.metadata.dimensionSpecSummary.groupingsList.single { it.path == path }.value.enumValue
+
+  /** The demographic cell a result belongs to, as `gender/ageGroup`. */
+  private fun demographicOf(result: ResultGroup.Result): String =
+    "${groupingValue(result, GENDER_FIELD_PATH)}/${groupingValue(result, AGE_GROUP_FIELD_PATH)}"
 
   /**
    * Checks that every line item carries data and that filtered reach is bounded by unfiltered.
@@ -693,6 +1116,72 @@ class EdpAggregatorReportingIntegrationTest {
         "ad_group-high-overlap-meta-video-edpa_meta-1",
       )
 
+    private const val CAMPAIGN_GROUP_DISPLAY_NAME = "High overlap campaign group"
+
+    /** Titles of the weekly report's two result groups. */
+    private const val WEEKLY_GROUP_TITLE = "Weekly by demographic"
+
+    private const val TOTAL_GROUP_TITLE = "Whole interval by demographic"
+
+    /** 2 genders x 3 age groups; the synthetic population declares no other values. */
+    private const val EXPECTED_DEMOGRAPHIC_COUNT = 6
+
+    /**
+     * How far the stacked incremental contributions may sum away from the union reach.
+     *
+     * Each is independently noised, so the identity between them holds only approximately. Matches
+     * the relative tolerance the expected reach ranges use.
+     */
+    private const val STACKED_REACH_TOLERANCE = 0.15
+
+    /** Dimension the weekly report groups on. */
+    private const val GENDER_FIELD_PATH = "common.gender"
+
+    private const val AGE_GROUP_FIELD_PATH = "common.age_group"
+
+    /**
+     * Reporting interval of the weekly report: whole weeks, so no partial period is reported.
+     *
+     * It straddles 2026-05-15, where the `e7-meta-video` segment's flight ends. Non-cumulative
+     * reach therefore falls away over the last weeks while cumulative reach holds, which is what
+     * distinguishes the two.
+     */
+    private val WEEKLY_REPORT_START: LocalDate = LocalDate.of(2026, 4, 15)
+
+    private val WEEKLY_REPORT_END: LocalDate = LocalDate.of(2026, 6, 17)
+
+    private val WEEKLY_METRIC_FREQUENCY: DayOfWeek = DayOfWeek.WEDNESDAY
+
+    private const val WEEKLY_PERIOD_COUNT = 9
+
+    /**
+     * Opening weeks whose cumulative reach is only required to be non-negative.
+     *
+     * Reach noise has a fixed sigma, so the smallest values in a cumulative series carry the
+     * largest relative error and can clamp to zero.
+     */
+    private const val NOISE_DOMINATED_WEEKS = 3
+
+    /**
+     * EventGroups the weekly report covers, spanning every EDP in [EDP_DISPLAY_NAMES].
+     *
+     * `all4` runs the whole dataset, so every EDP contributes to every week. `e7-meta-video` runs
+     * only to 2026-05-15, so non-cumulative reach falls away over the last weeks while cumulative
+     * reach holds.
+     */
+    private val WEEKLY_REPORT_EVENT_GROUP_REF_IDS =
+      setOf(
+        "ad_group-high-overlap-all4-edp7-1",
+        "ad_group-high-overlap-all4-edpa_meta-1",
+        "ad_group-high-overlap-all4-edpa_video_pub-1",
+        "ad_group-high-overlap-all4-edpa_retail_pub-1",
+        "campaign-high-overlap-e7-meta-video-edp7",
+        "campaign-high-overlap-e7-meta-video-edpa_meta",
+        "campaign-high-overlap-e7-meta-video-edpa_video_pub",
+        "creative-id-high-overlap-e7-video-edp7-1",
+        "creative-id-high-overlap-e7-video-edpa_video_pub-1",
+      )
+
     private val SINGLE_EDP_EVENT_GROUP_REF_IDS = setOf("ad_group-high-overlap-e7-meta-edp7")
 
     /**
@@ -735,16 +1224,23 @@ class EdpAggregatorReportingIntegrationTest {
       )
     }
 
-    /** EDPs this environment has provisioned. */
-    private val EDP_NAMES: Set<String> =
-      TEST_CONFIG.edpNames
-        .split(",")
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
-        .toSet()
-        .ifEmpty { setOf("edp7", "edpa_meta") }
+    /** EDPs this test covers: every one the high overlap dataset defines. */
+    private val EDP_DISPLAY_NAMES: Set<String> by lazy {
+      IMPRESSION_TEST_DATA_CONFIG.eventGroupsList.map { it.edpName }.toSet()
+    }
 
-    /** Config restricted to the provisioned EDPs, empty when the dataset is not configured. */
+    /** The EDP each EventGroup is seeded on, by the reference id the report requests it by. */
+    private val EDP_NAME_BY_EVENT_GROUP_REF_ID: Map<String, String> by lazy {
+      IMPRESSION_TEST_DATA_CONFIG.eventGroupsList
+        .flatMap { eventGroup ->
+          eventGroup.entityKeySpecsList.map { entityKeySpec ->
+            "${entityKeySpec.entityType}-${entityKeySpec.entityId}" to eventGroup.edpName
+          }
+        }
+        .toMap()
+    }
+
+    /** Config restricted to [EDP_DISPLAY_NAMES], empty when the dataset is not configured. */
     val PROVISIONED_CONFIG: ImpressionTestDataConfig by lazy {
       if (MODEL_LINE.isEmpty()) {
         ImpressionTestDataConfig.getDefaultInstance()
@@ -752,7 +1248,7 @@ class EdpAggregatorReportingIntegrationTest {
         IMPRESSION_TEST_DATA_CONFIG.toBuilder()
           .clearEventGroups()
           .addAllEventGroups(
-            IMPRESSION_TEST_DATA_CONFIG.eventGroupsList.filter { it.edpName in EDP_NAMES }
+            IMPRESSION_TEST_DATA_CONFIG.eventGroupsList.filter { it.edpName in EDP_DISPLAY_NAMES }
           )
           .build()
       }
@@ -805,12 +1301,19 @@ class EdpAggregatorReportingIntegrationTest {
 
     /** Entity types of the reported EventGroups; CMMS defaults `entity_type_in` to `campaign`. */
     private val reportEventGroupEntityTypes: Set<String> by lazy {
+      entityTypesOf(REPORT_EVENT_GROUP_REF_IDS)
+    }
+
+    private val weeklyReportEventGroupEntityTypes: Set<String> by lazy {
+      entityTypesOf(WEEKLY_REPORT_EVENT_GROUP_REF_IDS)
+    }
+
+    private fun entityTypesOf(eventGroupReferenceIds: Set<String>): Set<String> =
       PROVISIONED_CONFIG.eventGroupsList
         .flatMap { it.entityKeySpecsList }
-        .filter { "${it.entityType}-${it.entityId}" in REPORT_EVENT_GROUP_REF_IDS }
+        .filter { "${it.entityType}-${it.entityId}" in eventGroupReferenceIds }
         .map { it.entityType }
         .toSet()
-    }
 
     private const val BASIC_REPORT_METRIC_SPEC_CONFIG_NAME =
       "basic_report_metric_spec_config.textproto"
