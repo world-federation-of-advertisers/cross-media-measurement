@@ -3,6 +3,10 @@
 Use this guide when the publisher assigns a Virtual Person ID (VID) to every
 impression before uploading it to the EDP Aggregator (EDPA).
 
+> **Impression blobs are never JSON.** They contain binary
+> `LabeledImpression` protobuf messages in Mesos RecordIO framing. Only campaign
+> files and `BlobDetails` metadata sidecars may use JSON.
+
 This is the alternative to EDPA-managed VID labeling:
 
 | EDPA-managed labeling | Publisher-managed labeling |
@@ -30,8 +34,8 @@ Obtain these values from the market operator:
 * the trusted ResultsFulfiller and, if enabled, TrusTEE workload identities.
 
 Set up the publisher-owned KMS key and attestation policy using the
-[General EDP Onboarding Guide](edp-onboarding.md) and, when applicable, the
-[AWS KMS Setup Guide](aws-kms-setup.md).
+[Google Cloud KMS instructions](edp-onboarding.md#22-kms-setup--google-cloud) or
+the [AWS KMS Setup Guide](aws-kms-setup.md).
 
 ## 1. Build the labeled records
 
@@ -40,6 +44,19 @@ The data file contains binary protobuf
 RecordIO. Generate code from
 [labeled_impression.proto](../../src/main/proto/wfa/measurement/edpaggregator/v1alpha/labeled_impression.proto)
 rather than copying the table below as a schema.
+
+Each RecordIO record contains exactly one bare serialized `LabeledImpression`:
+
+```text
+<record byte length as ASCII decimal>\n<exact protobuf bytes>
+```
+
+For example, a 123-byte message starts with the four bytes `123\n`, followed
+immediately by the 123 bytes returned by protobuf `toByteArray()` or its
+equivalent. Do not use protobuf's delimited form, such as Java
+`writeDelimitedTo`: Mesos RecordIO already supplies the length prefix. There is
+no separator after the protobuf bytes; the next record starts with its ASCII
+length.
 
 | Field | Requirement | Meaning |
 | --- | --- | --- |
@@ -63,11 +80,20 @@ while measurements find no matching impressions.
 
 For each daily batch:
 
-1. Generate a fresh data-encryption key (DEK) suitable for Tink Streaming AEAD.
+1. Generate a fresh Tink AEAD keyset to use as the data-encryption key (DEK).
+   The reference writer uses the `AES128_GCM_HKDF_1MB` Streaming AEAD template,
+   which avoids buffering an entire large blob.
 2. Serialize each `LabeledImpression` as binary protobuf and write the records
    using Mesos RecordIO framing. You may split the batch into multiple blobs.
-3. Encrypt each RecordIO stream with the DEK.
+3. Encrypt each complete RecordIO stream with the matching Tink AEAD primitive.
+   Use the blob's exact object key—the path within the bucket—as associated data.
 4. Wrap the serialized DEK with the publisher's KMS key.
+
+The associated data is the object key, not the full `gs://` URI. For example,
+for `gs://example-bucket/publisher/impressions.enc.recordio`, use
+`publisher/impressions.enc.recordio`. `BlobDetails.blob_uri` must resolve to
+that same bucket and object key. Renaming or moving an encrypted blob without
+re-encrypting it changes the associated data and makes decryption fail.
 
 The publisher keeps the KMS key in its own cloud account. The wrapped DEK is
 recorded in every metadata sidecar for a blob protected by that DEK; the
@@ -106,7 +132,7 @@ The nested `EncryptedDek` contains:
 | Field | Meaning |
 | --- | --- |
 | `kek_uri` | URI of the publisher's KMS key |
-| `ciphertext` | Serialized DEK encrypted by `kek_uri` |
+| `ciphertext` | Wrapped DEK representation selected by `type_url` and `protobuf_format` |
 
 Use one of the two supported `type_url` and `protobuf_format` pairs:
 
@@ -115,8 +141,18 @@ Use one of the two supported `type_url` and `protobuf_format` pairs:
 | `type.googleapis.com/google.crypto.tink.Keyset` | `BINARY` |
 | `type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey` | `JSON` |
 
-The format describes the wrapped key representation. The impression records
-themselves are binary `LabeledImpression` protobuf messages.
+For the `Keyset` and `BINARY` combination, `ciphertext` must contain the
+serialized `google.crypto.tink.EncryptedKeyset` produced by
+`TinkProtoKeysetFormat.serializeEncryptedKeyset`. It is **not** the raw
+ciphertext returned by calling KMS encrypt on key bytes.
+
+For the `EncryptionKey` and `JSON` combination, serialize the `EncryptionKey`
+message containing an `AesGcmHkdfStreamingKey` or `AesGcmKey` as protobuf JSON.
+Encrypt those JSON bytes with the KEK AEAD using empty associated data, and put
+that ciphertext in `EncryptedDek.ciphertext`.
+
+These formats describe only the wrapped DEK representation. The impression
+records themselves are always binary `LabeledImpression` protobuf messages.
 
 Serialize `BlobDetails` as binary protobuf or JSON. Its filename must contain
 the case-insensitive substring `metadata` **and** end with the lowercase suffix
@@ -154,9 +190,40 @@ For each date:
 The model-line directory uses the ID at the end of the full `ModelLine`
 resource name. It must agree with `BlobDetails.model_line`.
 
-## 5. Validate the upload
+## 5. Validate before publishing `done`
 
-Confirm all of the following with the operator:
+Validate the encrypted blob and metadata yourself before uploading `done`. The
+repository's `VerifySyntheticData` command also works for non-synthetic,
+publisher-produced labeled impressions. From a repository checkout, run:
+
+```bash
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:VerifySyntheticData \
+  -- \
+  --kms-type=GCP \
+  --kek-uri='<EDP_KEY_URI>' \
+  --metadata-uri='gs://<BUCKET>/<LABELED_PREFIX>/model-line/<MODEL_LINE_ID>/<YYYY-MM-DD>/metadata.binpb' \
+  --event-message-type-url='type.googleapis.com/<MARKET_EVENT_MESSAGE>' \
+  --event-message-descriptor-set='<FILE_DESCRIPTOR_SET>'
+```
+
+Run it with a publisher-controlled validation identity that has read access to
+the upload objects and decrypt access to the KEK. Prefer keyless application
+default credentials, such as service-account impersonation or workload identity,
+over a downloaded service-account key. The publisher's ordinary upload identity
+does not need decrypt access.
+
+The command also supports AWS and GCP-to-AWS KMS. Run the same target with
+`--help` for their required identity, role, and region flags.
+
+A successful run reports `PASS` and the number of decrypted records. It rejects
+non-positive VIDs; missing timestamps or events; unexpected event types;
+unparseable event payloads; and empty entity-key fields. By exercising DEK
+unwrapping, associated-data decryption, RecordIO parsing, and protobuf parsing,
+it also exposes the wire-format failures described above. Do not publish `done`
+until every metadata sidecar passes.
+
+After self-validation, confirm all of the following with the operator:
 
 1. EDPA discovered every metadata sidecar.
 2. The publisher's attested ResultsFulfiller can unwrap the DEK and read the
@@ -172,10 +239,18 @@ Confirm all of the following with the operator:
 | Date is not registered | Path, model-line ID, and lowercase empty `done` object |
 | Metadata is ignored | Filename contains `metadata`, ends in `.binpb` or `.json`, and is non-empty |
 | Metadata parsing fails | Sidecar is `BlobDetails`, not a bare `EncryptedDek` |
-| KMS permission denied | KEK URI, federated identity, and attestation-policy conditions |
-| RecordIO cannot be read | Binary protobuf records, framing, streaming encryption, and wrapped DEK all agree |
+| KMS permission denied before RecordIO parsing | For the `Keyset`/`BINARY` form, `ciphertext` is a serialized Tink `EncryptedKeyset`, not raw KMS ciphertext |
+| Streaming decryption fails | The exact object key used as associated data matches `BlobDetails.blob_uri`; the object was not moved after encryption |
+| RecordIO cannot be read | Each frame is ASCII byte length, newline, then bare protobuf bytes without a protobuf-delimited prefix |
 | Measurement returns zero | Campaign entity key matches at least one key on each relevant impression and in `BlobDetails` |
 
 For campaign registration and TrusTEE key setup, see the
 [General EDP Onboarding Guide](edp-onboarding.md). For a stuck measurement, use
 the [Report Debugging Guide](report-debugging-guide.md).
+
+## For market operators
+
+Market-specific onboarding material should link to this guide for the wire
+format instead of copying it. Keep only market-owned values in the market guide:
+bucket and prefix assignments, KEK and workload identities, event descriptors,
+model lines, entity-key conventions, contacts, and timelines.

@@ -444,8 +444,8 @@ For deeper investigation, use the
 | Guide | Purpose |
 | --- | --- |
 | [Data flow and trust boundaries](data-flow.md) | Follow data from export through VID labeling, TrusTEE, and result delivery |
-| [Upload already VID-labeled impressions](vid-labeled-impression-upload.md) | Upload encrypted RecordIO when the publisher assigns VIDs |
-| [General EDP Onboarding Guide](edp-onboarding.md) | Full KMS, schema, upload, and optional TrusTEE reference |
+| [Upload already VID-labeled impressions](vid-labeled-impression-upload.md) | Canonical RecordIO, encryption, metadata, and validation contract when the publisher assigns VIDs |
+| [General EDP Onboarding Guide](edp-onboarding.md) | KMS, attestation, and optional TrusTEE setup for publisher-managed labeled uploads |
 | [AWS KMS Setup Guide](aws-kms-setup.md) | Configure either supported AWS KMS federation path |
 | [Reference VID impression upload guide](reference-vid-impression-upload-guide.md) | Backfill or correct raw Parquet uploads |
 | [Dashboard EDP Onboarding Guide](dashboard/onboarding-guide.md) | Obtain access to publisher dashboard data |

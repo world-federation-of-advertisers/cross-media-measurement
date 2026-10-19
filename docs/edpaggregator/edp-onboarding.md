@@ -8,6 +8,12 @@ how to format and encrypt data, where to upload it, and the daily operational
 workflow. Onboarding is per-market — repeat it for each market you participate in,
 using that market's configuration.
 
+This guide's upload sections describe the optional publisher-managed VID path.
+For the recommended encrypted-Parquet path, start with
+[Onboard a publisher to the EDP Aggregator](README.md). For the authoritative
+publisher-managed wire format, use
+[Upload already VID-labeled impressions](vid-labeled-impression-upload.md).
+
 For the operator side of the deployment, see the
 [EDP Aggregator Deployment Guide](deployment-guide.md). To use **AWS KMS** instead
 of GCP KMS, follow the [AWS KMS Setup Guide](aws-kms-setup.md) in place of the GCP
@@ -215,8 +221,13 @@ Data exchange happens through a Cloud Storage bucket **owned by the operator**.
 
 ## 3. Data formatting
 
-You upload **Event Groups** (campaign identifiers + metadata) and
-**VID-Labeled Impressions**. Both may be serialized as **Protobuf** or **JSON**.
+You upload two different artifacts:
+
+* **Event Groups** (campaign identifiers and metadata) may use protobuf RecordIO
+  or an `EventGroups` JSON document.
+* **VID-labeled impression blobs** always use binary `LabeledImpression`
+  protobuf messages in encrypted Mesos RecordIO. Their `BlobDetails` metadata
+  sidecars may use binary protobuf or protobuf JSON.
 
 ### 3.1 Schemas (source of truth)
 
@@ -241,51 +252,16 @@ reference, and optional entity keys:
 | `event_time` | `Timestamp` | Required. |
 | `vid` | `int64` | Required — the VID you assigned. |
 | `event` | `Any` | Required — your market's event message (see the market-specific event template). |
-| `event_group_reference_id` | `string` | Required — ties the impression to an event group. |
-| `entity_keys` | `repeated EntityKey` | Optional `{ entity_type, entity_id }` tags (e.g. creative, placement) for downstream filtering. |
+| `entity_keys` | `repeated EntityKey` | Required for new writers — `{ entity_type, entity_id }` values used for selection and filtering. |
+| `event_group_reference_id` | `string` | Legacy campaign reference; new writers use `entity_keys`. |
 
 ### 3.3 Impression format, metadata, and encryption wrapper
 
-**Impression data** is a stream of `LabeledImpression` messages separated by
-**RecordIO**, envelope-encrypted with a **daily DEK**. (Encrypted files conventionally
-carry an extension such as `.enc.recordio`, but the filename is not enforced — the
-pipeline finds the impressions blob through the metadata's `blob_uri`, below.)
-
-**Metadata is a `BlobDetails` message — not a bare `EncryptedDek`.** For each
-impressions blob you write a companion **metadata** file containing a serialized
-`BlobDetails` (`.binpb` or `.json`). The pipeline (DataAvailabilitySync and the
-ResultsFulfiller) parses each metadata file **as `BlobDetails`**; a file that is only
-an `EncryptedDek` will fail to parse. The metadata filename must **contain the
-substring `metadata`** (e.g. `metadata.binpb`, `metadata-<suffix>.binpb`).
-
-`BlobDetails` fields:
-
-| Field | Req. | Notes |
-| --- | --- | --- |
-| `blob_uri` | Required | URI of the **encrypted impressions** blob this metadata describes (may live in a separate directory tree). |
-| `encrypted_dek` | Required | The `EncryptedDek` (see below) — how the pipeline unwraps the daily DEK. |
-| `model_line` | Required | `ModelLine` resource name these impressions belong to. |
-| `interval` | Required | `google.type.Interval` over which the data is available for this model line. |
-| `entity_keys` | Required | `repeated EntityKeyGroup { entity_type, entity_ids[] }` — the entity keys present in the blob. |
-| `event_group_reference_id` | Optional | Legacy; still accepted, but new writers should populate `entity_keys`. At least one of the two must be set. |
-
-The embedded `EncryptedDek`:
-
-| Field | Notes |
-| --- | --- |
-| `kek_uri` | Required — your KEK URI (`gcp-kms://...` or `aws-kms://...`). |
-| `ciphertext` | The DEK ciphertext, encrypted under `kek_uri`. |
-
-The supported `type_url` and `protobuf_format` combinations are:
-
-| `type_url` | `protobuf_format` |
-| --- | --- |
-| `type.googleapis.com/google.crypto.tink.Keyset` | `BINARY` |
-| `type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey` | `JSON` |
-
-For the JSON combination, the DEK is represented by the `EncryptionKey` message
-(an `AesGcmHkdfStreamingKey` for streaming AEAD, or an `AesGcmKey`). Other
-type-and-format combinations are not supported.
+Do not implement the impression wire format from this general guide. Follow
+[Upload already VID-labeled impressions](vid-labeled-impression-upload.md),
+which defines the byte-level Mesos RecordIO framing, bare protobuf record
+contents, Tink DEK wrapper, AEAD object-key associated data, `BlobDetails`
+contract, reference writer, and pre-upload validation command.
 
 ### 3.4 Event Group
 
@@ -354,8 +330,9 @@ gs://{bucket}/edp/{edp-id}/vid-labeled-impressions/model-line/{modelLineId}/{YYY
   date gaps per model line.
 
 The **encrypted impressions blobs** referenced by `BlobDetails.blob_uri` do **not**
-have to live in this folder — they may sit in a separate directory tree; the metadata
-is the sidecar that ties them together.
+have to live in this folder. They may use another directory tree within the same
+operator-provided bucket; cross-bucket references are not currently supported. The
+metadata sidecar ties each blob to the date folder.
 
 Required per date folder:
 
@@ -380,17 +357,13 @@ Required per date folder:
 ### 5.2 Impression upload
 
 1. **Generate** — extract the day's VID-labeled impressions.
-2. **Create DEK** — generate a fresh AES DEK for this daily batch.
-3. **Encrypt data** — encrypt the impression files with the DEK (RecordIO).
-4. **Encrypt DEK** — wrap the DEK with your KEK (Section 2.2 / AWS guide) to produce
-   the `EncryptedDek`.
-5. **Create metadata** — write a `BlobDetails` metadata file (Section 3.3) that
-   embeds the `EncryptedDek` and sets `blob_uri` (→ the encrypted impressions blob),
-   `model_line`, `interval`, and `entity_keys`.
-6. **Upload** — upload the encrypted impressions blob and the `BlobDetails` metadata
-   file to the model-line/date path (Section 4.2).
-7. **Signal completion** — upload the empty `done` file **last** to trigger
-   processing.
+2. **Format and encrypt** — follow
+   [Upload already VID-labeled impressions](vid-labeled-impression-upload.md) for
+   the RecordIO, DEK, associated-data, and `BlobDetails` contracts.
+3. **Upload** — upload every encrypted blob and its `BlobDetails` metadata file.
+4. **Validate** — run that guide's self-validation command against every sidecar.
+5. **Signal completion** — only after validation passes, upload the empty `done`
+   file **last** to trigger processing.
 
 ---
 
