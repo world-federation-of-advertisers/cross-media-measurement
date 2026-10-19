@@ -100,6 +100,7 @@ class LabeledImpressionWriterTest {
         encryptedDek = storedDetails.encryptedDek,
       )
     assertFails { storageWithDifferentAssociatedData.getBlob(copiedBlobUri.key)!!.read().toList() }
+    Unit
   }
 
   @Test
@@ -134,24 +135,24 @@ class LabeledImpressionWriterTest {
   @Test
   fun `write rejects a metadata object in another bucket before creating either object`() =
     runBlocking {
-    val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
-    val metadataUri = "file:///another-bucket/metadata.binpb"
+      val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
+      val metadataUri = "file:///another-bucket/metadata.binpb"
 
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        writer.write(
-          impressions = flowOf(impression(vid = 101L, entityKeys = listOf("ad" to "ad-1"))),
-          blobUri = BLOB_URI,
-          metadataUri = metadataUri,
-          kekUri = KEK_URI,
-          modelLine = MODEL_LINE,
-          interval = INTERVAL,
-        )
-      }
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          writer.write(
+            impressions = flowOf(impression(vid = 101L, entityKeys = listOf("ad" to "ad-1"))),
+            blobUri = BLOB_URI,
+            metadataUri = metadataUri,
+            kekUri = KEK_URI,
+            modelLine = MODEL_LINE,
+            interval = INTERVAL,
+          )
+        }
 
-    assertThat(exception).hasMessageThat().contains("must be in the same bucket")
-    assertThat(getBlob(BLOB_URI)).isNull()
-    assertThat(getBlob(metadataUri)).isNull()
+      assertThat(exception).hasMessageThat().contains("must be in the same bucket")
+      assertThat(getBlob(BLOB_URI)).isNull()
+      assertThat(getBlob(metadataUri)).isNull()
     }
 
   @Test
