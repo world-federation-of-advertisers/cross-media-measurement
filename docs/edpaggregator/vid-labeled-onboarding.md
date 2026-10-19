@@ -85,6 +85,9 @@ An entity key contains:
   `placement`; and
 * `entity_id`: the EDP's URL-safe identifier for that entity.
 
+Here, URL-safe means the unreserved characters `A-Z`, `a-z`, `0-9`, `.`, `_`,
+`~`, and `-`. Do not use spaces, `/`, `%`, or already URL-encoded values.
+
 At least one entity key on each impression must match the `entity_key` of the
 campaign registered with Halo. Otherwise, the file may process successfully
 while measurements find no matching impressions.
@@ -125,6 +128,8 @@ Its
 generates a fresh streaming DEK, applies the correct associated data, writes
 Mesos RecordIO, derives the sidecar's entity-key index from the records, and
 writes the binary `BlobDetails` sidecar only after the encrypted blob succeeds.
+It uses create-only writes, removes objects created by a failed invocation, and
+refuses to overwrite an existing blob or sidecar.
 Use the artifact version that matches the Halo release selected with the
 operator; it is the release tag without the leading `v`. The
 [`LabeledImpressionWriterTest`](../../src/test/kotlin/org/wfanet/measurement/edpaggregator/client/LabeledImpressionWriterTest.kt)
@@ -269,12 +274,12 @@ nonzero. The verifier rejects invalid model-line resource names; missing or
 invalid sidecar intervals; event timestamps outside the sidecar's half-open
 interval; non-positive VIDs; missing timestamps or events; impressions without
 an entity key when the sidecar declares entity keys; empty entity-key fields;
-and a sidecar entity-key index that differs from the records. When the event
-type and descriptor flags shown above are supplied, it also rejects unexpected
-event types and unparseable event payloads. By exercising DEK unwrapping,
-associated-data decryption, RecordIO parsing, and protobuf parsing, it also
-exposes the wire-format failures described above. Do not publish `done` until
-every metadata sidecar passes.
+non-URL-safe entity keys; and a sidecar entity-key index that differs from the
+records. When the event type and descriptor flags shown above are supplied, it
+also rejects unexpected event types and unparseable event payloads. By
+exercising DEK unwrapping, associated-data decryption, RecordIO parsing, and
+protobuf parsing, it also exposes the wire-format failures described above. Do
+not publish `done` until every metadata sidecar passes.
 
 After self-validation, confirm all of the following with the operator:
 
