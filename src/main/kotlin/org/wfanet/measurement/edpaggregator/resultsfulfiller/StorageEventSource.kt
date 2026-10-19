@@ -284,28 +284,29 @@ class StorageEventSource(
 
   private fun eventGroupIdentifier(blobDetails: BlobDetails): EventGroupIdentifier {
     val entityKeyGroups: Set<EntityKeyGroup> = validateAndCanonicalizeEntityKeyGroups(blobDetails)
-    val entityKeys: Set<LabeledImpression.EntityKey> = flattenEntityKeys(entityKeyGroups)
     val directReferenceId: String? = blobDetails.eventGroupReferenceId.takeIf { it.isNotBlank() }
-    val mappedEntityType: String? = resolvedEventGroups.mappedEntityType
-    val mappedEntityKeys: Set<LabeledImpression.EntityKey> =
-      if (mappedEntityType == null) {
-        emptySet()
-      } else {
-        entityKeys.filter { it.entityType == mappedEntityType }.toSet()
+    val mappedEntityGroup: EntityKeyGroup? =
+      resolvedEventGroups.mappedEntityType?.let { mappedEntityType ->
+        entityKeyGroups.singleOrNull { it.entityType == mappedEntityType }
       }
-    val eventGroupReferenceId: String? = directReferenceId.takeUnless { mappedEntityKeys.size > 1 }
-    if (mappedEntityType != null && eventGroupReferenceId == null && entityKeys.isEmpty()) {
+
+    if (
+      resolvedEventGroups.mappedEntityType != null &&
+        directReferenceId == null &&
+        entityKeyGroups.isEmpty()
+    ) {
       error(
         "BlobDetails for ${blobDetails.blobUri} has neither entity keys nor an " +
           "event-group reference ID"
       )
     }
-    val wholeBlobEntityKeyGroups: Set<EntityKeyGroup> =
-      entityKeyGroups.filter { it.entityType in resolvedEventGroups.wholeBlobEntityTypes }.toSet()
+
     return EventGroupIdentifier(
-      eventGroupReferenceId = eventGroupReferenceId,
-      entityKeys = entityKeys,
-      wholeBlobEntityKeyGroups = wholeBlobEntityKeyGroups,
+      eventGroupReferenceId =
+        directReferenceId.takeUnless { (mappedEntityGroup?.entityIdsCount ?: 0) > 1 },
+      entityKeys = flattenEntityKeys(entityKeyGroups),
+      wholeBlobEntityKeyGroups =
+        entityKeyGroups.filter { it.entityType in resolvedEventGroups.wholeBlobEntityTypes }.toSet(),
     )
   }
 
