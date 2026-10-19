@@ -81,6 +81,44 @@ class EventGroupReferenceIdEntityKeyMappingTest {
   }
 
   @Test
+  fun `toEventGroupReferenceId returns null when replacement is blank`() {
+    val emptyPrefixMapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = ENTITY_TYPE,
+        eventGroupReferenceIdPrefix = "",
+        entityIdPrefix = "",
+      )
+    val entityPrefixMapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = ENTITY_TYPE,
+        eventGroupReferenceIdPrefix = "",
+        entityIdPrefix = "entity/",
+      )
+
+    assertThat(emptyPrefixMapping.toEventGroupReferenceId(ENTITY_TYPE, "   ")).isNull()
+    assertThat(entityPrefixMapping.toEventGroupReferenceId(ENTITY_TYPE, "entity/")).isNull()
+  }
+
+  @Test
+  fun `toEntityId returns null when replacement is blank`() {
+    val emptyPrefixMapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = ENTITY_TYPE,
+        eventGroupReferenceIdPrefix = "",
+        entityIdPrefix = "",
+      )
+    val referencePrefixMapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = ENTITY_TYPE,
+        eventGroupReferenceIdPrefix = "ref/",
+        entityIdPrefix = "",
+      )
+
+    assertThat(emptyPrefixMapping.toEntityId("   ")).isNull()
+    assertThat(referencePrefixMapping.toEntityId("ref/")).isNull()
+  }
+
+  @Test
   fun `construction rejects blank entity type`() {
     assertFailsWith<IllegalArgumentException> {
       EventGroupReferenceIdEntityKeyMapping(

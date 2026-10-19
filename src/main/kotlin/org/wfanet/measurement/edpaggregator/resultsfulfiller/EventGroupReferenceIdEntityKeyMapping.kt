@@ -58,6 +58,6 @@ data class EventGroupReferenceIdEntityKeyMapping(
     if (!value.startsWith(sourcePrefix)) {
       return null
     }
-    return targetPrefix + value.removePrefix(sourcePrefix)
+    return (targetPrefix + value.removePrefix(sourcePrefix)).takeIf { it.isNotBlank() }
   }
 }

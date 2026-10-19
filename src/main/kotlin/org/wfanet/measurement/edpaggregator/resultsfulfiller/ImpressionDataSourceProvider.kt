@@ -25,7 +25,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -71,42 +70,43 @@ class ImpressionDataSourceProvider(
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
 
-  /** Lists impression data sources matching any of [entityKeys] within [period]. */
-  suspend fun listImpressionDataSourcesByEntityKeys(
+  /** Lists impression metadata matching any of [entityKeys] within [period]. */
+  suspend fun listImpressionMetadataByEntityKeys(
     modelLine: String,
     entityKeys: List<EntityKey>,
     period: Interval,
-  ): List<ImpressionDataSource> {
+  ): List<ImpressionMetadata> {
     val filter: ListImpressionMetadataRequest.Filter =
       ListImpressionMetadataRequestKt.filter {
         this.modelLine = modelLine
         this.entityKeys += entityKeys
         intervalOverlaps = period
       }
-    return listImpressionDataSources(modelLine, filter)
+    return getImpressionsMetadata(filter).toList()
   }
 
-  /** Lists impression data sources matching any of [referenceIds] within [period]. */
-  suspend fun listImpressionDataSourcesByEventGroupReferenceIds(
+  /** Lists impression metadata matching any of [referenceIds] within [period]. */
+  suspend fun listImpressionMetadataByEventGroupReferenceIds(
     modelLine: String,
     referenceIds: List<String>,
     period: Interval,
-  ): List<ImpressionDataSource> {
+  ): List<ImpressionMetadata> {
     val filter: ListImpressionMetadataRequest.Filter =
       ListImpressionMetadataRequestKt.filter {
         this.modelLine = modelLine
         eventGroupReferenceIds += referenceIds
         intervalOverlaps = period
       }
-    return listImpressionDataSources(modelLine, filter)
+    return getImpressionsMetadata(filter).toList()
   }
 
-  /** Reads the data sources returned by [filter]. */
-  private suspend fun listImpressionDataSources(
+  /** Reads data sources for [metadata], deduplicating metadata blob URIs before reading them. */
+  suspend fun readImpressionDataSources(
     modelLine: String,
-    filter: ListImpressionMetadataRequest.Filter,
+    metadata: Iterable<ImpressionMetadata>,
   ): List<ImpressionDataSource> {
-    return getImpressionsMetadata(filter)
+    return metadata
+      .distinctBy { it.blobUri }
       .map { metadata ->
         logger.info("Processing impression metadata: $metadata")
         val blobDetails = readBlobDetails(metadata.blobUri)
@@ -116,7 +116,6 @@ class ImpressionDataSourceProvider(
           blobDetails = blobDetails,
         )
       }
-      .toList()
   }
 
   /** Queries impression metadata using [filter]. */

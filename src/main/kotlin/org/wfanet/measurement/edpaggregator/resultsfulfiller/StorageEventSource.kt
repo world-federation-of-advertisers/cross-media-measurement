@@ -41,6 +41,7 @@ import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
@@ -253,14 +254,14 @@ class StorageEventSource(
         .groupBy({ it.first }, { it.second })
         .mapValues { (_, referenceIds) -> referenceIds.toSet() }
     val intervals: Set<Interval> = entityKeysByInterval.keys + referenceIdsByInterval.keys
-    val sources: List<ImpressionDataSource> =
+    val metadata: List<ImpressionMetadata> =
       intervals.flatMap { interval ->
         val entityKeys: Set<EntityKey> = entityKeysByInterval[interval].orEmpty()
         val referenceIds: Set<String> = referenceIdsByInterval[interval].orEmpty()
         buildList {
           if (entityKeys.isNotEmpty()) {
             addAll(
-              impressionDataSourceProvider.listImpressionDataSourcesByEntityKeys(
+              impressionDataSourceProvider.listImpressionMetadataByEntityKeys(
                 modelLine,
                 entityKeys.toList(),
                 interval,
@@ -269,7 +270,7 @@ class StorageEventSource(
           }
           if (referenceIds.isNotEmpty()) {
             addAll(
-              impressionDataSourceProvider.listImpressionDataSourcesByEventGroupReferenceIds(
+              impressionDataSourceProvider.listImpressionMetadataByEventGroupReferenceIds(
                 modelLine,
                 referenceIds.toList(),
                 interval,
@@ -278,6 +279,9 @@ class StorageEventSource(
           }
         }
       }
+    val sources: List<ImpressionDataSource> =
+      impressionDataSourceProvider.readImpressionDataSources(modelLine, metadata)
+
     val result: List<ImpressionDataSource> = sources.distinctBy { it.blobDetails.blobUri }
     cachedImpressionDataSources = result
     return result
