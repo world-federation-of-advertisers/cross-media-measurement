@@ -16,6 +16,7 @@
 from dataclasses import asdict
 from dataclasses import dataclass
 import json
+import traceback
 from typing import Any
 from typing import Optional
 from typing import TypeAlias
@@ -141,9 +142,10 @@ class ReportSummaryProcessingResult:
     report_summary_index: int
     result: ReportPostProcessorResult
     constraint_violations: tuple[ConstraintViolation, ...]
-    reporting_set_contexts: tuple[ReportingSetDiagnosticContext, ...] = ()
-    measurement_contexts: tuple[MeasurementDiagnosticContext, ...] = ()
-    internal_error_type: str | None = None
+    reporting_set_contexts: tuple[ReportingSetDiagnosticContext, ...]
+    measurement_contexts: tuple[MeasurementDiagnosticContext, ...]
+    internal_error_type: str | None
+    internal_error_traceback: str | None
 
 
 def _summary_failed(summary_result: ReportSummaryProcessingResult) -> bool:
@@ -177,6 +179,8 @@ def _get_cmms_data_provider_id(edp_name: str) -> str:
 
 
 _MAX_LOGGED_CONSTRAINT_VIOLATIONS = 25
+_MAX_INTERNAL_ERROR_TRACEBACK_FRAMES = 20
+_MAX_INTERNAL_ERROR_TRACEBACK_CHARS = 4000
 
 
 def _issue_codes(result: ReportPostProcessorResult) -> tuple[str, ...]:
@@ -213,6 +217,18 @@ def _issue_codes(result: ReportPostProcessorResult) -> tuple[str, ...]:
     if result.large_corrections:
         issues.append("HAS_LARGE_CORRECTIONS")
     return tuple(issues)
+
+
+def _bounded_traceback(error: BaseException) -> str:
+    """Returns a bounded traceback without local variable values."""
+    rendered = "".join(
+        traceback.TracebackException.from_exception(
+            error,
+            limit=_MAX_INTERNAL_ERROR_TRACEBACK_FRAMES,
+            capture_locals=False,
+        ).format()
+    )
+    return rendered[-_MAX_INTERNAL_ERROR_TRACEBACK_CHARS:]
 
 
 def _log_diagnostic_record(
@@ -286,8 +302,6 @@ def log_noise_correction_diagnostic(
         "xmm.noise_correction.logged_constraint_violation_count=%d "
         "xmm.noise_correction.constraint_violations_truncated=%s "
         "xmm.noise_correction.constraint_attribution=%s "
-        "xmm.noise_correction.primal_equality_residual=%s "
-        "xmm.noise_correction.primal_inequality_residual=%s "
         "xmm.noise_correction.pre_zero_variance_quality=%s "
         "xmm.noise_correction.pre_union_quality=%s "
         "xmm.noise_correction.post_zero_variance_quality=%s "
@@ -311,8 +325,6 @@ def log_noise_correction_diagnostic(
             > _MAX_LOGGED_CONSTRAINT_VIOLATIONS
         ).lower(),
         constraint_attribution,
-        status.primal_equality_residual,
-        status.primal_inequality_residual,
         ReportQuality.ZeroVarianceMeasurementsStatus.Name(
             pre_quality.zero_variance_measurements_status
         ),
@@ -329,26 +341,35 @@ def log_noise_correction_diagnostic(
     if not values_enabled:
         return
 
+    report_context = {
+        "population": report_summary.population,
+        "groupings": [
+            json_format.MessageToDict(
+                grouping, preserving_proto_field_name=True
+            )
+            for grouping in report_summary.groupings
+        ],
+        "event_filters": [
+            json_format.MessageToDict(
+                event_filter, preserving_proto_field_name=True
+            )
+            for event_filter in report_summary.event_filters
+        ],
+        "error_message": result.error_message[:4000],
+        "primal_equality_residual": status.primal_equality_residual,
+        "primal_inequality_residual": status.primal_inequality_residual,
+    }
+    if summary_result.internal_error_traceback is not None:
+        report_context["internal_error_traceback"] = (
+            summary_result.internal_error_traceback[
+                -_MAX_INTERNAL_ERROR_TRACEBACK_CHARS:
+            ]
+        )
     _log_diagnostic_record(
         summary_result,
         "REPORT_CONTEXT",
         0,
-        {
-            "population": report_summary.population,
-            "groupings": [
-                json_format.MessageToDict(
-                    grouping, preserving_proto_field_name=True
-                )
-                for grouping in report_summary.groupings
-            ],
-            "event_filters": [
-                json_format.MessageToDict(
-                    event_filter, preserving_proto_field_name=True
-                )
-                for event_filter in report_summary.event_filters
-            ],
-            "error_message": result.error_message[:4000],
-        },
+        report_context,
     )
     for index, context in enumerate(summary_result.reporting_set_contexts):
         _log_diagnostic_record(
@@ -686,10 +707,9 @@ class PostProcessReportResult:
         configured_edps = set(ami_mrc_exempted_edps or []) | (
             self._potential_direct_thresholding_edps
         )
+        values_enabled = noise_correction_value_logging.is_enabled()
         data_provider_ids_by_reporting_set_id = {}
-        if (
-            configured_edps or noise_correction_value_logging.is_enabled()
-        ):
+        if configured_edps or values_enabled:
             data_provider_ids_by_reporting_set_id = (
                 self._get_data_provider_ids_by_primitive_reporting_set_id(
                     cmms_measurement_consumer_id,
@@ -720,16 +740,19 @@ class PostProcessReportResult:
             logging.info("No report summaries were generated.")
             return
 
-        reporting_set_results_by_id = {
-            result.external_reporting_set_result_id: result
-            for result in reporting_set_results
-        }
+        reporting_set_results_by_id = {}
+        if values_enabled:
+            reporting_set_results_by_id = {
+                result.external_reporting_set_result_id: result
+                for result in reporting_set_results
+            }
 
         # Runs report post processor on each report summary v2.
         all_updated_measurements: dict[str, float] = {}
         summary_results: list[ReportSummaryProcessingResult] = []
         for report_summary_index, report_summary in enumerate(report_summaries):
             internal_error_type = None
+            internal_error_traceback = None
             constraint_violations = ()
             try:
                 summary_processor = ReportSummaryV2Processor(
@@ -751,6 +774,7 @@ class PostProcessReportResult:
                 )
             except Exception as error:
                 internal_error_type = type(error).__name__[:200]
+                internal_error_traceback = _bounded_traceback(error)
                 result = ReportPostProcessorResult(
                     status=ReportPostProcessorStatus(
                         status_code=ReportPostProcessorStatus.INTERNAL_ERROR
@@ -761,7 +785,12 @@ class PostProcessReportResult:
 
             reporting_set_contexts = []
             measurement_contexts = []
-            for set_result in report_summary.report_summary_set_results:
+            diagnostic_set_results = (
+                report_summary.report_summary_set_results
+                if values_enabled
+                else ()
+            )
+            for set_result in diagnostic_set_results:
                 source_result = reporting_set_results_by_id.get(
                     set_result.external_reporting_set_result_id
                 )
@@ -876,6 +905,7 @@ class PostProcessReportResult:
                 reporting_set_contexts=tuple(reporting_set_contexts),
                 measurement_contexts=tuple(measurement_contexts),
                 internal_error_type=internal_error_type,
+                internal_error_traceback=internal_error_traceback,
             )
             summary_results.append(summary_result)
             if not _summary_failed(summary_result):

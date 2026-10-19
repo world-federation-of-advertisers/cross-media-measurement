@@ -134,7 +134,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
         mock_channel = mock.create_autospec(grpc.Channel)
         self.job = post_process_report_result_job.PostProcessReportResultJob(
-            mock_channel
+            mock_channel,
+            log_noise_correction_values=False,
         )
 
     def tearDown(self):
@@ -470,6 +471,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
                 constraint_violations=(violation,),
                 reporting_set_contexts=(context,),
                 measurement_contexts=(measurement_context,),
+                internal_error_type=None,
+                internal_error_traceback=None,
             ),
             post_process_report_result.ReportSummaryProcessingResult(
                 report_summary_index=1,
@@ -477,6 +480,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
                 constraint_violations=(),
                 reporting_set_contexts=(context,),
                 measurement_contexts=(measurement_context,),
+                internal_error_type=None,
+                internal_error_traceback=None,
             ),
         ])
 
@@ -506,7 +511,10 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertIn("summary_failed=false", logs)
         self.assertIn("measurement_values_logging_enabled=false", logs)
         self.assertIn("status=SOLUTION_NOT_FOUND", logs)
-        self.assertIn("primal_equality_residual=3.5", logs)
+        self.assertNotIn("primal_equality_residual", logs)
+        self.assertNotIn("primal_inequality_residual", logs)
+        self.assertNotIn("3.5", logs)
+        self.assertNotIn("4.5", logs)
         self.assertIn(
             "issue_codes=QP_SOLUTION_NOT_FOUND,"
             "ZERO_VARIANCE_MEASUREMENTS_INCONSISTENT_PRE_CORRECTION",
@@ -564,6 +572,11 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertIn("measurement_values_logging_enabled=true", logs)
         self.assertNotIn("pre_correction_report_summary_v2", logs)
         self.assertIn("diagnostic_record_type=REPORT_CONTEXT", logs)
+        self.assertIn('"primal_equality_residual":3.5', logs)
+        self.assertIn(
+            '"primal_inequality_residual":4.5',
+            logs,
+        )
         self.assertIn("diagnostic_record_type=REPORTING_SET_CONTEXT", logs)
         self.assertIn("diagnostic_record_type=MEASUREMENT", logs)
         self.assertIn("diagnostic_record_type=CONSTRAINT_VIOLATION", logs)

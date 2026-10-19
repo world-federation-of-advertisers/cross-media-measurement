@@ -23,6 +23,7 @@ from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import (
     PostProcessReportResult, )
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import compute_basic_metric_set
+from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import log_noise_correction_diagnostic
 from tools.potential_direct_result_minimum_thresholds import (
     PotentialDirectResultMinimumThresholds,
 )
@@ -711,12 +712,13 @@ class PostProcessReportResultTest(unittest.TestCase):
             potential_direct_thresholding_edps=["dataProviders/edp1"],
         )
 
-        with self.assertRaises(NoiseCorrectionFailure) as raised:
-            processor.process(
-                self.cmms_measurement_consumer_id,
-                self.external_report_result_id,
-                [],
-            )
+        with noise_correction_value_logging.measurement_value_logging(True):
+            with self.assertRaises(NoiseCorrectionFailure) as raised:
+                processor.process(
+                    self.cmms_measurement_consumer_id,
+                    self.external_report_result_id,
+                    [],
+                )
 
         contexts = [
             context
@@ -949,6 +951,15 @@ class PostProcessReportResultTest(unittest.TestCase):
             report_post_processor_result_pb2.ReportPostProcessorStatus.INTERNAL_ERROR,
         )
         self.assertEqual(internal_error.internal_error_type, "RuntimeError")
+        self.assertIsNotNone(internal_error.internal_error_traceback)
+        self.assertLessEqual(
+            len(internal_error.internal_error_traceback),
+            4000,
+        )
+        self.assertIn(
+            "RuntimeError: synthetic internal failure",
+            internal_error.internal_error_traceback,
+        )
         self.assertEqual(
             internal_error.result.pre_correction_report_summary_v2,
             first_summary,
@@ -956,6 +967,23 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertEqual(
             raised.exception.summary_results[1].result, successful_result
         )
+        self.assertTrue(
+            all(
+                not summary_result.reporting_set_contexts
+                and not summary_result.measurement_contexts
+                for summary_result in raised.exception.summary_results
+            )
+        )
+
+        with self.assertLogs(level="WARNING") as captured:
+            log_noise_correction_diagnostic(internal_error)
+        self.assertNotIn("synthetic internal failure",
+                         "\n".join(captured.output))
+
+        with noise_correction_value_logging.measurement_value_logging(True):
+            with self.assertLogs(level="WARNING") as captured:
+                log_noise_correction_diagnostic(internal_error)
+        self.assertIn("synthetic internal failure", "\n".join(captured.output))
 
     def test_post_process_report_result_raises_on_large_corrections(self):
         # Loads a real fixture whose noisy values force the solver to apply

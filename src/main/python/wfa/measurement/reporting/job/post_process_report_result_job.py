@@ -194,7 +194,7 @@ class PostProcessReportResultJob:
     def __init__(
         self,
         internal_reporting_channel: grpc.Channel,
-        log_noise_correction_values: bool = False,
+        log_noise_correction_values: bool,
         ami_mrc_exempted_edps: Iterable[str] | None = None,
         potential_direct_result_minimum_thresholds: (
             PotentialDirectResultMinimumThresholds | None
