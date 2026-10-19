@@ -1043,6 +1043,6 @@ resource "google_cloud_run_service_iam_member" "meta_impression_query_invoker" {
 resource "google_service_account_iam_member" "terraform_can_mint_results_fulfiller_tokens" {
   count              = local.deploy_meta_impression_query ? 1 : 0
   service_account_id = module.result_fulfiller_tee_app.mig_service_account.name
-  role               = "roles/iam.serviceAccountTokenCreator"
+  role               = "roles/iam.serviceAccountOpenIdTokenCreator"
   member             = "serviceAccount:${var.terraform_service_account}"
 }
