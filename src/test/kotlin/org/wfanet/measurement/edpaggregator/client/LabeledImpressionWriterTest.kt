@@ -163,6 +163,29 @@ class LabeledImpressionWriterTest {
     }
 
   @Test
+  fun `write rejects an undiscoverable metadata filename before creating either object`() =
+    runBlocking {
+      val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
+      val metadataUri = "file:///operator-bucket/2026-01-15/sidecar.binpb"
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          writer.write(
+            impressions = flowOf(impression(vid = 101L, entityKeys = listOf("ad" to "ad-1"))),
+            blobUri = BLOB_URI,
+            metadataUri = metadataUri,
+            kekUri = KEK_URI,
+            modelLine = MODEL_LINE,
+            interval = INTERVAL,
+          )
+        }
+
+      assertThat(exception).hasMessageThat().contains("filename must contain metadata")
+      assertThat(getBlob(BLOB_URI)).isNull()
+      assertThat(getBlob(metadataUri)).isNull()
+    }
+
+  @Test
   fun `write does not publish metadata when an impression is invalid`() = runBlocking {
     val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
     val invalidImpression =
@@ -184,6 +207,56 @@ class LabeledImpressionWriterTest {
       }
 
     assertThat(exception).hasMessageThat().contains("at least one entity key")
+    assertThat(getBlob(METADATA_URI)).isNull()
+  }
+
+  @Test
+  fun `write does not publish metadata when an event type URL is empty`() = runBlocking {
+    val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
+    val invalidImpression =
+      impression(vid = 101L, entityKeys = listOf("campaign" to "campaign-1"))
+        .toBuilder()
+        .setEvent(Any.getDefaultInstance())
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        writer.write(
+          impressions = flowOf(invalidImpression),
+          blobUri = BLOB_URI,
+          metadataUri = METADATA_URI,
+          kekUri = KEK_URI,
+          modelLine = MODEL_LINE,
+          interval = INTERVAL,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("event must have a type URL")
+    assertThat(getBlob(METADATA_URI)).isNull()
+  }
+
+  @Test
+  fun `write does not publish metadata when an event is outside the interval`() = runBlocking {
+    val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
+    val invalidImpression =
+      impression(vid = 101L, entityKeys = listOf("campaign" to "campaign-1"))
+        .toBuilder()
+        .setEventTime(INTERVAL.endTime)
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        writer.write(
+          impressions = flowOf(invalidImpression),
+          blobUri = BLOB_URI,
+          metadataUri = METADATA_URI,
+          kekUri = KEK_URI,
+          modelLine = MODEL_LINE,
+          interval = INTERVAL,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("event time must be within interval")
     assertThat(getBlob(METADATA_URI)).isNull()
   }
 
