@@ -93,13 +93,15 @@ while measurements find no matching impressions.
 
 For each encrypted blob:
 
-1. Generate a fresh Tink AEAD keyset to use as the data-encryption key (DEK).
+1. Generate a fresh Tink Streaming AEAD keyset to use as the data-encryption
+   key (DEK).
    The reference writer uses the `AES128_GCM_HKDF_1MB` Streaming AEAD template,
    which avoids buffering an entire large blob.
 2. Serialize each `LabeledImpression` as binary protobuf and write the records
    using Mesos RecordIO framing.
-3. Encrypt each complete RecordIO stream with the matching Tink AEAD primitive.
-   Use the blob's exact object key—the path within the bucket—as associated data.
+3. Encrypt each complete RecordIO stream with the matching Tink Streaming AEAD
+   primitive. Use the blob's exact object key—the path within the bucket—as
+   associated data.
 4. Wrap the serialized DEK with the EDP's KMS key.
 
 EDPA uses the exact object key parsed from `BlobDetails.blob_uri` as the
@@ -263,13 +265,16 @@ The command also supports AWS and GCP-to-AWS KMS. Run the same command with
 A successful run exits with status `0` and reports `PASS`, the number of
 decrypted records, and impression counts for each distinct entity key. Legacy
 sidecars also report event-group counts. Any failed blob makes the process exit
-nonzero. The verifier rejects non-positive VIDs; missing timestamps or events;
-empty entity-key fields; and a sidecar entity-key index that differs from the
-records. When the event type and descriptor flags shown above are supplied, it
-also rejects unexpected event types and unparseable event payloads. By
-exercising DEK unwrapping, associated-data decryption, RecordIO parsing, and
-protobuf parsing, it also exposes the wire-format failures described above. Do
-not publish `done` until every metadata sidecar passes.
+nonzero. The verifier rejects invalid model-line resource names; missing or
+invalid sidecar intervals; event timestamps outside the sidecar's half-open
+interval; non-positive VIDs; missing timestamps or events; impressions without
+an entity key when the sidecar declares entity keys; empty entity-key fields;
+and a sidecar entity-key index that differs from the records. When the event
+type and descriptor flags shown above are supplied, it also rejects unexpected
+event types and unparseable event payloads. By exercising DEK unwrapping,
+associated-data decryption, RecordIO parsing, and protobuf parsing, it also
+exposes the wire-format failures described above. Do not publish `done` until
+every metadata sidecar passes.
 
 After self-validation, confirm all of the following with the operator:
 
@@ -285,7 +290,7 @@ After self-validation, confirm all of the following with the operator:
 | Symptom | First check |
 | --- | --- |
 | Date is not registered | Path, model-line ID, and lowercase empty `done` object |
-| Metadata is ignored | Filename contains `metadata`, ends in `.binpb` or `.json`, and is non-empty |
+| Metadata is not registered | Filename contains `metadata`, ends in lowercase `.binpb` or `.json`, and is non-empty |
 | Metadata parsing fails | Sidecar is `BlobDetails`, not a bare `EncryptedDek` |
 | KMS permission denied before RecordIO parsing | For the `Keyset`/`BINARY` form, `ciphertext` is a serialized Tink `EncryptedKeyset`, not raw KMS ciphertext |
 | Streaming decryption fails | The exact object key parsed from `BlobDetails.blob_uri` matches the key used as associated data; re-encrypt after any rename or directory move |

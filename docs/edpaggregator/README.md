@@ -84,9 +84,8 @@ The operator gives the EDP:
   the EDP must allow in its attestation policy;
 * the active model lines;
 * the campaign/entity-key convention;
-* the event message type and fields used by measurement filters; and
+* the event message type and fields used by measurement filters;
 * the operator's target size for each Parquet file or encrypted RecordIO blob;
-  and
 * for the Parquet path, the identity and demographic inputs required by the VID
   model.
 
@@ -506,8 +505,9 @@ Campaign files may use either format:
 * JSON files contain an `EventGroups` wrapper.
 * Binary protobuf files contain Mesos RecordIO-framed `EventGroup` messages.
 
-Filenames must end with lowercase `.json` or `.binpb`; otherwise EDPA ignores
-them. Generate against the authoritative
+Use lowercase `.json` or `.binpb` filename suffixes. Other suffixes are
+unsupported and cause campaign synchronization to fail. Generate against the
+authoritative
 [EventGroup schema](../../src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha/event_group.proto).
 
 Each campaign includes:
