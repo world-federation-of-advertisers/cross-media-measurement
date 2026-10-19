@@ -123,13 +123,18 @@ below it. The target should not exceed the operator-configured
 file is dispatched alone on a best-effort basis and cannot be split across
 labeling jobs.
 
-Approximately **1 GB** is a best-practice starting point when the operator has
-not specified a smaller target; it is not a protocol limit. The operator's
-target always takes precedence. Several moderately sized files also allow more
-parallelism than one very large file.
+Approximately **1 GB** is a useful starting target to discuss with the operator.
+In some deployments, the operator may approve files up to approximately **2
+GB** after confirming the configured limit and worker capacity. These are
+operational targets, not protocol limits; the operator-provided target always
+takes precedence. Several moderately sized files also allow more parallelism
+than one very large file.
 
-Splitting by campaign and date is a useful default because it produces natural
-backfill and correction boundaries.
+Prefer one campaign per file for one UTC date. This produces clear backfill and
+correction boundaries. If one campaign's data exceeds the approved target,
+split that campaign across as many files as needed to stay within it. A campaign
+may therefore span multiple files, but avoid splitting a smaller campaign
+without an operational reason.
 
 ### Plaintext footer
 

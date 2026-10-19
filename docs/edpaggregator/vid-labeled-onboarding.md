@@ -91,13 +91,13 @@ while measurements find no matching impressions.
 
 ## 2. Encrypt the RecordIO file
 
-For each daily batch:
+For each encrypted blob:
 
 1. Generate a fresh Tink AEAD keyset to use as the data-encryption key (DEK).
    The reference writer uses the `AES128_GCM_HKDF_1MB` Streaming AEAD template,
    which avoids buffering an entire large blob.
 2. Serialize each `LabeledImpression` as binary protobuf and write the records
-   using Mesos RecordIO framing. You may split the batch into multiple blobs.
+   using Mesos RecordIO framing.
 3. Encrypt each complete RecordIO stream with the matching Tink AEAD primitive.
    Use the blob's exact object key—the path within the bucket—as associated data.
 4. Wrap the serialized DEK with the EDP's KMS key.
@@ -114,10 +114,33 @@ The EDP keeps the KMS key in its own cloud account. The wrapped DEK is
 recorded in every metadata sidecar for a blob protected by that DEK; the
 plaintext DEK is not uploaded.
 
-The repository's
-[reference writer](../../src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing/ImpressionWriter.kt)
-shows the RecordIO framing, Tink envelope encryption, and metadata construction
-used by EDPA tests.
+For JVM export code, use the Maven artifact published to the repository's
+[GitHub Packages registry](https://github.com/world-federation-of-advertisers/cross-media-measurement/packages)
+for each Halo release:
+`org.wfanet.measurement.edpaggregator:labeled-impression-writer:<HALO_VERSION>`.
+Its
+[`LabeledImpressionWriter`](../../src/main/kotlin/org/wfanet/measurement/edpaggregator/client/LabeledImpressionWriter.kt)
+generates a fresh streaming DEK, applies the correct associated data, writes
+Mesos RecordIO, derives the sidecar's entity-key index from the records, and
+writes the binary `BlobDetails` sidecar only after the encrypted blob succeeds.
+Use the artifact version that matches the Halo release selected with the
+operator. The
+[`LabeledImpressionWriterTest`](../../src/test/kotlin/org/wfanet/measurement/edpaggregator/client/LabeledImpressionWriterTest.kt)
+shows the supported Cloud Storage and local-filesystem APIs.
+
+### Blob size and campaign splitting
+
+Ask the operator for the per-blob target before choosing a shard size. A useful
+starting target to discuss is approximately **1 GB**. In some deployments, the
+operator may approve blobs up to approximately **2 GB** after considering
+ResultsFulfiller worker capacity. These are operational targets, not protocol
+limits; the operator-provided target always takes precedence.
+
+Prefer one campaign per blob for one UTC date. If one campaign's data exceeds
+the approved target, split it across as many blobs as needed to stay within the
+target. A campaign may therefore span multiple blobs, but avoid splitting a
+smaller campaign without an operational reason. Every blob needs its own fresh
+DEK and `BlobDetails` sidecar.
 
 ## 3. Create the metadata sidecar
 
@@ -134,9 +157,10 @@ authoritative schema is
 | `entity_keys` | Required for new writers | Entity IDs present in the data, grouped by entity type |
 | `event_group_reference_id` | Legacy | Accepted for older blobs; new writers use `entity_keys` |
 
-`BlobDetails.entity_keys` is an index of the values present in the data blob.
-Every listed key must occur on at least one impression, and every impression
-must carry at least one of the listed keys.
+`BlobDetails.entity_keys` is the exact set of distinct `(entity_type,
+entity_id)` pairs present in the data blob. Every listed pair must occur on at
+least one impression, every pair on an impression must be listed, and every
+impression must carry at least one entity key.
 
 `BlobDetails.interval` must cover every impression in the blob. For a daily
 batch, use a half-open UTC interval from `YYYY-MM-DDT00:00:00Z` through the next
@@ -205,16 +229,21 @@ For each date:
 The model-line directory uses the ID at the end of the full `ModelLine`
 resource name. It must agree with `BlobDetails.model_line`.
 
+When one campaign is split across multiple blobs, give every blob and sidecar a
+unique name in the same date folder, for example
+`campaign-123-part-000.enc.recordio` with
+`metadata-campaign-123-part-000.binpb`. Upload all parts and sidecars before the
+single `done` object for that date.
+
 ## 5. Validate before publishing `done`
 
-Validate the encrypted blob and metadata yourself before uploading `done`. The
-repository's `VerifySyntheticData` command also works for non-synthetic,
-EDP-produced labeled impressions. From a repository checkout, run:
+Validate the encrypted blob and metadata yourself before uploading `done`.
+Download `VerifyVidLabeledImpressions_deploy.jar` from the project's
+[Halo releases](https://github.com/world-federation-of-advertisers/cross-media-measurement/releases),
+then run:
 
 ```bash
-bazel run \
-  //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:VerifySyntheticData \
-  -- \
+java -jar VerifyVidLabeledImpressions_deploy.jar \
   --kms-type=GCP \
   --kek-uri='<EDP_KEY_URI>' \
   --metadata-uri='gs://<BUCKET>/<LABELED_PREFIX>/model-line/<MODEL_LINE_ID>/<YYYY-MM-DD>/metadata.binpb' \
@@ -228,15 +257,19 @@ default credentials, such as service-account impersonation or workload identity,
 over a downloaded service-account key. The EDP's ordinary upload identity
 does not need decrypt access.
 
-The command also supports AWS and GCP-to-AWS KMS. Run the same target with
+The command also supports AWS and GCP-to-AWS KMS. Run the same command with
 `--help` for their required identity, role, and region flags.
 
-A successful run reports `PASS` and the number of decrypted records. It rejects
-non-positive VIDs; missing timestamps or events; unexpected event types;
-unparseable event payloads; and empty entity-key fields. By exercising DEK
-unwrapping, associated-data decryption, RecordIO parsing, and protobuf parsing,
-it also exposes the wire-format failures described above. Do not publish `done`
-until every metadata sidecar passes.
+A successful run exits with status `0` and reports `PASS`, the number of
+decrypted records, and impression counts for each distinct entity key. Legacy
+sidecars also report event-group counts. Any failed blob makes the process exit
+nonzero. The verifier rejects non-positive VIDs; missing timestamps or events;
+empty entity-key fields; and a sidecar entity-key index that differs from the
+records. When the event type and descriptor flags shown above are supplied, it
+also rejects unexpected event types and unparseable event payloads. By
+exercising DEK unwrapping, associated-data decryption, RecordIO parsing, and
+protobuf parsing, it also exposes the wire-format failures described above. Do
+not publish `done` until every metadata sidecar passes.
 
 After self-validation, confirm all of the following with the operator:
 

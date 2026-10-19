@@ -85,8 +85,10 @@ The operator gives the EDP:
 * the active model lines;
 * the campaign/entity-key convention;
 * the event message type and fields used by measurement filters; and
+* the operator's target size for each Parquet file or encrypted RecordIO blob;
+  and
 * for the Parquet path, the identity and demographic inputs required by the VID
-  model plus the operator's target file size.
+  model.
 
 The EDP gives the operator:
 
