@@ -18,12 +18,14 @@ import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.type.interval
 import java.nio.file.Files
+import java.security.GeneralSecurityException
 import java.time.Instant
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
@@ -109,6 +111,40 @@ class LabeledImpressionWriterTest {
         encryptedDek = storedDetails.encryptedDek,
       )
     assertFails { storageWithDifferentAssociatedData.getBlob(copiedBlobUri.key)!!.read().toList() }
+    Unit
+  }
+
+  @Test
+  fun `write succeeds with an encrypt-only KMS client`() = runBlocking {
+    val decryptCapableKmsClient = buildKmsClient()
+    val writer =
+      LabeledImpressionWriter.forFileSystem(
+        EncryptOnlyKmsClient(decryptCapableKmsClient),
+        temporaryFolder.root,
+      )
+    val impression = impression(vid = 101L, entityKeys = listOf("campaign" to "campaign-1"))
+
+    val details =
+      writer.write(
+        impressions = flowOf(impression),
+        blobUri = BLOB_URI,
+        metadataUri = METADATA_URI,
+        kekUri = KEK_URI,
+        modelLine = MODEL_LINE,
+        interval = INTERVAL,
+      )
+
+    val blobUri = SelectedStorageClient.parseBlobUri(BLOB_URI)
+    val encryptedStorage =
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        storageClient = SelectedStorageClient(blobUri, temporaryFolder.root),
+        kmsClient = decryptCapableKmsClient,
+        kekUri = KEK_URI,
+        encryptedDek = details.encryptedDek,
+      )
+    val storedImpressions =
+      encryptedStorage.getBlob(blobUri.key)!!.read().toList().map(LabeledImpression::parseFrom)
+    assertThat(storedImpressions).containsExactly(impression)
     Unit
   }
 
@@ -427,6 +463,26 @@ class LabeledImpressionWriterTest {
       keysetHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java),
     )
     return kmsClient
+  }
+
+  private class EncryptOnlyKmsClient(private val delegate: KmsClient) : KmsClient {
+    override fun doesSupport(keyUri: String?): Boolean = delegate.doesSupport(keyUri)
+
+    override fun withCredentials(credentialPath: String?): KmsClient = this
+
+    override fun withDefaultCredentials(): KmsClient = this
+
+    override fun getAead(keyUri: String?): Aead {
+      val delegateAead = delegate.getAead(keyUri)
+      return object : Aead {
+        override fun encrypt(plaintext: ByteArray?, associatedData: ByteArray?): ByteArray =
+          delegateAead.encrypt(plaintext, associatedData)
+
+        override fun decrypt(ciphertext: ByteArray?, associatedData: ByteArray?): ByteArray {
+          throw GeneralSecurityException("KMS decrypt is not permitted")
+        }
+      }
+    }
   }
 
   private fun impression(vid: Long, entityKeys: List<Pair<String, String>>): LabeledImpression =
