@@ -1,0 +1,52 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This workflow acts as a signal for .github/workflows/check-cross-company-review-policy.yml.
+
+name: Signal cross-company review check
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: read
+
+jobs:
+  signal-cross-company-check:
+    runs-on: ubuntu-24.04
+    permissions:
+      statuses: write
+    env:
+      STATUS_CONTEXT: ${{ vars.CROSS_COMPANY_CHECK_NAME }}    
+    steps:
+      - name: Set cross-company review status to pending
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pullRequest = context.payload.pull_request;
+            const statusSha = pullRequest.head.sha;
+            const statusContext = process.env.STATUS_CONTEXT;
+            github.rest.repos.createCommitStatus({
+              owner,
+              repo,
+              sha: statusSha,
+              state: 'pending',
+              context: statusContext,
+              description: 'Waiting for cross-company review policy check.',
+            });
+            console.log(`${statusContext}: pending on ${statusSha}`);
