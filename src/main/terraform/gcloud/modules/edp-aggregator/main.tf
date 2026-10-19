@@ -339,21 +339,16 @@ module "requisition_fetcher_cloud_function" {
   secrets_to_access                        = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
   config_path                              = var.requisition_fetcher_config.local_path
 
-  # The periodic drain ticker fires every FLUSH_INTERVAL (default 5m), so a single invocation must
-  # run longer than that for incremental draining to happen at all — the gen2 default of 60s would
-  # kill the function before the first tick. 600s (10m) lets several ticks fire while staying under
-  # the 15m scheduler interval, so a run always finishes before the next is triggered. Combined with
-  # max_instances = 1, that makes overlapping invocations over the same UNFULFILLED requisitions
-  # structurally impossible (the Cloud Scheduler -> Cloud Function path has no built-in overlap
-  # guard, unlike a K8s CronJob concurrencyPolicy).
+  # Keep FLUSH_INTERVAL < timeout_seconds < the scheduler interval. Below FLUSH_INTERVAL the
+  # function dies before the drain ticker fires and a long run dispatches nothing; above the
+  # scheduler interval a run is still going when the next fires, leaving overlap protection to
+  # max_instances = 1 (the Cloud Scheduler -> Cloud Function path has no built-in overlap guard,
+  # unlike a K8s CronJob concurrencyPolicy).
   #
-  # 600s suits test environments. A production data provider with a large UNFULFILLED backlog may
-  # need substantially longer to drain — raise timeout_seconds toward 3600s (the gen2 HTTP-trigger
-  # maximum, 60m) and size it per environment. At a timeout that exceeds the scheduler interval,
-  # overlap protection rests entirely on max_instances = 1 (a busy instance makes concurrent
-  # scheduler fires no-op), so also widen the scheduler interval to exceed the expected drain time
-  # rather than firing rejected requests mid-drain.
-  timeout_seconds = 600
+  # A production data provider with a large UNFULFILLED backlog may need substantially longer to
+  # drain — raise timeout_seconds toward 3600s (the gen2 HTTP-trigger maximum, 60m), and widen the
+  # scheduler interval past it rather than firing rejected requests mid-drain.
+  timeout_seconds = 240
   max_instances   = 1
 }
 
