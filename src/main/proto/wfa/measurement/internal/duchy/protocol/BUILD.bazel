@@ -189,6 +189,7 @@ proto_library(
     srcs = ["trus_tee_v2.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":trus_tee_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:population_spec_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:query_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",

@@ -18,6 +18,7 @@ package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
 import "wfa/measurement/internal/duchy/population_spec.proto";
+import "wfa/measurement/internal/duchy/protocol/trus_tee.proto";
 import "google/protobuf/descriptor.proto";
 import "wfa/measurement/internal/duchy/query.proto";
 
@@ -65,6 +66,11 @@ message TrusTeeV2 {
     // [PopulationSpec.SubPopulation.attributes][] entry, which is a packed
     // event template message.
     EventDescriptor event_descriptor = 4;
+
+    // Copied from the System API `Computation`. Optional small-cell
+    // suppression parameters.
+    TrusTee.ComputationDetails.ResultMinimumThresholds
+        result_minimum_thresholds = 5;
   }
 
   // The event message type that a computation's `PopulationSpec` subpopulation
