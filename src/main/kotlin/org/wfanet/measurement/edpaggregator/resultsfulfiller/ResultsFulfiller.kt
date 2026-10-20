@@ -39,10 +39,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
-import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -67,8 +65,6 @@ import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
@@ -106,6 +102,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  * @param kmsClient KMS client for accessing encrypted resources in storage.
  * @param impressionsStorageConfig Storage configuration for impression/event ingestion.
  * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
+ * @param wholeBlobEntityTypes entity types whose blob metadata IDs are exhaustive at that level.
  * @param responsePageSize
  * @param listMaxAttempts maximum total attempts for each `ListRequisitionMetadata` page before
  *   giving up. Transient gRPC failures (`UNAVAILABLE` / `DEADLINE_EXCEEDED`, e.g. a server-side
@@ -127,6 +124,8 @@ class ResultsFulfiller(
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
+  private val wholeBlobEntityTypes: Set<String>,
+  private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? = null,
   private val responsePageSize: Int? = null,
   private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
@@ -134,7 +133,7 @@ class ResultsFulfiller(
 ) {
 
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
-    EventProcessingOrchestrator<Message>(privateEncryptionKey)
+    EventProcessingOrchestrator<Message>(privateEncryptionKey = privateEncryptionKey)
   }
 
   /**
@@ -234,22 +233,12 @@ class ResultsFulfiller(
         entry.requisition.unpack(Requisition::class.java)
       }
 
-    // Build the entity-key map once so the precedence decision is explicit at this call site
-    // (instead of being made deep inside FilterSpecIndex.fromRequisitions). When entity keys are
-    // present we use them as the selector; otherwise we fall back to the legacy reference-id
-    // selector and skip building its map entirely.
-    val eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey> =
-      buildEventGroupEntityKeyMap(groupedRequisitions.eventGroupMapList)
-    val eventGroupSelector: FilterSpecIndex.Companion.EventGroupSelector =
-      if (eventGroupEntityKeyMap.isNotEmpty()) {
-        FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(eventGroupEntityKeyMap)
-      } else {
-        FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-          groupedRequisitions.eventGroupMapList.associate {
-            it.eventGroup to it.details.eventGroupReferenceId
-          }
-        )
-      }
+    val resolvedEventGroups: ResolvedEventGroups =
+      ResolvedEventGroups.fromEventGroupMapEntries(
+        groupedRequisitions.eventGroupMapList,
+        eventGroupReferenceIdEntityKeyMapping,
+        wholeBlobEntityTypes,
+      )
 
     // Filter requisitions that are not in the requisitions metadata storage or have been either
     // fulfilled or refused already
@@ -334,7 +323,7 @@ class ResultsFulfiller(
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionDataSourceProvider,
-        eventGroupDetailsList = groupedRequisitions.eventGroupMapList.map { it.details },
+        resolvedEventGroups = resolvedEventGroups,
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = impressionsStorageConfig,
@@ -368,7 +357,7 @@ class ResultsFulfiller(
             vidIndexMap = vidIndexMap,
             populationSpec = populationSpec,
             requisitions = filteredRequisitions,
-            eventGroupSelector = eventGroupSelector,
+            resolvedEventGroups = resolvedEventGroups,
             config = pipelineConfiguration,
             eventDescriptor = eventDescriptor,
           )
@@ -969,30 +958,6 @@ class ResultsFulfiller(
      * Default maximum total attempts (first attempt + retries) per ListRequisitionMetadata page.
      */
     private const val DEFAULT_LIST_MAX_ATTEMPTS = 4
-
-    /**
-     * Builds the event group → entity key map from grouped requisition entries.
-     *
-     * Only entries whose details carry a real `entity_key` are included. An entry whose
-     * `entity_key` is the kingdom-side default sentinel — i.e., `entity_id` is empty — is excluded
-     * so that legacy event groups (which only carry the schema default `entity_type="campaign"`)
-     * continue to route through `FilterSpec.ByEventGroupReferenceIds` downstream rather than being
-     * treated as real entity-key selectors.
-     */
-    @VisibleForTesting
-    fun buildEventGroupEntityKeyMap(
-      eventGroupMapList: List<GroupedRequisitions.EventGroupMapEntry>
-    ): Map<String, LabeledImpression.EntityKey> =
-      eventGroupMapList
-        .filter { it.details.hasEntityKey() && it.details.entityKey.entityId.isNotEmpty() }
-        .associate { entry ->
-          val key = entry.details.entityKey
-          entry.eventGroup to
-            LabeledImpressionKt.entityKey {
-              entityType = key.entityType
-              entityId = key.entityId
-            }
-        }
 
     // Memory-based parallelism limit to prevent OOM with large frequency vectors
     // With 360M sized frequency vector sampled at 10%, we get 36M x 16 bytes for
