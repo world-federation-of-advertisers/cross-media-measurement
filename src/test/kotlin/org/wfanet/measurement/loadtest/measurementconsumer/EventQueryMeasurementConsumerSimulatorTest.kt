@@ -16,21 +16,28 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Message
+import java.time.Duration
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
+import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
@@ -40,6 +47,20 @@ import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 class EventQueryMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSimulatorTest() {
 
   override fun createSimulator(eventGroupRefIds: List<String>): MeasurementConsumerSimulator {
+    return createSimulator(
+      eventGroupRefIds,
+      initialResultPollingDelay = Duration.ofSeconds(1),
+      maximumResultPollingDelay = Duration.ofMinutes(1),
+      onMeasurementsCreated = { throw ShortCircuitException() },
+    )
+  }
+
+  private fun createSimulator(
+    eventGroupRefIds: List<String>,
+    initialResultPollingDelay: Duration,
+    maximumResultPollingDelay: Duration,
+    onMeasurementsCreated: (() -> Unit)?,
+  ): MeasurementConsumerSimulator {
     return EventQueryMeasurementConsumerSimulator(
       measurementConsumerData = MC_DATA,
       outputDpParams = OUTPUT_DP_PARAMS,
@@ -53,7 +74,9 @@ class EventQueryMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSi
       expectedDirectNoiseMechanism = NoiseMechanism.GEOMETRIC,
       kingdomApiThrottler = kingdomApiThrottler,
       eventRange = EVENT_RANGE,
-      onMeasurementsCreated = { throw ShortCircuitException() },
+      initialResultPollingDelay = initialResultPollingDelay,
+      maximumResultPollingDelay = maximumResultPollingDelay,
+      onMeasurementsCreated = onMeasurementsCreated,
     )
   }
 
@@ -98,6 +121,40 @@ class EventQueryMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSi
     val expectedInterval = EVENT_RANGE.toInterval()
     assertThat(collectionInterval.startTime).isEqualTo(expectedInterval.startTime)
     assertThat(collectionInterval.endTime).isEqualTo(expectedInterval.endTime)
+  }
+
+  @Test
+  fun `testImpression performs final poll when result polling times out`() = runTest {
+    stubEventGroups(listOf("sim-eg-ref-1"))
+    val measurementName = "$MC_NAME/measurements/m1"
+    measurementsServiceMock.stub {
+      onBlocking { getMeasurement(any()) }
+        .thenReturn(
+          measurement {
+            name = measurementName
+            state = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
+          },
+          measurement {
+            name = measurementName
+            state = Measurement.State.FAILED
+          },
+        )
+    }
+    val simulator =
+      createSimulator(
+        listOf("sim-eg-ref-1"),
+        initialResultPollingDelay = Duration.ofSeconds(10),
+        maximumResultPollingDelay = Duration.ofSeconds(10),
+        onMeasurementsCreated = null,
+      )
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        simulator.testImpression("run1", resultPollingTimeout = Duration.ofSeconds(1))
+      }
+
+    assertThat(exception).hasMessageThat().contains("Measurement failed")
+    verifyBlocking(measurementsServiceMock, times(2)) { getMeasurement(any()) }
   }
 
   companion object {

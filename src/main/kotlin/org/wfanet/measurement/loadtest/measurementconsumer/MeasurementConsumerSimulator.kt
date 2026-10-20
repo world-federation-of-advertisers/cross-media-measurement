@@ -34,6 +34,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.time.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
@@ -601,7 +602,11 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
-  suspend fun testImpression(runId: String, eventGroupFilter: ((EventGroup) -> Boolean)? = null) {
+  suspend fun testImpression(
+    runId: String,
+    resultPollingTimeout: Duration,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+  ) {
     logger.info { "Creating impression Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -619,9 +624,8 @@ abstract class MeasurementConsumerSimulator(
 
     onMeasurementsCreated?.invoke()
 
-    val impressionResults: List<Measurement.ResultOutput> = pollForResults {
-      getImpressionResults(measurementName)
-    }
+    val impressionResults: List<Measurement.ResultOutput> =
+      pollForResults(resultPollingTimeout) { getImpressionResults(measurementName) }
     logger.info("Got impression result from Kingdom: $impressionResults")
 
     val protocol = measurementInfo.measurement.protocolConfig.protocolsList.first()
@@ -646,7 +650,11 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving a duration measurement. */
-  suspend fun testDuration(runId: String, eventGroupFilter: ((EventGroup) -> Boolean)? = null) {
+  suspend fun testDuration(
+    runId: String,
+    resultPollingTimeout: Duration,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+  ) {
     logger.info { "Creating duration Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -664,7 +672,8 @@ abstract class MeasurementConsumerSimulator(
 
     onMeasurementsCreated?.invoke()
 
-    val durationResults = pollForResults { getDurationResults(measurementName) }
+    val durationResults =
+      pollForResults(resultPollingTimeout) { getDurationResults(measurementName) }
 
     durationResults.forEach {
       val result = parseAndVerifyResult(it)
@@ -1440,15 +1449,30 @@ abstract class MeasurementConsumerSimulator(
     }
   }
 
-  private suspend inline fun pollForResult(getResult: () -> Result?): Result {
+  private suspend fun pollForResult(getResult: suspend () -> Result?): Result {
     return pollForResult(getResult) { it != null }!!
   }
 
-  private suspend inline fun <T> pollForResults(getResults: () -> List<T>): List<T> {
-    return pollForResult(getResults) { it.isNotEmpty() }
+  private suspend fun <T> pollForResults(
+    resultPollingTimeout: Duration,
+    getResults: suspend () -> List<T>,
+  ): List<T> {
+    val results =
+      withTimeoutOrNull(resultPollingTimeout.toMillis()) {
+        pollForResult(getResults) { it.isNotEmpty() }
+      }
+    if (results != null) {
+      return results
+    }
+
+    val finalResults = getResults()
+    if (finalResults.isNotEmpty()) {
+      return finalResults
+    }
+    throw java.util.concurrent.TimeoutException("Result not available within $resultPollingTimeout")
   }
 
-  private suspend inline fun <T> pollForResult(getResult: () -> T, done: (T) -> Boolean): T {
+  private suspend fun <T> pollForResult(getResult: suspend () -> T, done: (T) -> Boolean): T {
     val backoff =
       ExponentialBackoff(initialDelay = initialResultPollingDelay, randomnessFactor = 0.0)
     var attempt = 1

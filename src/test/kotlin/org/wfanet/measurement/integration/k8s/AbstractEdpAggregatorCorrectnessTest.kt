@@ -19,6 +19,7 @@ package org.wfanet.measurement.integration.k8s
 import com.google.common.truth.Truth.assertThat
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -91,6 +92,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       // result.
       mcSimulator.testImpression(
         "1236",
+        resultPollingTimeout = Duration.ofMinutes(30),
         eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS,
       )
     }

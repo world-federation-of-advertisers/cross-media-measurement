@@ -33,6 +33,10 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
+      stability-window-seconds:
+        description: "Time simulator pods must remain unchanged and ready"
+        type: number
+        required: true
   workflow_dispatch:
     inputs:
       environment:
@@ -51,6 +55,10 @@ on:
         description: "Apply the new configuration"
         type: boolean
         default: false
+      stability-window-seconds:
+        description: "Time simulator pods must remain unchanged and ready"
+        type: number
+        required: true
 
 permissions:
   contents: read
@@ -209,3 +217,31 @@ jobs:
         for deployment in $(kubectl get deployments -l app.kubernetes.io/component=simulator -o name); do
           kubectl rollout status "$deployment" --timeout=5m
         done
+
+    - name: Wait for stable simulator pods
+      if: ${{ inputs.apply }}
+      env:
+        STABILITY_WINDOW_SECONDS: ${{ inputs.stability-window-seconds }}
+      run: |
+        selector="app.kubernetes.io/component=simulator"
+        kubectl wait pod -l "$selector" --for=condition=Ready --timeout=5m
+
+        snapshot() {
+          kubectl get pods -l "$selector" -o json | jq -cS '
+            [.items[] | {
+              name: .metadata.name,
+              uid: .metadata.uid,
+              restarts: ([.status.containerStatuses[]?.restartCount] | add // 0),
+              ready: ([.status.containerStatuses[]?.ready] | all)
+            }] | sort_by(.name)'
+        }
+
+        before="$(snapshot)"
+        sleep "$STABILITY_WINDOW_SECONDS"
+        after="$(snapshot)"
+        if [[ "$before" != "$after" ]]; then
+          echo "Simulator pods changed during the stability window." >&2
+          echo "Before: $before" >&2
+          echo "After:  $after" >&2
+          exit 1
+        fi
