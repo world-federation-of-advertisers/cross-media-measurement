@@ -132,14 +132,10 @@ jobs:
           tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
           -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/kingdom_secret"
 
-      # Write map from configuration variable. Since it appears that GitHub
-      # configuration variables use DOS (CRLF) line endings, we convert these to
-      # Unix (LF) line endings.
-      - name: Write AKID to principal map
-        env:
-          AKID_TO_PRINCIPAL_MAP: ${{ vars.AKID_TO_PRINCIPAL_MAP }}
+      - name: Copy AKID to principal map
         run: >
-          echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
+          cp
+          src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/authority-key-identifier-to-principal-map.textproto
           "$KUSTOMIZATION_PATH/src/main/k8s/dev/kingdom_config_files/authority_key_identifier_to_principal_map.textproto"
 
       - name: Copy rate limit config

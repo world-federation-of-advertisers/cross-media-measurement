@@ -133,6 +133,7 @@ reporting: #Reporting & {
 	}
 
 	_verboseGrpcServerLogging: true
+	_logNoiseCorrectionValues: true
 
 	serviceAccounts: {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
