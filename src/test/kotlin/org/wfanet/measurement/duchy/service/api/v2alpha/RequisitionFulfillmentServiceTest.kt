@@ -594,7 +594,7 @@ class RequisitionFulfillmentServiceTest {
                       populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
                     }
                   fulfillmentDetails = FULFILLMENT_DETAILS.toByteString()
-                  externalDataProviderId = DATA_PROVIDER_API_ID
+                  dataProviderResourceId = DATA_PROVIDER_API_ID
                 }
             }
         }
@@ -652,7 +652,7 @@ class RequisitionFulfillmentServiceTest {
                         populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
                       }
                     encryptedFulfillmentDetails = ENCRYPTED_FULFILLMENT_DETAILS.toByteString()
-                    externalDataProviderId = DATA_PROVIDER_API_ID
+                    dataProviderResourceId = DATA_PROVIDER_API_ID
                   }
               }
           }
