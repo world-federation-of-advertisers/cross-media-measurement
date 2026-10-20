@@ -126,9 +126,9 @@ Before deploying the dashboard, ensure the following are in place:
 Dashboard configuration has two homes depending on how you deploy:
 
 *   **CI deploys** — the dashboard's EDPs, operators, region, and deletion
-    protection all live in the single `DASHBOARD_CONFIG_CONTENT` GitHub Actions
-    variable (see *GitHub Actions Environment Variables* below); the workflow
-    generates the Terraform vars from it.
+    protection all live in the selected environment's committed
+    `dashboard-config.json` (see *Committed Dashboard Config* below); the
+    workflow generates the Terraform vars from it.
 *   **Manual `terraform apply`** — provide them as the HCL variables in your
     `.tfvars` file — see *Required Variables* and *Optional Variables* below.
 
@@ -167,7 +167,7 @@ dashboard.
 ### Optional Variables
 
 `dashboard_deletion_protection` defaults to `true`. On the CI path it comes from
-the `deletion_protection` field of `DASHBOARD_CONFIG_CONTENT`. The
+the `deletion_protection` field of `dashboard-config.json`. The
 `envs/*.tfvars` files no longer set it, so a manual `terraform apply` now gets
 `true` — pass `false` (e.g. for dev/head) to allow table recreation:
 
@@ -175,20 +175,14 @@ the `deletion_protection` field of `DASHBOARD_CONFIG_CONTENT`. The
 terraform apply -var-file=envs/dev.tfvars -var=dashboard_deletion_protection=false
 ```
 
-### GitHub Actions Environment Variables
+### Committed Dashboard Config
 
-If using the CI workflow, set the following in your GitHub environment. The
-`terraform-cmms-v2.yml` workflow's "Write dashboard tfvars" step reads the
-single `DASHBOARD_CONFIG_CONTENT` JSON var (per the `DashboardConfig` schema)
-to generate the `dashboard.auto.tfvars.json` Terraform consumes and to build
-the isolation-test matrix; without it the deploy fails.
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DASHBOARD_CONFIG_CONTENT` | yes | Single JSON object per the `DashboardConfig` proto. Consumed by Terraform (as `*.tfvars.json`), the compliance check, and the isolation-test matrix. See the field reference below. |
-
-`DASHBOARD_CONFIG_CONTENT` is one JSON object matching the `DashboardConfig`
-proto (`src/main/proto/wfa/measurement/config/edpaggregator/dashboard_config.proto`).
+The `terraform-cmms-v2.yml` workflow's "Write dashboard tfvars" step reads
+`src/main/terraform/gcloud/cmms/envs/<env>/dashboard-config.json` to generate
+the `dashboard.auto.tfvars.json` Terraform consumes and to build the
+isolation-test matrix. The file is one JSON object matching the
+`DashboardConfig` proto
+(`src/main/proto/wfa/measurement/config/edpaggregator/dashboard_config.proto`).
 The CI step requires **all four** top-level keys to be present — a missing key
 fails the deploy rather than silently falling back to a Terraform default:
 
@@ -196,12 +190,12 @@ fails the deploy rather than silently falling back to a Terraform default:
 |-------|------|-------------|
 | `bigquery_region` | string | BigQuery region hosting the dashboard dataset (e.g. `"us-central1"`). Used by the compliance check and isolation-test matrix. |
 | `deletion_protection` | bool | Whether the dashboard BigQuery dataset has deletion protection. Set `false` in dev to allow table recreation; `true` for non-dev environments. |
-| `operators` | string[] | IAM principals granted platform-wide access to the dashboard tables (`user:` / `group:`). Use Google Groups for shared/non-dev environments. |
+| `operators` | string[] | IAM principals granted platform-wide access to the dashboard tables (`user:` / `group:` / `serviceAccount:`). Operators represented by a service account must impersonate it before using that access. |
 | `edps` | object[] | The EDPs the dashboard exposes; each is isolated to its own rows. |
 | `edps[].name` | string | Short EDP name used for per-EDP resource naming (e.g. `"meta"`): SA `edp-<name>-dashboard`, row policy `<name>_filter`, and CI matrix entry. |
-| `edps[].resource_id` | string | The **bare** `DataProvider` resource ID — final path segment only (e.g. `"J3-pzhqS9Lo"`), **not** the full `dataProviders/...` name. Must match the value in Spanner / `EDPA_EDPS_CONFIG`. |
+| `edps[].resource_id` | string | The **bare** `DataProvider` resource ID — final path segment only (e.g. `"J3-pzhqS9Lo"`), **not** the full `dataProviders/...` name. Must match the value in Spanner and the selected environment's `event-data-provider-configs.textproto`. |
 
-Example (pretty-printed here; store it as compact JSON in the variable):
+Example:
 
 ```json
 {
@@ -245,8 +239,8 @@ After Terraform applies successfully, the tables are empty. The scheduled
 queries run hourly via MERGE. To populate tables immediately:
 
 `<REGION>` in the examples below is the GCP region the dashboard resources
-are deployed in — the CI reads it from the `bigquery_region` field of
-`DASHBOARD_CONFIG_CONTENT`. All dashboard tables, connections, and scheduled
+are deployed in — the CI reads it from the `bigquery_region` field of the
+committed dashboard config. All dashboard tables, connections, and scheduled
 queries are created via `data.google_client_config.default.region` in
 `dashboard.tf`, so any GCP region GCP supports for BigQuery Data Transfer
 works.
@@ -295,7 +289,7 @@ bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/d
   --dashboard-config=/path/to/dashboard-config.json
 ```
 
-where `dashboard-config.json` holds the environment's `DASHBOARD_CONFIG_CONTENT`
+where `dashboard-config.json` is the selected environment's committed config
 (the EDPs and region are read from it).
 
 To impersonate, your account needs `roles/iam.serviceAccountTokenCreator` on
@@ -331,9 +325,8 @@ After Terraform deploys and other cloud tests generate data, the workflow:
     `dashboard-compliance@<DASHBOARD_PROJECT>.iam.gserviceaccount.com` (the least-privilege
     SA, not the broader operator/terraform SA)
 
-Ensure the GitHub environment has the required variables
-(`DASHBOARD_CONFIG_CONTENT`, `GCLOUD_PROJECT`, `TF_SERVICE_ACCOUNT`,
-`WORKLOAD_IDENTITY_PROVIDER`).
+Ensure the GitHub environment has the required deployment variables
+(`GCLOUD_PROJECT`, `TF_SERVICE_ACCOUNT`, `WORKLOAD_IDENTITY_PROVIDER`).
 
 ## Ongoing Operations
 
@@ -345,8 +338,8 @@ See the EDP Onboarding Guide — *Operator Steps: Onboarding a New EDP* and
 
 ### Updating Dashboard Operators
 
-1.  Update the `operators` array in the `DASHBOARD_CONFIG_CONTENT` GitHub
-    environment variable (the single source of truth):
+1.  Update the `operators` array in the selected environment's committed
+    `dashboard-config.json` (the single source of truth):
     ```json
     "operators": ["group:new-operators-group@example.com"]
     ```
@@ -413,10 +406,13 @@ re-create them. MERGE-based scheduled queries preserve policies across runs.
 
 ### EDP sees zero rows
 
-Verify the EDP's `resource_id` in `DASHBOARD_CONFIG_CONTENT` matches the value
+Verify the EDP's `resource_id` in the selected environment's
+`dashboard-config.json` matches the value
 `externalIdToApiId` produces for that EDP's internal Spanner ID — cross-check
-against `EDPA_EDPS_CONFIG`. It flows into the row access policy filter, so a
-wrong value matches no rows. Correct it and re-run the deploy.
+against the selected environment's `event-data-provider-configs.textproto`
+under `src/main/terraform/gcloud/cmms/envs/`. It flows into the row access
+policy filter, so a wrong value matches no rows. Correct it and re-run the
+deploy.
 
 ### `report_detail_edp is empty` on a freshly-onboarded EDP
 
