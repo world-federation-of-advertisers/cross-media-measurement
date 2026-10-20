@@ -1346,8 +1346,17 @@ class EventGroupSync(
     if (!hasEntityKey() || entityKey.entityId.isBlank()) {
       return this
     }
+    if (entityKey.entityType != mapping.entityType) {
+      return this
+    }
+    require(entityKey.entityId.startsWith(mapping.entityIdPrefix)) {
+      "Entity ID ${entityKey.entityId} does not start with configured prefix " +
+        "'${mapping.entityIdPrefix}'"
+    }
     val mappedReferenceId =
-      mapping.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId) ?: return this
+      requireNotNull(mapping.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId)) {
+        "Entity ID ${entityKey.entityId} maps to a blank event-group reference ID"
+      }
     require(eventGroupReferenceId.isBlank() || eventGroupReferenceId == mappedReferenceId) {
       "EventGroup reference ID $eventGroupReferenceId does not exactly match mapped reference ID " +
         mappedReferenceId

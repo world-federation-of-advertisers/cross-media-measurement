@@ -49,8 +49,10 @@ message EventGroupSyncConfig {
   repeated string entity_key_types = 7;
 
   // Optional mapping used to upgrade reference-ID-only EventGroups when an
-  // equivalent entity key is synced. Presence enables mapping. For a mappable
-  // entity key, sync derives the reference ID and requires any supplied value
+  // equivalent entity key is synced. Presence enables mapping. Entity IDs of
+  // the mapped type must use the configured entity ID prefix when non-empty;
+  // otherwise the EventGroup is skipped as invalid. Sync derives the reference
+  // ID, including its configured prefix, and requires any supplied reference ID
   // to match it exactly.
   EventGroupReferenceIdEntityKeyMapping
       event_group_reference_id_entity_key_mapping = 8;

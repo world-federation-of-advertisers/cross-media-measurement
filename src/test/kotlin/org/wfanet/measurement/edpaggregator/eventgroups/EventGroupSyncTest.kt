@@ -3158,6 +3158,91 @@ class EventGroupSyncTest {
   }
 
   @Test
+  fun `mapping upgrades existing EventGroups for every prefix combination`() {
+    data class PrefixScenario(
+      val eventGroupReferenceIdPrefix: String,
+      val entityIdPrefix: String,
+      val eventGroupReferenceId: String,
+      val entityId: String,
+    )
+
+    val scenarios =
+      listOf(
+        PrefixScenario("", "", "plain-123", "plain-123"),
+        PrefixScenario("ref_", "", "ref_plain-123", "plain-123"),
+        PrefixScenario("", "entity_", "plain-123", "entity_plain-123"),
+        PrefixScenario("ref_", "entity_", "ref_plain-123", "entity_plain-123"),
+      )
+    var kingdomRow: CmmsEventGroup = CmmsEventGroup.getDefaultInstance()
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer { listEventGroupsResponse { eventGroups += kingdomRow } }
+    wheneverBlocking { eventGroupsServiceMock.batchUpdateEventGroups(any()) }
+      .thenAnswer { invocation ->
+        val updated =
+          invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList.single().eventGroup
+        kingdomRow = updated
+        batchUpdateEventGroupsResponse { eventGroups += updated }
+      }
+
+    for ((index, scenario) in scenarios.withIndex()) {
+      val resourceName = "dataProviders/data-provider-1/eventGroups/prefix-$index"
+      kingdomRow = cmmsEventGroup {
+        name = resourceName
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        eventGroupReferenceId = scenario.eventGroupReferenceId
+        mediaTypes += CmmsMediaType.VIDEO
+        eventGroupMetadata = cmmsEventGroupMetadata {}
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
+      }
+      val source = eventGroup {
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        entityKey = entityKey {
+          entityType = "campaign"
+          entityId = scenario.entityId
+        }
+        this.eventGroupMetadata = eventGroupMetadata {}
+        dataAvailabilityInterval = kingdomRow.dataAvailabilityInterval
+        mediaTypes += MediaType.VIDEO
+      }
+
+      val result = runBlocking {
+        EventGroupSync(
+            "edp-name",
+            eventGroupsStub,
+            clientAccountsStub,
+            unlinkedClientAccountsStub,
+            listOf(source).asFlow(),
+            MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+            100,
+            entityKeyTypes = emptyList(),
+            eventGroupReferenceIdEntityKeyMapping =
+              EventGroupReferenceIdEntityKeyMapping(
+                entityType = "campaign",
+                eventGroupReferenceIdPrefix = scenario.eventGroupReferenceIdPrefix,
+                entityIdPrefix = scenario.entityIdPrefix,
+              ),
+          )
+          .sync()
+          .toList()
+          .single()
+      }
+
+      assertThat(kingdomRow.name).isEqualTo(resourceName)
+      assertThat(kingdomRow.eventGroupReferenceId).isEqualTo(scenario.eventGroupReferenceId)
+      assertThat(kingdomRow.entityKey.entityId).isEqualTo(scenario.entityId)
+      assertThat(result.eventGroupResource).isEqualTo(resourceName)
+      assertThat(result.eventGroupReferenceId).isEqualTo(scenario.eventGroupReferenceId)
+      assertThat(result.entityKey.entityId).isEqualTo(scenario.entityId)
+    }
+
+    verifyBlocking(eventGroupsServiceMock, times(scenarios.size)) { batchUpdateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+  }
+
+  @Test
   fun `sync does not derive reference ID when mapping is absent`() {
     val source = eventGroup {
       measurementConsumer = "measurementConsumers/measurement-consumer-1"
@@ -3259,6 +3344,51 @@ class EventGroupSyncTest {
     assertThat(created.entityKey.entityType).isEqualTo("placement")
     assertThat(created.entityKey.entityId).isEqualTo("pl_123")
     verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
+  }
+
+  @Test
+  fun `mapping rejects mapped entity ID without configured prefix`() {
+    val source = eventGroup {
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "123"
+      }
+      this.eventGroupMetadata = eventGroupMetadata {}
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += MediaType.VIDEO
+    }
+
+    val results = runBlocking {
+      EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          unlinkedClientAccountsStub,
+          listOf(source).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping =
+            EventGroupReferenceIdEntityKeyMapping(
+              entityType = "campaign",
+              eventGroupReferenceIdPrefix = "",
+              entityIdPrefix = "cp_",
+            ),
+        )
+        .sync()
+        .toList()
+    }
+
+    assertThat(results).isEmpty()
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
+    val invalidMetric =
+      getMetrics().single { it.name == "edpa.event_group.invalid_event_group_failure" }
+    assertThat(invalidMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
   }
 
   @Test
