@@ -39,17 +39,21 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
             min_impressions=1000,
         )
 
-        result = thresholds.add_measurement_set_uncertainty(
-            MeasurementSet(
-                reach=Measurement(value=0, sigma=0, name="reach"),
-                k_reach={
-                    1: Measurement(value=0, sigma=0, name="frequency-1"),
-                    2: Measurement(value=0, sigma=0, name="frequency-2"),
-                },
-                impression=Measurement(value=0, sigma=0, name="impressions"),
-            )
+        measurement_set = MeasurementSet(
+            reach=Measurement(value=0, sigma=0, name="reach"),
+            k_reach={
+                1: Measurement(value=0, sigma=0, name="frequency-1"),
+                2: Measurement(value=0, sigma=0, name="frequency-2"),
+            },
+            impression=Measurement(value=0, sigma=0, name="impressions"),
         )
 
+        result = thresholds.add_measurement_set_uncertainty(measurement_set)
+
+        self.assertEqual(
+            thresholds.get_uncertainty_applications(measurement_set),
+            ("REACH", "FREQUENCY_BIN_1", "IMPRESSION_COUNT"),
+        )
         self.assertEqual(result.reach.sigma, 1000)
         self.assertEqual(result.impression.sigma, 12700)
         self.assertEqual(result.k_reach[1].sigma, 1000)
@@ -61,22 +65,26 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
             min_impressions=1000,
         )
 
-        result = thresholds.add_measurement_set_uncertainty(
-            MeasurementSet(
-                reach=Measurement(value=110, sigma=0, name="reach"),
-                k_reach={
-                    1: Measurement(value=0, sigma=0, name="frequency-1"),
-                    2: Measurement(value=30, sigma=0, name="frequency-2"),
-                    3: Measurement(value=70, sigma=0, name="frequency-3"),
-                },
-                impression=Measurement(
-                    value=280,
-                    sigma=0,
-                    name="impressions",
-                ),
-            )
+        measurement_set = MeasurementSet(
+            reach=Measurement(value=110, sigma=0, name="reach"),
+            k_reach={
+                1: Measurement(value=0, sigma=0, name="frequency-1"),
+                2: Measurement(value=30, sigma=0, name="frequency-2"),
+                3: Measurement(value=70, sigma=0, name="frequency-3"),
+            },
+            impression=Measurement(
+                value=280,
+                sigma=0,
+                name="impressions",
+            ),
         )
 
+        result = thresholds.add_measurement_set_uncertainty(measurement_set)
+
+        self.assertEqual(
+            thresholds.get_uncertainty_applications(measurement_set),
+            ("FREQUENCY_BIN_1",),
+        )
         self.assertEqual(result.reach.sigma, 0)
         self.assertEqual(result.impression.sigma, 0)
         self.assertEqual(result.k_reach[1].sigma, 1000)
@@ -103,6 +111,10 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
 
         result = thresholds.add_measurement_set_uncertainty(measurement_set)
 
+        self.assertEqual(
+            thresholds.get_uncertainty_applications(measurement_set),
+            (),
+        )
         self.assertEqual(result.k_reach, measurement_set.k_reach)
 
     def test_add_measurement_set_uncertainty_preserves_dp_noised_zeros(self):
