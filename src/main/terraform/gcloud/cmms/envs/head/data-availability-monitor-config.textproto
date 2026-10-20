@@ -1,0 +1,28 @@
+# proto-file: wfa/measurement/config/edpaggregator/data_availability_monitor_config.proto
+# proto-message: wfa.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
+configs {
+  storage {
+    gcs {
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  edp_impression_path: "edp/edp7"
+  model_line_configs {
+    model_line: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/T0gzKmadWLc"
+  }
+  max_stale_days: 3
+  time_zone: "UTC"
+}
+configs {
+  storage {
+    gcs {
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  edp_impression_path: "edp/edp_meta"
+  model_line_configs {
+    model_line: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/T0gzKmadWLc"
+  }
+  max_stale_days: 3
+  time_zone: "UTC"
+}

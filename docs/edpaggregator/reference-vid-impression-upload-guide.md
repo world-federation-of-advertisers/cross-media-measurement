@@ -1,26 +1,27 @@
-# Reference VID impression upload guide
+# Pre-labeled reference VID upload guide
 
-This guide describes how an Event Data Provider (EDP) submits reference VID impressions to the
+This guide describes how an Event Data Provider (EDP) submits pre-labeled reference VIDs to the
 VID-labeling pipeline and how to correct or permanently remove an upload that contains bad data.
-The market operator provides the Cloud Storage bucket and raw-impression path assigned to the EDP.
+The market operator provides the Cloud Storage bucket and pre-labeled reference VID path assigned
+to the EDP.
 
 ## Submit a new date
 
 For each date:
 
-1. Write every raw-impression file into the assigned date directory.
+1. Write every pre-labeled reference VID file into the assigned date directory.
 2. Verify that the directory contains the complete dataset intended for that date.
 3. Write an empty object named `done` into the directory last.
 4. Do not add, replace, or remove objects after writing `done`.
 
 The `done` object tells the VID-labeling pipeline that the directory is complete. The pipeline
-records a snapshot of every raw-impression object currently present and processes that complete
-snapshot for the applicable model lines.
+records a snapshot of every pre-labeled reference VID object currently present and processes that
+complete snapshot for the applicable model lines.
 
 ## Backfill additional data
 
-Backfilling is appropriate when the data already processed is correct, but additional raw
-impressions must be added. Examples include a newly onboarded advertiser or files that the EDP
+Backfilling is appropriate when the data already processed is correct, but additional pre-labeled
+reference VIDs must be added. Examples include a newly onboarded advertiser or files that the EDP
 forgot to include in the original upload.
 
 The system supports two backfill strategies. **Using a dedicated subdirectory is strongly
@@ -32,7 +33,7 @@ evicted independently from the original upload.
 Create a dedicated subdirectory for the backfill under each affected date. For example:
 
 ```text
-gs://BUCKET/RAW_IMPRESSION_PREFIX/2026-08-15/advertiser-XYZ/
+gs://BUCKET/PRE_LABELED_REFERENCE_VID_PREFIX/2026-08-15/advertiser-XYZ/
   campaign-1.parquet
   campaign-2.parquet
   done
@@ -46,7 +47,8 @@ subdirectories.
 For each historical date:
 
 1. Create a separate backfill subdirectory under that date.
-2. Write only the additional raw-impression files into that subdirectory.
+2. Write only the additional pre-labeled reference VID files into that
+   subdirectory.
 3. Verify that the subdirectory contains the complete backfill dataset intended for that date.
 4. Write the empty `done` object into the backfill subdirectory last.
 5. Process dates from oldest to newest, waiting for each upload to complete before writing the next
@@ -61,9 +63,9 @@ marker inside the subdirectory limits the new upload to the backfill files.
 
 ### Alternative: add files to the existing directory
 
-The EDP may instead add the missing raw-impression files to the existing directory and write a new
-generation of its `done` object. The pipeline compares object URIs and generations with previously
-registered files and creates a new upload containing the newly added object versions.
+The EDP may instead add the missing pre-labeled reference VID files to the existing directory and
+write a new generation of its `done` object. The pipeline compares object URIs and generations with
+previously registered files and creates a new upload containing the newly added object versions.
 
 Use this strategy only for additive backfills: leave every previously processed file unchanged and
 do not remove any file. Removing or correcting previously processed data requires operator-managed
@@ -107,8 +109,8 @@ When bad data is discovered:
    * the DataProvider resource name;
    * every affected date and `done` object URI; and
    * whether each affected upload will be corrected and replaced or permanently removed.
-2. Do not modify the raw-impression directory or its `done` object while the operator investigates
-   or runs eviction.
+2. Do not modify the pre-labeled reference VID directory or its `done` object while the operator
+   investigates or runs eviction.
 3. Wait for the operator to confirm that eviction completed successfully.
 4. For an upload being corrected and replaced, make its directory contain the complete corrected
    dataset:
@@ -118,8 +120,8 @@ When bad data is discovered:
    * remove objects that must no longer contribute impressions.
 5. After a replacement directory is final, overwrite its empty `done` object to create a new
    generation.
-6. For an upload being permanently removed, delete its bad raw objects if desired, but do not write
-   a new `done` generation; no replacement upload is required.
+6. For an upload being permanently removed, delete its bad pre-labeled reference VID objects if
+   desired, but do not write a new `done` generation; no replacement upload is required.
 7. When replacing multiple dates, process them from oldest to newest and wait for each replacement
    to complete before writing the next `done` generation.
 
