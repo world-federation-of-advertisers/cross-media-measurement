@@ -118,9 +118,9 @@ their provenance is explicit.
 
 Run it with Application Default Credentials impersonating the dedicated
 read-only report-trace operator service account. Configure the deployment's
-`REPORT_TRACE_OPERATORS` variable with the IAM members allowed to impersonate
+`report_trace_operators` tfvar with the IAM members allowed to impersonate
 that account. If telemetry is stored outside the CMMS project, also list those
-project IDs in `REPORT_TRACE_OBSERVABILITY_PROJECTS`. Terraform grants the
+project IDs in `report_trace_observability_projects`. Terraform grants the
 service account read access to Reporting Spanner and Postgres, Cloud Logging,
 and Cloud Trace; it does not grant mutation access to Reporting storage.
 

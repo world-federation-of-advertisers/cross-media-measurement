@@ -203,28 +203,13 @@ variable "requisition_fetcher_env_var" {
   type        = string
 }
 
-variable "requisition_fetcher_secret_mapping" {
-  description = "RequisitionFetcher secret mapping"
-  type        = string
-}
-
 variable "event_group_env_var" {
   description = "EventGroupSync extra env variables"
   type        = string
 }
 
-variable "event_group_secret_mapping" {
-  description = "EventGroupSync secret mapping"
-  type        = string
-}
-
 variable "data_availability_env_var" {
   description = "DataAvailabilitySync extra env variables"
-  type        = string
-}
-
-variable "data_availability_secret_mapping" {
-  description = "DataAvailabilitySync secret mapping"
   type        = string
 }
 
@@ -397,14 +382,22 @@ variable "reporting_operators" {
   type        = list(string)
   default     = []
   nullable    = false
-  description = "Users/groups granted impersonation of the Reporting internal service account, in order to run operational CLIs against the Reporting databases"
+  description = "IAM principals granted impersonation of the Reporting internal service account, in order to run operational CLIs against the Reporting databases"
 }
 
 variable "report_trace_operators" {
   type        = list(string)
   default     = []
   nullable    = false
-  description = "Users/groups allowed to impersonate the read-only report-trace operator service account"
+  description = "IAM principals allowed to impersonate the read-only report-trace operator service account"
+}
+
+variable "cmms_operator_members" {
+  type        = map(string)
+  default     = {}
+  nullable    = false
+  sensitive   = true
+  description = "Human IAM principals allowed to impersonate the shared CMMS operator service account"
 }
 
 variable "report_trace_observability_projects" {
@@ -417,7 +410,7 @@ variable "report_trace_observability_projects" {
 variable "dashboard_operators" {
   type        = list(string)
   nullable    = false
-  description = "Users/groups granted platform access to dashboard tables and EDP SA impersonation for testing"
+  description = "IAM principals granted platform access to dashboard tables and EDP SA impersonation for testing"
 }
 
 variable "dashboard_deletion_protection" {
