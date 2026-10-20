@@ -129,9 +129,9 @@ message RequisitionDetails {
         bytes encrypted_fulfillment_details = 3;
       }
 
-      // External ID of the `DataProvider` that fulfilled this `Requisition`,
+      // Resource ID of the `DataProvider` that fulfilled this `Requisition`,
       // the authenticated caller of the fulfillment.
-      string external_data_provider_id = 4;
+      string data_provider_resource_id = 4;
     }
 
     oneof protocol {
