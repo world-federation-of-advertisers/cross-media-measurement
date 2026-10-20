@@ -146,7 +146,7 @@ configure the EDP's TrusTEE key mapping.
 
 If one key is used for both input and TrusTEE, grant the combined operations that
 the row requires. A separate TrusTEE re-encryption key can narrow access and be
-rotated independently; Section 6 describes that choice.
+rotated independently; the key arrangements are described above.
 
 ### Trust workload classes, not individual jobs
 
