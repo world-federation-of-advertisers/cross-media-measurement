@@ -23,6 +23,7 @@ from absl import logging
 from noiseninja.noised_measurements import KReachMeasurements
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
+from report.report import ConstraintViolation
 from report.report import EdpCombination
 from report.report import MetricReport
 from report.report import Report
@@ -111,6 +112,16 @@ class ReportSummaryV2Processor:
         # produces corrected values, we propagate each canonical's value
         # into its aliases so every response-builder lookup succeeds.
         self._metric_name_aliases: dict[str, str] = {}
+
+        self._pre_correction_constraint_violations: tuple[
+            ConstraintViolation, ...
+        ] = ()
+
+    @property
+    def pre_correction_constraint_violations(self) -> tuple[
+        ConstraintViolation, ...
+    ]:
+        return self._pre_correction_constraint_violations
 
     def _build_report(self) -> Report:
         """Builds a Report object from the report summary data."""
@@ -387,6 +398,9 @@ class ReportSummaryV2Processor:
     def process(self) -> ReportPostProcessorResult:
         """Corrects the report and returns the result."""
         report = self._build_report()
+        self._pre_correction_constraint_violations = tuple(
+            report.get_pre_correction_constraint_violations()
+        )
         corrected_report, report_post_processor_result = (
             report.get_corrected_report()
         )
