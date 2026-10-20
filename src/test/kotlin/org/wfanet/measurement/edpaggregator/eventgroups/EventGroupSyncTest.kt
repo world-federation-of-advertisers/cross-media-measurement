@@ -95,6 +95,7 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.State
@@ -363,6 +364,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
@@ -398,6 +400,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
     val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
@@ -483,6 +486,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     val result = runBlocking { eventGroupSync.sync().toList() }
     val deleteCaptor = argumentCaptor<DeleteEventGroupRequest>()
@@ -581,6 +585,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     val result = runBlocking { eventGroupSync.sync().toList() }
 
@@ -619,6 +624,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     val result = runBlocking { eventGroupSync.sync().toList() }
     verifyBlocking(eventGroupsServiceMock, times(0)) { deleteEventGroup(any()) }
@@ -666,6 +672,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -704,6 +711,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -745,6 +753,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
@@ -789,6 +798,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -835,6 +845,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -899,6 +910,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -971,6 +983,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -1005,6 +1018,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { batchUpdateEventGroups(any()) }
@@ -1045,6 +1059,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -1150,6 +1165,7 @@ class EventGroupSyncTest {
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
               entityKeyTypes = emptyList(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             )
 
           runBlocking { eventGroupSync.sync().collect() }
@@ -1269,6 +1285,7 @@ class EventGroupSyncTest {
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
               entityKeyTypes = emptyList(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             )
           runBlocking { eventGroupSync.sync().collect() }
 
@@ -1380,6 +1397,7 @@ class EventGroupSyncTest {
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
               entityKeyTypes = emptyList(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             )
           runBlocking { eventGroupSync.sync().collect() }
 
@@ -1498,6 +1516,7 @@ class EventGroupSyncTest {
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
               entityKeyTypes = emptyList(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             )
           runBlocking { eventGroupSync.sync().collect() }
 
@@ -1618,6 +1637,7 @@ class EventGroupSyncTest {
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
               entityKeyTypes = emptyList(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             )
           runBlocking { eventGroupSync.sync().collect() }
 
@@ -1652,6 +1672,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       val result = runBlocking { eventGroupSync.sync() }
       assertThat(result.toList().map { it.eventGroupResource to it.eventGroupReferenceId })
@@ -1774,6 +1795,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -1808,6 +1830,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -1838,6 +1861,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -1884,6 +1908,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -1924,6 +1949,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -1954,6 +1980,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -2004,6 +2031,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -2042,6 +2070,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -2069,6 +2098,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -2138,6 +2168,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     runBlocking { eventGroupSync.sync().collect() }
@@ -2185,6 +2216,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val result = runBlocking { eventGroupSync.sync().toList() }
@@ -2240,6 +2272,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val result = runBlocking { eventGroupSync.sync().toList() }
@@ -2284,6 +2317,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val result = runBlocking { eventGroupSync.sync().toList() }
@@ -2361,6 +2395,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = listOf("campaign"),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val mappings = runBlocking { eventGroupSync.sync().toList() }
@@ -2405,6 +2440,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
 
       eventGroupSync.sync().collect()
@@ -2475,6 +2511,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
 
       val result = eventGroupSync.sync().toList()
@@ -2526,6 +2563,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     assertFailsWith<Exception> { runBlocking { eventGroupSync.sync().toList() } }
@@ -2562,6 +2600,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
 
       val result = eventGroupSync.sync().toList()
@@ -2707,6 +2746,7 @@ class EventGroupSyncTest {
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
               entityKeyTypes = emptyList(),
+              eventGroupReferenceIdEntityKeyMapping = null,
             )
 
           runBlocking { eventGroupSync.sync().collect() }
@@ -2849,6 +2889,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().collect()
 
@@ -2923,6 +2964,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = listOf("campaign", "creative-id"),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val results = runBlocking { eventGroupSync.sync().toList() }
@@ -3003,6 +3045,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val results = runBlocking { eventGroupSync.sync().toList() }
@@ -3020,6 +3063,283 @@ class EventGroupSyncTest {
 
     val failureMetric = getMetrics().firstOrNull { it.name == "edpa.event_group.sync_failure" }
     assertThat(failureMetric).isNull()
+  }
+
+  @Test
+  fun `mapping upgrades existing reference ID only EventGroup instead of creating`() {
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups += cmmsEventGroup {
+            name = "dataProviders/data-provider-1/eventGroups/legacy"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            eventGroupReferenceId = "123"
+            mediaTypes += CmmsMediaType.VIDEO
+            eventGroupMetadata = cmmsEventGroupMetadata {
+              this.adMetadata = cmmsAdMetadata {
+                this.campaignMetadata = cmmsCampaignMetadata {
+                  brandName = "old-brand"
+                  campaignName = "campaign"
+                }
+              }
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+          }
+        }
+      }
+    val source = eventGroup {
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "cp_123"
+      }
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "new-brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += MediaType.VIDEO
+    }
+
+    val results = runBlocking {
+      EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          unlinkedClientAccountsStub,
+          listOf(source).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping =
+            EventGroupReferenceIdEntityKeyMapping(
+              entityType = "campaign",
+              eventGroupReferenceIdPrefix = "",
+              entityIdPrefix = "cp_",
+            ),
+        )
+        .sync()
+        .toList()
+    }
+
+    val updateCaptor = argumentCaptor<BatchUpdateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchUpdateEventGroups(updateCaptor.capture())
+    }
+    val updated = updateCaptor.firstValue.requestsList.single().eventGroup
+    assertThat(updated.name).isEqualTo("dataProviders/data-provider-1/eventGroups/legacy")
+    assertThat(updated.eventGroupReferenceId).isEqualTo("123")
+    assertThat(updated.entityKey.entityType).isEqualTo("campaign")
+    assertThat(updated.entityKey.entityId).isEqualTo("cp_123")
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    assertThat(results.single().eventGroupResource)
+      .isEqualTo("dataProviders/data-provider-1/eventGroups/legacy")
+
+    val listCaptor = argumentCaptor<ListEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { listEventGroups(listCaptor.capture()) }
+    assertThat(listCaptor.firstValue.filter.entityTypeInList).containsExactly("campaign")
+  }
+
+  @Test
+  fun `sync does not derive reference ID when mapping is absent`() {
+    val source = eventGroup {
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "cp_reference-id-1"
+      }
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-1"
+            campaign = "campaign-1"
+          }
+        }
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.VIDEO, MediaType.DISPLAY)
+    }
+
+    runBlocking {
+      EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          unlinkedClientAccountsStub,
+          listOf(source).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
+        )
+        .sync()
+        .collect()
+    }
+
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
+    val created = createCaptor.firstValue.requestsList.single().eventGroup
+    assertThat(created.eventGroupReferenceId).isEmpty()
+    assertThat(created.entityKey.entityId).isEqualTo("cp_reference-id-1")
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
+  }
+
+  @Test
+  fun `mapping rejects source identifiers that do not exactly match`() {
+    val source = eventGroup {
+      eventGroupReferenceId = "124"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "cp_123"
+      }
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += MediaType.VIDEO
+    }
+
+    val results = runBlocking {
+      EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          unlinkedClientAccountsStub,
+          listOf(source).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping =
+            EventGroupReferenceIdEntityKeyMapping(
+              entityType = "campaign",
+              eventGroupReferenceIdPrefix = "",
+              entityIdPrefix = "cp_",
+            ),
+        )
+        .sync()
+        .toList()
+    }
+
+    assertThat(results).isEmpty()
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
+    val invalidMetric =
+      getMetrics().single { it.name == "edpa.event_group.invalid_event_group_failure" }
+    assertThat(invalidMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
+  }
+
+  @Test
+  fun `mapping rejects identifiers that resolve to different existing EventGroups`() {
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups += cmmsEventGroup {
+            name = "dataProviders/data-provider-1/eventGroups/by-entity"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            entityKey = cmmsEntityKey {
+              entityType = "campaign"
+              entityId = "cp_123"
+            }
+          }
+          eventGroups += cmmsEventGroup {
+            name = "dataProviders/data-provider-1/eventGroups/by-reference"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            eventGroupReferenceId = "123"
+          }
+        }
+      }
+    val source = eventGroup {
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "cp_123"
+      }
+      this.eventGroupMetadata = eventGroupMetadata {}
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += MediaType.VIDEO
+    }
+
+    val results = runBlocking {
+      EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          unlinkedClientAccountsStub,
+          listOf(source).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping =
+            EventGroupReferenceIdEntityKeyMapping(
+              entityType = "campaign",
+              eventGroupReferenceIdPrefix = "",
+              entityIdPrefix = "cp_",
+            ),
+        )
+        .sync()
+        .toList()
+    }
+
+    assertThat(results).isEmpty()
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
+  }
+
+  @Test
+  fun `mapping lists both legacy and mapped entity types`() {
+    runBlocking {
+      EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          unlinkedClientAccountsStub,
+          emptyList<EdpaEventGroup>().asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping =
+            EventGroupReferenceIdEntityKeyMapping(
+              entityType = "placement",
+              eventGroupReferenceIdPrefix = "",
+              entityIdPrefix = "pl_",
+            ),
+        )
+        .sync()
+        .collect()
+    }
+
+    val listCaptor = argumentCaptor<ListEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { listEventGroups(listCaptor.capture()) }
+    assertThat(listCaptor.firstValue.filter.entityTypeInList)
+      .containsExactly("campaign", "placement")
+      .inOrder()
   }
 
   @Test
@@ -3076,6 +3396,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val results = runBlocking { eventGroupSync.sync().toList() }
@@ -3146,6 +3467,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val exception =
@@ -3235,6 +3557,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     val exception =
@@ -3315,6 +3638,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().toList()
 
@@ -3390,6 +3714,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().toList()
 
@@ -3495,6 +3820,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().toList()
 
@@ -3591,6 +3917,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().toList()
 
@@ -3635,6 +3962,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       eventGroupSync.sync().toList()
 
@@ -3705,6 +4033,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       val result =
         eventGroupSync.sync().toList().map { it.eventGroupReferenceId to it.eventGroupResource }
@@ -3789,6 +4118,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       val result =
         eventGroupSync.sync().toList().map { it.eventGroupReferenceId to it.eventGroupResource }
@@ -3880,6 +4210,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     val mappings = runBlocking { eventGroupSync.sync().toList() }
 
@@ -3963,6 +4294,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     val mappings = runBlocking { eventGroupSync.sync().toList() }
 
@@ -4048,6 +4380,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     val mappings = runBlocking { eventGroupSync.sync().toList() }
 
@@ -4128,6 +4461,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     val mappings = runBlocking { eventGroupSync.sync().toList() }
 
@@ -4213,6 +4547,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -4280,6 +4615,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     val mappings = runBlocking { eventGroupSync.sync().toList() }
 
@@ -4389,6 +4725,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
         .sync()
         .toList()
@@ -4592,6 +4929,7 @@ class EventGroupSyncTest {
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
           entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
         .sync()
         .toList()
@@ -4686,6 +5024,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -4738,6 +5077,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     // A transient lookup failure must propagate as its gRPC StatusException rather than
@@ -4800,6 +5140,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -4842,6 +5183,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -4885,6 +5227,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -4944,6 +5287,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -4992,6 +5336,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -5084,6 +5429,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -5152,6 +5498,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -5231,6 +5578,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -5265,6 +5613,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -5293,6 +5642,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -5330,6 +5680,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -5379,6 +5730,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -5443,6 +5795,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -5507,6 +5860,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().collect() }
 
@@ -5563,6 +5917,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     // The run completes despite the failing delete.
     runBlocking { eventGroupSync.sync().toList() }
@@ -5616,6 +5971,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
     runBlocking { eventGroupSync.sync().toList() }
 
@@ -5689,6 +6045,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
         entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
 
     // The secondary reconcile failing must not abort a run whose event groups already synced; the

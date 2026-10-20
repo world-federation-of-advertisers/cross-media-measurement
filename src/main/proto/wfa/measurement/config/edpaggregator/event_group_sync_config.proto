@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.config.edpaggregator;
 
 import "google/api/resource.proto";
+import "wfa/measurement/config/edpaggregator/event_group_reference_id_entity_key_mapping.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
@@ -46,6 +47,13 @@ message EventGroupSyncConfig {
   // ensure all event groups with matching entity types are visible to sync.
   // When empty, the API default behavior applies (only "campaign" type).
   repeated string entity_key_types = 7;
+
+  // Optional mapping used to upgrade reference-ID-only EventGroups when an
+  // equivalent entity key is synced. Presence enables mapping. For a mappable
+  // entity key, sync derives the reference ID and requires any supplied value
+  // to match it exactly.
+  EventGroupReferenceIdEntityKeyMapping
+      event_group_reference_id_entity_key_mapping = 8;
 }
 
 // Wrapper containing Event Group Sync configurations for all EDPs.

@@ -72,6 +72,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt
@@ -232,9 +233,18 @@ class EventGroupSync(
   private val throttler: Throttler,
   private val listEventGroupPageSize: Int,
   private val entityKeyTypes: List<String>,
+  private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping?,
   private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),
 ) {
   private val metrics = EventGroupSyncMetrics(Instrumentation.meter)
+  private val listedEntityKeyTypes: List<String> =
+    if (eventGroupReferenceIdEntityKeyMapping == null) {
+      entityKeyTypes
+    } else {
+      (entityKeyTypes +
+          listOf(LEGACY_EVENT_GROUP_ENTITY_TYPE, eventGroupReferenceIdEntityKeyMapping.entityType))
+        .distinct()
+    }
 
   /**
    * Cache for ClientAccount lookups to avoid repeated API calls within a sync batch.
@@ -332,7 +342,22 @@ class EventGroupSync(
 
       // Collect the EDP EventGroups as a stream rather than materializing the full decoded list.
       var observedEventGroupCount = 0
-      eventGroups.collect { eventGroup ->
+      eventGroups.collect { sourceEventGroup ->
+        val eventGroup: EventGroup =
+          try {
+            sourceEventGroup.withMappedReferenceId()
+          } catch (e: IllegalArgumentException) {
+            logger.log(Level.SEVERE, e) {
+              "Skipping Event Group ${sourceEventGroup.eventGroupReferenceId}" +
+                (if (sourceEventGroup.hasEntityKey())
+                  " (entityType=${sourceEventGroup.entityKey.entityType}," +
+                    " entityId=${sourceEventGroup.entityKey.entityId})"
+                else "") +
+                ": Mapped identifiers do not match"
+            }
+            metrics.invalidEventGroupFailure.add(1, metricAttributes())
+            return@collect
+          }
         if (eventGroup.state == EventGroup.State.DELETED) {
           // A delete acts on an entity-keyed EventGroup, and only needs to act as a barrier when a
           // queued create/update targets that same EventGroup: flushing first keeps the buffered
@@ -1264,27 +1289,84 @@ class EventGroupSync(
     syncedEventGroups: Map<EventGroupKey, CmmsEventGroup>,
     syncedEventGroupsByEntityKey: Map<EntityKeyId, CmmsEventGroup>,
   ): CmmsEventGroup? {
-    if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
-      val entityKeyId =
-        EntityKeyId(
-          eventGroup.entityKey.entityType,
-          eventGroup.entityKey.entityId,
-          eventGroup.measurementConsumer,
-        )
-      syncedEventGroupsByEntityKey[entityKeyId]?.let {
-        return it
+    val existingByEntityKey: CmmsEventGroup? =
+      if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+        syncedEventGroupsByEntityKey[
+          EntityKeyId(
+            eventGroup.entityKey.entityType,
+            eventGroup.entityKey.entityId,
+            eventGroup.measurementConsumer,
+          )]
+      } else {
+        null
+      }
+    val existingByReferenceId: CmmsEventGroup? =
+      if (eventGroup.eventGroupReferenceId.isNotBlank()) {
+        syncedEventGroups[
+          EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)]
+      } else {
+        null
+      }
+
+    if (eventGroup.hasMappedReferenceId()) {
+      require(
+        existingByEntityKey == null ||
+          existingByEntityKey.eventGroupReferenceId.isBlank() ||
+          existingByEntityKey.eventGroupReferenceId == eventGroup.eventGroupReferenceId
+      ) {
+        "Existing EventGroup ${existingByEntityKey?.name} has reference ID " +
+          "${existingByEntityKey?.eventGroupReferenceId}, expected " +
+          eventGroup.eventGroupReferenceId
+      }
+      require(
+        existingByReferenceId == null ||
+          !existingByReferenceId.hasEntityKey() ||
+          existingByReferenceId.entityKey.entityId.isBlank() ||
+          existingByReferenceId.entityKey.toEdpaEntityKey() == eventGroup.entityKey
+      ) {
+        "Existing EventGroup ${existingByReferenceId?.name} has entity key " +
+          "${existingByReferenceId?.entityKey}, expected ${eventGroup.entityKey}"
+      }
+      require(
+        existingByEntityKey == null ||
+          existingByReferenceId == null ||
+          existingByEntityKey.name == existingByReferenceId.name
+      ) {
+        "Entity key and reference ID resolve to different EventGroups: " +
+          "${existingByEntityKey?.name} and ${existingByReferenceId?.name}"
       }
     }
 
-    if (eventGroup.eventGroupReferenceId.isNotBlank()) {
-      val eventGroupKey =
-        EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
-      syncedEventGroups[eventGroupKey]?.let {
-        return it
-      }
-    }
+    return existingByEntityKey ?: existingByReferenceId
+  }
 
-    return null
+  /** Adds and validates the mapped reference ID for a mappable entity key. */
+  private fun EventGroup.withMappedReferenceId(): EventGroup {
+    val mapping = eventGroupReferenceIdEntityKeyMapping ?: return this
+    if (!hasEntityKey() || entityKey.entityId.isBlank()) {
+      return this
+    }
+    val mappedReferenceId =
+      mapping.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId) ?: return this
+    require(eventGroupReferenceId.isBlank() || eventGroupReferenceId == mappedReferenceId) {
+      "EventGroup reference ID $eventGroupReferenceId does not exactly match mapped reference ID " +
+        mappedReferenceId
+    }
+    return if (eventGroupReferenceId.isBlank()) {
+      copy { eventGroupReferenceId = mappedReferenceId }
+    } else {
+      this
+    }
+  }
+
+  /** Whether both identifiers on this EventGroup are governed by the configured mapping. */
+  private fun EventGroup.hasMappedReferenceId(): Boolean {
+    val mapping = eventGroupReferenceIdEntityKeyMapping ?: return false
+    if (!hasEntityKey() || eventGroupReferenceId.isBlank()) {
+      return false
+    }
+    return mapping.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId) ==
+      eventGroupReferenceId
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
@@ -1299,8 +1381,8 @@ class EventGroupSync(
                   parent = edpName
                   this.pageToken = pageToken
                   pageSize = listEventGroupPageSize
-                  if (entityKeyTypes.isNotEmpty()) {
-                    filter = listEventGroupsFilter { entityTypeIn += entityKeyTypes }
+                  if (listedEntityKeyTypes.isNotEmpty()) {
+                    filter = listEventGroupsFilter { entityTypeIn += listedEntityKeyTypes }
                   }
                 }
               )
@@ -1385,6 +1467,9 @@ class EventGroupSync(
      * limit).
      */
     private const val MAX_UNLINKED_BATCH_SIZE = 1000
+
+    /** Entity type assigned by the Kingdom to legacy reference-ID-only EventGroups. */
+    private const val LEGACY_EVENT_GROUP_ENTITY_TYPE = "campaign"
 
     /**
      * gRPC status codes for a failed batch RPC that are attributable to an individual sub-request

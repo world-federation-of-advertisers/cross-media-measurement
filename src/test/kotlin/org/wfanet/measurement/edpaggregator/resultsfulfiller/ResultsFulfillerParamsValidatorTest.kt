@@ -21,6 +21,7 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.config.edpaggregator.eventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
@@ -287,11 +288,10 @@ class ResultsFulfillerParamsValidatorTest {
   fun `event group reference ID mapping requires entity type`() {
     val invalidParams =
       VALID_PARAMS.copy {
-        eventGroupReferenceIdEntityKeyMapping =
-          ResultsFulfillerParamsKt.eventGroupReferenceIdEntityKeyMapping {
-            eventGroupReferenceIdPrefix = "ref/"
-            entityIdPrefix = "entity/"
-          }
+        eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping {
+          eventGroupReferenceIdPrefix = "ref/"
+          entityIdPrefix = "entity/"
+        }
       }
 
     val exception =
@@ -306,12 +306,11 @@ class ResultsFulfillerParamsValidatorTest {
   fun `event group reference ID mapping rejects blank entity type`() {
     val invalidParams =
       VALID_PARAMS.copy {
-        eventGroupReferenceIdEntityKeyMapping =
-          ResultsFulfillerParamsKt.eventGroupReferenceIdEntityKeyMapping {
-            entityType = "   "
-            eventGroupReferenceIdPrefix = "ref/"
-            entityIdPrefix = "entity/"
-          }
+        eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping {
+          entityType = "   "
+          eventGroupReferenceIdPrefix = "ref/"
+          entityIdPrefix = "entity/"
+        }
       }
 
     val exception =
