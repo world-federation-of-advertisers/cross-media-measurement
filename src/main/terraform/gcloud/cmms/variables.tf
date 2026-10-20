@@ -530,7 +530,7 @@ variable "meta_impression_query_uber_jar_path" {
 }
 
 variable "meta_expected_ad_account_ids" {
-  description = "Meta ad account IDs the hourly access check reads, from the per-environment META_IMPRESSION_QUERY_CONFIG_CONTENT variable. Empty skips deploying the check."
+  description = "Meta ad account IDs the hourly access check reads. Update CMMS writes them from expected_ad_account_ids in the per-environment META_IMPRESSION_QUERY_CONFIG_CONTENT secret; a local apply leaves the list empty, which skips deploying the check."
   type        = list(string)
   nullable    = false
   default     = []

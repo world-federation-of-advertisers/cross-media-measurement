@@ -11,14 +11,13 @@
         "widget": {
           "title": "About",
           "text": {
-            "content": "Impression queries by outcome, and hourly checks of whether the Meta credentials can read each expected ad account. `entity_not_found` and `permission_denied` usually mean an advertiser has not shared their ad account; Meta reports an unshared account the same way as a missing one. In the account checks, `enabled` means onboarded, `permission_denied` means access was not granted and `inaccessible` means missing or unreachable. Error codes are Meta Marketing API codes.",
+            "content": "Meta impression queries by outcome, the Meta nodes that refused access, and hourly checks of whether the Meta credentials can read each expected ad account. `entity_not_found` and `permission_denied` usually mean an advertiser has not shared their ad account; Meta reports an unshared account the same way as a missing one and does not name the account behind a hidden campaign. In the account checks, `accessible` means the credentials can read the account, `permission_denied` means access was not granted, `inaccessible` means missing or unreachable, and `error` means the check itself failed. Error codes are Meta Marketing API codes.",
             "format": "MARKDOWN"
           }
         }
       },
       {
         "yPos": 6,
-        "xPos": 0,
         "height": 16,
         "width": 24,
         "widget": {
@@ -42,7 +41,7 @@
                       ],
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
-                    "filter": "metric.type=\"workload.googleapis.com/meta.impression_queries_total\""
+                    "filter": "metric.type=\"workload.googleapis.com/meta.impression_query.queries\""
                   }
                 }
               }
@@ -80,7 +79,7 @@
                       ],
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
-                    "filter": "metric.type=\"workload.googleapis.com/meta.impression_queries_total\" metric.label.\"outcome\"!=\"success\""
+                    "filter": "metric.type=\"workload.googleapis.com/meta.impression_query.queries\" metric.label.\"outcome\"!=\"success\""
                   }
                 }
               }
@@ -93,6 +92,39 @@
       },
       {
         "yPos": 22,
+        "height": 16,
+        "width": 48,
+        "widget": {
+          "title": "Queries refused for lack of access in the last day, by Meta node",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "86400s",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "86400s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [
+                        "metric.label.\"reason\"",
+                        "metric.label.\"entity_type\"",
+                        "metric.label.\"node_id\"",
+                        "metric.label.\"account_id\""
+                      ],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/meta.impression_query.inaccessible_entities\""
+                  }
+                }
+              }
+            ],
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "yPos": 38,
         "height": 20,
         "width": 48,
         "widget": {
@@ -115,7 +147,7 @@
                       ],
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
-                    "filter": "metric.type=\"workload.googleapis.com/meta.account_access_checks_total\""
+                    "filter": "metric.type=\"workload.googleapis.com/meta.account_access.checks\""
                   }
                 }
               }
@@ -125,7 +157,7 @@
         }
       },
       {
-        "yPos": 42,
+        "yPos": 58,
         "height": 16,
         "width": 24,
         "widget": {
@@ -149,7 +181,7 @@
                       ],
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
-                    "filter": "metric.type=\"workload.googleapis.com/meta.account_access_checks_total\""
+                    "filter": "metric.type=\"workload.googleapis.com/meta.account_access.checks\""
                   }
                 }
               }
@@ -161,7 +193,7 @@
         }
       },
       {
-        "yPos": 42,
+        "yPos": 58,
         "xPos": 24,
         "height": 16,
         "width": 24,
@@ -187,7 +219,43 @@
                       ],
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
-                    "filter": "metric.type=\"workload.googleapis.com/meta.account_access_checks_total\" metric.label.\"result\"!=\"enabled\""
+                    "filter": "metric.type=\"workload.googleapis.com/meta.account_access.checks\" metric.label.\"result\"!=\"accessible\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 74,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Account check runs per hour by outcome",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "3600s",
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [
+                        "metric.label.\"outcome\""
+                      ],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/meta.account_access.runs\""
                   }
                 }
               }

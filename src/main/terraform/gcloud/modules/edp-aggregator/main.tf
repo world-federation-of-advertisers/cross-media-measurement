@@ -1045,6 +1045,8 @@ resource "google_project_iam_member" "meta_impression_query_metric_writer" {
   member  = "serviceAccount:${module.meta_impression_query_cloud_function[0].cloud_function_service_account.email}"
 }
 
+# The metric names and attributes come from edp-components' MetaImpressionQueryMetrics and
+# MetaAccountAccessMetrics; change both together.
 resource "google_monitoring_dashboard" "meta_impression_query" {
   count          = local.deploy_meta_impression_query ? 1 : 0
   dashboard_json = file("${path.module}/meta_impression_query_dashboard.json")
@@ -1079,7 +1081,9 @@ module "meta_account_access_check_cloud_function" {
   function_name                            = local.meta_account_access_check_function_name
   entry_point                              = "org.wfanet.measurement.edpcomponents.meta.MetaAccountAccessCheckFunction"
   # gcloud splits --set-env-vars on commas, so the leading ^;^ switches the delimiter to keep the
-  # comma-separated account list intact. See `gcloud topic escaping`.
+  # comma-separated account list intact. See `gcloud topic escaping`. The list is sensitive, so
+  # Terraform suppresses this deploy's gcloud output; a failure shows only "output suppressed", and
+  # running the same `gcloud functions deploy` by hand shows the error.
   extra_env_vars = join(";", [
     "^;^META_EXPECTED_AD_ACCOUNT_IDS=${join(",", var.meta_expected_ad_account_ids)}",
     "OTEL_METRICS_EXPORTER=google_cloud_monitoring",
