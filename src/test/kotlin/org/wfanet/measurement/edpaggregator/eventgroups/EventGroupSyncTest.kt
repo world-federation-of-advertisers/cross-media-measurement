@@ -1927,7 +1927,10 @@ class EventGroupSyncTest {
       assertThat(invalidEventGroupFailureMetric).isNotNull()
       assertThat(invalidEventGroupFailureMetric!!.description)
         .isEqualTo("Number of Event Groups that failed validation")
-      assertThat(invalidEventGroupFailureMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
+      val invalidPoint = invalidEventGroupFailureMetric.longSumData.points.single()
+      assertThat(invalidPoint.value).isEqualTo(1)
+      assertThat(invalidPoint.attributes.get(AttributeKey.stringKey("failure_reason")))
+        .isEqualTo("validation_failure")
 
       // No success metrics should be recorded (validation failed)
       if (syncSuccessMetric != null) {
@@ -3388,7 +3391,58 @@ class EventGroupSyncTest {
     verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
     val invalidMetric =
       getMetrics().single { it.name == "edpa.event_group.invalid_event_group_failure" }
-    assertThat(invalidMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
+    val invalidPoint = invalidMetric.longSumData.points.single()
+    assertThat(invalidPoint.value).isEqualTo(1)
+    assertThat(invalidPoint.attributes.get(AttributeKey.stringKey("failure_reason")))
+      .isEqualTo("entity_id_prefix_mismatch")
+  }
+
+  @Test
+  fun `mapping rejects entity ID that maps to blank reference ID`() {
+    val source = eventGroup {
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "cp_"
+      }
+      this.eventGroupMetadata = eventGroupMetadata {}
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += MediaType.VIDEO
+    }
+
+    val results = runBlocking {
+      EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          unlinkedClientAccountsStub,
+          listOf(source).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping =
+            EventGroupReferenceIdEntityKeyMapping(
+              entityType = "campaign",
+              eventGroupReferenceIdPrefix = "",
+              entityIdPrefix = "cp_",
+            ),
+        )
+        .sync()
+        .toList()
+    }
+
+    assertThat(results).isEmpty()
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
+    val invalidMetric =
+      getMetrics().single { it.name == "edpa.event_group.invalid_event_group_failure" }
+    val invalidPoint = invalidMetric.longSumData.points.single()
+    assertThat(invalidPoint.value).isEqualTo(1)
+    assertThat(invalidPoint.attributes.get(AttributeKey.stringKey("failure_reason")))
+      .isEqualTo("mapped_reference_id_blank")
   }
 
   @Test
@@ -3441,7 +3495,10 @@ class EventGroupSyncTest {
     verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
     val invalidMetric =
       getMetrics().single { it.name == "edpa.event_group.invalid_event_group_failure" }
-    assertThat(invalidMetric.longSumData.points.sumOf { it.value }).isEqualTo(1)
+    val invalidPoint = invalidMetric.longSumData.points.single()
+    assertThat(invalidPoint.value).isEqualTo(1)
+    assertThat(invalidPoint.attributes.get(AttributeKey.stringKey("failure_reason")))
+      .isEqualTo("reference_id_mismatch")
   }
 
   @Test

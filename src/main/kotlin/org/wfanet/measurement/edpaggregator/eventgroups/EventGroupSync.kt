@@ -284,9 +284,29 @@ class EventGroupSync(
     val observed = mutableListOf<ObservedEventGroup>()
   }
 
+  private enum class InvalidEventGroupFailureReason(val attributeValue: String) {
+    ENTITY_ID_PREFIX_MISMATCH("entity_id_prefix_mismatch"),
+    MAPPED_REFERENCE_ID_BLANK("mapped_reference_id_blank"),
+    REFERENCE_ID_MISMATCH("reference_id_mismatch"),
+    VALIDATION_FAILURE("validation_failure"),
+  }
+
+  private class MappedIdentifierValidationException(
+    val failureReason: InvalidEventGroupFailureReason,
+    message: String,
+  ) : IllegalArgumentException(message)
+
   /** Creates metric attributes with data provider name. */
   private fun metricAttributes() =
     Attributes.of(AttributeKey.stringKey("data_provider_name"), edpName)
+
+  private fun invalidEventGroupMetricAttributes(
+    failureReason: InvalidEventGroupFailureReason
+  ): Attributes =
+    Attributes.builder()
+      .putAll(metricAttributes())
+      .put(INVALID_EVENT_GROUP_FAILURE_REASON_ATTRIBUTE, failureReason.attributeValue)
+      .build()
 
   /**
    * Synchronizes EventGroups with the CMMS Public API by creating, updating, or deleting as needed.
@@ -346,7 +366,7 @@ class EventGroupSync(
         val eventGroup: EventGroup =
           try {
             sourceEventGroup.withMappedReferenceId()
-          } catch (e: IllegalArgumentException) {
+          } catch (e: MappedIdentifierValidationException) {
             logger.log(Level.SEVERE, e) {
               "Skipping Event Group ${sourceEventGroup.eventGroupReferenceId}" +
                 (if (sourceEventGroup.hasEntityKey())
@@ -355,7 +375,10 @@ class EventGroupSync(
                 else "") +
                 ": Mapped identifiers do not match"
             }
-            metrics.invalidEventGroupFailure.add(1, metricAttributes())
+            metrics.invalidEventGroupFailure.add(
+              1,
+              invalidEventGroupMetricAttributes(e.failureReason),
+            )
             return@collect
           }
         if (eventGroup.state == EventGroup.State.DELETED) {
@@ -395,7 +418,10 @@ class EventGroupSync(
                 else "") +
                 ": Validation failed"
             }
-            metrics.invalidEventGroupFailure.add(1, metricAttributes())
+            metrics.invalidEventGroupFailure.add(
+              1,
+              invalidEventGroupMetricAttributes(InvalidEventGroupFailureReason.VALIDATION_FAILURE),
+            )
             return@collect
           }
 
@@ -426,7 +452,10 @@ class EventGroupSync(
               else "") +
               ": Validation failed"
           }
-          metrics.invalidEventGroupFailure.add(1, metricAttributes())
+          metrics.invalidEventGroupFailure.add(
+            1,
+            invalidEventGroupMetricAttributes(InvalidEventGroupFailureReason.VALIDATION_FAILURE),
+          )
           return@collect
         }
 
@@ -583,7 +612,10 @@ class EventGroupSync(
               "${collision.request.eventGroup.eventGroupReferenceId}," +
               " entityKey=${collision.request.eventGroup.entityKey}"
           }
-          metrics.invalidEventGroupFailure.add(1, metricAttributes())
+          metrics.invalidEventGroupFailure.add(
+            1,
+            invalidEventGroupMetricAttributes(InvalidEventGroupFailureReason.VALIDATION_FAILURE),
+          )
           return
         }
         pendingCreates.add(
@@ -1349,17 +1381,25 @@ class EventGroupSync(
     if (entityKey.entityType != mapping.entityType) {
       return this
     }
-    require(entityKey.entityId.startsWith(mapping.entityIdPrefix)) {
-      "Entity ID ${entityKey.entityId} does not start with configured prefix " +
-        "'${mapping.entityIdPrefix}'"
+    if (!entityKey.entityId.startsWith(mapping.entityIdPrefix)) {
+      throw MappedIdentifierValidationException(
+        InvalidEventGroupFailureReason.ENTITY_ID_PREFIX_MISMATCH,
+        "Entity ID ${entityKey.entityId} does not start with configured prefix " +
+          "'${mapping.entityIdPrefix}'",
+      )
     }
     val mappedReferenceId =
-      requireNotNull(mapping.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId)) {
-        "Entity ID ${entityKey.entityId} maps to a blank event-group reference ID"
-      }
-    require(eventGroupReferenceId.isBlank() || eventGroupReferenceId == mappedReferenceId) {
-      "EventGroup reference ID $eventGroupReferenceId does not exactly match mapped reference ID " +
-        mappedReferenceId
+      mapping.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId)
+        ?: throw MappedIdentifierValidationException(
+          InvalidEventGroupFailureReason.MAPPED_REFERENCE_ID_BLANK,
+          "Entity ID ${entityKey.entityId} maps to a blank event-group reference ID",
+        )
+    if (eventGroupReferenceId.isNotBlank() && eventGroupReferenceId != mappedReferenceId) {
+      throw MappedIdentifierValidationException(
+        InvalidEventGroupFailureReason.REFERENCE_ID_MISMATCH,
+        "EventGroup reference ID $eventGroupReferenceId does not exactly match mapped reference " +
+          "ID $mappedReferenceId",
+      )
     }
     return if (eventGroupReferenceId.isBlank()) {
       copy { eventGroupReferenceId = mappedReferenceId }
@@ -1479,6 +1519,9 @@ class EventGroupSync(
 
     /** Entity type assigned by the Kingdom to legacy reference-ID-only EventGroups. */
     private const val LEGACY_EVENT_GROUP_ENTITY_TYPE = "campaign"
+
+    private val INVALID_EVENT_GROUP_FAILURE_REASON_ATTRIBUTE =
+      AttributeKey.stringKey("failure_reason")
 
     /**
      * gRPC status codes for a failed batch RPC that are attributable to an individual sub-request
