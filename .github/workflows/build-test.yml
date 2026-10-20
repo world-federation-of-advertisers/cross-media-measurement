@@ -37,6 +37,7 @@ jobs:
     name: Build and test
     runs-on: ubuntu-24.04
     env:
+      BUILD_TAG_FILTERS: ${{ github.event_name == 'pull_request' && '-container-image' || '' }}
       CLUSTER_LOGS_PATH: cluster-logs
     steps:
       - name: Check out revision
@@ -105,8 +106,6 @@ jobs:
         run: bazel mod deps
 
       - name: Build
-        env:
-          BUILD_TAG_FILTERS: ${{ github.event_name == 'pull_request' && '-container-image' || '' }}
         run: >
           bazel build --worker_quit_after_build
           --build_tag_filters="$BUILD_TAG_FILTERS"
@@ -116,7 +115,10 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        run: bazel test //...
+        run: >
+          bazel test
+          --build_tag_filters="$BUILD_TAG_FILTERS"
+          //...
 
       # TODO(world-federation-of-advertisers/cross-media-measurement#3329): Re-enable coverage.
 
