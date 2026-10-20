@@ -247,4 +247,37 @@ message ResultsFulfillerParams {
 
   // `TrusTeeV2` configuration.
   TrusTeeV2Config trus_tee_v2_config = 12;
+
+  // Mapping between an event-group reference ID and an entity key.
+  message EventGroupReferenceIdEntityKeyMapping {
+    // Entity type whose IDs are equivalent to event-group reference IDs.
+    string entity_type = 1;
+
+    // Optional prefix on event-group reference IDs.
+    //
+    // Conversion removes this prefix when converting from a reference ID and
+    // adds it when converting to one. When empty, reference IDs remain
+    // mappable.
+    string event_group_reference_id_prefix = 2;
+
+    // Optional prefix on entity IDs.
+    //
+    // Conversion removes this prefix when converting from an entity ID and
+    // adds it when converting to one. When empty, entity IDs remain mappable.
+    string entity_id_prefix = 3;
+  }
+
+  // Optional mapping used to read and filter impression data written with
+  // either event-group reference IDs or entity keys. Presence enables mapping.
+  EventGroupReferenceIdEntityKeyMapping
+      event_group_reference_id_entity_key_mapping = 13;
+
+  // Entity types whose IDs in blob metadata are guaranteed to exhaustively
+  // describe every impression in the blob at that entity level.
+  //
+  // A selector containing every recorded ID for any listed type matches the
+  // whole blob, including impressions without `entity_keys`. Listing a
+  // non-exhaustive type can silently include unmatched impressions and
+  // overcount.
+  repeated string whole_blob_entity_types = 14;
 }

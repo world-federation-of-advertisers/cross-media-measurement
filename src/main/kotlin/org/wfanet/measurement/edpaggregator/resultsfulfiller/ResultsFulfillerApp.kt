@@ -238,6 +238,18 @@ class ResultsFulfillerApp(
           }
         }
       }
+    val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? =
+      if (fulfillerParams.hasEventGroupReferenceIdEntityKeyMapping()) {
+        fulfillerParams.eventGroupReferenceIdEntityKeyMapping.let { params ->
+          EventGroupReferenceIdEntityKeyMapping(
+            entityType = params.entityType,
+            eventGroupReferenceIdPrefix = params.eventGroupReferenceIdPrefix,
+            entityIdPrefix = params.entityIdPrefix,
+          )
+        }
+      } else {
+        null
+      }
 
     ResultsFulfiller(
         dataProvider = fulfillerParams.dataProvider,
@@ -253,6 +265,8 @@ class ResultsFulfillerApp(
         impressionsStorageConfig = impressionsStorageConfig,
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = fulfillerParams.wholeBlobEntityTypesList.toSet(),
+        eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
         metrics = metrics,
       )
       .fulfillRequisitions()
