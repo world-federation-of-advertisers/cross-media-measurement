@@ -126,8 +126,7 @@ class DataAvailabilitySync(
   private val impressionMetadataBatchSize: Int,
   private val modelLineMap: Map<String, List<String>>,
   private val errorIfGapsExist: Boolean,
-  private val publishEventGroupActivities:
-    (suspend (Collection<ImpressionMetadata>) -> Int)?,
+  private val publishEventGroupActivities: (suspend (Collection<ImpressionMetadata>) -> Int)?,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
   enum class Outcome {
