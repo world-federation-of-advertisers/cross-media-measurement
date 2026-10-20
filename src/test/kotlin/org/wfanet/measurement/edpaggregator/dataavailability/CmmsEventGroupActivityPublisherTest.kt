@@ -18,8 +18,10 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.util.Timestamps
+import com.google.rpc.errorInfo
 import com.google.type.date
 import com.google.type.interval
+import io.grpc.Status
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
@@ -37,12 +39,14 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivityKey
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesResponse
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as mappedEntityKey
@@ -223,6 +227,74 @@ class CmmsEventGroupActivityPublisherTest {
     }
     assertThat(requests.allValues.sumOf { it.requestsCount }).isEqualTo(1002)
     assertThat(requests.allValues.all { it.requestsCount <= 1000 }).isTrue()
+  }
+
+  @Test
+  fun `publish skips stale EventGroup and retries remaining activities`() = runBlocking {
+    val staleEventGroup = "$DATA_PROVIDER/eventGroups/stale-eg"
+    val validEventGroup = "$DATA_PROVIDER/eventGroups/valid-eg"
+    seedMap(
+      mapping("campaign", "123", staleEventGroup),
+      mapping("campaign", "123", validEventGroup),
+    )
+    val requests = mutableListOf<BatchUpdateEventGroupActivitiesRequest>()
+    wheneverBlocking {
+        eventGroupActivitiesServiceMock.batchUpdateEventGroupActivities(
+          any<BatchUpdateEventGroupActivitiesRequest>()
+        )
+      }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<BatchUpdateEventGroupActivitiesRequest>(0)
+        requests += request
+        if (
+          request.requestsList.any {
+            it.eventGroupActivity.name.startsWith("$staleEventGroup/eventGroupActivities/")
+          }
+        ) {
+          throw Status.NOT_FOUND.asRuntimeException(
+            errorInfo {
+              domain = CMMS_ERROR_DOMAIN
+              reason = EVENT_GROUP_NOT_FOUND_REASON
+              metadata[EVENT_GROUP_NAME_METADATA_KEY] = staleEventGroup
+            }
+          )
+        }
+        batchUpdateEventGroupActivitiesResponse {}
+      }
+    val metadata = impressionMetadata {
+      interval = interval {
+        startTime = Timestamps.parse("2026-01-02T12:00:00Z")
+        endTime = Timestamps.parse("2026-01-02T13:00:00Z")
+      }
+      entityKeys += entityKey {
+        entityType = "campaign"
+        entityId = "123"
+      }
+    }
+    val metricsEnvironment = createMetricsEnvironment()
+
+    try {
+      val published =
+        newPublisher(ZoneId.of("UTC"), metricsEnvironment.metrics).publish(listOf(metadata))
+
+      assertThat(published).isEqualTo(1)
+      assertThat(requests).hasSize(2)
+      assertThat(requests[0].requestsList.map { it.eventGroupActivity.name })
+        .containsExactly(
+          "$staleEventGroup/eventGroupActivities/2026-01-02",
+          "$validEventGroup/eventGroupActivities/2026-01-02",
+        )
+      assertThat(requests[1].requestsList.map { it.eventGroupActivity.name })
+        .containsExactly("$validEventGroup/eventGroupActivities/2026-01-02")
+      metricsEnvironment.metricReader.forceFlush()
+      val metric =
+        metricsEnvironment.metricExporter.finishedMetricItems.single {
+          it.name == EVENT_GROUP_NOT_FOUND_METRIC
+        }
+      assertThat(metric.longSumData.points.single().value).isEqualTo(1)
+    } finally {
+      metricsEnvironment.close()
+    }
   }
 
   @Test
@@ -479,5 +551,10 @@ class CmmsEventGroupActivityPublisherTest {
       "edpa.event_group_activity.map_records_missing_entity_key"
     private const val UNMAPPED_METADATA_ENTITY_KEY_METRIC =
       "edpa.event_group_activity.unmapped_entity_keys"
+    private const val EVENT_GROUP_NOT_FOUND_METRIC =
+      "edpa.event_group_activity.event_groups_not_found"
+    private const val CMMS_ERROR_DOMAIN = "halo.wfanet.org"
+    private const val EVENT_GROUP_NOT_FOUND_REASON = "EVENT_GROUP_NOT_FOUND"
+    private const val EVENT_GROUP_NAME_METADATA_KEY = "eventGroup"
   }
 }

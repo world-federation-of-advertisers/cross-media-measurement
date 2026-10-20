@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.dataavailability
 
+import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import java.time.Instant
@@ -27,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupA
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupActivity
 import org.wfanet.measurement.api.v2alpha.updateEventGroupActivityRequest
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
@@ -100,10 +102,12 @@ class CmmsEventGroupActivityPublisher(
         .flatMap { (eventGroupName, dates) ->
           dates.sorted().map { date -> Activity(eventGroupName, date) }
         }
+    var publishedActivityCount = 0
+    val missingEventGroupNames = mutableSetOf<String>()
     for (batch in activities.chunked(MAX_BATCH_SIZE)) {
-      updateActivities(batch)
+      publishedActivityCount += updateActivities(batch, missingEventGroupNames)
     }
-    return activities.size
+    return publishedActivityCount
   }
 
   private suspend fun loadEventGroupMap(): LoadedEventGroupMap {
@@ -146,25 +150,70 @@ class CmmsEventGroupActivityPublisher(
     return LoadedEventGroupMap(eventGroupsByEntityKey, entityTypes)
   }
 
-  private suspend fun updateActivities(activities: List<Activity>) {
-    try {
-      eventGroupActivitiesClient.batchUpdateEventGroupActivities(
-        batchUpdateEventGroupActivitiesRequest {
-          parent = "$dataProviderName/eventGroups/-"
-          for (activity in activities) {
-            requests += updateEventGroupActivityRequest {
-              eventGroupActivity = eventGroupActivity {
-                name = "${activity.eventGroupName}/eventGroupActivities/${activity.date}"
-                date = activity.date.toProtoDate()
+  private suspend fun updateActivities(
+    activities: List<Activity>,
+    missingEventGroupNames: MutableSet<String>,
+  ): Int {
+    val remainingActivities =
+      activities.filterNotTo(mutableListOf()) { it.eventGroupName in missingEventGroupNames }
+    while (remainingActivities.isNotEmpty()) {
+      try {
+        eventGroupActivitiesClient.batchUpdateEventGroupActivities(
+          batchUpdateEventGroupActivitiesRequest {
+            parent = "$dataProviderName/eventGroups/-"
+            for (activity in remainingActivities) {
+              requests += updateEventGroupActivityRequest {
+                eventGroupActivity = eventGroupActivity {
+                  name = "${activity.eventGroupName}/eventGroupActivities/${activity.date}"
+                  date = activity.date.toProtoDate()
+                }
+                allowMissing = true
               }
-              allowMissing = true
             }
           }
+        )
+        return remainingActivities.size
+      } catch (e: StatusException) {
+        val missingEventGroupName =
+          e.missingEventGroupName()
+            ?: throw Exception(
+              "Error publishing ${remainingActivities.size} EventGroup activities",
+              e,
+            )
+        val removedActivityCount =
+          remainingActivities.count { it.eventGroupName == missingEventGroupName }
+        if (removedActivityCount == 0) {
+          throw Exception("Error publishing ${remainingActivities.size} EventGroup activities", e)
         }
-      )
-    } catch (e: StatusException) {
-      throw Exception("Error publishing ${activities.size} EventGroup activities", e)
+
+        remainingActivities.removeAll { it.eventGroupName == missingEventGroupName }
+        missingEventGroupNames += missingEventGroupName
+        cachedEventGroupMap = null
+        logger.severe(
+          "Skipped $removedActivityCount activities for missing EventGroup " + missingEventGroupName
+        )
+        metrics.eventGroupsNotFoundCounter.add(
+          1,
+          Attributes.of(
+            EventGroupActivityPublisherMetrics.DATA_PROVIDER_NAME_ATTR,
+            dataProviderName,
+          ),
+        )
+      }
     }
+    return 0
+  }
+
+  private fun StatusException.missingEventGroupName(): String? {
+    val details = errorInfo ?: return null
+    if (
+      status.code != Status.Code.NOT_FOUND ||
+        details.domain != CMMS_ERROR_DOMAIN ||
+        details.reason != EVENT_GROUP_NOT_FOUND_REASON
+    ) {
+      return null
+    }
+    return details.metadataMap[EVENT_GROUP_NAME_METADATA_KEY]
   }
 
   private data class Activity(val eventGroupName: String, val date: LocalDate)
@@ -189,5 +238,8 @@ class CmmsEventGroupActivityPublisher(
   companion object {
     private val logger: Logger = Logger.getLogger(CmmsEventGroupActivityPublisher::class.java.name)
     private const val MAX_BATCH_SIZE = 1000
+    private const val CMMS_ERROR_DOMAIN = "halo.wfanet.org"
+    private const val EVENT_GROUP_NOT_FOUND_REASON = "EVENT_GROUP_NOT_FOUND"
+    private const val EVENT_GROUP_NAME_METADATA_KEY = "eventGroup"
   }
 }

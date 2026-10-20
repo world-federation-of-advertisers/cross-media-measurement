@@ -34,6 +34,14 @@ class EventGroupActivityPublisherMetrics(meter: Meter) {
       .setDescription("Number of impression metadata entity keys absent from the EventGroup map")
       .build()
 
+  val eventGroupsNotFoundCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.event_group_activity.event_groups_not_found")
+      .setDescription(
+        "Number of stale EventGroup mappings skipped because the resource was not found"
+      )
+      .build()
+
   companion object {
     internal val DATA_PROVIDER_NAME_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("data_provider_name")
