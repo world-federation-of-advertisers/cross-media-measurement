@@ -374,7 +374,7 @@ class LabeledImpressionWriterTest {
   }
 
   @Test
-  fun `write overwrites a pre-completion publication`() = runBlocking {
+  fun `write overwrites existing destinations before done`() = runBlocking {
     val kmsClient = buildKmsClient()
     val writer = LabeledImpressionWriter.forFileSystem(kmsClient, temporaryFolder.root)
     val firstImpression = impression(vid = 101L, entityKeys = listOf("ad" to "ad-1"))

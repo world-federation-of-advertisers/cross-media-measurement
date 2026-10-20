@@ -61,10 +61,10 @@ private constructor(
    *
    * This method overwrites both destinations so a failed attempt can be retried at the same URIs.
    * The caller must ensure that only one writer uses these destinations at a time. Call this method
-   * only before the completion marker that publishes the data is created. A failed invocation may
-   * leave an incomplete object or an inconsistent blob-sidecar pair; retry the same publication
-   * before creating the completion marker. After publication, treat both objects as immutable and
-   * write corrections under new URIs.
+   * only before the `done` completion marker that publishes the data is created. A failed
+   * invocation may leave an incomplete object or an inconsistent blob-sidecar pair; retry the same
+   * publication before creating `done`. After `done`, treat both objects as immutable and write
+   * corrections under new URIs.
    *
    * @return the [BlobDetails] written to [metadataUri]
    */
