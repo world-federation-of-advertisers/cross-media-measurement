@@ -54,8 +54,8 @@ message BasicReport {
   enum State {
     // Default value. This value is unused.
     STATE_UNSPECIFIED = 0;
-    // `BasicReport` created.
-    CREATED = 1;
+    // `BasicReport` created, taking the path through a `Report`.
+    CREATED_LEGACY = 1;
     // `Report` created.
     REPORT_CREATED = 2;
     // `Report` is in SUCCEEDED state, and its results are persisted with the
@@ -68,6 +68,12 @@ message BasicReport {
     FAILED = 5;
     // Results have been invalidated. Terminal state.
     INVALID = 6;
+    // `BasicReport` created, taking the multimeasurement path. Its
+    // multimeasurements are not yet created.
+    CREATED_MULTIMEASUREMENT = 7;
+    // A multimeasurement exists for every `ReportComputation` of the
+    // `BasicReport`.
+    MEASUREMENTS_CREATED = 8;
   }
   // `BasicReport` state.
   State state = 9;

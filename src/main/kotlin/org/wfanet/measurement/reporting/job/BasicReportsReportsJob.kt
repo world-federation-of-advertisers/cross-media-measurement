@@ -360,7 +360,7 @@ class BasicReportsReportsJob(
               filter =
                 ListBasicReportsRequestKt.filter {
                   this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                  state = BasicReport.State.CREATED
+                  state = BasicReport.State.CREATED_LEGACY
                 }
             }
           )

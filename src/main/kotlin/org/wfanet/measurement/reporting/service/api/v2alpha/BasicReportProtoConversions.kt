@@ -517,7 +517,9 @@ fun InternalBasicReport.toBasicReport(
     state =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (source.state) {
-        InternalBasicReport.State.CREATED,
+        InternalBasicReport.State.CREATED_LEGACY,
+        InternalBasicReport.State.CREATED_MULTIMEASUREMENT,
+        InternalBasicReport.State.MEASUREMENTS_CREATED,
         InternalBasicReport.State.REPORT_CREATED,
         InternalBasicReport.State.UNPROCESSED_RESULTS_READY -> BasicReport.State.RUNNING
         InternalBasicReport.State.SUCCEEDED -> BasicReport.State.SUCCEEDED
