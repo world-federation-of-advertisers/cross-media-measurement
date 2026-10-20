@@ -214,8 +214,12 @@ message Computation {
     }
 
     // Configuration for the TrusTEE multimeasurement protocol. The attested
-    // image fixes the result minimum thresholds.
-    message TrusTeeV2 {}
+    // image fixes the noise mechanism.
+    message TrusTeeV2 {
+      // Optional small-cell suppression parameters, applied to each
+      // `DataProvider`'s contribution to a result.
+      TrusTee.ResultMinimumThresholds result_minimum_thresholds = 1;
+    }
 
     // Configuration for the specific protocol. Required.
     oneof protocol {
