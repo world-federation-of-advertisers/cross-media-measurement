@@ -27,13 +27,8 @@ import com.google.type.interval
 import java.nio.file.Files
 import java.security.GeneralSecurityException
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -50,10 +45,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
-import org.wfanet.measurement.storage.BlobChangedException
-import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.StorageClient
 
 class LabeledImpressionWriterTest {
   @get:Rule val temporaryFolder = TemporaryFolder()
@@ -231,8 +223,9 @@ class LabeledImpressionWriterTest {
     }
 
   @Test
-  fun `write does not publish metadata when a later impression is invalid`() = runBlocking {
-    val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
+  fun `write can retry the same destinations after a later impression is invalid`() = runBlocking {
+    val kmsClient = buildKmsClient()
+    val writer = LabeledImpressionWriter.forFileSystem(kmsClient, temporaryFolder.root)
     val validImpression = impression(vid = 101L, entityKeys = listOf("campaign" to "campaign-1"))
     val invalidImpression =
       impression(vid = 102L, entityKeys = listOf("campaign" to "campaign-1"))
@@ -254,6 +247,20 @@ class LabeledImpressionWriterTest {
 
     assertThat(exception).hasMessageThat().contains("at least one entity key")
     assertThat(getBlob(METADATA_URI)).isNull()
+
+    val retryDetails =
+      writer.write(
+        impressions = flowOf(validImpression),
+        blobUri = BLOB_URI,
+        metadataUri = METADATA_URI,
+        kekUri = KEK_URI,
+        modelLine = MODEL_LINE,
+        interval = INTERVAL,
+      )
+
+    assertThat(readBlobDetails(METADATA_URI)).isEqualTo(retryDetails)
+    assertThat(readImpressions(BLOB_URI, retryDetails, kmsClient)).containsExactly(validImpression)
+    Unit
   }
 
   @Test
@@ -323,7 +330,6 @@ class LabeledImpressionWriterTest {
       }
 
     assertThat(exception).hasMessageThat().contains("must not be empty")
-    assertThat(getBlob(BLOB_URI)).isNull()
     assertThat(getBlob(METADATA_URI)).isNull()
   }
 
@@ -368,10 +374,12 @@ class LabeledImpressionWriterTest {
   }
 
   @Test
-  fun `write refuses to overwrite an existing publication`() = runBlocking {
-    val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
+  fun `write overwrites a pre-completion publication`() = runBlocking {
+    val kmsClient = buildKmsClient()
+    val writer = LabeledImpressionWriter.forFileSystem(kmsClient, temporaryFolder.root)
+    val firstImpression = impression(vid = 101L, entityKeys = listOf("ad" to "ad-1"))
     writer.write(
-      impressions = flowOf(impression(vid = 101L, entityKeys = listOf("ad" to "ad-1"))),
+      impressions = flowOf(firstImpression),
       blobUri = BLOB_URI,
       metadataUri = METADATA_URI,
       kekUri = KEK_URI,
@@ -380,84 +388,25 @@ class LabeledImpressionWriterTest {
     )
     val originalBlob = readRawBlob(BLOB_URI)
     val originalMetadata = readRawBlob(METADATA_URI)
+    val replacementImpression =
+      impression(vid = 202L, entityKeys = listOf("campaign" to "campaign-2"))
 
-    assertFailsWith<BlobChangedException> {
+    val replacementDetails =
       writer.write(
-        impressions = flowOf(impression(vid = 202L, entityKeys = listOf("ad" to "ad-2"))),
+        impressions = flowOf(replacementImpression),
         blobUri = BLOB_URI,
         metadataUri = METADATA_URI,
         kekUri = KEK_URI,
         modelLine = MODEL_LINE,
         interval = INTERVAL,
       )
-    }
 
-    assertThat(readRawBlob(BLOB_URI)).isEqualTo(originalBlob)
-    assertThat(readRawBlob(METADATA_URI)).isEqualTo(originalMetadata)
-  }
-
-  @Test
-  fun `write does not delete a successful concurrent publication after ambiguous failure`() =
-    runBlocking {
-      val storageClient = RacingStorageClient()
-      val failedWriter = LabeledImpressionWriter.forStorageClient(buildKmsClient(), storageClient)
-      val successfulWriter =
-        LabeledImpressionWriter.forStorageClient(buildKmsClient(), storageClient)
-      val invalidImpression = impression(vid = 101L, entityKeys = emptyList())
-
-      val failedWrite = async {
-        assertFailsWith<IllegalArgumentException> {
-          failedWriter.write(
-            impressions = flowOf(invalidImpression),
-            blobUri = BLOB_URI,
-            metadataUri = METADATA_URI,
-            kekUri = KEK_URI,
-            modelLine = MODEL_LINE,
-            interval = INTERVAL,
-          )
-        }
-      }
-      storageClient.firstWriteContentFailed.await()
-
-      successfulWriter.write(
-        impressions =
-          flowOf(impression(vid = 202L, entityKeys = listOf("campaign" to "campaign-2"))),
-        blobUri = BLOB_URI,
-        metadataUri = METADATA_URI,
-        kekUri = KEK_URI,
-        modelLine = MODEL_LINE,
-        interval = INTERVAL,
-      )
-      storageClient.allowFirstWriteToFail.complete(Unit)
-
-      val exception = failedWrite.await()
-      assertThat(exception.suppressed.asList()).hasSize(1)
-      assertThat(exception.suppressed.single()).isInstanceOf(BlobChangedException::class.java)
-      assertThat(storageClient.getBlob(BLOB_KEY)).isNotNull()
-      assertThat(storageClient.getBlob(METADATA_KEY)).isNotNull()
-    }
-
-  @Test
-  fun `write removes the new blob when the metadata destination already exists`() = runBlocking {
-    val writer = LabeledImpressionWriter.forFileSystem(buildKmsClient(), temporaryFolder.root)
-    val existingMetadata = ByteString.copyFromUtf8("existing metadata")
-    val metadataUri = SelectedStorageClient.parseBlobUri(METADATA_URI)
-    SelectedStorageClient(metadataUri, temporaryFolder.root)
-      .writeBlob(metadataUri.key, existingMetadata)
-
-    assertFailsWith<BlobChangedException> {
-      writer.write(
-        impressions = flowOf(impression(vid = 101L, entityKeys = listOf("ad" to "ad-1"))),
-        blobUri = BLOB_URI,
-        metadataUri = METADATA_URI,
-        kekUri = KEK_URI,
-        modelLine = MODEL_LINE,
-        interval = INTERVAL,
-      )
-    }
-
-    assertThat(getBlob(BLOB_URI)).isNull()
-    assertThat(readRawBlob(METADATA_URI)).isEqualTo(existingMetadata)
+    assertThat(readRawBlob(BLOB_URI)).isNotEqualTo(originalBlob)
+    assertThat(readRawBlob(METADATA_URI)).isNotEqualTo(originalMetadata)
+    assertThat(readBlobDetails(METADATA_URI)).isEqualTo(replacementDetails)
+    assertThat(readImpressions(BLOB_URI, replacementDetails, kmsClient))
+      .containsExactly(replacementImpression)
+    Unit
   }
 
   @Test
@@ -497,6 +446,26 @@ class LabeledImpressionWriterTest {
 
   private suspend fun readRawBlob(uri: String): ByteString = getBlob(uri)!!.read().flatten()
 
+  private suspend fun readImpressions(
+    blobUri: String,
+    details: BlobDetails,
+    kmsClient: KmsClient,
+  ): List<LabeledImpression> {
+    val parsedBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
+    val encryptedStorage =
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        storageClient = SelectedStorageClient(parsedBlobUri, temporaryFolder.root),
+        kmsClient = kmsClient,
+        kekUri = KEK_URI,
+        encryptedDek = details.encryptedDek,
+      )
+    return encryptedStorage
+      .getBlob(parsedBlobUri.key)!!
+      .read()
+      .toList()
+      .map(LabeledImpression::parseFrom)
+  }
+
   private fun buildKmsClient(): FakeKmsClient {
     AeadConfig.register()
     val kmsClient = FakeKmsClient()
@@ -528,87 +497,6 @@ class LabeledImpressionWriterTest {
     }
   }
 
-  private class RacingStorageClient : ConditionalOperationStorageClient {
-    val firstWriteContentFailed = CompletableDeferred<Unit>()
-    val allowFirstWriteToFail = CompletableDeferred<Unit>()
-
-    private val isFirstBlobWrite = AtomicBoolean(true)
-    private val blobs = ConcurrentHashMap<String, Blob>()
-
-    override suspend fun writeBlobIfNotFound(
-      blobKey: String,
-      content: Flow<ByteString>,
-    ): StorageClient.Blob {
-      if (blobKey == BLOB_KEY && isFirstBlobWrite.compareAndSet(true, false)) {
-        try {
-          content.flatten()
-        } catch (e: Throwable) {
-          firstWriteContentFailed.complete(Unit)
-          allowFirstWriteToFail.await()
-          e.addSuppressed(BlobChangedException("A concurrent writer published the object"))
-          throw e
-        }
-        error("Expected the first writer's content flow to fail")
-      }
-
-      val blob = Blob(blobKey, content.flatten())
-      if (blobs.putIfAbsent(blobKey, blob) != null) {
-        throw BlobChangedException("Blob already exists: $blobKey")
-      }
-      return blob
-    }
-
-    override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob =
-      error("Not supported")
-
-    override suspend fun getBlob(blobKey: String): StorageClient.Blob? = blobs[blobKey]
-
-    override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> =
-      flowOf(
-        *blobs.values
-          .filter { prefix.isNullOrEmpty() || it.blobKey.startsWith(prefix) }
-          .toTypedArray()
-      )
-
-    override suspend fun getFreshnessToken(blobKey: String): String? =
-      blobs[blobKey]?.freshnessToken
-
-    override suspend fun writeBlobIfUnchanged(
-      blob: StorageClient.Blob,
-      content: Flow<ByteString>,
-    ): StorageClient.Blob = error("Not supported")
-
-    override suspend fun writeBlobIfUnchanged(
-      blobKey: String,
-      freshnessToken: String,
-      content: Flow<ByteString>,
-    ): StorageClient.Blob = error("Not supported")
-
-    private inner class Blob(override val blobKey: String, private val content: ByteString) :
-      ConditionalOperationStorageClient.Blob {
-      override val storageClient: StorageClient
-        get() = this@RacingStorageClient
-
-      override val size: Long
-        get() = content.size().toLong()
-
-      override val createTime: Instant
-        get() = Instant.EPOCH
-
-      override val updateTime: Instant
-        get() = Instant.EPOCH
-
-      override val freshnessToken: String
-        get() = "1"
-
-      override fun read(): Flow<ByteString> = flowOf(content)
-
-      override suspend fun delete() {
-        blobs.remove(blobKey, this)
-      }
-    }
-  }
-
   private fun impression(vid: Long, entityKeys: List<Pair<String, String>>): LabeledImpression =
     labeledImpression {
       this.vid = vid
@@ -627,8 +515,6 @@ class LabeledImpressionWriterTest {
     private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "writer-test"
     private const val BLOB_URI = "file:///operator-bucket/2026-01-15/impressions.enc.recordio"
     private const val METADATA_URI = "file:///operator-bucket/2026-01-15/metadata.binpb"
-    private const val BLOB_KEY = "2026-01-15/impressions.enc.recordio"
-    private const val METADATA_KEY = "2026-01-15/metadata.binpb"
     private const val COPIED_BLOB_URI =
       "file:///operator-bucket/2026-01-15/copied-impressions.enc.recordio"
     private const val SECOND_BLOB_URI =
