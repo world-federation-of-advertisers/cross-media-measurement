@@ -42,7 +42,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
-import org.wfanet.measurement.storage.BlobChangedException
+import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -51,8 +52,7 @@ import org.wfanet.measurement.storage.StorageClient
 class LabeledImpressionWriter
 private constructor(
   private val kmsClient: KmsClient,
-  private val rootDirectory: File?,
-  private val gcsProjectId: String?,
+  private val storageClientFactory: (BlobUri) -> ConditionalOperationStorageClient,
 ) {
   /**
    * Writes [impressions] as encrypted Mesos RecordIO and writes its binary [BlobDetails] sidecar.
@@ -60,8 +60,10 @@ private constructor(
    * [blobUri] and [metadataUri] must be distinct objects in the same bucket. A fresh streaming AEAD
    * data encryption key is generated for each invocation and encrypted with [kekUri]. Entity keys
    * in the sidecar are derived from the records written to the blob. Both destination objects must
-   * be new; the writer never overwrites an existing blob or sidecar and removes objects created by
-   * a failed invocation.
+   * be new, and the writer never overwrites an existing blob or sidecar. If the impression object
+   * is created but a later step fails, the writer deletes that exact object through the handle
+   * returned by the successful create. It never looks up a destination object to clean up an
+   * ambiguous write failure.
    *
    * @return the [BlobDetails] written to [metadataUri]
    */
@@ -119,18 +121,12 @@ private constructor(
         impression.toByteString()
       }
 
-    val blobStorageClient = SelectedStorageClient(parsedBlobUri, rootDirectory, gcsProjectId)
+    val blobStorageClient = storageClientFactory(parsedBlobUri)
     val encryptedStorageClient =
       StreamingAeadStorageClient(blobStorageClient, dataEncryptionKey.streamingAead, Dispatchers.IO)
-    try {
+    val createdBlob =
       MesosRecordIoStorageClient(encryptedStorageClient)
         .writeBlobIfNotFound(parsedBlobUri.key, records)
-    } catch (e: BlobChangedException) {
-      throw e
-    } catch (e: Throwable) {
-      cleanupBlob(blobStorageClient, parsedBlobUri.key, e)
-      throw e
-    }
 
     try {
       check(impressionCount > 0L) { "impressions must not be empty" }
@@ -147,34 +143,22 @@ private constructor(
             }
           }
       }
-      val metadataStorageClient =
-        SelectedStorageClient(parsedMetadataUri, rootDirectory, gcsProjectId)
-      try {
-        metadataStorageClient.writeBlobIfNotFound(
-          parsedMetadataUri.key,
-          flowOf(details.toByteString()),
-        )
-      } catch (e: BlobChangedException) {
-        throw e
-      } catch (e: Throwable) {
-        cleanupBlob(metadataStorageClient, parsedMetadataUri.key, e)
-        throw e
-      }
+      val metadataStorageClient = storageClientFactory(parsedMetadataUri)
+      metadataStorageClient.writeBlobIfNotFound(
+        parsedMetadataUri.key,
+        flowOf(details.toByteString()),
+      )
       return details
     } catch (e: Throwable) {
-      cleanupBlob(blobStorageClient, parsedBlobUri.key, e)
+      cleanupBlob(createdBlob, e)
       throw e
     }
   }
 
-  private suspend fun cleanupBlob(
-    storageClient: StorageClient,
-    blobKey: String,
-    originalFailure: Throwable,
-  ) {
+  private suspend fun cleanupBlob(blob: StorageClient.Blob, originalFailure: Throwable) {
     withContext(NonCancellable) {
       try {
-        storageClient.getBlob(blobKey)?.delete()
+        blob.delete()
       } catch (cleanupFailure: Throwable) {
         originalFailure.addSuppressed(cleanupFailure)
       }
@@ -235,14 +219,23 @@ private constructor(
     /** Returns a writer for Google Cloud Storage. Pass `null` to infer [projectId]. */
     @JvmStatic
     fun forCloudStorage(kmsClient: KmsClient, projectId: String?): LabeledImpressionWriter {
-      return LabeledImpressionWriter(kmsClient, rootDirectory = null, gcsProjectId = projectId)
+      return LabeledImpressionWriter(kmsClient) { blobUri ->
+        SelectedStorageClient(blobUri, rootDirectory = null, projectId = projectId)
+      }
     }
 
     /** Returns a writer for `file:///` URIs rooted at [rootDirectory]. */
     @JvmStatic
     fun forFileSystem(kmsClient: KmsClient, rootDirectory: File): LabeledImpressionWriter {
-      return LabeledImpressionWriter(kmsClient, rootDirectory, gcsProjectId = null)
+      return LabeledImpressionWriter(kmsClient) { blobUri ->
+        SelectedStorageClient(blobUri, rootDirectory, projectId = null)
+      }
     }
+
+    internal fun forStorageClient(
+      kmsClient: KmsClient,
+      storageClient: ConditionalOperationStorageClient,
+    ): LabeledImpressionWriter = LabeledImpressionWriter(kmsClient) { storageClient }
 
     private fun validateInterval(interval: Interval) {
       require(interval.hasStartTime()) { "interval must have a start time" }
