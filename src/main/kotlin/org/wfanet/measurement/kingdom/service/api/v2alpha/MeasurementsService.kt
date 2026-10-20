@@ -186,6 +186,7 @@ class MeasurementsService(
       }
     }
 
+    request.measurement.requireNotMultimeasurement()
     grpcRequire(request.measurement.dataProvidersList.isNotEmpty()) {
       "measurement.data_providers is empty"
     }
@@ -381,6 +382,10 @@ class MeasurementsService(
 
     if (request.requestsList.size > MAX_BATCH_SIZE) {
       failGrpc { "Number of elements in requests exceeds the maximum batch size." }
+    }
+
+    for (createMeasurementRequest in request.requestsList) {
+      createMeasurementRequest.measurement.requireNotMultimeasurement()
     }
 
     val allExternalDataProviderIds: List<ExternalId> =
@@ -838,6 +843,13 @@ class MeasurementsService(
         .build()
     ReportTracing.recordSuccess("kingdom.measurement.created", attributes)
     return measurement
+  }
+}
+
+/** Rejects a multimeasurement, which the Kingdom does not support yet. */
+private fun Measurement.requireNotMultimeasurement() {
+  if (hasUnsignedMeasurementSpec() || hasMultimeasurement()) {
+    failGrpc(Status.UNIMPLEMENTED) { "Multimeasurements are not supported" }
   }
 }
 
