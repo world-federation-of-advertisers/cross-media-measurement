@@ -73,6 +73,7 @@ enum class KmsType {
 @Command(
   name = "verify-vid-labeled-impressions",
   description = ["Verifies VID-labeled impression blobs can be decrypted and parsed."],
+  mixinStandardHelpOptions = true,
 )
 class VerifyVidLabeledImpressions : Callable<Int> {
   @Option(

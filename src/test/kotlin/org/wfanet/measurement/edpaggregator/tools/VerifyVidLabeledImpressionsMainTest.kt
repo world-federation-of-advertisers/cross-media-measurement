@@ -23,6 +23,19 @@ import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 @RunWith(JUnit4::class)
 class VerifyVidLabeledImpressionsMainTest {
   @Test
+  fun `main prints help without requiring verification flags`() {
+    val capturedOutput = CommandLineTesting.capturingOutput(arrayOf("--help"), ::main)
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(0)
+    subject.out().contains("--kms-type")
+    subject.out().contains("--kek-uri")
+    subject.out().contains("--aws-role-arn")
+    subject.out().contains("--gcp-to-aws-role-arn")
+    subject.out().contains("--aws-audience")
+  }
+
+  @Test
   fun `main exits nonzero when required flags are missing`() {
     val capturedOutput = CommandLineTesting.capturingOutput(emptyArray(), ::main)
 
