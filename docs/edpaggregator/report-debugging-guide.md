@@ -1241,6 +1241,15 @@ Once the Kingdom measurements SUCCEED:
   consistency solver, writes corrected values, and advances the BasicReport to
   `SUCCEEDED (4)`.
 
+  Categorical failure diagnostics, including solver status and issue enums, are
+  logged even when measurement-value logging is disabled. For solver residuals,
+  numerical constraint mismatches, report-result values after noise but before
+  correction, corrected values, and bounded exception tracebacks, enable
+  `--log-noise-correction-values` as described in
+  [Configure noise-correction diagnostic logging][noise-correction-logging].
+  These diagnostics do not add raw pre-noise inputs to application logs. Enable
+  them only where log access and retention policies permit the values.
+
   Check `report-result-post-processor-container` (cluster `reporting-v2`). Failure
   modes:
 
@@ -1264,6 +1273,9 @@ Once the Kingdom measurements SUCCEED:
   If a BasicReport is stuck in `UNPROCESSED_RESULTS_READY`, the cronjob is either
   not running, erroring every tick (check its logs), or hitting a transient it
   keeps retrying.
+
+[noise-correction-logging]:
+  <../gke/reporting-v2-server-deployment.md#configure-noise-correction-diagnostic-logging>
 
 ## Common EDP Aggregator failure modes
 
