@@ -46,6 +46,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:query_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:trus_tee_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:trus_tee_v2_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc_proto",

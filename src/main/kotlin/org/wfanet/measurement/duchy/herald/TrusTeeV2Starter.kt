@@ -39,6 +39,7 @@ import org.wfanet.measurement.internal.duchy.config.TrusTeeSetupConfig
 import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.populationAttributeValue
 import org.wfanet.measurement.internal.duchy.populationSpec
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt.ComputationDetailsKt.resultMinimumThresholds
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2Kt
 import org.wfanet.measurement.internal.duchy.query
@@ -94,6 +95,13 @@ object TrusTeeV2Starter {
               descriptorSet = multimeasurement.eventDescriptor.descriptorSet
               eventMessageType = multimeasurement.eventDescriptor.eventMessageType
             }
+          val trusTeeV2Config = systemComputation.mpcProtocolConfig.trusTeeV2
+          if (trusTeeV2Config.hasResultMinimumThresholds()) {
+            resultMinimumThresholds = resultMinimumThresholds {
+              minImpressions = trusTeeV2Config.resultMinimumThresholds.minImpressions
+              minUsers = trusTeeV2Config.resultMinimumThresholds.minUsers
+            }
+          }
         }
     }
 

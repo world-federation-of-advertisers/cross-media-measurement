@@ -197,7 +197,7 @@ class RequisitionFulfillmentService(
                     blobPath = blob.blobKey,
                     protocolDetails =
                       RequisitionDetailsKt.requisitionProtocol {
-                        trusTeeV2 = header.trusTeeV2.toInternal()
+                        trusTeeV2 = header.trusTeeV2.toInternal(key.dataProviderId)
                       },
                   )
                 }
@@ -406,10 +406,13 @@ class RequisitionFulfillmentService(
     }
   }
 
-  private fun Header.TrusTeeV2.toInternal(): RequisitionDetails.RequisitionProtocol.TrusTeeV2 {
+  private fun Header.TrusTeeV2.toInternal(
+    externalDataProviderId: String
+  ): RequisitionDetails.RequisitionProtocol.TrusTeeV2 {
     val source = this
     return trusTeeV2 {
       trusTee = source.trusTee.toInternal()
+      this.externalDataProviderId = externalDataProviderId
       when (source.detailsCase) {
         Header.TrusTeeV2.DetailsCase.FULFILLMENT_DETAILS -> {
           grpcRequire(source.trusTee.dataFormat == Header.TrusTee.DataFormat.FREQUENCY_VECTOR) {
