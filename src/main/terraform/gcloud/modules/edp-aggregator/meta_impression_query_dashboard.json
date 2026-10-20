@@ -1,5 +1,5 @@
 {
-  "displayName": "Meta Ad Account Access",
+  "displayName": "Meta Impression Query",
   "dashboardFilters": [],
   "labels": {},
   "mosaicLayout": {
@@ -11,13 +11,88 @@
         "widget": {
           "title": "About",
           "text": {
-            "content": "Hourly checks of whether the Meta impression-query credentials can read each expected ad account. `enabled` means the account is onboarded; `permission_denied` means the advertiser has not granted access; `inaccessible` means the account is missing or unreachable. Error codes are Meta Marketing API codes.",
+            "content": "Impression queries by outcome, and hourly checks of whether the Meta credentials can read each expected ad account. `entity_not_found` and `permission_denied` usually mean an advertiser has not shared their ad account; Meta reports an unshared account the same way as a missing one. In the account checks, `enabled` means onboarded, `permission_denied` means access was not granted and `inaccessible` means missing or unreachable. Error codes are Meta Marketing API codes.",
             "format": "MARKDOWN"
           }
         }
       },
       {
         "yPos": 6,
+        "xPos": 0,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Impression queries per hour by outcome",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "3600s",
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [
+                        "metric.label.\"outcome\""
+                      ],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/meta.impression_queries_total\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 6,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Unanswered impression queries per hour by entity type",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "3600s",
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [
+                        "metric.label.\"outcome\"",
+                        "metric.label.\"entity_type\""
+                      ],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/meta.impression_queries_total\" metric.label.\"outcome\"!=\"success\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 22,
         "height": 20,
         "width": 48,
         "widget": {
@@ -50,7 +125,7 @@
         }
       },
       {
-        "yPos": 26,
+        "yPos": 42,
         "height": 16,
         "width": 24,
         "widget": {
@@ -86,7 +161,7 @@
         }
       },
       {
-        "yPos": 26,
+        "yPos": 42,
         "xPos": 24,
         "height": 16,
         "width": 24,
