@@ -128,8 +128,9 @@ Its
 generates a fresh streaming DEK, applies the correct associated data, writes
 Mesos RecordIO, derives the sidecar's entity-key index from the records, and
 writes the binary `BlobDetails` sidecar only after the encrypted blob succeeds.
-It uses create-only writes, removes objects created by a failed invocation, and
-refuses to overwrite an existing blob or sidecar.
+It uses create-only writes and refuses to overwrite or delete another writer's
+blob or sidecar. If it creates the encrypted blob but a later sidecar step fails,
+it removes only the object version returned by its successful create.
 Use the artifact version that matches the Halo release selected with the
 operator; it is the release tag without the leading `v`. The
 [`LabeledImpressionWriterTest`](../../src/test/kotlin/org/wfanet/measurement/edpaggregator/client/LabeledImpressionWriterTest.kt)
@@ -271,8 +272,12 @@ default credentials, such as service-account impersonation or workload identity,
 over a downloaded service-account key. The EDP's ordinary upload identity
 does not need decrypt access.
 
-The command also supports AWS and GCP-to-AWS KMS. Run the same command with
-`--help` for their required identity, role, and region flags.
+The command also supports AWS and GCP-to-AWS KMS. List their required identity,
+role, and region flags with:
+
+```bash
+java -jar VerifyVidLabeledImpressions_deploy.jar --help
+```
 
 A successful run exits with status `0` and reports `PASS`, the number of
 decrypted records, and impression counts for each distinct entity key. Legacy
