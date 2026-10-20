@@ -241,6 +241,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   //   - edp1-eg-multi-creative: two creative-id entity keys in the same blob.
   //   - edp2-eg-ref-1, edp3-eg-ref-1: entity_type="campaign" + entity_id.
   //   - edp2-eg-creative-1: entity_type="creative-id".
+  //   - sparse-frequency: entity_type="campaign" and a [10, 30, 70] frequency histogram.
   //   - edp4-eg-ref-1: entity_type="ad_group" (non-default type round-trip).
   // listReportingEventGroups() filters entity_type_in=["campaign", "ad_group", "creative-id"]
   // so all event groups are visible.
@@ -297,6 +298,17 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                   EntityKeySpec(
                     EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_EVENT_GROUP_REF_ID),
                     syntheticEventGroupSpec1,
+                    ENTITY_METADATA,
+                  )
+                )
+            ),
+          "campaign/$SPARSE_FREQUENCY_EVENT_GROUP_REF_ID" to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey("campaign", SPARSE_FREQUENCY_EVENT_GROUP_REF_ID),
+                    sparseFrequencyEventGroupSpec,
                     ENTITY_METADATA,
                   )
                 )
@@ -1263,7 +1275,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       val includedDataProviders = mutableSetOf<String>()
       val eventGroups =
         listReportingEventGroups().filter {
-          it.eventGroupReferenceId !in EDP1_ALL_ENTITY_KEY_REF_IDS
+          it.eventGroupReferenceId !in EDP1_ALL_ENTITY_KEY_REF_IDS &&
+            it.eventGroupReferenceId != "campaign/$SPARSE_FREQUENCY_EVENT_GROUP_REF_ID"
         }
       eventGroups.forEach { eventGroup ->
         val dataProvider =
@@ -1438,6 +1451,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec_2.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
+    private val sparseFrequencyEventGroupSpec: SyntheticEventGroupSpec =
+      parseTextProto(
+        TEST_DATA_RUNTIME_PATH.resolve("sparse_frequency_data_spec.textproto").toFile(),
+        SyntheticEventGroupSpec.getDefaultInstance(),
+      )
     private val MODEL_LINE_INFO =
       ModelLineInfo(
         populationSpec = populationSpec,
@@ -1479,6 +1497,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     internal const val EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS = 8552L
     internal val EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH = listOf(3638L, 3638L, 638L, 638L, 0L)
 
+    private const val SPARSE_FREQUENCY_EVENT_GROUP_REF_ID = "sparse-frequency"
     // Placeholder values required by the MeasurementSpec. Unused since NoiseMechanism is NONE.
     private val NO_NOISE_PRIVACY_PARAMS =
       MetricSpecConfigKt.differentialPrivacyParams {
