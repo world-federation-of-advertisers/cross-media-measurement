@@ -18,8 +18,9 @@ uploads it) see the companion guides:
 
 | Guide | Audience | Purpose |
 | --- | --- | --- |
-| [EDP Onboarding Guide](edp-onboarding.md) | EDP | Integrate a data provider: KMS, schemas, encryption, upload paths, daily workflow |
-| [AWS KMS Setup Guide](aws-kms-setup.md) | EDP + operator | Use AWS KMS instead of GCP KMS for a data provider |
+| [Common EDP Onboarding](README.md) | EDP | Complete registration, KMS, workload trust, storage, and campaign setup |
+| [Parquet Onboarding](parquet-onboarding.md) | EDP | Upload encrypted pre-labeled reference VIDs for EDPA-managed VID labeling |
+| [Already VID-Labeled Onboarding](vid-labeled-onboarding.md) | EDP | Upload encrypted labeled RecordIO and `BlobDetails` sidecars |
 | [Metadata Operator Guide](metadata-operator-guide.md) | Operator | RequisitionFetcher + ImpressionMetadata internals, tuning, scaling |
 | [Report Debugging Guide](report-debugging-guide.md) | Operator | Trace a report end-to-end and diagnose failures |
 | [Reporting Dashboard Deployment](dashboard/deployment-guide.md) | Operator | Deploy the EDPA reporting dashboard |
@@ -1056,7 +1057,7 @@ that EDP's KMS, TLS, and consent material.
 event_data_provider_config {
   data_provider: "dataProviders/DATA_PROVIDER_ID"
   kms_config {
-    kms_type: GCP                                  # or AWS — see the AWS KMS Setup Guide
+    kms_type: GCP                                  # or an AWS type; see common onboarding
     kms_audience: "//iam.googleapis.com/projects/EDP_PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/providers/PROVIDER"
     service_account: "SA_NAME@EDP_PROJECT.iam.gserviceaccount.com"
     kek_uri: "gcp-kms://projects/EDP_PROJECT/locations/global/keyRings/RING/cryptoKeys/KEY"
@@ -1073,11 +1074,11 @@ event_data_provider_config {
 }
 ```
 
-For an AWS-KMS EDP, set `kms_type: AWS` and add the `aws_role_arn`,
-`aws_role_session_name`, `aws_region`, and `aws_audience` fields **in addition to**
-`kms_audience` and `service_account` — the latter two are still required because the
-Confidential VM uses a GCP-WIF hop before assuming the AWS role. The full walkthrough
-is in the [AWS KMS Setup Guide](aws-kms-setup.md).
+For an AWS-KMS EDP, prefer `kms_type: AWS_CONFIDENTIAL_SPACE`, which uses the AWS
+fields without `kms_audience` or `service_account`. The alternative
+`kms_type: AWS` uses a GCP-WIF hop and therefore requires those two GCP fields as
+well. Both paths are documented in the
+[common onboarding guide](README.md#aws-kms).
 
 ### ResultsFulfiller parameters
 
@@ -1095,8 +1096,9 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
 * `model_line_map` — optional external→internal model-line remapping for impression
   lookup.
 * `trustee_params.kek_uri_to_key_name` — required for TrusTEE support; maps an input
-  KEK URI to the re-encryption key name on the same key ring (see the EDP-side
-  [TrusTEE section](edp-onboarding.md#6-enabling-trustee-optional)).
+  KEK URI to a re-encryption key in the same GCP key ring or AWS account and region
+  (see the EDP-side
+  [TrusTEE section](README.md#configure-trustee-if-enabled)).
 * `multi_party_config.supported_noise_types` — restricts accepted noise mechanisms
   for HMSS / TrusTEE requisitions.
 
@@ -1408,7 +1410,7 @@ data-availability → ResultsFulfiller → result returned to the CMMS.
 
 1. **Register a `DataProvider`** in the Kingdom (see the Kingdom deploy tools).
 2. **Set up the data provider's KMS + Workload Identity Provider** (see the
-   [EDP Onboarding Guide](edp-onboarding.md), or [AWS KMS Setup](aws-kms-setup.md)).
+   [common EDP onboarding guide](README.md#3-set-up-kms-and-workload-trust)).
 3. **Upload the config files** to `EDPA_CONFIG_BUCKET`.
 4. **Generate and encrypt synthetic data** with the data provider's KMS using the
    `GenerateSyntheticData` CLI, e.g. (generic values):
