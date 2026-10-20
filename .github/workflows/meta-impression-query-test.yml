@@ -50,8 +50,9 @@ jobs:
         env:
           TFVARS_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}.tfvars
           # One JSON source for the Meta function's per-environment settings; the test target is
-          # its "test" object. Kept out of the public tfvars because it names a real campaign.
-          CONFIG_CONTENT: ${{ vars.META_IMPRESSION_QUERY_CONFIG_CONTENT }}
+          # its "test" object. A secret rather than a variable: it names a real campaign and its
+          # impression count, and GitHub prints variables in a step's env block in the public log.
+          CONFIG_CONTENT: ${{ secrets.META_IMPRESSION_QUERY_CONFIG_CONTENT }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -73,7 +74,7 @@ jobs:
           fi
           # The test skips rather than fails when unconfigured, so a missing target is an error here.
           fail() { echo "$1" >&2; exit 1; }
-          [[ -n "$CONFIG_CONTENT" ]] || fail "vars.META_IMPRESSION_QUERY_CONFIG_CONTENT is empty"
+          [[ -n "$CONFIG_CONTENT" ]] || fail "secrets.META_IMPRESSION_QUERY_CONFIG_CONTENT is empty"
           read_field() {
             local value
             value="$(jq -r --arg f "$1" '.test[$f] // empty' <<<"$CONFIG_CONTENT")"
