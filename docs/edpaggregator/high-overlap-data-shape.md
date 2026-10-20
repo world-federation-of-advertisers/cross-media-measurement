@@ -238,8 +238,9 @@ region, not per event group.
 Kingdom listing by entity type when `entity_key_types` is configured, so an event
 group whose type is absent from that list is invisible to the existence check and
 gets **created again on every sync**, silently duplicating the reference ID. The
-configured types live in the `EVENT_GROUP_SYNC_CONFIG_CONTENT` environment
-variable and must include every type used here.
+configured types live in the selected environment's
+`event-group-sync-config.textproto` under
+`src/main/terraform/gcloud/cmms/envs/` and must include every type used here.
 
 ## Pre-Labeled, Not Pipelined
 
@@ -272,7 +273,7 @@ rank-index retention rules and the three-phase dispatch.
 Writing pre-labeled sidesteps both: no VID model is provisioned for the high overlap model
 line, no rank index exists, and Phases 0 and 1 never run.
 
-The two trigger paths stay separate: `done` markers under the raw-impressions
+The two trigger paths stay separate: `done` markers under the pre-labeled reference VID
 prefix drive the VID labeling dispatcher, while `done` markers alongside labeled
 impressions drive `DataAvailabilitySync`. Writing only the latter never wakes the
 labeling pipeline.
@@ -285,8 +286,8 @@ to finish labeling across all three `cloudtest-*` model lines, and it runs
 stall in that path therefore blocks high overlap seeding even though the two
 share nothing.
 
-This is worth knowing because such stalls happen: a parent
-`RawImpressionUploadModelLine` can sit in `CREATED` with all of its
+This is worth knowing because such stalls happen: the parent upload/model-line
+record can sit in `CREATED` with all of its
 `PoolAssignmentJob`s and `RankerJob`s already `SUCCEEDED`, and the
 `VidLabelingMonitorFunction` will not recover it — its checks cover parents stuck
 in `POOL_ASSIGNING`, `RANKING` or `LABELING`, not `CREATED`. The symptom is the
@@ -373,7 +374,7 @@ datasets in separate directory trees.
 *   It must stay **after the low overlap data set's dates**. The VID labeling dispatcher
     decides which model lines to process purely from
     `[active_start_time, active_end_time)`, so a high overlap line active in March 2021
-    would also be dispatched for the 2021 raw-impression upload. That line has no
+    would also be dispatched for the 2021 pre-labeled reference VID upload. That line has no
     VID model blob by design, so the work could never finish and
     `AwaitVidLabelingRule` would time out — breaking the 2021 test.
 
@@ -413,4 +414,4 @@ Terraform resource tracks it — recreating the config bucket drops it silently.
 ## See Also
 
 *   [Deployment Guide](deployment-guide.md) — seeding and `--create-done-blobs`
-*   [EDP Onboarding](edp-onboarding.md) — registering a new aggregator EDP
+*   [EDP Onboarding](README.md) — registering a new aggregator EDP

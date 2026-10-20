@@ -111,9 +111,10 @@ The job uses the same Workload Identity service account as
 their metadata during synchronization.
 
 The deployment workflow derives the job's single-EDP config from the `edp/edp7` entry in the
-existing `DATA_AVAILABILITY_SYNC_CONFIG_CONTENT` GitHub environment variable and rewrites its TLS
-paths for the Kubernetes mounts. The expected Cloud Function TLS paths must remain present in that
-source config so the workflow can validate and replace each one explicitly.
+selected environment's `data-availability-sync-config.textproto` under
+`src/main/terraform/gcloud/cmms/envs/` and rewrites its TLS paths for the Kubernetes mounts. The
+expected Cloud Function TLS paths must remain present in that source config so the workflow can
+validate and replace each one explicitly.
 
 The pod needs:
 

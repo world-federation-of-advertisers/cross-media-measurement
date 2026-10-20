@@ -282,7 +282,7 @@ paths are bounded to stay well under this:
   populated base cells plus index entries for the 5 indexes that are populated on
   create — `ByResourceId`, `ByCreateRequestId`, `ByBlobUri`, `ByBlobUriPrefix`,
   and `ByListFilterAndPagination` (the other 3 indexes are NULL-keyed on this
-  path: `ByUpdateRequestId` until an update, and the two raw-impression indexes
+  path: `ByUpdateRequestId` until an update, and the two upload-linkage indexes
   unless the FK columns are set). That is roughly ~20 mutations/row, plus **one
   interleaved `ImpressionMetadataEntityKeys` row + its index entry per entity
   key**. `BatchCreate` size is bounded by the caller (data-availability-sync);
