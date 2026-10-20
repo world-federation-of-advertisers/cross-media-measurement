@@ -128,9 +128,12 @@ Its
 generates a fresh streaming DEK, applies the correct associated data, writes
 Mesos RecordIO, derives the sidecar's entity-key index from the records, and
 writes the binary `BlobDetails` sidecar only after the encrypted blob succeeds.
-It uses create-only writes and refuses to overwrite or delete another writer's
-blob or sidecar. If it creates the encrypted blob but a later sidecar step fails,
-it removes only the object version returned by its successful create.
+It overwrites both destinations so the same export can be retried at the same
+URIs before publication. Run only one writer for a blob-sidecar pair at a time.
+A failed invocation may leave an incomplete object or a blob and sidecar that do
+not match; rerun the export and validate both objects before publishing `done`.
+Never call the writer for those destinations after `done` is published. Publish
+corrections under new URIs after coordinating with the operator.
 Use the artifact version that matches the Halo release selected with the
 operator; it is the release tag without the leading `v`. The
 [`LabeledImpressionWriterTest`](../../src/test/kotlin/org/wfanet/measurement/edpaggregator/client/LabeledImpressionWriterTest.kt)
@@ -224,6 +227,10 @@ Prefer placing each encrypted data blob in this date folder beside its
 `BlobDetails` sidecar. `BlobDetails.blob_uri` may instead point to another
 directory tree in the same operator-provided bucket. Cross-bucket references are
 not currently supported.
+
+Use only one exporter at a time for a given blob-sidecar pair. Before `done` is
+published, a failed export can be retried by overwriting both objects at the
+same paths. Validation must succeed after the final retry.
 
 For each date:
 
