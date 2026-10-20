@@ -30,7 +30,6 @@ import java.util.SortedSet
 import java.util.TreeMap
 import java.util.TreeSet
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -46,7 +45,6 @@ import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.StorageClient
 
 /** Writes VID-labeled impressions in the encrypted format accepted by EDP Aggregator. */
 class LabeledImpressionWriter
@@ -59,11 +57,14 @@ private constructor(
    *
    * [blobUri] and [metadataUri] must be distinct objects in the same bucket. A fresh streaming AEAD
    * data encryption key is generated for each invocation and encrypted with [kekUri]. Entity keys
-   * in the sidecar are derived from the records written to the blob. Both destination objects must
-   * be new, and the writer never overwrites an existing blob or sidecar. If the impression object
-   * is created but a later step fails, the writer deletes that exact object through the handle
-   * returned by the successful create. It never looks up a destination object to clean up an
-   * ambiguous write failure.
+   * in the sidecar are derived from the records written to the blob.
+   *
+   * This method overwrites both destinations so a failed attempt can be retried at the same URIs.
+   * The caller must ensure that only one writer uses these destinations at a time. Call this method
+   * only before the completion marker that publishes the data is created. A failed invocation may
+   * leave an incomplete object or an inconsistent blob-sidecar pair; retry the same publication
+   * before creating the completion marker. After publication, treat both objects as immutable and
+   * write corrections under new URIs.
    *
    * @return the [BlobDetails] written to [metadataUri]
    */
@@ -124,45 +125,25 @@ private constructor(
     val blobStorageClient = storageClientFactory(parsedBlobUri)
     val encryptedStorageClient =
       StreamingAeadStorageClient(blobStorageClient, dataEncryptionKey.streamingAead, Dispatchers.IO)
-    val createdBlob =
-      MesosRecordIoStorageClient(encryptedStorageClient)
-        .writeBlobIfNotFound(parsedBlobUri.key, records)
+    MesosRecordIoStorageClient(encryptedStorageClient).writeBlob(parsedBlobUri.key, records)
 
-    try {
-      check(impressionCount > 0L) { "impressions must not be empty" }
-      val details = blobDetails {
-        this.blobUri = blobUri
-        this.encryptedDek = encryptedDek
-        this.modelLine = modelLine
-        this.interval = interval
-        entityKeys +=
-          entityIdsByType.map { (entityType, entityIds) ->
-            entityKeyGroup {
-              this.entityType = entityType
-              this.entityIds += entityIds
-            }
+    check(impressionCount > 0L) { "impressions must not be empty" }
+    val details = blobDetails {
+      this.blobUri = blobUri
+      this.encryptedDek = encryptedDek
+      this.modelLine = modelLine
+      this.interval = interval
+      entityKeys +=
+        entityIdsByType.map { (entityType, entityIds) ->
+          entityKeyGroup {
+            this.entityType = entityType
+            this.entityIds += entityIds
           }
-      }
-      val metadataStorageClient = storageClientFactory(parsedMetadataUri)
-      metadataStorageClient.writeBlobIfNotFound(
-        parsedMetadataUri.key,
-        flowOf(details.toByteString()),
-      )
-      return details
-    } catch (e: Throwable) {
-      cleanupBlob(createdBlob, e)
-      throw e
+        }
     }
-  }
-
-  private suspend fun cleanupBlob(blob: StorageClient.Blob, originalFailure: Throwable) {
-    withContext(NonCancellable) {
-      try {
-        blob.delete()
-      } catch (cleanupFailure: Throwable) {
-        originalFailure.addSuppressed(cleanupFailure)
-      }
-    }
+    val metadataStorageClient = storageClientFactory(parsedMetadataUri)
+    metadataStorageClient.writeBlob(parsedMetadataUri.key, flowOf(details.toByteString()))
+    return details
   }
 
   private suspend fun generateDataEncryptionKey(kekUri: String): DataEncryptionKey =
