@@ -60,7 +60,10 @@ def java_image(
         base = base,
         labels = labels,
         cmd_args = args,
-        tags = tags + ["no-remote-cache"],
+        tags = tags + [
+            "container-image",
+            "no-remote-cache",
+        ],
         visibility = visibility,
         **kwargs
     )

@@ -105,8 +105,11 @@ jobs:
         run: bazel mod deps
 
       - name: Build
+        env:
+          BUILD_TAG_FILTERS: ${{ github.event_name == 'pull_request' && '-container-image' || '' }}
         run: >
           bazel build --worker_quit_after_build
+          --build_tag_filters="$BUILD_TAG_FILTERS"
           //...
           //src/main/k8s/local:cmms
           //src/main/k8s/dev:edp_simulators
