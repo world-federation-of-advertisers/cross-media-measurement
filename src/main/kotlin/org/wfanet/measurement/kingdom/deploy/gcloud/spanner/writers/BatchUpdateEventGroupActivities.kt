@@ -63,7 +63,7 @@ class BatchUpdateEventGroupActivities(private val request: BatchUpdateEventGroup
       }
 
     val activities: Map<Pair<InternalId, Date>, EventGroupActivityReader.Result> =
-      EventGroupActivityReader()
+      EventGroupActivityReader.usingActivityDateIndex()
         .readByEventGroupIdAndDatePairs(transactionContext, dataProviderId, activityKeys)
 
     val upsertedActivities = mutableListOf<EventGroupActivity>()

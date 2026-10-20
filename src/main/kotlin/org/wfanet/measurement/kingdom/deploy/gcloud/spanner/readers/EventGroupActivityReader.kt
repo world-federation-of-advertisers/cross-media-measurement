@@ -35,7 +35,15 @@ import org.wfanet.measurement.internal.kingdom.EventGroupActivity
 import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesPageToken
 import org.wfanet.measurement.internal.kingdom.eventGroupActivity
 
-class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Result>() {
+class EventGroupActivityReader private constructor(private val index: Index) :
+  BaseSpannerReader<EventGroupActivityReader.Result>() {
+  constructor() : this(Index.NONE)
+
+  private enum class Index(val sql: String) {
+    NONE(""),
+    ACTIVITY_DATE("@{FORCE_INDEX=EventGroupActivityByActivityDate}"),
+  }
+
   data class Result(
     val eventGroupActivity: EventGroupActivity,
     val internalDataProviderId: InternalId,
@@ -43,7 +51,7 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
     val internalEventGroupActivityId: InternalId,
   )
 
-  override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
+  override val builder: Statement.Builder = Statement.newBuilder(baseSql(index))
 
   /** Fills [builder], returning this [EventGroupActivityReader] for chaining. */
   fun fillStatementBuilder(fill: Statement.Builder.() -> Unit): EventGroupActivityReader {
@@ -184,7 +192,11 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
   }
 
   companion object {
-    private val BASE_SQL =
+    /** Returns a reader using the index keyed by DataProvider, EventGroup, and activity date. */
+    fun usingActivityDateIndex(): EventGroupActivityReader =
+      EventGroupActivityReader(Index.ACTIVITY_DATE)
+
+    private fun baseSql(index: Index): String =
       """
       SELECT
         EventGroupActivities.DataProviderId,
@@ -195,7 +207,7 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
         EventGroups.ExternalEventGroupId,
         DataProviders.ExternalDataProviderId
       FROM
-        EventGroupActivities
+        EventGroupActivities${index.sql}
         JOIN EventGroups USING (DataProviderId, EventGroupId)
         JOIN DataProviders USING (DataProviderId)
       """
