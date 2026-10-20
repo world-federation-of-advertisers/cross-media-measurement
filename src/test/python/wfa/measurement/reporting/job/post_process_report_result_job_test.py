@@ -24,6 +24,7 @@ from wfa.measurement.internal.reporting.v2 import report_results_service_pb2
 from google.rpc import error_details_pb2
 from google.rpc import status_pb2
 from google.protobuf import any_pb2
+from noiseninja import noise_correction_value_logging
 from job import post_process_report_result_job
 from tools import post_process_report_result
 from tools.potential_direct_result_minimum_thresholds import (
@@ -133,13 +134,35 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
         mock_channel = mock.create_autospec(grpc.Channel)
         self.job = post_process_report_result_job.PostProcessReportResultJob(
-            mock_channel
+            mock_channel,
+            log_noise_correction_values=False,
         )
 
     def tearDown(self):
         for patch in self.patches:
             patch.stop()
         super().tearDown()
+
+    def test_value_logging_context_is_enabled_only_during_processing(self):
+        mock_channel = mock.create_autospec(grpc.Channel)
+        job = post_process_report_result_job.PostProcessReportResultJob(
+            mock_channel,
+            log_noise_correction_values=True,
+        )
+        basic_report = BasicReport(
+            cmms_measurement_consumer_id="mc_id_1",
+            external_basic_report_id="basic_report_1",
+            external_report_result_id=101,
+        )
+
+        def process(*unused_args):
+            self.assertTrue(noise_correction_value_logging.is_enabled())
+            return None
+
+        self.mock_post_processor.process.side_effect = process
+
+        self.assertTrue(job._process_basic_report(basic_report))
+        self.assertFalse(noise_correction_value_logging.is_enabled())
 
     def test_execute_unprocessed_reports_successfully(self):
         # Sets up mock objects.
@@ -191,6 +214,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         job_with_exemption = (
             post_process_report_result_job.PostProcessReportResultJob(
                 mock_channel,
+                log_noise_correction_values=False,
                 ami_mrc_exempted_edps=[
                     "dataProviders/edp1",
                     "dataProviders/edp2",
@@ -232,6 +256,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
         post_process_report_result_job.PostProcessReportResultJob(
             mock_channel,
+            log_noise_correction_values=False,
             potential_direct_result_minimum_thresholds=thresholds,
             potential_direct_thresholding_edps=["dataProviders/edp1"],
         )
@@ -341,6 +366,241 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             "mc_id_1",
             exc_info=True,
         )
+
+    def _noise_correction_failure(self):
+        failed_result = post_process_report_result.ReportPostProcessorResult(
+            status=post_process_report_result.ReportPostProcessorStatus(
+                status_code=(
+                    post_process_report_result.ReportPostProcessorStatus.SOLUTION_NOT_FOUND
+                ),
+                primal_equality_residual=3.5,
+                primal_inequality_residual=4.5,
+            )
+        )
+        failed_result.pre_correction_quality.zero_variance_measurements_status = (
+            post_process_report_result.ReportQuality
+            .ZeroVarianceMeasurementsStatus.INCONSISTENT
+        )
+        failed_summary = failed_result.pre_correction_report_summary_v2
+        failed_summary.cmms_measurement_consumer_id = "mc_id_1"
+        failed_summary.external_report_result_id = 101
+        set_result = failed_summary.report_summary_set_results.add(
+            external_reporting_set_result_id=123456789,
+            impression_filter="ami",
+            set_operation="union",
+            data_providers=["reporting-set-1"],
+        )
+        set_result.whole_campaign_result.reach.value = 918273645
+        set_result.whole_campaign_result.reach.standard_deviation = 12.5
+        set_result.whole_campaign_result.reach.metric = "synthetic-reach"
+
+        successful_result = post_process_report_result.ReportPostProcessorResult(
+            status=post_process_report_result.ReportPostProcessorStatus(
+                status_code=(
+                    post_process_report_result.ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS
+                )
+            )
+        )
+        successful_summary = successful_result.pre_correction_report_summary_v2
+        successful_summary.cmms_measurement_consumer_id = "mc_id_1"
+        successful_summary.external_report_result_id = 101
+
+        context = post_process_report_result.ReportingSetDiagnosticContext(
+            external_reporting_set_id="reporting-set-1",
+            external_reporting_set_result_id=123456789,
+            primitive_reporting_set_ids=("primitive-reporting-set-1",),
+            data_provider_resource_names=("dataProviders/provider-1",),
+            window_end_dates=("2026-09-30",),
+        )
+        measurement_context = (
+            post_process_report_result.MeasurementDiagnosticContext(
+                external_reporting_set_result_id=123456789,
+                impression_qualification_filter_type="EXTERNAL",
+                external_impression_qualification_filter_id="ami",
+                venn_diagram_region_type="UNION",
+                source_reporting_set_type="COMPOSITE",
+                source_reporting_set_root_operation="DIFFERENCE",
+                metric_frequency="WEEKLY",
+                window_type="NON_CUMULATIVE",
+                is_cumulative=False,
+                measurement_type="REACH_AND_FREQUENCY",
+                data_provider_count=1,
+                window_end_date="2026-09-30",
+                reach_value=820,
+                reach_standard_deviation=12.5,
+                impression_count_value=1000,
+                impression_count_standard_deviation=20.0,
+                frequency_buckets=(
+                    post_process_report_result.FrequencyBucketDiagnostic(
+                        frequency=1,
+                        value=0,
+                        standard_deviation=0.0,
+                    ),
+                ),
+                frequency_bucket_count=1,
+                frequency_bucket_sum=0,
+                reach_minus_frequency_bucket_sum=820,
+                minimum_impressions_from_frequency=0,
+                impressions_minus_minimum_from_frequency=1000,
+                potential_direct_thresholding_eligible=True,
+                threshold_uncertainty_applied_to=("REACH",),
+                threshold_uncertainty_skip_reason="",
+                threshold_min_users=100,
+                threshold_min_impressions=1000,
+            )
+        )
+        violation = post_process_report_result.ConstraintViolation(
+            constraint_name="REACH_EQUALS_FREQUENCY_BUCKET_SUM",
+            relation="EQUAL",
+            left_metric="ami",
+            right_metric="ami",
+            data_providers=("reporting-set-1",),
+            window_type="NON_CUMULATIVE",
+            period=0,
+            left_measurement_names=("synthetic-reach",),
+            right_measurement_names=("synthetic-frequency-bin-1",),
+            left_value=820,
+            right_value=0,
+            difference=820,
+            tolerance=1,
+        )
+        return post_process_report_result.NoiseCorrectionFailure([
+            post_process_report_result.ReportSummaryProcessingResult(
+                report_summary_index=0,
+                result=failed_result,
+                constraint_violations=(violation,),
+                reporting_set_contexts=(context,),
+                measurement_contexts=(measurement_context,),
+                internal_error_type=None,
+                internal_error_traceback=None,
+            ),
+            post_process_report_result.ReportSummaryProcessingResult(
+                report_summary_index=1,
+                result=successful_result,
+                constraint_violations=(),
+                reporting_set_contexts=(context,),
+                measurement_contexts=(measurement_context,),
+                internal_error_type=None,
+                internal_error_traceback=None,
+            ),
+        ])
+
+    def test_noise_correction_failure_logs_every_summary_without_values(self):
+        basic_report = BasicReport(
+            external_basic_report_id="basic_report_1",
+            external_report_id="report_1",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[basic_report]
+            )
+        )
+        self.mock_post_processor.process.side_effect = (
+            self._noise_correction_failure()
+        )
+
+        with self.assertLogs(level="WARNING") as captured:
+            result = self.job.execute()
+
+        logs = "\n".join(captured.output)
+        self.assertFalse(result)
+        self.assertEqual(logs.count("report_failed=true"), 2)
+        self.assertIn("summary_failed=true", logs)
+        self.assertIn("summary_failed=false", logs)
+        self.assertIn("measurement_values_logging_enabled=false", logs)
+        self.assertIn("status=SOLUTION_NOT_FOUND", logs)
+        self.assertNotIn("primal_equality_residual", logs)
+        self.assertNotIn("primal_inequality_residual", logs)
+        self.assertNotIn("3.5", logs)
+        self.assertNotIn("4.5", logs)
+        self.assertIn(
+            "issue_codes=QP_SOLUTION_NOT_FOUND,"
+            "ZERO_VARIANCE_MEASUREMENTS_INCONSISTENT_PRE_CORRECTION",
+            logs,
+        )
+        self.assertIn(
+            "constraint_codes=REACH_EQUALS_FREQUENCY_BUCKET_SUM", logs
+        )
+        self.assertIn(
+            "constraint_attribution=PRE_CORRECTION_VIOLATIONS_FOUND", logs
+        )
+        self.assertIn(
+            "constraint_attribution=NOT_APPLICABLE", logs
+        )
+        self.assertIn("constraint_violation_count=1", logs)
+        self.assertNotIn("diagnostic_record_type=", logs)
+        self.assertNotIn("918273645", logs)
+        self.assertNotIn("12.5", logs)
+        self.assertNotIn('"left_value":820', logs)
+        self.assertNotIn("primitive-reporting-set-1", logs)
+        self.assertNotIn("dataProviders/provider-1", logs)
+        self.assertNotIn("2026-09-30", logs)
+        self.assertNotIn("REACH_AND_FREQUENCY", logs)
+        self.assertNotIn("NON_CUMULATIVE", logs)
+        self.assertNotIn("DIFFERENCE", logs)
+        self.assertNotIn('"policy"', logs)
+        self.mock_basic_reports_stub.FailBasicReport.assert_called_once()
+
+    def test_noise_correction_failure_logs_values_when_enabled(self):
+        mock_channel = mock.create_autospec(grpc.Channel)
+        job = post_process_report_result_job.PostProcessReportResultJob(
+            mock_channel,
+            log_noise_correction_values=True,
+        )
+        basic_report = BasicReport(
+            external_basic_report_id="basic_report_1",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[basic_report]
+            )
+        )
+        self.mock_post_processor.process.side_effect = (
+            self._noise_correction_failure()
+        )
+
+        with self.assertLogs(level="WARNING") as captured:
+            result = job.execute()
+
+        logs = "\n".join(captured.output)
+        self.assertFalse(result)
+        self.assertEqual(logs.count("report_failed=true"), 2)
+        self.assertIn("measurement_values_logging_enabled=true", logs)
+        self.assertNotIn("pre_correction_report_summary_v2", logs)
+        self.assertIn("diagnostic_record_type=REPORT_CONTEXT", logs)
+        self.assertIn('"primal_equality_residual":3.5', logs)
+        self.assertIn(
+            '"primal_inequality_residual":4.5',
+            logs,
+        )
+        self.assertIn("diagnostic_record_type=REPORTING_SET_CONTEXT", logs)
+        self.assertIn("diagnostic_record_type=MEASUREMENT", logs)
+        self.assertIn("diagnostic_record_type=CONSTRAINT_VIOLATION", logs)
+        self.assertIn('"reach_value":820', logs)
+        self.assertIn('"reach_standard_deviation":12.5', logs)
+        self.assertIn('"frequency_bucket_sum":0', logs)
+        self.assertIn('"reach_minus_frequency_bucket_sum":820', logs)
+        self.assertIn('"threshold_uncertainty_applied_to":["REACH"]', logs)
+        self.assertIn('"threshold_min_users":100', logs)
+        self.assertIn('"left_value":820', logs)
+        self.assertIn("reporting-set-1", logs)
+        self.assertIn("primitive-reporting-set-1", logs)
+        self.assertIn("dataProviders/provider-1", logs)
+        self.assertIn("2026-09-30", logs)
+        self.assertIn("REACH_AND_FREQUENCY", logs)
+        self.assertIn("NON_CUMULATIVE", logs)
+        self.assertIn("DIFFERENCE", logs)
+        self.assertIn('"impression_qualification_filter_type":"EXTERNAL"', logs)
+        self.assertIn(
+            '"external_impression_qualification_filter_id":"ami"', logs
+        )
+        self.assertNotIn('"policy"', logs)
+        self.assertNotIn("UNIQUE", logs)
+        self.assertNotIn("INCREMENTAL", logs)
 
     @mock.patch.object(logging, "info", autospec=True)
     def test_fail_basic_report_logs_started_and_succeeded(self, mock_info):
