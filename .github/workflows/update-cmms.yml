@@ -96,6 +96,12 @@ jobs:
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+    - name: Load CMMS environment configuration
+      id: cmms-config
+      uses: ./.github/actions/load-cmms-environment
+      with:
+        environment: ${{ inputs.environment }}
+
     - name: Set up Bazel
       uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
@@ -116,7 +122,7 @@ jobs:
     - name: Validate RequisitionFetcher and DataWatcher configuration
       env:
         CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
-        SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
+        SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).SECURE_COMPUTATION_PUBLIC_API_TARGET }}
       run: |
         bazelisk run \
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:ValidateRequisitionFetcherConfig \
@@ -161,17 +167,25 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Load CMMS environment configuration
+      id: cmms-config
+      uses: ./.github/actions/load-cmms-environment
+      with:
+        environment: ${{ inputs.environment }}
+
     - name: Authenticate to Google Cloud
       if: ${{ inputs.apply }}
       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
-        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+        workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
 
     - name: Wait for WorkItem TEE consumers to stop
       if: ${{ inputs.apply }}
       env:
-        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+        GCLOUD_REGION: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_REGION }}
         MIG_NAMES_JSON: ${{ needs.terraform-quiesced.outputs.work_item_tee_mig_names }}
       run: |
         set -euo pipefail
@@ -447,14 +461,20 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+      - name: Load CMMS environment configuration
+        id: cmms-config
+        uses: ./.github/actions/load-cmms-environment
+        with:
+          environment: ${{ inputs.environment }}
+
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
 
       - name: Write auth.bazelrc
         env:
@@ -473,7 +493,7 @@ jobs:
       - name: Run Compliance Check
         env:
           DASHBOARD_CONFIG_FILE: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/dashboard-config.json
-          GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
+          GOOGLE_CLOUD_PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
         run: |
           set -euo pipefail
           # The check parses the committed JSON file against the DashboardConfig proto schema.

@@ -51,6 +51,12 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Load CMMS environment configuration
+        id: cmms-config
+        uses: ./.github/actions/load-cmms-environment
+        with:
+          environment: ${{ inputs.environment }}
+
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
 
@@ -58,8 +64,8 @@ jobs:
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
           token_format: access_token
 
       - name: Write auth.bazelrc
@@ -92,10 +98,10 @@ jobs:
         id: run-test
         env:
           GOOGLE_CLOUD_PROJECT: halo-cmm-${{ inputs.environment }}
-          KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
-          REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
+          KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
+          REPORTING_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_PUBLIC_API_TARGET }}
           KINGDOM_PUBLIC_API_CERT_HOST: localhost
-          MC_NAME: ${{ vars.MC_NAME }}
+          MC_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
           EVENT_GROUP_SCALE_SEED: ${{ github.run_id }}-${{ github.run_attempt }}

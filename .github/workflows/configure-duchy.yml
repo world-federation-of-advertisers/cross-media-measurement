@@ -83,19 +83,25 @@ jobs:
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+    - name: Load CMMS environment configuration
+      id: cmms-config
+      uses: ./.github/actions/load-cmms-environment
+      with:
+        environment: ${{ inputs.environment }}
+
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
-        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
+        workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ fromJSON(steps.cmms-config.outputs.config).GKE_CONFIG_SERVICE_ACCOUNT }}
 
     - name: Export DUCHY_CERT_ID
       env:
-        AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
-        WORKER1_DUCHY_CERT_ID: ${{ vars.WORKER1_DUCHY_CERT_ID }}
-        WORKER2_DUCHY_CERT_ID: ${{ vars.WORKER2_DUCHY_CERT_ID }}
+        AGGREGATOR_DUCHY_CERT_ID: ${{ fromJSON(steps.cmms-config.outputs.config).AGGREGATOR_DUCHY_CERT_ID }}
+        WORKER1_DUCHY_CERT_ID: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER1_DUCHY_CERT_ID }}
+        WORKER2_DUCHY_CERT_ID: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER2_DUCHY_CERT_ID }}
       run: ./.github/workflows/export-duchy-cert-id.sh
 
     - name: Write auth.bazelrc
@@ -109,13 +115,13 @@ jobs:
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
-        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
-        AGGREGATOR_SYSTEM_API_TARGET: ${{ vars.AGGREGATOR_SYSTEM_API_TARGET }}
-        WORKER1_SYSTEM_API_TARGET: ${{ vars.WORKER1_SYSTEM_API_TARGET }}
-        WORKER2_SYSTEM_API_TARGET: ${{ vars.WORKER2_SYSTEM_API_TARGET }}
-        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
-        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
+        KINGDOM_SYSTEM_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_SYSTEM_API_TARGET }}
+        KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
+        AGGREGATOR_SYSTEM_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).AGGREGATOR_SYSTEM_API_TARGET }}
+        WORKER1_SYSTEM_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER1_SYSTEM_API_TARGET }}
+        WORKER2_SYSTEM_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER2_SYSTEM_API_TARGET }}
+        SPANNER_INSTANCE: ${{ fromJSON(steps.cmms-config.outputs.config).SPANNER_INSTANCE }}
+        STORAGE_BUCKET: ${{ fromJSON(steps.cmms-config.outputs.config).STORAGE_BUCKET }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -144,7 +150,7 @@ jobs:
       uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
       with:
         cluster_name: ${{ format('{0}-duchy', inputs.duchy-name) }}
-        location: ${{ vars.GCLOUD_ZONE }}
+        location: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_ZONE }}
 
     - name: Configure metrics
       uses: ./.github/actions/configure-metrics

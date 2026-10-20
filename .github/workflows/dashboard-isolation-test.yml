@@ -46,6 +46,12 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Load CMMS environment configuration
+        id: cmms-config
+        uses: ./.github/actions/load-cmms-environment
+        with:
+          environment: ${{ inputs.environment }}
+
       - name: Load committed dashboard config
         id: load-config
         env:
@@ -67,12 +73,12 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
 
       - name: Trigger all dashboard scheduled queries
         env:
-          PROJECT: ${{ vars.GCLOUD_PROJECT }}
+          PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
           REGION: ${{ steps.load-config.outputs.region }}
         run: |
           set -euo pipefail
@@ -158,14 +164,20 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+      - name: Load CMMS environment configuration
+        id: cmms-config
+        uses: ./.github/actions/load-cmms-environment
+        with:
+          environment: ${{ inputs.environment }}
+
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
 
       - name: Write auth.bazelrc
         env:
@@ -186,13 +198,13 @@ jobs:
       - name: Run Dashboard Isolation Tests
         id: run-tests
         env:
-          GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
+          GOOGLE_CLOUD_PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
           BIGQUERY_REGION: ${{ needs.trigger-scheduled-queries.outputs.region }}
           EDP_NAME: ${{ matrix.edp.name }}
           EDP_RESOURCE_ID: ${{ matrix.edp.resource_id }}
-          INSPECTOR_IMPERSONATE_SA: dashboard-compliance@${{ vars.GCLOUD_PROJECT }}.iam.gserviceaccount.com
-          EDP_DELEGATES: dashboard-compliance@${{ vars.GCLOUD_PROJECT }}.iam.gserviceaccount.com
-          EDP_IMPERSONATE_SA: edp-${{ matrix.edp.name }}-dashboard@${{ vars.GCLOUD_PROJECT }}.iam.gserviceaccount.com
+          INSPECTOR_IMPERSONATE_SA: dashboard-compliance@${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}.iam.gserviceaccount.com
+          EDP_DELEGATES: dashboard-compliance@${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}.iam.gserviceaccount.com
+          EDP_IMPERSONATE_SA: edp-${{ matrix.edp.name }}-dashboard@${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}.iam.gserviceaccount.com
         run: |
           bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
