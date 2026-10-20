@@ -127,8 +127,7 @@ jobs:
         id: run-tests
         env:
           MODEL_LINE_NAME: ${{ vars.MODEL_LINE_NAME }}
-          PIPELINED_DATA_PROVIDER: dataProviders/${{ fromJson(vars.DATA_PROVIDER_RESOURCE_IDS).edp7 }}
-          EDPA_DATA_PROVIDERS: dataProviders/${{ fromJson(vars.DATA_PROVIDER_RESOURCE_IDS).edp7 }},dataProviders/${{ fromJson(vars.DATA_PROVIDER_RESOURCE_IDS).meta }}
+          DASHBOARD_CONFIG_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/dashboard-config.json
           EDPA_PUBLIC_API_TARGET: ${{ vars.METADATA_STORAGE_PUBLIC_API_TARGET }}
           # Deployed Spanner instance; lets SeedRawImpressionsRule hard-delete this test's own
           # RawImpressionUpload rows before seeding (scoped by DoneBlobUri prefix) so re-runs do not
@@ -141,6 +140,11 @@ jobs:
           EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
           EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
         run: |
+          edp_resource_id() {
+            jq -er --arg name "$1" '.edps[] | select(.name == $name) | .resource_id' "$DASHBOARD_CONFIG_FILE"
+          }
+          export PIPELINED_DATA_PROVIDER="dataProviders/$(edp_resource_id edp7)"
+          export EDPA_DATA_PROVIDERS="${PIPELINED_DATA_PROVIDER},dataProviders/$(edp_resource_id meta)"
           # Storage settings live in the committed per-env tfvars (single source of truth after
           # #4168/#4227); read them here so this workflow never drifts from what Terraform deployed.
           TFVARS="src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}.tfvars"

@@ -1,0 +1,375 @@
+# proto-file: wfa/measurement/config/edpaggregator/vid_labeling_config.proto
+# proto-message: wfa.measurement.config.edpaggregator.VidLabelingConfigs
+configs {
+  data_provider: "dataProviders/Z1YwJJmvvN8"
+  edp_impression_path: "edp/edp7"
+  model_line_configs {
+    key: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/dJJ6eITlxyc"
+    value {
+      labeler_input_field_mapping {
+        field_path: "event_id.id"
+        scalar {
+          column: "event_id"
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "timestamp_usec"
+        scalar {
+          column: "event_time_usec"
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "profile_info.proprietary_id_space_1_user_info.user_id"
+        scalar {
+          column: "person_id"
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.gender"
+        enum_lookup {
+          column: "person_gender"
+          lookup_table {
+            key: "FEMALE"
+            value: "GENDER_FEMALE"
+          }
+          lookup_table {
+            key: "MALE"
+            value: "GENDER_MALE"
+          }
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.age"
+        age_range {
+          bucket_lookup {
+            column: "person_age_group"
+            bucket_table {
+              key: "YEARS_18_TO_34"
+              value {
+                min_age: 16
+                max_age: 34
+              }
+            }
+            bucket_table {
+              key: "YEARS_35_TO_54"
+              value {
+                min_age: 35
+                max_age: 54
+              }
+            }
+            bucket_table {
+              key: "YEARS_55_PLUS"
+              value {
+                min_age: 55
+                max_age: 99
+              }
+            }
+          }
+        }
+      }
+      event_template_field_mapping {
+        key: "video.completed_fraction"
+        value: "video_completed_fraction"
+      }
+      event_template_descriptor_blob_uri: "gs://edpa-configs-storage-head-bucket/results_fulfiller_event_proto_descriptor.pb"
+      event_template_type: "wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
+      population_spec_blob_uri: "gs://edpa-configs-storage-head-bucket/vid-labeler-population-spec.textproto"
+      optional_entity_key_field_mapping {
+        key: "creative-id"
+        value: "creative_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "person"
+        value: "person_id"
+      }
+    }
+  }
+  model_line_configs {
+    key: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/DOfmLYTmbbY"
+    value {
+      labeler_input_field_mapping {
+        field_path: "event_id.id"
+        scalar {
+          column: "event_id"
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "timestamp_usec"
+        scalar {
+          column: "event_time_usec"
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "profile_info.proprietary_id_space_1_user_info.user_id"
+        scalar {
+          column: "person_id"
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.gender"
+        enum_lookup {
+          column: "person_gender"
+          lookup_table {
+            key: "FEMALE"
+            value: "GENDER_FEMALE"
+          }
+          lookup_table {
+            key: "MALE"
+            value: "GENDER_MALE"
+          }
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.age"
+        age_range {
+          bucket_lookup {
+            column: "person_age_group"
+            bucket_table {
+              key: "YEARS_18_TO_34"
+              value {
+                min_age: 16
+                max_age: 34
+              }
+            }
+            bucket_table {
+              key: "YEARS_35_TO_54"
+              value {
+                min_age: 35
+                max_age: 54
+              }
+            }
+            bucket_table {
+              key: "YEARS_55_PLUS"
+              value {
+                min_age: 55
+                max_age: 99
+              }
+            }
+          }
+        }
+      }
+      event_template_field_mapping {
+        key: "video.completed_fraction"
+        value: "video_completed_fraction"
+      }
+      event_template_descriptor_blob_uri: "gs://edpa-configs-storage-head-bucket/results_fulfiller_event_proto_descriptor.pb"
+      event_template_type: "wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
+      population_spec_blob_uri: "gs://edpa-configs-storage-head-bucket/vid-labeler-population-spec.textproto"
+      optional_entity_key_field_mapping {
+        key: "creative-id"
+        value: "creative_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "person"
+        value: "person_id"
+      }
+    }
+  }
+  model_line_configs {
+    key: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/Li4zIoTnEMM"
+    value {
+      labeler_input_field_mapping {
+        field_path: "event_id.id"
+        scalar {
+          column: "event_id"
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "timestamp_usec"
+        scalar {
+          column: "event_time_usec"
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "profile_info.proprietary_id_space_1_user_info.user_id"
+        scalar {
+          column: "person_id"
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.gender"
+        enum_lookup {
+          column: "person_gender"
+          lookup_table {
+            key: "FEMALE"
+            value: "GENDER_FEMALE"
+          }
+          lookup_table {
+            key: "MALE"
+            value: "GENDER_MALE"
+          }
+        }
+      }
+      labeler_input_field_mapping {
+        field_path: "profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.age"
+        age_range {
+          bucket_lookup {
+            column: "person_age_group"
+            bucket_table {
+              key: "YEARS_18_TO_34"
+              value {
+                min_age: 16
+                max_age: 34
+              }
+            }
+            bucket_table {
+              key: "YEARS_35_TO_54"
+              value {
+                min_age: 35
+                max_age: 54
+              }
+            }
+            bucket_table {
+              key: "YEARS_55_PLUS"
+              value {
+                min_age: 55
+                max_age: 99
+              }
+            }
+          }
+        }
+      }
+      event_template_field_mapping {
+        key: "video.completed_fraction"
+        value: "video_completed_fraction"
+      }
+      event_template_descriptor_blob_uri: "gs://edpa-configs-storage-head-bucket/results_fulfiller_event_proto_descriptor.pb"
+      event_template_type: "wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
+      population_spec_blob_uri: "gs://edpa-configs-storage-head-bucket/vid-labeler-population-spec.textproto"
+      optional_entity_key_field_mapping {
+        key: "creative-id"
+        value: "creative_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "person"
+        value: "person_id"
+      }
+    }
+  }
+  raw_impressions_storage_params {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  vid_labeled_impressions_storage_params {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  vid_rank_map_storage_params {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  subpool_map_storage_params {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  model_storage_params {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "vid-models-storage-head-bucket"
+    }
+  }
+  max_file_batch_size_bytes: 1073741824
+  control_plane_connection {
+    cert_file_path: "/secrets/cert/edpa_tee_app_tls.pem"
+    private_key_file_path: "/secrets/key/edpa_tee_app_tls.key"
+    cert_collection_file_path: "/secrets/ca/secure_computation_root.pem"
+  }
+  raw_impression_metadata_storage_connection {
+    cert_file_path: "/secrets/cert/edpa_tee_app_tls.pem"
+    private_key_file_path: "/secrets/key/edpa_tee_app_tls.key"
+    cert_collection_file_path: "/secrets/ca/edpaggregator/edp_aggregator_root.pem"
+  }
+  number_of_shards: 32
+  model_lines_connection {
+    cert_file_path: "/secrets/cert/edp7/edp7_tls.pem"
+    private_key_file_path: "/secrets/key/edp7/edp7_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom/kingdom_root.pem"
+  }
+  model_shards_connection {
+    cert_file_path: "/secrets/cert/edp7/edp7_tls.pem"
+    private_key_file_path: "/secrets/key/edp7/edp7_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom/kingdom_root.pem"
+  }
+  model_rollouts_connection {
+    cert_file_path: "/secrets/cert/edp7/edp7_tls.pem"
+    private_key_file_path: "/secrets/key/edp7/edp7_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom/kingdom_root.pem"
+  }
+  model_suite: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE"
+  staleness_threshold {
+    seconds: 28800
+  }
+}
+configs {
+  data_provider: "dataProviders/YpCPT-x89j4"
+  edp_impression_path: "edp/edpa_meta"
+  raw_impressions_storage_params {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  vid_labeled_impressions_storage_params {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  vid_rank_map_storage_params {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  subpool_map_storage_params {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "secure-computation-storage-head-bucket"
+    }
+  }
+  model_storage_params {
+    gcs {
+      project_id: "halo-cmm-head"
+      bucket_name: "vid-models-storage-head-bucket"
+    }
+  }
+  max_file_batch_size_bytes: 1073741824
+  control_plane_connection {
+    cert_file_path: "/secrets/cert/edpa_tee_app_tls.pem"
+    private_key_file_path: "/secrets/key/edpa_tee_app_tls.key"
+    cert_collection_file_path: "/secrets/ca/secure_computation_root.pem"
+  }
+  raw_impression_metadata_storage_connection {
+    cert_file_path: "/secrets/cert/edpa_tee_app_tls.pem"
+    private_key_file_path: "/secrets/key/edpa_tee_app_tls.key"
+    cert_collection_file_path: "/secrets/ca/edpaggregator/edp_aggregator_root.pem"
+  }
+  number_of_shards: 32
+  model_lines_connection {
+    cert_file_path: "/secrets/cert/edpa_meta/edpa_meta_tls.pem"
+    private_key_file_path: "/secrets/key/edpa_meta/edpa_meta_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom/kingdom_root.pem"
+  }
+  model_shards_connection {
+    cert_file_path: "/secrets/cert/edpa_meta/edpa_meta_tls.pem"
+    private_key_file_path: "/secrets/key/edpa_meta/edpa_meta_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom/kingdom_root.pem"
+  }
+  model_rollouts_connection {
+    cert_file_path: "/secrets/cert/edpa_meta/edpa_meta_tls.pem"
+    private_key_file_path: "/secrets/key/edpa_meta/edpa_meta_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom/kingdom_root.pem"
+  }
+  model_suite: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE"
+  staleness_threshold {
+    seconds: 28800
+  }
+}

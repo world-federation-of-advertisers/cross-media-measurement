@@ -1,6 +1,19 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "VerifyVidLabeledImpressionsMainTest",
+    srcs = ["VerifyVidLabeledImpressionsMainTest.kt"],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    test_class = "org.wfanet.measurement.edpaggregator.tools.VerifyVidLabeledImpressionsMainTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:verify_vid_labeled_impressions",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "EvictUploaderTest",
     srcs = ["EvictUploaderTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.EvictUploaderTest",

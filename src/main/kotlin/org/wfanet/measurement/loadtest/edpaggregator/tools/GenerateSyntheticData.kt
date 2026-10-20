@@ -100,7 +100,7 @@ class GenerateSyntheticData : Runnable {
         [
           "Optional. Path to a Tink keyset file that backs the FAKE KEK identified by --kek-uri. " +
             "Only valid when --kms-type=FAKE. When set, on first run the generated fake KEK " +
-            "keyset is written here so that VerifySyntheticData (in a separate process) can load " +
+            "keyset is written here so that VerifyVidLabeledImpressions can load " +
             "the same keyset and decrypt the impressions. When the file already exists it is reused."
         ],
       required = false,
@@ -516,7 +516,8 @@ class GenerateSyntheticData : Runnable {
         }
         KmsType.GCP_TO_AWS ->
           throw UnsupportedOperationException(
-            "GCP_TO_AWS is not yet supported in GenerateSyntheticData. Use VerifySyntheticData."
+            "GCP_TO_AWS is not yet supported in GenerateSyntheticData. " +
+              "Use VerifyVidLabeledImpressions."
           )
       }
     }
