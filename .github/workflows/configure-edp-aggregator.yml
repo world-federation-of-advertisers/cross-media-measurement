@@ -136,23 +136,18 @@ jobs:
         cp src/main/k8s/testing/secretfiles/kingdom_root.pem
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/kingdom_root.pem"
 
-    - name: Write sync-event-group-activities config (edp7)
-      env:
-        EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT: ${{ vars.EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT }}
-      run: |
-        if [ -z "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" ]; then
-          echo "vars.EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT is empty for environment ${{ inputs.environment }}" >&2
-          exit 1
-        fi
-        printf '%s' "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" > \
-          "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/event-group-activity-sync-config-edp7.textproto"
+    - name: Copy sync-event-group-activities config (edp7)
+      run: >
+        cp
+        src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/event-group-activity-sync-edp7-config.textproto
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/event-group-activity-sync-config-edp7.textproto"
 
     - name: Write data availability recovery config (edp7)
       env:
-        DATA_AVAILABILITY_SYNC_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT }}
+        DATA_AVAILABILITY_SYNC_CONFIG_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/data-availability-sync-config.textproto
       run: |
-        if [ -z "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" ]; then
-          echo "vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT is empty for environment ${{ inputs.environment }}" >&2
+        if [ ! -f "$DATA_AVAILABILITY_SYNC_CONFIG_FILE" ]; then
+          echo "Missing $DATA_AVAILABILITY_SYNC_CONFIG_FILE" >&2
           exit 1
         fi
         python3 - <<'PY'
@@ -160,7 +155,7 @@ jobs:
         import pathlib
         import re
 
-        source = os.environ["DATA_AVAILABILITY_SYNC_CONFIG_CONTENT"]
+        source = pathlib.Path(os.environ["DATA_AVAILABILITY_SYNC_CONFIG_FILE"]).read_text()
         blocks = []
         offset = 0
         while True:

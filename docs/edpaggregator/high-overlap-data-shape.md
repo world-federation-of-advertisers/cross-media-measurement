@@ -238,8 +238,9 @@ region, not per event group.
 Kingdom listing by entity type when `entity_key_types` is configured, so an event
 group whose type is absent from that list is invisible to the existence check and
 gets **created again on every sync**, silently duplicating the reference ID. The
-configured types live in the `EVENT_GROUP_SYNC_CONFIG_CONTENT` environment
-variable and must include every type used here.
+configured types live in the selected environment's
+`event-group-sync-config.textproto` under
+`src/main/terraform/gcloud/cmms/envs/` and must include every type used here.
 
 ## Pre-Labeled, Not Pipelined
 

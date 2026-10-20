@@ -1,0 +1,75 @@
+# proto-file: wfa/measurement/api/v2alpha/population_spec.proto
+# proto-message: PopulationSpec
+
+subpopulations {
+  vid_ranges {
+    start_vid: 1
+    end_vid_inclusive: 9999
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 10000
+    end_vid_inclusive: 19999
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 20000
+    end_vid_inclusive: 29999
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 30000
+    end_vid_inclusive: 39999
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 40000
+    end_vid_inclusive: 49999
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 50000
+    end_vid_inclusive: 59999
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 60000
+    end_vid_inclusive: 69999
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 70000
+    end_vid_inclusive: 79999
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 80000
+    end_vid_inclusive: 84999
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 85000
+    end_vid_inclusive: 89999
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 90000
+    end_vid_inclusive: 94999
+  }
+}
+subpopulations {
+  vid_ranges {
+    start_vid: 95000
+    end_vid_inclusive: 99999
+  }
+}
