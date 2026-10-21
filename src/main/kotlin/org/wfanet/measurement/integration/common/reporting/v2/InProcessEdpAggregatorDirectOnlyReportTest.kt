@@ -108,9 +108,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
   fun `basic report with single-edp creative-id event group succeeds`() = runBlocking {
     val allEventGroups = listReportingEventGroups()
     val singleCreativeIdEventGroup =
-      allEventGroups.filter {
-        it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
-      }
+      allEventGroups.filter { it.eventGroupReferenceId == EDP1_CREATIVE_EVENT_GROUP_REF_ID }
     check(singleCreativeIdEventGroup.isNotEmpty()) {
       "No single creative-id event group found for edp1"
     }
