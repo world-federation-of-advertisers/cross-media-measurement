@@ -111,6 +111,34 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
   }
 
   @Test
+  fun `basic report with dual and entity-key-only event groups in one requisition succeeds`() =
+    runBlocking {
+      val eventGroups = listReportingEventGroups()
+      val entityKeyOnlyEventGroup =
+        eventGroups.single { it.entityKey.entityId == MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID }
+      val dualIdentifierEventGroup =
+        eventGroups.single {
+          it.eventGroupReferenceId == MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID
+        }
+
+      val completedBasicReport =
+        runBasicReport(
+          listOf(dualIdentifierEventGroup, entityKeyOnlyEventGroup),
+          "mixed-history-two-event-groups",
+        )
+
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertStructuralResults(completedBasicReport)
+      assertSingleEdpNoNoiseResults(
+        completedBasicReport,
+        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+        expectedImpressions = EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS,
+        expectedKPlusReach = EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH,
+      )
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    }
+
+  @Test
   fun `basic report with reference-id-only event groups succeeds`() = runBlocking {
     val refIdOnlyEventGroups = getReferenceIdOnlyEventGroups()
     check(refIdOnlyEventGroups.isNotEmpty()) { "No reference-ID-only event groups found" }
@@ -324,10 +352,13 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
     assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
   }
 
-  private suspend fun runBasicReport(eventGroup: EventGroup, id: String): BasicReport {
+  private suspend fun runBasicReport(eventGroup: EventGroup, id: String): BasicReport =
+    runBasicReport(listOf(eventGroup), id)
+
+  private suspend fun runBasicReport(eventGroups: List<EventGroup>, id: String): BasicReport {
     val createBasicReportRequest =
       buildCreateBasicReportRequest(
-        listOf(eventGroup),
+        eventGroups,
         "$id-campaign",
         "$id-basicreport",
         includeIqfFilter = false,
