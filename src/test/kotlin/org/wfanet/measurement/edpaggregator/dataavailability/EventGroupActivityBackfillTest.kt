@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import io.grpc.Status
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -155,6 +156,8 @@ class EventGroupActivityBackfillTest {
           )
       }
       val publishedNames = mutableListOf<String>()
+      val rpcFailure = Status.PERMISSION_DENIED.asException()
+      val failure = Exception("Error publishing EventGroup activities", rpcFailure)
       val backfill =
         newBackfill(
           storageClient = storageClient,
@@ -163,7 +166,7 @@ class EventGroupActivityBackfillTest {
           publishEventGroupActivities = { metadata ->
             val name = metadata.single().name
             if (name == "metadata-2") {
-              error("RPC failed")
+              throw failure
             }
             publishedNames += name
             1
@@ -180,9 +183,12 @@ class EventGroupActivityBackfillTest {
         .containsExactly(
           EventGroupActivityBackfill.BackfillError(
             doneBlobUri = "gs://bucket/edp/meta/model-line/1/2026-01-02/done",
-            message = "RPC failed",
+            exception = failure,
           )
         )
+      assertThat(result.errors.single().exception).isSameInstanceAs(failure)
+      assertThat(result.errors.single().exception.cause).isSameInstanceAs(rpcFailure)
+      assertThat(result.errors.single().message).contains("publishing EventGroup activities")
     }
 
   @Test

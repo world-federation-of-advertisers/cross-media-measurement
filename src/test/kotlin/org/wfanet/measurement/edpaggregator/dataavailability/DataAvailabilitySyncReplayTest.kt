@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import io.grpc.Status
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -72,6 +73,8 @@ class DataAvailabilitySyncReplayTest {
         storageClient.writeBlob("edp/meta/model-line/1/2026-01-0$date/done", ByteString.EMPTY)
       }
       var invocation = 0
+      val rpcFailure = Status.PERMISSION_DENIED.asException()
+      val failure = Exception("Error publishing EventGroup activities", rpcFailure)
       val replay =
         DataAvailabilitySyncReplay(
           storageClient = storageClient,
@@ -80,7 +83,7 @@ class DataAvailabilitySyncReplayTest {
           sync = {
             when (invocation++) {
               0 -> DataAvailabilitySync.Outcome.NO_WORK
-              1 -> error("RPC failed")
+              1 -> throw failure
               2 -> DataAvailabilitySync.Outcome.BLOCKED_GAPS
               else -> DataAvailabilitySync.Outcome.PUBLISHED
             }
@@ -97,9 +100,12 @@ class DataAvailabilitySyncReplayTest {
         .containsExactly(
           DataAvailabilitySyncReplay.ReplayError(
             doneBlobUri = "gs://bucket/edp/meta/model-line/1/2026-01-02/done",
-            message = "RPC failed",
+            exception = failure,
           )
         )
+      assertThat(result.errors.single().exception).isSameInstanceAs(failure)
+      assertThat(result.errors.single().exception.cause).isSameInstanceAs(rpcFailure)
+      assertThat(result.errors.single().message).contains("publishing EventGroup activities")
     }
 
   @Test

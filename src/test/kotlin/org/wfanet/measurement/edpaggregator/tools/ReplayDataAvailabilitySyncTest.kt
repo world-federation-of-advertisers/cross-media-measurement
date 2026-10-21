@@ -22,11 +22,16 @@ import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Server
+import io.grpc.Status
 import io.grpc.netty.NettyServerBuilder
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit.SECONDS
+import java.util.logging.Handler
+import java.util.logging.Level
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
@@ -155,6 +160,68 @@ class ReplayDataAvailabilitySyncTest {
   @Test
   fun `main explicit completion blob replay processes changes written after completion blob`() {
     runDataAvailabilityOnlyReplay(arrayOf("--done-blob-uri=gs://$BUCKET_NAME/$DONE_BLOB_KEY"))
+  }
+
+  @Test
+  fun `main logs RPC failure and completion blob in activity only mode`() {
+    assertReplayRpcFailureLogged(ReplayDataAvailabilitySync.Mode.EVENT_GROUP_ACTIVITY_ONLY)
+  }
+
+  @Test
+  fun `main logs RPC failure and completion blob in full sync mode`() {
+    assertReplayRpcFailureLogged(ReplayDataAvailabilitySync.Mode.FULL_SYNC)
+  }
+
+  private fun assertReplayRpcFailureLogged(mode: ReplayDataAvailabilitySync.Mode) {
+    val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
+      onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
+        .thenThrow(
+          Status.PERMISSION_DENIED.withDescription("Metadata access denied").asRuntimeException()
+        )
+    }
+    val server: Server =
+      NettyServerBuilder.forPort(0)
+        .sslContext(serverCerts.toServerTlsContext())
+        .addService(impressionMetadataServiceMock)
+        .build()
+        .start()
+    val logRecords = mutableListOf<LogRecord>()
+    val logHandler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          logRecords += record
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = Logger.getLogger("org.wfanet.measurement.edpaggregator.tools")
+    logger.addHandler(logHandler)
+    storageEmulator.createBucket(BUCKET_NAME)
+    try {
+      seedInitialFinalizedFolder()
+      val configFile = writeConfigFile(validConfig(includeActivityPublishing = true))
+
+      val capturedOutput =
+        CommandLineTesting.capturingOutput(
+          requiredArgs(configFile, mode, "localhost:${server.port}") + storageArgs,
+          ::main,
+        )
+
+      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(1)
+      val errorRecord = logRecords.single { it.message.contains("replay error") }
+      assertThat(errorRecord.message).contains("gs://$BUCKET_NAME/$DONE_BLOB_KEY")
+      assertThat(errorRecord.level).isEqualTo(Level.WARNING)
+      val exception = checkNotNull(errorRecord.thrown)
+      assertThat(exception.cause).isNotNull()
+      assertThat(Status.fromThrowable(exception).code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    } finally {
+      logger.removeHandler(logHandler)
+      server.shutdown()
+      server.awaitTermination(1, SECONDS)
+      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
   }
 
   private fun runDataAvailabilityOnlyReplay(selectionArgs: Array<String>) {

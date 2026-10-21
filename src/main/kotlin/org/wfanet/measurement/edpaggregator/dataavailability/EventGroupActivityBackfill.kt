@@ -66,8 +66,12 @@ class EventGroupActivityBackfill(
     }
   }
 
-  /** A failed backfill for one completion blob. */
-  data class BackfillError(val doneBlobUri: String, val message: String)
+  /** A failed backfill for [doneBlobUri], retaining [exception] and its cause chain. */
+  data class BackfillError(val doneBlobUri: String, val exception: Exception) {
+    /** Human-readable summary of [exception]. */
+    val message: String
+      get() = exception.message ?: exception::class.java.simpleName
+  }
 
   /** Aggregate result for a backfill run. */
   data class Result(
@@ -101,7 +105,7 @@ class EventGroupActivityBackfill(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        errors += BackfillError(doneBlobUri, e.message ?: e::class.java.simpleName)
+        errors += BackfillError(doneBlobUri, e)
       }
     }
 

@@ -89,6 +89,8 @@ Completion blobs are sorted and processed sequentially. A failed folder does not
 folders from being attempted, and the process exits nonzero if any folder fails.
 `DATA_AVAILABILITY_ONLY` and `FULL_SYNC` also exit nonzero when `error_if_gaps_exist` blocks
 publication.
+Failures are logged with the affected completion blob and the exception's cause chain, including
+underlying RPC statuses.
 
 `DATA_AVAILABILITY_ONLY` and `FULL_SYNC` scan the folder's current metadata and check its
 referenced impressions blobs. If blobs were added or overwritten after the original `done` blob

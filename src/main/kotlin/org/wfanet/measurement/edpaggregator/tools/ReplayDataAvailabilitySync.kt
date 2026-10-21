@@ -27,6 +27,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.properties.Delegates
 import kotlin.system.exitProcess
@@ -373,7 +374,11 @@ class ReplayDataAvailabilitySync : Runnable {
         "errors=${result.errors.size}"
     )
     for (error in result.errors) {
-      logger.warning("Activity-only replay error [${error.doneBlobUri}]: ${error.message}")
+      logger.log(
+        Level.WARNING,
+        "Activity-only replay error [${error.doneBlobUri}]: ${error.message}",
+        error.exception,
+      )
     }
   }
 
@@ -387,7 +392,11 @@ class ReplayDataAvailabilitySync : Runnable {
         "errors=${result.errors.size}"
     )
     for (error in result.errors) {
-      logger.warning("Data-availability replay error [${error.doneBlobUri}]: ${error.message}")
+      logger.log(
+        Level.WARNING,
+        "Data-availability replay error [${error.doneBlobUri}]: ${error.message}",
+        error.exception,
+      )
     }
   }
 
