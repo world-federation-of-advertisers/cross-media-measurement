@@ -1,0 +1,116 @@
+{
+  "displayName": "Meta Impression Query",
+  "dashboardFilters": [],
+  "labels": {},
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "height": 6,
+        "width": 48,
+        "widget": {
+          "title": "About",
+          "text": {
+            "content": "Meta impression queries by outcome, and each ad account's access as last observed by a report's query. `entity_not_found` and `permission_denied` usually mean an advertiser has not shared their ad account; Meta reports an unshared account the same way as a missing one. In the account table, an account's current access is the result seen most recently: `accessible`, `permission_denied` (access not granted) or `inaccessible` (missing or unshared). Accounts appear once a report queries them; throttles and credential failures do not change them.",
+            "format": "MARKDOWN"
+          }
+        }
+      },
+      {
+        "yPos": 6,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Impression queries per hour by outcome",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "3600s",
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [
+                        "metric.label.\"outcome\""
+                      ],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/meta.impression_query.queries\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 6,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Unanswered impression queries per hour by entity type",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "3600s",
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [
+                        "metric.label.\"outcome\"",
+                        "metric.label.\"entity_type\""
+                      ],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/meta.impression_query.queries\" metric.label.\"outcome\"!=\"success\""
+                  }
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 22,
+        "height": 20,
+        "width": 48,
+        "widget": {
+          "title": "Hours since each ad account access result was last observed",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "60s",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "(time() - max by (account_id, result) (max_over_time(workload_googleapis_com:meta_account_access_last_observed[30d]))) / 3600",
+                  "unitOverride": "h"
+                }
+              }
+            ],
+            "metricVisualization": "NUMBER"
+          }
+        }
+      }
+    ]
+  }
+}
