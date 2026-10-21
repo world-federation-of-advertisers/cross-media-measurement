@@ -35,11 +35,11 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPO
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 
 /**
- * Implementation of [InProcessEdpAggregatorOnboardingTest] for GCloud backends with Spanner
+ * Implementation of [InProcessEdpAggregatorTrusTeeThresholdTest] for GCloud backends with Spanner
  * database. Uses no-noise TrusTee protocol config without small-cell suppression.
  */
 class GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest :
-  InProcessEdpAggregatorOnboardingTest(
+  InProcessEdpAggregatorTrusTeeThresholdTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
     secureComputationDatabaseAdmin = spannerEmulator,

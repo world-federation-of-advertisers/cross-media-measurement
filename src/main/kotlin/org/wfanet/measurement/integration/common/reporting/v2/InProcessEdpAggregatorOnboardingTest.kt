@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.edpaggregator.tools.VerifyEventGroups
 import org.wfanet.measurement.edpaggregator.tools.VerifyVidLabeledImpressions
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
+import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -39,14 +40,17 @@ abstract class InProcessEdpAggregatorOnboardingTest(
   accessServicesFactory: AccessServicesFactory,
   reportingDataServicesProviderRule: ProviderRule<Services>,
 ) :
-  InProcessEdpAggregatorTrusTeeThresholdTest(
+  InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule = kingdomDataServicesRule,
     duchyDependenciesRule = duchyDependenciesRule,
     secureComputationDatabaseAdmin = secureComputationDatabaseAdmin,
     accessServicesFactory = accessServicesFactory,
     reportingDataServicesProviderRule = reportingDataServicesProviderRule,
+    duchyNames = ALL_DUCHY_NAMES,
+    hmssEnabled = false,
+    trusTeeEnabled = true,
+    multiEdpDisplayNames = setOf("edp1", "edp2"),
   ) {
-
   @Test
   fun `verified onboarding exports produce the expected TrusTee report`() = runBlocking {
     val edpDisplayNames = setOf("edp1", "edp2")
@@ -106,7 +110,22 @@ abstract class InProcessEdpAggregatorOnboardingTest(
         .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
     assertStructuralResults(completedBasicReport)
-    assertTrusTeeMetricResults(completedBasicReport)
+    assertNoNoiseResults(
+      completedBasicReport,
+      expectedCrossPublisherReach = EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_TRUSTEE_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_TRUSTEE_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_TRUSTEE_EDP_SPEC2_REACH,
+    )
     assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+  }
+
+  companion object {
+    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5330L
+    private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 8860L
+    private val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
+    private const val EXPECTED_TRUSTEE_EDP_SPEC1_REACH = 3937L
+    private const val EXPECTED_TRUSTEE_EDP_SPEC2_REACH = 3638L
   }
 }
