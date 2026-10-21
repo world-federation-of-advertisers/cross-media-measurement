@@ -335,7 +335,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("ad_group", AD_GROUP_EDP_EVENT_GROUP_REF_ID),
+                    EntityKey("ad_group", AD_GROUP_EDP_ENTITY_ID),
                     syntheticEventGroupSpec1,
                     ENTITY_METADATA,
                   )
@@ -1358,7 +1358,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     // entity_type ("ad_group") in this fixture.
     internal const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
     internal const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
-    internal const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "ad_group/edp4-eg-ref-1"
+    internal const val AD_GROUP_EDP_ENTITY_ID = "edp4-eg-ref-1"
+    internal const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "ad_group/$AD_GROUP_EDP_ENTITY_ID"
     private const val RESTRICTED_EDP_DISPLAY_NAME = AD_GROUP_EDP_DISPLAY_NAME
     internal const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
     internal const val EDP1_MULTI_CREATIVE_A_ID = "multi-creative-A"

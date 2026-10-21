@@ -153,9 +153,9 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
     val byRefId: Map<String, EventGroup> =
       listReportingEventGroups().associateBy { it.eventGroupReferenceId }
 
-    val adGroupEventGroup = byRefId.getValue("ad_group/$AD_GROUP_EDP_EVENT_GROUP_REF_ID")
+    val adGroupEventGroup = byRefId.getValue(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
     assertThat(adGroupEventGroup.entityKey.entityType).isEqualTo("ad_group")
-    assertThat(adGroupEventGroup.entityKey.entityId).isEqualTo(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
+    assertThat(adGroupEventGroup.entityKey.entityId).isEqualTo(AD_GROUP_EDP_ENTITY_ID)
     assertThat(adGroupEventGroup.eventGroupMetadata.entityMetadata).isEqualTo(ENTITY_METADATA)
   }
 
