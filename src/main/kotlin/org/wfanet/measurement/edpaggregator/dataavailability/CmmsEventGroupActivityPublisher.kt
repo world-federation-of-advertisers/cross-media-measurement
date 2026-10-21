@@ -62,6 +62,8 @@ class CmmsEventGroupActivityPublisher(
 
   /** Publishes activity and returns the number of distinct EventGroup/date pairs written. */
   suspend fun publish(impressionMetadata: Collection<ImpressionMetadata>): Int {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4726): Stream activity
+    // publication in bounded batches instead of retaining all input and derived pairs.
     val activitiesByEntityKey = mutableMapOf<EntityKey, MutableSet<LocalDate>>()
     for (metadata in impressionMetadata) {
       val activityDates = metadata.activityDates()
