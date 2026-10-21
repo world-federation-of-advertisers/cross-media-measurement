@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.integration.k8s
+package org.wfanet.measurement.loadtest.edpaggregator.tools
 
 import com.google.api.gax.core.FixedExecutorProvider
 import com.google.cloud.bigquery.BigQuery
