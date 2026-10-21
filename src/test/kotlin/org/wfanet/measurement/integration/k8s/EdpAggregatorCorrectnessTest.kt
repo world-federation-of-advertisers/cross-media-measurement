@@ -50,6 +50,7 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.EdpaCorrectnessTestConfig
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
+import org.measurement.integration.k8s.testing.copy
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
@@ -157,7 +158,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           )
       val eventGroup =
         response.eventGroupsList.firstOrNull {
-          it.eventGroupReferenceId == EDP7_DIRECT_EVENT_GROUP_REF_ID &&
+          it.eventGroupReferenceId == ACTIVITY_EVENT_GROUP_REF_ID &&
             it.aggregatedActivitiesCount > 0
         }
       if (eventGroup != null) {
@@ -190,8 +191,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           objectKey = "edp7/event-groups/edp7-event-group.binpb",
           blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
           eventGroupReferenceIds =
-            setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
-              MULTI_CREATIVE_REF_IDS,
+            setOf(
+              EDP7_DIRECT_EVENT_GROUP_REF_ID,
+              CREATIVE_ID_EVENT_GROUP_REF_ID,
+              ACTIVITY_EVENT_GROUP_REF_ID,
+            ) + MULTI_CREATIVE_REF_IDS,
         ),
         EdpStorage(
           objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
@@ -588,6 +592,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private val EVENT_GROUP_ACTIVITY_TIMEOUT = 5.minutes
     private val EVENT_GROUP_ACTIVITY_POLLING_INTERVAL = 3.seconds
     private const val ACTIVITY_START_DATE = "2021-03-15"
+    private val ACTIVITY_ENTITY_ID = "activity-${UUID.randomUUID()}"
+    private val ACTIVITY_EVENT_GROUP_REF_ID = "creative-id-$ACTIVITY_ENTITY_ID"
     private const val EDP7_IMPRESSION_PATH = "edp/edp7"
     private const val DATA_AVAILABILITY_SYNC_ID_METADATA_KEY = "data-availability-sync-id"
     private const val DATA_AVAILABILITY_PUBLISHED_SYNC_ID_METADATA_KEY =
@@ -621,7 +627,18 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       val configFile =
         getRuntimePath(CONFIG_PATH.resolve("impression_test_data_config.textproto"))!!.toFile()
-      parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
+      val config = parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
+      // A fresh entity key prevents historical activity from satisfying this run's assertion.
+      val template = config.eventGroupsList.first { it.edpName == "edp7" }
+      val activityEventGroup =
+        template.copy {
+          eventGroupReferenceId = ACTIVITY_EVENT_GROUP_REF_ID
+          outputKey = ACTIVITY_ENTITY_ID
+          entityKeySpecs.clear()
+          entityKeySpecs +=
+            template.entityKeySpecsList.single().copy { entityId = ACTIVITY_ENTITY_ID }
+        }
+      config.copy { eventGroups += activityEventGroup }
     }
 
     val populationSpec: PopulationSpec by lazy {

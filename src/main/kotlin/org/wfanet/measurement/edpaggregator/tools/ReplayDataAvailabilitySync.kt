@@ -39,6 +39,7 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
@@ -202,11 +203,13 @@ class ReplayDataAvailabilitySync : Runnable {
           grpcTelemetry.newClientInterceptor(),
         )
       )
+    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
     val eventGroupActivityPublisher =
       when (mode) {
         Mode.DATA_AVAILABILITY_ONLY -> null
         Mode.EVENT_GROUP_ACTIVITY_ONLY,
-        Mode.FULL_SYNC -> buildEventGroupActivityPublisher(config, instrumentedKingdomChannel)
+        Mode.FULL_SYNC ->
+          buildEventGroupActivityPublisher(config, instrumentedKingdomChannel, throttler)
       }
     val storageRootUri = BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = "")
 
@@ -222,7 +225,7 @@ class ReplayDataAvailabilitySync : Runnable {
                   selection = selection.toEventGroupActivitySelection(),
                   impressionMetadataStub = impressionMetadataStub,
                   dataProviderName = config.dataProvider,
-                  throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval),
+                  throttler = throttler,
                   impressionMetadataPageSize = impressionMetadataBatchSize,
                   publishEventGroupActivities = publisher::publish,
                 )
@@ -240,7 +243,7 @@ class ReplayDataAvailabilitySync : Runnable {
                 dataProvidersStub = DataProvidersCoroutineStub(instrumentedKingdomChannel),
                 impressionMetadataServiceStub = impressionMetadataStub,
                 dataProviderName = config.dataProvider,
-                throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval),
+                throttler = throttler,
                 impressionMetadataBatchSize = impressionMetadataBatchSize,
                 modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
                 errorIfGapsExist = config.errorIfGapsExist,
@@ -271,6 +274,7 @@ class ReplayDataAvailabilitySync : Runnable {
   private fun buildEventGroupActivityPublisher(
     config: DataAvailabilitySyncConfig,
     kingdomChannel: Channel,
+    throttler: Throttler,
   ): CmmsEventGroupActivityPublisher? {
     if (!config.hasEventGroupActivityPublishing()) {
       return null
@@ -304,6 +308,7 @@ class ReplayDataAvailabilitySync : Runnable {
       config.dataProvider,
       ZoneId.of(marketTimeZoneId),
       EventGroupActivityPublisherMetrics(Instrumentation.meter),
+      throttler = throttler,
     )
   }
 

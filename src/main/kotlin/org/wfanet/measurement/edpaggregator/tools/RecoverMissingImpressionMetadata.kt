@@ -293,6 +293,7 @@ class RecoverMissingImpressionMetadata : Runnable {
           config.dataProvider,
           ZoneId.of(marketTimeZoneId),
           EventGroupActivityPublisherMetrics(Instrumentation.meter),
+          throttler = throttler,
         )
       } else {
         null

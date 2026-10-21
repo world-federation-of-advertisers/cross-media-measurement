@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupActivity
 import org.wfanet.measurement.api.v2alpha.updateEventGroupActivityRequest
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
@@ -51,6 +52,7 @@ class CmmsEventGroupActivityPublisher(
   private val dataProviderName: String,
   private val marketTimeZone: ZoneId,
   private val metrics: EventGroupActivityPublisherMetrics,
+  private val throttler: Throttler,
 ) {
   private var cachedEventGroupMap: LoadedEventGroupMap? = null
 
@@ -158,20 +160,22 @@ class CmmsEventGroupActivityPublisher(
       activities.filterNotTo(mutableListOf()) { it.eventGroupName in missingEventGroupNames }
     while (remainingActivities.isNotEmpty()) {
       try {
-        eventGroupActivitiesClient.batchUpdateEventGroupActivities(
-          batchUpdateEventGroupActivitiesRequest {
-            parent = "$dataProviderName/eventGroups/-"
-            for (activity in remainingActivities) {
-              requests += updateEventGroupActivityRequest {
-                eventGroupActivity = eventGroupActivity {
-                  name = "${activity.eventGroupName}/eventGroupActivities/${activity.date}"
-                  date = activity.date.toProtoDate()
+        throttler.onReady {
+          eventGroupActivitiesClient.batchUpdateEventGroupActivities(
+            batchUpdateEventGroupActivitiesRequest {
+              parent = "$dataProviderName/eventGroups/-"
+              for (activity in remainingActivities) {
+                requests += updateEventGroupActivityRequest {
+                  eventGroupActivity = eventGroupActivity {
+                    name = "${activity.eventGroupName}/eventGroupActivities/${activity.date}"
+                    date = activity.date.toProtoDate()
+                  }
+                  allowMissing = true
                 }
-                allowMissing = true
               }
             }
-          }
-        )
+          )
+        }
         return remainingActivities.size
       } catch (e: StatusException) {
         val missingEventGroupName =

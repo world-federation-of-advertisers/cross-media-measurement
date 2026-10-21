@@ -49,6 +49,7 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as mappedEntityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
@@ -59,6 +60,7 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class CmmsEventGroupActivityPublisherTest {
+  private val throttler = RecordingThrottler()
   private val persistedActivityNames = Collections.synchronizedSet(mutableSetOf<String>())
   private val eventGroupActivitiesServiceMock: EventGroupActivitiesCoroutineImplBase = mockService {
     onBlocking { batchUpdateEventGroupActivities(any<BatchUpdateEventGroupActivitiesRequest>()) }
@@ -227,6 +229,7 @@ class CmmsEventGroupActivityPublisherTest {
     }
     assertThat(requests.allValues.sumOf { it.requestsCount }).isEqualTo(1002)
     assertThat(requests.allValues.all { it.requestsCount <= 1000 }).isTrue()
+    assertThat(throttler.onReadyCalls).isEqualTo(2)
   }
 
   @Test
@@ -246,6 +249,7 @@ class CmmsEventGroupActivityPublisherTest {
       .thenAnswer { invocation ->
         val request = invocation.getArgument<BatchUpdateEventGroupActivitiesRequest>(0)
         requests += request
+        assertThat(throttler.onReadyCalls).isEqualTo(requests.size)
         if (
           request.requestsList.any {
             it.eventGroupActivity.name.startsWith("$staleEventGroup/eventGroupActivities/")
@@ -279,6 +283,7 @@ class CmmsEventGroupActivityPublisherTest {
 
       assertThat(published).isEqualTo(1)
       assertThat(requests).hasSize(2)
+      assertThat(throttler.onReadyCalls).isEqualTo(2)
       assertThat(requests[0].requestsList.map { it.eventGroupActivity.name })
         .containsExactly(
           "$staleEventGroup/eventGroupActivities/2026-01-02",
@@ -519,7 +524,18 @@ class CmmsEventGroupActivityPublisherTest {
       dataProviderName = DATA_PROVIDER,
       marketTimeZone = marketTimeZone,
       metrics = metrics,
+      throttler = throttler,
     )
+
+  private class RecordingThrottler : Throttler {
+    var onReadyCalls = 0
+      private set
+
+    override suspend fun <T> onReady(block: suspend () -> T): T {
+      onReadyCalls++
+      return block()
+    }
+  }
 
   private fun createMetricsEnvironment(): MetricsEnvironment {
     val metricExporter = InMemoryMetricExporter.create()

@@ -79,21 +79,26 @@ Optional flags:
 
 * `--kingdom-public-api-cert-host`
 * `--impression-metadata-api-cert-host`
-* `--throttler-minimum-interval` (default `1s`)
+* `--throttler-minimum-interval` (default `1s`): shared minimum interval between metadata,
+  availability, and activity RPCs, including activity retries.
 * `--impression-metadata-batch-size` (default `1000`)
 
 ## Understand replay behavior
 
 Completion blobs are sorted and processed sequentially. A failed folder does not prevent later
-folders from being attempted, and the process exits nonzero if any folder fails. `FULL_SYNC` also
-exits nonzero when `error_if_gaps_exist` blocks publication.
+folders from being attempted, and the process exits nonzero if any folder fails.
+`DATA_AVAILABILITY_ONLY` and `FULL_SYNC` also exit nonzero when `error_if_gaps_exist` blocks
+publication.
 
-Each replay scans the folder's current metadata and impressions blobs. If blobs were added or
-overwritten after the original `done` blob was written, select that existing `done` blob by prefix
-or URI; the operator does not need to rewrite it to generate another storage event.
+`DATA_AVAILABILITY_ONLY` and `FULL_SYNC` scan the folder's current metadata and check its
+referenced impressions blobs. If blobs were added or overwritten after the original `done` blob
+was written, select that existing `done` blob by prefix or URI; the operator does not need to
+rewrite it to generate another storage event.
 
 `EVENT_GROUP_ACTIVITY_ONLY` lists only active ImpressionMetadata for each selected folder. Deleted
-metadata is excluded, including metadata left behind by an interrupted eviction.
+metadata is excluded, including metadata left behind by an interrupted eviction. This mode does
+not read changed sidecars; synchronize those changes first with `DATA_AVAILABILITY_ONLY` or
+`FULL_SYNC`.
 
 `DATA_AVAILABILITY_ONLY` and `FULL_SYNC` reproduce the normal metadata and data-availability effects
 of processing a `done` blob. They may restore soft-deleted ImpressionMetadata when the

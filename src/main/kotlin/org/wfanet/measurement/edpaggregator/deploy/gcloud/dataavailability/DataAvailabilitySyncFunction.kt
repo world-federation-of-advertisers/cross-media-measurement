@@ -175,6 +175,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               dataAvailabilitySyncConfig.dataProvider,
               ZoneId.of(marketTimeZoneId),
               EventGroupActivityPublisherMetrics(Instrumentation.meter),
+              throttler = globalThrottler,
             )
           }
 
