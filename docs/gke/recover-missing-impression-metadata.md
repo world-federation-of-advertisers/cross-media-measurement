@@ -59,7 +59,8 @@ Optional flags:
 The activity flag does not change the recovery command's folder or blob selection rules. It does
 not replay already-complete folders solely to backfill EventGroup activity. To publish activity for
 all historical completion blobs below a prefix, or for an explicit list of completion blobs, use
-[Backfill EventGroup activity](backfill-event-group-activities.md).
+[Replay DataAvailabilitySync](replay-data-availability-sync.md) in
+`EVENT_GROUP_ACTIVITY_ONLY` mode.
 
 Choose exactly one date-selection mode:
 

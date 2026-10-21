@@ -239,8 +239,8 @@ When `event_group_activity_publishing` is configured, the same sync also derives
 positive EventGroup activity from the finalized metadata and appends it in the Kingdom.
 
 Config: [`DataAvailabilitySyncConfigs`](#dataavailabilitysync-config-dataavailabilitysyncconfigs).
-For historical EventGroup activity backfill, see
-[Backfill EventGroup activity](../gke/backfill-event-group-activities.md).
+For historical replay or EventGroup activity backfill, see
+[Replay DataAvailabilitySync](../gke/replay-data-availability-sync.md).
 
 ### DataAvailabilityCleanup
 
@@ -1088,10 +1088,10 @@ these metrics, all with a `data_provider_name` attribute:
 * `edpa.event_group_activity.event_groups_not_found`
 
 After correcting a missing or stale mapping, use
-[Backfill EventGroup activity](../gke/backfill-event-group-activities.md) for the affected completion
-blobs. The command reads only active ImpressionMetadata and does not rewrite metadata or data
-availability. Publishing is idempotent, so republishing an EventGroup/date pair does not create a
-duplicate.
+[Replay DataAvailabilitySync](../gke/replay-data-availability-sync.md) in
+`EVENT_GROUP_ACTIVITY_ONLY` mode for the affected completion blobs. This mode reads only active
+ImpressionMetadata and does not rewrite metadata or data availability. Publishing is idempotent, so
+republishing an EventGroup/date pair does not create a duplicate.
 
 For targeted corrections, `SyncEventGroupActivities` PATCH mode can explicitly append or delete
 dates. Do not use its SYNC mode for the same DataProvider: SYNC treats its input as authoritative

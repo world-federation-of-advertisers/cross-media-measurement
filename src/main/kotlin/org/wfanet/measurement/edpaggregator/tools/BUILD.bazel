@@ -8,12 +8,14 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "backfill_event_group_activities",
-    srcs = ["BackfillEventGroupActivities.kt"],
+    name = "replay_data_availability_sync",
+    srcs = ["ReplayDataAvailabilitySync.kt"],
     deps = [
         "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync_replay",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:event_group_activity_backfill",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_activities_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:storage_params_kt_jvm_proto",
@@ -36,15 +38,15 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "BackfillEventGroupActivities",
-    main_class = "org.wfanet.measurement.edpaggregator.tools.BackfillEventGroupActivitiesKt",
-    runtime_deps = [":backfill_event_group_activities"],
+    name = "ReplayDataAvailabilitySync",
+    main_class = "org.wfanet.measurement.edpaggregator.tools.ReplayDataAvailabilitySyncKt",
+    runtime_deps = [":replay_data_availability_sync"],
 )
 
 java_image(
-    name = "backfill_event_group_activities_image",
-    binary = ":BackfillEventGroupActivities",
-    main_class = "org.wfanet.measurement.edpaggregator.tools.BackfillEventGroupActivitiesKt",
+    name = "replay_data_availability_sync_image",
+    binary = ":ReplayDataAvailabilitySync",
+    main_class = "org.wfanet.measurement.edpaggregator.tools.ReplayDataAvailabilitySyncKt",
     visibility = ["//src:docker_image_deployment"],
 )
 

@@ -50,6 +50,17 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "data_availability_sync_replay",
+    srcs = ["DataAvailabilitySyncReplay.kt"],
+    deps = [
+        ":data_availability_sync",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:blob_uris",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)
+
+kt_jvm_library(
     name = "data_availability_sync",
     srcs = [
         "CmmsEventGroupActivityPublisher.kt",

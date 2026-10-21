@@ -86,6 +86,21 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "DataAvailabilitySyncReplayTest",
+    srcs = ["DataAvailabilitySyncReplayTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncReplayTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync_replay",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "DataAvailabilitySyncTest",
     srcs = ["DataAvailabilitySyncTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncTest",

@@ -169,6 +169,26 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "ReplayDataAvailabilitySyncTest",
+    srcs = ["ReplayDataAvailabilitySyncTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:root_certs",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    tags = ["no-remote-exec"],
+    test_class = "org.wfanet.measurement.edpaggregator.tools.ReplayDataAvailabilitySyncTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:replay_data_availability_sync",
+        "@wfa_common_jvm//imports/java/com/google/devtools/build/runfiles",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs/testing:storage_emulator_rule",
+    ],
+)
+
+kt_jvm_test(
     name = "DispatchFailerTest",
     srcs = ["DispatchFailerTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.DispatchFailerTest",

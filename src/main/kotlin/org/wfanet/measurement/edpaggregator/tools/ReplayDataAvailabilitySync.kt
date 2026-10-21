@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.cloud.NoCredentials
 import com.google.cloud.storage.StorageOptions
+import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
@@ -30,6 +31,7 @@ import java.util.logging.Logger
 import kotlin.properties.Delegates
 import kotlin.system.exitProcess
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.commandLineMain
@@ -41,6 +43,8 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncReplay
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityBackfill
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -52,14 +56,19 @@ import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
-/** Backfills EventGroup activity for completion blobs selected by URI or storage prefix. */
+/** Replays data availability or only EventGroup activity for selected completion blobs. */
 @Command(
-  name = "BackfillEventGroupActivities",
-  description = ["Backfills EventGroup activity from active finalized impression metadata"],
+  name = "ReplayDataAvailabilitySync",
+  description = ["Replays finalized impression metadata in the selected mode"],
   mixinStandardHelpOptions = true,
 )
-class BackfillEventGroupActivities : Runnable {
-  private class BackfillSelection {
+class ReplayDataAvailabilitySync : Runnable {
+  enum class Mode {
+    EVENT_GROUP_ACTIVITY_ONLY,
+    FULL_SYNC,
+  }
+
+  private class ReplaySelection {
     @Option(
       names = ["--blob-prefix"],
       description = ["GCS URI or bucket-relative prefix to search recursively for done blobs"],
@@ -69,7 +78,7 @@ class BackfillEventGroupActivities : Runnable {
 
     @Option(
       names = ["--done-blob-uri"],
-      description = ["Exact completion blob URI to backfill; may be repeated"],
+      description = ["Exact completion blob URI to replay; may be repeated"],
       required = true,
     )
     lateinit var doneBlobUris: List<String>
@@ -77,8 +86,15 @@ class BackfillEventGroupActivities : Runnable {
     fun hasBlobPrefix(): Boolean = this::blobPrefix.isInitialized
   }
 
-  @ArgGroup(exclusive = true, multiplicity = "1", heading = "Backfill selection:%n")
-  private lateinit var backfillSelection: BackfillSelection
+  @ArgGroup(exclusive = true, multiplicity = "1", heading = "Replay selection:%n")
+  private lateinit var replaySelection: ReplaySelection
+
+  @Option(
+    names = ["--mode"],
+    description = ["Replay mode: EVENT_GROUP_ACTIVITY_ONLY or FULL_SYNC"],
+    required = true,
+  )
+  private lateinit var mode: Mode
 
   @Option(
     names = ["--config-file"],
@@ -122,17 +138,17 @@ class BackfillEventGroupActivities : Runnable {
 
   @Option(
     names = ["--throttler-minimum-interval"],
-    description = ["Minimum interval between ImpressionMetadata API calls"],
+    description = ["Minimum interval between API calls"],
     defaultValue = "1s",
   )
   private lateinit var throttlerMinimumInterval: Duration
 
   @set:Option(
-    names = ["--impression-metadata-page-size"],
-    description = ["Maximum ImpressionMetadata resources per list request"],
+    names = ["--impression-metadata-batch-size"],
+    description = ["Maximum ImpressionMetadata resources per list or write request"],
     defaultValue = "1000",
   )
-  private var impressionMetadataPageSize: Int by Delegates.notNull()
+  private var impressionMetadataBatchSize: Int by Delegates.notNull()
 
   override fun run() {
     val config = parseTextProto(configFile, DataAvailabilitySyncConfig.getDefaultInstance())
@@ -141,13 +157,15 @@ class BackfillEventGroupActivities : Runnable {
     }
     require(config.edpImpressionPath.isNotEmpty()) { "edp_impression_path must be set" }
     require(config.dataProvider.isNotEmpty()) { "data_provider must be set" }
-    require(config.hasEventGroupActivityPublishing()) {
-      "event_group_activity_publishing must be set"
+    if (mode == Mode.EVENT_GROUP_ACTIVITY_ONLY) {
+      require(config.hasEventGroupActivityPublishing()) {
+        "event_group_activity_publishing must be set in EVENT_GROUP_ACTIVITY_ONLY mode"
+      }
     }
 
     val storageConfig = config.dataAvailabilityStorage.gcs
     require(storageConfig.bucketName.isNotEmpty()) { "GCS bucket_name must be set" }
-    val selection = buildBackfillSelection(config.edpImpressionPath, storageConfig.bucketName)
+    val selection = buildReplaySelection(config.edpImpressionPath, storageConfig.bucketName)
     val storageApiEndpoint = storageApiEndpoint
     val storageClient =
       GcsStorageClient(
@@ -183,6 +201,74 @@ class BackfillEventGroupActivities : Runnable {
           grpcTelemetry.newClientInterceptor(),
         )
       )
+    val eventGroupActivityPublisher =
+      buildEventGroupActivityPublisher(config, instrumentedKingdomChannel)
+    val storageRootUri = BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = "")
+
+    val succeeded =
+      try {
+        when (mode) {
+          Mode.EVENT_GROUP_ACTIVITY_ONLY -> {
+            val publisher = checkNotNull(eventGroupActivityPublisher)
+            val result = runBlocking {
+              EventGroupActivityBackfill(
+                  storageClient = storageClient,
+                  storageRootUri = storageRootUri,
+                  selection = selection.toEventGroupActivitySelection(),
+                  impressionMetadataStub = impressionMetadataStub,
+                  dataProviderName = config.dataProvider,
+                  throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval),
+                  impressionMetadataPageSize = impressionMetadataBatchSize,
+                  publishEventGroupActivities = publisher::publish,
+                )
+                .backfill()
+            }
+            logActivityOnlyResult(result)
+            result.errors.isEmpty()
+          }
+          Mode.FULL_SYNC -> {
+            val dataAvailabilitySync =
+              DataAvailabilitySync(
+                edpImpressionPath = config.edpImpressionPath,
+                storageClient = storageClient,
+                dataProvidersStub = DataProvidersCoroutineStub(instrumentedKingdomChannel),
+                impressionMetadataServiceStub = impressionMetadataStub,
+                dataProviderName = config.dataProvider,
+                throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval),
+                impressionMetadataBatchSize = impressionMetadataBatchSize,
+                modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
+                errorIfGapsExist = config.errorIfGapsExist,
+                publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
+              )
+            val result = runBlocking {
+              DataAvailabilitySyncReplay(
+                  storageClient = storageClient,
+                  storageRootUri = storageRootUri,
+                  selection = selection,
+                  sync = dataAvailabilitySync::sync,
+                )
+                .replay()
+            }
+            logFullSyncResult(result)
+            result.blockedByGaps == 0 && result.errors.isEmpty()
+          }
+        }
+      } finally {
+        shutdownChannel(kingdomChannel)
+        shutdownChannel(impressionMetadataChannel)
+      }
+    if (!succeeded) {
+      exitProcess(1)
+    }
+  }
+
+  private fun buildEventGroupActivityPublisher(
+    config: DataAvailabilitySyncConfig,
+    kingdomChannel: Channel,
+  ): CmmsEventGroupActivityPublisher? {
+    if (!config.hasEventGroupActivityPublishing()) {
+      return null
+    }
 
     val publishingConfig = config.eventGroupActivityPublishing
     val marketTimeZoneId = publishingConfig.marketTimeZone.id
@@ -205,56 +291,22 @@ class BackfillEventGroupActivities : Runnable {
           projectId = publishingConfig.eventGroupMapStorage.gcs.projectId.ifEmpty { null },
         )
       )
-    val eventGroupActivityPublisher =
-      CmmsEventGroupActivityPublisher(
-        EventGroupActivitiesCoroutineStub(instrumentedKingdomChannel),
-        eventGroupMapStorageClient,
-        eventGroupMapBlobUri.key,
-        config.dataProvider,
-        ZoneId.of(marketTimeZoneId),
-        EventGroupActivityPublisherMetrics(Instrumentation.meter),
-      )
-    val backfill =
-      EventGroupActivityBackfill(
-        storageClient = storageClient,
-        storageRootUri = BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = ""),
-        selection = selection,
-        impressionMetadataStub = impressionMetadataStub,
-        dataProviderName = config.dataProvider,
-        throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval),
-        impressionMetadataPageSize = impressionMetadataPageSize,
-        publishEventGroupActivities = eventGroupActivityPublisher::publish,
-      )
-
-    val result =
-      try {
-        runBlocking { backfill.backfill() }
-      } finally {
-        shutdownChannel(kingdomChannel)
-        shutdownChannel(impressionMetadataChannel)
-      }
-
-    logger.info(
-      "Backfill result: " +
-        "doneBlobsSelected=${result.doneBlobsSelected}, " +
-        "activityPairsPublished=${result.activityPairsPublished}, " +
-        "noWork=${result.noWork}, " +
-        "errors=${result.errors.size}"
+    return CmmsEventGroupActivityPublisher(
+      EventGroupActivitiesCoroutineStub(kingdomChannel),
+      eventGroupMapStorageClient,
+      eventGroupMapBlobUri.key,
+      config.dataProvider,
+      ZoneId.of(marketTimeZoneId),
+      EventGroupActivityPublisherMetrics(Instrumentation.meter),
     )
-    for (error in result.errors) {
-      logger.warning("Backfill error [${error.doneBlobUri}]: ${error.message}")
-    }
-    if (result.errors.isNotEmpty()) {
-      exitProcess(1)
-    }
   }
 
-  private fun buildBackfillSelection(
+  private fun buildReplaySelection(
     edpImpressionPath: String,
     bucketName: String,
-  ): EventGroupActivityBackfill.Selection {
-    if (backfillSelection.hasBlobPrefix()) {
-      val suppliedBlobPrefix = backfillSelection.blobPrefix.trimEnd('/')
+  ): DataAvailabilitySyncReplay.Selection {
+    if (replaySelection.hasBlobPrefix()) {
+      val suppliedBlobPrefix = replaySelection.blobPrefix.trimEnd('/')
       val normalizedBlobPrefix =
         if (suppliedBlobPrefix.startsWith("gs://")) {
           val parsedUri = SelectedStorageClient.parseBlobUri(suppliedBlobPrefix)
@@ -271,10 +323,10 @@ class BackfillEventGroupActivities : Runnable {
       ) {
         "blob-prefix must be the configured edp_impression_path or one of its descendants"
       }
-      return EventGroupActivityBackfill.Selection.BlobPrefix(normalizedBlobPrefix)
+      return DataAvailabilitySyncReplay.Selection.BlobPrefix(normalizedBlobPrefix)
     }
 
-    val doneBlobUris = backfillSelection.doneBlobUris.toSet()
+    val doneBlobUris = replaySelection.doneBlobUris.toSet()
     for (doneBlobUri in doneBlobUris) {
       val parsedUri = SelectedStorageClient.parseBlobUri(doneBlobUri)
       require(parsedUri.scheme == "gs") { "done-blob-uri must use the gs scheme: $doneBlobUri" }
@@ -288,7 +340,44 @@ class BackfillEventGroupActivities : Runnable {
         "done-blob-uri must be below the configured edp_impression_path: $doneBlobUri"
       }
     }
-    return EventGroupActivityBackfill.Selection.DoneBlobUris(doneBlobUris)
+    return DataAvailabilitySyncReplay.Selection.DoneBlobUris(doneBlobUris)
+  }
+
+  private fun DataAvailabilitySyncReplay.Selection.toEventGroupActivitySelection():
+    EventGroupActivityBackfill.Selection {
+    return when (this) {
+      is DataAvailabilitySyncReplay.Selection.BlobPrefix ->
+        EventGroupActivityBackfill.Selection.BlobPrefix(value)
+      is DataAvailabilitySyncReplay.Selection.DoneBlobUris ->
+        EventGroupActivityBackfill.Selection.DoneBlobUris(values)
+    }
+  }
+
+  private fun logActivityOnlyResult(result: EventGroupActivityBackfill.Result) {
+    logger.info(
+      "Activity-only replay result: " +
+        "doneBlobsSelected=${result.doneBlobsSelected}, " +
+        "activityPairsPublished=${result.activityPairsPublished}, " +
+        "noWork=${result.noWork}, " +
+        "errors=${result.errors.size}"
+    )
+    for (error in result.errors) {
+      logger.warning("Activity-only replay error [${error.doneBlobUri}]: ${error.message}")
+    }
+  }
+
+  private fun logFullSyncResult(result: DataAvailabilitySyncReplay.Result) {
+    logger.info(
+      "Full-sync replay result: " +
+        "doneBlobsSelected=${result.doneBlobsSelected}, " +
+        "published=${result.published}, " +
+        "noWork=${result.noWork}, " +
+        "blockedByGaps=${result.blockedByGaps}, " +
+        "errors=${result.errors.size}"
+    )
+    for (error in result.errors) {
+      logger.warning("Full-sync replay error [${error.doneBlobUri}]: ${error.message}")
+    }
   }
 
   private fun buildChannel(
@@ -317,4 +406,4 @@ class BackfillEventGroupActivities : Runnable {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(BackfillEventGroupActivities(), args)
+fun main(args: Array<String>) = commandLineMain(ReplayDataAvailabilitySync(), args)
