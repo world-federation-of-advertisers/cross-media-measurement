@@ -19,12 +19,15 @@ package org.wfanet.measurement.integration.common
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.Any
 import com.google.protobuf.Struct
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Channel
 import io.grpc.StatusException
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
@@ -41,6 +44,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -71,7 +75,9 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.client.LabeledImpressionWriter
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
@@ -81,6 +87,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.ent
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroups
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
@@ -94,11 +101,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
@@ -754,6 +763,102 @@ class InProcessEdpAggregatorComponents(
       }
       .toMap()
   }
+
+  /**
+   * Exports the entity-keyed test impressions for [edpAggregatorShortName] using the public
+   * [LabeledImpressionWriter].
+   *
+   * The returned values are the metadata URIs that can be passed to the VID-labeled impression
+   * verifier. The export replaces the corresponding fixture artifacts that [startDaemons]
+   * registered with the impression metadata service.
+   */
+  suspend fun exportLabeledImpressions(edpAggregatorShortName: String): List<String> {
+    val writer = LabeledImpressionWriter.forFileSystem(kmsClient, storagePath.toFile())
+    val metadataUris = mutableListOf<String>()
+    val impressionsMetadataBucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
+    val configs = eventGroupConfigsByEdp.getValue(edpAggregatorShortName)
+
+    for ((eventGroupReferenceId, config) in configs) {
+      if (config !is EventGroupConfig.MultiEntityKey) {
+        continue
+      }
+      val groupsByDate =
+        mutableMapOf<LocalDate, MutableList<EntityKeysWithLabeledEvents<TestEvent>>>()
+      for (entityKeySpec in config.entityKeySpecs) {
+        val shards =
+          SyntheticDataGeneration.generateEvents(
+            TestEvent.getDefaultInstance(),
+            populationSpec,
+            entityKeySpec.spec,
+          )
+        for (shard in shards) {
+          groupsByDate
+            .getOrPut(shard.localDate) { mutableListOf() }
+            .add(EntityKeysWithLabeledEvents(listOf(entityKeySpec.entityKey), shard.labeledEvents))
+        }
+      }
+
+      for ((date, groups) in groupsByDate.toSortedMap()) {
+        val parentKey =
+          "ds/$date/model-line/$modelLineName/event-group-reference-id/$eventGroupReferenceId"
+        val blobUri = "file:///$impressionsMetadataBucket/$parentKey/impressions.enc.recordio"
+        val metadataUri = "file:///$impressionsMetadataBucket/$parentKey/metadata.binpb"
+        val interval = interval {
+          startTime = date.atStartOfDay(ZONE_ID).toInstant().toProtoTime()
+          endTime = date.plusDays(1).atStartOfDay(ZONE_ID).toInstant().toProtoTime()
+        }
+        val impressions = flow {
+          for (group in groups) {
+            val entityKeys =
+              group.entityKeys.map { entityKey ->
+                LabeledImpressionKt.entityKey {
+                  entityType = entityKey.entityType
+                  entityId = entityKey.entityId
+                }
+              }
+            for (event in group.labeledEvents) {
+              emit(
+                labeledImpression {
+                  vid = event.vid
+                  this.event = Any.pack(event.message)
+                  eventTime = event.timestamp.toProtoTime()
+                  this.entityKeys += entityKeys
+                }
+              )
+            }
+          }
+        }
+        writer.write(impressions, blobUri, metadataUri, kekUri, modelLineName, interval)
+        metadataUris += metadataUri
+      }
+    }
+    return metadataUris
+  }
+
+  /**
+   * Writes the configured EventGroups for [edpAggregatorShortName] to an onboarding JSON export.
+   *
+   * @return the file containing the EventGroups that can be passed to the EventGroup verifier and
+   *   reader
+   */
+  suspend fun exportEventGroups(
+    edpAggregatorShortName: String,
+    measurementConsumerData: MeasurementConsumerData,
+  ): File =
+    withContext(Dispatchers.IO) {
+      val exportDirectory = storagePath.resolve("onboarding-event-groups")
+      Files.createDirectories(exportDirectory)
+      val exportFile = exportDirectory.resolve("$edpAggregatorShortName.json")
+      val json =
+        JsonFormat.printer()
+          .print(
+            eventGroups {
+              eventGroups += buildEventGroups(measurementConsumerData, edpAggregatorShortName)
+            }
+          )
+      Files.writeString(exportFile, json)
+      exportFile.toFile()
+    }
 
   /**
    * Re-runs [EventGroupSync] for a single EDP against the already-running in-process Kingdom, using

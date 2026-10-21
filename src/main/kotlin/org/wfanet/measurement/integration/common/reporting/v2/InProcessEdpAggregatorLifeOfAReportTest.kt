@@ -18,8 +18,11 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
+import com.google.crypto.tink.InsecureSecretKeyAccess
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.RegistryConfiguration
+import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.struct
 import com.google.protobuf.timestamp
@@ -29,6 +32,7 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import java.io.File
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Clock
@@ -39,6 +43,7 @@ import java.util.logging.Logger
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.BeforeClass
@@ -99,6 +104,7 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
+import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupReader
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
@@ -163,6 +169,7 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 abstract class InProcessEdpAggregatorLifeOfAReportTest(
@@ -208,11 +215,16 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     )
   }
 
+  private val sharedKmsKeysetHandle: KeysetHandle by lazy {
+    KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+  }
+
   private val sharedKmsClient: FakeKmsClient by lazy {
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
     val kmsClient = FakeKmsClient()
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    kmsClient.setAead(
+      SHARED_KEK_URI,
+      sharedKmsKeysetHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java),
+    )
     kmsClient
   }
 
@@ -255,7 +267,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_EVENT_GROUP_REF_ID),
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_ENTITY_ID),
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   )
@@ -296,7 +308,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_EVENT_GROUP_REF_ID),
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_ENTITY_ID),
                     syntheticEventGroupSpec1,
                     ENTITY_METADATA,
                   )
@@ -1098,6 +1110,45 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   protected fun measurementConsumerName(): String =
     inProcessCmmsComponents.getMeasurementConsumerData().name
 
+  /** Exports entity-keyed impressions with the public writer for each EDP in [edpDisplayNames]. */
+  protected suspend fun exportLabeledImpressions(edpDisplayNames: Set<String>): List<String> {
+    return edpDisplayNames.sorted().flatMap { edpDisplayName ->
+      inProcessEdpAggregatorComponents.exportLabeledImpressions(edpDisplayName)
+    }
+  }
+
+  /** Exports EventGroup JSON for each EDP in [edpDisplayNames], keyed by EDP display name. */
+  protected suspend fun exportEventGroups(edpDisplayNames: Set<String>): Map<String, File> {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    return edpDisplayNames.sorted().associateWith { edpDisplayName ->
+      inProcessEdpAggregatorComponents.exportEventGroups(edpDisplayName, measurementConsumerData)
+    }
+  }
+
+  /** Reads an EventGroup export through the same reader used by the EDP Aggregator sync job. */
+  protected suspend fun readEventGroups(file: File): List<EdpaEventGroup> {
+    return EventGroupReader(FileSystemStorageClient(checkNotNull(file.parentFile)))
+      .read(file.name)
+      .toList()
+  }
+
+  /** Writes the fake KEK keyset used by the in-process EDP Aggregator to a verifier input file. */
+  protected fun writeFakeKmsKeysetFile(): File {
+    val keysetFile = tempPath.resolve("onboarding-fake-kek.tinkkeyset")
+    Files.write(
+      keysetFile,
+      TinkProtoKeysetFormat.serializeKeyset(
+        sharedKmsKeysetHandle,
+        InsecureSecretKeyAccess.get(),
+        RegistryConfiguration.get(),
+      ),
+    )
+    return keysetFile.toFile()
+  }
+
+  /** Returns the fake KEK URI shared by the writer, verifier, and in-process fulfiller. */
+  protected fun fakeKmsKeyUri(): String = SHARED_KEK_URI
+
   /**
    * Re-runs [EventGroupSync] for a single EDP against the running in-process Kingdom. Test-only
    * seam for driving repeated migration syncs after daemon startup.
@@ -1341,9 +1392,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val edp1RefIdOnly =
       allEventGroups.first { it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID }
     val edp1CreativeId =
-      allEventGroups.first {
-        it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
-      }
+      allEventGroups.first { it.eventGroupReferenceId == EDP1_CREATIVE_EVENT_GROUP_REF_ID }
     return listOf(edp1RefIdOnly, edp1CreativeId)
   }
 
@@ -1365,15 +1414,20 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     internal const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
     internal const val EDP1_MULTI_CREATIVE_A_ID = "multi-creative-A"
     internal const val EDP1_MULTI_CREATIVE_B_ID = "multi-creative-B"
-    internal val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp1-eg-creative-1"
-    private val EDP2_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp2-eg-creative-1"
+    private const val EDP1_CREATIVE_ENTITY_ID = "edp1-eg-creative-1"
+    private const val EDP2_CREATIVE_ENTITY_ID = "edp2-eg-creative-1"
+    internal const val EDP1_CREATIVE_EVENT_GROUP_REF_ID =
+      "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_ENTITY_ID"
+    private const val EDP2_CREATIVE_EVENT_GROUP_REF_ID =
+      "$CREATIVE_ID_ENTITY_TYPE/$EDP2_CREATIVE_ENTITY_ID"
     internal val EDP1_MULTI_ENTITY_KEY_REF_IDS =
       setOf(
         "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_A_ID",
         "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_B_ID",
       )
     private val EDP1_ALL_ENTITY_KEY_REF_IDS =
-      EDP1_MULTI_ENTITY_KEY_REF_IDS + "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
+      EDP1_MULTI_ENTITY_KEY_REF_IDS + EDP1_CREATIVE_EVENT_GROUP_REF_ID
+    private val SHARED_KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "key1"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(

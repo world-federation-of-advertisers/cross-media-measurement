@@ -14,11 +14,16 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
+import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
+import org.junit.Test
 import org.junit.rules.Timeout
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
+import org.wfanet.measurement.edpaggregator.tools.VerifyEventGroups
+import org.wfanet.measurement.edpaggregator.tools.VerifyVidLabeledImpressions
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_MAPPING
@@ -33,6 +38,8 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
+import picocli.CommandLine
 
 /**
  * Implementation of [InProcessEdpAggregatorTrusTeeThresholdTest] for GCloud backends with Spanner
@@ -63,6 +70,66 @@ class GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest :
       expectedEdpSpec1Reach = EXPECTED_TRUSTEE_EDP_SPEC1_REACH,
       expectedEdpSpec2Reach = EXPECTED_TRUSTEE_EDP_SPEC2_REACH,
     )
+  }
+
+  @Test
+  fun `verified onboarding exports produce the expected TrusTee report`() = runBlocking {
+    val edpDisplayNames = setOf("edp1", "edp2")
+
+    val metadataUris = exportLabeledImpressions(edpDisplayNames)
+    val impressionVerifierArgs =
+      buildList {
+          add("--kms-type=FAKE")
+          add("--kek-uri=${fakeKmsKeyUri()}")
+          add("--fake-kek-keyset-file=${writeFakeKmsKeysetFile().absolutePath}")
+          add("--local-storage-path=${tempPath.toFile().absolutePath}")
+          for (metadataUri in metadataUris) {
+            add("--metadata-uri=$metadataUri")
+          }
+        }
+        .toTypedArray()
+    assertThat(CommandLine(VerifyVidLabeledImpressions()).execute(*impressionVerifierArgs))
+      .isEqualTo(0)
+
+    val eventGroupFiles = exportEventGroups(edpDisplayNames)
+    val eventGroupVerifierArgs =
+      eventGroupFiles.values
+        .sortedBy { it.path }
+        .flatMap { file -> listOf("--event-groups-file", file.absolutePath) }
+        .toTypedArray()
+    assertThat(CommandLine(VerifyEventGroups()).execute(*eventGroupVerifierArgs)).isEqualTo(0)
+
+    for ((edpDisplayName, eventGroupFile) in eventGroupFiles) {
+      val sourceEventGroups = readEventGroups(eventGroupFile)
+      val mappedEventGroups = syncEventGroups(edpDisplayName, sourceEventGroups, emptyList())
+      assertThat(mappedEventGroups).hasSize(sourceEventGroups.size)
+    }
+
+    val eventGroups = getCreativeIdOnlyEventGroups()
+    assertThat(eventGroups).hasSize(2)
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        eventGroups,
+        "onboarding-campaign",
+        "onboarding-basicreport",
+        includeIqfFilter = false,
+      )
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertStructuralResults(completedBasicReport)
+    assertTrusTeeMetricResults(completedBasicReport)
+    assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
   }
 
   companion object {
