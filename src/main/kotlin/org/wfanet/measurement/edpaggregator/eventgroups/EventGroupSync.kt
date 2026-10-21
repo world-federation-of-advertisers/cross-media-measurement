@@ -286,6 +286,7 @@ class EventGroupSync(
 
   private enum class InvalidEventGroupFailureReason(val attributeValue: String) {
     ENTITY_ID_PREFIX_MISMATCH("entity_id_prefix_mismatch"),
+    REFERENCE_ID_MISSING("reference_id_missing"),
     MAPPED_REFERENCE_ID_BLANK("mapped_reference_id_blank"),
     REFERENCE_ID_MISMATCH("reference_id_mismatch"),
     VALIDATION_FAILURE("validation_failure"),
@@ -365,7 +366,7 @@ class EventGroupSync(
       eventGroups.collect { sourceEventGroup ->
         val eventGroup: EventGroup =
           try {
-            sourceEventGroup.withMappedReferenceId()
+            sourceEventGroup.validateMappedIdentifiers()
           } catch (e: MappedIdentifierValidationException) {
             logger.log(Level.SEVERE, e) {
               "Skipping Event Group ${sourceEventGroup.eventGroupReferenceId}" +
@@ -373,7 +374,7 @@ class EventGroupSync(
                   " (entityType=${sourceEventGroup.entityKey.entityType}," +
                     " entityId=${sourceEventGroup.entityKey.entityId})"
                 else "") +
-                ": Mapped identifiers do not match"
+                ": Mapped identifiers are invalid"
             }
             metrics.invalidEventGroupFailure.add(
               1,
@@ -1377,14 +1378,20 @@ class EventGroupSync(
     return existingByEntityKey ?: existingByReferenceId
   }
 
-  /** Adds and validates the mapped reference ID for a mappable entity key. */
-  private fun EventGroup.withMappedReferenceId(): EventGroup {
+  /** Requires and validates both identifiers for a mappable entity key. */
+  private fun EventGroup.validateMappedIdentifiers(): EventGroup {
     val mapping = eventGroupReferenceIdEntityKeyMapping ?: return this
     if (!hasEntityKey() || entityKey.entityId.isBlank()) {
       return this
     }
     if (entityKey.entityType != mapping.entityType) {
       return this
+    }
+    if (eventGroupReferenceId.isBlank()) {
+      throw MappedIdentifierValidationException(
+        InvalidEventGroupFailureReason.REFERENCE_ID_MISSING,
+        "EventGroup reference ID is required for mapped entity type ${mapping.entityType}",
+      )
     }
     if (!entityKey.entityId.startsWith(mapping.entityIdPrefix)) {
       throw MappedIdentifierValidationException(
@@ -1399,18 +1406,14 @@ class EventGroupSync(
           InvalidEventGroupFailureReason.MAPPED_REFERENCE_ID_BLANK,
           "Entity ID ${entityKey.entityId} maps to a blank event-group reference ID",
         )
-    if (eventGroupReferenceId.isNotBlank() && eventGroupReferenceId != mappedReferenceId) {
+    if (eventGroupReferenceId != mappedReferenceId) {
       throw MappedIdentifierValidationException(
         InvalidEventGroupFailureReason.REFERENCE_ID_MISMATCH,
         "EventGroup reference ID $eventGroupReferenceId does not exactly match mapped reference " +
           "ID $mappedReferenceId",
       )
     }
-    return if (eventGroupReferenceId.isBlank()) {
-      copy { eventGroupReferenceId = mappedReferenceId }
-    } else {
-      this
-    }
+    return this
   }
 
   /** Whether both identifiers on this EventGroup are governed by the configured mapping. */

@@ -3098,6 +3098,7 @@ class EventGroupSyncTest {
         batchUpdateEventGroupsResponse { eventGroups += updated }
       }
     val source = eventGroup {
+      eventGroupReferenceId = "123"
       measurementConsumer = "measurementConsumers/measurement-consumer-1"
       entityKey = entityKey {
         entityType = "campaign"
@@ -3161,7 +3162,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `mapping deletes reference-ID-only EventGroup by derived reference ID`() {
+  fun `mapping deletes reference-ID-only EventGroup using supplied equivalent IDs`() {
     wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
       .thenAnswer {
         listEventGroupsResponse {
@@ -3173,6 +3174,7 @@ class EventGroupSyncTest {
         }
       }
     val deletedEventGroup = eventGroup {
+      eventGroupReferenceId = "legacy_123"
       measurementConsumer = "measurementConsumers/measurement-consumer-1"
       state = State.DELETED
       entityKey = entityKey {
@@ -3252,6 +3254,7 @@ class EventGroupSyncTest {
         }
       }
       val source = eventGroup {
+        eventGroupReferenceId = scenario.eventGroupReferenceId
         measurementConsumer = "measurementConsumers/measurement-consumer-1"
         entityKey = entityKey {
           entityType = "campaign"
@@ -3401,8 +3404,67 @@ class EventGroupSyncTest {
   }
 
   @Test
+  fun `mapping rejects entity-key-only input when entity prefix is empty`() {
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups += cmmsEventGroup {
+            name = "dataProviders/data-provider-1/eventGroups/legacy"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            eventGroupReferenceId = "123"
+          }
+        }
+      }
+    val source = eventGroup {
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "cp_123"
+      }
+      this.eventGroupMetadata = eventGroupMetadata {}
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += MediaType.VIDEO
+    }
+
+    val results = runBlocking {
+      EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          unlinkedClientAccountsStub,
+          listOf(source).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping =
+            EventGroupReferenceIdEntityKeyMapping(
+              entityType = "campaign",
+              eventGroupReferenceIdPrefix = "",
+              entityIdPrefix = "",
+            ),
+        )
+        .sync()
+        .toList()
+    }
+
+    assertThat(results).isEmpty()
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
+    val invalidMetric =
+      getMetrics().single { it.name == "edpa.event_group.invalid_event_group_failure" }
+    val invalidPoint = invalidMetric.longSumData.points.single()
+    assertThat(invalidPoint.value).isEqualTo(1)
+    assertThat(invalidPoint.attributes.get(AttributeKey.stringKey("failure_reason")))
+      .isEqualTo("reference_id_missing")
+  }
+
+  @Test
   fun `mapping rejects mapped entity ID without configured prefix`() {
     val source = eventGroup {
+      eventGroupReferenceId = "123"
       measurementConsumer = "measurementConsumers/measurement-consumer-1"
       entityKey = entityKey {
         entityType = "campaign"
@@ -3451,6 +3513,7 @@ class EventGroupSyncTest {
   @Test
   fun `mapping rejects entity ID that maps to blank reference ID`() {
     val source = eventGroup {
+      eventGroupReferenceId = "123"
       measurementConsumer = "measurementConsumers/measurement-consumer-1"
       entityKey = entityKey {
         entityType = "campaign"
@@ -3573,6 +3636,7 @@ class EventGroupSyncTest {
         }
       }
     val source = eventGroup {
+      eventGroupReferenceId = "123"
       measurementConsumer = "measurementConsumers/measurement-consumer-1"
       entityKey = entityKey {
         entityType = "campaign"
@@ -3638,6 +3702,7 @@ class EventGroupSyncTest {
         }
       }
     fun source(measurementConsumer: String): EdpaEventGroup = eventGroup {
+      eventGroupReferenceId = "123"
       this.measurementConsumer = measurementConsumer
       entityKey = entityKey {
         entityType = "campaign"

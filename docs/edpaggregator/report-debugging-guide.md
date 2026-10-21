@@ -1292,13 +1292,15 @@ independent, and either may be blank. With the mapping absent, the two formats
 remain distinct.
 
 EventGroupSync has a separate config representation of the same mapping. When
-enabled, it updates a reference-ID-only EventGroup after receiving its equivalent
-entity key. It skips an input instead of creating or updating a resource when the
-mapped entity ID has the wrong prefix, conversion produces a blank reference ID,
-or a supplied reference ID does not exactly equal the derived value. Inspect
+enabled, input for the mapped entity type must supply both the legacy reference
+ID and its equivalent entity key. EventGroupSync skips an input instead of
+creating or updating a resource when either identifier is missing, the mapped
+entity ID has the wrong prefix, conversion produces a blank reference ID, or
+the identifiers are not exactly equivalent. Inspect
 `edpa.event_group.invalid_event_group_failure` by `failure_reason`:
 
 * `entity_id_prefix_mismatch`
+* `reference_id_missing`
 * `mapped_reference_id_blank`
 * `reference_id_mismatch`
 * `validation_failure`
@@ -1306,6 +1308,13 @@ or a supplied reference ID does not exactly equal the derived value. Inspect
 These validation skips do not necessarily increment
 `edpa.event_group.sync_failure`, so check the invalid-input metric and the
 EventGroupSync logs directly.
+
+During a batched EventGroup migration, a report can temporarily select both
+reference-ID-only and entity-key EventGroups. RequisitionFetcher refuses that
+report as `UNFULFILLABLE`; a ResultsFulfiller mapping does not bypass this
+validation. Before enabling EventGroupSync mapping, deploy the identical mapping
+to ResultsFulfiller and prevent report creation against partially migrated
+cohorts until their EventGroups have all been upgraded.
 
 For blobs whose impression records lack entity keys,
 `ResultsFulfillerParams.whole_blob_entity_types` may identify an exhaustive

@@ -48,12 +48,13 @@ message EventGroupSyncConfig {
   // When empty, the API default behavior applies (only "campaign" type).
   repeated string entity_key_types = 7;
 
-  // Optional mapping used to upgrade reference-ID-only EventGroups when an
-  // equivalent entity key is synced. Presence enables mapping. Entity IDs of
-  // the mapped type must use the configured entity ID prefix when non-empty;
-  // otherwise the EventGroup is skipped as invalid. Sync derives the reference
-  // ID, including its configured prefix, and requires any supplied reference ID
-  // to match it exactly.
+  // Optional mapping used to upgrade reference-ID-only EventGroups when both
+  // the existing reference ID and an equivalent entity key are synced. Presence
+  // enables mapping. Input for the mapped entity type must contain both
+  // identifiers, and they must be exactly equivalent after prefix conversion.
+  // Entity IDs must use the configured entity ID prefix when non-empty. Input
+  // that is missing an identifier, has a prefix mismatch, or has inequivalent
+  // identifiers is skipped as invalid.
   EventGroupReferenceIdEntityKeyMapping
       event_group_reference_id_entity_key_mapping = 8;
 }
