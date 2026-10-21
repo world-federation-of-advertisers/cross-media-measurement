@@ -49,7 +49,7 @@ class VerifyEventGroupsMainTest {
 
     val subject = CommandLineTesting.assertThat(capturedOutput)
     subject.status().isEqualTo(0)
-    subject.out().contains("--event-groups-file")
+    subject.out().contains("--event-groups-file=<FILE>")
     subject.out().contains(".json")
     subject.out().contains(".binpb")
   }
@@ -64,7 +64,7 @@ class VerifyEventGroupsMainTest {
     val subject = CommandLineTesting.assertThat(capturedOutput)
     subject.status().isEqualTo(0)
     subject.out().contains("PASS:")
-    subject.out().contains("verified 1 EventGroups")
+    subject.out().contains("verified 1 EventGroup")
   }
 
   @Test
@@ -117,7 +117,7 @@ class VerifyEventGroupsMainTest {
 
     val subject = CommandLineTesting.assertThat(capturedOutput)
     subject.status().isEqualTo(0)
-    subject.out().contains("verified 1 EventGroups")
+    subject.out().contains("verified 1 EventGroup")
   }
 
   @Test

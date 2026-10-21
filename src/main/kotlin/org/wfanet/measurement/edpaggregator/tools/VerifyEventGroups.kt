@@ -37,6 +37,7 @@ import picocli.CommandLine.Option
 class VerifyEventGroups : Callable<Int> {
   @Option(
     names = ["--event-groups-file"],
+    paramLabel = "<FILE>",
     description =
       [
         "Local EventGroup export file to verify. Must be JSON (.json) or Mesos RecordIO " +
@@ -84,12 +85,14 @@ class VerifyEventGroups : Callable<Int> {
     }
 
     if (invalidEventGroupCount > 0) {
+      val eventGroupLabel = if (eventGroupCount == 1) "EventGroup is" else "EventGroups are"
       System.err.println(
-        "FAIL: ${file.path}: $invalidEventGroupCount of $eventGroupCount EventGroups are invalid"
+        "FAIL: ${file.path}: $invalidEventGroupCount of $eventGroupCount $eventGroupLabel invalid"
       )
       return false
     }
-    println("PASS: ${file.path}: verified $eventGroupCount EventGroups")
+    val eventGroupLabel = if (eventGroupCount == 1) "EventGroup" else "EventGroups"
+    println("PASS: ${file.path}: verified $eventGroupCount $eventGroupLabel")
     return true
   }
 
