@@ -47,7 +47,6 @@ proto_library(
     name = "event_group_reference_id_entity_key_mapping_proto",
     srcs = ["event_group_reference_id_entity_key_mapping.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    visibility = ["//src/main/proto/wfa/measurement/edpaggregator/v1alpha:__pkg__"],
 )
 
 kt_jvm_proto_library(
