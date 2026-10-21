@@ -92,7 +92,7 @@ class HighOverlapSeedingTest {
     val manifest = runBlocking { readManifest() }
 
     assertThat(manifest.specFingerprint)
-      .isEqualTo(HighOverlapDataset.fingerprint(IMPRESSION_TEST_DATA_CONFIG, POPULATION_SPEC))
+      .isEqualTo(HighOverlapDataset.fingerprint(HighOverlapDataset.CONFIG_RESOURCE_PATH))
     assertThat(manifest.seededEdpsList).containsExactlyElementsIn(EDP_NAMES)
     assertThat(manifest.modelLine).isEqualTo(MODEL_LINE)
     assertThat(manifest.impressionRowCount).isEqualTo(exportedRowCount())
@@ -306,8 +306,7 @@ class HighOverlapSeedingTest {
 
     private suspend fun write() {
       val manifest = highOverlapDatasetManifest {
-        specFingerprint =
-          HighOverlapDataset.fingerprint(IMPRESSION_TEST_DATA_CONFIG, POPULATION_SPEC)
+        specFingerprint = HighOverlapDataset.fingerprint(HighOverlapDataset.CONFIG_RESOURCE_PATH)
         seededEdps += EDP_NAMES.sorted()
         modelLine = MODEL_LINE
         generateTime = timestamp { seconds = Clock.systemUTC().instant().epochSecond }
@@ -459,8 +458,7 @@ class HighOverlapSeedingTest {
         datasetId = BIGQUERY_DATASET_ID,
         tableId = BIGQUERY_TABLE_ID,
         modelLine = MODEL_LINE,
-        specFingerprint =
-          HighOverlapDataset.fingerprint(IMPRESSION_TEST_DATA_CONFIG, POPULATION_SPEC),
+        specFingerprint = HighOverlapDataset.fingerprint(HighOverlapDataset.CONFIG_RESOURCE_PATH),
       )
     }
 

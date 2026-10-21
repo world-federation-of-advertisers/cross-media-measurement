@@ -17,17 +17,14 @@ package org.wfanet.measurement.integration.common
 import java.security.MessageDigest
 import java.time.LocalDate
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toLocalDate
 
-/**
- * Views of the high overlap dataset derived from its specs.
- *
- * Shared by the test that seeds the dataset and the one that reports over it, so both agree on
- * which EventGroups, dates and fingerprint a given [ImpressionTestDataConfig] implies.
- */
+/** Views of the high overlap dataset derived from its specs. */
 object HighOverlapDataset {
+  /** Resource path of the high overlap [ImpressionTestDataConfig]. */
+  const val CONFIG_RESOURCE_PATH = "high_overlap_impression_test_data_config.textproto"
 
   /** EventGroup reference IDs by EDP, keyed `"${entityType}-${entityId}"`. */
   fun eventGroupRefIdsByEdp(config: ImpressionTestDataConfig): Map<String, Set<String>> =
@@ -65,16 +62,30 @@ object HighOverlapDataset {
   }
 
   /**
-   * Fingerprint of the specs every impression is generated from.
+   * Fingerprint of the spec files rooted at [configResourcePath].
    *
-   * Hashes the parsed protos rather than the files they came from, so a comment or whitespace
-   * change in a generated textproto does not read as a different dataset. Both arguments are
-   * already parsed wherever this is called, so computing it costs nothing beyond the hash.
+   * See `HighOverlapDatasetManifest.spec_fingerprint` for the algorithm.
    */
-  fun fingerprint(config: ImpressionTestDataConfig, populationSpec: PopulationSpec): String {
+  fun fingerprint(configResourcePath: String): String {
+    val configFile = ImpressionTestDataConfigs.resolveSpecPath(configResourcePath)
+    val config = parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
+    val dataSpecPaths: Set<String> =
+      config.eventGroupsList
+        .flatMap { eventGroup ->
+          eventGroup.entityKeySpecsList.map { it.dataSpecResourcePath } +
+            eventGroup.dataSpecResourcePath
+        }
+        .filter { it.isNotEmpty() }
+        .toSortedSet()
+
     val digest = MessageDigest.getInstance("SHA-256")
-    digest.update(config.toByteArray())
-    digest.update(populationSpec.toByteArray())
+    digest.update(configFile.readBytes())
+    digest.update(
+      ImpressionTestDataConfigs.resolveSpecPath(config.populationSpecResourcePath).readBytes()
+    )
+    for (path in dataSpecPaths) {
+      digest.update(ImpressionTestDataConfigs.resolveSpecPath(path).readBytes())
+    }
     return digest.digest().joinToString("") { "%02x".format(it) }
   }
 

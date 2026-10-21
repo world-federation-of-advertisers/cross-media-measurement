@@ -32,8 +32,10 @@ option java_outer_classname = "HighOverlapDatasetManifestProto";
 message HighOverlapDatasetManifest {
   // Fingerprint of the specs the impressions were generated from.
   //
-  // Covers the `ImpressionTestDataConfig` and the `PopulationSpec`, which
-  // between them determine every impression.
+  // Lowercase hex SHA-256 digest of the concatenation of these textproto files,
+  // byte for byte: the `ImpressionTestDataConfig`, then the `PopulationSpec` at
+  // its `population_spec_resource_path`, then each distinct
+  // `data_spec_resource_path` it references in ascending lexicographic order.
   string spec_fingerprint = 1;
 
   // EDPs that were seeded, by `edp_name`.

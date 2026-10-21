@@ -150,7 +150,7 @@ class EdpAggregatorReportingIntegrationTest {
      * untouched, so a fingerprint match alone would let a report silently omit it.
      */
     private fun verify(manifest: HighOverlapDatasetManifest) {
-      val expected = HighOverlapDataset.fingerprint(IMPRESSION_TEST_DATA_CONFIG, POPULATION_SPEC)
+      val expected = HighOverlapDataset.fingerprint(HighOverlapDataset.CONFIG_RESOURCE_PATH)
       check(manifest.specFingerprint == expected) {
         "Seeded dataset is stale for $MODEL_LINE: seeded ${manifest.specFingerprint} " +
           "(${manifest.generateTime}), specs are $expected. Re-run the high overlap seeding job."
@@ -1063,9 +1063,7 @@ class EdpAggregatorReportingIntegrationTest {
 
     private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       parseTextProto(
-        ImpressionTestDataConfigs.resolveSpecPath(
-          "high_overlap_impression_test_data_config.textproto"
-        ),
+        ImpressionTestDataConfigs.resolveSpecPath(HighOverlapDataset.CONFIG_RESOURCE_PATH),
         ImpressionTestDataConfig.getDefaultInstance(),
       )
     }
