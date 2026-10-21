@@ -1,0 +1,68 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.integration.k8s.testing;
+
+option java_package = "org.measurement.integration.k8s.testing";
+option java_multiple_files = true;
+option java_outer_classname = "HighOverlapImpressionRowProto";
+
+// One high overlap impression, as a row of the BigQuery `impressions` table.
+//
+// Field names and types must match the table schema in
+// `terraform/gcloud/cmms/high_overlap.tf`.
+message HighOverlapImpressionRow {
+  // ModelLine the impressions were stamped with.
+  string model_line = 1;
+
+  // `HighOverlapDatasetManifest.spec_fingerprint` of the seeding run.
+  string spec_fingerprint = 2;
+
+  string edp_name = 3;
+
+  // Grouping label from the config, shared by every entity key under it.
+  string logical_group = 4;
+
+  string entity_type = 5;
+
+  string entity_id = 6;
+
+  // EventGroup reference ID as registered with the Kingdom, which is
+  // `${entity_type}-${entity_id}`.
+  string cmms_event_group_reference_id = 16;
+
+  int64 vid = 7;
+
+  // Microseconds since the epoch, as BigQuery TIMESTAMP requires.
+  int64 event_time = 8;
+
+  // `Common.Gender` enum name.
+  string gender = 9;
+
+  // `Common.AgeGroup` enum name.
+  string age_group = 10;
+
+  // `Common.UsState` enum name.
+  string us_state = 11;
+
+  bool signed_in = 12;
+
+  float video_completed_fraction = 13;
+
+  float video_viewable_fraction = 14;
+
+  float display_viewable_fraction = 15;
+}
