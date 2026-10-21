@@ -426,13 +426,18 @@ class EventGroupSync(
           }
 
           if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
-            val entityKeyId =
-              EntityKeyId(
-                eventGroup.entityKey.entityType,
-                eventGroup.entityKey.entityId,
-                eventGroup.measurementConsumer,
-              )
-            val cmmsEventGroup = cmmsEventGroupsByEntityKey[entityKeyId]
+            val cmmsEventGroup =
+              if (eventGroup.hasMappedReferenceId()) {
+                findExistingEventGroup(eventGroup, cmmsEventGroups, cmmsEventGroupsByEntityKey)
+              } else {
+                val entityKeyId =
+                  EntityKeyId(
+                    eventGroup.entityKey.entityType,
+                    eventGroup.entityKey.entityId,
+                    eventGroup.measurementConsumer,
+                  )
+                cmmsEventGroupsByEntityKey[entityKeyId]
+              }
             if (cmmsEventGroup != null) {
               deleteCmmsEventGroup(cmmsEventGroup)
               metrics.syncDeleted.add(1, metricAttributes())

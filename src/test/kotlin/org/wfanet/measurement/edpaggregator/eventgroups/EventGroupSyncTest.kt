@@ -3161,6 +3161,57 @@ class EventGroupSyncTest {
   }
 
   @Test
+  fun `mapping deletes reference-ID-only EventGroup by derived reference ID`() {
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups += cmmsEventGroup {
+            name = "dataProviders/data-provider-1/eventGroups/legacy"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            eventGroupReferenceId = "legacy_123"
+          }
+        }
+      }
+    val deletedEventGroup = eventGroup {
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      state = State.DELETED
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "cp_123"
+      }
+    }
+
+    val results = runBlocking {
+      EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          unlinkedClientAccountsStub,
+          listOf(deletedEventGroup).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+          eventGroupReferenceIdEntityKeyMapping =
+            EventGroupReferenceIdEntityKeyMapping(
+              entityType = "campaign",
+              eventGroupReferenceIdPrefix = "legacy_",
+              entityIdPrefix = "cp_",
+            ),
+        )
+        .sync()
+        .toList()
+    }
+
+    assertThat(results).isEmpty()
+    val deleteCaptor = argumentCaptor<DeleteEventGroupRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { deleteEventGroup(deleteCaptor.capture()) }
+    assertThat(deleteCaptor.firstValue.name)
+      .isEqualTo("dataProviders/data-provider-1/eventGroups/legacy")
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
+  }
+
+  @Test
   fun `mapping upgrades existing EventGroups for every prefix combination`() {
     data class PrefixScenario(
       val eventGroupReferenceIdPrefix: String,
