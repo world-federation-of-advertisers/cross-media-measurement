@@ -329,6 +329,7 @@ class EdpAggregatorReportingIntegrationTest {
 
     assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
     assertWeeklyShape(report)
+    assertWeeklyMetricsMatchSpecs(report)
     assertCumulativeReachIsMonotonic(report)
     assertStackedIncrementalReach(report)
     assertPopulationSizeMatchesSpec(report)
@@ -337,6 +338,23 @@ class EdpAggregatorReportingIntegrationTest {
 
   /** Component EDPs of the weekly reporting unit, in the order the request lists them. */
   private lateinit var weeklyComponentEdpNames: List<String>
+
+  /** EDP display name per DataProvider resource name. */
+  private lateinit var weeklyEdpNameByDataProvider: Map<String, String>
+
+  /** Expected weekly metrics per demographic cell and filter, indexed by week. */
+  private val expectedWeeklyMetrics:
+    Map<String, Map<String, List<HighOverlapExpectedReach.ExpectedWeeklyMetrics>>> by lazy {
+    HighOverlapExpectedReach.computeWeeklyRangesByDemographic(
+      PROVISIONED_CONFIG,
+      WEEKLY_REPORT_EVENT_GROUP_REF_IDS,
+      POPULATION_SPEC,
+      WEEKLY_REPORT_START,
+      WEEKLY_PERIOD_COUNT,
+      BASIC_REPORT_METRIC_SPEC_CONFIG,
+      K_PLUS_REACH,
+    )
+  }
 
   /** Expected whole-interval metrics per demographic cell, by impression qualification filter. */
   private val expectedWholeIntervalMetrics:
@@ -375,6 +393,7 @@ class EdpAggregatorReportingIntegrationTest {
         it.cmmsDataProvider to EDP_NAME_BY_EVENT_GROUP_REF_ID.getValue(it.eventGroupReferenceId)
       }
     weeklyComponentEdpNames = dataProviderNames.map { edpNameByDataProvider.getValue(it) }
+    weeklyEdpNameByDataProvider = edpNameByDataProvider
 
     return listOf(
       resultGroupSpec {
@@ -505,8 +524,6 @@ class EdpAggregatorReportingIntegrationTest {
    * Non-cumulative reach is only required to be non-negative: the `e7-meta-video` flight ends
    * inside the interval, so a later week legitimately reaches nobody.
    */
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4672): Compare weekly metrics
-  // against expectations generated from the synthetic spec.
   private fun assertWeeklyShape(report: BasicReport) {
     assertThat(report.resultGroupsList.map { it.title })
       .containsExactly(WEEKLY_GROUP_TITLE, TOTAL_GROUP_TITLE)
@@ -533,7 +550,15 @@ class EdpAggregatorReportingIntegrationTest {
       byWeek.forEachIndexed { index, result ->
         val metricSet = result.metricSet.reportingUnit
         val week = result.metadata.metricEndTime.seconds
-        if (index < NOISE_DOMINATED_WEEKS) {
+        // A week whose expected reach sits inside the noise floor can legitimately clamp to zero,
+        // so the strict check is keyed on the expectation rather than on a fitted week index.
+        val expectedReach =
+          expectedWeeklyMetrics
+            .getValue(demographicOf(result))
+            .getValue(filterLabel(result))[index]
+            .cumulative
+            .reach
+        if (expectedReach.start <= 0.0) {
           assertWithMessage("$series week $week cumulative reach")
             .that(metricSet.cumulative.reach)
             .isAtLeast(0L)
@@ -620,6 +645,112 @@ class EdpAggregatorReportingIntegrationTest {
         .isWithin(STACKED_REACH_TOLERANCE * unionReach)
         .of(unionReach.toDouble())
     }
+  }
+
+  /** Checks every weekly value against expectations derived from the synthetic specs. */
+  private fun assertWeeklyMetricsMatchSpecs(report: BasicReport) {
+    val resultGroup = resultGroupOf(report, WEEKLY_GROUP_TITLE)
+    val expectedByCell = expectedWeeklyMetrics
+
+    assertWithMessage("expected demographic cells")
+      .that(expectedByCell)
+      .hasSize(EXPECTED_DEMOGRAPHIC_COUNT)
+
+    val expectedWeekEnds: List<Long> =
+      (1..WEEKLY_PERIOD_COUNT).map {
+        WEEKLY_REPORT_START.plusWeeks(it.toLong()).atStartOfDay(ZONE_ID).toInstant().epochSecond
+      }
+
+    val comparisons = mutableListOf<MetricComparison>()
+    for ((series, results) in weeklySeries(resultGroup)) {
+      val byWeek = results.sortedBy { it.metadata.metricEndTime.seconds }
+      assertWithMessage("$series weeks").that(byWeek).hasSize(WEEKLY_PERIOD_COUNT)
+
+      val expectedSeries =
+        expectedByCell.getValue(demographicOf(byWeek.first())).getValue(filterLabel(byWeek.first()))
+      assertWithMessage("$series expected weeks").that(expectedSeries).hasSize(WEEKLY_PERIOD_COUNT)
+
+      byWeek.forEachIndexed { week, result ->
+        val expected = expectedSeries[week]
+        val metricSet = result.metricSet.reportingUnit
+        val prefix = "$WEEKLY_GROUP_TITLE: $series week $week"
+
+        // A period ending elsewhere would silently be compared against the wrong window.
+        assertWithMessage("$prefix period end")
+          .that(result.metadata.metricEndTime.seconds)
+          .isEqualTo(expectedWeekEnds[week])
+
+        comparisons +=
+          MetricComparison(
+            "$prefix cumulative reach",
+            metricSet.cumulative.reach.toDouble(),
+            expected.cumulative.reach,
+          )
+        comparisons +=
+          MetricComparison(
+            "$prefix non-cumulative reach",
+            metricSet.nonCumulative.reach.toDouble(),
+            expected.nonCumulative.reach,
+          )
+
+        comparisons +=
+          MetricComparison(
+            "$prefix cumulative percent reach",
+            metricSet.cumulative.percentReach.toDouble(),
+            expected.cumulativePercentReach,
+          )
+
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4698): Assert
+        // impressions and average frequency once the environments use deterministic noise. The
+        // impression metric's sensitivity is its maximum frequency per user, which is far above
+        // what this dataset reaches, so the noise exceeds the values being measured.
+
+        metricSet.nonCumulative.kPlusReachList.forEachIndexed { index, value ->
+          if (index < expected.nonCumulative.kPlusReach.size) {
+            comparisons +=
+              MetricComparison(
+                "$prefix non-cumulative ${index + 1}+ reach",
+                value.toDouble(),
+                expected.nonCumulative.kPlusReach[index],
+              )
+          }
+        }
+
+        // Declared by the population spec, so the report returns it unnoised.
+        assertWithMessage("$prefix population size")
+          .that(result.metricSet.populationSize)
+          .isEqualTo(expected.nonCumulative.populationSize)
+
+        // Components are keyed by DataProvider resource name; expectations by EDP display name.
+        val componentsByEdp =
+          result.metricSet.componentsList.associate { entry ->
+            weeklyEdpNameByDataProvider.getValue(entry.key) to entry.value
+          }
+        assertWithMessage("$prefix components")
+          .that(componentsByEdp.keys)
+          .containsExactlyElementsIn(expected.componentNonCumulativeReach.keys)
+        for ((edpName, componentMetricSet) in componentsByEdp) {
+          comparisons +=
+            MetricComparison(
+              "$prefix $edpName non-cumulative reach",
+              componentMetricSet.nonCumulative.reach.toDouble(),
+              expected.componentNonCumulativeReach.getValue(edpName),
+            )
+        }
+      }
+    }
+
+    logger.info(comparisons.joinToString("\n", prefix = "Weekly metrics measured against specs:\n"))
+    val outOfRange = comparisons.filter { !it.inRange }
+    assertWithMessage(
+        outOfRange.size.toString() +
+          " of " +
+          comparisons.size +
+          " weekly metrics outside the expected range:\n" +
+          comparisons.joinToString("\n")
+      )
+      .that(outOfRange)
+      .isEmpty()
   }
 
   /**
@@ -1009,14 +1140,6 @@ class EdpAggregatorReportingIntegrationTest {
     private val WEEKLY_METRIC_FREQUENCY: DayOfWeek = DayOfWeek.WEDNESDAY
 
     private const val WEEKLY_PERIOD_COUNT = 9
-
-    /**
-     * Opening weeks whose cumulative reach is only required to be non-negative.
-     *
-     * Reach noise has a fixed sigma, so the smallest values in a cumulative series carry the
-     * largest relative error and can clamp to zero.
-     */
-    private const val NOISE_DOMINATED_WEEKS = 3
 
     /**
      * EventGroups the weekly report covers, spanning every EDP in [EDP_DISPLAY_NAMES].

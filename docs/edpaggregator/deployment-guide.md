@@ -1008,6 +1008,34 @@ configs {
 }
 ```
 
+Set `event_group_reference_id_entity_key_mapping` only when one entity type's
+IDs are equivalent to legacy event-group reference IDs. Both
+`event_group_reference_id_prefix` and `entity_id_prefix` are optional and are
+applied independently; an empty prefix is valid.
+
+Use this rollout order:
+
+1. Configure and deploy the equivalent mapping in `ResultsFulfillerParams` for
+   every affected EDP. Its entity type and both prefixes must exactly match the
+   EventGroupSync mapping. Leave it enabled while fulfillment must search or
+   filter impression history written in either identifier format.
+2. Ensure every EventGroupSync input with the mapped entity type supplies both
+   a non-blank `event_group_reference_id` and a non-blank `entity_key.entity_id`.
+   The two values must be exactly equivalent after prefix conversion.
+3. Prevent reports from selecting a partially migrated EventGroup cohort. Pause
+   report creation during a batched migration, or migrate every EventGroup that
+   can occur in one report before allowing that report. RequisitionFetcher
+   refuses a report as `UNFULFILLABLE` when some selected EventGroups have entity
+   keys and others are still reference-ID-only; the ResultsFulfiller mapping
+   cannot bypass that validation.
+4. Configure and run EventGroupSync with the same mapping, then verify the
+   targeted EventGroups have entity keys before resuming report creation.
+
+EventGroupSync uses both supplied identifiers to find and update the existing
+EventGroup instead of creating a second resource. It does not derive a missing
+identifier. Missing identifiers, prefix mismatches, and non-equivalent values
+are skipped and counted by `edpa.event_group.invalid_event_group_failure`.
+
 ### DataAvailabilitySync config (`DataAvailabilitySyncConfigs`)
 
 Proto: `wfa/measurement/config/edpaggregator/data_availability_sync_config.proto`.
@@ -1101,6 +1129,20 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
   [TrusTEE section](README.md#configure-trustee-if-enabled)).
 * `multi_party_config.supported_noise_types` — restricts accepted noise mechanisms
   for HMSS / TrusTEE requisitions.
+
+* `event_group_reference_id_entity_key_mapping` — optional equivalence between
+  legacy event-group reference IDs and one entity-key type. Presence enables
+  lookup and filtering through both representations. Its two prefixes are
+  independent and optional; leave either blank when that representation is
+  unprefixed.
+* `whole_blob_entity_types` — entity types whose `BlobDetails.entity_keys` group
+  is guaranteed to list every ID at that level in the blob. If a requisition
+  selects every ID in a listed group, ResultsFulfiller accepts the entire blob,
+  including records without `entity_keys`. Only list types that are truly
+  exhaustive: listing a partial type can silently include unmatched impressions
+  and overcount. This is also the whole-blob path for data whose sidecar has been
+  backfilled with entity keys while its impression records remain in the legacy
+  format.
 
 ---
 
