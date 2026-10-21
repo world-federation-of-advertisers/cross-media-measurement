@@ -14,7 +14,7 @@
 
 name: Seed High Overlap Dataset
 
-run-name: Seed High Overlap Dataset [${{ inputs.environment || 'dev' }}]
+run-name: Seed High Overlap Dataset [${{ inputs.environment }}]
 
 # Run when the high overlap dataset's specs change or an environment gains an EDP. The reporting
 # integration test refuses to run against a dataset that no longer matches its specs.
@@ -30,10 +30,12 @@ on:
           - qa
           - head
   # DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement#4661): Remove this
-  # trigger, which seeds dev on every push for testing.
-  push:
-    branches:
-      - uakyol-qa-bigquery
+  # trigger, which lets update-cmms seed while testing this workflow.
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -44,9 +46,9 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    environment: ${{ inputs.environment || 'dev' }}
+    environment: ${{ inputs.environment }}
     env:
-      ENVIRONMENT: ${{ inputs.environment || 'dev' }}
+      ENVIRONMENT: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
