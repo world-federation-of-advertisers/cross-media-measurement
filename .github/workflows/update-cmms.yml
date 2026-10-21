@@ -113,20 +113,9 @@ jobs:
         common --config=ci
         EOF
 
-    - name: Write validation inputs
-      env:
-        CONFIG_DIR: ${{ runner.temp }}/configs
-        DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
-        REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
-      run: |
-        set -euo pipefail
-        mkdir -p "$CONFIG_DIR"
-        printf '%s' "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
-        printf '%s' "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
-
     - name: Validate RequisitionFetcher and DataWatcher configuration
       env:
-        CONFIG_DIR: ${{ runner.temp }}/configs
+        CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
       run: |
         bazelisk run \
@@ -483,17 +472,15 @@ jobs:
 
       - name: Run Compliance Check
         env:
-          DASHBOARD_CONFIG_CONTENT: ${{ vars.DASHBOARD_CONFIG_CONTENT }}
+          DASHBOARD_CONFIG_FILE: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/dashboard-config.json
           GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
         run: |
           set -euo pipefail
-          # Dashboard config is consolidated into DASHBOARD_CONFIG_CONTENT;
-          # the check parses it against the DashboardConfig proto schema.
-          printf '%s' "$DASHBOARD_CONFIG_CONTENT" > "${RUNNER_TEMP}/dashboard-config.json"
+          # The check parses the committed JSON file against the DashboardConfig proto schema.
           bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck -- \
             --impersonate-service-account="dashboard-compliance@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com" \
             --project="$GOOGLE_CLOUD_PROJECT" \
-            --dashboard-config="${RUNNER_TEMP}/dashboard-config.json"
+            --dashboard-config="$DASHBOARD_CONFIG_FILE"
 
   send-slack-notification:
     uses: ./.github/workflows/slack-nightly-build-notification.yml

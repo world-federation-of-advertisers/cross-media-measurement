@@ -39,6 +39,26 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "ReportProcessorDeterminismTest",
+    size = "large",
+    srcs = ["ReportProcessorDeterminismTest.kt"],
+    data = ["sample_report_large.json"],
+    # Reproduces the hash ordering that exposed #4665.
+    env = {"PYTHONHASHSEED": "1"},
+    tags = ["no-remote-exec"],
+    test_class = "org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessorDeterminismTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/postprocessing/v2alpha:postprocessing",
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_post_processor_log_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/devtools/build/runfiles",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "ReportConversionTest",
     size = "large",
     srcs = ["ReportConversionTest.kt"],

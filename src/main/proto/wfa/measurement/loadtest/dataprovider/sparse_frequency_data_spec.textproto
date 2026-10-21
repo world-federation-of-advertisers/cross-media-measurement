@@ -1,0 +1,64 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticEventGroupSpec
+
+# Produces the exact frequency histogram [10, 30, 70] for frequencies 1, 2, and 3.
+
+date_specs {
+  date_range {
+    start {
+      year: 2021
+      month: 3
+      day: 15
+    }
+    end_exclusive {
+      year: 2021
+      month: 3
+      day: 18
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 1
+        end_exclusive: 11
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.1
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 11
+        end_exclusive: 41
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.2
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 41
+        end_exclusive: 111
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.3
+        }
+      }
+    }
+  }
+}

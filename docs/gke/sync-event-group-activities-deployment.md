@@ -9,9 +9,10 @@ on a schedule to reconcile a JSON "spot-data" input file in GCS against the
 runs in the existing EDP Aggregator GKE cluster.
 
 Per-environment values (DataProvider, spot-data blob URI, Kingdom target)
-come from a textproto blob stored in a GitHub environment variable, written
-into the `edp-aggregator-config` ConfigMap at deploy time and mounted into
-the CronJob pod. Per-EDP TLS cert/key (e.g. `edp7_tls.pem`, `edp7_tls.key`)
+come from a committed textproto under
+`src/main/terraform/gcloud/cmms/envs/<env>/`, copied into the
+`edp-aggregator-config` ConfigMap at deploy time and mounted into the CronJob
+pod. Per-EDP TLS cert/key (e.g. `edp7_tls.pem`, `edp7_tls.key`)
 ship in a dedicated `edp7-tls` K8s Secret mounted at
 `/etc/halo-cmms/edp-aggregator/edp7-tls/`. The Kingdom's root CA cert ships
 in the same `edp-aggregator-config` ConfigMap as the textproto. The same
@@ -96,18 +97,11 @@ If using a different GCP SA per environment, update the
 [`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue)
 or thread it through a per-env tag.
 
-## Configure the per-EDP GitHub environment variable
+## Configure the per-EDP environment file
 
-For each EDP being synced, set a textproto-valued variable in
-**GitHub → Settings → Environments → `<env>` → Variables**. Variable name:
-
-```
-EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT
-```
-
-(e.g. `EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT`).
-
-Value is an `EventGroupActivitySyncConfig` textproto. For dev/edp7:
+For each EDP being synced, commit an `EventGroupActivitySyncConfig` textproto
+under `src/main/terraform/gcloud/cmms/envs/<env>/`. For edp7, the filename is
+`event-group-activity-sync-edp7-config.textproto`. For dev/edp7:
 
 ```textproto
 # proto-file: wfa/measurement/config/edpaggregator/event_group_activity_sync_config.proto
@@ -118,13 +112,13 @@ gcs_project: "halo-cmm-dev"
 kingdom_public_api_target: "v2alpha.kingdom.dev.halo-cmm.org:8443"
 ```
 
-If the variable is unset on an environment, the deploy fails at the
-"Write sync-event-group-activities config" workflow step with a clear
-`vars.EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT is empty for environment <env>`
-error. Either set the variable before deploying or remove the matching
-entry from `_syncEventGroupActivitiesArgs` in
+The deploy copies the selected environment's committed file into the
+kustomization directory. If the file is missing, the workflow fails at the
+"Copy sync-event-group-activities config (<edp>)" step before `kubectl apply`.
+Commit `src/main/terraform/gcloud/cmms/envs/<env>/event-group-activity-sync-<edp>-config.textproto`
+or remove the matching entry from `_syncEventGroupActivitiesArgs` in
 [`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue)
-for that environment.
+if that EDP should no longer be deployed.
 
 ## Deploy
 
@@ -148,8 +142,9 @@ gh workflow run update-cmms.yml \
 The workflow stages three new files into the kustomization dir before
 `kubectl apply`:
 
--   The textproto config (from
-    `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT`) into the
+-   The committed
+    `src/main/terraform/gcloud/cmms/envs/<env>/event-group-activity-sync-<edp>-config.textproto`
+    into the
     `edp-aggregator-config` ConfigMap.
 -   `kingdom_root.pem` (from `src/main/k8s/testing/secretfiles/`) into the
     same ConfigMap, used as the CronJob's `--cert-collection-file` for
@@ -272,11 +267,11 @@ following files:
     list.
 6.  [`configure-edp-aggregator.yml`](../../.github/workflows/configure-edp-aggregator.yml)
     — duplicate the "Extract edp7 tls files archive" step for the new
-    EDP, and duplicate the "Write sync-event-group-activities config
-    (edp7)" step pulling from
-    `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT`.
-7.  Define `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT` on each
-    environment's GitHub Variables.
+    EDP, and duplicate the "Copy sync-event-group-activities config
+    (edp7)" step so it copies the new EDP's committed per-environment file.
+7.  Commit
+    `src/main/terraform/gcloud/cmms/envs/<env>/event-group-activity-sync-<edp>-config.textproto`
+    for dev, head, and qa.
 8.  If the new EDP uses a different GCP SA for GCS access, either add a
     second SA to the dev overlay or change `_iamServiceAccountName` on
     `#SyncEventGroupActivitiesServiceAccount` (currently shared across
@@ -286,8 +281,9 @@ following files:
 
 Reverse of adding: delete the entry from `_syncEventGroupActivitiesArgs`
 in the dev overlay, remove the matching workflow steps and Bazel/CUE
-kustomization entries, and delete the `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT`
-GitHub variable on each environment. The workflow's `kubectl apply`
+kustomization entries, and delete the committed
+`event-group-activity-sync-<edp>-config.textproto` file from each environment.
+The workflow's `kubectl apply`
 uses `--prune --applyset=configmaps/kubectl-edpa`, so the CronJob,
 its NetworkPolicy, and its Secret / ConfigMap references will be
 garbage-collected on next deploy. Verify with
@@ -320,7 +316,8 @@ garbage-collected on next deploy. Verify with
 -   **`activitiesWouldDelete > 0` on a `--preview` run:** PATCH mode counts only
     explicit deletes. SYNC mode counts omission-based deletes; an unexpectedly
     high count can indicate a truncated input file.
--   **Workflow fails at "Write sync-event-group-activities config" with
-    `vars.EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT is empty for environment <env>`:**
-    the GitHub variable is unset on this environment. Set it (Settings
-    → Environments → <env> → Variables) and re-trigger the workflow.
+-   **Workflow fails at "Copy sync-event-group-activities config (<edp>)" with
+    `cannot stat .../envs/<env>/event-group-activity-sync-<edp>-config.textproto`:**
+    the committed config is missing for the selected environment. Add the file
+    under `src/main/terraform/gcloud/cmms/envs/<env>/` and re-trigger the
+    workflow, or remove that EDP's workflow and kustomization wiring.
