@@ -2355,7 +2355,7 @@
     "@@rules_oci+//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "s075cVqoQaL7Zz3pYrDkPf02xkWwcVTAoV2PmzVV3x8=",
-        "usagesDigest": "axNmKSHeDmKaMldIe5/sFHbA0G0lV1svA5nHS/h0s9Y=",
+        "usagesDigest": "JGeqg/MRTfSLg62+IgjjQzpC6hLS6lfKFixeIerGS4o=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2366,7 +2366,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/base-debian13",
-              "identifier": "sha256:a557d784ac275c287d2bdf3172f47bece8d2a0ef3c0fdefb712e95084a04a562",
+              "identifier": "sha256:6c591b4ac789b683ab3665327181e7cfb7a39b5834f42dcb73d7becb8d18a5d9",
               "platform": "linux/amd64",
               "target_name": "go_image_base_linux_amd64",
               "bazel_tags": []
@@ -2379,7 +2379,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/base-debian13",
-              "identifier": "sha256:a557d784ac275c287d2bdf3172f47bece8d2a0ef3c0fdefb712e95084a04a562",
+              "identifier": "sha256:6c591b4ac789b683ab3665327181e7cfb7a39b5834f42dcb73d7becb8d18a5d9",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@go_image_base_linux_amd64"
               },
@@ -2393,7 +2393,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/python3-debian13",
-              "identifier": "sha256:7ea4b893a73b30ebe0d666f94bbda151a5e15ee093bda10497986a12a65a7e53",
+              "identifier": "sha256:727eccc5d83f11273c954652667b5b5a1c66120bd4cfb884e879ab77dcdf966a",
               "platform": "linux/amd64",
               "target_name": "py_image_base_linux_amd64",
               "bazel_tags": []
@@ -2406,7 +2406,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/python3-debian13",
-              "identifier": "sha256:7ea4b893a73b30ebe0d666f94bbda151a5e15ee093bda10497986a12a65a7e53",
+              "identifier": "sha256:727eccc5d83f11273c954652667b5b5a1c66120bd4cfb884e879ab77dcdf966a",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@py_image_base_linux_amd64"
               },
@@ -2420,7 +2420,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian13",
-              "identifier": "sha256:3c89b72dcd8b9c3b6fc9ae42785fc5ccf58b7d540504944ee5376c91a81f0af9",
+              "identifier": "sha256:bc5ad38faf0501a7f60859f85f00cfb285639736e2e948a2d98262f5b022a934",
               "platform": "linux/amd64",
               "target_name": "java_image_base_root_linux_amd64",
               "bazel_tags": []
@@ -2433,7 +2433,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian13",
-              "identifier": "sha256:3c89b72dcd8b9c3b6fc9ae42785fc5ccf58b7d540504944ee5376c91a81f0af9",
+              "identifier": "sha256:bc5ad38faf0501a7f60859f85f00cfb285639736e2e948a2d98262f5b022a934",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@java_image_base_root_linux_amd64"
               },
