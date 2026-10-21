@@ -88,8 +88,11 @@ class GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest :
           }
         }
         .toTypedArray()
-    assertThat(CommandLine(VerifyVidLabeledImpressions()).execute(*impressionVerifierArgs))
-      .isEqualTo(0)
+    val impressionVerifier = VerifyVidLabeledImpressions()
+    assertThat(CommandLine(impressionVerifier).execute(*impressionVerifierArgs)).isEqualTo(0)
+    val verificationResult = checkNotNull(impressionVerifier.lastResult)
+    assertThat(verificationResult.totalBlobsProcessed).isEqualTo(metadataUris.size)
+    assertThat(verificationResult.totalImpressions).isGreaterThan(0L)
 
     val eventGroupFiles = exportEventGroups(edpDisplayNames)
     val eventGroupVerifierArgs =
