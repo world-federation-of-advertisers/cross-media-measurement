@@ -41,7 +41,8 @@ runs:
     shell: bash
     run: >-
       bazelisk build
-      //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:MeasurementSystem
+      --remote_download_outputs=toplevel
+      //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:MeasurementSystem_deploy.jar
 
   - name: Wait for Kingdom public API
     shell: bash
@@ -60,7 +61,7 @@ runs:
       fi
 
       bazel_bin="$(bazelisk info bazel-bin)"
-      measurement_system="$bazel_bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/MeasurementSystem"
+      measurement_system_jar="$bazel_bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/MeasurementSystem_deploy.jar"
       output_file="$RUNNER_TEMP/kingdom-readiness.log"
       cert_host_args=()
       if [[ -n "$KINGDOM_PUBLIC_API_CERT_HOST" ]]; then
@@ -71,7 +72,7 @@ runs:
 
       for ((attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)); do
         echo "Kingdom API readiness attempt $attempt of $MAX_ATTEMPTS"
-        if timeout "${ATTEMPT_TIMEOUT_SECONDS}s" "$measurement_system" \
+        if timeout "${ATTEMPT_TIMEOUT_SECONDS}s" java -jar "$measurement_system_jar" \
           --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
           --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
           --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
