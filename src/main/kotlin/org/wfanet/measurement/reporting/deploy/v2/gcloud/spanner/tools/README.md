@@ -112,18 +112,23 @@ component is resolved from its own `event_group_summaries`:
 
 1.  If `cmms_data_provider_id` is populated, the tool pairs it with every
     EventGroup ID. If it is blank, the DataProvider is inferred only when the
-    Campaign Group universe has exactly one matching EventGroup key.
+    MeasurementConsumer's EventGroup directory has exactly one matching key.
 2.  Every resolved EventGroup key must belong to the Campaign Group universe.
 3.  The tool reuses an unfiltered primitive ReportingSet under the Campaign
     Group when its membership is an exact match. Otherwise it creates one.
 
 For a report whose Campaign Group reference is instead a non-empty ordinary
 primitive ReportingSet with no `CampaignGroupId`, the tool treats that
-ReportingSet's EventGroups as the proposed universe. It first validates every
-component against that universe. Only when all components resolve does it:
+ReportingSet as evidence of the caller's intended Campaign Group. It resolves
+every component from the MeasurementConsumer's EventGroup directory and uses
+the union of the report's components as the replacement Campaign Group
+universe. The referenced ReportingSet's EventGroups must all appear in that
+union and must exactly match at least one component; the report may contain
+additional EventGroups in other components. Only when all components resolve
+and those consistency checks pass does the tool:
 
 1.  reuse or create an equivalent non-empty primitive, self-linked Campaign
-    Group with exactly the same EventGroups;
+    Group with exactly the report's EventGroups;
 2.  change `BasicReport.external_campaign_group_id` to that valid Campaign
     Group; and
 3.  re-resolve every component summary under the valid Campaign Group,
@@ -132,20 +137,25 @@ component against that universe. Only when all components resolve does it:
 For a composite reference with no `CampaignGroupId`, the tool recursively
 collects the EventGroups from every referenced primitive ReportingSet. Set
 operations and filters affect population semantics, but every referenced
-EventGroup remains part of the proposed Campaign Group universe. The same
-all-components validation and replacement process is then used.
+EventGroup must appear in the report's component union. Unlike an ordinary
+primitive reference, a composite does not need to match one component exactly.
+The replacement Campaign Group contains the complete report union.
 
 The original primitive or composite ReportingSet is never modified. The
 Campaign Group change and all component IDs are written to the `BasicReport` in
 one Spanner mutation. Creating or finding the replacement Campaign Group in
 Postgres is idempotent.
 
+If different reports reuse the same ordinary ReportingSet reference but contain
+different EventGroup unions, each distinct union resolves to its own Campaign
+Group. The tool does not force those reports into one shared universe.
+
 The tool does not guess. A missing, empty, or already-assigned ReportingSet is
 left unchanged. A report is also left unchanged when a component has no
-EventGroups, references an EventGroup outside the proposed universe, or has a
-blank DataProvider that cannot be inferred uniquely. These rows are counted as
-blocking, the scan continues, and the environment is reported as not ready to
-remove the read fallback.
+EventGroups, references an unknown EventGroup, has a blank DataProvider that
+cannot be inferred uniquely, or omits an EventGroup contained in the referenced
+ReportingSet. These rows are counted as blocking, the scan continues, and the
+environment is reported as not ready to remove the read fallback.
 
 No Campaign Group or component ReportingSet is created and no `BasicReport`
 is updated unless every component summary that needs resolution can be
