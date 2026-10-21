@@ -24,6 +24,7 @@ from typing import TypeAlias
 
 from google.protobuf.internal.encoder import _VarintBytes
 
+from noiseninja import noise_correction_value_logging
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import KReachMeasurements
@@ -46,6 +47,11 @@ FLAGS = flags.FLAGS
 flags.DEFINE_boolean("debug", False, "Enable debug mode.")
 flags.DEFINE_string("output_file", None, "The output file path.")
 flags.DEFINE_string("input_file", None, "The input file path.")
+flags.DEFINE_boolean(
+    "log_noise_correction_values",
+    False,
+    "Log post-noise, pre-correction report-result values and corrected values.",
+)
 flags.DEFINE_list(
     "ami_mrc_exempted_edps",
     [],
@@ -385,11 +391,15 @@ class ReportSummaryProcessor:
         subset = frozenset([edp for edp in entry.right_hand_side_targets])
         superset = subset.union(
             frozenset([edp for edp in entry.left_hand_side_targets]))
-        logging.debug(
-            f"Processing the difference measurement {measurements[0]}. The "
-            f"left hand side and right hand side EDP combinations are "
-            f"{superset} and {subset} respectively."
-        )
+        if noise_correction_value_logging.is_enabled():
+          logging.debug(
+              f"Processing the difference measurement {measurements[0]}. The "
+              f"left hand side and right hand side EDP combinations are "
+              f"{superset} and {subset} respectively."
+          )
+        else:
+          logging.debug(
+              "Processing difference measurement %s.", measurements[0].name)
         # The incremental reach (and unique reach) is computed as:
         # incremental_reach(superset \ subset, subset) = reach(superset) -
         # reach(subset). The set (superset \ subset) consists of a single EDP,
@@ -495,9 +505,12 @@ def main(argv):
     report_summary.ParseFromString(f.read())
 
   logging.info("Processing the report summary.")
-  report_post_processor_result = ReportSummaryProcessor(
-      report_summary, ami_mrc_exempted_edps=FLAGS.ami_mrc_exempted_edps
-  ).process()
+  with noise_correction_value_logging.measurement_value_logging(
+      FLAGS.log_noise_correction_values
+  ):
+    report_post_processor_result = ReportSummaryProcessor(
+        report_summary, ami_mrc_exempted_edps=FLAGS.ami_mrc_exempted_edps
+    ).process()
 
   logging.info(
     "Writing the report post processor result to the output file %s.",

@@ -1,0 +1,148 @@
+# proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
+# proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-head-bucket/edp/edp7/.*"
+  http_endpoint_sink {
+    endpoint_uri: "https://us-central1-halo-cmm-head.cloudfunctions.net/data-availability-cleanup"
+    app_params {
+      fields {
+        key: "dataProvider"
+        value { string_value: "dataProviders/Z1YwJJmvvN8" }
+      }
+      fields {
+        key: "dataAvailabilityStorage"
+        value {
+          struct_value {
+            fields {
+              key: "gcs"
+              value {
+                struct_value {
+                  fields {
+                    key: "projectId"
+                    value { string_value: "halo-cmm-head" }
+                  }
+                  fields {
+                    key: "bucketName"
+                    value { string_value: "secure-computation-storage-head-bucket" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      fields {
+        key: "cmmsConnection"
+        value {
+          struct_value {
+            fields {
+              key: "certFilePath"
+              value { string_value: "/secrets/cert/edp7_tls.pem" }
+            }
+            fields {
+              key: "privateKeyFilePath"
+              value { string_value: "/secrets/key/edp7_tls.key" }
+            }
+            fields {
+              key: "certCollectionFilePath"
+              value { string_value: "/secrets/ca/kingdom_root.pem" }
+            }
+          }
+        }
+      }
+      fields {
+        key: "impressionMetadataStorageConnection"
+        value {
+          struct_value {
+            fields {
+              key: "certFilePath"
+              value { string_value: "/secrets/cert/data_availability/data_availability_tls.pem" }
+            }
+            fields {
+              key: "privateKeyFilePath"
+              value { string_value: "/secrets/key/data_availability/data_availability_tls.key" }
+            }
+            fields {
+              key: "certCollectionFilePath"
+              value { string_value: "/secrets/ca/metadata_storage/edp_aggregator_root.pem" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-head-bucket/edp/edpa_meta/.*"
+  http_endpoint_sink {
+    endpoint_uri: "https://us-central1-halo-cmm-head.cloudfunctions.net/data-availability-cleanup"
+    app_params {
+      fields {
+        key: "dataProvider"
+        value { string_value: "dataProviders/YpCPT-x89j4" }
+      }
+      fields {
+        key: "dataAvailabilityStorage"
+        value {
+          struct_value {
+            fields {
+              key: "gcs"
+              value {
+                struct_value {
+                  fields {
+                    key: "projectId"
+                    value { string_value: "halo-cmm-head" }
+                  }
+                  fields {
+                    key: "bucketName"
+                    value { string_value: "secure-computation-storage-head-bucket" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      fields {
+        key: "cmmsConnection"
+        value {
+          struct_value {
+            fields {
+              key: "certFilePath"
+              value { string_value: "/secrets/cert_edpa_meta/edpa_meta_tls.pem" }
+            }
+            fields {
+              key: "privateKeyFilePath"
+              value { string_value: "/secrets/key_edpa_meta/edpa_meta_tls.key" }
+            }
+            fields {
+              key: "certCollectionFilePath"
+              value { string_value: "/secrets/ca/kingdom_root.pem" }
+            }
+          }
+        }
+      }
+      fields {
+        key: "impressionMetadataStorageConnection"
+        value {
+          struct_value {
+            fields {
+              key: "certFilePath"
+              value { string_value: "/secrets/cert/data_availability/data_availability_tls.pem" }
+            }
+            fields {
+              key: "privateKeyFilePath"
+              value { string_value: "/secrets/key/data_availability/data_availability_tls.key" }
+            }
+            fields {
+              key: "certCollectionFilePath"
+              value { string_value: "/secrets/ca/metadata_storage/edp_aggregator_root.pem" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
