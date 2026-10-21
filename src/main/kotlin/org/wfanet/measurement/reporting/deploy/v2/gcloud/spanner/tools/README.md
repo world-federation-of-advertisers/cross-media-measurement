@@ -85,54 +85,70 @@ Backfills
 `ResultGroup.MetricMetadata.ReportingUnitComponentSummary.external_reporting_set_id`
 on stored `BasicReport`s.
 
-`BasicReport`s written through the internal `InsertBasicReport` method before
-that field was validated have it unset. The temporary public read fallback
-serves them without `reporting_set`; this tool makes them complete so the
-fallback can be removed. See
+`BasicReport`s written through the internal `InsertBasicReport` method can
+contain two related inconsistencies: a component summary can omit
+`external_reporting_set_id`, and `BasicReport.external_campaign_group_id` can
+refer to an ordinary primitive ReportingSet instead of a Campaign Group. A
+valid Campaign Group is a non-empty primitive ReportingSet whose
+`CampaignGroupId` points to itself.
+
+The temporary public read fallback serves a blank component without
+`reporting_set`. This tool completes safely resolvable reports so the fallback
+can be removed. See
 [issue #4289](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4289).
 
 Run the tool with `--help` for usage information.
 
 ### What it does
 
-Every `BasicReport` in state `SUCCEEDED`, across all `MeasurementConsumer`s, is
-examined, one `MeasurementConsumer` at a time and a page at a time. Use
-`--create-time-after` to restrict this to `BasicReport`s created after a given
-time, which both bounds the work and makes it impossible to modify a
-`BasicReport` outside that window.
+Every `BasicReport` in state `SUCCEEDED`, across all
+`MeasurementConsumer`s, is examined one `MeasurementConsumer` and one page
+at a time. Use `--create-time-after` to restrict this to `BasicReport`s
+created after a given time. A bounded run cannot establish that the full
+environment is ready to remove the fallback.
 
-Before resolving a component summary, the tool verifies that the ReportingSet
-referenced by the `BasicReport` is a valid Campaign Group. A legacy primitive
-ReportingSet with EventGroups and a null `CampaignGroupId` is repaired by
-self-linking it (`CampaignGroupId = ReportingSetId`). This recovers the
-Campaign Group identity already recorded on the `BasicReport`; it does not
-invent a new group or change membership.
+For a report that already references a valid Campaign Group, each blank
+component is resolved from its own `event_group_summaries`:
 
-A missing ReportingSet, a composite, an empty primitive, or a ReportingSet
-already assigned to another Campaign Group cannot be repaired safely. The tool
-leaves that `BasicReport` unchanged, continues the audit, and marks the
-environment as not ready to remove the read-path fallback.
+1.  If `cmms_data_provider_id` is populated, the tool pairs it with every
+    EventGroup ID. If it is blank, the DataProvider is inferred only when the
+    Campaign Group universe has exactly one matching EventGroup key.
+2.  Every resolved EventGroup key must belong to the Campaign Group universe.
+3.  The tool reuses an unfiltered primitive ReportingSet under the Campaign
+    Group when its membership is an exact match. Otherwise it creates one.
 
-For each component summary missing `external_reporting_set_id`:
+For a report whose Campaign Group reference is instead a non-empty ordinary
+primitive ReportingSet with no `CampaignGroupId`, the tool treats that
+ReportingSet's EventGroups as the proposed universe. It first validates every
+component against that universe. Only when all components resolve does it:
 
-1.  The component's membership is taken from its own `event_group_summaries`,
-    paired with the component's `cmms_data_provider_id`.
-2.  The Campaign Group's unfiltered primitive children are searched for a
-    `ReportingSet` whose membership is exactly that set. If one is found, its ID
-    is used.
-3.  Otherwise a `ReportingSet` with that membership is created under the
-    Campaign Group, and its ID is used.
+1.  reuse or create an equivalent non-empty primitive, self-linked Campaign
+    Group with exactly the same EventGroups;
+2.  change `BasicReport.external_campaign_group_id` to that valid Campaign
+    Group; and
+3.  re-resolve every component summary under the valid Campaign Group,
+    including components that already contained an ID.
 
-No component `ReportingSet` is created and no `BasicReport` is updated unless
-all of its component summaries resolve. Every membership is resolved before
-any component `ReportingSet` is created. A safe legacy Campaign Group repair
-may be committed independently and is idempotent. A component summary with no
-`event_group_summaries` cannot be resolved; the `BasicReport` is left
-unmodified and the environment is reported as not ready.
+The original ordinary ReportingSet is never modified. The Campaign Group
+change and all component IDs are written to the `BasicReport` in one Spanner
+mutation. Creating or finding the replacement Campaign Group in Postgres is
+idempotent.
 
-Note that `metric_set.reporting_set_components` entries carry no membership, so
-an entry missing `external_reporting_set_id` cannot be backfilled. Any such
-entry is counted and reported.
+The tool does not guess. A missing, empty, composite, or already-assigned
+ReportingSet is left unchanged. A report is also left unchanged when a
+component has no EventGroups, references an EventGroup outside the proposed
+universe, or has a blank DataProvider that cannot be inferred uniquely. These
+rows are counted as blocking, the scan continues, and the environment is
+reported as not ready to remove the read fallback.
+
+No Campaign Group or component ReportingSet is created and no `BasicReport`
+is updated unless every component summary that needs resolution can be
+resolved. If every component already has `external_reporting_set_id`, the
+report is left untouched.
+
+Entries in `metric_set.reporting_set_components` carry no membership, so an
+entry missing `external_reporting_set_id` cannot be backfilled. Such entries
+are counted and reported.
 
 ### After the backfill
 
@@ -143,8 +159,8 @@ rather than failing, so an incomplete resource is served without any error.
 An applied, unbounded run reports `Ready to remove read-path fallback: yes`
 only when every examined `SUCCEEDED` row has complete component summaries. A
 bounded run never reports ready because it does not examine older rows. A dry
-run reports ready only when it finds that no writes or Campaign Group repairs
-would be needed.
+run reports ready only when it finds that no writes or primitive Campaign Group
+migrations would be needed.
 
 Each such `BasicReport` is logged once per read, at `WARNING`, by the Reporting
 public API server:
@@ -155,8 +171,13 @@ without external_reporting_set_id.
 ```
 
 After a successful unbounded run, that warning staying quiet confirms that no
-new incomplete records are being written. It recurring means a write path still
-bypasses `InsertBasicReport` validation.
+new incomplete records are being written. If it recurs, a write path is still
+storing incomplete component summaries.
+
+This migration does not strengthen `InsertBasicReport` validation. Callers of
+that internal method must supply a valid self-linked primitive Campaign Group
+and populated component ReportingSet IDs. Add write-time validation separately
+before treating a quiet warning as a permanent guarantee.
 
 The tolerance in the read path should be removed only once the warning has
 stayed silent over a sustained period, not on a schedule.
@@ -265,8 +286,8 @@ include the full path to the executable.
 
 Each run ends with a summary of the `BasicReport`s examined, those already
 valid, those updated, any blocking unbackfilled records, the Campaign Groups
-repaired, the `ReportingSet`s reused and created, and any components that could
-not be resolved.
+repaired or migrated, the `ReportingSet`s reused and created, and any
+components that could not be resolved.
 
 Run with `--dry-run` first. A non-zero blocking count means some component
 summaries would remain incomplete; the per-`BasicReport` reasons are logged and

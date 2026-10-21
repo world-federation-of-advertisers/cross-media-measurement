@@ -259,15 +259,17 @@ suspend fun AsyncDatabaseClient.TransactionContext.updateExternalReportIdIfEmpty
   return updatedRowCount == 1L
 }
 
-/** Buffers an update mutation that sets BasicReportResultDetails for the BasicReports table. */
+/** Buffers an update mutation that sets the Campaign Group and result details for a BasicReport. */
 fun AsyncDatabaseClient.TransactionContext.updateBasicReportResultDetails(
   measurementConsumerId: Long,
   basicReportId: Long,
+  externalCampaignGroupId: String,
   resultDetails: BasicReportResultDetails,
 ) {
   bufferUpdateMutation("BasicReports") {
     set("MeasurementConsumerId").to(measurementConsumerId)
     set("BasicReportId").to(basicReportId)
+    set("ExternalCampaignGroupId").to(externalCampaignGroupId)
     set("BasicReportResultDetails").to(resultDetails)
   }
 }
