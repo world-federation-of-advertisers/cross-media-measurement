@@ -18,6 +18,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:config_loader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:event_group_reference_id_entity_key_mapping",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroups:event_group_reader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroups:event_group_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
