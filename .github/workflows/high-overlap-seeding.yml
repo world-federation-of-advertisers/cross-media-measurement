@@ -14,19 +14,11 @@
 
 name: Seed High Overlap Dataset
 
-run-name: Seed High Overlap Dataset [${{ inputs.environment }}]
+run-name: Seed High Overlap Dataset [${{ inputs.environment || 'dev' }}]
 
-# What this writes persists and the dataset is deterministic, so it is not part of a test run. Ask
-# for it when the dataset's specs change, or when an environment gains an EDP. The reporting
-# integration test reads the manifest it leaves behind and refuses to run against a dataset that no
-# longer matches its specs. Where HIGH_OVERLAP_MODEL_LINE is unset the test seeds nothing and
-# passes.
+# Run when the high overlap dataset's specs change or an environment gains an EDP. The reporting
+# integration test refuses to run against a dataset that no longer matches its specs.
 on:
-  workflow_call:
-    inputs:
-      environment:
-        type: string
-        required: true
   workflow_dispatch:
     inputs:
       environment:
@@ -37,6 +29,11 @@ on:
           - dev
           - qa
           - head
+  # DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement#4661): Remove this
+  # trigger, which seeds dev on every push for testing.
+  push:
+    branches:
+      - uakyol-qa-bigquery
 
 permissions:
   contents: read
@@ -47,7 +44,9 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment || 'dev' }}
+    env:
+      ENVIRONMENT: ${{ inputs.environment || 'dev' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -69,43 +68,10 @@ jobs:
           build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
           EOF
 
-      # Seeding reads the same generated test config as the reporting integration test, so it is
-      # given the same defines.
       - name: Write ~/.bazelrc
-        env:
-          KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
-          MC_NAME: ${{ vars.MC_NAME }}
-          MC_API_KEY: ${{ secrets.MC_API_KEY }}
-          STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
-          REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
-          REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
-          REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
-          ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
-          HIGH_OVERLAP_MODEL_LINE: ${{ vars.HIGH_OVERLAP_MODEL_LINE }}
-          PDP_NAME: ${{ vars.PDP_NAME }}
-          EDP7_KEK_URI: ${{ vars.EDP7_KEK_URI }}
-          EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
-          EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
-          EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
-          build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
-          build --define mc_name=$MC_NAME
-          build --define mc_api_key=$MC_API_KEY
-          build --define storage_bucket=$STORAGE_BUCKET
-          build --define reporting_service_endpoint=$REPORTING_SERVICE_ENDPOINT
-          build --define reporting_token_audience=$REPORTING_TOKEN_AUDIENCE
-          build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
-          build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
-          build --define high_overlap_model_line=$HIGH_OVERLAP_MODEL_LINE
-          build --define pdp_name=$PDP_NAME
-          build --define edp7_kek_uri=$EDP7_KEK_URI
-          build --define edpa_meta_kek_uri=$EDPA_META_KEK_URI
-          build --define edpa_meta_aws_role_arn=$EDPA_META_AWS_ROLE_ARN
-          build --define edpa_meta_aws_region=$EDPA_META_AWS_REGION
-          test --test_output=streamed
-          test --test_timeout=6000
           EOF
 
       # Reduce chance of disconnection from the Build Event Service.
@@ -113,11 +79,9 @@ jobs:
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
       # The edpa_meta AWS KMS client authenticates via web-identity federation using a Google
-      # (accounts.google.com) OIDC token. The AWS role EDPA_META_AWS_ROLE_ARN
-      # (GcpSyntheticDataKmsRole) trusts the CI service account's numeric subject
-      # (accounts.google.com:sub) and has no audience condition. Mint a fresh id_token for the CI
-      # service account here (right before seeding, for maximum validity headroom) and point
-      # AWS_WEB_IDENTITY_TOKEN_FILE at it.
+      # (accounts.google.com) OIDC token. The AWS role EDPA_META_AWS_ROLE_ARN trusts the CI service
+      # account's numeric subject (accounts.google.com:sub) and has no audience condition. Mint the
+      # token right before seeding for maximum validity headroom.
       - name: Mint Google web-identity token for AWS
         id: aws_auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
@@ -139,15 +103,41 @@ jobs:
           echo "AWS_WEB_IDENTITY_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
 
       - name: Seed the dataset
-        id: seed
+        env:
+          KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+          MC_NAME: ${{ vars.MC_NAME }}
+          PDP_NAME: ${{ vars.PDP_NAME }}
+          HIGH_OVERLAP_MODEL_LINE: ${{ vars.HIGH_OVERLAP_MODEL_LINE }}
+          EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
+          EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
+          EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
         run: |
-          bazel test \
-          --test_env=GOOGLE_APPLICATION_CREDENTIALS \
-          --test_env=GOOGLE_CLOUD_PROJECT \
-          --test_env=AWS_WEB_IDENTITY_TOKEN_FILE \
-          //src/test/kotlin/org/wfanet/measurement/integration/k8s:HighOverlapSeedingTest
+          set -euo pipefail
+          config_dir="src/main/terraform/gcloud/cmms/envs/$ENVIRONMENT"
+          tfvar() { grep -E "^$1 " "$config_dir.tfvars" | head -1 | cut -d'"' -f2; }
+          edp7_id="$(jq -er '.edps[] | select(.name == "edp7") | .resource_id' "$config_dir/dashboard-config.json")"
+          # edp7's KEK is shared by every EDP that encrypts with Google Cloud KMS.
+          edp7_kek_uri="$(awk -v dp="dataProviders/$edp7_id" \
+            'index($0, "data_provider: \"" dp "\"") {found = 1}
+             found && /kek_uri:/ {split($0, parts, "\""); print parts[2]; exit}' \
+            "$config_dir/event-data-provider-configs.textproto")"
+          secret_files="$GITHUB_WORKSPACE/src/main/k8s/testing/secretfiles"
 
-      - name: Upload Bazel testlogs
-        continue-on-error: true
-        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
-        if: failure() && steps.seed.outcome == 'failure'
+          bazel run //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:SeedHighOverlapDataset -- \
+            --kingdom-public-api-target="$KINGDOM_PUBLIC_API_TARGET" \
+            --kingdom-public-api-cert-host=localhost \
+            --kingdom-trusted-certs-file="$secret_files/kingdom_root.pem" \
+            --pdp-tls-cert-file="$secret_files/pdp1_tls.pem" \
+            --pdp-tls-key-file="$secret_files/pdp1_tls.key" \
+            --model-provider-tls-cert-file="$secret_files/mp1_tls.pem" \
+            --model-provider-tls-key-file="$secret_files/mp1_tls.key" \
+            --population-data-provider="$PDP_NAME" \
+            --model-line="$HIGH_OVERLAP_MODEL_LINE" \
+            --measurement-consumer="$MC_NAME" \
+            --storage-bucket="$(tfvar secure_computation_storage_bucket_name)" \
+            --google-project-id="$GOOGLE_CLOUD_PROJECT" \
+            --google-cloud-kms-kek-uri="$edp7_kek_uri" \
+            --aws-kms-kek-uri="$EDPA_META_KEK_URI" \
+            --aws-role-arn="$EDPA_META_AWS_ROLE_ARN" \
+            --aws-region="$EDPA_META_AWS_REGION" \
+            --aws-web-identity-token-file="$AWS_WEB_IDENTITY_TOKEN_FILE"
