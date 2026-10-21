@@ -68,6 +68,28 @@ class VerifyEventGroupsMainTest {
   }
 
   @Test
+  fun `main validates multiple files`() {
+    val jsonFile = writeJson("event-groups.json", listOf(VALID_EVENT_GROUP))
+    val binaryFile = writeBinpb("event-groups.binpb", listOf(VALID_EVENT_GROUP))
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(
+        arrayOf(
+          "--event-groups-file",
+          jsonFile.absolutePath,
+          "--event-groups-file",
+          binaryFile.absolutePath,
+        ),
+        ::main,
+      )
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(0)
+    subject.out().contains(jsonFile.path)
+    subject.out().contains(binaryFile.path)
+  }
+
+  @Test
   fun `main rejects equal interval endpoints`() {
     val eventGroup =
       VALID_EVENT_GROUP.copy {
