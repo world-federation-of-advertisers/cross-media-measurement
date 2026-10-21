@@ -634,14 +634,20 @@ class InProcessEdpAggregatorComponents(
           config.entityKeySpecs.flatMap { entityKeySpec ->
             buildEventGroupsForSpec(
               spec = entityKeySpec.spec,
-              entityKey = entityKeySpec.entityKey,
+              entityKey =
+                entityKeySpec.entityKey.takeUnless {
+                  config.eventGroupIdentifierForm == EventGroupIdentifierForm.REFERENCE_ID_ONLY
+                },
               eventGroupReferenceId =
                 if (config.eventGroupIdentifierForm == EventGroupIdentifierForm.ENTITY_KEY_ONLY) {
                   ""
                 } else {
                   "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
                 },
-              entityMetadata = entityKeySpec.entityMetadata,
+              entityMetadata =
+                entityKeySpec.entityMetadata.takeUnless {
+                  config.eventGroupIdentifierForm == EventGroupIdentifierForm.REFERENCE_ID_ONLY
+                },
               measurementConsumerData = measurementConsumerData,
             )
           }

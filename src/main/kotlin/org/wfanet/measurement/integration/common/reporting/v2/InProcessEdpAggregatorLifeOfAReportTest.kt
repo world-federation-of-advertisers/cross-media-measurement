@@ -285,8 +285,16 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           if (mixedIdentifierHistoryEnabled) {
             mapOf(
               MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID to
-                EventGroupConfig.LegacySpec(
-                  spec = syntheticEventGroupSpec2,
+                EventGroupConfig.MultiEntityKey(
+                  entityKeySpecs =
+                    listOf(
+                      EntityKeySpec(
+                        EntityKey("campaign", MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID),
+                        syntheticEventGroupSpec2,
+                        entityMetadata = null,
+                      )
+                    ),
+                  eventGroupIdentifierForm = EventGroupIdentifierForm.REFERENCE_ID_ONLY,
                   mixedIdentifierHistory =
                     MixedIdentifierHistory(
                       entityKey = EntityKey("campaign", MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID),
