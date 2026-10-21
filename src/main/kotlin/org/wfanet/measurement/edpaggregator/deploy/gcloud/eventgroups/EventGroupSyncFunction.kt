@@ -56,6 +56,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfigs
 import org.wfanet.measurement.edpaggregator.ConfigLoader
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupReader
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
@@ -99,6 +100,18 @@ class EventGroupSyncFunction() : HttpFunction {
           val eventGroupsClient = EventGroupsCoroutineStub(kingdomChannel)
           val clientAccountsClient = ClientAccountsCoroutineStub(kingdomChannel)
           val unlinkedClientAccountsClient = UnlinkedClientAccountsCoroutineStub(kingdomChannel)
+          val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? =
+            if (eventGroupSyncConfig.hasEventGroupReferenceIdEntityKeyMapping()) {
+              eventGroupSyncConfig.eventGroupReferenceIdEntityKeyMapping.let { mapping ->
+                EventGroupReferenceIdEntityKeyMapping(
+                  entityType = mapping.entityType,
+                  eventGroupReferenceIdPrefix = mapping.eventGroupReferenceIdPrefix,
+                  entityIdPrefix = mapping.entityIdPrefix,
+                )
+              }
+            } else {
+              null
+            }
           val eventGroups: Flow<EventGroup> =
             Tracing.traceSuspending(
               spanName = "load_event_groups",
@@ -134,6 +147,7 @@ class EventGroupSyncFunction() : HttpFunction {
                   throttler = kingdomThrottler,
                   listEventGroupPageSize,
                   entityKeyTypes = eventGroupSyncConfig.entityKeyTypesList,
+                  eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
                 )
                 .sync(),
             eventGroupSyncConfig = eventGroupSyncConfig,
