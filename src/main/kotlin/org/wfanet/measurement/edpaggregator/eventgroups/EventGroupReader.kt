@@ -33,8 +33,11 @@ class EventGroupReader(private val storageClient: ConditionalOperationStorageCli
    *
    * JSON files must contain an `event_groups` or `eventGroups` array. Binary protobuf files must
    * use Mesos RecordIO framing and the `.binpb` extension.
+   *
+   * @throws IllegalStateException if the format is unsupported, the blob is missing, or it contains
+   *   no EventGroups
    */
-  suspend fun read(blobKey: String): Flow<EventGroup> {
+  fun read(blobKey: String): Flow<EventGroup> {
     return when {
       blobKey.endsWith(PROTO_FILE_SUFFIX) -> readProto(blobKey)
       blobKey.endsWith(JSON_FILE_SUFFIX) -> readJson(blobKey)
@@ -42,7 +45,7 @@ class EventGroupReader(private val storageClient: ConditionalOperationStorageCli
     }
   }
 
-  private suspend fun readProto(blobKey: String): Flow<EventGroup> = flow {
+  private fun readProto(blobKey: String): Flow<EventGroup> = flow {
     val blob =
       MesosRecordIoStorageClient(storageClient).getBlob(blobKey)
         ?: error("Blob not found for key: $blobKey")
@@ -51,10 +54,10 @@ class EventGroupReader(private val storageClient: ConditionalOperationStorageCli
       emit(EventGroup.parseFrom(bytes))
       count++
     }
-    require(count > 0) { "Uploads with zero event groups are not supported." }
+    check(count > 0) { "Uploads with zero event groups are not supported." }
   }
 
-  private suspend fun readJson(blobKey: String): Flow<EventGroup> = flow {
+  private fun readJson(blobKey: String): Flow<EventGroup> = flow {
     val blob = storageClient.getBlob(blobKey) ?: error("Blob not found for key: $blobKey")
     val parser = JsonFormat.parser()
     var count = 0
@@ -80,7 +83,7 @@ class EventGroupReader(private val storageClient: ConditionalOperationStorageCli
       }
       jsonReader.endObject()
     }
-    require(count > 0) { "Uploads with zero event groups are not supported." }
+    check(count > 0) { "Uploads with zero event groups are not supported." }
   }
 
   private companion object {

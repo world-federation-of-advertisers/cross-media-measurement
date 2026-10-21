@@ -205,6 +205,67 @@ class VerifyEventGroupsMainTest {
     subject.err().contains("FAIL:")
   }
 
+  @Test
+  fun `main rejects malformed Mesos RecordIO file`() {
+    val file = temporaryFolder.newFile("event-groups.binpb")
+    file.writeText("4\nbad!")
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(arrayOf("--event-groups-file", file.absolutePath), ::main)
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(1)
+    subject.err().contains("FAIL:")
+  }
+
+  @Test
+  fun `main rejects missing file`() {
+    val file = File(temporaryFolder.root, "missing.json")
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(arrayOf("--event-groups-file", file.absolutePath), ::main)
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(1)
+    subject.err().contains("not a regular file")
+  }
+
+  @Test
+  fun `main rejects unsupported extension`() {
+    val file = temporaryFolder.newFile("event-groups.txt")
+    file.writeText("{}")
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(arrayOf("--event-groups-file", file.absolutePath), ::main)
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(1)
+    subject.err().contains("Unsupported EventGroup file format")
+  }
+
+  @Test
+  fun `main continues with later files after a file fails`() {
+    val invalidFile = temporaryFolder.newFile("invalid.json")
+    invalidFile.writeText("{ not-json")
+    val validFile = writeBinpb("valid.binpb", listOf(VALID_EVENT_GROUP))
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(
+        arrayOf(
+          "--event-groups-file",
+          invalidFile.absolutePath,
+          "--event-groups-file",
+          validFile.absolutePath,
+        ),
+        ::main,
+      )
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(1)
+    subject.err().contains(invalidFile.path)
+    subject.out().contains("PASS: ${validFile.path}")
+  }
+
   private fun writeJson(name: String, eventGroupMessages: List<EventGroup>): File {
     val file = temporaryFolder.newFile(name)
     val message = eventGroups { eventGroups += eventGroupMessages }

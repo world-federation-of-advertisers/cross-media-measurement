@@ -45,7 +45,7 @@ class VerifyEventGroups : Callable<Int> {
       ],
     required = true,
   )
-  private var eventGroupFiles: List<File> = emptyList()
+  private lateinit var eventGroupFiles: List<File>
 
   override fun call(): Int = runBlocking {
     var invalidFileCount = 0

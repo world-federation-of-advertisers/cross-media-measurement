@@ -26,6 +26,9 @@ object EventGroupValidator {
    * @throws IllegalStateException if a required field is missing or invalid
    */
   fun validate(eventGroup: EventGroup) {
+    check(eventGroup.state != EventGroup.State.UNRECOGNIZED) {
+      "state must be STATE_UNSPECIFIED, ACTIVE, or DELETED"
+    }
     if (eventGroup.state == EventGroup.State.DELETED) {
       validateDeleted(eventGroup)
       return
@@ -34,6 +37,9 @@ object EventGroupValidator {
     check(eventGroup.mediaTypesCount > 0) { "At least one media type must be set" }
     check(EventGroup.MediaType.MEDIA_TYPE_UNSPECIFIED !in eventGroup.mediaTypesList) {
       "media_types must not contain MEDIA_TYPE_UNSPECIFIED"
+    }
+    check(EventGroup.MediaType.UNRECOGNIZED !in eventGroup.mediaTypesList) {
+      "media_types contains an unrecognized value"
     }
 
     check(eventGroup.hasDataAvailabilityInterval()) { "Data availability must be set" }

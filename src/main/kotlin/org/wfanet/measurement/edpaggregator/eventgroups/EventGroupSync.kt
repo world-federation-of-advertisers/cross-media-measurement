@@ -111,8 +111,8 @@ data class EntityKeyId(
  * Pairing key used to match a `BatchCreateEventGroups` response row back to its request AND to
  * derive the request_id, keeping the two provably in lockstep. Prefers `entity_key` when populated
  * (the #4175 canonical identifier); otherwise falls back to `event_group_reference_id`.
- * `validateEventGroup` guarantees at least one is set on the source `EventGroup`, so [of] always
- * returns a well-formed key.
+ * [EventGroupValidator.validate] guarantees at least one is set on the source `EventGroup`, so [of]
+ * always returns a well-formed key.
  *
  * Using a sealed class rather than a compound `(refId, entityType, entityId, mc)` tuple keeps the
  * join robust if the kingdom ever stops echoing the "other" identifier: each side reads only the
@@ -537,7 +537,7 @@ class EventGroupSync(
         // Two rows in one sync that share an entity_key OR share a reference_id (independently)
         // are malformed EDP input — the kingdom enforces uniqueness on BOTH identifiers per
         // (DataProvider, MeasurementConsumer). Skip the second row per the same
-        // "log SEVERE + invalidEventGroupFailure metric + continue" pattern that validateEventGroup
+        // "log SEVERE + invalidEventGroupFailure metric + continue" pattern that validation
         // failures already use, so one malformed row doesn't take down the whole sync.
         //
         // Two rows sharing the primary pairing key produce the same request_id under
@@ -1360,8 +1360,8 @@ class EventGroupSync(
   /**
    * Builds the [MappedEventGroup] emitted for a successfully-synced item. Populates whichever
    * identifiers were carried by the source `EventGroup`; the `MappedEventGroup` contract requires
-   * at least one of `event_group_reference_id` / `entity_key` to be set, which [validateEventGroup]
-   * guarantees upstream.
+   * at least one of `event_group_reference_id` / `entity_key` to be set, which
+   * [EventGroupValidator.validate] guarantees upstream.
    */
   private fun buildMappedEventGroup(item: PendingWrite<*>, resourceName: String): MappedEventGroup =
     mappedEventGroup {

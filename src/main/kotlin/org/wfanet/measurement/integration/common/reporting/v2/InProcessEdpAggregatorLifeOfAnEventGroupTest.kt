@@ -72,8 +72,8 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
    * Builds a valid EDPA-side source [EdpaEventGroup] for driving [EventGroupSync] directly in these
    * migration tests. Sets whichever of `event_group_reference_id` / `entity_key` is provided
    * (mirroring how an EDP evolves a row across the #4175 migration), plus the fields
-   * `EventGroupSync.validateEventGroup` requires: media type, data-availability interval, and
-   * metadata. `campaign` names the campaign metadata so a mutation is observable across syncs.
+   * `EventGroupValidator.validate` requires: media type, data-availability interval, and metadata.
+   * `campaign` names the campaign metadata so a mutation is observable across syncs.
    */
   private fun buildMigrationSourceEventGroup(
     referenceId: String?,
