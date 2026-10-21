@@ -15,6 +15,7 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.Struct
+import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 
@@ -28,13 +29,21 @@ data class EntityKeySpec(
   val entityMetadata: Struct? = null,
 )
 
+/** Reference-only data generated from [legacySpec] before the exclusive end [date]. */
+data class LegacyEndDate(val date: LocalDate, val legacySpec: EventGroupConfig.LegacySpec)
+
 /**
  * Per-EventGroup configuration for the EDPA-side data generation, entity key registration, and blob
  * contents, keyed in [InProcessEdpAggregatorComponents] by `(edpAggregatorShortName,
  * eventGroupReferenceId)`.
  */
 sealed class EventGroupConfig {
+
   data class LegacySpec(val spec: SyntheticEventGroupSpec) : EventGroupConfig()
 
-  data class MultiEntityKey(val entityKeySpecs: List<EntityKeySpec>) : EventGroupConfig()
+  /** Entity-key data, optionally preceded by reference-only data ending at [legacyEndDate]. */
+  data class MultiEntityKey(
+    val entityKeySpecs: List<EntityKeySpec>,
+    val legacyEndDate: LegacyEndDate?,
+  ) : EventGroupConfig()
 }
