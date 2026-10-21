@@ -250,31 +250,40 @@ jobs:
             }] | sort_by(.app, .name)'
         }
 
-        readiness_deadline=$((SECONDS + 300))
+        baseline=""
+        stable_since=""
+        deadline=$((SECONDS + 300 + STABILITY_WINDOW_SECONDS))
         while true; do
-          baseline="$(snapshot)"
-          current_apps="$(jq -c '[.[].app] | sort' <<< "$baseline")"
-          all_ready="$(jq -r 'all(.[]; .ready)' <<< "$baseline")"
-          if [[ "$current_apps" == "$expected_apps" && "$all_ready" == "true" ]]; then
+          current="$(snapshot)"
+          current_apps="$(jq -c '[.[].app] | sort' <<< "$current")"
+          all_ready="$(jq -r 'all(.[]; .ready)' <<< "$current")"
+
+          if [[ "$current_apps" != "$expected_apps" || "$all_ready" != "true" ]]; then
+            if [[ -n "$baseline" ]]; then
+              echo "Simulator pod readiness changed; restarting the stability window."
+              echo "Previous baseline: $baseline"
+              echo "Current:           $current"
+            fi
+            baseline=""
+            stable_since=""
+          elif [[ -z "$baseline" || "$baseline" != "$current" ]]; then
+            if [[ -n "$baseline" ]]; then
+              echo "Simulator pods changed; restarting the stability window."
+              echo "Previous baseline: $baseline"
+              echo "Current:           $current"
+            fi
+            baseline="$current"
+            stable_since=$SECONDS
+          elif (( SECONDS - stable_since >= STABILITY_WINDOW_SECONDS )); then
+            echo "Simulator pods remained ready and unchanged for ${STABILITY_WINDOW_SECONDS}s."
             break
           fi
-          if (( SECONDS >= readiness_deadline )); then
-            echo "Simulator pods did not become ready before the deadline." >&2
-            echo "Expected apps: $expected_apps" >&2
-            echo "Current active pods: $baseline" >&2
-            exit 1
-          fi
-          sleep 1
-        done
 
-        deadline=$((SECONDS + STABILITY_WINDOW_SECONDS))
-        while (( SECONDS < deadline )); do
-          sleep 1
-          current="$(snapshot)"
-          if [[ "$baseline" != "$current" ]]; then
-            echo "Simulator pods changed during the stability window." >&2
-            echo "Baseline: $baseline" >&2
-            echo "Current:  $current" >&2
+          if (( SECONDS >= deadline )); then
+            echo "Simulator pods did not remain ready and unchanged before the deadline." >&2
+            echo "Expected apps: $expected_apps" >&2
+            echo "Current active pods: $current" >&2
             exit 1
           fi
+          sleep 1
         done
