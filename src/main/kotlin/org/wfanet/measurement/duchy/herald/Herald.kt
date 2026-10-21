@@ -325,6 +325,7 @@ class Herald(
             blobStorageBucket,
           )
         }
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Implement TrusTEE v2.
         Computation.MpcProtocolConfig.ProtocolCase.TRUS_TEE_V2 ->
           error("TrusTEE v2 is not implemented")
         Computation.MpcProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET ->
@@ -428,6 +429,7 @@ class Herald(
         ComputationDetails.ProtocolCase.TRUS_TEE -> {
           TrusTeeStarter.startComputation(token, internalComputationsClient)
         }
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Implement TrusTEE v2.
         ComputationDetails.ProtocolCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
         ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
           error("Unknown or unsupported protocol.")
@@ -501,6 +503,8 @@ class Herald(
           ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
             HonestMajorityShareShuffleStarter.TERMINAL_STAGE
           ComputationDetails.ProtocolCase.TRUS_TEE -> TrusTeeStarter.TERMINAL_STAGE
+          // TODO(world-federation-of-advertisers/cross-media-measurement#4532):
+          //   Implement TrusTEE v2.
           ComputationDetails.ProtocolCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
           ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
             error { "Unknown or unsupported protocol." }
