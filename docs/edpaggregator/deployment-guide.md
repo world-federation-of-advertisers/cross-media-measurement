@@ -1008,6 +1008,19 @@ configs {
 }
 ```
 
+Set `event_group_reference_id_entity_key_mapping` only when one entity type's IDs
+are equivalent to legacy event-group reference IDs. Both
+`event_group_reference_id_prefix` and `entity_id_prefix` are optional and are
+applied independently; an empty prefix is valid. When the mapping is present,
+EventGroupSync derives the reference ID from a matching entity key and uses both
+identifiers to find and update the existing EventGroup instead of creating a
+second resource. If the input supplies both identifiers, they must match exactly
+after prefix conversion. Invalid entries are skipped and counted by
+`edpa.event_group.invalid_event_group_failure`.
+
+Configure the equivalent mapping in `ResultsFulfillerParams` when fulfillment
+must search and filter impression history written in both identifier formats.
+
 ### DataAvailabilitySync config (`DataAvailabilitySyncConfigs`)
 
 Proto: `wfa/measurement/config/edpaggregator/data_availability_sync_config.proto`.
@@ -1101,6 +1114,20 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
   [TrusTEE section](README.md#configure-trustee-if-enabled)).
 * `multi_party_config.supported_noise_types` — restricts accepted noise mechanisms
   for HMSS / TrusTEE requisitions.
+
+* `event_group_reference_id_entity_key_mapping` — optional equivalence between
+  legacy event-group reference IDs and one entity-key type. Presence enables
+  lookup and filtering through both representations. Its two prefixes are
+  independent and optional; leave either blank when that representation is
+  unprefixed.
+* `whole_blob_entity_types` — entity types whose `BlobDetails.entity_keys` group
+  is guaranteed to list every ID at that level in the blob. If a requisition
+  selects every ID in a listed group, ResultsFulfiller accepts the entire blob,
+  including records without `entity_keys`. Only list types that are truly
+  exhaustive: listing a partial type can silently include unmatched impressions
+  and overcount. This is also the whole-blob path for data whose sidecar has been
+  backfilled with entity keys while its impression records remain in the legacy
+  format.
 
 ---
 
