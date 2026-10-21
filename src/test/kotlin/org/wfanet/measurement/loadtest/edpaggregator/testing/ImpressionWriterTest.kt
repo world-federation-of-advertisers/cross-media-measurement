@@ -75,6 +75,7 @@ class ImpressionWriterTest {
         "some-metadata-bucket",
         tempFolder.root,
         "file:///",
+        includeEventGroupReferenceIdInImpressions = false,
       )
     val events: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
       sequenceOf(
@@ -203,6 +204,7 @@ class ImpressionWriterTest {
         "some-metadata-bucket",
         tempFolder.root,
         "file:///",
+        includeEventGroupReferenceIdInImpressions = false,
       )
     val events =
       sequenceOf(
@@ -253,6 +255,7 @@ class ImpressionWriterTest {
         bucket,
         tempFolder.root,
         "file:///",
+        includeEventGroupReferenceIdInImpressions = false,
       )
     val events: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
       sequenceOf(
@@ -363,6 +366,7 @@ class ImpressionWriterTest {
         "multi-metadata-bucket",
         tempFolder.root,
         "file:///",
+        includeEventGroupReferenceIdInImpressions = false,
       )
 
     val date = LocalDate.parse("2020-01-01")

@@ -82,7 +82,7 @@ class ImpressionsWriter(
   private val storagePath: File? = null,
   private val schema: String = "file:///",
   private val outputKey: String = "",
-  private val includeEventGroupReferenceIdInImpressions: Boolean = false,
+  private val includeEventGroupReferenceIdInImpressions: Boolean,
 ) {
 
   init {

@@ -739,6 +739,7 @@ class InProcessEdpAggregatorComponents(
               "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
               storagePath.toFile(),
               "file:///",
+              includeEventGroupReferenceIdInImpressions = false,
             )
           val shardsByDate =
             mutableMapOf<LocalDate, MutableList<EntityKeysWithLabeledEvents<TestEvent>>>()
@@ -820,6 +821,7 @@ class InProcessEdpAggregatorComponents(
           "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
           storagePath.toFile(),
           "file:///",
+          includeEventGroupReferenceIdInImpressions = false,
         )
         .writeLabeledImpressionData(entityKeyEvents, modelLineName, null)
     }
@@ -851,6 +853,7 @@ class InProcessEdpAggregatorComponents(
           "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
           storagePath.toFile(),
           "file:///",
+          includeEventGroupReferenceIdInImpressions = false,
         )
       val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
         SyntheticDataGeneration.generateEvents(TestEvent.getDefaultInstance(), populationSpec, spec)
