@@ -81,12 +81,16 @@ object EventGroupValidator {
       validateEntityKey(eventGroup.entityKey)
     }
 
-    if (eventGroup.measurementConsumer.isNotBlank()) {
+    check(
+      eventGroup.measurementConsumer.isNotEmpty() ||
+        eventGroup.clientAccountReferenceId.isNotEmpty()
+    ) {
+      "Either Measurement Consumer or Client Account Reference ID must be set"
+    }
+    if (eventGroup.measurementConsumer.isNotEmpty()) {
       validateMeasurementConsumer(eventGroup.measurementConsumer)
-    } else {
-      check(eventGroup.clientAccountReferenceId.isNotEmpty()) {
-        "Either Measurement Consumer or Client Account Reference ID must be set"
-      }
+    }
+    if (eventGroup.clientAccountReferenceId.isNotEmpty()) {
       check(eventGroup.clientAccountReferenceId.length <= MAX_CLIENT_ACCOUNT_REFERENCE_ID_LENGTH) {
         "client_account_reference_id must not exceed $MAX_CLIENT_ACCOUNT_REFERENCE_ID_LENGTH characters"
       }
