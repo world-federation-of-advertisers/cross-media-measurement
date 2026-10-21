@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
@@ -45,6 +46,7 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.updateBasicReportResultDetails
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.EventGroupReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.EnsureSynthesizedCampaignGroupReportingSet
@@ -87,9 +89,16 @@ class BasicReportReportingSetBackfiller(
     val reportingSetIdsByMembership: MutableMap<Set<ReportingSet.Primitive.EventGroupKey>, String>,
   )
 
-  private data class CampaignGroupSource(
+  private data class CampaignGroupResolutionKey(
     val originalKey: CampaignGroupKey,
     val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
+  )
+
+  private data class CampaignGroupSource(
+    val originalKey: CampaignGroupKey,
+    val measurementConsumerId: InternalId,
+    val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
+    val requiresExactComponentMatch: Boolean,
     val reportingSetResult: ReportingSetReader.Result?,
   )
 
@@ -156,7 +165,8 @@ class BasicReportReportingSetBackfiller(
   private val campaignGroupSources = mutableMapOf<CampaignGroupKey, CampaignGroupSource>()
 
   /** ReportingSet membership index per Campaign Group, reused across `BasicReport`s. */
-  private val campaignGroupResolutions = mutableMapOf<CampaignGroupKey, CampaignGroupResolution>()
+  private val campaignGroupResolutions =
+    mutableMapOf<CampaignGroupResolutionKey, CampaignGroupResolution>()
 
   private val unresolvableCampaignGroupKeys = mutableSetOf<CampaignGroupKey>()
 
@@ -316,16 +326,32 @@ class BasicReportReportingSetBackfiller(
     //
     // The component's own EventGroups are what the BasicReport was computed over. The internal
     // EventGroupSummary carries only the EventGroup ID. Prefer the component's DataProvider when
-    // present; otherwise infer it only when the Campaign Group universe has exactly one match.
+    // present; otherwise infer it only when the MeasurementConsumer has exactly one match.
     val membershipResolutions: List<ComponentMembershipResolution> =
-      componentSummariesToResolve.map { componentSummary ->
-        @Suppress("DEPRECATION") // Only source of membership for these BasicReports.
-        resolveComponentMembership(
-          componentSummary.cmmsDataProviderId,
-          componentSummary.eventGroupSummariesList.map { it.cmmsEventGroupId },
-          campaignGroupSource.eventGroupKeys,
+      resolveComponentMemberships(
+          campaignGroupSource.measurementConsumerId,
+          componentSummariesToResolve.map { componentSummary ->
+            @Suppress("DEPRECATION") // Only source of membership for these BasicReports.
+            ComponentEventGroups(
+              componentSummary.cmmsDataProviderId,
+              componentSummary.eventGroupSummariesList.map { it.cmmsEventGroupId },
+            )
+          },
         )
-      }
+        .map { resolution ->
+          if (
+            !campaignGroupChanged &&
+              resolution.membership != null &&
+              !campaignGroupSource.eventGroupKeys.containsAll(resolution.membership)
+          ) {
+            ComponentMembershipResolution(
+              null,
+              "its EventGroups are not all in the Campaign Group universe",
+            )
+          } else {
+            resolution
+          }
+        }
 
     var unresolved = 0
     for ((componentSummary, resolution) in componentSummariesToResolve.zip(membershipResolutions)) {
@@ -348,10 +374,44 @@ class BasicReportReportingSetBackfiller(
       return
     }
 
+    val targetCampaignGroupEventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey> =
+      if (campaignGroupChanged) {
+        membershipResolutions.flatMap { checkNotNull(it.membership) }.toSet()
+      } else {
+        campaignGroupSource.eventGroupKeys
+      }
+    if (
+      campaignGroupChanged &&
+        !targetCampaignGroupEventGroupKeys.containsAll(campaignGroupSource.eventGroupKeys)
+    ) {
+      unresolvableCampaignGroupReferences++
+      skipped++
+      logger.warning {
+        "BasicReport $externalBasicReportId does not contain every EventGroup from ReportingSet " +
+          "${campaignGroupKey.externalCampaignGroupId}; not updating."
+      }
+      return
+    }
+    if (
+      campaignGroupChanged &&
+        campaignGroupSource.requiresExactComponentMatch &&
+        membershipResolutions.none { it.membership == campaignGroupSource.eventGroupKeys }
+    ) {
+      unresolvableCampaignGroupReferences++
+      skipped++
+      logger.warning {
+        "BasicReport $externalBasicReportId does not contain a component matching ReportingSet " +
+          "${campaignGroupKey.externalCampaignGroupId}; not updating."
+      }
+      return
+    }
+
+    val campaignGroupResolutionKey =
+      CampaignGroupResolutionKey(campaignGroupKey, targetCampaignGroupEventGroupKeys)
     val campaignGroupResolution =
       try {
-        campaignGroupResolutions.getOrPut(campaignGroupKey) {
-          materializeCampaignGroup(campaignGroupSource)
+        campaignGroupResolutions.getOrPut(campaignGroupResolutionKey) {
+          materializeCampaignGroup(campaignGroupSource, targetCampaignGroupEventGroupKeys)
         }
       } catch (e: CampaignGroupInvalidException) {
         recordUnresolvableCampaignGroup(externalBasicReportId, campaignGroupKey)
@@ -430,10 +490,45 @@ class BasicReportReportingSetBackfiller(
     }
   }
 
+  private data class ComponentEventGroups(
+    val cmmsDataProviderId: String,
+    val cmmsEventGroupIds: List<String>,
+  )
+
+  private suspend fun resolveComponentMemberships(
+    measurementConsumerId: InternalId,
+    components: List<ComponentEventGroups>,
+  ): List<ComponentMembershipResolution> {
+    val cmmsEventGroupIds = components.flatMap { it.cmmsEventGroupIds }.distinct()
+    val readContext = postgresClient.readTransaction()
+    val eventGroupKeysById: Map<String, List<ReportingSet.Primitive.EventGroupKey>> =
+      try {
+        EventGroupReader(readContext)
+          .getByCmmsEventGroupIds(measurementConsumerId, cmmsEventGroupIds)
+          .map { result ->
+            ReportingSetKt.PrimitiveKt.eventGroupKey {
+              cmmsDataProviderId = result.cmmsDataProviderId
+              cmmsEventGroupId = result.cmmsEventGroupId
+            }
+          }
+          .toList()
+          .groupBy { it.cmmsEventGroupId }
+      } finally {
+        readContext.close()
+      }
+    return components.map { component ->
+      resolveComponentMembership(
+        component.cmmsDataProviderId,
+        component.cmmsEventGroupIds,
+        eventGroupKeysById,
+      )
+    }
+  }
+
   private fun resolveComponentMembership(
     cmmsDataProviderId: String,
     cmmsEventGroupIds: List<String>,
-    campaignGroupEventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
+    eventGroupKeysById: Map<String, List<ReportingSet.Primitive.EventGroupKey>>,
   ): ComponentMembershipResolution {
     if (cmmsEventGroupIds.isEmpty()) {
       return ComponentMembershipResolution(null, "it has no EventGroups")
@@ -441,37 +536,24 @@ class BasicReportReportingSetBackfiller(
 
     val membership = mutableSetOf<ReportingSet.Primitive.EventGroupKey>()
     for (cmmsEventGroupId in cmmsEventGroupIds) {
-      if (cmmsDataProviderId.isNotEmpty()) {
-        membership +=
-          ReportingSetKt.PrimitiveKt.eventGroupKey {
-            this.cmmsDataProviderId = cmmsDataProviderId
-            this.cmmsEventGroupId = cmmsEventGroupId
-          }
-        continue
-      }
-
       val matchingEventGroupKeys: List<ReportingSet.Primitive.EventGroupKey> =
-        campaignGroupEventGroupKeys.filter { it.cmmsEventGroupId == cmmsEventGroupId }
+        eventGroupKeysById[cmmsEventGroupId].orEmpty().filter {
+          cmmsDataProviderId.isEmpty() || it.cmmsDataProviderId == cmmsDataProviderId
+        }
       if (matchingEventGroupKeys.size != 1) {
         val reason =
           if (matchingEventGroupKeys.isEmpty()) {
-            "EventGroup $cmmsEventGroupId is not in the Campaign Group universe"
+            if (cmmsDataProviderId.isEmpty()) {
+              "EventGroup $cmmsEventGroupId is not known to the MeasurementConsumer"
+            } else {
+              "EventGroup $cmmsEventGroupId is not known for DataProvider $cmmsDataProviderId"
+            }
           } else {
-            "EventGroup $cmmsEventGroupId belongs to multiple DataProviders in the Campaign " +
-              "Group universe"
+            "EventGroup $cmmsEventGroupId belongs to multiple DataProviders"
           }
         return ComponentMembershipResolution(null, reason)
       }
       membership += matchingEventGroupKeys.single()
-    }
-
-    val eventGroupKeysOutsideCampaignGroup: Set<ReportingSet.Primitive.EventGroupKey> =
-      membership - campaignGroupEventGroupKeys
-    if (eventGroupKeysOutsideCampaignGroup.isNotEmpty()) {
-      return ComponentMembershipResolution(
-        null,
-        "its EventGroups are not all in the Campaign Group universe",
-      )
     }
 
     return ComponentMembershipResolution(membership, null)
@@ -526,7 +608,9 @@ class BasicReportReportingSetBackfiller(
     ) {
       return CampaignGroupSource(
         originalKey = campaignGroupKey,
+        measurementConsumerId = reportingSetResult.measurementConsumerId,
         eventGroupKeys = reportingSet.primitive.eventGroupKeysList.toSet(),
+        requiresExactComponentMatch = false,
         reportingSetResult = null,
       )
     }
@@ -542,27 +626,31 @@ class BasicReportReportingSetBackfiller(
     }
     return CampaignGroupSource(
       originalKey = campaignGroupKey,
+      measurementConsumerId = reportingSetResult.measurementConsumerId,
       eventGroupKeys = reportingSet.primitive.eventGroupKeysList.toSet(),
+      requiresExactComponentMatch = true,
       reportingSetResult = reportingSetResult,
     )
   }
 
   private suspend fun materializeCampaignGroup(
-    source: CampaignGroupSource
+    source: CampaignGroupSource,
+    targetEventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
   ): CampaignGroupResolution {
     val effectiveCampaignGroup: EffectiveCampaignGroup =
       if (source.reportingSetResult == null) {
         EffectiveCampaignGroup(source.originalKey, null)
       } else {
-        migratePrimitiveCampaignGroup(source)
+        migratePrimitiveCampaignGroup(source, targetEventGroupKeys)
       }
-    return readCampaignGroupMembershipIndex(source, effectiveCampaignGroup)
+    return readCampaignGroupMembershipIndex(source, effectiveCampaignGroup, targetEventGroupKeys)
   }
 
   /** Indexes the Campaign Group's unfiltered primitive children by their EventGroup membership. */
   private suspend fun readCampaignGroupMembershipIndex(
     source: CampaignGroupSource,
     effectiveCampaignGroup: EffectiveCampaignGroup,
+    targetEventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
   ): CampaignGroupResolution {
     val readContext = postgresClient.readTransaction()
     val reportingSets: MutableList<ReportingSet> =
@@ -600,7 +688,7 @@ class BasicReportReportingSetBackfiller(
         )
     val campaignGroupEventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey> =
       campaignGroupReportingSet.primitive.eventGroupKeysList.toSet()
-    if (campaignGroupEventGroupKeys != source.eventGroupKeys) {
+    if (campaignGroupEventGroupKeys != targetEventGroupKeys) {
       throw CampaignGroupInvalidException(
         source.originalKey.cmmsMeasurementConsumerId,
         source.originalKey.externalCampaignGroupId,
@@ -620,11 +708,12 @@ class BasicReportReportingSetBackfiller(
   }
 
   private suspend fun migratePrimitiveCampaignGroup(
-    source: CampaignGroupSource
+    source: CampaignGroupSource,
+    targetEventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
   ): EffectiveCampaignGroup {
     val reportingSetResult: ReportingSetReader.Result = checkNotNull(source.reportingSetResult)
     val effectiveCampaignGroup: EffectiveCampaignGroup =
-      synthesizeCampaignGroup(source, reportingSetResult)
+      synthesizeCampaignGroup(source, reportingSetResult, targetEventGroupKeys)
     primitiveCampaignGroupsMigrated++
     logger.info {
       val prefix = if (dryRun) "[dry run] Would migrate" else "Migrated"
@@ -637,13 +726,14 @@ class BasicReportReportingSetBackfiller(
   private suspend fun synthesizeCampaignGroup(
     source: CampaignGroupSource,
     reportingSetResult: ReportingSetReader.Result,
+    targetEventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
   ): EffectiveCampaignGroup {
     val newExternalReportingSetId = "a${UUID.randomUUID()}"
     val synthesizedReportingSet = internalReportingSet {
       cmmsMeasurementConsumerId = source.originalKey.cmmsMeasurementConsumerId
       externalReportingSetId = newExternalReportingSetId
       externalCampaignGroupId = newExternalReportingSetId
-      primitive = ReportingSetKt.primitive { eventGroupKeys += source.eventGroupKeys }
+      primitive = ReportingSetKt.primitive { eventGroupKeys += targetEventGroupKeys }
     }
 
     val equivalentCampaignGroupReadContext = postgresClient.readTransaction()
@@ -652,7 +742,7 @@ class BasicReportReportingSetBackfiller(
         ReportingSetReader(equivalentCampaignGroupReadContext)
           .readCampaignGroupByEventGroups(
             reportingSetResult.measurementConsumerId,
-            source.eventGroupKeys,
+            targetEventGroupKeys,
           )
           ?.externalReportingSetId
       } finally {
