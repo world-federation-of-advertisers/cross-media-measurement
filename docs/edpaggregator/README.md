@@ -558,9 +558,10 @@ EventGroup sync service. It checks every EventGroup it can parse and reports
 each invalid record, including malformed advertiser resource names, unordered
 timestamps, missing campaign metadata, and invalid media types or entity keys.
 Empty files and parse failures are reported as file-level errors. A parse
-failure stops validation of that file; validation continues with any additional
-files. A successful run reports `PASS` and exits with status `0`; any error
-makes it exit nonzero. Do not upload the campaign file until it passes.
+failure reports how many EventGroups were successfully parsed before validation
+stopped for that file; validation continues with any additional files. A
+successful run reports `PASS` and exits with status `0`; any error makes it exit
+nonzero. Do not upload the campaign file until it passes.
 
 This local check cannot confirm that a `client_account_reference_id` has been
 linked by the operator or that the referenced advertiser exists in Halo. Confirm

@@ -21,6 +21,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupReader
+import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupReader.EmptyEventGroupFileException
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupValidator
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -60,12 +61,14 @@ class VerifyEventGroups : Callable<Int> {
   private suspend fun verify(file: File): Boolean {
     var eventGroupCount = 0
     var invalidEventGroupCount = 0
+    var readingEventGroups = false
     try {
       check(file.isFile) { "File does not exist or is not a regular file" }
       val absoluteFile = file.absoluteFile
       val eventGroups =
         EventGroupReader(FileSystemStorageClient(checkNotNull(absoluteFile.parentFile)))
           .read(absoluteFile.name)
+      readingEventGroups = true
       eventGroups.collect { eventGroup ->
         eventGroupCount++
         try {
@@ -79,8 +82,20 @@ class VerifyEventGroups : Callable<Int> {
       }
     } catch (e: CancellationException) {
       throw e
+    } catch (e: EmptyEventGroupFileException) {
+      System.err.println("FAIL: ${file.path}: ${e.message}")
+      return false
     } catch (e: Exception) {
-      System.err.println("FAIL: ${file.path}: ${e.message ?: e::class.java.simpleName}")
+      val detail = e.message ?: e::class.java.simpleName
+      if (readingEventGroups) {
+        val eventGroupLabel = if (eventGroupCount == 1) "EventGroup" else "EventGroups"
+        System.err.println(
+          "FAIL: ${file.path}: parse failure after $eventGroupCount successfully parsed " +
+            "$eventGroupLabel: $detail"
+        )
+      } else {
+        System.err.println("FAIL: ${file.path}: $detail")
+      }
       return false
     }
 

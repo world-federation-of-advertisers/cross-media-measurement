@@ -202,7 +202,7 @@ class VerifyEventGroupsMainTest {
 
     val subject = CommandLineTesting.assertThat(capturedOutput)
     subject.status().isEqualTo(1)
-    subject.err().contains("FAIL:")
+    subject.err().contains("parse failure after 0 successfully parsed EventGroups")
   }
 
   @Test
@@ -215,7 +215,39 @@ class VerifyEventGroupsMainTest {
 
     val subject = CommandLineTesting.assertThat(capturedOutput)
     subject.status().isEqualTo(1)
-    subject.err().contains("FAIL:")
+    subject.err().contains("parse failure after 0 successfully parsed EventGroups")
+  }
+
+  @Test
+  fun `main reports number of EventGroups parsed before JSON parse failure`() {
+    val file = temporaryFolder.newFile("event-groups.json")
+    val validEventGroupJson = JsonFormat.printer().print(VALID_EVENT_GROUP)
+    file.writeText("""{"eventGroups":[$validEventGroupJson,true]}""")
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(arrayOf("--event-groups-file", file.absolutePath), ::main)
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(1)
+    subject.err().contains("parse failure after 1 successfully parsed EventGroup")
+  }
+
+  @Test
+  fun `main reports number of EventGroups parsed before RecordIO parse failure`() {
+    val file = temporaryFolder.newFile("event-groups.binpb")
+    val validEventGroupBytes = VALID_EVENT_GROUP.toByteArray()
+    file.writeBytes(
+      "${validEventGroupBytes.size}\n".toByteArray() +
+        validEventGroupBytes +
+        "4\nbad!".toByteArray()
+    )
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(arrayOf("--event-groups-file", file.absolutePath), ::main)
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(1)
+    subject.err().contains("parse failure after 1 successfully parsed EventGroup")
   }
 
   @Test

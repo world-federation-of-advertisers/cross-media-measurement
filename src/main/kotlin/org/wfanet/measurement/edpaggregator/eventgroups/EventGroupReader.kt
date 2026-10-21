@@ -28,14 +28,18 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 
 /** Reads EventGroups from the JSON and Mesos RecordIO formats accepted by EDPA. */
 class EventGroupReader(private val storageClient: ConditionalOperationStorageClient) {
+  /** Thrown when an EventGroup file is well-formed but contains no EventGroups. */
+  class EmptyEventGroupFileException :
+    IllegalStateException("Uploads with zero event groups are not supported.")
+
   /**
    * Reads EventGroups from [blobKey].
    *
    * JSON files must contain an `event_groups` or `eventGroups` array. Binary protobuf files must
    * use Mesos RecordIO framing and the `.binpb` extension.
    *
-   * @throws IllegalStateException if the format is unsupported, the blob is missing, or it contains
-   *   no EventGroups
+   * @throws IllegalStateException if the format is unsupported or the blob is missing
+   * @throws EmptyEventGroupFileException if the file contains no EventGroups
    */
   fun read(blobKey: String): Flow<EventGroup> {
     return when {
@@ -54,7 +58,9 @@ class EventGroupReader(private val storageClient: ConditionalOperationStorageCli
       emit(EventGroup.parseFrom(bytes))
       count++
     }
-    check(count > 0) { "Uploads with zero event groups are not supported." }
+    if (count == 0) {
+      throw EmptyEventGroupFileException()
+    }
   }
 
   private fun readJson(blobKey: String): Flow<EventGroup> = flow {
@@ -83,7 +89,9 @@ class EventGroupReader(private val storageClient: ConditionalOperationStorageCli
       }
       jsonReader.endObject()
     }
-    check(count > 0) { "Uploads with zero event groups are not supported." }
+    if (count == 0) {
+      throw EmptyEventGroupFileException()
+    }
   }
 
   private companion object {
