@@ -7,10 +7,11 @@ not checked in.
 
 ## If you change this generator
 
-The specs are seeded into an environment once, not per test run, and
-`EdpAggregatorReportingIntegrationTest` refuses to run against a stale dataset:
-it compares `HighOverlapDataset.fingerprint(config, populationSpec)` against the
-`spec_fingerprint` in the seeded manifest blob and fails if they differ.
+The dataset is seeded into an environment once, not per test run, by
+`SeedHighOverlapDataset`. `EdpAggregatorReportingIntegrationTest` refuses to run
+against a stale dataset: it compares the fingerprint of the generated specs
+against the `spec_fingerprint` in the seeded manifest blob and fails if they
+differ.
 
 So after changing the generator, **re-seed every environment that runs the
 reporting integration test**, or it will fail with
