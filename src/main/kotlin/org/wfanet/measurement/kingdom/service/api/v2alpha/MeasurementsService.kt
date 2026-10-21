@@ -847,6 +847,8 @@ class MeasurementsService(
 }
 
 /** Rejects a multimeasurement, which the Kingdom does not support yet. */
+// TODO(world-federation-of-advertisers/cross-media-measurement#4532): Validate and create a
+//   multimeasurement, fanning it out to one Requisition per vector, once its Kingdom support lands.
 private fun Measurement.requireNotMultimeasurement() {
   if (hasUnsignedMeasurementSpec() || hasMultimeasurement()) {
     failGrpc(Status.UNIMPLEMENTED) { "Multimeasurements are not supported" }
