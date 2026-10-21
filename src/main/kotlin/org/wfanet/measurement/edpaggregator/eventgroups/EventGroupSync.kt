@@ -360,7 +360,7 @@ class EventGroupSync(
             }
           }
           try {
-            validateDeletedEventGroup(eventGroup)
+            EventGroupValidator.validate(eventGroup)
           } catch (e: Exception) {
             logger.log(Level.SEVERE, e) {
               "Skipping deleted Event Group ${eventGroup.eventGroupReferenceId}" +
@@ -391,7 +391,7 @@ class EventGroupSync(
         }
 
         try {
-          validateEventGroup(eventGroup)
+          EventGroupValidator.validate(eventGroup)
         } catch (e: Exception) {
           logger.log(Level.SEVERE, e) {
             "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
@@ -1400,46 +1400,5 @@ class EventGroupSync(
       )
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    /*
-     * Validates that event groups fields are populated
-     * Throws exceptions for any invalid fields.
-     */
-    fun validateEventGroup(eventGroup: EventGroup) {
-      check(eventGroup.mediaTypesList.size > 0) { "At least one media type must be set" }
-      check(eventGroup.hasDataAvailabilityInterval()) { "Data availability must be set" }
-      check(eventGroup.hasEventGroupMetadata()) { "Event Group Metadata must be set" }
-      check(
-        eventGroup.eventGroupReferenceId.isNotBlank() ||
-          (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank())
-      ) {
-        "Either Event Group Reference Id or Entity Key with entity ID must be set"
-      }
-      if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
-        check(eventGroup.entityKey.entityType.isNotBlank()) {
-          "EventGroup.entity_key.entity_type must be non-blank when entity_id is set"
-        }
-      }
-      if (eventGroup.measurementConsumer.isNotBlank()) {
-        val mcKey = MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)
-        check(mcKey != null && mcKey.measurementConsumerId.isNotBlank()) {
-          "Malformed measurement_consumer: ${eventGroup.measurementConsumer}"
-        }
-      } else {
-        check(eventGroup.clientAccountReferenceId.isNotEmpty()) {
-          "Either Measurement Consumer or Client Account Reference ID must be set"
-        }
-      }
-    }
-
-    /** Validates minimum fields required to identify and delete an EventGroup. */
-    fun validateDeletedEventGroup(eventGroup: EventGroup) {
-      check(eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
-        "Entity Key with entity ID must be set for deleted Event Groups"
-      }
-      check(eventGroup.measurementConsumer.isNotBlank()) {
-        "Measurement Consumer must be set for deleted Event Groups"
-      }
-    }
   }
 }

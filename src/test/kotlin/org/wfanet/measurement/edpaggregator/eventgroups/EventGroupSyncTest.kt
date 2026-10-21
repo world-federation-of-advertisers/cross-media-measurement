@@ -1683,7 +1683,7 @@ class EventGroupSyncTest {
       }
       mediaTypes += emptyList<MediaType>()
     }
-    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+    assertFailsWith<IllegalStateException> { EventGroupValidator.validate(eventGroup) }
   }
 
   @Test
@@ -1705,7 +1705,7 @@ class EventGroupSyncTest {
       }
       mediaTypes += listOf(MediaType.OTHER)
     }
-    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+    assertFailsWith<IllegalStateException> { EventGroupValidator.validate(eventGroup) }
   }
 
   @Test
@@ -1723,7 +1723,7 @@ class EventGroupSyncTest {
       measurementConsumer = "measurement-consumer-2"
       mediaTypes += listOf(MediaType.OTHER)
     }
-    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+    assertFailsWith<IllegalStateException> { EventGroupValidator.validate(eventGroup) }
   }
 
   @Test
@@ -1737,7 +1737,7 @@ class EventGroupSyncTest {
       }
       mediaTypes += listOf(MediaType.OTHER)
     }
-    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+    assertFailsWith<IllegalStateException> { EventGroupValidator.validate(eventGroup) }
   }
 
   @Test
@@ -1758,7 +1758,7 @@ class EventGroupSyncTest {
       }
       mediaTypes += listOf(MediaType.OTHER)
     }
-    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+    assertFailsWith<IllegalStateException> { EventGroupValidator.validate(eventGroup) }
   }
 
   @Test
@@ -2729,7 +2729,7 @@ class EventGroupSyncTest {
         entityId = "eg-1"
       }
     }
-    EventGroupSync.validateDeletedEventGroup(eventGroup)
+    EventGroupValidator.validate(eventGroup)
   }
 
   @Test
@@ -2740,9 +2740,7 @@ class EventGroupSyncTest {
       state = State.DELETED
     }
     val exception =
-      assertFailsWith<IllegalStateException> {
-        EventGroupSync.validateDeletedEventGroup(eventGroup)
-      }
+      assertFailsWith<IllegalStateException> { EventGroupValidator.validate(eventGroup) }
     assertThat(exception.message)
       .contains("Entity Key with entity ID must be set for deleted Event Groups")
   }
@@ -2757,9 +2755,7 @@ class EventGroupSyncTest {
       }
     }
     val exception =
-      assertFailsWith<IllegalStateException> {
-        EventGroupSync.validateDeletedEventGroup(eventGroup)
-      }
+      assertFailsWith<IllegalStateException> { EventGroupValidator.validate(eventGroup) }
     assertThat(exception.message)
       .contains("Measurement Consumer must be set for deleted Event Groups")
   }
@@ -2775,9 +2771,7 @@ class EventGroupSyncTest {
       }
     }
     val exception =
-      assertFailsWith<IllegalStateException> {
-        EventGroupSync.validateDeletedEventGroup(eventGroup)
-      }
+      assertFailsWith<IllegalStateException> { EventGroupValidator.validate(eventGroup) }
     assertThat(exception.message)
       .contains("Measurement Consumer must be set for deleted Event Groups")
   }
@@ -2803,7 +2797,7 @@ class EventGroupSyncTest {
     }
 
     // Should not throw an exception
-    EventGroupSync.validateEventGroup(eventGroup)
+    EventGroupValidator.validate(eventGroup)
   }
 
   @Test
@@ -2826,7 +2820,7 @@ class EventGroupSyncTest {
     }
 
     val exception =
-      assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+      assertFailsWith<IllegalStateException> { EventGroupValidator.validate(eventGroup) }
     assertThat(exception.message)
       .contains("Either Measurement Consumer or Client Account Reference ID must be set")
   }
@@ -3276,7 +3270,7 @@ class EventGroupSyncTest {
     }
 
     val exception =
-      assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
+      assertFailsWith<IllegalStateException> { EventGroupValidator.validate(eventGroup) }
     assertThat(exception.message).contains("Malformed measurement_consumer")
   }
 
@@ -4862,10 +4856,13 @@ class EventGroupSyncTest {
   @Test
   fun `sync captures unlinked account with no entity_metadata when the EventGroup has none`() {
     val unlinkedEventGroup = eventGroup {
-      eventGroupReferenceId = "reference-id-no-brand"
+      eventGroupReferenceId = "reference-id-no-entity-metadata"
       this.eventGroupMetadata = eventGroupMetadata {
         this.adMetadata = adMetadata {
-          this.campaignMetadata = campaignMetadata { campaign = "campaign-no-brand" }
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-no-entity-metadata"
+            campaign = "campaign-no-entity-metadata"
+          }
         }
       }
       clientAccountReferenceId = "client-ref-nonexistent"
@@ -4895,7 +4892,7 @@ class EventGroupSyncTest {
     val account = createCaptor.firstValue.requestsList.single().unlinkedClientAccount
     assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-nonexistent")
     assertThat(account.hasEntityMetadata()).isFalse()
-    assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-no-brand")
+    assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-no-entity-metadata")
   }
 
   @Test
