@@ -37,7 +37,7 @@ resource "google_bigquery_table" "impressions" {
   }
 
   # model_line first: re-seeding deletes by it.
-  clustering = ["model_line", "edp_name"]
+  clustering = ["model_line", "edp_name", "cmms_event_group_reference_id"]
 
   schema = <<EOF
 [
@@ -59,9 +59,10 @@ resource "google_bigquery_table" "impressions" {
     "mode": "REQUIRED"
   },
   {
-    "name": "event_group_reference_id",
+    "name": "logical_group",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "REQUIRED",
+    "description": "Grouping label from the config, shared by every entity key under it"
   },
   {
     "name": "entity_type",
@@ -72,6 +73,12 @@ resource "google_bigquery_table" "impressions" {
     "name": "entity_id",
     "type": "STRING",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "cmms_event_group_reference_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "EventGroup reference ID as registered with the Kingdom"
   },
   {
     "name": "vid",

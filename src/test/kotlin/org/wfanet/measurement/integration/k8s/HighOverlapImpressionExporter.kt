@@ -86,7 +86,7 @@ class HighOverlapImpressionExporter(
 
   fun add(
     edpName: String,
-    eventGroupReferenceId: String,
+    logicalGroup: String,
     entityKey: EntityKey,
     event: LabeledEvent<TestEvent>,
   ) {
@@ -94,9 +94,10 @@ class HighOverlapImpressionExporter(
       modelLine = this@HighOverlapImpressionExporter.modelLine
       specFingerprint = this@HighOverlapImpressionExporter.specFingerprint
       this.edpName = edpName
-      this.eventGroupReferenceId = eventGroupReferenceId
+      this.logicalGroup = logicalGroup
       entityType = entityKey.entityType
       entityId = entityKey.entityId
+      cmmsEventGroupReferenceId = "${entityKey.entityType}-${entityKey.entityId}"
       vid = event.vid
       eventTime = event.timestamp.epochSecond * MICROS_PER_SECOND + event.timestamp.nano / 1_000
       gender = event.message.common.gender.name

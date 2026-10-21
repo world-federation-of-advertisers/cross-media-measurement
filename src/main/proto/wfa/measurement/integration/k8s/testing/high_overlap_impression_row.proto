@@ -33,11 +33,16 @@ message HighOverlapImpressionRow {
 
   string edp_name = 3;
 
-  string event_group_reference_id = 4;
+  // Grouping label from the config, shared by every entity key under it.
+  string logical_group = 4;
 
   string entity_type = 5;
 
   string entity_id = 6;
+
+  // EventGroup reference ID as registered with the Kingdom, which is
+  // `${entity_type}-${entity_id}`.
+  string cmms_event_group_reference_id = 16;
 
   int64 vid = 7;
 
