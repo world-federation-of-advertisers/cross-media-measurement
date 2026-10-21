@@ -235,8 +235,12 @@ under an impressions date directory, signaling that a day's impressions and meta
 have finished uploading. It locates the directory, scans metadata (including
 subfolders), records impression availability in the Metadata Storage database, and
 notifies the Kingdom that impressions for that day are available.
+When `event_group_activity_publishing` is configured, the same sync also derives
+positive EventGroup activity from the finalized metadata and appends it in the Kingdom.
 
 Config: [`DataAvailabilitySyncConfigs`](#dataavailabilitysync-config-dataavailabilitysyncconfigs).
+For historical replay or EventGroup activity backfill, see
+[Replay DataAvailabilitySync](../gke/replay-data-availability-sync.md).
 
 ### DataAvailabilityCleanup
 
@@ -1051,8 +1055,48 @@ configs {
   edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"   # optional today; required in a future release
   # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
+  # event_group_activity_publishing {
+  #   market_time_zone { id: "America/New_York" }
+  #   event_group_map_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb"
+  #   event_group_map_storage {
+  #     gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" }
+  #   }
+  # }
 }
 ```
+
+`event_group_activity_publishing` is optional. When present, `DataAvailabilitySync`:
+
+* reads the Mesos RecordIO `MappedEventGroup` output produced by `EventGroupSync`;
+* joins every entity key in finalized impression metadata to all EventGroups mapped to that key;
+* converts each metadata interval to every inclusive calendar date that it touches in
+  `market_time_zone`; and
+* appends the resulting `EventGroupActivity` resources without deleting historical activity.
+
+Set `market_time_zone.id` to an IANA Time Zone Database identifier. `UTC` is valid, as are regional
+identifiers such as `America/New_York`. Use the market's calendar time zone so intervals that cross
+a UTC date boundary are attributed to the market dates they touch. Both endpoint dates are included
+intentionally, favoring over-reporting over omitting a potentially active date.
+
+The map join uses entity keys only. A key may map to multiple EventGroups, and keys at any entity
+hierarchy level are eligible. Legacy EventGroup reference-ID-only map records are ignored. Keep the
+map current: missing map keys and stale EventGroup resources are skipped, logged, and counted by
+these metrics, all with a `data_provider_name` attribute:
+
+* `edpa.event_group_activity.map_records_missing_entity_key`
+* `edpa.event_group_activity.unmapped_entity_keys`
+* `edpa.event_group_activity.event_groups_not_found`
+
+After correcting a missing or stale mapping, use
+[Replay DataAvailabilitySync](../gke/replay-data-availability-sync.md) in
+`EVENT_GROUP_ACTIVITY_ONLY` mode for the affected completion blobs. This mode reads only active
+ImpressionMetadata and does not rewrite metadata or data availability. Publishing is idempotent, so
+republishing an EventGroup/date pair does not create a duplicate.
+
+For targeted corrections, `SyncEventGroupActivities` PATCH mode can explicitly append or delete
+dates. Do not use its SYNC mode for the same DataProvider: SYNC treats its input as authoritative
+and can delete activity appended by `DataAvailabilitySync`. See
+[the EventGroupActivity Sync guide](../gke/sync-event-group-activities-deployment.md).
 
 ### DataAvailabilityMonitor config (`DataAvailabilityMonitorConfigs`)
 
