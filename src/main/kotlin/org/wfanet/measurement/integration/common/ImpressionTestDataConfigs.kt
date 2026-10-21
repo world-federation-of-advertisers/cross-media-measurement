@@ -74,7 +74,7 @@ object ImpressionTestDataConfigs {
           is EventGroupConfig.MultiEntityKey ->
             config.entityKeySpecs.map { entityKeySpec ->
               "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}" to
-                EventGroupConfig.MultiEntityKey(listOf(entityKeySpec))
+                config.copy(entityKeySpecs = listOf(entityKeySpec))
             }
         }
       }
@@ -92,7 +92,8 @@ object ImpressionTestDataConfigs {
             spec = resolveSyntheticEventGroupSpec(eksProto.dataSpecResourcePath),
             entityMetadata = if (eg.hasEntityMetadata()) eg.entityMetadata else null,
           )
-        }
+        },
+        legacyEndDate = null,
       )
     }
   }

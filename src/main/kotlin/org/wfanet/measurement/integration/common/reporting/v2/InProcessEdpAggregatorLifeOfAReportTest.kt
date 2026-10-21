@@ -64,6 +64,8 @@ import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -80,6 +82,7 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
@@ -112,12 +115,11 @@ import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.EntityKeySpec
 import org.wfanet.measurement.integration.common.EventGroupConfig
-import org.wfanet.measurement.integration.common.EventGroupIdentifierForm
 import org.wfanet.measurement.integration.common.FULFILLER_TOPIC_ID
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.InProcessEdpAggregatorComponents
-import org.wfanet.measurement.integration.common.MixedIdentifierHistory
+import org.wfanet.measurement.integration.common.LegacyEndDate
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.PROJECT_ID
 import org.wfanet.measurement.integration.common.SUBSCRIPTION_ID
@@ -263,7 +265,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             ),
           "multi-creative" to
             EventGroupConfig.MultiEntityKey(
@@ -279,63 +282,34 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   ),
-                )
+                ),
+              legacyEndDate = null,
             ),
         ) +
           if (mixedIdentifierHistoryEnabled) {
-            mapOf(
-              MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID to
-                EventGroupConfig.MultiEntityKey(
-                  entityKeySpecs =
-                    listOf(
-                      EntityKeySpec(
-                        EntityKey("campaign", MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID),
-                        syntheticEventGroupSpec2,
-                        entityMetadata = null,
-                      )
-                    ),
-                  eventGroupIdentifierForm = EventGroupIdentifierForm.REFERENCE_ID_ONLY,
-                  mixedIdentifierHistory =
-                    MixedIdentifierHistory(
-                      entityKey = EntityKey("campaign", MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID),
-                      entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
-                    ),
-                ),
-              MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID to
-                EventGroupConfig.MultiEntityKey(
-                  entityKeySpecs =
-                    listOf(
-                      EntityKeySpec(
-                        EntityKey("campaign", MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID),
-                        syntheticEventGroupSpec2,
-                        ENTITY_METADATA,
-                      )
-                    ),
-                  eventGroupIdentifierForm = EventGroupIdentifierForm.ENTITY_KEY_ONLY,
-                  mixedIdentifierHistory =
-                    MixedIdentifierHistory(
-                      entityKey = EntityKey("campaign", MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID),
-                      entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
-                    ),
-                ),
-              MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID to
-                EventGroupConfig.MultiEntityKey(
-                  entityKeySpecs =
-                    listOf(
-                      EntityKeySpec(
-                        EntityKey("campaign", MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID),
-                        syntheticEventGroupSpec2,
-                        ENTITY_METADATA,
-                      )
-                    ),
-                  eventGroupIdentifierForm = EventGroupIdentifierForm.REFERENCE_ID_AND_ENTITY_KEY,
-                  mixedIdentifierHistory =
-                    MixedIdentifierHistory(
-                      entityKey = EntityKey("campaign", MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID),
-                      entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
-                    ),
-                ),
-            )
+            listOf(
+                MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID,
+                MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID,
+                MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID,
+              )
+              .associate { entityId ->
+                "campaign/$entityId" to
+                  EventGroupConfig.MultiEntityKey(
+                    entityKeySpecs =
+                      listOf(
+                        EntityKeySpec(
+                          EntityKey("campaign", entityId),
+                          syntheticEventGroupSpec2,
+                          ENTITY_METADATA,
+                        )
+                      ),
+                    legacyEndDate =
+                      LegacyEndDate(
+                        date = MIXED_HISTORY_LEGACY_END_DATE,
+                        legacySpec = EventGroupConfig.LegacySpec(syntheticEventGroupSpec2),
+                      ),
+                  )
+              }
           } else {
             emptyMap()
           }),
@@ -350,7 +324,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     syntheticEventGroupSpec1,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             ),
           EDP2_CREATIVE_EVENT_GROUP_REF_ID to
             EventGroupConfig.MultiEntityKey(
@@ -361,7 +336,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     syntheticEventGroupSpec1,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             ),
           "campaign/$SPARSE_FREQUENCY_EVENT_GROUP_REF_ID" to
             EventGroupConfig.MultiEntityKey(
@@ -372,7 +348,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     sparseFrequencyEventGroupSpec,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             ),
         ),
       "edp3" to
@@ -386,7 +363,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             )
         ),
       AD_GROUP_EDP_DISPLAY_NAME to
@@ -400,7 +378,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     syntheticEventGroupSpec1,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             )
         ),
     )
@@ -1197,6 +1176,13 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   ): List<CmmsEventGroup> =
     inProcessEdpAggregatorComponents.listCmmsEventGroups(edpAggregatorShortName, entityTypes)
 
+  protected suspend fun updateCmmsEventGroup(eventGroup: CmmsEventGroup): CmmsEventGroup {
+    val key = requireNotNull(EventGroupKey.fromName(eventGroup.name))
+    return EventGroupsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(key.parentKey.toName())
+      .updateEventGroup(updateEventGroupRequest { this.eventGroup = eventGroup })
+  }
+
   protected suspend fun listReportingEventGroups(): List<EventGroup> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     return reportingEventGroupsClient
@@ -1473,7 +1459,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID,
       )
     // Splits inside the BasicReport interval so both identifier formats are required.
-    private val MIXED_HISTORY_ENTITY_KEY_START_DATE = LocalDate.of(2021, 3, 17)
+    private val MIXED_HISTORY_LEGACY_END_DATE = LocalDate.of(2021, 3, 17)
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(

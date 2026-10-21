@@ -131,7 +131,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             ),
           "multi-creative" to
             EventGroupConfig.MultiEntityKey(
@@ -147,7 +148,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   ),
-                )
+                ),
+              legacyEndDate = null,
             ),
         ),
       "edp3" to
@@ -161,7 +163,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             )
         ),
       "edp4" to
@@ -175,7 +178,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             )
         ),
     )
@@ -189,7 +193,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           is EventGroupConfig.MultiEntityKey ->
             config.entityKeySpecs.map { spec ->
               "${spec.entityKey.entityType}/${spec.entityKey.entityId}" to
-                EventGroupConfig.MultiEntityKey(entityKeySpecs = listOf(spec))
+                config.copy(entityKeySpecs = listOf(spec))
             }
         }
       }

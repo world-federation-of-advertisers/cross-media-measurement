@@ -29,45 +29,21 @@ data class EntityKeySpec(
   val entityMetadata: Struct? = null,
 )
 
-/** Identifiers populated on an EventGroup configured by [EventGroupConfig.MultiEntityKey]. */
-enum class EventGroupIdentifierForm {
-  REFERENCE_ID_ONLY,
-  ENTITY_KEY_ONLY,
-  REFERENCE_ID_AND_ENTITY_KEY,
-}
-
-/**
- * Test fixture for an EventGroup whose older impressions use a reference ID and whose newer
- * impressions use an entity key.
- *
- * @property entityKey entity key equivalent to the EventGroup config's reference ID.
- * @property entityKeyStartDate first date written with [entityKey]; earlier dates use the
- *   event-group reference ID.
- */
-data class MixedIdentifierHistory(val entityKey: EntityKey, val entityKeyStartDate: LocalDate)
+/** Reference-only data generated from [legacySpec] before the exclusive end [date]. */
+data class LegacyEndDate(val date: LocalDate, val legacySpec: EventGroupConfig.LegacySpec)
 
 /**
  * Per-EventGroup configuration for the EDPA-side data generation, entity key registration, and blob
  * contents, keyed in [InProcessEdpAggregatorComponents] by `(edpAggregatorShortName,
  * eventGroupReferenceId)`.
  */
-sealed class EventGroupConfig(open val mixedIdentifierHistory: MixedIdentifierHistory?) {
+sealed class EventGroupConfig {
 
-  data class LegacySpec(val spec: SyntheticEventGroupSpec) :
-    EventGroupConfig(mixedIdentifierHistory = null)
+  data class LegacySpec(val spec: SyntheticEventGroupSpec) : EventGroupConfig()
 
+  /** Entity-key data, optionally preceded by reference-only data ending at [legacyEndDate]. */
   data class MultiEntityKey(
     val entityKeySpecs: List<EntityKeySpec>,
-    val eventGroupIdentifierForm: EventGroupIdentifierForm =
-      EventGroupIdentifierForm.REFERENCE_ID_AND_ENTITY_KEY,
-    override val mixedIdentifierHistory: MixedIdentifierHistory? = null,
-  ) : EventGroupConfig(mixedIdentifierHistory) {
-    init {
-      if (mixedIdentifierHistory != null) {
-        require(entityKeySpecs.single().entityKey == mixedIdentifierHistory.entityKey) {
-          "Mixed identifier history must use the MultiEntityKey EventGroup's entity key"
-        }
-      }
-    }
-  }
+    val legacyEndDate: LegacyEndDate?,
+  ) : EventGroupConfig()
 }

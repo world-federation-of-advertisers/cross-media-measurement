@@ -20,6 +20,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
@@ -64,7 +65,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
 
   @Test
   fun `reports match across mixed impression identifier history`() = runBlocking {
-    val eventGroups = listReportingEventGroups()
+    val eventGroups = prepareMixedHistoryEventGroups()
     val referenceIdOnlyEventGroup =
       eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID }
     val entityKeyOnlyEventGroup =
@@ -113,7 +114,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
   @Test
   fun `basic report with dual and entity-key-only event groups in one requisition succeeds`() =
     runBlocking {
-      val eventGroups = listReportingEventGroups()
+      val eventGroups = prepareMixedHistoryEventGroups()
       val entityKeyOnlyEventGroup =
         eventGroups.single { it.entityKey.entityId == MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID }
       val dualIdentifierEventGroup =
@@ -137,6 +138,17 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       )
       assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
     }
+
+  private suspend fun prepareMixedHistoryEventGroups(): List<EventGroup> {
+    val eventGroups = listCmmsEventGroups("edp1", listOf("campaign"))
+    val referenceIdOnlyEventGroup =
+      eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID }
+    val entityKeyOnlyEventGroup =
+      eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID }
+    updateCmmsEventGroup(referenceIdOnlyEventGroup.copy { clearEntityKey() })
+    updateCmmsEventGroup(entityKeyOnlyEventGroup.copy { eventGroupReferenceId = "" })
+    return listReportingEventGroups()
+  }
 
   @Test
   fun `basic report with reference-id-only event groups succeeds`() = runBlocking {

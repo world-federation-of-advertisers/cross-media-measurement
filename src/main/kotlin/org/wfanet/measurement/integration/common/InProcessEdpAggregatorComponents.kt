@@ -380,17 +380,13 @@ class InProcessEdpAggregatorComponents(
       val originalRefIdByDerivedRefId: Map<String, String> =
         originalConfigs
           .flatMap { (originalRefId, config) ->
-            if (config.mixedIdentifierHistory != null) {
-              emptyList()
-            } else {
-              when (config) {
-                is EventGroupConfig.LegacySpec -> listOf(originalRefId to originalRefId)
-                is EventGroupConfig.MultiEntityKey ->
-                  config.entityKeySpecs.map { entityKeySpec ->
-                    "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}" to
-                      originalRefId
-                  }
-              }
+            when (config) {
+              is EventGroupConfig.LegacySpec -> listOf(originalRefId to originalRefId)
+              is EventGroupConfig.MultiEntityKey ->
+                config.entityKeySpecs.map { entityKeySpec ->
+                  "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}" to
+                    originalRefId
+                }
             }
           }
           .toMap()
@@ -398,60 +394,6 @@ class InProcessEdpAggregatorComponents(
       // Create impression metadata in a single pass over mapped event groups.
       val processedOriginalRefIds = mutableSetOf<String>()
       val impressionsMetadataBucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
-      originalConfigs
-        .filterValues { it.mixedIdentifierHistory != null }
-        .forEach { (referenceId, config) ->
-          val mixedIdentifierHistory = checkNotNull(config.mixedIdentifierHistory)
-          val spec =
-            when (config) {
-              is EventGroupConfig.LegacySpec -> config.spec
-              is EventGroupConfig.MultiEntityKey -> config.entityKeySpecs.single().spec
-            }
-          val allDates: List<LocalDate> =
-            SyntheticDataGeneration.generateEvents(
-                TestEvent.getDefaultInstance(),
-                populationSpec,
-                spec,
-              )
-              .map { it.localDate }
-              .toList()
-          val startDate = allDates.min()
-          val endExclusive = allDates.max().plusDays(1)
-          require(
-            mixedIdentifierHistory.entityKeyStartDate > startDate &&
-              mixedIdentifierHistory.entityKeyStartDate < endExclusive
-          ) {
-            "Entity key start date ${mixedIdentifierHistory.entityKeyStartDate} for $referenceId " +
-              "must be after $startDate and before $endExclusive"
-          }
-          val eventGroupPath = "model-line/$modelLineName/event-group-reference-id/$referenceId"
-          val entityKeys =
-            listOf(
-              entityKey {
-                entityType = mixedIdentifierHistory.entityKey.entityType
-                entityId = mixedIdentifierHistory.entityKey.entityId
-              }
-            )
-          val impressionsMetadata =
-            buildImpressionMetadataForDateRange(
-              startInclusive = startDate,
-              endExclusive = mixedIdentifierHistory.entityKeyStartDate,
-              eventGroupPath = eventGroupPath,
-              modelLine = modelLineName,
-              eventGroupReferenceId = referenceId,
-              impressionsMetadataBucket = impressionsMetadataBucket,
-            ) +
-              buildImpressionMetadataForDateRange(
-                startInclusive = mixedIdentifierHistory.entityKeyStartDate,
-                endExclusive = endExclusive,
-                eventGroupPath = eventGroupPath,
-                modelLine = modelLineName,
-                eventGroupReferenceId = "",
-                impressionsMetadataBucket = impressionsMetadataBucket,
-                entityKeys = entityKeys,
-              )
-          saveImpressionMetadata(impressionsMetadata, edpResourceName)
-        }
       mappedEventGroups.forEach { mappedEventGroup ->
         val mappedRefId = mappedEventGroup.eventGroupReferenceId
         val resolvedConfig = configByRefId[mappedRefId] ?: return@forEach
@@ -477,6 +419,33 @@ class InProcessEdpAggregatorComponents(
             val startDate = allDates.min()
             val endExclusive = allDates.max().plusDays(1)
             val eventGroupPath = "model-line/$modelLineName/event-group-reference-id/$originalRefId"
+            val legacyEndDate = originalConfig.legacyEndDate
+            val legacyMetadata: List<ImpressionMetadata> =
+              if (legacyEndDate == null) {
+                emptyList()
+              } else {
+                val legacyDates: List<LocalDate> =
+                  SyntheticDataGeneration.generateEvents(
+                      TestEvent.getDefaultInstance(),
+                      populationSpec,
+                      legacyEndDate.legacySpec.spec,
+                    )
+                    .map { it.localDate }
+                    .toList()
+                val legacyStartDate = legacyDates.min()
+                require(legacyEndDate.date > legacyStartDate && legacyEndDate.date < endExclusive) {
+                  "Legacy end date ${legacyEndDate.date} for $originalRefId must be after " +
+                    "$legacyStartDate and before $endExclusive"
+                }
+                buildImpressionMetadataForDateRange(
+                  startInclusive = legacyStartDate,
+                  endExclusive = minOf(legacyEndDate.date, legacyDates.max().plusDays(1)),
+                  eventGroupPath = eventGroupPath,
+                  modelLine = modelLineName,
+                  eventGroupReferenceId = originalRefId,
+                  impressionsMetadataBucket = impressionsMetadataBucket,
+                )
+              }
             val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.EntityKey> =
               originalConfig.entityKeySpecs.map { entityKeySpec ->
                 entityKey {
@@ -485,15 +454,16 @@ class InProcessEdpAggregatorComponents(
                 }
               }
             val impressionsMetadata: List<ImpressionMetadata> =
-              buildImpressionMetadataForDateRange(
-                startInclusive = startDate,
-                endExclusive = endExclusive,
-                eventGroupPath = eventGroupPath,
-                modelLine = modelLineName,
-                eventGroupReferenceId = originalRefId,
-                impressionsMetadataBucket = impressionsMetadataBucket,
-                entityKeys = entityKeys,
-              )
+              legacyMetadata +
+                buildImpressionMetadataForDateRange(
+                  startInclusive = maxOf(startDate, legacyEndDate?.date ?: startDate),
+                  endExclusive = endExclusive,
+                  eventGroupPath = eventGroupPath,
+                  modelLine = modelLineName,
+                  eventGroupReferenceId = if (legacyEndDate == null) originalRefId else "",
+                  impressionsMetadataBucket = impressionsMetadataBucket,
+                  entityKeys = entityKeys,
+                )
             logger.info(
               "Storing impression metadata for edp: $edpResourceName (shared ref=$originalRefId)"
             )
@@ -634,20 +604,10 @@ class InProcessEdpAggregatorComponents(
           config.entityKeySpecs.flatMap { entityKeySpec ->
             buildEventGroupsForSpec(
               spec = entityKeySpec.spec,
-              entityKey =
-                entityKeySpec.entityKey.takeUnless {
-                  config.eventGroupIdentifierForm == EventGroupIdentifierForm.REFERENCE_ID_ONLY
-                },
+              entityKey = entityKeySpec.entityKey,
               eventGroupReferenceId =
-                if (config.eventGroupIdentifierForm == EventGroupIdentifierForm.ENTITY_KEY_ONLY) {
-                  ""
-                } else {
-                  "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
-                },
-              entityMetadata =
-                entityKeySpec.entityMetadata.takeUnless {
-                  config.eventGroupIdentifierForm == EventGroupIdentifierForm.REFERENCE_ID_ONLY
-                },
+                "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}",
+              entityMetadata = entityKeySpec.entityMetadata,
               measurementConsumerData = measurementConsumerData,
             )
           }
@@ -725,84 +685,45 @@ class InProcessEdpAggregatorComponents(
     // Write multi-entity-key configs as shared blobs under their original ref ID.
     val writtenMultiEntityKeyRefIds = mutableSetOf<String>()
     for ((refId, config) in originalConfigs) {
-      val mixedIdentifierHistory = config.mixedIdentifierHistory
-      if (mixedIdentifierHistory != null) {
-        val spec =
-          when (config) {
-            is EventGroupConfig.LegacySpec -> config.spec
-            is EventGroupConfig.MultiEntityKey -> config.entityKeySpecs.single().spec
-          }
-        val shards =
-          SyntheticDataGeneration.generateEvents(
-              TestEvent.getDefaultInstance(),
-              populationSpec,
-              spec,
-            )
-            .toList()
-        val eventGroupPath = "model-line/$modelLineName/event-group-reference-id/$refId"
-        val legacyEvents =
-          shards
-            .asSequence()
-            .filter { it.localDate < mixedIdentifierHistory.entityKeyStartDate }
-            .map { shard ->
-              EntityKeyedLabeledEventDateShard(
-                shard.localDate,
-                sequenceOf(EntityKeysWithLabeledEvents(emptyList(), shard.labeledEvents)),
-              )
-            }
-        ImpressionsWriter(
-            refId,
-            eventGroupPath,
-            kekUri,
-            kmsClient,
-            "$IMPRESSIONS_BUCKET-$edpAggregatorShortName",
-            "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
-            storagePath.toFile(),
-            "file:///",
-            includeEventGroupReferenceIdInImpressions = true,
-          )
-          .writeLabeledImpressionData(legacyEvents, modelLineName, null)
-
-        val entityKeyEvents =
-          shards
-            .asSequence()
-            .filter { it.localDate >= mixedIdentifierHistory.entityKeyStartDate }
-            .map { shard ->
-              EntityKeyedLabeledEventDateShard(
-                shard.localDate,
-                sequenceOf(
-                  EntityKeysWithLabeledEvents(
-                    listOf(mixedIdentifierHistory.entityKey),
-                    shard.labeledEvents,
-                  )
-                ),
-              )
-            }
-        ImpressionsWriter(
-            "",
-            eventGroupPath,
-            kekUri,
-            kmsClient,
-            "$IMPRESSIONS_BUCKET-$edpAggregatorShortName",
-            "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
-            storagePath.toFile(),
-            "file:///",
-            includeEventGroupReferenceIdInImpressions = false,
-          )
-          .writeLabeledImpressionData(entityKeyEvents, modelLineName, null)
-        continue
-      }
 
       when (config) {
         is EventGroupConfig.MultiEntityKey -> {
+          val legacyEndDate = config.legacyEndDate
           writtenMultiEntityKeyRefIds += refId
           config.entityKeySpecs.forEach { entityKeySpec ->
             writtenMultiEntityKeyRefIds +=
               "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
           }
+          if (legacyEndDate != null) {
+            val legacyEvents =
+              SyntheticDataGeneration.generateEvents(
+                  TestEvent.getDefaultInstance(),
+                  populationSpec,
+                  legacyEndDate.legacySpec.spec,
+                )
+                .filter { it.localDate < legacyEndDate.date }
+                .map { shard ->
+                  EntityKeyedLabeledEventDateShard(
+                    shard.localDate,
+                    sequenceOf(EntityKeysWithLabeledEvents(emptyList(), shard.labeledEvents)),
+                  )
+                }
+            ImpressionsWriter(
+                refId,
+                "model-line/$modelLineName/event-group-reference-id/$refId",
+                kekUri,
+                kmsClient,
+                "$IMPRESSIONS_BUCKET-$edpAggregatorShortName",
+                "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
+                storagePath.toFile(),
+                "file:///",
+                includeEventGroupReferenceIdInImpressions = true,
+              )
+              .writeLabeledImpressionData(legacyEvents, modelLineName, null)
+          }
           val impressionWriter =
             ImpressionsWriter(
-              refId,
+              if (legacyEndDate == null) refId else "",
               "model-line/$modelLineName/event-group-reference-id/$refId",
               kekUri,
               kmsClient,
@@ -822,6 +743,7 @@ class InProcessEdpAggregatorComponents(
                 entityKeySpec.spec,
               )
             for (shard in events) {
+              if (legacyEndDate != null && shard.localDate < legacyEndDate.date) continue
               shardsByDate
                 .getOrPut(shard.localDate) { mutableListOf() }
                 .add(
@@ -887,17 +809,13 @@ class InProcessEdpAggregatorComponents(
     return eventGroupConfigsByEdp
       .getValue(edpAggregatorShortName)
       .flatMap { (refId, config) ->
-        if (config.mixedIdentifierHistory != null) {
-          emptyList()
-        } else {
-          when (config) {
-            is EventGroupConfig.LegacySpec -> listOf(refId to config)
-            is EventGroupConfig.MultiEntityKey ->
-              config.entityKeySpecs.map { entityKeySpec ->
-                "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}" to
-                  EventGroupConfig.MultiEntityKey(entityKeySpecs = listOf(entityKeySpec))
-              }
-          }
+        when (config) {
+          is EventGroupConfig.LegacySpec -> listOf(refId to config)
+          is EventGroupConfig.MultiEntityKey ->
+            config.entityKeySpecs.map { entityKeySpec ->
+              "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}" to
+                config.copy(entityKeySpecs = listOf(entityKeySpec))
+            }
         }
       }
       .toMap()
