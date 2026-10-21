@@ -21,6 +21,7 @@ from qpsolvers import Problem
 from qpsolvers import Solution
 from qpsolvers import solve_problem
 
+from noiseninja import noise_correction_value_logging
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
@@ -72,7 +73,7 @@ class Solver:
   def _init_base_value(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     mean_measurement_by_variable: dict[int, float] = {}
-    for measured_set in set_measurement_spec.all_sets():
+    for measured_set in sorted(set_measurement_spec.all_sets()):
       mean_measurement_by_variable[
         variable_index_by_set_id[measured_set]] = (
           sum(v.value
@@ -82,7 +83,11 @@ class Solver:
     self.base_value = np.array(list(
         (mean_measurement_by_variable[i]
          for i in range(0, self.num_variables))))
-    logging.debug(f"The base values are {self.base_value}.")
+    if noise_correction_value_logging.is_enabled():
+      logging.debug(f"The base values are {self.base_value}.")
+    else:
+      logging.debug(
+          "Initialized the solver base vector with %d values.", self.num_variables)
 
   def _add_measurement_targets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
@@ -103,7 +108,7 @@ class Solver:
     int, int]:
     variable_index_by_set_id: dict[int, int] = {}
     num_variables = 0
-    for measured_set in set_measurement_spec.all_sets():
+    for measured_set in sorted(set_measurement_spec.all_sets()):
       variable_index_by_set_id[measured_set] = num_variables
       num_variables += 1
     return variable_index_by_set_id
@@ -123,7 +128,10 @@ class Solver:
   def _add_equals(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding equal set constraints.")
-    for equal_set in set_measurement_spec.get_equal_sets():
+    for equal_set in sorted(
+        set_measurement_spec.get_equal_sets(),
+        key=lambda relation: (relation[0], tuple(sorted(relation[1]))),
+    ):
       variables = np.zeros(self.num_variables)
       variables[variable_index_by_set_id[equal_set[0]]] = 1
       variables.put([variable_index_by_set_id[i] for i in equal_set[1]], -1)
@@ -133,7 +141,9 @@ class Solver:
       set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding weighted sum upperbound constraints.")
-    for key, value in set_measurement_spec.get_weighted_sum_upperbound_sets().items():
+    for key, value in sorted(
+        set_measurement_spec.get_weighted_sum_upperbound_sets().items()
+    ):
       variables = np.zeros(self.num_variables)
       variables[variable_index_by_set_id[key]] = -1
       for entry in value:
@@ -143,8 +153,8 @@ class Solver:
   def _add_subsets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding subset constraints.")
-    for measured_set in set_measurement_spec.all_sets():
-      for subset in set(set_measurement_spec.get_subsets(measured_set)):
+    for measured_set in sorted(set_measurement_spec.all_sets()):
+      for subset in sorted(set(set_measurement_spec.get_subsets(measured_set))):
         self._add_parent_gt_child_term(
             variable_index_by_set_id[measured_set],
             variable_index_by_set_id[subset])
@@ -152,7 +162,13 @@ class Solver:
   def _add_ordered_sets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding ordered sets constraints.")
-    ordered_sets: list[OrderedSets] = set_measurement_spec.get_ordered_sets()
+    ordered_sets: list[OrderedSets] = sorted(
+        set_measurement_spec.get_ordered_sets(),
+        key=lambda pair: (
+            tuple(sorted(pair.larger_set)),
+            tuple(sorted(pair.smaller_set)),
+        ),
+    )
     for i, ordered_pair in enumerate(ordered_sets):
       if len(ordered_pair.larger_set) == 0 or len(
           ordered_pair.smaller_set) == 0:
@@ -177,8 +193,11 @@ class Solver:
   def _add_covers(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
     logging.info("Adding cover set constraints.")
-    for measured_set in set_measurement_spec.all_sets():
-      for cover in set_measurement_spec.get_covers_of_set(measured_set):
+    for measured_set in sorted(set_measurement_spec.all_sets()):
+      for cover in sorted(
+          set_measurement_spec.get_covers_of_set(measured_set),
+          key=lambda values: tuple(sorted(values)),
+      ):
         self._add_cover_set_constraint(
             list(variable_index_by_set_id[i] for i in cover),
             variable_index_by_set_id[measured_set])

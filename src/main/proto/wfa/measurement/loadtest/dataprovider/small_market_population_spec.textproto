@@ -6,8 +6,8 @@
 # (wfa.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent).
 # Each subpopulation declares its population attributes inline as a `Common`
 # event template message embedded in a google.protobuf.Any. Used by
-# GenerateAndVerifySyntheticDataTest to exercise the descriptor-set
-# (DynamicMessage) flow of GenerateSyntheticData/VerifySyntheticData with a
+# GenerateAndVerifyVidLabeledImpressionsTest to exercise the descriptor-set
+# (DynamicMessage) flow of GenerateSyntheticData/VerifyVidLabeledImpressions with a
 # non-`TestEvent` message type.
 
 subpopulations {

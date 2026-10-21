@@ -69,17 +69,21 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.EventGroupDetailsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -349,6 +353,23 @@ class StorageEventSourceTest {
     }
   }
 
+  private fun resolveEventGroups(
+    eventGroupDetailsList: List<GroupedRequisitions.EventGroupDetails>,
+    mapping: EventGroupReferenceIdEntityKeyMapping?,
+    wholeBlobEntityTypes: Set<String>,
+  ): ResolvedEventGroups {
+    return ResolvedEventGroups.fromEventGroupMapEntries(
+      eventGroupDetailsList.mapIndexed { index, details ->
+        eventGroupMapEntry {
+          eventGroup = "dataProviders/test/eventGroups/$index"
+          this.details = details
+        }
+      },
+      mapping,
+      wholeBlobEntityTypes,
+    )
+  }
+
   @Before
   fun setUp() {
     reset(impressionMetadataServiceMock)
@@ -363,7 +384,12 @@ class StorageEventSourceTest {
       assertFailsWith<IllegalArgumentException> {
         StorageEventSource(
           impressionDataSourceProvider = impressionService,
-          eventGroupDetailsList = emptyList(),
+          resolvedEventGroups =
+            resolveEventGroups(
+              eventGroupDetailsList = emptyList(),
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
+            ),
           modelLine = modelLine,
           kmsClient = kmsClient,
           impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -371,7 +397,7 @@ class StorageEventSourceTest {
           batchSize = 1000,
         )
       }
-    assertThat(exception.message).isEqualTo("eventGroupDetailsList must not be empty")
+    assertThat(exception.message).isEqualTo("resolvedEventGroups must not be empty")
   }
 
   @Test
@@ -382,14 +408,19 @@ class StorageEventSourceTest {
     assertFailsWith<IllegalArgumentException> {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList =
-          listOf(
-            createEventGroupDetails(
-              "g",
-              LocalDate.of(2025, 1, 1),
-              LocalDate.of(2025, 1, 2),
-              ZoneId.of("UTC"),
-            )
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList =
+              listOf(
+                createEventGroupDetails(
+                  "g",
+                  LocalDate.of(2025, 1, 1),
+                  LocalDate.of(2025, 1, 2),
+                  ZoneId.of("UTC"),
+                )
+              ),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
           ),
         modelLine = modelLine,
         kmsClient = kmsClient,
@@ -409,14 +440,19 @@ class StorageEventSourceTest {
     assertFailsWith<IllegalArgumentException> {
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList =
-          listOf(
-            createEventGroupDetails(
-              "g",
-              LocalDate.of(2025, 1, 1),
-              LocalDate.of(2025, 1, 2),
-              ZoneId.of("UTC"),
-            )
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList =
+              listOf(
+                createEventGroupDetails(
+                  "g",
+                  LocalDate.of(2025, 1, 1),
+                  LocalDate.of(2025, 1, 2),
+                  ZoneId.of("UTC"),
+                )
+              ),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
           ),
         modelLine = modelLine,
         kmsClient = kmsClient,
@@ -438,9 +474,14 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
-        eventGroupDetailsList =
-          listOf(
-            createEventGroupDetails("corrupt-group", date, date.plusDays(1), ZoneId.of("UTC"))
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList =
+              listOf(
+                createEventGroupDetails("corrupt-group", date, date.plusDays(1), ZoneId.of("UTC"))
+              ),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
           ),
         modelLine = modelLine,
         kmsClient = null,
@@ -498,7 +539,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = eventGroupDetailsList,
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = eventGroupDetailsList,
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -563,7 +609,12 @@ class StorageEventSourceTest {
       val eventSource =
         StorageEventSource(
           impressionDataSourceProvider = impressionService,
-          eventGroupDetailsList = eventGroupDetailsList,
+          resolvedEventGroups =
+            resolveEventGroups(
+              eventGroupDetailsList = eventGroupDetailsList,
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
+            ),
           modelLine = modelLine,
           kmsClient = kmsClient,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -641,7 +692,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = eventGroupDetailsList,
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = eventGroupDetailsList,
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -708,7 +764,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = listOf(eventGroupDetails),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -776,7 +837,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = eventGroupDetails,
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = eventGroupDetails,
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -837,7 +903,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = listOf(eventGroupDetails),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -884,6 +955,224 @@ class StorageEventSourceTest {
     metadataFs.writeBlob(key, blobDetailsBytes)
   }
 
+  private suspend fun writeMetadataWithEntityKeys(
+    metadataTmpPath: File,
+    date: LocalDate,
+    sourceId: String,
+    entityKeys: List<EntityKeyGroup>,
+    directReferenceId: String,
+  ) {
+    val metadataBucketDir = File(metadataTmpPath, "meta-bucket")
+    metadataBucketDir.mkdirs()
+    val metadataFs = FileSystemStorageClient(metadataBucketDir)
+    val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$sourceId/metadata"
+    val blobDetailsBytes =
+      blobDetails {
+          blobUri = "file:///impressions/$date/$sourceId"
+          encryptedDek = encryptedDek {
+            this.kekUri = this@StorageEventSourceTest.kekUri
+            typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+            protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+            ciphertext = ByteString.copyFromUtf8("fake-ciphertext")
+          }
+          this.modelLine = this@StorageEventSourceTest.modelLine
+          eventGroupReferenceId = directReferenceId
+          interval = interval {
+            startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          }
+          this.entityKeys += entityKeys
+        }
+        .toByteString()
+    metadataFs.writeBlob(key, blobDetailsBytes)
+  }
+
+  private suspend fun createEntityKeyEventSource(
+    date: LocalDate,
+    sourceId: String,
+    entityKeyGroups: List<EntityKeyGroup>,
+    wholeBlobEntityTypes: Set<String>,
+  ): StorageEventSource {
+    val metadataTmpPath = tmp.newFolder("metadata-$sourceId")
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata +=
+            createImpressionMetadataList(listOf(date), sourceId, "meta-bucket", modelLine)
+        }
+      )
+    writeMetadataWithEntityKeys(
+      metadataTmpPath,
+      date,
+      sourceId,
+      entityKeyGroups,
+      directReferenceId = "",
+    )
+    val eventGroupDetails = eventGroupDetails {
+      entityKey =
+        EventGroupDetailsKt.entityKey {
+          entityType = "campaign"
+          entityId = "requested"
+        }
+      collectionIntervals += interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+    }
+    return StorageEventSource(
+      impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+      resolvedEventGroups =
+        resolveEventGroups(
+          eventGroupDetailsList = listOf(eventGroupDetails),
+          mapping = null,
+          wholeBlobEntityTypes = wholeBlobEntityTypes,
+        ),
+      modelLine = modelLine,
+      kmsClient = null,
+      impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+      descriptor = TestEvent.getDescriptor(),
+      batchSize = 1000,
+      eventReaderFactory = { _ -> eventReader(date) },
+    )
+  }
+
+  @Test
+  fun `generateEventBatches rejects duplicate entity types before converting to a set`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val duplicateGroup = entityKeyGroup {
+        entityType = "campaign"
+        entityIds += "123"
+      }
+      val eventSource =
+        createEntityKeyEventSource(
+          date,
+          sourceId = "duplicate-entity-types",
+          entityKeyGroups = listOf(duplicateGroup, duplicateGroup),
+          wholeBlobEntityTypes = setOf("campaign"),
+        )
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+
+      assertThat(exception).hasMessageThat().contains("duplicate entity types")
+    }
+
+  @Test
+  fun `generateEventBatches rejects duplicate entity IDs within a type`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val eventSource =
+      createEntityKeyEventSource(
+        date,
+        sourceId = "duplicate-entity-ids",
+        entityKeyGroups =
+          listOf(
+            entityKeyGroup {
+              entityType = "campaign"
+              entityIds += listOf("123", "123")
+            }
+          ),
+        wholeBlobEntityTypes = setOf("campaign"),
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+
+    assertThat(exception).hasMessageThat().contains("duplicate entity IDs")
+  }
+
+  @Test
+  fun `generateEventBatches rejects blank entity type`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val eventSource =
+      createEntityKeyEventSource(
+        date,
+        sourceId = "blank-entity-type",
+        entityKeyGroups =
+          listOf(
+            entityKeyGroup {
+              entityType = "   "
+              entityIds += "123"
+            }
+          ),
+        wholeBlobEntityTypes = emptySet(),
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+
+    assertThat(exception).hasMessageThat().contains("blank entity type")
+  }
+
+  @Test
+  fun `generateEventBatches rejects empty entity ID group`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val eventSource =
+      createEntityKeyEventSource(
+        date,
+        sourceId = "empty-entity-id-group",
+        entityKeyGroups = listOf(entityKeyGroup { entityType = "campaign" }),
+        wholeBlobEntityTypes = setOf("campaign"),
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+
+    assertThat(exception).hasMessageThat().contains("empty entity-key group")
+  }
+
+  @Test
+  fun `generateEventBatches rejects blank entity ID`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val eventSource =
+      createEntityKeyEventSource(
+        date,
+        sourceId = "blank-entity-id",
+        entityKeyGroups =
+          listOf(
+            entityKeyGroup {
+              entityType = "campaign"
+              entityIds += "   "
+            }
+          ),
+        wholeBlobEntityTypes = setOf("campaign"),
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+
+    assertThat(exception).hasMessageThat().contains("blank entity ID")
+  }
+
+  @Test
+  fun `generateEventBatches canonicalizes entity ID order`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val eventSource =
+      createEntityKeyEventSource(
+        date,
+        sourceId = "unordered-entity-ids",
+        entityKeyGroups =
+          listOf(
+            entityKeyGroup {
+              entityType = "campaign"
+              entityIds += listOf("C", "A", "B")
+            }
+          ),
+        wholeBlobEntityTypes = setOf("campaign"),
+      )
+
+    val entityKeyGroup =
+      eventSource
+        .generateEventBatches()
+        .toList()
+        .single()
+        .eventGroupIdentifier
+        .wholeBlobEntityKeyGroups
+        .single()
+
+    assertThat(entityKeyGroup.entityIdsList).containsExactly("A", "B", "C").inOrder()
+  }
+
   @Test
   fun `getKekUri fails when blobs have different GCP project IDs`(): Unit = runBlocking {
     val metadataTmpPath = tmp.root
@@ -916,7 +1205,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = listOf(eventGroupDetails),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -946,7 +1240,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = listOf(eventGroupDetails),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -990,7 +1289,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = listOf(eventGroupDetails),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1036,7 +1340,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = listOf(eventGroupDetails),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1077,7 +1386,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = listOf(eventGroupDetails),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1118,7 +1432,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = listOf(eventGroupDetails),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1161,7 +1480,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = listOf(eventGroupDetails),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1224,7 +1548,12 @@ class StorageEventSourceTest {
       val eventSource =
         StorageEventSource(
           impressionDataSourceProvider = impressionService,
-          eventGroupDetailsList = eventGroupDetailsList,
+          resolvedEventGroups =
+            resolveEventGroups(
+              eventGroupDetailsList = eventGroupDetailsList,
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
+            ),
           modelLine = modelLine,
           kmsClient = kmsClient,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1283,7 +1612,12 @@ class StorageEventSourceTest {
       val eventSource =
         StorageEventSource(
           impressionDataSourceProvider = impressionService,
-          eventGroupDetailsList = eventGroupDetailsList,
+          resolvedEventGroups =
+            resolveEventGroups(
+              eventGroupDetailsList = eventGroupDetailsList,
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
+            ),
           modelLine = modelLine,
           kmsClient = kmsClient,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1333,7 +1667,12 @@ class StorageEventSourceTest {
       val eventSource =
         StorageEventSource(
           impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
-          eventGroupDetailsList = eventGroupDetailsList,
+          resolvedEventGroups =
+            resolveEventGroups(
+              eventGroupDetailsList = eventGroupDetailsList,
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
+            ),
           modelLine = modelLine,
           kmsClient = kmsClient,
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1393,7 +1732,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
-        eventGroupDetailsList = eventGroupDetailsList,
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = eventGroupDetailsList,
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1458,7 +1802,12 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionService,
-        eventGroupDetailsList = eventGroupDetailsList,
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = eventGroupDetailsList,
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
@@ -1480,54 +1829,76 @@ class StorageEventSourceTest {
   }
 
   @Test
-  fun `construction throws when mixing entity-key and reference-id event groups`(): Unit =
-    runBlocking {
-      val (kmsClient, _, _) = createKmsSetup()
-
-      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
-        .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
-
-      // One event group with entity key, one without
-      val eventGroupDetailsList =
-        listOf(
-          eventGroupDetails {
-            eventGroupReferenceId = "creative-id/creative-a"
-            entityKey =
-              EventGroupDetailsKt.entityKey {
-                entityType = "creative-id"
-                entityId = "creative-a"
-              }
-            collectionIntervals += interval {
-              startTime =
-                LocalDate.of(2025, 1, 1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
-              endTime =
-                LocalDate.of(2025, 1, 2).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+  fun `construction rejects mixed entity-key and reference-id event groups without mapping`() {
+    val eventGroupDetailsList =
+      listOf(
+        eventGroupDetails {
+          eventGroupReferenceId = "creative-id/creative-a"
+          entityKey =
+            EventGroupDetailsKt.entityKey {
+              entityType = "creative-id"
+              entityId = "creative-a"
             }
-          },
-          createEventGroupDetails(
-            "standard-ref",
-            LocalDate.of(2025, 1, 1),
-            LocalDate.of(2025, 1, 2),
-            ZoneId.of("UTC"),
-          ),
-        )
+          collectionIntervals += interval {
+            startTime =
+              LocalDate.of(2025, 1, 1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            endTime =
+              LocalDate.of(2025, 1, 2).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          }
+        },
+        createEventGroupDetails(
+          "standard-ref",
+          LocalDate.of(2025, 1, 1),
+          LocalDate.of(2025, 1, 2),
+          ZoneId.of("UTC"),
+        ),
+      )
 
-      val impressionService = createImpressionDataSourceProvider(tmp.root)
-
-      val exception =
-        assertFailsWith<IllegalArgumentException> {
-          StorageEventSource(
-            impressionDataSourceProvider = impressionService,
+    assertFailsWith<IllegalArgumentException> {
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
+        resolvedEventGroups =
+          resolveEventGroups(
             eventGroupDetailsList = eventGroupDetailsList,
-            modelLine = modelLine,
-            kmsClient = kmsClient,
-            impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
-            descriptor = TestEvent.getDescriptor(),
-            batchSize = 1000,
-          )
-        }
-      assertThat(exception.message).isEqualTo("Cannot mix entity-key and reference-id event groups")
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
     }
+  }
+
+  @Test
+  fun `construction rejects blank event group reference ID`() {
+    assertFailsWith<IllegalArgumentException> {
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList =
+              listOf(
+                createEventGroupDetails(
+                  "   ",
+                  LocalDate.of(2025, 1, 1),
+                  LocalDate.of(2025, 1, 2),
+                  ZoneId.of("UTC"),
+                )
+              ),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+    }
+  }
 
   /**
    * Seeds [refIds] as distinct impression data sources on [date]: mocks `listImpressionMetadata` to
@@ -1549,6 +1920,327 @@ class StorageEventSourceTest {
   }
 
   @Test
+  fun `generateEventBatches preserves a reference ID as the whole blob selector`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val metadataTmpPath = tmp.newFolder("metadata-mapped-reference-id")
+      seedMetadataSources(metadataTmpPath, date, listOf("ref/123"))
+
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+          resolvedEventGroups =
+            resolveEventGroups(
+              eventGroupDetailsList =
+                listOf(
+                  createEventGroupDetails("ref/123", date, date.plusDays(1), ZoneId.of("UTC"))
+                ),
+              mapping = CAMPAIGN_MAPPING,
+              wholeBlobEntityTypes = emptySet(),
+            ),
+          modelLine = modelLine,
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+          eventReaderFactory = { _ -> eventReader(date) },
+        )
+
+      val batch = eventSource.generateEventBatches().toList().single()
+
+      assertThat(batch.eventGroupIdentifier)
+        .isEqualTo(
+          EventGroupIdentifier(
+            eventGroupReferenceId = "ref/123",
+            entityKeys = emptySet(),
+            wholeBlobEntityKeyGroups = emptySet(),
+          )
+        )
+    }
+
+  @Test
+  fun `generateEventBatches retains all keys for a configured exhaustive entity type`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val metadataTmpPath = tmp.newFolder("metadata-mapped-entity-keys")
+      val singleCampaignEntityKeys =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "entity/123"
+          },
+          entityKeyGroup {
+            entityType = "ad"
+            entityIds += listOf("A", "B")
+          },
+        )
+      val multipleCampaignEntityKeys =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += listOf("entity/123", "entity/456")
+          }
+        )
+      val sourceIds = listOf("single-campaign", "multiple-campaigns")
+      val metadataList =
+        sourceIds.flatMap {
+          createImpressionMetadataList(listOf(date), it, "meta-bucket", modelLine)
+        }
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+      writeMetadataWithEntityKeys(
+        metadataTmpPath,
+        date,
+        sourceIds[0],
+        singleCampaignEntityKeys,
+        directReferenceId = "",
+      )
+      writeMetadataWithEntityKeys(
+        metadataTmpPath,
+        date,
+        sourceIds[1],
+        multipleCampaignEntityKeys,
+        directReferenceId = "ref/123",
+      )
+      val eventGroupDetails = eventGroupDetails {
+        entityKey =
+          EventGroupDetailsKt.entityKey {
+            entityType = "campaign"
+            entityId = "entity/123"
+          }
+        collectionIntervals += interval {
+          startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+          endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        }
+      }
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+          resolvedEventGroups =
+            resolveEventGroups(
+              eventGroupDetailsList = listOf(eventGroupDetails),
+              mapping = CAMPAIGN_MAPPING,
+              wholeBlobEntityTypes = setOf("campaign"),
+            ),
+          modelLine = modelLine,
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+          eventReaderFactory = { _ -> eventReader(date) },
+        )
+
+      val identifiers = eventSource.generateEventBatches().toList().map { it.eventGroupIdentifier }
+
+      assertThat(identifiers)
+        .containsExactly(
+          EventGroupIdentifier(
+            eventGroupReferenceId = null,
+            entityKeys =
+              setOf(
+                labeledImpressionEntityKey("campaign", "entity/123"),
+                labeledImpressionEntityKey("ad", "A"),
+                labeledImpressionEntityKey("ad", "B"),
+              ),
+            wholeBlobEntityKeyGroups =
+              setOf(
+                entityKeyGroup {
+                  entityType = "campaign"
+                  entityIds += "entity/123"
+                }
+              ),
+          ),
+          EventGroupIdentifier(
+            eventGroupReferenceId = null,
+            entityKeys =
+              setOf(
+                labeledImpressionEntityKey("campaign", "entity/123"),
+                labeledImpressionEntityKey("campaign", "entity/456"),
+              ),
+            wholeBlobEntityKeyGroups =
+              setOf(
+                entityKeyGroup {
+                  entityType = "campaign"
+                  entityIds += listOf("entity/123", "entity/456")
+                }
+              ),
+          ),
+        )
+    }
+
+  @Test
+  fun `generateEventBatches identifies only configured exhaustive entity types as whole blob`():
+    Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val metadataTmpPath = tmp.newFolder("metadata-unmapped-entity-keys")
+    val sourceId = "unmapped-entity-keys"
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata +=
+            createImpressionMetadataList(listOf(date), sourceId, "meta-bucket", modelLine)
+        }
+      )
+    writeMetadataWithEntityKeys(
+      metadataTmpPath,
+      date,
+      sourceId,
+      entityKeys =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "123"
+          },
+          entityKeyGroup {
+            entityType = "ad"
+            entityIds += listOf("A", "B")
+          },
+          entityKeyGroup {
+            entityType = "placement"
+            entityIds += "P"
+          },
+          entityKeyGroup {
+            entityType = "publisher"
+            entityIds += "publisher-1"
+          },
+        ),
+      directReferenceId = "",
+    )
+    val eventGroupDetails = eventGroupDetails {
+      entityKey =
+        EventGroupDetailsKt.entityKey {
+          entityType = "campaign"
+          entityId = "123"
+        }
+      collectionIntervals += interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+    }
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = null,
+            wholeBlobEntityTypes = setOf("campaign", "placement"),
+          ),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        eventReaderFactory = { _ -> eventReader(date) },
+      )
+
+    val identifier = eventSource.generateEventBatches().toList().single().eventGroupIdentifier
+
+    assertThat(identifier.wholeBlobEntityKeyGroups)
+      .containsExactly(
+        entityKeyGroup {
+          entityType = "campaign"
+          entityIds += "123"
+        },
+        entityKeyGroup {
+          entityType = "placement"
+          entityIds += "P"
+        },
+      )
+  }
+
+  @Test
+  fun `generateEventBatches processes blob returned by both mapped selectors once`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val metadataTmpPath = tmp.newFolder("metadata-dual-selector-dedup")
+      val sourceId = "both-representations"
+      val metadataList =
+        createImpressionMetadataList(listOf(date), sourceId, "meta-bucket", modelLine)
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+      writeMetadataWithEntityKeys(
+        metadataTmpPath,
+        date,
+        sourceId,
+        entityKeys =
+          listOf(
+            entityKeyGroup {
+              entityType = "campaign"
+              entityIds += "entity/123"
+            }
+          ),
+        directReferenceId = "ref/123",
+      )
+      val readerCount = AtomicInteger(0)
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+          resolvedEventGroups =
+            resolveEventGroups(
+              eventGroupDetailsList =
+                listOf(
+                  eventGroupDetails {
+                    entityKey =
+                      EventGroupDetailsKt.entityKey {
+                        entityType = "campaign"
+                        entityId = "entity/123"
+                      }
+                    collectionIntervals += interval {
+                      startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+                      endTime =
+                        date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+                    }
+                  }
+                ),
+              mapping = CAMPAIGN_MAPPING,
+              wholeBlobEntityTypes = emptySet(),
+            ),
+          modelLine = modelLine,
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+          eventReaderFactory = { _ ->
+            readerCount.incrementAndGet()
+            eventReader(date)
+          },
+        )
+
+      val batches = eventSource.generateEventBatches().toList()
+
+      assertThat(batches).hasSize(1)
+      assertThat(readerCount.get()).isEqualTo(1)
+      verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(any())
+    }
+
+  private fun eventReader(date: LocalDate): EventReader<Message> {
+    return object : EventReader<Message> {
+      override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> = flow {
+        emit(
+          listOf(
+            LabeledEvent(
+              timestamp = date.atStartOfDay(ZoneId.of("UTC")).toInstant(),
+              vid = 1L,
+              message = TEST_EVENT,
+              entityKeys = emptyList(),
+            )
+          )
+        )
+      }
+    }
+  }
+
+  private fun labeledImpressionEntityKey(
+    entityType: String,
+    entityId: String,
+  ): LabeledImpression.EntityKey =
+    LabeledImpressionKt.entityKey {
+      this.entityType = entityType
+      this.entityId = entityId
+    }
+
+  @Test
   fun `generateEventBatches bounds concurrent reads to readConcurrency`(): Unit = runBlocking {
     val date = LocalDate.of(2025, 1, 1)
     val metadataTmpPath = tmp.newFolder("metadata-concurrency")
@@ -1561,8 +2253,15 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
-        eventGroupDetailsList =
-          listOf(createEventGroupDetails(refIds.first(), date, date.plusDays(1), ZoneId.of("UTC"))),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList =
+              listOf(
+                createEventGroupDetails(refIds.first(), date, date.plusDays(1), ZoneId.of("UTC"))
+              ),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1600,8 +2299,15 @@ class StorageEventSourceTest {
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
-        eventGroupDetailsList =
-          listOf(createEventGroupDetails("retry-group", date, date.plusDays(1), ZoneId.of("UTC"))),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList =
+              listOf(
+                createEventGroupDetails("retry-group", date, date.plusDays(1), ZoneId.of("UTC"))
+              ),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
         modelLine = modelLine,
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
@@ -1638,14 +2344,19 @@ class StorageEventSourceTest {
       val eventSource =
         StorageEventSource(
           impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
-          eventGroupDetailsList =
-            listOf(
-              createEventGroupDetails(
-                "non-transient-group",
-                date,
-                date.plusDays(1),
-                ZoneId.of("UTC"),
-              )
+          resolvedEventGroups =
+            resolveEventGroups(
+              eventGroupDetailsList =
+                listOf(
+                  createEventGroupDetails(
+                    "non-transient-group",
+                    date,
+                    date.plusDays(1),
+                    ZoneId.of("UTC"),
+                  )
+                ),
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
             ),
           modelLine = modelLine,
           kmsClient = null,
@@ -1668,7 +2379,102 @@ class StorageEventSourceTest {
       assertThat(attempts.get()).isEqualTo(1)
     }
 
+  @Test
+  fun `generateEventBatches queries reference ID for mapped entity key`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
+    val eventGroupDetails = eventGroupDetails {
+      entityKey =
+        EventGroupDetailsKt.entityKey {
+          entityType = "campaign"
+          entityId = "entity/123"
+        }
+      collectionIntervals += interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+    }
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList = listOf(eventGroupDetails),
+            mapping = CAMPAIGN_MAPPING,
+            wholeBlobEntityTypes = emptySet(),
+          ),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    eventSource.generateEventBatches().toList()
+
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(captor.capture())
+    assertThat(captor.allValues.map { it.filter.entityKeysList.toList() })
+      .contains(
+        listOf(
+          org.wfanet.measurement.edpaggregator.v1alpha.entityKey {
+            entityType = "campaign"
+            entityId = "entity/123"
+          }
+        )
+      )
+    assertThat(captor.allValues.map { it.filter.eventGroupReferenceIdsList.toList() })
+      .contains(listOf("ref/123"))
+  }
+
+  @Test
+  fun `generateEventBatches queries entity keys for mapped reference IDs`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
+        resolvedEventGroups =
+          resolveEventGroups(
+            eventGroupDetailsList =
+              listOf(
+                createEventGroupDetails("ref/123", date, date.plusDays(1), ZoneId.of("UTC")),
+                createEventGroupDetails("ref/456", date, date.plusDays(1), ZoneId.of("UTC")),
+              ),
+            mapping = CAMPAIGN_MAPPING,
+            wholeBlobEntityTypes = emptySet(),
+          ),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    eventSource.generateEventBatches().toList()
+
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(captor.capture())
+    val entityKeyFilter = captor.allValues.single { it.filter.entityKeysCount > 0 }.filter
+    assertThat(entityKeyFilter.entityKeysList.map { it.entityType })
+      .containsExactly("campaign", "campaign")
+    assertThat(entityKeyFilter.entityKeysList.map { it.entityId })
+      .containsExactly("entity/123", "entity/456")
+    val referenceIdFilter =
+      captor.allValues.single { it.filter.eventGroupReferenceIdsCount > 0 }.filter
+    assertThat(referenceIdFilter.eventGroupReferenceIdsList).containsExactly("ref/123", "ref/456")
+  }
+
   companion object {
+    private val CAMPAIGN_MAPPING =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "ref/",
+        entityIdPrefix = "entity/",
+      )
+
     private val TEST_EVENT = testEvent {
       person = person {
         ageGroup = Person.AgeGroup.YEARS_18_TO_34
