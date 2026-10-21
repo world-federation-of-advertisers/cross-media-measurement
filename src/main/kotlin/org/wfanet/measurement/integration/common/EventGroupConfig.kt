@@ -29,20 +29,8 @@ data class EntityKeySpec(
   val entityMetadata: Struct? = null,
 )
 
-/**
- * Per-EventGroup configuration for the EDPA-side data generation, entity key registration, and blob
- * contents, keyed in [InProcessEdpAggregatorComponents] by `(edpAggregatorShortName,
- * eventGroupReferenceId)`.
- */
-sealed class EventGroupConfig {
-  data class LegacySpec(val spec: SyntheticEventGroupSpec) : EventGroupConfig()
-
-  data class MultiEntityKey(val entityKeySpecs: List<EntityKeySpec>) : EventGroupConfig()
-}
-
-/** Identifiers populated on an EventGroup backed by mixed-format impression history. */
+/** Identifiers populated on an EventGroup configured by [EventGroupConfig.MultiEntityKey]. */
 enum class EventGroupIdentifierForm {
-  REFERENCE_ID_ONLY,
   ENTITY_KEY_ONLY,
   REFERENCE_ID_AND_ENTITY_KEY,
 }
@@ -51,17 +39,40 @@ enum class EventGroupIdentifierForm {
  * Test fixture for an EventGroup whose older impressions use a reference ID and whose newer
  * impressions use an entity key.
  *
- * @property entityKey entity key equivalent to the map key's event-group reference ID.
- * @property spec synthetic data written across both identifier formats.
+ * @property entityKey entity key equivalent to the EventGroup config's reference ID.
  * @property entityKeyStartDate first date written with [entityKey]; earlier dates use the
  *   event-group reference ID.
- * @property eventGroupIdentifierForm identifiers populated on the EventGroup resource.
- * @property entityMetadata metadata populated when the EventGroup has an entity key.
  */
-data class MixedIdentifierHistoryEventGroupConfig(
+data class MixedIdentifierHistory(
   val entityKey: EntityKey,
-  val spec: SyntheticEventGroupSpec,
   val entityKeyStartDate: LocalDate,
-  val eventGroupIdentifierForm: EventGroupIdentifierForm,
-  val entityMetadata: Struct? = null,
 )
+
+/**
+ * Per-EventGroup configuration for the EDPA-side data generation, entity key registration, and blob
+ * contents, keyed in [InProcessEdpAggregatorComponents] by `(edpAggregatorShortName,
+ * eventGroupReferenceId)`.
+ */
+sealed class EventGroupConfig {
+  abstract val mixedIdentifierHistory: MixedIdentifierHistory?
+
+  data class LegacySpec(
+    val spec: SyntheticEventGroupSpec,
+    override val mixedIdentifierHistory: MixedIdentifierHistory? = null,
+  ) : EventGroupConfig()
+
+  data class MultiEntityKey(
+    val entityKeySpecs: List<EntityKeySpec>,
+    val eventGroupIdentifierForm: EventGroupIdentifierForm =
+      EventGroupIdentifierForm.REFERENCE_ID_AND_ENTITY_KEY,
+    override val mixedIdentifierHistory: MixedIdentifierHistory? = null,
+  ) : EventGroupConfig() {
+    init {
+      if (mixedIdentifierHistory != null) {
+        require(entityKeySpecs.single().entityKey == mixedIdentifierHistory.entityKey) {
+          "Mixed identifier history must use the MultiEntityKey EventGroup's entity key"
+        }
+      }
+    }
+  }
+}

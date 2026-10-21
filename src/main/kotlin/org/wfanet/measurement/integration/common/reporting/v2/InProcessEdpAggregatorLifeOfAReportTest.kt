@@ -117,7 +117,7 @@ import org.wfanet.measurement.integration.common.FULFILLER_TOPIC_ID
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.InProcessEdpAggregatorComponents
-import org.wfanet.measurement.integration.common.MixedIdentifierHistoryEventGroupConfig
+import org.wfanet.measurement.integration.common.MixedIdentifierHistory
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.PROJECT_ID
 import org.wfanet.measurement.integration.common.SUBSCRIPTION_ID
@@ -252,7 +252,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   protected val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
     mapOf(
       "edp1" to
-        mapOf(
+        (mapOf(
           "edp1-eg-ref-1" to EventGroupConfig.LegacySpec(syntheticEventGroupSpec2),
           EDP1_CREATIVE_EVENT_GROUP_REF_ID to
             EventGroupConfig.MultiEntityKey(
@@ -281,7 +281,56 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                   ),
                 )
             ),
-        ),
+        ) +
+          if (mixedIdentifierHistoryEnabled) {
+            mapOf(
+              MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID to
+                EventGroupConfig.LegacySpec(
+                  spec = syntheticEventGroupSpec2,
+                  mixedIdentifierHistory =
+                    MixedIdentifierHistory(
+                      entityKey = EntityKey("campaign", MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID),
+                      entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
+                    ),
+                ),
+              MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID to
+                EventGroupConfig.MultiEntityKey(
+                  entityKeySpecs =
+                    listOf(
+                      EntityKeySpec(
+                        EntityKey("campaign", MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID),
+                        syntheticEventGroupSpec2,
+                        ENTITY_METADATA,
+                      )
+                    ),
+                  eventGroupIdentifierForm = EventGroupIdentifierForm.ENTITY_KEY_ONLY,
+                  mixedIdentifierHistory =
+                    MixedIdentifierHistory(
+                      entityKey = EntityKey("campaign", MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID),
+                      entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
+                    ),
+                ),
+              MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID to
+                EventGroupConfig.MultiEntityKey(
+                  entityKeySpecs =
+                    listOf(
+                      EntityKeySpec(
+                        EntityKey("campaign", MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID),
+                        syntheticEventGroupSpec2,
+                        ENTITY_METADATA,
+                      )
+                    ),
+                  eventGroupIdentifierForm = EventGroupIdentifierForm.REFERENCE_ID_AND_ENTITY_KEY,
+                  mixedIdentifierHistory =
+                    MixedIdentifierHistory(
+                      entityKey = EntityKey("campaign", MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID),
+                      entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
+                    ),
+                ),
+            )
+          } else {
+            emptyMap()
+          }),
       "edp2" to
         mapOf(
           "campaign/edp2-eg-ref-1" to
@@ -348,48 +397,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         ),
     )
 
-  private val mixedIdentifierHistoryEventGroupConfigsByEdp:
-    Map<String, Map<String, MixedIdentifierHistoryEventGroupConfig>> =
-    if (mixedIdentifierHistoryEnabled) {
-      mapOf(
-        "edp1" to
-          mapOf(
-            MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID to
-              MixedIdentifierHistoryEventGroupConfig(
-                entityKey = EntityKey("campaign", MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID),
-                spec = syntheticEventGroupSpec2,
-                entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
-                eventGroupIdentifierForm = EventGroupIdentifierForm.REFERENCE_ID_ONLY,
-              ),
-            MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID to
-              MixedIdentifierHistoryEventGroupConfig(
-                entityKey = EntityKey("campaign", MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID),
-                spec = syntheticEventGroupSpec2,
-                entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
-                eventGroupIdentifierForm = EventGroupIdentifierForm.ENTITY_KEY_ONLY,
-                entityMetadata = ENTITY_METADATA,
-              ),
-            MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID to
-              MixedIdentifierHistoryEventGroupConfig(
-                entityKey = EntityKey("campaign", MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID),
-                spec = syntheticEventGroupSpec2,
-                entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
-                eventGroupIdentifierForm = EventGroupIdentifierForm.REFERENCE_ID_AND_ENTITY_KEY,
-                entityMetadata = ENTITY_METADATA,
-              ),
-          )
-      )
-    } else {
-      emptyMap()
-    }
-
   private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
     InProcessEdpAggregatorComponents(
       secureComputationDatabaseAdmin = secureComputationDatabaseAdmin,
       storagePath = tempPath,
       pubSubClient = pubSubClient,
       eventGroupConfigsByEdp = eventGroupConfigsByEdp,
-      mixedIdentifierHistoryEventGroupConfigsByEdp = mixedIdentifierHistoryEventGroupConfigsByEdp,
       populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
