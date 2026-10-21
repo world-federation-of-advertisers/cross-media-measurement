@@ -7,6 +7,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:event_group_reference_id_entity_key_mapping",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroups:event_group_sync",
         "//src/main/proto/wfa/measurement/api/v2alpha:client_account_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:client_accounts_service_kt_jvm_grpc_proto",

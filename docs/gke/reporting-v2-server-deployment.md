@@ -114,7 +114,10 @@ bazel build //src/main/k8s/dev:reporting_v2.tar \
   --define basic_reports_enabled=true \
   --define reporting_set_reporting_unit_components_enabled=false \
   --define spanner_instance=instance \
-  --define pdp_name=dataProviders/KnvDaDC7QKA
+  --define pdp_name=dataProviders/KnvDaDC7QKA \
+  --define mcp_host= \
+  --define oauth_issuer= \
+  --define oauth_protected_resource=
 ```
 
 Note: The value of the `spanner_instance` variable is only used when
@@ -127,6 +130,26 @@ Note: `reporting_set_reporting_unit_components_enabled` gates whether `BasicRepo
 remain `false` until the feature is fully released.
 
 Extract the generated archive to some directory.
+
+### Configure noise-correction diagnostic logging
+
+The reusable Reporting configuration defaults
+`_logNoiseCorrectionValues` to `false`. The `dev` GKE configuration used above
+sets it to `true`, which passes `--log-noise-correction-values=true` to the
+`report-result-post-processor`.
+
+When enabled, application logs may include report-result values after noise but
+before correction, corrected values, solver residuals, numerical constraint
+mismatches, and bounded exception tracebacks. It does not add logging of raw
+pre-noise inputs. Enable it only where log access and retention policies permit
+these values.
+
+When adapting the `dev` configuration for a deployment that should not emit
+these diagnostics, remove its `_logNoiseCorrectionValues: true` assignment or
+set it to `false` in the deployment-specific copy of
+[`reporting_v2_gke.cue`](../../src/main/k8s/dev/reporting_v2_gke.cue) before
+generating the Kustomization. The base default remains `false` in
+[`reporting_v2.cue`](../../src/main/k8s/reporting_v2.cue).
 
 You can customize this generated object configuration with your own settings
 such as the number of replicas per deployment, the memory and CPU requirements
