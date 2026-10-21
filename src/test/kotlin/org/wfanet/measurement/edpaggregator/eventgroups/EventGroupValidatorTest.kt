@@ -212,6 +212,13 @@ class EventGroupValidatorTest {
   }
 
   @Test
+  fun `validate rejects long client account reference ID when measurement consumer is set`() {
+    val eventGroup = VALID_EVENT_GROUP.copy { clientAccountReferenceId = "a".repeat(37) }
+
+    assertInvalid(eventGroup, "client_account_reference_id must not exceed 36 characters")
+  }
+
+  @Test
   fun `validate rejects missing media type`() {
     val eventGroup = VALID_EVENT_GROUP.copy { mediaTypes.clear() }
 
