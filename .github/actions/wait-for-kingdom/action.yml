@@ -26,13 +26,13 @@ inputs:
     required: true
   max-attempts:
     description: Maximum number of new gRPC connection attempts
-    required: true
+    default: "6"
   attempt-timeout-seconds:
     description: Timeout for each gRPC attempt
-    required: true
+    default: "30"
   retry-delay-seconds:
     description: Delay between gRPC attempts
-    required: true
+    default: "15"
 
 runs:
   using: composite

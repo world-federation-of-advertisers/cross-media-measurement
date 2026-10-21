@@ -96,9 +96,6 @@ jobs:
           kingdom-public-api-target: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
           kingdom-public-api-cert-host: localhost
           model-line-name: ${{ vars.MODEL_LINE_NAME }}
-          max-attempts: "6"
-          attempt-timeout-seconds: "30"
-          retry-delay-seconds: "15"
 
       # Reduce chance of disconnection from the Build Event Service.
       - name: Set TCP keepalive
