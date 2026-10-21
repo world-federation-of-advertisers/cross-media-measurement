@@ -694,7 +694,7 @@ Useful metric families (all under the `edpa.*` namespace unless noted):
 | Impression data availability | `edpa.data_availability.records_synced`, `edpa.data_availability.cmms_rpc_errors`, `edpa.data_availability.sync_duration`, `edpa.data_availability.date_count` | whether the EDP's impression metadata is being registered (a precondition for S4-A fulfillment), and Kingdom RPC errors during sync |
 | Fulfillment | `edpa.results_fulfiller.requisitions_processed` (dimensioned by `status`=`success`/`failure`), `edpa.results_fulfiller.requisition_fulfillment_latency`, `edpa.results_fulfiller.report_fulfillment_latency` | whether S4-A stage 4 is processing and succeeding (`status=failure` counts failures) |
 | Work dispatch | RequisitionFetcher logs and `RequisitionMetadata.WorkItem` | whether S4-A dispatched a WorkItem to the results-fulfiller queue; legacy deployments also expose `edpa.data_watcher.queue_writes` and `.processing_duration` |
-| Event-group sync | `edpa.event_group.sync_success`, `edpa.event_group.sync_failure`, `edpa.event_group.sync_latency` | S1 event-group registration health |
+| Event-group sync | `edpa.event_group.sync_success`, `edpa.event_group.sync_failure`, `edpa.event_group.invalid_event_group_failure`, `edpa.event_group.sync_deleted`, `edpa.event_group.sync_latency` | event-group registration health; invalid input is counted separately from operational sync failures |
 | Duchy computation | Duchy mill emits `stage_wall_clock_duration_ms`, `crypto_wall_clock_duration_ms`, `crypto_cpu_duration_ms` | S5 stage progress / where a computation spends time or stalls |
 
 The Kingdom also runs a synthetic end-to-end health prober
@@ -1241,6 +1241,15 @@ Once the Kingdom measurements SUCCEED:
   consistency solver, writes corrected values, and advances the BasicReport to
   `SUCCEEDED (4)`.
 
+  Categorical failure diagnostics, including solver status and issue enums, are
+  logged even when measurement-value logging is disabled. For solver residuals,
+  numerical constraint mismatches, report-result values after noise but before
+  correction, corrected values, and bounded exception tracebacks, enable
+  `--log-noise-correction-values` as described in
+  [Configure noise-correction diagnostic logging][noise-correction-logging].
+  These diagnostics do not add raw pre-noise inputs to application logs. Enable
+  them only where log access and retention policies permit the values.
+
   Check `report-result-post-processor-container` (cluster `reporting-v2`). Failure
   modes:
 
@@ -1265,9 +1274,53 @@ Once the Kingdom measurements SUCCEED:
   not running, erroring every tick (check its logs), or hitting a transient it
   keeps retrying.
 
+[noise-correction-logging]:
+  <../gke/reporting-v2-server-deployment.md#configure-noise-correction-diagnostic-logging>
+
 ## Common EDP Aggregator failure modes
 
 These apply to the S4-A fulfillment path.
+
+### Event-group identifier-format mismatch
+
+When impression history spans legacy event-group reference IDs and newer entity
+keys, ResultsFulfiller bridges the formats only when
+`ResultsFulfillerParams.event_group_reference_id_entity_key_mapping` is present.
+Check its entity type and both prefixes against the identifiers in the
+requisition, `ImpressionMetadata`, and `BlobDetails`. The prefixes are
+independent, and either may be blank. With the mapping absent, the two formats
+remain distinct.
+
+EventGroupSync has a separate config representation of the same mapping. When
+enabled, input for the mapped entity type must supply both the legacy reference
+ID and its equivalent entity key. EventGroupSync skips an input instead of
+creating or updating a resource when either identifier is missing, the mapped
+entity ID has the wrong prefix, conversion produces a blank reference ID, or
+the identifiers are not exactly equivalent. Inspect
+`edpa.event_group.invalid_event_group_failure` by `failure_reason`:
+
+* `entity_id_prefix_mismatch`
+* `reference_id_missing`
+* `mapped_reference_id_blank`
+* `reference_id_mismatch`
+* `validation_failure`
+
+These validation skips do not necessarily increment
+`edpa.event_group.sync_failure`, so check the invalid-input metric and the
+EventGroupSync logs directly.
+
+During a batched EventGroup migration, a report can temporarily select both
+reference-ID-only and entity-key EventGroups. RequisitionFetcher refuses that
+report as `UNFULFILLABLE`; a ResultsFulfiller mapping does not bypass this
+validation. Before enabling EventGroupSync mapping, deploy the identical mapping
+to ResultsFulfiller and prevent report creation against partially migrated
+cohorts until their EventGroups have all been upgraded.
+
+For blobs whose impression records lack entity keys,
+`ResultsFulfillerParams.whole_blob_entity_types` may identify an exhaustive
+entity-key group in `BlobDetails` as covering the whole blob. Configure a type
+only when its sidecar group lists every ID at that level: a non-exhaustive type
+can silently accept unmatched impressions and overcount.
 
 ### Model-line mismatch
 

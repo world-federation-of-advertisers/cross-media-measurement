@@ -32,14 +32,15 @@ kt_jvm_library(
         ":model_line_info",
         ":noiser_selector",
         ":pipeline_configuration",
+        ":resolved_event_group",
         ":storage_event_source",
         ":trus_tee_v2_impression_count",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:event_group_reference_id_entity_key_mapping",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_measurement_result_factory",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:direct_measurement_fulfiller",
@@ -132,10 +133,23 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "resolved_event_group",
+    srcs = ["ResolvedEventGroup.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:event_group_reference_id_entity_key_mapping",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:interval_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "event_group_identifier",
     srcs = ["EventGroupIdentifier.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
     ],
 )
 
@@ -174,13 +188,12 @@ kt_jvm_library(
         ":event_reader",
         ":event_source",
         ":impression_data_source_provider",
-        ":impression_query_selector",
         ":kms_constants",
         ":labeled_event",
+        ":resolved_event_group",
         ":storage_event_reader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -307,26 +320,19 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "impression_query_selector",
-    srcs = ["ImpressionQuerySelector.kt"],
-    deps = [
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
-    ],
-)
-
-kt_jvm_library(
     name = "impression_data_source_provider",
     srcs = [
         "ImpressionDataSourceProvider.kt",
     ],
     deps = [
-        ":impression_query_selector",
         ":impression_read_exception",
+        ":resolved_event_group",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encryption_key_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
         "@wfa_common_jvm//imports/java/io/grpc:api",
@@ -504,6 +510,8 @@ kt_jvm_library(
         ":frequency_vector_sink",
         ":parallel_batched_pipeline",
         ":pipeline_configuration",
+        ":resolved_event_group",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",

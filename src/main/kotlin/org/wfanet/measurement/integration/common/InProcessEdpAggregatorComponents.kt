@@ -360,6 +360,7 @@ class InProcessEdpAggregatorComponents(
           throttler,
           entityKeyTypes = emptyList(),
           listEventGroupPageSize = 500,
+          eventGroupReferenceIdEntityKeyMapping = null,
         )
       val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
       logger.info("Received mappedEventGroups: $mappedEventGroups")
@@ -782,6 +783,7 @@ class InProcessEdpAggregatorComponents(
         throttler,
         entityKeyTypes = entityKeyTypes,
         listEventGroupPageSize = 500,
+        eventGroupReferenceIdEntityKeyMapping = null,
       )
       .sync()
       .toList()
