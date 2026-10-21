@@ -417,7 +417,7 @@ use_repo(pip, "pip")
 oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 oci.pull(
     name = "go_image_base",
-    digest = "sha256:a557d784ac275c287d2bdf3172f47bece8d2a0ef3c0fdefb712e95084a04a562",
+    digest = "sha256:6c591b4ac789b683ab3665327181e7cfb7a39b5834f42dcb73d7becb8d18a5d9",
     image = "gcr.io/distroless/base-debian13",
     platforms = ["linux/amd64"],
     reproducible = True,
@@ -425,7 +425,7 @@ oci.pull(
 )
 oci.pull(
     name = "py_image_base",
-    digest = "sha256:7ea4b893a73b30ebe0d666f94bbda151a5e15ee093bda10497986a12a65a7e53",
+    digest = "sha256:727eccc5d83f11273c954652667b5b5a1c66120bd4cfb884e879ab77dcdf966a",
     image = "gcr.io/distroless/python3-debian13",
     platforms = ["linux/amd64"],
     reproducible = True,
@@ -435,7 +435,7 @@ oci.pull(
 # TODO(world-federation-of-advertisers/cross-media-measurement#2729): Remove root Java image when Confidential Spaces properly supports nonroot images.
 oci.pull(
     name = "java_image_base_root",
-    digest = "sha256:3c89b72dcd8b9c3b6fc9ae42785fc5ccf58b7d540504944ee5376c91a81f0af9",
+    digest = "sha256:bc5ad38faf0501a7f60859f85f00cfb285639736e2e948a2d98262f5b022a934",
     image = "gcr.io/distroless/java17-debian13",
     platforms = ["linux/amd64"],
     reproducible = True,
