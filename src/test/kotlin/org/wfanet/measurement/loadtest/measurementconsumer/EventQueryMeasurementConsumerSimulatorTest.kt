@@ -18,7 +18,9 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Message
 import java.time.Duration
 import java.time.LocalDate
+import java.util.concurrent.TimeoutException
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -26,6 +28,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doSuspendableAnswer
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
@@ -124,7 +127,7 @@ class EventQueryMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSi
   }
 
   @Test
-  fun `testImpression performs final poll when result polling times out`() = runTest {
+  fun `testImpression performs final poll when result polling times out`() = runBlocking {
     stubEventGroups(listOf("sim-eg-ref-1"))
     val measurementName = "$MC_NAME/measurements/m1"
     measurementsServiceMock.stub {
@@ -150,10 +153,46 @@ class EventQueryMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSi
 
     val exception =
       assertFailsWith<IllegalStateException> {
-        simulator.testImpression("run1", resultPollingTimeout = Duration.ofSeconds(1))
+        simulator.testImpression("run1", resultPollingTimeout = Duration.ofMillis(100))
       }
 
     assertThat(exception).hasMessageThat().contains("Measurement failed")
+    verifyBlocking(measurementsServiceMock, times(2)) { getMeasurement(any()) }
+  }
+
+  @Test
+  fun `testImpression times out when final poll does not complete`() = runTest {
+    stubEventGroups(listOf("sim-eg-ref-1"))
+    val measurementName = "$MC_NAME/measurements/m1"
+    var getMeasurementCount = 0
+    measurementsServiceMock.stub {
+      onBlocking { getMeasurement(any()) } doSuspendableAnswer
+        {
+          getMeasurementCount++
+          if (getMeasurementCount == 1) {
+            measurement {
+              name = measurementName
+              state = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
+            }
+          } else {
+            awaitCancellation()
+          }
+        }
+    }
+    val simulator =
+      createSimulator(
+        listOf("sim-eg-ref-1"),
+        initialResultPollingDelay = Duration.ofSeconds(10),
+        maximumResultPollingDelay = Duration.ofSeconds(10),
+        onMeasurementsCreated = null,
+      )
+
+    val exception =
+      assertFailsWith<TimeoutException> {
+        simulator.testImpression("run1", resultPollingTimeout = Duration.ofSeconds(1))
+      }
+
+    assertThat(exception).hasMessageThat().contains("Final result read did not complete")
     verifyBlocking(measurementsServiceMock, times(2)) { getMeasurement(any()) }
   }
 

@@ -26,7 +26,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
@@ -59,6 +58,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:event_query",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:event_query_measurement_consumer_simulator",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
     ],
 )
 

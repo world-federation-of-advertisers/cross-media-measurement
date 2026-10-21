@@ -236,12 +236,15 @@ jobs:
             }] | sort_by(.name)'
         }
 
-        before="$(snapshot)"
-        sleep "$STABILITY_WINDOW_SECONDS"
-        after="$(snapshot)"
-        if [[ "$before" != "$after" ]]; then
-          echo "Simulator pods changed during the stability window." >&2
-          echo "Before: $before" >&2
-          echo "After:  $after" >&2
-          exit 1
-        fi
+        baseline="$(snapshot)"
+        deadline=$((SECONDS + STABILITY_WINDOW_SECONDS))
+        while (( SECONDS < deadline )); do
+          sleep 1
+          current="$(snapshot)"
+          if [[ "$baseline" != "$current" ]]; then
+            echo "Simulator pods changed during the stability window." >&2
+            echo "Baseline: $baseline" >&2
+            echo "Current:  $current" >&2
+            exit 1
+          fi
+        done

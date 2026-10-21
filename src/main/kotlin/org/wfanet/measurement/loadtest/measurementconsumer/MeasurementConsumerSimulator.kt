@@ -25,6 +25,7 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Duration
+import java.util.concurrent.TimeoutException
 import java.util.logging.Logger
 import kotlin.math.log2
 import kotlin.math.max
@@ -1465,11 +1466,15 @@ abstract class MeasurementConsumerSimulator(
       return results
     }
 
-    val finalResults = getResults()
+    val finalResults =
+      withTimeoutOrNull(FINAL_RESULT_READ_TIMEOUT.toMillis()) { getResults() }
+        ?: throw TimeoutException(
+          "Final result read did not complete within $FINAL_RESULT_READ_TIMEOUT"
+        )
     if (finalResults.isNotEmpty()) {
       return finalResults
     }
-    throw java.util.concurrent.TimeoutException("Result not available within $resultPollingTimeout")
+    throw TimeoutException("Result not available within $resultPollingTimeout")
   }
 
   private suspend fun <T> pollForResult(getResult: suspend () -> T, done: (T) -> Boolean): T {
@@ -1493,6 +1498,7 @@ abstract class MeasurementConsumerSimulator(
   companion object {
     // For a 99.9999% Confidence Interval.
     private const val CONFIDENCE_INTERVAL_MULTIPLIER = 5.0
+    private val FINAL_RESULT_READ_TIMEOUT = Duration.ofSeconds(10)
     private val DEFAULT_VID_SAMPLING_INTERVAL = vidSamplingInterval {
       start = 0.2f
       width = 0.5f
