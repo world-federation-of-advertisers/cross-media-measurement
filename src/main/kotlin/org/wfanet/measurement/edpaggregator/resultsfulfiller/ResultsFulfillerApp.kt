@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub

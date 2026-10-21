@@ -13,6 +13,11 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "event_group_reference_id_entity_key_mapping",
+    srcs = ["EventGroupReferenceIdEntityKeyMapping.kt"],
+)
+
+kt_jvm_library(
     name = "blob_uris",
     srcs = ["BlobUris.kt"],
     deps = [
