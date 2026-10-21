@@ -22,12 +22,15 @@ option java_package = "org.measurement.integration.k8s.testing";
 option java_multiple_files = true;
 option java_outer_classname = "EdpaReportingIntegrationTestConfigProto";
 
-// Configuration for the EDPA reporting integration test, which provisions the
-// high overlap dataset and reports over it.
+// Configuration for the EDPA reporting integration test, which reports over the
+// high overlap dataset.
 //
 // TODO(world-federation-of-advertisers/cross-media-measurement#4561):
 // Factor the fields shared with CorrectnessTestConfig into a common message.
 message EdpaReportingIntegrationTestConfig {
+  reserved 13;
+  reserved "edp_names";
+
   // gRPC target of Kingdom public API server.
   string kingdom_public_api_target = 1;
 
@@ -73,13 +76,10 @@ message EdpaReportingIntegrationTestConfig {
 
   // ModelLine the high overlap dataset is generated against.
   //
-  // Empty where the environment has no high overlap ModelLine, which disables
-  // all high overlap seeding and makes the test a no-op.
+  // Empty where the environment has no high overlap ModelLine, which makes the
+  // test a no-op.
   string model_line = 12
       [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
-
-  reserved 13;
-  reserved "edp_names";
 
   // DataProvider that owns the high overlap Population.
   string population_data_provider = 14
