@@ -1428,7 +1428,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       )
     private val EDP1_ALL_ENTITY_KEY_REF_IDS =
       EDP1_MULTI_ENTITY_KEY_REF_IDS + EDP1_CREATIVE_EVENT_GROUP_REF_ID
-    private val SHARED_KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "key1"
+    private const val SHARED_KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "key1"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(

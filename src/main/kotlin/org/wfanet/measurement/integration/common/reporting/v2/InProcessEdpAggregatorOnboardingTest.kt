@@ -15,11 +15,14 @@
 package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
+import com.google.devtools.build.runfiles.Runfiles
+import java.nio.file.Path
+import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.testing.ProviderRule
-import org.wfanet.measurement.edpaggregator.tools.VerifyEventGroups
-import org.wfanet.measurement.edpaggregator.tools.VerifyVidLabeledImpressions
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -29,7 +32,6 @@ import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
-import picocli.CommandLine
 
 /** Integration test for the complete TrusTEE EDP onboarding and reporting flow. */
 abstract class InProcessEdpAggregatorOnboardingTest(
@@ -67,11 +69,17 @@ abstract class InProcessEdpAggregatorOnboardingTest(
           }
         }
         .toTypedArray()
-    val impressionVerifier = VerifyVidLabeledImpressions()
-    assertThat(CommandLine(impressionVerifier).execute(*impressionVerifierArgs)).isEqualTo(0)
-    val verificationResult = checkNotNull(impressionVerifier.lastResult)
-    assertThat(verificationResult.totalBlobsProcessed).isEqualTo(metadataUris.size)
-    assertThat(verificationResult.totalImpressions).isGreaterThan(0L)
+    val impressionVerifierResult =
+      runVerifier(deployJarPath("VerifyVidLabeledImpressions_deploy.jar"), impressionVerifierArgs)
+    assertWithMessage("Verifier output:\n${impressionVerifierResult.output}")
+      .that(impressionVerifierResult.exitCode)
+      .isEqualTo(0)
+    assertThat(impressionVerifierResult.output).contains("Blobs processed: ${metadataUris.size}")
+    val totalImpressionsMatch = TOTAL_IMPRESSIONS_REGEX.find(impressionVerifierResult.output)
+    assertWithMessage("Verifier output:\n${impressionVerifierResult.output}")
+      .that(totalImpressionsMatch)
+      .isNotNull()
+    assertThat(checkNotNull(totalImpressionsMatch).groupValues[1].toLong()).isGreaterThan(0L)
 
     val eventGroupFiles = exportEventGroups(edpDisplayNames)
     val eventGroupVerifierArgs =
@@ -79,7 +87,14 @@ abstract class InProcessEdpAggregatorOnboardingTest(
         .sortedBy { it.path }
         .flatMap { file -> listOf("--event-groups-file", file.absolutePath) }
         .toTypedArray()
-    assertThat(CommandLine(VerifyEventGroups()).execute(*eventGroupVerifierArgs)).isEqualTo(0)
+    val eventGroupVerifierResult =
+      runVerifier(deployJarPath("VerifyEventGroups_deploy.jar"), eventGroupVerifierArgs)
+    assertWithMessage("Verifier output:\n${eventGroupVerifierResult.output}")
+      .that(eventGroupVerifierResult.exitCode)
+      .isEqualTo(0)
+    for (eventGroupFile in eventGroupFiles.values) {
+      assertThat(eventGroupVerifierResult.output).contains("PASS: ${eventGroupFile.absolutePath}:")
+    }
 
     for ((edpDisplayName, eventGroupFile) in eventGroupFiles) {
       val sourceEventGroups = readEventGroups(eventGroupFile)
@@ -121,7 +136,45 @@ abstract class InProcessEdpAggregatorOnboardingTest(
     assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
   }
 
+  private fun runVerifier(jarPath: Path, args: Array<String>): VerifierResult {
+    val javaBinary =
+      Paths.get(checkNotNull(System.getProperty("java.home")), "bin", "java").toString()
+    val command = buildList {
+      add(javaBinary)
+      add("-jar")
+      add(jarPath.toString())
+      addAll(args.asList())
+    }
+    val process = ProcessBuilder(command).redirectErrorStream(true).start()
+    val output = process.inputStream.bufferedReader().use { it.readText() }
+    return VerifierResult(exitCode = process.waitFor(), output = output)
+  }
+
+  private fun deployJarPath(fileName: String): Path =
+    checkNotNull(
+      RUNFILES.getRuntimePath(
+        Paths.get(
+          "wfa_measurement_system",
+          "src",
+          "main",
+          "kotlin",
+          "org",
+          "wfanet",
+          "measurement",
+          "edpaggregator",
+          "tools",
+          fileName,
+        )
+      )
+    ) {
+      "$fileName not found in runfiles"
+    }
+
+  private data class VerifierResult(val exitCode: Int, val output: String)
+
   companion object {
+    private val RUNFILES = Runfiles.preload().withSourceRepository("")
+    private val TOTAL_IMPRESSIONS_REGEX = Regex("""Total impressions decrypted:\s+(\d+)""")
     private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_REACH = 5330L
     private const val EXPECTED_TRUSTEE_CROSS_PUBLISHER_IMPRESSIONS = 8860L
     private val EXPECTED_TRUSTEE_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
