@@ -36,12 +36,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "data_availability_sync_replay",
-    srcs = ["DataAvailabilitySyncReplay.kt"],
+    name = "event_group_activity_backfill",
+    srcs = ["EventGroupActivityBackfill.kt"],
     deps = [
-        ":data_availability_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:blob_uris",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )
