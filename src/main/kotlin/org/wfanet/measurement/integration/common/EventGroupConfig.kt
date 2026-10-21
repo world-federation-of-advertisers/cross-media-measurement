@@ -15,6 +15,7 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.Struct
+import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 
@@ -38,3 +39,29 @@ sealed class EventGroupConfig {
 
   data class MultiEntityKey(val entityKeySpecs: List<EntityKeySpec>) : EventGroupConfig()
 }
+
+/** Identifiers populated on an EventGroup backed by mixed-format impression history. */
+enum class EventGroupIdentifierForm {
+  REFERENCE_ID_ONLY,
+  ENTITY_KEY_ONLY,
+  REFERENCE_ID_AND_ENTITY_KEY,
+}
+
+/**
+ * Test fixture for an EventGroup whose older impressions use a reference ID and whose newer
+ * impressions use an entity key.
+ *
+ * @property entityKey entity key equivalent to the map key's event-group reference ID.
+ * @property spec synthetic data written across both identifier formats.
+ * @property entityKeyStartDate first date written with [entityKey]; earlier dates use the
+ *   event-group reference ID.
+ * @property eventGroupIdentifierForm identifiers populated on the EventGroup resource.
+ * @property entityMetadata metadata populated when the EventGroup has an entity key.
+ */
+data class MixedIdentifierHistoryEventGroupConfig(
+  val entityKey: EntityKey,
+  val spec: SyntheticEventGroupSpec,
+  val entityKeyStartDate: LocalDate,
+  val eventGroupIdentifierForm: EventGroupIdentifierForm,
+  val entityMetadata: Struct? = null,
+)

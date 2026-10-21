@@ -202,9 +202,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       storagePath = tempPath,
       pubSubClient = pubSubClient,
       eventGroupConfigsByEdp = eventGroupConfigsByEdp,
+      mixedIdentifierHistoryEventGroupConfigsByEdp = emptyMap(),
       populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
+      eventGroupReferenceIdEntityKeyMapping = null,
+      wholeBlobEntityTypes = emptySet(),
     )
 
   @Before

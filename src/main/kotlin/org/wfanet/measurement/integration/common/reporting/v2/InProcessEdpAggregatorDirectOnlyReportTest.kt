@@ -29,6 +29,7 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
@@ -58,7 +59,56 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
     duchyNames,
     hmssEnabled,
     trusTeeEnabled,
+    mixedIdentifierHistoryEnabled = true,
   ) {
+
+  @Test
+  fun `reports match across mixed impression identifier history`() = runBlocking {
+    val eventGroups = listReportingEventGroups()
+    val referenceIdOnlyEventGroup =
+      eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID }
+    val entityKeyOnlyEventGroup =
+      eventGroups.single { it.entityKey.entityId == MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID }
+    val dualIdentifierEventGroup =
+      eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID }
+
+    assertThat(referenceIdOnlyEventGroup.entityKey.entityId).isEmpty()
+    assertThat(entityKeyOnlyEventGroup.eventGroupReferenceId).isEmpty()
+    assertThat(dualIdentifierEventGroup.entityKey.entityId)
+      .isEqualTo(MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID)
+
+    val completedBasicReports =
+      listOf(
+        runBasicReport(referenceIdOnlyEventGroup, "mixed-history-reference-only"),
+        runBasicReport(entityKeyOnlyEventGroup, "mixed-history-entity-only"),
+        runBasicReport(dualIdentifierEventGroup, "mixed-history-dual-identifier"),
+      )
+    completedBasicReports.forEach { completedBasicReport ->
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertStructuralResults(completedBasicReport)
+      assertSingleEdpNoNoiseResults(
+        completedBasicReport,
+        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+        expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
+        expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
+      )
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    }
+
+    val cumulativeResults =
+      completedBasicReports.map { basicReport ->
+        basicReport.resultGroupsList
+          .single()
+          .resultsList
+          .single {
+            it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+          }
+          .metricSet
+          .reportingUnit
+          .cumulative
+      }
+    cumulativeResults.drop(1).forEach { assertThat(it).isEqualTo(cumulativeResults.first()) }
+  }
 
   @Test
   fun `basic report with reference-id-only event groups succeeds`() = runBlocking {
@@ -272,5 +322,26 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       .that(totalResult.metricSet.componentsCount)
       .isEqualTo(1)
     assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+  }
+
+  private suspend fun runBasicReport(eventGroup: EventGroup, id: String): BasicReport {
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        listOf(eventGroup),
+        "$id-campaign",
+        "$id-basicreport",
+        includeIqfFilter = false,
+      )
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    return reportingBasicReportsClient
+      .withCallCredentials(credentials)
+      .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
   }
 }

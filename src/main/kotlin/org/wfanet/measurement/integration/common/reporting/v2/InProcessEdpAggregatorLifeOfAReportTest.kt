@@ -103,6 +103,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as Ed
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
@@ -111,10 +112,12 @@ import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.EntityKeySpec
 import org.wfanet.measurement.integration.common.EventGroupConfig
+import org.wfanet.measurement.integration.common.EventGroupIdentifierForm
 import org.wfanet.measurement.integration.common.FULFILLER_TOPIC_ID
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.InProcessEdpAggregatorComponents
+import org.wfanet.measurement.integration.common.MixedIdentifierHistoryEventGroupConfig
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.PROJECT_ID
 import org.wfanet.measurement.integration.common.SUBSCRIPTION_ID
@@ -190,6 +193,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
   private val resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams> =
     emptyMap(),
+  private val mixedIdentifierHistoryEnabled: Boolean = false,
 ) {
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
@@ -344,15 +348,61 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         ),
     )
 
+  private val mixedIdentifierHistoryEventGroupConfigsByEdp:
+    Map<String, Map<String, MixedIdentifierHistoryEventGroupConfig>> =
+    if (mixedIdentifierHistoryEnabled) {
+      mapOf(
+        "edp1" to
+          mapOf(
+            MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID to
+              MixedIdentifierHistoryEventGroupConfig(
+                entityKey = EntityKey("campaign", MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID),
+                spec = syntheticEventGroupSpec2,
+                entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
+                eventGroupIdentifierForm = EventGroupIdentifierForm.REFERENCE_ID_ONLY,
+              ),
+            MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID to
+              MixedIdentifierHistoryEventGroupConfig(
+                entityKey = EntityKey("campaign", MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID),
+                spec = syntheticEventGroupSpec2,
+                entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
+                eventGroupIdentifierForm = EventGroupIdentifierForm.ENTITY_KEY_ONLY,
+                entityMetadata = ENTITY_METADATA,
+              ),
+            MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID to
+              MixedIdentifierHistoryEventGroupConfig(
+                entityKey = EntityKey("campaign", MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID),
+                spec = syntheticEventGroupSpec2,
+                entityKeyStartDate = MIXED_HISTORY_ENTITY_KEY_START_DATE,
+                eventGroupIdentifierForm = EventGroupIdentifierForm.REFERENCE_ID_AND_ENTITY_KEY,
+                entityMetadata = ENTITY_METADATA,
+              ),
+          )
+      )
+    } else {
+      emptyMap()
+    }
+
   private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
     InProcessEdpAggregatorComponents(
       secureComputationDatabaseAdmin = secureComputationDatabaseAdmin,
       storagePath = tempPath,
       pubSubClient = pubSubClient,
       eventGroupConfigsByEdp = eventGroupConfigsByEdp,
+      mixedIdentifierHistoryEventGroupConfigsByEdp = mixedIdentifierHistoryEventGroupConfigsByEdp,
       populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
+      eventGroupReferenceIdEntityKeyMapping =
+        if (mixedIdentifierHistoryEnabled) {
+          ResultsFulfillerParamsKt.eventGroupReferenceIdEntityKeyMapping {
+            entityType = "campaign"
+            eventGroupReferenceIdPrefix = "campaign/"
+          }
+        } else {
+          null
+        },
+      wholeBlobEntityTypes = if (mixedIdentifierHistoryEnabled) setOf("campaign") else emptySet(),
     )
 
   private val daemonsStartup = TestRule { base, _ ->
@@ -1275,7 +1325,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       val includedDataProviders = mutableSetOf<String>()
       val eventGroups =
         listReportingEventGroups().filter {
-          it.eventGroupReferenceId !in EDP1_ALL_ENTITY_KEY_REF_IDS &&
+          !it.isMixedIdentifierHistoryEventGroup() &&
+            it.eventGroupReferenceId !in EDP1_ALL_ENTITY_KEY_REF_IDS &&
             it.eventGroupReferenceId != "campaign/$SPARSE_FREQUENCY_EVENT_GROUP_REF_ID"
         }
       eventGroups.forEach { eventGroup ->
@@ -1332,8 +1383,14 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
+  private fun EventGroup.isMixedIdentifierHistoryEventGroup(): Boolean =
+    eventGroupReferenceId in MIXED_HISTORY_REFERENCE_IDS ||
+      entityKey.entityId in MIXED_HISTORY_ENTITY_IDS
+
   protected suspend fun getReferenceIdOnlyEventGroups(): List<EventGroup> {
-    return listReportingEventGroups().filter { it.entityKey.entityId.isEmpty() }
+    return listReportingEventGroups().filter {
+      it.entityKey.entityId.isEmpty() && !it.isMixedIdentifierHistoryEventGroup()
+    }
   }
 
   protected suspend fun getMixedEntityKeyEventGroups(): List<EventGroup> {
@@ -1374,6 +1431,28 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       )
     private val EDP1_ALL_ENTITY_KEY_REF_IDS =
       EDP1_MULTI_ENTITY_KEY_REF_IDS + "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
+    internal const val MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID =
+      "campaign/mixed-history-reference-only"
+    internal const val MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID = "mixed-history-reference-only"
+    internal const val MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID = "campaign/mixed-history-entity-only"
+    internal const val MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID = "mixed-history-entity-only"
+    internal const val MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID =
+      "campaign/mixed-history-dual-identifier"
+    internal const val MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID = "mixed-history-dual-identifier"
+    private val MIXED_HISTORY_REFERENCE_IDS =
+      setOf(
+        MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID,
+        MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID,
+        MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID,
+      )
+    private val MIXED_HISTORY_ENTITY_IDS =
+      setOf(
+        MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID,
+        MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID,
+        MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID,
+      )
+    // Splits inside the BasicReport interval so both identifier formats are required.
+    private val MIXED_HISTORY_ENTITY_KEY_START_DATE = LocalDate.of(2021, 3, 17)
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(
