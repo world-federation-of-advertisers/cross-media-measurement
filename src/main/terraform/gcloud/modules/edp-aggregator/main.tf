@@ -1045,8 +1045,8 @@ resource "google_project_iam_member" "meta_impression_query_metric_writer" {
   member  = "serviceAccount:${module.meta_impression_query_cloud_function[0].cloud_function_service_account.email}"
 }
 
-# The metric names and attributes come from edp-components' MetaImpressionQueryMetrics and
-# MetaAccountAccessMetrics; change both together.
+# The metric names and attributes come from edp-components' MetaImpressionQueryMetrics; change both
+# together.
 resource "google_monitoring_dashboard" "meta_impression_query" {
   count          = local.deploy_meta_impression_query ? 1 : 0
   dashboard_json = file("${path.module}/meta_impression_query_dashboard.json")
@@ -1059,67 +1059,4 @@ resource "google_service_account_iam_member" "terraform_can_mint_results_fulfill
   service_account_id = module.result_fulfiller_tee_app.mig_service_account.name
   role               = "roles/iam.serviceAccountOpenIdTokenCreator"
   member             = "serviceAccount:${var.terraform_service_account}"
-}
-
-# Hourly check of which expected Meta ad accounts the impression-query credentials can read, so
-# onboarding gaps show before any report queries them. Deployed from the same jar, only when
-# expected accounts are configured. Their IDs are sensitive, so they stay out of plan output.
-locals {
-  deploy_meta_account_access_check = (
-    local.deploy_meta_impression_query &&
-    nonsensitive(length(var.meta_expected_ad_account_ids)) > 0
-  )
-  meta_account_access_check_function_name = "meta-account-access-check"
-}
-
-module "meta_account_access_check_cloud_function" {
-  count  = local.deploy_meta_account_access_check ? 1 : 0
-  source = "../http-cloud-function"
-
-  http_cloud_function_service_account_name = "meta-account-access-check"
-  terraform_service_account                = var.terraform_service_account
-  function_name                            = local.meta_account_access_check_function_name
-  entry_point                              = "org.wfanet.measurement.edpcomponents.meta.MetaAccountAccessCheckFunction"
-  # gcloud splits --set-env-vars on commas, so the leading ^;^ switches the delimiter to keep the
-  # comma-separated account list intact. See `gcloud topic escaping`. The list is sensitive, so
-  # Terraform suppresses this deploy's gcloud output; a failure shows only "output suppressed", and
-  # running the same `gcloud functions deploy` by hand shows the error.
-  extra_env_vars = join(";", [
-    "^;^META_EXPECTED_AD_ACCOUNT_IDS=${join(",", var.meta_expected_ad_account_ids)}",
-    "OTEL_METRICS_EXPORTER=google_cloud_monitoring",
-    "OTEL_SERVICE_NAME=meta.account_access_check",
-  ])
-  secret_mappings   = "META_ACCESS_TOKEN=meta-access-token:latest,META_APP_SECRET=meta-app-secret:latest"
-  uber_jar_path     = var.meta_impression_query_uber_jar_path
-  secrets_to_access = ["meta-access-token", "meta-app-secret"]
-
-  # Accounts are checked one after another, each bounded by the client's 10-second request timeout.
-  timeout_seconds = 300
-  max_instances   = 1
-}
-
-resource "google_project_iam_member" "meta_account_access_check_metric_writer" {
-  count   = local.deploy_meta_account_access_check ? 1 : 0
-  project = data.google_project.project.id
-  role    = "roles/monitoring.metricWriter"
-  member  = "serviceAccount:${module.meta_account_access_check_cloud_function[0].cloud_function_service_account.email}"
-}
-
-module "meta_account_access_check_cloud_scheduler" {
-  count                     = local.deploy_meta_account_access_check ? 1 : 0
-  source                    = "../cloud-scheduler"
-  terraform_service_account = var.terraform_service_account
-  scheduler_config = {
-    schedule                  = "0 * * * *"
-    time_zone                 = "UTC"
-    name                      = "meta-access-check-scheduler"
-    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/${local.meta_account_access_check_function_name}"
-    scheduler_sa_display_name = "Meta Account Access Check Scheduler"
-    scheduler_sa_description  = "Service account for Cloud Scheduler to trigger the Meta ad account access check"
-    scheduler_job_description = "Hourly check of which expected Meta ad accounts the impression query can read"
-    scheduler_job_name        = local.meta_account_access_check_function_name
-    # Beyond the function's 300-second timeout, so Scheduler receives its terminal response.
-    attempt_deadline = "320s"
-  }
-  depends_on = [module.meta_account_access_check_cloud_function]
 }

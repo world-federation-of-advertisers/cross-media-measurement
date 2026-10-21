@@ -243,34 +243,6 @@ jobs:
         mkdir -p "$dest_dir"
         cp "$jar_path" "$dest_dir/${version}-function.jar"
         echo "jar_path=$dest_dir/${version}-function.jar" >> "$GITHUB_OUTPUT"
-    - name: Write Meta impression-query tfvars
-      if: steps.download-meta-impression-query.outputs.jar_path != ''
-      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
-      env:
-        # A secret rather than a variable: GitHub prints variables in a step's env block, and this
-        # repository's logs are public. Shape: {"expected_ad_account_ids": ["<id>", ...],
-        # "test": {...}}, where "test" is read by the Meta impression-query test workflow.
-        CONFIG_CONTENT: ${{ secrets.META_IMPRESSION_QUERY_CONFIG_CONTENT }}
-      run: |
-        set -euo pipefail
-        # Expected ad accounts live in the per-environment config rather than the public tfvars.
-        # Absent leaves the list empty, which skips the hourly access check; so does a local apply,
-        # which never writes this file.
-        config="${CONFIG_CONTENT:-}"
-        [[ -n "$config" ]] || config='{}'
-        ids="$(jq -ce '
-          if has("expected_ad_account_ids") then .expected_ad_account_ids else [] end
-          | select(type == "array" and all(type == "string" and test("^(act_)?[0-9]+$")))
-          | map(ltrimstr("act_")) | unique
-        ' <<< "$config")" || {
-          echo "META_IMPRESSION_QUERY_CONFIG_CONTENT.expected_ad_account_ids must be an array of numeric ad account ID strings" >&2
-          exit 1
-        }
-        # Keep the IDs out of the terraform output that follows.
-        for id in $(jq -r '.[]' <<< "$ids"); do
-          echo "::add-mask::$id"
-        done
-        jq -n --argjson ids "$ids" '{meta_expected_ad_account_ids: $ids}' > meta-impression-query.auto.tfvars.json
 
     - name: Build test event proto descriptors
       id: build-test-event-descriptors
