@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Ground truth for the high overlap synthetic dataset, written by
-# HighOverlapSeedingTest. Columns mirror HighOverlapImpressionRow.
+# SeedHighOverlapDataset. Columns mirror HighOverlapImpressionRow.
 
 resource "google_bigquery_dataset" "high_overlap" {
   dataset_id    = "high_overlap"
