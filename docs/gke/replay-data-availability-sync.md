@@ -6,6 +6,9 @@ operator has determined that a full replay is appropriate.
 
 The required `--mode` flag makes the scope explicit:
 
+* `DATA_AVAILABILITY_ONLY` reruns `DataAvailabilitySync` without publishing EventGroup activity. It
+  scans finalized metadata, creates or updates ImpressionMetadata, restores matching soft-deleted
+  metadata, republishes model-line data availability, and updates completion markers.
 * `EVENT_GROUP_ACTIVITY_ONLY` reads only active ImpressionMetadata and publishes positive
   EventGroup activity. It does not create, update, or undelete metadata, publish model-line data
   availability, or modify completion blobs.
@@ -24,11 +27,12 @@ for the full configuration.
 
 The runtime identity needs:
 
-* read, list, and metadata-update access to the configured GCS bucket for `FULL_SYNC`;
+* read, list, and metadata-update access to the configured GCS bucket for
+  `DATA_AVAILABILITY_ONLY` and `FULL_SYNC`;
 * list access to that bucket for `EVENT_GROUP_ACTIVITY_ONLY` when selecting by prefix;
 * read access to the EventGroup map when publishing EventGroup activity;
 * network access to the Kingdom and ImpressionMetadata public APIs;
-* permission to list and write ImpressionMetadata in `FULL_SYNC`;
+* permission to list and write ImpressionMetadata in `DATA_AVAILABILITY_ONLY` and `FULL_SYNC`;
 * permission to list ImpressionMetadata and update EventGroup activity in
   `EVENT_GROUP_ACTIVITY_ONLY`; and
 * access to the TLS files referenced by the config.
@@ -57,13 +61,13 @@ bazel run \
   --blob-prefix=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/vid-labeled-impressions
 ```
 
-To fully replay named completion blobs:
+To replay data availability for named completion blobs without publishing EventGroup activity:
 
 ```shell
 bazel run \
   //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:ReplayDataAvailabilitySync \
   -- \
-  --mode=FULL_SYNC \
+  --mode=DATA_AVAILABILITY_ONLY \
   --config-file=/absolute/path/to/data-availability-sync-config.textproto \
   --kingdom-public-api-target=KINGDOM_HOST:8443 \
   --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
@@ -84,12 +88,19 @@ Completion blobs are sorted and processed sequentially. A failed folder does not
 folders from being attempted, and the process exits nonzero if any folder fails. `FULL_SYNC` also
 exits nonzero when `error_if_gaps_exist` blocks publication.
 
+Each replay scans the folder's current metadata and impressions blobs. If blobs were added or
+overwritten after the original `done` blob was written, select that existing `done` blob by prefix
+or URI; the operator does not need to rewrite it to generate another storage event.
+
 `EVENT_GROUP_ACTIVITY_ONLY` lists only active ImpressionMetadata for each selected folder. Deleted
 metadata is excluded, including metadata left behind by an interrupted eviction.
 
-`FULL_SYNC` intentionally reproduces the normal effect of processing a `done` blob. It may restore
-soft-deleted ImpressionMetadata when the corresponding sidecar and impressions blobs still exist.
-Do not use this mode to backfill only EventGroup activity, and do not run it during an eviction.
+`DATA_AVAILABILITY_ONLY` and `FULL_SYNC` reproduce the normal metadata and data-availability effects
+of processing a `done` blob. They may restore soft-deleted ImpressionMetadata when the
+corresponding sidecar and impressions blobs still exist. `DATA_AVAILABILITY_ONLY` never reads the
+EventGroup map or publishes EventGroup activity, even when activity publishing is configured. Use
+`FULL_SYNC` when both data availability and EventGroup activity should be replayed. Do not use
+either mode to backfill only EventGroup activity, and do not run either mode during an eviction.
 
 EventGroup activity updates are append-only and idempotent. Existing EventGroup/date pairs remain
 unchanged, and omitted dates are not deleted. For explicit append or delete corrections, use

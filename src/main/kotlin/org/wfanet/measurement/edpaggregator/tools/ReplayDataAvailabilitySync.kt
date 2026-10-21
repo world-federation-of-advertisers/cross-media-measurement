@@ -64,6 +64,7 @@ import picocli.CommandLine.Option
 )
 class ReplayDataAvailabilitySync : Runnable {
   enum class Mode {
+    DATA_AVAILABILITY_ONLY,
     EVENT_GROUP_ACTIVITY_ONLY,
     FULL_SYNC,
   }
@@ -91,7 +92,7 @@ class ReplayDataAvailabilitySync : Runnable {
 
   @Option(
     names = ["--mode"],
-    description = ["Replay mode: EVENT_GROUP_ACTIVITY_ONLY or FULL_SYNC"],
+    description = ["Replay mode: DATA_AVAILABILITY_ONLY, EVENT_GROUP_ACTIVITY_ONLY, or FULL_SYNC"],
     required = true,
   )
   private lateinit var mode: Mode
@@ -202,7 +203,11 @@ class ReplayDataAvailabilitySync : Runnable {
         )
       )
     val eventGroupActivityPublisher =
-      buildEventGroupActivityPublisher(config, instrumentedKingdomChannel)
+      when (mode) {
+        Mode.DATA_AVAILABILITY_ONLY -> null
+        Mode.EVENT_GROUP_ACTIVITY_ONLY,
+        Mode.FULL_SYNC -> buildEventGroupActivityPublisher(config, instrumentedKingdomChannel)
+      }
     val storageRootUri = BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = "")
 
     val succeeded =
@@ -226,6 +231,7 @@ class ReplayDataAvailabilitySync : Runnable {
             logActivityOnlyResult(result)
             result.errors.isEmpty()
           }
+          Mode.DATA_AVAILABILITY_ONLY,
           Mode.FULL_SYNC -> {
             val dataAvailabilitySync =
               DataAvailabilitySync(
@@ -249,7 +255,7 @@ class ReplayDataAvailabilitySync : Runnable {
                 )
                 .replay()
             }
-            logFullSyncResult(result)
+            logDataAvailabilityReplayResult(result)
             result.blockedByGaps == 0 && result.errors.isEmpty()
           }
         }
@@ -366,9 +372,9 @@ class ReplayDataAvailabilitySync : Runnable {
     }
   }
 
-  private fun logFullSyncResult(result: DataAvailabilitySyncReplay.Result) {
+  private fun logDataAvailabilityReplayResult(result: DataAvailabilitySyncReplay.Result) {
     logger.info(
-      "Full-sync replay result: " +
+      "Data-availability replay result: " +
         "doneBlobsSelected=${result.doneBlobsSelected}, " +
         "published=${result.published}, " +
         "noWork=${result.noWork}, " +
@@ -376,7 +382,7 @@ class ReplayDataAvailabilitySync : Runnable {
         "errors=${result.errors.size}"
     )
     for (error in result.errors) {
-      logger.warning("Full-sync replay error [${error.doneBlobUri}]: ${error.message}")
+      logger.warning("Data-availability replay error [${error.doneBlobUri}]: ${error.message}")
     }
   }
 
