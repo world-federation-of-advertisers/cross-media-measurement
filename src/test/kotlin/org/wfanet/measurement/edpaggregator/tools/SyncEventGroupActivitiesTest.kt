@@ -149,7 +149,7 @@ class SyncEventGroupActivitiesTest {
         """
           .trimIndent()
       )
-    val args = tlsArgs + arrayOf("--config-file=${configFile.path}")
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=sync")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
@@ -169,7 +169,7 @@ class SyncEventGroupActivitiesTest {
           .trimIndent()
       )
     val configFile = writeLocalFileConfig(inputFile)
-    val args = tlsArgs + arrayOf("--config-file=${configFile.path}")
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=sync")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
@@ -187,7 +187,8 @@ class SyncEventGroupActivitiesTest {
           .trimIndent()
       )
     val configFile = writeLocalFileConfig(inputFile)
-    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--list-page-size=17")
+    val args =
+      tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=sync", "--list-page-size=17")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
@@ -198,7 +199,25 @@ class SyncEventGroupActivitiesTest {
   }
 
   @Test
-  fun `CLI with --mode=append applies creates but not deletes`() {
+  fun `CLI fails when --mode is not provided`() {
+    val inputFile =
+      writeInputFile(
+        """
+        [{"parent": "$DATA_PROVIDER/eventGroups/eg1", "event_group_activity_date": "2026-01-01T00:00:00Z"}]
+        """
+          .trimIndent()
+      )
+    val configFile = writeLocalFileConfig(inputFile)
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}")
+
+    val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
+
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+    verifyBlocking(activitiesServiceMock, never()) { listEventGroupActivities(any()) }
+  }
+
+  @Test
+  fun `CLI with --mode=patch applies explicit appends and deletes`() {
     wheneverBlocking { activitiesServiceMock.listEventGroupActivities(any()) }
       .thenReturn(
         listEventGroupActivitiesResponse {
@@ -212,30 +231,42 @@ class SyncEventGroupActivitiesTest {
             }
         }
       )
-    // Kingdom has 10 dates; file keeps 2 -> 8 would-be deletes, suppressed by skip-deletes mode.
     val inputFile =
       writeInputFile(
         """
         [
-          {"parent": "$DATA_PROVIDER/eventGroups/eg1", "event_group_activity_date": "2026-01-01T00:00:00Z"},
-          {"parent": "$DATA_PROVIDER/eventGroups/eg1", "event_group_activity_date": "2026-01-02T00:00:00Z"}
+          {"parent": "$DATA_PROVIDER/eventGroups/eg1", "event_group_activity_date": "2026-01-02T00:00:00Z", "operation": "delete"},
+          {"parent": "$DATA_PROVIDER/eventGroups/eg1", "event_group_activity_date": "2026-01-11T00:00:00Z", "operation": "append"}
         ]
         """
           .trimIndent()
       )
     val configFile = writeLocalFileConfig(inputFile)
-    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=append")
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=patch")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
-    // skip-deletes is intentional partial work, not a failure, so the CLI exits zero and applies
-    // no deletes.
     CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
-    verifyBlocking(activitiesServiceMock, never()) { batchDeleteEventGroupActivities(any()) }
+    verifyBlocking(activitiesServiceMock, times(1)) {
+      batchUpdateEventGroupActivities(
+        check { request ->
+          assertThat(request.requestsList.single().eventGroupActivity.name)
+            .isEqualTo("$DATA_PROVIDER/eventGroups/eg1/eventGroupActivities/2026-01-11")
+        }
+      )
+    }
+    verifyBlocking(activitiesServiceMock, times(1)) {
+      batchDeleteEventGroupActivities(
+        check { request ->
+          assertThat(request.namesList)
+            .containsExactly("$DATA_PROVIDER/eventGroups/eg1/eventGroupActivities/2026-01-02")
+        }
+      )
+    }
   }
 
   @Test
-  fun `CLI with --mode=preview prints plan without making API calls`() {
+  fun `CLI with --preview prints plan for selected mode without making API calls`() {
     val inputFile =
       writeInputFile(
         """
@@ -246,7 +277,7 @@ class SyncEventGroupActivitiesTest {
           .trimIndent()
       )
     val configFile = writeLocalFileConfig(inputFile)
-    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=preview")
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=sync", "--preview")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
