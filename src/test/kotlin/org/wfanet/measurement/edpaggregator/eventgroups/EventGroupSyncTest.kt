@@ -334,6 +334,15 @@ class EventGroupSyncTest {
     addService(unlinkedClientAccountsServiceMock)
   }
 
+  private fun validEventGroupMetadata() = eventGroupMetadata {
+    this.adMetadata = adMetadata {
+      this.campaignMetadata = campaignMetadata {
+        brand = "brand-1"
+        campaign = "campaign-1"
+      }
+    }
+  }
+
   @Test
   fun `sync registersUnregisteredEventGroups`() {
     val newCampaign = eventGroup {
@@ -3051,7 +3060,7 @@ class EventGroupSyncTest {
           entityType = "campaign"
           entityId = scenario.entityId
         }
-        this.eventGroupMetadata = eventGroupMetadata {}
+        this.eventGroupMetadata = validEventGroupMetadata()
         dataAvailabilityInterval = kingdomRow.dataAvailabilityInterval
         mediaTypes += MediaType.VIDEO
       }
@@ -3212,7 +3221,7 @@ class EventGroupSyncTest {
         entityType = "campaign"
         entityId = "cp_123"
       }
-      this.eventGroupMetadata = eventGroupMetadata {}
+      this.eventGroupMetadata = validEventGroupMetadata()
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -3261,7 +3270,7 @@ class EventGroupSyncTest {
         entityType = "campaign"
         entityId = "123"
       }
-      this.eventGroupMetadata = eventGroupMetadata {}
+      this.eventGroupMetadata = validEventGroupMetadata()
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -3310,7 +3319,7 @@ class EventGroupSyncTest {
         entityType = "campaign"
         entityId = "cp_"
       }
-      this.eventGroupMetadata = eventGroupMetadata {}
+      this.eventGroupMetadata = validEventGroupMetadata()
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -3433,7 +3442,7 @@ class EventGroupSyncTest {
         entityType = "campaign"
         entityId = "cp_123"
       }
-      this.eventGroupMetadata = eventGroupMetadata {}
+      this.eventGroupMetadata = validEventGroupMetadata()
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -3499,7 +3508,7 @@ class EventGroupSyncTest {
         entityType = "campaign"
         entityId = "cp_123"
       }
-      this.eventGroupMetadata = eventGroupMetadata {}
+      this.eventGroupMetadata = validEventGroupMetadata()
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
