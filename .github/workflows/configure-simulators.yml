@@ -223,7 +223,14 @@ jobs:
       env:
         STABILITY_WINDOW_SECONDS: ${{ inputs.stability-window-seconds }}
       run: |
-        selector="app.kubernetes.io/component=simulator"
+        deployment_selector="app.kubernetes.io/component=simulator"
+        pod_apps="$(kubectl get deployments -l "$deployment_selector" -o json | jq -r '
+          [.items[].spec.selector.matchLabels.app] | map(select(. != null)) | join(",")')"
+        if [[ -z "$pod_apps" ]]; then
+          echo "No simulator deployment pod selectors found." >&2
+          exit 1
+        fi
+        selector="app in ($pod_apps)"
         kubectl wait pod -l "$selector" --for=condition=Ready --timeout=5m
 
         snapshot() {
