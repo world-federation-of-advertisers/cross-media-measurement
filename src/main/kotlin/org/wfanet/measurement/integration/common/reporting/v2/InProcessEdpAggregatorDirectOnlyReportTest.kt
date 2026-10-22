@@ -300,9 +300,9 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
           .toSet()
       )
       .hasSize(3)
-    assertThat(referenceIdOnlyEventGroup.hasEntityKey()).isFalse()
-    assertThat(entityKeyOnlyEventGroup.hasEntityKey()).isFalse()
-    assertThat(dualIdentifierEventGroup.hasEntityKey()).isFalse()
+    assertThat(referenceIdOnlyEventGroup.entityKey.entityId).isEmpty()
+    assertThat(entityKeyOnlyEventGroup.entityKey.entityId).isEmpty()
+    assertThat(dualIdentifierEventGroup.entityKey.entityId).isEmpty()
 
     val sources = mixedHistoryUpgradeSources()
     val mapped =
@@ -354,7 +354,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       beforeEventGroups.single {
         it.eventGroupReferenceId == MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID
       }
-    assertThat(legacyEventGroup.hasEntityKey()).isFalse()
+    assertThat(legacyEventGroup.entityKey.entityId).isEmpty()
     val beforeReportingEventGroup =
       listReportingEventGroups().single { it.cmmsEventGroup == legacyEventGroup.name }
     assertThat(beforeReportingEventGroup.entityKey.entityId).isEmpty()
