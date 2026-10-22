@@ -295,6 +295,32 @@ class BasicReportReportingSetBackfillerTest {
     }
 
   @Test
+  fun `composite migration preserves a filtered composite custom component identity`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      createCompositeCustomComponent()
+      insertCustomComponentBasicReport()
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.skipped).isEqualTo(0)
+      assertThat(readComponentSummaryReportingSetId()).isEqualTo(CUSTOM_COMPONENT_ID)
+      assertThat(readReportingSet(CUSTOM_COMPONENT_ID).filter).isEqualTo(CUSTOM_COMPONENT_FILTER)
+      val publicResult = readPublicBasicReport().resultGroupsList.single().resultsList.single()
+      val customComponentName =
+        ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID, CUSTOM_COMPONENT_ID).toName()
+      assertThat(
+          publicResult.metadata.reportingUnitSummary.reportingUnitComponentSummaryList
+            .single()
+            .component
+        )
+        .isEqualTo(customComponentName)
+      assertThat(publicResult.metricSet.componentsList.map { it.key })
+        .containsExactly(customComponentName)
+    }
+
+  @Test
   fun `primitive migration blocks a Campaign Group change when results are linked`() =
     runBlocking<Unit> {
       createNonCampaignGroup()
@@ -1561,6 +1587,45 @@ class BasicReportReportingSetBackfillerTest {
     )
   }
 
+  private suspend fun createCompositeCustomComponent() {
+    createNonCampaignGroup(CUSTOM_COMPONENT_PRIMITIVE_1_ID, listOf(EVENT_GROUP_ID_1))
+    createNonCampaignGroup(CUSTOM_COMPONENT_PRIMITIVE_2_ID, listOf(EVENT_GROUP_ID_2))
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        externalReportingSetId = CUSTOM_COMPONENT_ID
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          filter = CUSTOM_COMPONENT_FILTER
+          composite =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.UNION
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = CUSTOM_COMPONENT_PRIMITIVE_1_ID
+                }
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = CUSTOM_COMPONENT_PRIMITIVE_2_ID
+                }
+            }
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 1
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = CUSTOM_COMPONENT_PRIMITIVE_1_ID
+                }
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = CUSTOM_COMPONENT_PRIMITIVE_2_ID
+                }
+            }
+        }
+      }
+    )
+  }
+
   private suspend fun createCompositeNonCampaignGroupWithMissingRhs() {
     createNonCampaignGroup()
     reportingSetsService.createReportingSet(
@@ -1951,6 +2016,8 @@ class BasicReportReportingSetBackfillerTest {
     private const val OTHER_NON_CAMPAIGN_GROUP_ID = "other-invalid-campaign-group"
     private const val COMPOSITE_NON_CAMPAIGN_GROUP_ID = "composite-non-campaign-group"
     private const val CUSTOM_COMPONENT_ID = "custom-component"
+    private const val CUSTOM_COMPONENT_PRIMITIVE_1_ID = "custom-component-primitive-1"
+    private const val CUSTOM_COMPONENT_PRIMITIVE_2_ID = "custom-component-primitive-2"
     private const val AMBIGUOUS_COMPONENT_ID = "ambiguous-component"
     private const val CUSTOM_COMPONENT_FILTER = "person.age_group == 1"
     private const val EMPTY_NON_CAMPAIGN_GROUP_ID = "empty-non-campaign-group"

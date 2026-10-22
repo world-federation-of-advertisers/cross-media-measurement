@@ -112,8 +112,9 @@ determines the identity of each blank component:
 
 *   For a caller-supplied ReportingSet component, the ReportingSet ID in the
     stored request is authoritative. The tool verifies that it identifies a
-    non-empty primitive ReportingSet, uses that ReportingSet's EventGroups for
-    membership validation, and preserves the exact ID and any filter.
+    non-empty primitive or resolvable composite ReportingSet, uses that
+    ReportingSet's EventGroups for membership validation, and preserves the
+    exact ID and any filter.
 *   For a DataProvider component, the tool resolves membership from its
     `event_group_summaries`. If `cmms_data_provider_id` is blank, the
     DataProvider is inferred only when the MeasurementConsumer's EventGroup
@@ -166,17 +167,17 @@ If different reports reuse the same ordinary ReportingSet reference but contain
 different EventGroup unions, each distinct union resolves to its own Campaign
 Group. The tool does not force those reports into one shared universe.
 
-The tool does not guess. A missing, empty, cyclic, incomplete, or already-assigned
-Campaign Group reference is left unchanged. A report is also left unchanged
-when a component has no EventGroups, references an unknown EventGroup, has a
-blank DataProvider that cannot be inferred uniquely, identifies a custom
-ReportingSet that is missing, empty, or not primitive, has an existing
-ReportingSet ID without stored request evidence of its identity, disagrees with
-the custom component identity stored in the request, omits an EventGroup
-contained in the referenced Campaign Group source, or has linked results that
-would also need migration. These rows are counted as blocking, the scan
-continues, and the
-environment is reported as not ready to remove the read fallback.
+The tool does not guess. A missing, empty, cyclic, incomplete, or
+already-assigned Campaign Group reference is left unchanged. A report is also
+left unchanged when a component has no EventGroups, references an unknown
+EventGroup, has a blank DataProvider that cannot be inferred uniquely,
+identifies a custom ReportingSet that is missing, empty, or invalid, has an
+existing ReportingSet ID without stored request evidence of its identity,
+disagrees with the custom component identity stored in the request, omits an
+EventGroup contained in the referenced Campaign Group source, or has linked
+results that would also need migration. These rows are counted as blocking, the
+scan continues, and the environment is reported as not ready to remove the read
+fallback.
 
 No Campaign Group or component ReportingSet is created and no `BasicReport`
 is updated unless every component summary that needs resolution can be

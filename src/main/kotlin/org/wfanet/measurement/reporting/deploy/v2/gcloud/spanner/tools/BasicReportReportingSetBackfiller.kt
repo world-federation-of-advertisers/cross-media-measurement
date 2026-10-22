@@ -645,29 +645,47 @@ class BasicReportReportingSetBackfiller(
     cmmsMeasurementConsumerId: String,
     externalReportingSetId: String,
   ): ComponentMembershipResolution {
+    val reportingSetKey = CampaignGroupKey(cmmsMeasurementConsumerId, externalReportingSetId)
     val reportingSet: ReportingSet =
       try {
-        readReportingSet(CampaignGroupKey(cmmsMeasurementConsumerId, externalReportingSetId))
-          .reportingSet
+        readReportingSet(reportingSetKey).reportingSet
       } catch (_: ReportingSetNotFoundException) {
         return ComponentMembershipResolution(
           null,
           "custom ReportingSet $externalReportingSetId was not found",
         )
       }
-    if (!reportingSet.hasPrimitive()) {
-      return ComponentMembershipResolution(
-        null,
-        "custom ReportingSet $externalReportingSetId is not primitive",
-      )
-    }
-    if (reportingSet.primitive.eventGroupKeysCount == 0) {
+    val membership: Set<ReportingSet.Primitive.EventGroupKey> =
+      try {
+        when {
+          reportingSet.hasPrimitive() -> reportingSet.primitive.eventGroupKeysList.toSet()
+          reportingSet.hasComposite() ->
+            collectPrimitiveEventGroupKeys(
+              reportingSetKey,
+              reportingSet,
+              mutableMapOf(),
+              mutableSetOf(),
+            )
+          else -> emptySet()
+        }
+      } catch (_: ReportingSetNotFoundException) {
+        return ComponentMembershipResolution(
+          null,
+          "custom ReportingSet $externalReportingSetId has a missing operand",
+        )
+      } catch (_: CampaignGroupInvalidException) {
+        return ComponentMembershipResolution(
+          null,
+          "custom ReportingSet $externalReportingSetId has an invalid composite expression",
+        )
+      }
+    if (membership.isEmpty()) {
       return ComponentMembershipResolution(
         null,
         "custom ReportingSet $externalReportingSetId has no EventGroups",
       )
     }
-    return ComponentMembershipResolution(reportingSet.primitive.eventGroupKeysList.toSet(), null)
+    return ComponentMembershipResolution(membership, null)
   }
 
   private suspend fun resolveComponentMemberships(
