@@ -41,7 +41,13 @@ sealed class EventGroupConfig {
 
   data class LegacySpec(val spec: SyntheticEventGroupSpec) : EventGroupConfig()
 
-  /** Entity-key data, optionally preceded by reference-only data ending at [legacyEndDate]. */
+  /**
+   * Independently generated impression streams, optionally preceded by reference-only data ending
+   * at [legacyEndDate].
+   *
+   * Each [entityKeySpecs] entry generates a separate stream; its entity keys label the same
+   * impressions within that stream.
+   */
   data class MultiEntityKey(
     val entityKeySpecs: List<EntityKeySpec>,
     val legacyEndDate: LegacyEndDate?,
