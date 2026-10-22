@@ -39,6 +39,7 @@ variable "requisition_fulfiller_config" {
       max_replicas                  = number
       machine_type                  = string
       java_tool_options             = optional(string)
+      stack_dump_interval_seconds   = optional(number)
       docker_image                  = string
       mig_distribution_policy_zones = list(string)
       app_flags                     = list(string)
@@ -504,6 +505,7 @@ variable "vid_labeling_workers" {
       machine_type                  = string
       disk_type                     = optional(string, "pd-ssd")
       java_tool_options             = optional(string)
+      stack_dump_interval_seconds   = optional(number)
       docker_image                  = string
       tee_signed_image_repo         = string
       mig_distribution_policy_zones = list(string)

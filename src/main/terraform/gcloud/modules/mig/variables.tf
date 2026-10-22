@@ -145,7 +145,7 @@ variable "java_tool_options" {
   default     = null
 }
 
-variable "tee_stack_dump_interval_seconds" {
+variable "stack_dump_interval_seconds" {
   description = "If set, the TEE application logs all thread stacks at this interval in seconds, for diagnosing stuck workers. Null disables dumps."
   type        = number
   default     = null

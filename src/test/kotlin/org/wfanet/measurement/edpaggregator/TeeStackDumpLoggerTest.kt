@@ -21,6 +21,7 @@ import java.time.Duration
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -38,7 +39,7 @@ class TeeStackDumpLoggerTest {
 
   @Test
   fun `startFromEnvironment ignores non-positive or non-numeric values`() {
-    for (value in listOf("0", "-5", "30s", "abc")) {
+    for (value in listOf("0", "-5", "30s", "abc", Long.MAX_VALUE.toString())) {
       assertThat(
           TeeStackDumpLogger.startFromEnvironment(mapOf(TeeStackDumpLogger.INTERVAL_ENV to value))
         )
@@ -56,18 +57,18 @@ class TeeStackDumpLoggerTest {
       assertThat(thread.isAlive).isTrue()
     } finally {
       thread?.interrupt()
-      thread?.join(5_000)
+      thread?.join()
     }
     assertThat(thread!!.isAlive).isFalse()
   }
 
   @Test
-  fun `start logs a thread dump each interval`() {
+  fun `logDumpNow logs a dump of the live threads`() {
     val records = mutableListOf<String>()
     val handler =
       object : Handler() {
         override fun publish(record: LogRecord) {
-          synchronized(records) { records += record.message }
+          records += record.message
         }
 
         override fun flush() {}
@@ -76,22 +77,22 @@ class TeeStackDumpLoggerTest {
       }
     val logger = Logger.getLogger(TeeStackDumpLogger::class.java.name)
     logger.addHandler(handler)
-    val thread = TeeStackDumpLogger.start(Duration.ofMillis(20))
     try {
-      val deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos()
-      while (
-        synchronized(records) { records.none { it.startsWith("Thread dump") } } &&
-          System.nanoTime() < deadline
-      ) {
-        Thread.sleep(10)
-      }
+      TeeStackDumpLogger.logDumpNow()
     } finally {
-      thread.interrupt()
-      thread.join(5_000)
       logger.removeHandler(handler)
     }
-    val dump = synchronized(records) { records.first { it.startsWith("Thread dump") } }
-    assertThat(dump).contains("\"tee-stack-dump\"")
+
+    assertThat(records).hasSize(1)
+    assertThat(records.single()).startsWith("Thread dump (")
+    assertThat(records.single()).contains("\"${Thread.currentThread().name}\"")
+  }
+
+  @Test
+  fun `start rejects an interval that overflows milliseconds`() {
+    assertFailsWith<IllegalArgumentException> {
+      TeeStackDumpLogger.start(Duration.ofSeconds(Long.MAX_VALUE))
+    }
   }
 
   @Test
