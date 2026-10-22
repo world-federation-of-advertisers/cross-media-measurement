@@ -29,6 +29,7 @@ import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -76,7 +77,8 @@ private fun canonicalWorkItemName(name: String): String {
  * @param attemptLeaseRenewalContext [CoroutineContext] the lease-renewal loop runs in. It must not
  *   share a thread with [runWork]: subclasses commonly run [runWork] inside a dispatcher-less
  *   `runBlocking`, where CPU-bound or non-suspending work would otherwise starve renewal until the
- *   lease expires.
+ *   lease expires. It must not contain a [Job], which would detach renewal from the work's
+ *   structured cancellation.
  */
 abstract class BaseTeeApplication(
   private val subscriptionId: String,
@@ -99,6 +101,9 @@ abstract class BaseTeeApplication(
   init {
     require(attemptLeaseRenewalInterval > Duration.ZERO) {
       "attemptLeaseRenewalInterval must be positive"
+    }
+    require(attemptLeaseRenewalContext[Job] == null) {
+      "attemptLeaseRenewalContext must not contain a Job"
     }
   }
 

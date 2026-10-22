@@ -28,11 +28,14 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -586,12 +589,12 @@ class BaseTeeApplicationTest {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
       leaseExpirationTime = timestamp { seconds = 1L }
     }
-    val leaseRenewed = CompletableDeferred<Unit>()
+    val leaseRenewed = CountDownLatch(1)
     workItemAttemptsServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
       onBlocking { renewWorkItemAttempt(any()) }
         .thenAnswer {
-          leaseRenewed.complete(Unit)
+          leaseRenewed.countDown()
           testWorkItemAttempt
         }
       onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
@@ -606,16 +609,13 @@ class BaseTeeApplicationTest {
           workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
           workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
           attemptUpdateRetryDelay = {},
-          attemptLeaseRenewalInterval = Duration.ofMillis(10),
+          attemptLeaseRenewalInterval = Duration.ofNanos(1),
         ) {
         override suspend fun runWork(message: Any) {
-          // Occupies this runBlocking's only thread without ever suspending, like a CPU-bound
-          // rank-index build. Renewal must still run on its own context. Bounded so a regression
-          // fails the assertion below instead of hanging the test.
-          val deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos()
-          while (!leaseRenewed.isCompleted && System.nanoTime() < deadline) {
-            Thread.onSpinWait()
-          }
+          // Blocks this runBlocking's only thread without suspending, like a CPU-bound rank-index
+          // build, and returns only once a renewal has run. Renewal therefore has to run on its
+          // own context; when it shared this thread, it could never run and this never returned.
+          leaseRenewed.await()
         }
       }
     val job = launch { app.run() }
@@ -630,10 +630,30 @@ class BaseTeeApplicationTest {
 
     consumer.disposition.await()
 
-    assertThat(leaseRenewed.isCompleted).isTrue()
+    assertThat(leaseRenewed.count).isEqualTo(0)
     assertThat(consumer.ackCount).isEqualTo(1)
     assertThat(consumer.nackCount).isEqualTo(0)
     job.cancelAndJoin()
+  }
+
+  @Test
+  fun `constructor rejects lease renewal context containing a Job`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        object :
+          BaseTeeApplication(
+            subscriptionId = SUBSCRIPTION_ID,
+            queueSubscriber = FakeQueueSubscriber(),
+            parser = WorkItem.parser(),
+            workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+            workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+            attemptLeaseRenewalContext = Dispatchers.IO + Job(),
+          ) {
+          override suspend fun runWork(message: Any) {}
+        }
+      }
+
+    assertThat(exception).hasMessageThat().contains("must not contain a Job")
   }
 
   @Test
