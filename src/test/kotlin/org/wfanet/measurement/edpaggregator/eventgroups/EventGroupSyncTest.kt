@@ -334,6 +334,15 @@ class EventGroupSyncTest {
     addService(unlinkedClientAccountsServiceMock)
   }
 
+  private fun validEventGroupMetadata() = eventGroupMetadata {
+    this.adMetadata = adMetadata {
+      this.campaignMetadata = campaignMetadata {
+        brand = "brand-1"
+        campaign = "campaign-1"
+      }
+    }
+  }
+
   @Test
   fun `sync registersUnregisteredEventGroups`() {
     val newCampaign = eventGroup {
@@ -1686,103 +1695,6 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `throws exception if no media types`() {
-    val eventGroup = eventGroup {
-      eventGroupReferenceId = "reference-id-4"
-      this.eventGroupMetadata = eventGroupMetadata {
-        this.adMetadata = adMetadata {
-          this.campaignMetadata = campaignMetadata {
-            brand = "brand-2"
-            campaign = "campaign-2"
-          }
-        }
-      }
-      measurementConsumer = "measurement-consumer-2"
-      dataAvailabilityInterval = interval {
-        startTime = timestamp { seconds = 200 }
-        endTime = timestamp { seconds = 300 }
-      }
-      mediaTypes += emptyList<MediaType>()
-    }
-    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
-  }
-
-  @Test
-  fun `throws exception if no event group reference id`() {
-    val eventGroup = eventGroup {
-      eventGroupReferenceId = ""
-      this.eventGroupMetadata = eventGroupMetadata {
-        this.adMetadata = adMetadata {
-          this.campaignMetadata = campaignMetadata {
-            brand = "brand-2"
-            campaign = "campaign-2"
-          }
-        }
-      }
-      measurementConsumer = "measurement-consumer-2"
-      dataAvailabilityInterval = interval {
-        startTime = timestamp { seconds = 200 }
-        endTime = timestamp { seconds = 300 }
-      }
-      mediaTypes += listOf(MediaType.OTHER)
-    }
-    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
-  }
-
-  @Test
-  fun `throw exceptions if do data availability`() {
-    val eventGroup = eventGroup {
-      eventGroupReferenceId = "some-event-group-reference-id"
-      this.eventGroupMetadata = eventGroupMetadata {
-        this.adMetadata = adMetadata {
-          this.campaignMetadata = campaignMetadata {
-            brand = "brand-2"
-            campaign = "campaign-2"
-          }
-        }
-      }
-      measurementConsumer = "measurement-consumer-2"
-      mediaTypes += listOf(MediaType.OTHER)
-    }
-    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
-  }
-
-  @Test
-  fun `throws exception if no event group metadata`() {
-    val eventGroup = eventGroup {
-      eventGroupReferenceId = "event-group-reference-id"
-      measurementConsumer = "measurement-consumer-2"
-      dataAvailabilityInterval = interval {
-        startTime = timestamp { seconds = 200 }
-        endTime = timestamp { seconds = 300 }
-      }
-      mediaTypes += listOf(MediaType.OTHER)
-    }
-    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
-  }
-
-  @Test
-  fun `throws exception if empty measurement consumer`() {
-    val eventGroup = eventGroup {
-      eventGroupReferenceId = "some-reference-id"
-      this.eventGroupMetadata = eventGroupMetadata {
-        this.adMetadata = adMetadata {
-          this.campaignMetadata = campaignMetadata {
-            brand = "brand-2"
-            campaign = "campaign-2"
-          }
-        }
-      }
-      dataAvailabilityInterval = interval {
-        startTime = timestamp { seconds = 200 }
-        endTime = timestamp { seconds = 300 }
-      }
-      mediaTypes += listOf(MediaType.OTHER)
-    }
-    assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
-  }
-
-  @Test
   fun `records sync_attempts metric for all event groups`() {
     runBlocking {
       val eventGroupSync =
@@ -2763,118 +2675,6 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `validateDeletedEventGroup accepts event group with entity key and measurement consumer`() {
-    val eventGroup = eventGroup {
-      measurementConsumer = "measurementConsumers/mc-1"
-      state = State.DELETED
-      entityKey = entityKey {
-        entityType = "campaign"
-        entityId = "eg-1"
-      }
-    }
-    EventGroupSync.validateDeletedEventGroup(eventGroup)
-  }
-
-  @Test
-  fun `validateDeletedEventGroup rejects event group without entity key`() {
-    val eventGroup = eventGroup {
-      eventGroupReferenceId = "reference-id"
-      measurementConsumer = "measurementConsumers/mc-1"
-      state = State.DELETED
-    }
-    val exception =
-      assertFailsWith<IllegalStateException> {
-        EventGroupSync.validateDeletedEventGroup(eventGroup)
-      }
-    assertThat(exception.message)
-      .contains("Entity Key with entity ID must be set for deleted Event Groups")
-  }
-
-  @Test
-  fun `validateDeletedEventGroup rejects event group with no measurement consumer`() {
-    val eventGroup = eventGroup {
-      state = State.DELETED
-      entityKey = entityKey {
-        entityType = "campaign"
-        entityId = "eg-1"
-      }
-    }
-    val exception =
-      assertFailsWith<IllegalStateException> {
-        EventGroupSync.validateDeletedEventGroup(eventGroup)
-      }
-    assertThat(exception.message)
-      .contains("Measurement Consumer must be set for deleted Event Groups")
-  }
-
-  @Test
-  fun `validateDeletedEventGroup rejects event group with only client account reference id`() {
-    val eventGroup = eventGroup {
-      clientAccountReferenceId = "client-ref-1"
-      state = State.DELETED
-      entityKey = entityKey {
-        entityType = "campaign"
-        entityId = "eg-1"
-      }
-    }
-    val exception =
-      assertFailsWith<IllegalStateException> {
-        EventGroupSync.validateDeletedEventGroup(eventGroup)
-      }
-    assertThat(exception.message)
-      .contains("Measurement Consumer must be set for deleted Event Groups")
-  }
-
-  @Test
-  fun `validateEventGroup accepts client_account_reference_id only`() {
-    val eventGroup = eventGroup {
-      eventGroupReferenceId = "reference-id"
-      this.eventGroupMetadata = eventGroupMetadata {
-        this.adMetadata = adMetadata {
-          this.campaignMetadata = campaignMetadata {
-            brand = "brand"
-            campaign = "campaign"
-          }
-        }
-      }
-      clientAccountReferenceId = "client-ref"
-      dataAvailabilityInterval = interval {
-        startTime = timestamp { seconds = 200 }
-        endTime = timestamp { seconds = 300 }
-      }
-      mediaTypes += listOf(MediaType.OTHER)
-    }
-
-    // Should not throw an exception
-    EventGroupSync.validateEventGroup(eventGroup)
-  }
-
-  @Test
-  fun `validateEventGroup rejects event group with neither measurement_consumer nor client_account_reference_id`() {
-    val eventGroup = eventGroup {
-      eventGroupReferenceId = "reference-id"
-      this.eventGroupMetadata = eventGroupMetadata {
-        this.adMetadata = adMetadata {
-          this.campaignMetadata = campaignMetadata {
-            brand = "brand"
-            campaign = "campaign"
-          }
-        }
-      }
-      dataAvailabilityInterval = interval {
-        startTime = timestamp { seconds = 200 }
-        endTime = timestamp { seconds = 300 }
-      }
-      mediaTypes += listOf(MediaType.OTHER)
-    }
-
-    val exception =
-      assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
-    assertThat(exception.message)
-      .contains("Either Measurement Consumer or Client Account Reference ID must be set")
-  }
-
-  @Test
   fun `sync skips delete and records metric when DELETED event group has no entity key`() {
     runBlocking {
       val deletedEventGroup = eventGroup {
@@ -3260,7 +3060,7 @@ class EventGroupSyncTest {
           entityType = "campaign"
           entityId = scenario.entityId
         }
-        this.eventGroupMetadata = eventGroupMetadata {}
+        this.eventGroupMetadata = validEventGroupMetadata()
         dataAvailabilityInterval = kingdomRow.dataAvailabilityInterval
         mediaTypes += MediaType.VIDEO
       }
@@ -3421,7 +3221,7 @@ class EventGroupSyncTest {
         entityType = "campaign"
         entityId = "cp_123"
       }
-      this.eventGroupMetadata = eventGroupMetadata {}
+      this.eventGroupMetadata = validEventGroupMetadata()
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -3470,7 +3270,7 @@ class EventGroupSyncTest {
         entityType = "campaign"
         entityId = "123"
       }
-      this.eventGroupMetadata = eventGroupMetadata {}
+      this.eventGroupMetadata = validEventGroupMetadata()
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -3519,7 +3319,7 @@ class EventGroupSyncTest {
         entityType = "campaign"
         entityId = "cp_"
       }
-      this.eventGroupMetadata = eventGroupMetadata {}
+      this.eventGroupMetadata = validEventGroupMetadata()
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -3642,7 +3442,7 @@ class EventGroupSyncTest {
         entityType = "campaign"
         entityId = "cp_123"
       }
-      this.eventGroupMetadata = eventGroupMetadata {}
+      this.eventGroupMetadata = validEventGroupMetadata()
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -3708,7 +3508,7 @@ class EventGroupSyncTest {
         entityType = "campaign"
         entityId = "cp_123"
       }
-      this.eventGroupMetadata = eventGroupMetadata {}
+      this.eventGroupMetadata = validEventGroupMetadata()
       dataAvailabilityInterval = interval {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
@@ -4012,31 +3812,6 @@ class EventGroupSyncTest {
     val point = failureMetric.longSumData.points.first()
     assertThat(point.attributes.get(AttributeKey.stringKey("error_type"))).isEqualTo("UNAVAILABLE")
     assertThat(point.attributes.get(AttributeKey.stringKey("event_group_reference_id"))).isNull()
-  }
-
-  @Test
-  fun `validateEventGroup rejects malformed measurement_consumer with empty ID`() {
-    val eventGroup = eventGroup {
-      eventGroupReferenceId = "reference-id"
-      measurementConsumer = "measurementConsumers/"
-      this.eventGroupMetadata = eventGroupMetadata {
-        this.adMetadata = adMetadata {
-          this.campaignMetadata = campaignMetadata {
-            brand = "brand"
-            campaign = "campaign"
-          }
-        }
-      }
-      dataAvailabilityInterval = interval {
-        startTime = timestamp { seconds = 200 }
-        endTime = timestamp { seconds = 300 }
-      }
-      mediaTypes += listOf(MediaType.OTHER)
-    }
-
-    val exception =
-      assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
-    assertThat(exception.message).contains("Malformed measurement_consumer")
   }
 
   @Test
@@ -4842,7 +4617,7 @@ class EventGroupSyncTest {
     // pairing key, different request_ids. Kingdom enforces entity_key uniqueness per (DataProvider,
     // MeasurementConsumer), so this is malformed EDP input. queueEventGroupItem must skip the
     // second row (SEVERE log + invalidEventGroupFailure metric + continue) instead of taking down
-    // the whole sync or silently splitting into two batches — mirroring the validateEventGroup
+    // the whole sync or silently splitting into two batches — mirroring the EventGroup validation
     // failure path.
     val duplicateEntityKeyA = eventGroup {
       eventGroupReferenceId = "ref-A"
@@ -5640,10 +5415,13 @@ class EventGroupSyncTest {
   @Test
   fun `sync captures unlinked account with no entity_metadata when the EventGroup has none`() {
     val unlinkedEventGroup = eventGroup {
-      eventGroupReferenceId = "reference-id-no-brand"
+      eventGroupReferenceId = "reference-id-no-entity-metadata"
       this.eventGroupMetadata = eventGroupMetadata {
         this.adMetadata = adMetadata {
-          this.campaignMetadata = campaignMetadata { campaign = "campaign-no-brand" }
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-no-entity-metadata"
+            campaign = "campaign-no-entity-metadata"
+          }
         }
       }
       clientAccountReferenceId = "client-ref-nonexistent"
@@ -5674,7 +5452,7 @@ class EventGroupSyncTest {
     val account = createCaptor.firstValue.requestsList.single().unlinkedClientAccount
     assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-nonexistent")
     assertThat(account.hasEntityMetadata()).isFalse()
-    assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-no-brand")
+    assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-no-entity-metadata")
   }
 
   @Test
