@@ -67,6 +67,7 @@ jobs:
               }
               console.log(`PR #${pullNumber} found in workflow_run.pull_requests`);
             }
+            core.notice(`Triggered for pull-request: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/pull/${pullNumber}`);
             core.setOutput('pull-number', pullNumber);
 
   check-cross-company-review-policy:
@@ -184,7 +185,7 @@ jobs:
 
             async function setPolicyStatusToFailure(statusSha, pullAuthor, authorTeam, crossCompanyTeams){
               await setPolicyStatus(statusSha, 'failure', 'Cross-company approval is still required.');
-              core.setFailed(
+              core.notice(
                 `Cross-company review policy not met: ` +
                 `PR author ${pullAuthor} belongs to team '${authorTeam}', ` +
                 `and the PR has not been approved by any reviewers ` +
