@@ -107,23 +107,32 @@ at a time. Use `--create-time-after` to restrict this to `BasicReport`s
 created after a given time. A bounded run cannot establish that the full
 environment is ready to remove the fallback.
 
-For a report that already references a valid Campaign Group, each blank
-component is resolved from its own `event_group_summaries`:
+For a report that already references a valid Campaign Group, the tool first
+determines the identity of each blank component:
 
-1.  If `cmms_data_provider_id` is populated, the tool pairs it with every
-    EventGroup ID. If it is blank, the DataProvider is inferred only when the
-    MeasurementConsumer's EventGroup directory has exactly one matching key.
-2.  Every resolved EventGroup key must belong to the Campaign Group universe.
-3.  The tool reuses an unfiltered primitive ReportingSet under the Campaign
-    Group when its membership is an exact match. Otherwise it creates one.
+*   For a caller-supplied ReportingSet component, the ReportingSet ID in the
+    stored request is authoritative. The tool verifies that it identifies a
+    non-empty primitive ReportingSet, uses that ReportingSet's EventGroups for
+    membership validation, and preserves the exact ID and any filter.
+*   For a DataProvider component, the tool resolves membership from its
+    `event_group_summaries`. If `cmms_data_provider_id` is blank, the
+    DataProvider is inferred only when the MeasurementConsumer's EventGroup
+    directory has exactly one matching key.
+
+Every resolved EventGroup key must belong to the Campaign Group universe. For a
+DataProvider component, the tool reuses an unfiltered primitive ReportingSet
+under the Campaign Group when its membership is an exact match, or creates one
+otherwise. It never substitutes that unfiltered ReportingSet for a
+caller-supplied ReportingSet component.
 
 For a report whose Campaign Group reference is instead a non-empty ordinary
 primitive ReportingSet with no `CampaignGroupId`, the tool treats that
 ReportingSet as evidence of the caller's intended Campaign Group. It resolves
-every component from the MeasurementConsumer's EventGroup directory and uses
-the union of the report's components as the replacement Campaign Group
-universe. The referenced ReportingSet's EventGroups must all appear in that
-union and must exactly match at least one component; the report may contain
+DataProvider components from the MeasurementConsumer's EventGroup directory and
+caller-supplied ReportingSet components from the stored request and ReportingSet
+membership. It uses the union of all component EventGroups as the replacement
+Campaign Group universe. The referenced ReportingSet's EventGroups must appear in
+that union and must exactly match at least one component; the report may contain
 additional EventGroups in other components. Only when all components resolve
 and those consistency checks pass does the tool:
 
@@ -131,25 +140,36 @@ and those consistency checks pass does the tool:
     Group with exactly the report's EventGroups;
 2.  change `BasicReport.external_campaign_group_id` to that valid Campaign
     Group; and
-3.  re-resolve every component summary under the valid Campaign Group,
-    including components that already contained an ID.
+3.  populate DataProvider component summaries under the valid Campaign Group
+    while preserving the exact IDs of caller-supplied ReportingSet components,
+    including their filter semantics.
 
 The original ordinary ReportingSet is never modified. The Campaign Group
 change and all component IDs are written to the `BasicReport` in one Spanner
 mutation. Creating or finding the replacement Campaign Group in Postgres is
 idempotent.
 
+A Campaign Group change is not attempted when the `BasicReport` has a linked
+`ReportResultId`. Those results contain ReportingSet references that this tool
+cannot safely rewrite. The report is left completely unchanged, counted under
+`Linked results blocking migration`, and the run reports that the read-path
+fallback is not ready for removal.
+
 If different reports reuse the same ordinary ReportingSet reference but contain
 different EventGroup unions, each distinct union resolves to its own Campaign
 Group. The tool does not force those reports into one shared universe.
 
 The tool does not guess. A missing, empty, composite, or already-assigned
-ReportingSet is left unchanged. A report is also left unchanged when a
-component has no EventGroups, references an unknown EventGroup, has a blank
-DataProvider that cannot be inferred uniquely, or omits an EventGroup contained
-in the referenced ReportingSet. These rows are counted as blocking, the scan
-continues, and the environment is reported as not ready to remove the read
-fallback.
+Campaign Group reference is left unchanged. A report is also left unchanged
+when a component has no EventGroups, references an unknown EventGroup, has a
+blank DataProvider that cannot be inferred uniquely, identifies a custom
+ReportingSet that is missing, empty, or not primitive, has an existing
+ReportingSet ID without stored request evidence of its identity, disagrees with
+the custom component identity stored in the request, omits an EventGroup
+contained in the referenced Campaign Group source, or has linked results that
+would also need migration. These rows are counted as blocking, the scan
+continues, and the
+environment is reported as not ready to remove the read fallback.
 
 No Campaign Group or component ReportingSet is created and no `BasicReport`
 is updated unless every component summary that needs resolution can be
@@ -297,11 +317,11 @@ include the full path to the executable.
 Each run ends with a summary of the `BasicReport`s examined, those already
 valid, those updated, any blocking unbackfilled records, the Campaign Groups
 repaired or migrated, the `ReportingSet`s reused and created, and any
-components that could not be resolved.
+components or linked results that block migration.
 
 Run with `--dry-run` first. A non-zero blocking count means some component
-summaries would remain incomplete; the per-`BasicReport` reasons are logged and
-the readiness result is `no`.
+summaries would remain incomplete or some linked results cannot be migrated;
+the per-`BasicReport` reasons are logged and the readiness result is `no`.
 
 Check the reported `create_time` range as well. It covers only the
 `BasicReport`s that were backfilled, so it can be compared against the window in
