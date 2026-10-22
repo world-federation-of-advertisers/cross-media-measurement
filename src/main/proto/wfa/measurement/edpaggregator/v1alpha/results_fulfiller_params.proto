@@ -112,6 +112,15 @@ message ResultsFulfillerParams {
     int32 min_users = 2;
     // The maximum frequency used for impression count in reach measurements.
     int32 reach_max_frequency_per_user = 3;
+
+    // Whether to disable these thresholds for HMSS and TrusTee v1
+    // multi-publisher frequency-vector contributions. This does not affect
+    // Direct results. TrusTeeV2 applies thresholds in its attested computation.
+    //
+    // Only enable this where downstream noise is much greater than the
+    // configured thresholds. When false, the existing suppression behavior is
+    // preserved.
+    bool disable_multi_party_frequency_vector_suppression = 4;
   }
 
   // The k-anonymity params to be applied.
