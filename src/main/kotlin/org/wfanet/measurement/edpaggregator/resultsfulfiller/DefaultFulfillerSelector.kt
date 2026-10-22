@@ -156,8 +156,8 @@ internal fun frequencyVectorCap(
  * @param noiserSelector strategy for selecting differential privacy mechanisms
  * @param resultMinimumThresholds optional small-cell suppression thresholds; null disables
  *   suppression
- * @param disableMultiPartyFrequencyVectorSuppression whether to skip result-minimum suppression
- *   for legacy HMSS and TrusTee frequency-vector contributions. Direct and TrusTeeV2 results are
+ * @param disableMultiPartyFrequencyVectorSuppression whether to skip result-minimum suppression for
+ *   legacy HMSS and TrusTee frequency-vector contributions. Direct and TrusTeeV2 results are
  *   unaffected.
  * @param impressionCapMode how the per-user impression cap is chosen.
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
@@ -234,9 +234,7 @@ class DefaultFulfillerSelector(
       protocols.none { it.hasDirect() || it.hasTrusTeeV2() } &&
         protocols.any { it.hasTrusTee() || it.hasHonestMajorityShareShuffle() }
     val resultMinimumThresholdsForFrequencyVector =
-      if (
-        disableMultiPartyFrequencyVectorSuppression && selectedProtocolIsLegacyMultiParty
-      ) {
+      if (disableMultiPartyFrequencyVectorSuppression && selectedProtocolIsLegacyMultiParty) {
         null
       } else {
         resultMinimumThresholds

@@ -2892,7 +2892,7 @@ class ResultsFulfillerTest {
     }
 
   @Test
-  fun `runWork keeps direct suppression when multi-party suppression is disabled`() =
+  fun `runWork processes direct requisition with 0 result for insufficient k-anonymity`() =
     runBlocking {
       val impressionsTmpPath = Files.createTempDirectory(null).toFile()
       val metadataTmpPath = Files.createTempDirectory(null).toFile()
@@ -2958,6 +2958,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = ResultMinimumThresholds(100, 1000),
+          // Multi-party suppression opt-out does not apply to Direct results.
           disableMultiPartyFrequencyVectorSuppression = true,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
@@ -3422,8 +3423,7 @@ class ResultsFulfillerTest {
         noiserSelector = ContinuousGaussianNoiseSelector(),
         // These thresholds would suppress the contribution if multi-party suppression were
         // enabled. The downstream multi-party computation is responsible for disclosure control.
-        resultMinimumThresholds =
-          ResultMinimumThresholds(minImpressions = 1000, minUsers = 1000),
+        resultMinimumThresholds = ResultMinimumThresholds(minImpressions = 1000, minUsers = 1000),
         disableMultiPartyFrequencyVectorSuppression = true,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
@@ -3480,11 +3480,7 @@ class ResultsFulfillerTest {
     assertThat(fulfilledRequisitions[1].bodyChunk.data).isNotEmpty()
     val frequencies =
       decryptFrequencies(
-        TrusTeeFulfillment(
-          requests = fulfilledRequisitions,
-          kmsClient = kmsClient,
-          kekUri = kekUri,
-        )
+        TrusTeeFulfillment(requests = fulfilledRequisitions, kmsClient = kmsClient, kekUri = kekUri)
       )
     assertThat(frequencies.count { it > 0 }).isEqualTo(impressions.size)
     verifyBlocking(requisitionMetadataServiceMock, times(1)) {
@@ -3665,9 +3661,7 @@ class ResultsFulfillerTest {
         .reduce { a, b -> a.concat(b) }
     val dekKeysetHandle =
       KeysetHandle.read(
-        BinaryKeysetReader.withInputStream(
-          trusTee.envelopeEncryption.encryptedDek.data.newInput()
-        ),
+        BinaryKeysetReader.withInputStream(trusTee.envelopeEncryption.encryptedDek.data.newInput()),
         fulfillment.kmsClient.getAead(fulfillment.kekUri),
       )
     return dekKeysetHandle
