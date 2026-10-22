@@ -255,12 +255,13 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       ),
       duchyMap,
       edpNoise =
-        mapOf(
-          "edp1" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-          "edp2" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-          "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-          "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-        ),
+        ALL_EDP_DISPLAY_NAMES.associateWith { edpDisplayName ->
+          if (edpDisplayName in resultMinimumThresholdsByEdp) {
+            ResultsFulfillerParams.NoiseParams.NoiseType.NONE
+          } else {
+            ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN
+          }
+        },
       edpMultiPartyNoiseTypes =
         mapOf("edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.NONE)),
       edpsWithDeferredUploads = emptySet(),

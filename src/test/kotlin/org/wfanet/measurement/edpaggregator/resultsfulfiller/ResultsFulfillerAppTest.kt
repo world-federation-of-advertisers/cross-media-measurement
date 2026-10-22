@@ -1295,7 +1295,7 @@ class ResultsFulfillerAppTest {
     }
     val workItemParams =
       createWorkItemParams(
-        ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+        ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
         resultMinimumThresholds =
           ResultMinimumThresholds(
             minUsers = 1000,

@@ -1160,11 +1160,12 @@ Function-to-TEE boundary as the WorkItem payload, so RequisitionFetcher validate
 without converting it to a duplicated unversioned wire schema. Beyond the `data_provider`,
 `storage_params`, `consent_params`, and `cmms_connection` shown above, it supports:
 
-* `noise_params.noise_type` — `NONE` / `CONTINUOUS_GAUSSIAN` (direct single-EDP
-  results).
+* `noise_params.noise_type` — `NONE`, `CONTINUOUS_GAUSSIAN`, or
+  `DETERMINISTIC_TRUNCATED_LAPLACE` for direct single-EDP results.
 * `k_anonymity_params` — `{ min_impressions, min_users, reach_max_frequency_per_user,
   disable_multi_party_frequency_vector_suppression }`; a below-threshold result returns zero unless
-  multi-party suppression is disabled as described below.
+  multi-party suppression is disabled as described below. When this is configured,
+  `noise_params.noise_type` must be `NONE`.
 * `impression_max_frequency_per_user` — direct impression measurements only.
 * `model_line_map` — optional external→internal model-line remapping for impression
   lookup.

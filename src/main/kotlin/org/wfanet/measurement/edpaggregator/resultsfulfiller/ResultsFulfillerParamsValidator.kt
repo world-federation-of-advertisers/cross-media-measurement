@@ -90,6 +90,11 @@ object ResultsFulfillerParamsValidator {
     }
 
     if (params.hasKAnonymityParams()) {
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4466): Support Direct results
+      // that use both noise and minimum thresholds.
+      require(params.noiseParams.noiseType == NoiseType.NONE) {
+        "noise_params.noise_type must be NONE when k_anonymity_params is set"
+      }
       require(params.kAnonymityParams.minUsers > 0) {
         "Result minimum thresholds minUsers must be greater than 0, got " +
           params.kAnonymityParams.minUsers
