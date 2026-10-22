@@ -17,6 +17,7 @@ package org.wfanet.measurement.integration.common
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -66,6 +67,7 @@ abstract class InProcessEdpAggregatorDirectMeasurementTest(
     runBlocking {
       mcSimulator.testImpression(
         "1234",
+        resultPollingTimeout = Duration.ofMinutes(5),
         eventGroupFilter = { it.eventGroupReferenceId !in MULTI_ENTITY_KEY_REF_IDS },
       )
     }
