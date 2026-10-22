@@ -92,17 +92,23 @@ writer, not required names.
 | Impression time | `event_time_usec` | INT64 | Required; Unix epoch microseconds in UTC |
 | Person or device input | `person_id` | STRING | As required by the VID model |
 | Demographic/model input | `person_gender`, `person_age_group`, … | Configured type | As required by the VID model |
-| Campaign/entity ID | `creative_id`, … | STRING | At least one entity-key mapping; required mappings must be non-empty |
+| Campaign/entity IDs | `campaign_id`, `adset_id`, `ad_id`, `account_id`, `creative_id` | STRING | One column per entity type; at least one populated mapped entity key per impression |
 | Measurement filter input | `video_completed_fraction`, … | Configured type | Required when a measurement filter reads it |
 
 The reference writer calls the video completion column
 `video_completed_fraction`. An EDP may use another name if the operator's
 mapping points the event field to that column.
 
-Every configured column must exist with the agreed type. A renamed, missing, or
-retyped mapped column fails schema validation when EDPA opens the file. A filter
-field that is not mapped can instead remain at its event-schema default and cause
-impressions to fail that filter, so agree on filter inputs explicitly.
+An impression can carry account, campaign, ad-set, ad, and creative keys together.
+Map each column to its entity type independently so every key is preserved on the
+labeled impression. Each column contains one ID of that type for that impression;
+IDs must match the corresponding EventGroups.
+
+Required mapped columns must exist with the agreed type. Optional entity-key
+columns may be absent, null, or empty, allowing older files to omit newer hierarchy
+levels. A populated entity-key column must be a string. A filter field that is not
+mapped can remain at its event-schema default and cause impressions to fail that
+filter, so agree on filter inputs explicitly.
 
 The operator configures:
 

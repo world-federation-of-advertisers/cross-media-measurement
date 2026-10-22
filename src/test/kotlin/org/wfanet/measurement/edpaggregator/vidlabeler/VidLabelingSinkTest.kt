@@ -29,6 +29,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
@@ -36,6 +37,8 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -59,9 +62,20 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.labelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.scalarColumn
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
+import org.wfanet.measurement.loadtest.edpaggregator.testing.RawImpressionColumns
+import org.wfanet.measurement.loadtest.edpaggregator.testing.RawImpressionsWriter
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
+import org.wfanet.measurement.storage.ParquetEncryptionConfig
+import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.virtualpeople.common.LabelerInput
@@ -150,6 +164,80 @@ class VidLabelingSinkTest {
       config = VidLabelerParams.ModelLineConfig.getDefaultInstance(),
       rankIndex = rankIndex,
     )
+
+  @Test
+  fun `commit preserves every hierarchy key from encrypted Parquet`() =
+    runBlocking<Unit> {
+      val keysByImpression =
+        listOf(
+          listOf(
+            EntityKey("person", "p-1"),
+            EntityKey("campaign", "campaign-1"),
+            EntityKey("adset-id", "adset-1"),
+            EntityKey("ad-id", "ad-1"),
+            EntityKey("account-id", "account-1"),
+            EntityKey("creative-id", "creative-1"),
+          ),
+          listOf(
+            EntityKey("person", "p-2"),
+            EntityKey("campaign", "campaign-1"),
+            EntityKey("adset-id", "adset-2"),
+            EntityKey("ad-id", "ad-2"),
+            EntityKey("account-id", "account-1"),
+            EntityKey("creative-id", "creative-2"),
+          ),
+        )
+
+      val blobDetails = labelRawImpressions(keysByImpression)
+      val impressions = readImpressions(blobDetails)
+
+      assertThat(impressions).hasSize(2)
+      assertThat(impressions.map { it.vid }.toSet()).containsExactly(VID)
+      assertThat(
+          impressions.map { impression ->
+            impression.entityKeysList.map { EntityKey(it.entityType, it.entityId) }.toSet()
+          }
+        )
+        .containsExactlyElementsIn(keysByImpression.map { it.toSet() })
+      assertThat(impressions.map { it.eventGroupReferenceId }.toSet()).containsExactly("")
+      assertThat(blobDetails.modelLine).isEqualTo(MODEL_LINE)
+      assertThat(blobDetails.eventGroupReferenceId).isEmpty()
+      assertThat(blobDetails.entityKeysList.associate { it.entityType to it.entityIdsList.toSet() })
+        .containsExactly(
+          "person",
+          setOf("p-1", "p-2"),
+          "campaign",
+          setOf("campaign-1"),
+          "adset-id",
+          setOf("adset-1", "adset-2"),
+          "ad-id",
+          setOf("ad-1", "ad-2"),
+          "account-id",
+          setOf("account-1"),
+          "creative-id",
+          setOf("creative-1", "creative-2"),
+        )
+      assertThat(blobDetails.entityKeysList).hasSize(6)
+    }
+
+  @Test
+  fun `commit reads person-only Parquet with optional hierarchy mappings`() =
+    runBlocking<Unit> {
+      val blobDetails = labelRawImpressions(listOf(listOf(EntityKey("person", "p-1"))))
+      val impressions = readImpressions(blobDetails)
+
+      assertThat(impressions).hasSize(1)
+      assertThat(impressions.single().entityKeysList)
+        .containsExactly(
+          LabeledImpressionKt.entityKey {
+            entityType = "person"
+            entityId = "p-1"
+          }
+        )
+      assertThat(blobDetails.entityKeysList).hasSize(1)
+      assertThat(blobDetails.entityKeysList.single().entityType).isEqualTo("person")
+      assertThat(blobDetails.entityKeysList.single().entityIdsList).containsExactly("p-1")
+    }
 
   @Test
   fun `commit writes in-window labeled impressions and skips out-of-window`() =
@@ -566,6 +654,89 @@ class VidLabelingSinkTest {
       assertThat(maxInFlight.get()).isAtMost(2)
       assertThat(inFlight.get()).isEqualTo(0)
     }
+
+  /** Writes encrypted raw Parquet, then labels its decrypted rows with the production converter. */
+  private suspend fun labelRawImpressions(keysByImpression: List<List<EntityKey>>): BlobDetails {
+    tempFolder.root.resolve("labeled").mkdirs()
+    val eventDate = LocalDate.parse("2020-01-01")
+    val start = eventDate.atStartOfDay(ZoneOffset.UTC).toInstant()
+    val entityTypes = keysByImpression.flatten().map { it.entityType }.toSet()
+    val writer =
+      RawImpressionsWriter(
+        blobKeyId = "hierarchy",
+        kekUri = kekUri,
+        kmsClient = kmsClient,
+        storageConfiguration = Configuration(),
+        rootPath = Path(tempFolder.root.toURI()),
+        requiredEntityKeyColumns =
+          RawImpressionColumns.ENTITY_KEY_COLUMNS.filterKeys { it in entityTypes },
+      )
+    val shards =
+      sequenceOf(
+        EntityKeyedLabeledEventDateShard(
+          localDate = eventDate,
+          entityKeysWithLabeledEvents =
+            keysByImpression.asSequence().mapIndexed { index, keys ->
+              EntityKeysWithLabeledEvents(
+                entityKeys = keys,
+                labeledEvents =
+                  sequenceOf(
+                    LabeledEvent(
+                      timestamp = start.plusSeconds(index.toLong()),
+                      vid = 1L,
+                      message = TestEvent.getDefaultInstance(),
+                    )
+                  ),
+              )
+            },
+        )
+      )
+    val rawBlobKey = writer.writeRawImpressions(shards, "raw") { emptyMap() }.single()
+    val reader =
+      ParquetStorageClient(
+        Configuration(),
+        Path(tempFolder.root.toURI()),
+        encryptionConfig = ParquetEncryptionConfig(kmsProvider = { kmsClient }),
+      )
+    val rows = reader.getBlob(rawBlobKey)!!.readRows().toList()
+    val config =
+      VidLabelerParamsKt.modelLineConfig {
+        optionalEntityKeyFieldMapping.putAll(RawImpressionColumns.ENTITY_KEY_COLUMNS)
+        labelerInputFieldMapping += labelerInputFieldMapping {
+          fieldPath = "event_id.id"
+          scalar = scalarColumn { column = RawImpressionColumns.EVENT_ID }
+        }
+        labelerInputFieldMapping += labelerInputFieldMapping {
+          fieldPath = "timestamp_usec"
+          scalar = scalarColumn { column = RawImpressionColumns.EVENT_TIME_USEC }
+        }
+      }
+    val startMicros = start.epochSecond * 1_000_000L
+    val sink =
+      sink(
+        contexts =
+          listOf(
+            context(
+                ActiveWindow(startMicros = startMicros, endMicros = startMicros + 86_400_000_000L)
+              )
+              .copy(config = config)
+          ),
+        converter =
+          ParquetImpressionConverter(TestEvent.getDescriptor(), POPULATION_ATTRIBUTE_WRITER),
+        fileMetadata = RawImpressionFileMetadata(eventDate),
+      )
+    try {
+      sink.processBatch(
+        rows.mapIndexed { index, row ->
+          DigestedEvent(row, EventIdDigest(high = index.toLong(), low = index))
+        }
+      )
+      sink.commit()
+    } finally {
+      sink.close()
+    }
+    return readSoleBlobDetails()
+  }
 
   /** Reads back the labeled impressions from an output blob via its [BlobDetails]. */
   private suspend fun readImpressions(blobDetails: BlobDetails): List<LabeledImpression> {
