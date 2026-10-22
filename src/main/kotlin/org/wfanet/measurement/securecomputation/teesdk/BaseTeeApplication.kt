@@ -26,7 +26,9 @@ import java.time.Duration
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -71,6 +73,10 @@ private fun canonicalWorkItemName(name: String): String {
  * @param attemptUpdateRetryDelay suspends before retrying a transient attempt-state update.
  * @param activeAttemptRetryDelay suspends before retrying ownership of a delivery whose WorkItem
  *   already has an active attempt.
+ * @param attemptLeaseRenewalContext [CoroutineContext] the lease-renewal loop runs in. It must not
+ *   share a thread with [runWork]: subclasses commonly run [runWork] inside a dispatcher-less
+ *   `runBlocking`, where CPU-bound or non-suspending work would otherwise starve renewal until the
+ *   lease expires.
  */
 abstract class BaseTeeApplication(
   private val subscriptionId: String,
@@ -87,6 +93,7 @@ abstract class BaseTeeApplication(
   },
   private val attemptLeaseRenewalInterval: Duration = DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL,
   private val workItemConsumptionEnabled: Boolean = workItemConsumptionEnabledFromEnvironment(),
+  private val attemptLeaseRenewalContext: CoroutineContext = DEFAULT_ATTEMPT_LEASE_RENEWAL_CONTEXT,
 ) : AutoCloseable {
 
   init {
@@ -399,12 +406,15 @@ abstract class BaseTeeApplication(
         runWork(message)
         return@coroutineScope
       }
-      val renewalJob = launch {
-        while (isActive) {
-          delay(attemptLeaseRenewalInterval.toMillis())
-          renewWorkItemAttempt(workItemAttempt)
+      // Renew on a separate context so a runWork that blocks or busy-waits its thread cannot delay
+      // renewal past lease expiry.
+      val renewalJob =
+        launch(attemptLeaseRenewalContext) {
+          while (isActive) {
+            delay(attemptLeaseRenewalInterval.toMillis())
+            renewWorkItemAttempt(workItemAttempt)
+          }
         }
-      }
       try {
         runWork(message)
       } finally {
@@ -507,6 +517,12 @@ abstract class BaseTeeApplication(
     private const val ATTEMPT_UPDATE_MAX_ATTEMPTS = 3
     private const val WORK_ITEM_CONSUMPTION_ENABLED_ENV = "WORK_ITEM_CONSUMPTION_ENABLED"
     val DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL: Duration = Duration.ofMinutes(1)
+    /**
+     * Single-threaded view of [Dispatchers.IO] for lease renewal: renewals stay serialized while
+     * running independently of whatever thread [runWork] occupies.
+     */
+    private val DEFAULT_ATTEMPT_LEASE_RENEWAL_CONTEXT: CoroutineContext =
+      Dispatchers.IO.limitedParallelism(1)
     private val ACTIVE_ATTEMPT_RETRY_DELAY: Duration = Duration.ofSeconds(30)
     private val ATTEMPT_UPDATE_RETRY_BACKOFF = ExponentialBackoff()
     private val RETRYABLE_ATTEMPT_UPDATE_CODES =
