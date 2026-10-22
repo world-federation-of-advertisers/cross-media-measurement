@@ -80,9 +80,9 @@ class DataAvailabilityWatcherConfigTest {
   }
 
   private fun resolveRunfile(relativePath: String): Path =
-    checkNotNull(
-      RUNFILES.getRuntimePath(Paths.get("wfa_measurement_system", relativePath))
-    ) { "Runfile not found: $relativePath" }
+    checkNotNull(RUNFILES.getRuntimePath(Paths.get("wfa_measurement_system", relativePath))) {
+      "Runfile not found: $relativePath"
+    }
 
   companion object {
     private const val DATA_AVAILABILITY_IDENTIFIER = "data-availability"
@@ -93,8 +93,6 @@ class DataAvailabilityWatcherConfigTest {
     private val ENVIRONMENTS = listOf("dev", "head", "qa")
     private val RUNFILES = Runfiles.preload().withSourceRepository("")
     private val TYPE_REGISTRY =
-      TypeRegistry.newBuilder()
-        .add(ResultsFulfillerParams.getDescriptor())
-        .build()
+      TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build()
   }
 }
