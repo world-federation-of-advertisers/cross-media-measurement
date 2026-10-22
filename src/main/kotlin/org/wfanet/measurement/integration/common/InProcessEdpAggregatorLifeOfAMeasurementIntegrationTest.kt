@@ -263,6 +263,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ),
       edpMultiPartyNoiseTypes =
         mapOf("edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.NONE)),
+      edpsWithDeferredUploads = emptySet(),
       resultMinimumThresholdsByEdp = resultMinimumThresholdsByEdp,
     )
     initMcSimulator()
