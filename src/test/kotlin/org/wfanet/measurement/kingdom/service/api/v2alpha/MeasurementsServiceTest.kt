@@ -61,6 +61,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.multimeasurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
@@ -1186,6 +1187,54 @@ class MeasurementsServiceTest {
           requestId = request.requestId
         }
       )
+  }
+
+  @Test
+  fun `createMeasurement throws UNIMPLEMENTED for a multimeasurement`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                measurement =
+                  MEASUREMENT.copy {
+                    clearMeasurementSpec()
+                    clearDataProviders()
+                    unsignedMeasurementSpec = MEASUREMENT_SPEC
+                  }
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
+  }
+
+  @Test
+  fun `batchCreateMeasurements throws UNIMPLEMENTED when a request is a multimeasurement`() {
+    val request = batchCreateMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      requests += createMeasurementRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        measurement = MEASUREMENT
+      }
+      requests += createMeasurementRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        measurement = MEASUREMENT.copy { multimeasurement = multimeasurement {} }
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.batchCreateMeasurements(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
   }
 
   @Test
