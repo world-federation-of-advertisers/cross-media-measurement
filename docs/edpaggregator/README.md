@@ -520,14 +520,59 @@ Each campaign includes:
 
 Identify the advertiser by setting either:
 
-1. `measurement_consumer` to the advertiser's Halo resource name; or
+1. `measurement_consumer` to the advertiser's full Halo resource name,
+   `measurementConsumers/<MEASUREMENT_CONSUMER_ID>`; or
 2. `client_account_reference_id` to the EDP's account ID after the operator
    links it to the advertiser. See the
    [Self-Serve Onboarding Guide](self-serve-onboarding.md).
 
+Do not put only the measurement-consumer ID in `measurement_consumer`. For
+example, use `measurementConsumers/example-advertiser`, not
+`example-advertiser`.
+
+`client_account_reference_id` must be at most 36 characters and contain only
+letters (`A-Z`, `a-z`), digits (`0-9`), or `.`, `_`, `~`, and `-`. Do not include
+slashes, spaces, or percent-encoded characters. If both advertiser identifiers
+are provided, each must be valid.
+
+The `data_availability_interval` describes when impression data are available,
+which may differ from the campaign's flight dates. `start_time` is required. If
+`end_time` is set, it must be later than `start_time`; using the same timestamp
+for both is invalid.
+
 Use `entity_key` for new integrations. `event_group_reference_id` is the legacy
 alternative. The entity type and ID must exactly match the corresponding values
 produced by the selected impression path.
+
+### Validate campaign information before upload
+
+Download `VerifyEventGroups_deploy.jar` from the project's
+[Halo releases](https://github.com/world-federation-of-advertisers/cross-media-measurement/releases),
+then validate the local file:
+
+```bash
+java -jar VerifyEventGroups_deploy.jar \
+  --event-groups-file='<LOCAL_EVENT_GROUPS_FILE>.json'
+```
+
+The command also accepts `.binpb` files. Repeat `--event-groups-file` to check
+more than one file in the same run.
+
+The verifier reads the same formats and applies the same field checks as the
+EventGroup sync service. It checks every EventGroup it can parse and reports
+each invalid record, including malformed advertiser resource names, unordered
+timestamps, missing campaign metadata, and invalid media types or entity keys.
+Empty files and parse failures are reported as file-level errors. A parse
+failure reports how many EventGroups were successfully parsed before validation
+stopped for that file; validation continues with any additional files. A
+JSON file must contain one complete wrapper object; extra JSON or other content
+after it is a parse failure. Trailing whitespace is allowed. A
+successful run reports `PASS` and exits with status `0`; any error makes it exit
+nonzero. Do not upload the campaign file until it passes.
+
+This local check cannot confirm that a `client_account_reference_id` has been
+linked by the operator or that the referenced advertiser exists in Halo. Confirm
+those results after the file is synchronized.
 
 Omitting a campaign from a later file does not delete it. To remove a campaign,
 upload an `EventGroup` tombstone with `state = DELETED`, a complete `entity_key`,
