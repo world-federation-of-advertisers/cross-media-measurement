@@ -95,3 +95,14 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
     ],
 )
+
+kt_jvm_test(
+    name = "TeeStackDumpLoggerTest",
+    srcs = ["TeeStackDumpLoggerTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.TeeStackDumpLoggerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:tee_stack_dump_logger",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)

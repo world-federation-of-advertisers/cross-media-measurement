@@ -35,6 +35,9 @@ locals {
     var.java_tool_options == null ? {} : {
       "tee-env-JAVA_TOOL_OPTIONS" = var.java_tool_options
     },
+    var.tee_stack_dump_interval_seconds == null ? {} : {
+      "tee-env-TEE_STACK_DUMP_INTERVAL_SECONDS" = tostring(var.tee_stack_dump_interval_seconds)
+    },
     var.extra_metadata,
   )
 }
