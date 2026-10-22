@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnit
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
@@ -113,6 +114,11 @@ class BasicReportReportingSetBackfiller(
     val reason: String?,
   )
 
+  private data class ComponentIdentityResolution(
+    val externalReportingSetId: String?,
+    val reason: String?,
+  )
+
   private data class EffectiveCampaignGroup(
     val key: CampaignGroupKey,
     val dryRunReportingSet: ReportingSet?,
@@ -132,6 +138,7 @@ class BasicReportReportingSetBackfiller(
     val primitiveCampaignGroupsMigrated: Int,
     val compositeCampaignGroupsMigrated: Int,
     val unresolvableCampaignGroupReferences: Int,
+    val linkedResultsBlocking: Int,
     /** Whether the temporary read-path fallback can be removed after this run. */
     val readyToRemoveReadPathFallback: Boolean,
     /** Earliest create_time among the backfilled BasicReports, if any. */
@@ -150,6 +157,7 @@ class BasicReportReportingSetBackfiller(
         "primitiveCampaignGroupsMigrated=$primitiveCampaignGroupsMigrated, " +
         "compositeCampaignGroupsMigrated=$compositeCampaignGroupsMigrated, " +
         "unresolvableCampaignGroupReferences=$unresolvableCampaignGroupReferences, " +
+        "linkedResultsBlocking=$linkedResultsBlocking, " +
         "readyToRemoveReadPathFallback=$readyToRemoveReadPathFallback, " +
         "earliestCreateTime=${formatTime(earliestCreateTime)}, " +
         "latestCreateTime=${formatTime(latestCreateTime)})"
@@ -167,6 +175,7 @@ class BasicReportReportingSetBackfiller(
   private var primitiveCampaignGroupsMigrated = 0
   private var compositeCampaignGroupsMigrated = 0
   private var unresolvableCampaignGroupReferences = 0
+  private var linkedResultsBlocking = 0
   private var earliestCreateTime: Timestamp? = null
   private var latestCreateTime: Timestamp? = null
   private var examined = 0
@@ -221,6 +230,7 @@ class BasicReportReportingSetBackfiller(
         primitiveCampaignGroupsMigrated = primitiveCampaignGroupsMigrated,
         compositeCampaignGroupsMigrated = compositeCampaignGroupsMigrated,
         unresolvableCampaignGroupReferences = unresolvableCampaignGroupReferences,
+        linkedResultsBlocking = linkedResultsBlocking,
         readyToRemoveReadPathFallback =
           createTimeAfter == null &&
             skipped == 0 &&
@@ -336,31 +346,76 @@ class BasicReportReportingSetBackfiller(
 
     val campaignGroupChanged = campaignGroupSource.reportingSetResult != null
 
+    if (campaignGroupChanged && basicReportResult.reportResultId != null) {
+      linkedResultsBlocking++
+      skipped++
+      logger.warning {
+        "BasicReport $externalBasicReportId has linked ReportingSetResults. Its Campaign Group " +
+          "cannot be changed without also migrating those ReportingSet references; not updating."
+      }
+      return
+    }
+
     // Existing component IDs refer to the old Campaign Group. Re-resolve all of them when the
-    // Campaign Group changes so the migrated BasicReport cannot mix old and new associations.
-    val componentSummariesToResolve =
-      if (campaignGroupChanged) componentSummaries else emptyComponentSummaries
+    // Campaign Group changes, except for custom ReportingSet components whose IDs are their
+    // identities and may carry filters.
+    val componentIdentityResolutions: List<ComponentIdentityResolution> =
+      resolveComponentIdentities(basicReport)
+    check(componentIdentityResolutions.size == componentSummaries.size)
+    val componentIndexesToResolve: List<Int> =
+      if (campaignGroupChanged) {
+        componentSummaries.indices.toList()
+      } else {
+        componentSummaries.indices.filter {
+          componentSummaries[it].externalReportingSetId.isEmpty()
+        }
+      }
+    val componentSummariesToResolve = componentIndexesToResolve.map { componentSummaries[it] }
+    val componentIdentitiesToResolve =
+      componentIndexesToResolve.map { componentIdentityResolutions[it] }
 
     // Resolution is separated from minting so that the Postgres writes are gated on the same
     // all-or-nothing guarantee as the Spanner write. Minting inline would leave a ReportingSet
     // orphaned whenever a later component summary in the same BasicReport turns out
     // unresolvable, since the BasicReport itself is then skipped.
     //
-    // The component's own EventGroups are what the BasicReport was computed over. The internal
-    // EventGroupSummary carries only the EventGroup ID. Prefer the component's DataProvider when
-    // present; otherwise infer it only when the MeasurementConsumer has exactly one match.
-    val membershipResolutions: List<ComponentMembershipResolution> =
+    // The component's own EventGroups are what the BasicReport was computed over. Prefer a
+    // populated DataProvider; otherwise infer it only when the MeasurementConsumer has exactly
+    // one match.
+    val dataProviderMembershipResolutions: Iterator<ComponentMembershipResolution> =
       resolveComponentMemberships(
           campaignGroupSource.measurementConsumerId,
-          componentSummariesToResolve.map { componentSummary ->
-            @Suppress("DEPRECATION") // Only source of membership for these BasicReports.
-            ComponentEventGroups(
-              componentSummary.cmmsDataProviderId,
-              componentSummary.eventGroupSummariesList.map { it.cmmsEventGroupId },
-            )
-          },
+          componentSummariesToResolve
+            .zip(componentIdentitiesToResolve)
+            .filter { (_, identity) ->
+              identity.externalReportingSetId == null && identity.reason == null
+            }
+            .map { (componentSummary, _) ->
+              @Suppress("DEPRECATION") // Only source of membership for these BasicReports.
+              ComponentEventGroups(
+                componentSummary.cmmsDataProviderId,
+                componentSummary.eventGroupSummariesList.map { it.cmmsEventGroupId },
+              )
+            },
         )
-        .map { resolution ->
+        .iterator()
+    val customMembershipsByReportingSetId = mutableMapOf<String, ComponentMembershipResolution>()
+    val membershipResolutions: List<ComponentMembershipResolution> = buildList {
+      for (identity in componentIdentitiesToResolve) {
+        val customReportingSetId = identity.externalReportingSetId
+        val resolution =
+          when {
+            identity.reason != null -> ComponentMembershipResolution(null, identity.reason)
+            customReportingSetId != null ->
+              customMembershipsByReportingSetId.getOrPut(customReportingSetId) {
+                resolveCustomComponentMembership(
+                  basicReport.cmmsMeasurementConsumerId,
+                  customReportingSetId,
+                )
+              }
+            else -> dataProviderMembershipResolutions.next()
+          }
+        add(
           if (
             !campaignGroupChanged &&
               resolution.membership != null &&
@@ -373,7 +428,9 @@ class BasicReportReportingSetBackfiller(
           } else {
             resolution
           }
-        }
+        )
+      }
+    }
 
     var unresolved = 0
     for ((componentSummary, resolution) in componentSummariesToResolve.zip(membershipResolutions)) {
@@ -446,7 +503,18 @@ class BasicReportReportingSetBackfiller(
     val reportingSetIdsByMembership = campaignGroupResolution.reportingSetIdsByMembership
 
     // Every component summary resolved, so minting cannot strand a ReportingSet.
-    for ((componentSummary, resolution) in componentSummariesToResolve.zip(membershipResolutions)) {
+    for (componentIndex in componentSummariesToResolve.indices) {
+      val componentSummary = componentSummariesToResolve[componentIndex]
+      val identity = componentIdentitiesToResolve[componentIndex]
+      val customReportingSetId = identity.externalReportingSetId
+      if (customReportingSetId != null) {
+        if (componentSummary.externalReportingSetId != customReportingSetId) {
+          componentSummary.externalReportingSetId = customReportingSetId
+          componentSummariesFilled++
+        }
+        continue
+      }
+      val resolution = membershipResolutions[componentIndex]
       val membership: Set<ReportingSet.Primitive.EventGroupKey> =
         checkNotNull(resolution.membership)
       val existingId: String? = reportingSetIdsByMembership[membership]
@@ -516,6 +584,91 @@ class BasicReportReportingSetBackfiller(
     val cmmsDataProviderId: String,
     val cmmsEventGroupIds: List<String>,
   )
+
+  private fun resolveComponentIdentities(
+    basicReport: BasicReport
+  ): List<ComponentIdentityResolution> = buildList {
+    for ((resultGroupIndex, resultGroup) in
+      basicReport.resultDetails.resultGroupsList.withIndex()) {
+      val resultGroupSpec = basicReport.details.resultGroupSpecsList.getOrNull(resultGroupIndex)
+      val requestedReportingSetIds: List<String>? =
+        if (
+          resultGroupSpec?.reportingUnit?.componentsCase ==
+            ReportingUnit.ComponentsCase.REPORTING_SET_KEYS
+        ) {
+          resultGroupSpec.reportingUnit.reportingSetKeys.reportingSetKeysList.map {
+            it.externalReportingSetId
+          }
+        } else {
+          null
+        }
+      for (result in resultGroup.resultsList) {
+        val componentSummaries =
+          result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList
+        for ((componentIndex, componentSummary) in componentSummaries.withIndex()) {
+          if (requestedReportingSetIds != null) {
+            val requestedReportingSetId = requestedReportingSetIds.getOrNull(componentIndex)
+            val reason =
+              when {
+                requestedReportingSetIds.size != componentSummaries.size ->
+                  "its custom component count does not match the stored request"
+                requestedReportingSetId == null || requestedReportingSetId.isEmpty() ->
+                  "its custom ReportingSet ID is empty in the stored request"
+                componentSummary.cmmsDataProviderId.isNotEmpty() ->
+                  "its stored request identifies a custom ReportingSet but the result identifies " +
+                    "a DataProvider"
+                componentSummary.externalReportingSetId.isNotEmpty() &&
+                  componentSummary.externalReportingSetId != requestedReportingSetId ->
+                  "its ReportingSet ID does not match the stored request"
+                else -> null
+              }
+            add(ComponentIdentityResolution(requestedReportingSetId, reason))
+          } else if (
+            componentSummary.cmmsDataProviderId.isEmpty() &&
+              componentSummary.externalReportingSetId.isNotEmpty()
+          ) {
+            add(
+              ComponentIdentityResolution(
+                null,
+                "it has a ReportingSet ID but no stored component identity",
+              )
+            )
+          } else {
+            add(ComponentIdentityResolution(null, null))
+          }
+        }
+      }
+    }
+  }
+
+  private suspend fun resolveCustomComponentMembership(
+    cmmsMeasurementConsumerId: String,
+    externalReportingSetId: String,
+  ): ComponentMembershipResolution {
+    val reportingSet: ReportingSet =
+      try {
+        readReportingSet(CampaignGroupKey(cmmsMeasurementConsumerId, externalReportingSetId))
+          .reportingSet
+      } catch (_: ReportingSetNotFoundException) {
+        return ComponentMembershipResolution(
+          null,
+          "custom ReportingSet $externalReportingSetId was not found",
+        )
+      }
+    if (!reportingSet.hasPrimitive()) {
+      return ComponentMembershipResolution(
+        null,
+        "custom ReportingSet $externalReportingSetId is not primitive",
+      )
+    }
+    if (reportingSet.primitive.eventGroupKeysCount == 0) {
+      return ComponentMembershipResolution(
+        null,
+        "custom ReportingSet $externalReportingSetId has no EventGroups",
+      )
+    }
+    return ComponentMembershipResolution(reportingSet.primitive.eventGroupKeysList.toSet(), null)
+  }
 
   private suspend fun resolveComponentMemberships(
     measurementConsumerId: InternalId,
@@ -606,6 +759,7 @@ class BasicReportReportingSetBackfiller(
         "Composite Campaign Groups migrated" to result.compositeCampaignGroupsMigrated.toString(),
         "Unresolvable Campaign Group references" to
           result.unresolvableCampaignGroupReferences.toString(),
+        "Linked results blocking migration" to result.linkedResultsBlocking.toString(),
         "Ready to remove read-path fallback" to
           if (result.readyToRemoveReadPathFallback) "yes" else "no",
       )
