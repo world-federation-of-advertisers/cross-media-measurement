@@ -111,9 +111,9 @@ abstract class InProcessEdpAggregatorDirectMeasurementTest(
             when (config) {
               is EventGroupConfig.LegacySpec -> listOf(refId)
               is EventGroupConfig.MultiEntityKey ->
-                config.entityKeySpecs.map { spec ->
-                  "${spec.entityKey.entityType}/${spec.entityKey.entityId}"
-                }
+                config.entityKeySpecs
+                  .flatMap { it.entityKeys }
+                  .map { entityKey -> "${entityKey.entityType}/${entityKey.entityId}" }
             }
           }
         assertWithMessage("EventGroups for $edpDisplayName")
@@ -125,18 +125,19 @@ abstract class InProcessEdpAggregatorDirectMeasurementTest(
             is EventGroupConfig.LegacySpec -> continue
             is EventGroupConfig.MultiEntityKey -> {
               for (entityKeySpec in config.entityKeySpecs) {
-                val derivedRefId =
-                  "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
-                val eventGroup = byRefId.getValue(derivedRefId)
-                assertWithMessage("entity_key.entity_type for $derivedRefId")
-                  .that(eventGroup.entityKey.entityType)
-                  .isEqualTo(entityKeySpec.entityKey.entityType)
-                assertWithMessage("entity_key.entity_id for $derivedRefId")
-                  .that(eventGroup.entityKey.entityId)
-                  .isEqualTo(entityKeySpec.entityKey.entityId)
-                assertWithMessage("entity_metadata for $derivedRefId")
-                  .that(eventGroup.eventGroupMetadata.entityMetadata)
-                  .isEqualTo(entityKeySpec.entityMetadata)
+                for (entityKey in entityKeySpec.entityKeys) {
+                  val derivedRefId = "${entityKey.entityType}/${entityKey.entityId}"
+                  val eventGroup = byRefId.getValue(derivedRefId)
+                  assertWithMessage("entity_key.entity_type for $derivedRefId")
+                    .that(eventGroup.entityKey.entityType)
+                    .isEqualTo(entityKey.entityType)
+                  assertWithMessage("entity_key.entity_id for $derivedRefId")
+                    .that(eventGroup.entityKey.entityId)
+                    .isEqualTo(entityKey.entityId)
+                  assertWithMessage("entity_metadata for $derivedRefId")
+                    .that(eventGroup.eventGroupMetadata.entityMetadata)
+                    .isEqualTo(entityKeySpec.entityMetadata)
+                }
               }
             }
           }
@@ -187,9 +188,10 @@ abstract class InProcessEdpAggregatorDirectMeasurementTest(
       for ((_, config) in refConfigs) {
         if (config is EventGroupConfig.MultiEntityKey) {
           for (entityKeySpec in config.entityKeySpecs) {
-            val derivedRefId =
-              "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
-            assertThat(refIds).doesNotContain(derivedRefId)
+            for (entityKey in entityKeySpec.entityKeys) {
+              val derivedRefId = "${entityKey.entityType}/${entityKey.entityId}"
+              assertThat(refIds).doesNotContain(derivedRefId)
+            }
           }
         }
       }

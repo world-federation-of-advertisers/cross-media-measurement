@@ -193,7 +193,8 @@ class SeedRawImpressionsRule(
    * to the event group by its `{creative-id, entity_id}` key. The legacy group carries only the
    * `person` key, which the fulfiller ignores (it matches legacy groups by
    * `event_group_reference_id`) but which satisfies the reader's requirement that every impression
-   * carry >=1 entity key.
+   * carry >=1 entity key. Entity-key entries must have exactly one key because this cloud fixture
+   * reserves only one additional Parquet column for the creative ID.
    */
   private fun entityKeyColumnsFor(config: EventGroupConfig): Map<String, String> =
     when (config) {
@@ -202,7 +203,8 @@ class SeedRawImpressionsRule(
       is EventGroupConfig.MultiEntityKey ->
         mapOf(
           RawImpressionColumns.ENTITY_TYPE_PERSON to RawImpressionColumns.PERSON_ID,
-          config.entityKeySpecs.single().entityKey.entityType to RawImpressionColumns.CREATIVE_ID,
+          config.entityKeySpecs.single().entityKeys.single().entityType to
+            RawImpressionColumns.CREATIVE_ID,
         )
     }
 
@@ -239,7 +241,7 @@ class SeedRawImpressionsRule(
     return when (config) {
       is EventGroupConfig.LegacySpec -> listOf(personKey)
       is EventGroupConfig.MultiEntityKey ->
-        listOf(personKey, config.entityKeySpecs.single().entityKey)
+        listOf(personKey, config.entityKeySpecs.single().entityKeys.single())
     }
   }
 

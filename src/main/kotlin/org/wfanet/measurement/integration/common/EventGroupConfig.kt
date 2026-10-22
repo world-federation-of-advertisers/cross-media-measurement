@@ -20,11 +20,11 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 
 /**
- * Maps an [EntityKey] to the [SyntheticEventGroupSpec] whose events should be tagged with that key
- * in the impressions blob.
+ * Maps entity keys to the [SyntheticEventGroupSpec] whose events carry those keys in the blob. Each
+ * key is also registered as an EventGroup.
  */
 data class EntityKeySpec(
-  val entityKey: EntityKey,
+  val entityKeys: List<EntityKey>,
   val spec: SyntheticEventGroupSpec,
   val entityMetadata: Struct? = null,
 )
@@ -41,7 +41,13 @@ sealed class EventGroupConfig {
 
   data class LegacySpec(val spec: SyntheticEventGroupSpec) : EventGroupConfig()
 
-  /** Entity-key data, optionally preceded by reference-only data ending at [legacyEndDate]. */
+  /**
+   * Independently generated impression streams, optionally preceded by reference-only data ending
+   * at [legacyEndDate].
+   *
+   * Each [entityKeySpecs] entry generates a separate stream; its entity keys label the same
+   * impressions within that stream.
+   */
   data class MultiEntityKey(
     val entityKeySpecs: List<EntityKeySpec>,
     val legacyEndDate: LegacyEndDate?,

@@ -129,7 +129,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("ad_group", "edpa-eg-reference-id-2"),
+                    listOf(EntityKey("ad_group", "edpa-eg-reference-id-2")),
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
                   )
@@ -141,12 +141,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_A_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_A_ID)),
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
                   ),
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_B_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_B_ID)),
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   ),
@@ -161,7 +161,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("ad_group", "edpa-eg-reference-id-3"),
+                    listOf(EntityKey("ad_group", "edpa-eg-reference-id-3")),
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
                   )
@@ -176,7 +176,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("ad_group", "edpa-eg-reference-id-4"),
+                    listOf(EntityKey("ad_group", "edpa-eg-reference-id-4")),
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
                   )
@@ -193,9 +193,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         when (config) {
           is EventGroupConfig.LegacySpec -> listOf(refId to config)
           is EventGroupConfig.MultiEntityKey ->
-            config.entityKeySpecs.map { spec ->
-              "${spec.entityKey.entityType}/${spec.entityKey.entityId}" to
-                config.copy(entityKeySpecs = listOf(spec))
+            config.entityKeySpecs.flatMap { spec ->
+              spec.entityKeys.map { entityKey ->
+                "${entityKey.entityType}/${entityKey.entityId}" to
+                  config.copy(entityKeySpecs = listOf(spec))
+              }
             }
         }
       }

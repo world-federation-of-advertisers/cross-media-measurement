@@ -117,18 +117,19 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
           is EventGroupConfig.LegacySpec -> continue
           is EventGroupConfig.MultiEntityKey -> {
             for (entityKeySpec in config.entityKeySpecs) {
-              val derivedRefId =
-                "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
-              val eventGroup = byRefId.getValue(derivedRefId)
-              assertWithMessage("entity_key.entity_type for $derivedRefId")
-                .that(eventGroup.entityKey.entityType)
-                .isEqualTo(entityKeySpec.entityKey.entityType)
-              assertWithMessage("entity_key.entity_id for $derivedRefId")
-                .that(eventGroup.entityKey.entityId)
-                .isEqualTo(entityKeySpec.entityKey.entityId)
-              assertWithMessage("entity_metadata for $derivedRefId")
-                .that(eventGroup.eventGroupMetadata.entityMetadata)
-                .isEqualTo(entityKeySpec.entityMetadata)
+              for (entityKey in entityKeySpec.entityKeys) {
+                val derivedRefId = "${entityKey.entityType}/${entityKey.entityId}"
+                val eventGroup = byRefId.getValue(derivedRefId)
+                assertWithMessage("entity_key.entity_type for $derivedRefId")
+                  .that(eventGroup.entityKey.entityType)
+                  .isEqualTo(entityKey.entityType)
+                assertWithMessage("entity_key.entity_id for $derivedRefId")
+                  .that(eventGroup.entityKey.entityId)
+                  .isEqualTo(entityKey.entityId)
+                assertWithMessage("entity_metadata for $derivedRefId")
+                  .that(eventGroup.eventGroupMetadata.entityMetadata)
+                  .isEqualTo(entityKeySpec.entityMetadata)
+              }
             }
           }
         }

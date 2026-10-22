@@ -270,13 +270,14 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             )
           is EventGroupConfig.MultiEntityKey ->
             config.entityKeySpecs.flatMap { entityKeySpec ->
-              buildEventGroupsFromSpec(
-                eventGroupReferenceId =
-                  "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}",
-                spec = entityKeySpec.spec,
-                dataEntityKey = entityKeySpec.entityKey,
-                entityMetadata = entityKeySpec.entityMetadata,
-              )
+              entityKeySpec.entityKeys.flatMap { entityKey ->
+                buildEventGroupsFromSpec(
+                  eventGroupReferenceId = "${entityKey.entityType}-${entityKey.entityId}",
+                  spec = entityKeySpec.spec,
+                  dataEntityKey = entityKey,
+                  entityMetadata = entityKeySpec.entityMetadata,
+                )
+              }
             }
         }
       }

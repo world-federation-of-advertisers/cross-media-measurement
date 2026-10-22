@@ -92,6 +92,8 @@ import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.parseTextProto
@@ -111,7 +113,9 @@ import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupReader
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -175,6 +179,8 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
@@ -218,6 +224,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       trusTeeEnabled -> PublicProtocolConfig.Protocol.ProtocolCase.TRUS_TEE
       else -> PublicProtocolConfig.Protocol.ProtocolCase.DIRECT
     }
+
+  protected val wholeBlobEntityTypes: Set<String> =
+    if (mixedIdentifierHistoryEnabled) setOf("campaign") else emptySet()
 
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
     GooglePubSubEmulatorClient(
@@ -266,8 +275,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   //   - edp2-eg-creative-1: entity_type="creative-id".
   //   - sparse-frequency: entity_type="campaign" and a [10, 30, 70] frequency histogram.
   //   - edp4-eg-ref-1: entity_type="ad_group" (non-default type round-trip).
-  // listReportingEventGroups() filters entity_type_in=["campaign", "ad_group", "creative-id"]
-  // so all event groups are visible.
+  // Direct tests also include mixed identifier history and a campaign/ad-set/ad/creative hierarchy.
+  // listReportingEventGroups() includes every entity type used by these fixtures.
   protected val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
     mapOf(
       "edp1" to
@@ -278,7 +287,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_ENTITY_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_ENTITY_ID)),
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   )
@@ -290,12 +299,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_A_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_A_ID)),
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   ),
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_B_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_B_ID)),
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   ),
@@ -315,7 +324,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     entityKeySpecs =
                       listOf(
                         EntityKeySpec(
-                          EntityKey("campaign", entityId),
+                          listOf(EntityKey("campaign", entityId)),
                           syntheticEventGroupSpec2,
                           ENTITY_METADATA,
                         )
@@ -326,7 +335,27 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                         legacySpec = EventGroupConfig.LegacySpec(syntheticEventGroupSpec2),
                       ),
                   )
-              }
+              } +
+              mapOf(
+                HIERARCHY_BLOB_REFERENCE_ID to
+                  EventGroupConfig.MultiEntityKey(
+                    entityKeySpecs =
+                      listOf("a", "b").map { suffix ->
+                        EntityKeySpec(
+                          entityKeys =
+                            listOf(
+                              EntityKey("campaign", HIERARCHY_CAMPAIGN_ENTITY_ID),
+                              EntityKey("adset-id", "blob-hierarchy-adset-$suffix"),
+                              EntityKey("ad-id", "blob-hierarchy-ad-$suffix"),
+                              EntityKey(CREATIVE_ID_ENTITY_TYPE, "blob-hierarchy-creative-$suffix"),
+                            ),
+                          spec = syntheticEventGroupSpec2,
+                          entityMetadata = ENTITY_METADATA,
+                        )
+                      },
+                    legacyEndDate = null,
+                  )
+              )
           } else {
             emptyMap()
           }),
@@ -337,7 +366,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("campaign", "edp2-eg-ref-1"),
+                    listOf(EntityKey("campaign", "edp2-eg-ref-1")),
                     syntheticEventGroupSpec1,
                     ENTITY_METADATA,
                   )
@@ -349,7 +378,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_ENTITY_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_ENTITY_ID)),
                     syntheticEventGroupSpec1,
                     ENTITY_METADATA,
                   )
@@ -361,7 +390,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("campaign", SPARSE_FREQUENCY_EVENT_GROUP_REF_ID),
+                    listOf(EntityKey("campaign", SPARSE_FREQUENCY_EVENT_GROUP_REF_ID)),
                     sparseFrequencyEventGroupSpec,
                     ENTITY_METADATA,
                   )
@@ -376,7 +405,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("campaign", "edp3-eg-ref-1"),
+                    listOf(EntityKey("campaign", "edp3-eg-ref-1")),
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   )
@@ -391,7 +420,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("ad_group", AD_GROUP_EDP_ENTITY_ID),
+                    listOf(EntityKey("ad_group", AD_GROUP_EDP_ENTITY_ID)),
                     syntheticEventGroupSpec1,
                     ENTITY_METADATA,
                   )
@@ -419,7 +448,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         } else {
           null
         },
-      wholeBlobEntityTypes = if (mixedIdentifierHistoryEnabled) setOf("campaign") else emptySet(),
+      wholeBlobEntityTypes = wholeBlobEntityTypes,
     )
 
   private val daemonsStartup = TestRule { base, _ ->
@@ -1184,6 +1213,35 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   protected suspend fun listImpressionMetadata(edpDisplayName: String): List<ImpressionMetadata> =
     inProcessEdpAggregatorComponents.listImpressionMetadata(edpDisplayName)
 
+  /** Reads fixture metadata and the decrypted impression records it describes. */
+  protected suspend fun readImpressionBlob(metadata: ImpressionMetadata): ImpressionBlob {
+    val metadataUri = SelectedStorageClient.parseBlobUri(metadata.blobUri)
+    val metadataStorage = SelectedStorageClient(metadataUri, tempPath.toFile())
+    val metadataBlob = checkNotNull(metadataStorage.getBlob(metadataUri.key))
+    val blobDetails = BlobDetails.parseFrom(metadataBlob.read().flatten())
+
+    val impressionUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
+    val storage = SelectedStorageClient(impressionUri, tempPath.toFile())
+    val encryptedDek = blobDetails.encryptedDek
+    val impressionStorage =
+      MesosRecordIoStorageClient(
+        storage.withEnvelopeEncryption(
+          sharedKmsClient,
+          encryptedDek.kekUri,
+          encryptedDek.ciphertext,
+        )
+      )
+    val impressionBlob = checkNotNull(impressionStorage.getBlob(impressionUri.key))
+    val impressions = impressionBlob.read().toList().map { LabeledImpression.parseFrom(it) }
+    return ImpressionBlob(blobDetails, impressions)
+  }
+
+  /** Metadata and records from one generated impression blob. */
+  protected data class ImpressionBlob(
+    val blobDetails: BlobDetails,
+    val impressions: List<LabeledImpression>,
+  )
+
   /** Returns the availability published by [edpDisplayName], keyed by ModelLine resource name. */
   protected suspend fun getDataAvailabilityIntervals(
     edpDisplayName: String
@@ -1262,13 +1320,14 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         listEventGroupsRequest {
           parent = measurementConsumerData.name
           pageSize = 1000
-          // Default entity_type_in is ["campaign"], which would hide AD_GROUP_EDP's EventGroup.
-          // Include both so HMSS/TrusTee correctness tests still see every expected EDP.
+          // Include all entity types used by the fixtures.
           structuredFilter =
             ListEventGroupsRequestKt.filter {
               entityTypeIn += "campaign"
               entityTypeIn += "ad_group"
               entityTypeIn += CREATIVE_ID_ENTITY_TYPE
+              entityTypeIn += "adset-id"
+              entityTypeIn += "ad-id"
             }
         }
       )
@@ -1524,6 +1583,14 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     internal const val MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID =
       "campaign/mixed-history-dual-identifier"
     internal const val MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID = "mixed-history-dual-identifier"
+    internal const val HIERARCHY_BLOB_REFERENCE_ID = "blob-hierarchy"
+    internal const val HIERARCHY_CAMPAIGN_ENTITY_ID = "blob-hierarchy-campaign"
+    internal val HIERARCHY_LOWER_ENTITY_IDS =
+      mapOf(
+        "adset-id" to setOf("blob-hierarchy-adset-a", "blob-hierarchy-adset-b"),
+        "ad-id" to setOf("blob-hierarchy-ad-a", "blob-hierarchy-ad-b"),
+        CREATIVE_ID_ENTITY_TYPE to setOf("blob-hierarchy-creative-a", "blob-hierarchy-creative-b"),
+      )
     private val MIXED_HISTORY_REFERENCE_IDS =
       setOf(
         MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID,
