@@ -124,10 +124,8 @@ class ResultsFulfillerParamsValidatorTest {
 
   @Test
   fun `validate rejects noise with k-anonymity thresholds`() {
-    for (
-      noiseType in
-        listOf(NoiseType.CONTINUOUS_GAUSSIAN, NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE)
-    ) {
+    for (noiseType in
+      listOf(NoiseType.CONTINUOUS_GAUSSIAN, NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE)) {
       val invalidParams =
         VALID_PARAMS.copy {
           noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
@@ -139,9 +137,7 @@ class ResultsFulfillerParamsValidatorTest {
           ResultsFulfillerParamsValidator.validate(invalidParams)
         }
 
-      assertThat(exception)
-        .hasMessageThat()
-        .contains("noise_params.noise_type must be NONE")
+      assertThat(exception).hasMessageThat().contains("noise_params.noise_type must be NONE")
     }
   }
 
