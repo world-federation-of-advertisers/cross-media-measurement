@@ -18,8 +18,11 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
+import com.google.crypto.tink.InsecureSecretKeyAccess
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.RegistryConfiguration
+import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.struct
 import com.google.protobuf.timestamp
@@ -29,6 +32,7 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import java.io.File
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Clock
@@ -39,6 +43,7 @@ import java.util.logging.Logger
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.BeforeClass
@@ -102,9 +107,11 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
+import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupReader
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -168,6 +175,7 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 abstract class InProcessEdpAggregatorLifeOfAReportTest(
@@ -198,6 +206,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val mixedIdentifierHistoryEnabled: Boolean = false,
 ) {
 
+  /** EDPs that start without campaigns, impression objects, metadata, or availability intervals. */
+  protected open val edpsWithDeferredUploads: Set<String>
+    get() = emptySet()
+
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
     when {
       hmssEnabled && trusTeeEnabled ->
@@ -214,11 +226,16 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     )
   }
 
+  private val sharedKmsKeysetHandle: KeysetHandle by lazy {
+    KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+  }
+
   private val sharedKmsClient: FakeKmsClient by lazy {
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
     val kmsClient = FakeKmsClient()
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    kmsClient.setAead(
+      SHARED_KEK_URI,
+      sharedKmsKeysetHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java),
+    )
     kmsClient
   }
 
@@ -479,6 +496,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               "edp4" to directNoiseType,
             ),
           edpMultiPartyNoiseTypes = multiPartyNoiseTypes,
+          edpsWithDeferredUploads = edpsWithDeferredUploads,
           resultMinimumThresholdsByEdp = resultMinimumThresholdsByEdp,
         )
         runBlocking {
@@ -1148,10 +1166,63 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   protected fun measurementConsumerName(): String =
     inProcessCmmsComponents.getMeasurementConsumerData().name
 
-  /**
-   * Re-runs [EventGroupSync] for a single EDP against the running in-process Kingdom. Test-only
-   * seam for driving repeated migration syncs after daemon startup.
-   */
+  /** Exports entity-keyed impressions with the public writer for each EDP in [edpDisplayNames]. */
+  protected suspend fun exportLabeledImpressions(edpDisplayNames: Set<String>): List<String> {
+    return edpDisplayNames.sorted().flatMap { edpDisplayName ->
+      inProcessEdpAggregatorComponents.exportLabeledImpressions(edpDisplayName)
+    }
+  }
+
+  /** Publishes uploaded dates through the production data-availability sync. */
+  protected suspend fun publishImpressions(
+    edpDisplayName: String,
+    metadataUris: List<String>,
+  ): InProcessEdpAggregatorComponents.ImpressionPublicationResult =
+    inProcessEdpAggregatorComponents.publishImpressions(edpDisplayName, metadataUris)
+
+  /** Lists the impression metadata registered for [edpDisplayName]. */
+  protected suspend fun listImpressionMetadata(edpDisplayName: String): List<ImpressionMetadata> =
+    inProcessEdpAggregatorComponents.listImpressionMetadata(edpDisplayName)
+
+  /** Returns the availability published by [edpDisplayName], keyed by ModelLine resource name. */
+  protected suspend fun getDataAvailabilityIntervals(
+    edpDisplayName: String
+  ): Map<String, com.google.type.Interval> =
+    inProcessEdpAggregatorComponents.getDataAvailabilityIntervals(edpDisplayName)
+
+  /** Exports EventGroup JSON for each EDP in [edpDisplayNames], keyed by EDP display name. */
+  protected suspend fun exportEventGroups(edpDisplayNames: Set<String>): Map<String, File> {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    return edpDisplayNames.sorted().associateWith { edpDisplayName ->
+      inProcessEdpAggregatorComponents.exportEventGroups(edpDisplayName, measurementConsumerData)
+    }
+  }
+
+  /** Reads an EventGroup export through the same reader used by the EDP Aggregator sync job. */
+  protected suspend fun readEventGroups(file: File): List<EdpaEventGroup> {
+    return EventGroupReader(FileSystemStorageClient(checkNotNull(file.parentFile)))
+      .read(file.name)
+      .toList()
+  }
+
+  /** Writes the fake KEK keyset used by the in-process EDP Aggregator to a verifier input file. */
+  protected fun writeFakeKmsKeysetFile(): File {
+    val keysetFile = tempPath.resolve("onboarding-fake-kek.tinkkeyset")
+    Files.write(
+      keysetFile,
+      TinkProtoKeysetFormat.serializeKeyset(
+        sharedKmsKeysetHandle,
+        InsecureSecretKeyAccess.get(),
+        RegistryConfiguration.get(),
+      ),
+    )
+    return keysetFile.toFile()
+  }
+
+  /** Returns the fake KEK URI shared by the writer, verifier, and in-process fulfiller. */
+  protected fun fakeKmsKeyUri(): String = SHARED_KEK_URI
+
+  /** Synchronizes [sources] for an EDP against the running in-process Kingdom. */
   protected fun syncEventGroups(
     edpAggregatorShortName: String,
     sources: List<EdpaEventGroup>,
@@ -1287,7 +1358,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   ) {
     val dataAvailabilityInterval = computeDataAvailabilityInterval()
     val modelLineName = inProcessCmmsComponents.modelLineResourceName
-    for ((_, resource) in edpDisplayNameToResourceMap) {
+    for ((edpDisplayName, resource) in edpDisplayNameToResourceMap) {
+      if (edpDisplayName in edpsWithDeferredUploads) {
+        continue
+      }
       val dataProvidersStub =
         DataProvidersCoroutineStub(kingdomChannel).withPrincipalName(resource.name)
       dataProvidersStub.replaceDataAvailabilityIntervals(
@@ -1441,6 +1515,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       )
     private val EDP1_ALL_ENTITY_KEY_REF_IDS =
       EDP1_MULTI_ENTITY_KEY_REF_IDS + EDP1_CREATIVE_EVENT_GROUP_REF_ID
+    private const val SHARED_KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "key1"
     internal const val MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID =
       "campaign/mixed-history-reference-only"
     internal const val MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID = "mixed-history-reference-only"
