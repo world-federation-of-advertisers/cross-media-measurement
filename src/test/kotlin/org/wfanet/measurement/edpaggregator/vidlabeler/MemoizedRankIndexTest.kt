@@ -25,6 +25,8 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
@@ -49,6 +51,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.virtualpeople.common.LabelerInput
 
@@ -467,6 +471,54 @@ class MemoizedRankIndexTest {
         )
       }
     }
+  }
+
+  @Test
+  fun `buildFrom loads subpools concurrently off the calling thread`() {
+    val rows =
+      listOf(
+        seedSnapshot(
+          "ranks/pool10/up1",
+          poolOffset = 10L,
+          fp(0x11),
+          rank = 5,
+          createTimeSeconds = 1L,
+        ),
+        seedSnapshot(
+          "ranks/pool20/up1",
+          poolOffset = 20L,
+          fp(0x22),
+          rank = 7,
+          createTimeSeconds = 1L,
+        ),
+      )
+    val bothLoadsStarted = CountDownLatch(rows.size)
+    val loadThreads: MutableSet<Thread> = ConcurrentHashMap.newKeySet()
+    val recordingStorage =
+      object : ConditionalOperationStorageClient by storageClient {
+        override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
+          loadThreads += Thread.currentThread()
+          // Blocks this thread until every subpool load has started, so the build can only finish
+          // if the loads run concurrently on separate threads. When loads ran on the caller's
+          // runBlocking thread, the first load blocked that only thread and the build never
+          // finished.
+          bothLoadsStarted.countDown()
+          bothLoadsStarted.await()
+          return storageClient.getBlob(blobKey)
+        }
+      }
+    val callerThread = Thread.currentThread()
+
+    val index = runBlocking {
+      MemoizedRankIndex.buildFrom(RankIndexStore(recordingStorage, kmsClient), DP, MODEL_LINE, rows)
+    }
+
+    assertThat(loadThreads).hasSize(rows.size)
+    assertThat(loadThreads).doesNotContain(callerThread)
+    assertThat(index.lookup(digestOf(fp(0x11))).map { it.poolOffset to it.localRank })
+      .containsExactly(10L to 5L)
+    assertThat(index.lookup(digestOf(fp(0x22))).map { it.poolOffset to it.localRank })
+      .containsExactly(20L to 7L)
   }
 
   companion object {
