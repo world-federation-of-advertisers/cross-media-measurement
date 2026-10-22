@@ -530,6 +530,11 @@ Do not put only the measurement-consumer ID in `measurement_consumer`. For
 example, use `measurementConsumers/example-advertiser`, not
 `example-advertiser`.
 
+`client_account_reference_id` must be at most 36 characters and contain only
+letters (`A-Z`, `a-z`), digits (`0-9`), or `.`, `_`, `~`, and `-`. Do not include
+slashes, spaces, or percent-encoded characters. If both advertiser identifiers
+are provided, each must be valid.
+
 The `data_availability_interval` describes when impression data are available,
 which may differ from the campaign's flight dates. `start_time` is required. If
 `end_time` is set, it must be later than `start_time`; using the same timestamp
@@ -560,6 +565,8 @@ timestamps, missing campaign metadata, and invalid media types or entity keys.
 Empty files and parse failures are reported as file-level errors. A parse
 failure reports how many EventGroups were successfully parsed before validation
 stopped for that file; validation continues with any additional files. A
+JSON file must contain one complete wrapper object; extra JSON or other content
+after it is a parse failure. Trailing whitespace is allowed. A
 successful run reports `PASS` and exits with status `0`; any error makes it exit
 nonzero. Do not upload the campaign file until it passes.
 
