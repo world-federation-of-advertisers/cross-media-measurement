@@ -212,7 +212,7 @@ class ResultsFulfillerApp(
         noiserSelector = noiseSelector,
         resultMinimumThresholds = resultMinimumThresholds,
         disableMultiPartyFrequencyVectorSuppression =
-          fulfillerParams.multiPartyConfig.disableFrequencyVectorSuppression,
+          fulfillerParams.kAnonymityParams.disableMultiPartyFrequencyVectorSuppression,
         // Read under UNSPECIFIED and CUSTOM_CAP. -1 means no cap, 0 or unset means the
         // MeasurementSpec's value. The explicit modes carry the choice themselves.
         overrideImpressionMaxFrequencyPerUser =

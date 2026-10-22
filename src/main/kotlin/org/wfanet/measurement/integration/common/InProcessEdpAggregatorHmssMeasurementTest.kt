@@ -36,7 +36,6 @@ abstract class InProcessEdpAggregatorHmssMeasurementTest(
     hmssEnabled = true,
     trusTeeEnabled = false,
     resultMinimumThresholdsByEdp = SUPPRESSING_RESULT_MINIMUM_THRESHOLDS_BY_EDP,
-    disableMultiPartyFrequencyVectorSuppressionByEdp = ALL_EDP_DISPLAY_NAMES,
   ) {
 
   // The inherited success tests use thresholds that would erase every EDP contribution unless

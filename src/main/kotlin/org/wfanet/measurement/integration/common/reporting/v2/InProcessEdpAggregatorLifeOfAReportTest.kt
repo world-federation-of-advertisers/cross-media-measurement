@@ -480,7 +480,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
             ),
           edpMultiPartyNoiseTypes = multiPartyNoiseTypes,
           resultMinimumThresholdsByEdp = resultMinimumThresholdsByEdp,
-          disableMultiPartyFrequencyVectorSuppressionByEdp = emptySet(),
         )
         runBlocking {
           registerDataAvailabilityIntervals(kingdomChannel, edpDisplayNameToResourceMap)

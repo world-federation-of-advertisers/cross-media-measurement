@@ -1706,17 +1706,17 @@ class ResultsFulfillerAppTest {
                 edpCertificateName = DATA_PROVIDER_CERTIFICATE_KEY.toName()
               }
             this.noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
-            this.multiPartyConfig =
-              ResultsFulfillerParamsKt.multiPartyConfig {
-                disableFrequencyVectorSuppression = disableMultiPartyFrequencyVectorSuppression
-              }
             if (resultMinimumThresholds != null) {
               this.kAnonymityParams =
                 ResultsFulfillerParamsKt.kAnonymityParams {
                   this.minImpressions = resultMinimumThresholds.minImpressions
                   this.minUsers = resultMinimumThresholds.minUsers
                   this.reachMaxFrequencyPerUser = resultMinimumThresholds.reachMaxFrequencyPerUser
+                  this.disableMultiPartyFrequencyVectorSuppression =
+                    disableMultiPartyFrequencyVectorSuppression
                 }
+            } else {
+              require(!disableMultiPartyFrequencyVectorSuppression)
             }
           }
           .pack()

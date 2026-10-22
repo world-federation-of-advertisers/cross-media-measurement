@@ -257,16 +257,12 @@ class InProcessEdpAggregatorComponents(
     edpNoise: Map<String, ResultsFulfillerParams.NoiseParams.NoiseType>,
     edpMultiPartyNoiseTypes: Map<String, List<ResultsFulfillerParams.NoiseParams.NoiseType>>,
     resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams> = emptyMap(),
-    disableMultiPartyFrequencyVectorSuppressionByEdp: Set<String>,
   ) = runBlocking {
     require(edpNoise.keys == edpCapabilities.keys) {
       "edpNoise keys ${edpNoise.keys} must match edpCapabilities keys ${edpCapabilities.keys}"
     }
     require(resultMinimumThresholdsByEdp.keys.all { it in edpCapabilities }) {
       "resultMinimumThresholdsByEdp keys must identify configured EDPs"
-    }
-    require(disableMultiPartyFrequencyVectorSuppressionByEdp.all { it in edpCapabilities }) {
-      "disableMultiPartyFrequencyVectorSuppressionByEdp must identify configured EDPs"
     }
     publicApiChannel = kingdomChannel
     duchyChannelMap = duchyMap
@@ -298,8 +294,6 @@ class InProcessEdpAggregatorComponents(
             supportedMultiPartyNoiseTypes =
               edpMultiPartyNoiseTypes.getOrDefault(edpAggregatorShortName, emptyList()),
             resultMinimumThresholds = resultMinimumThresholdsByEdp[edpAggregatorShortName],
-            disableMultiPartyFrequencyVectorSuppression =
-              edpAggregatorShortName in disableMultiPartyFrequencyVectorSuppressionByEdp,
             eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
             wholeBlobEntityTypes = wholeBlobEntityTypes,
           )

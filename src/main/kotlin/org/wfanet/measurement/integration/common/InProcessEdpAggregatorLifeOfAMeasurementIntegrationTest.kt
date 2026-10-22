@@ -75,7 +75,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   hmssEnabled: Boolean,
   trusTeeEnabled: Boolean,
   private val resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams>,
-  private val disableMultiPartyFrequencyVectorSuppressionByEdp: Set<String>,
 ) {
 
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
@@ -265,8 +264,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       edpMultiPartyNoiseTypes =
         mapOf("edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.NONE)),
       resultMinimumThresholdsByEdp = resultMinimumThresholdsByEdp,
-      disableMultiPartyFrequencyVectorSuppressionByEdp =
-        disableMultiPartyFrequencyVectorSuppressionByEdp,
     )
     initMcSimulator()
   }
@@ -344,6 +341,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           minUsers = 1_000_000
           minImpressions = 1_000_000
           reachMaxFrequencyPerUser = 127
+          disableMultiPartyFrequencyVectorSuppression = true
         }
       }
 

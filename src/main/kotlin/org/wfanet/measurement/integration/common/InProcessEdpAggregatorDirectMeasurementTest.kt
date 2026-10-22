@@ -43,7 +43,6 @@ abstract class InProcessEdpAggregatorDirectMeasurementTest(
     hmssEnabled = false,
     trusTeeEnabled = false,
     resultMinimumThresholdsByEdp = emptyMap(),
-    disableMultiPartyFrequencyVectorSuppressionByEdp = emptySet(),
   ) {
 
   @Test

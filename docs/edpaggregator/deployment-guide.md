@@ -1162,8 +1162,9 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
 
 * `noise_params.noise_type` — `NONE` / `CONTINUOUS_GAUSSIAN` (direct single-EDP
   results).
-* `k_anonymity_params` — `{ min_impressions, min_users, reach_max_frequency_per_user }`;
-  a below-threshold result returns zero.
+* `k_anonymity_params` — `{ min_impressions, min_users, reach_max_frequency_per_user,
+  disable_multi_party_frequency_vector_suppression }`; a below-threshold result returns zero unless
+  multi-party suppression is disabled as described below.
 * `impression_max_frequency_per_user` — direct impression measurements only.
 * `model_line_map` — optional external→internal model-line remapping for impression
   lookup.
@@ -1173,11 +1174,11 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
   [TrusTEE section](README.md#configure-trustee-if-enabled)).
 * `multi_party_config.supported_noise_types` — restricts accepted noise mechanisms
   for HMSS / TrusTEE requisitions.
-* `multi_party_config.disable_frequency_vector_suppression` — when `true`, the EDPA does not
-  apply `k_anonymity_params` to HMSS or TrusTEE v1 frequency-vector contributions. Direct
-  results remain thresholded, and TrusTeeV2 remains thresholded in its attested computation.
-  The default is `false`, preserving existing behavior. Enable this only where downstream noise
-  is much greater than the configured thresholds.
+* `k_anonymity_params.disable_multi_party_frequency_vector_suppression` — when `true`, the EDPA
+  does not apply `k_anonymity_params` to HMSS or TrusTEE v1 frequency-vector contributions. Direct
+  results remain thresholded, and TrusTeeV2 remains thresholded in its attested computation. The
+  default is `false`, preserving existing behavior. Enable this only where downstream noise is much
+  greater than the configured thresholds.
 
 * `event_group_reference_id_entity_key_mapping` — optional equivalence between
   legacy event-group reference IDs and one entity-key type. Presence enables
