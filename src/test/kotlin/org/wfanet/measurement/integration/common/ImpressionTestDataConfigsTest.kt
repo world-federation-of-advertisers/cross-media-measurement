@@ -48,6 +48,9 @@ class ImpressionTestDataConfigsTest {
     assertThat(singleEntityKey.entityKeySpecs[0].entityKey.entityId)
       .isEqualTo("edpa-eg-creative-id-1")
     assertThat(singleEntityKey.entityKeySpecs[0].entityMetadata).isEqualTo(ENTITY_METADATA)
+    assertThat(singleEntityKey.entityKeySpecs[0].parentEntityKeys).isEmpty()
+    assertThat(singleEntityKey.entityKeySpecs[0].allEntityKeys)
+      .containsExactly(singleEntityKey.entityKeySpecs[0].entityKey)
 
     val multiCreative = result["multi-creative"]
     assertIs<EventGroupConfig.MultiEntityKey>(multiCreative)

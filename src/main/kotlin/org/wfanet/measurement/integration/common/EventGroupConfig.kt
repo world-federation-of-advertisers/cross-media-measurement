@@ -20,14 +20,20 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 
 /**
- * Maps an [EntityKey] to the [SyntheticEventGroupSpec] whose events should be tagged with that key
- * in the impressions blob.
+ * Maps an [EntityKey] and its ancestors to the [SyntheticEventGroupSpec] whose events should be
+ * tagged with those keys in the impressions blob.
  */
 data class EntityKeySpec(
   val entityKey: EntityKey,
   val spec: SyntheticEventGroupSpec,
+  /** Ancestor keys attached to the same impressions and registered as EventGroups. */
+  val parentEntityKeys: List<EntityKey>,
   val entityMetadata: Struct? = null,
-)
+) {
+  /** All keys attached to each impression generated from [spec]. */
+  val allEntityKeys: List<EntityKey>
+    get() = listOf(entityKey) + parentEntityKeys
+}
 
 /** Reference-only data generated from [legacySpec] before the exclusive end [date]. */
 data class LegacyEndDate(val date: LocalDate, val legacySpec: EventGroupConfig.LegacySpec)

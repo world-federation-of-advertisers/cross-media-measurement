@@ -129,6 +129,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
                   EntityKeySpec(
                     EntityKey("ad_group", "edpa-eg-reference-id-2"),
                     syntheticEventGroupSpec,
+                    emptyList(),
                     ENTITY_METADATA,
                   )
                 ),
@@ -141,11 +142,13 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
                   EntityKeySpec(
                     EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_A_ID),
                     syntheticEventGroupSpec,
+                    emptyList(),
                     ENTITY_METADATA,
                   ),
                   EntityKeySpec(
                     EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_B_ID),
                     syntheticEventGroupSpec2,
+                    emptyList(),
                     ENTITY_METADATA,
                   ),
                 ),
@@ -161,6 +164,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
                   EntityKeySpec(
                     EntityKey("ad_group", "edpa-eg-reference-id-3"),
                     syntheticEventGroupSpec,
+                    emptyList(),
                     ENTITY_METADATA,
                   )
                 ),
@@ -176,6 +180,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
                   EntityKeySpec(
                     EntityKey("ad_group", "edpa-eg-reference-id-4"),
                     syntheticEventGroupSpec,
+                    emptyList(),
                     ENTITY_METADATA,
                   )
                 ),

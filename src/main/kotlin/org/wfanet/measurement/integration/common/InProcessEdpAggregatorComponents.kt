@@ -410,9 +410,10 @@ class InProcessEdpAggregatorComponents(
             when (config) {
               is EventGroupConfig.LegacySpec -> listOf(originalRefId to originalRefId)
               is EventGroupConfig.MultiEntityKey ->
-                config.entityKeySpecs.map { entityKeySpec ->
-                  "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}" to
-                    originalRefId
+                config.entityKeySpecs.flatMap { entityKeySpec ->
+                  entityKeySpec.allEntityKeys.map { entityKey ->
+                    "${entityKey.entityType}/${entityKey.entityId}" to originalRefId
+                  }
                 }
             }
           }
@@ -474,12 +475,15 @@ class InProcessEdpAggregatorComponents(
                 )
               }
             val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.EntityKey> =
-              originalConfig.entityKeySpecs.map { entityKeySpec ->
-                entityKey {
-                  entityType = entityKeySpec.entityKey.entityType
-                  entityId = entityKeySpec.entityKey.entityId
+              originalConfig.entityKeySpecs
+                .flatMap { it.allEntityKeys }
+                .distinct()
+                .map { key ->
+                  entityKey {
+                    entityType = key.entityType
+                    entityId = key.entityId
+                  }
                 }
-              }
             val impressionsMetadata: List<ImpressionMetadata> =
               legacyMetadata +
                 buildImpressionMetadataForDateRange(
@@ -628,16 +632,19 @@ class InProcessEdpAggregatorComponents(
             measurementConsumerData = measurementConsumerData,
           )
         is EventGroupConfig.MultiEntityKey ->
-          config.entityKeySpecs.flatMap { entityKeySpec ->
-            buildEventGroupsForSpec(
-              spec = entityKeySpec.spec,
-              entityKey = entityKeySpec.entityKey,
-              eventGroupReferenceId =
-                "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}",
-              entityMetadata = entityKeySpec.entityMetadata,
-              measurementConsumerData = measurementConsumerData,
-            )
-          }
+          config.entityKeySpecs
+            .flatMap { entityKeySpec ->
+              entityKeySpec.allEntityKeys.flatMap { entityKey ->
+                buildEventGroupsForSpec(
+                  spec = entityKeySpec.spec,
+                  entityKey = entityKey,
+                  eventGroupReferenceId = "${entityKey.entityType}/${entityKey.entityId}",
+                  entityMetadata = entityKeySpec.entityMetadata,
+                  measurementConsumerData = measurementConsumerData,
+                )
+              }
+            }
+            .distinct()
       }
     }
   }
@@ -717,9 +724,10 @@ class InProcessEdpAggregatorComponents(
         is EventGroupConfig.MultiEntityKey -> {
           val legacyEndDate = config.legacyEndDate
           writtenMultiEntityKeyRefIds += refId
-          config.entityKeySpecs.forEach { entityKeySpec ->
-            writtenMultiEntityKeyRefIds +=
-              "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
+          for (entityKeySpec in config.entityKeySpecs) {
+            for (entityKey in entityKeySpec.allEntityKeys) {
+              writtenMultiEntityKeyRefIds += "${entityKey.entityType}/${entityKey.entityId}"
+            }
           }
           if (legacyEndDate != null) {
             val legacyEvents =
@@ -744,7 +752,7 @@ class InProcessEdpAggregatorComponents(
                 "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
                 storagePath.toFile(),
                 "file:///",
-                includeEventGroupReferenceIdInImpressions = true,
+                includeEventGroupReferenceIdInImpressions = false,
               )
               .writeLabeledImpressionData(legacyEvents, modelLineName, null)
           }
@@ -773,9 +781,7 @@ class InProcessEdpAggregatorComponents(
               if (legacyEndDate != null && shard.localDate < legacyEndDate.date) continue
               shardsByDate
                 .getOrPut(shard.localDate) { mutableListOf() }
-                .add(
-                  EntityKeysWithLabeledEvents(listOf(entityKeySpec.entityKey), shard.labeledEvents)
-                )
+                .add(EntityKeysWithLabeledEvents(entityKeySpec.allEntityKeys, shard.labeledEvents))
             }
           }
           val entityKeyedEvents: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
@@ -839,9 +845,11 @@ class InProcessEdpAggregatorComponents(
         when (config) {
           is EventGroupConfig.LegacySpec -> listOf(refId to config)
           is EventGroupConfig.MultiEntityKey ->
-            config.entityKeySpecs.map { entityKeySpec ->
-              "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}" to
-                config.copy(entityKeySpecs = listOf(entityKeySpec))
+            config.entityKeySpecs.flatMap { entityKeySpec ->
+              entityKeySpec.allEntityKeys.map { entityKey ->
+                "${entityKey.entityType}/${entityKey.entityId}" to
+                  config.copy(entityKeySpecs = listOf(entityKeySpec))
+              }
             }
         }
       }
@@ -880,7 +888,7 @@ class InProcessEdpAggregatorComponents(
         for (shard in shards) {
           groupsByDate
             .getOrPut(shard.localDate) { mutableListOf() }
-            .add(EntityKeysWithLabeledEvents(listOf(entityKeySpec.entityKey), shard.labeledEvents))
+            .add(EntityKeysWithLabeledEvents(entityKeySpec.allEntityKeys, shard.labeledEvents))
         }
       }
 

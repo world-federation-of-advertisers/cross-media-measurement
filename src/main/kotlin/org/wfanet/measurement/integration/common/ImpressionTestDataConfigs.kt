@@ -90,6 +90,7 @@ object ImpressionTestDataConfigs {
           EntityKeySpec(
             entityKey = EntityKey(eksProto.entityType, eksProto.entityId),
             spec = resolveSyntheticEventGroupSpec(eksProto.dataSpecResourcePath),
+            parentEntityKeys = emptyList(),
             entityMetadata = if (eg.hasEntityMetadata()) eg.entityMetadata else null,
           )
         },
