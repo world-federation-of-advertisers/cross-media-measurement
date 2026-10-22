@@ -261,7 +261,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_EVENT_GROUP_REF_ID),
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_ENTITY_ID),
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   )
@@ -332,7 +332,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_EVENT_GROUP_REF_ID),
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_ENTITY_ID),
                     syntheticEventGroupSpec1,
                     ENTITY_METADATA,
                   )
@@ -374,7 +374,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("ad_group", AD_GROUP_EDP_EVENT_GROUP_REF_ID),
+                    EntityKey("ad_group", AD_GROUP_EDP_ENTITY_ID),
                     syntheticEventGroupSpec1,
                     ENTITY_METADATA,
                   )
@@ -1405,9 +1405,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     val edp1RefIdOnly =
       allEventGroups.first { it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID }
     val edp1CreativeId =
-      allEventGroups.first {
-        it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
-      }
+      allEventGroups.first { it.eventGroupReferenceId == EDP1_CREATIVE_EVENT_GROUP_REF_ID }
     return listOf(edp1RefIdOnly, edp1CreativeId)
   }
 
@@ -1424,20 +1422,25 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     // entity_type ("ad_group") in this fixture.
     internal const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
     internal const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
-    internal const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "ad_group/edp4-eg-ref-1"
+    internal const val AD_GROUP_EDP_ENTITY_ID = "edp4-eg-ref-1"
+    internal const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "ad_group/$AD_GROUP_EDP_ENTITY_ID"
     private const val RESTRICTED_EDP_DISPLAY_NAME = AD_GROUP_EDP_DISPLAY_NAME
     internal const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
     internal const val EDP1_MULTI_CREATIVE_A_ID = "multi-creative-A"
     internal const val EDP1_MULTI_CREATIVE_B_ID = "multi-creative-B"
-    internal val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp1-eg-creative-1"
-    private val EDP2_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp2-eg-creative-1"
+    private const val EDP1_CREATIVE_ENTITY_ID = "edp1-eg-creative-1"
+    private const val EDP2_CREATIVE_ENTITY_ID = "edp2-eg-creative-1"
+    internal const val EDP1_CREATIVE_EVENT_GROUP_REF_ID =
+      "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_ENTITY_ID"
+    private const val EDP2_CREATIVE_EVENT_GROUP_REF_ID =
+      "$CREATIVE_ID_ENTITY_TYPE/$EDP2_CREATIVE_ENTITY_ID"
     internal val EDP1_MULTI_ENTITY_KEY_REF_IDS =
       setOf(
         "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_A_ID",
         "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_B_ID",
       )
     private val EDP1_ALL_ENTITY_KEY_REF_IDS =
-      EDP1_MULTI_ENTITY_KEY_REF_IDS + "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
+      EDP1_MULTI_ENTITY_KEY_REF_IDS + EDP1_CREATIVE_EVENT_GROUP_REF_ID
     internal const val MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID =
       "campaign/mixed-history-reference-only"
     internal const val MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID = "mixed-history-reference-only"
