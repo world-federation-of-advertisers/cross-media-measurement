@@ -42,6 +42,7 @@ abstract class InProcessEdpAggregatorDirectMeasurementTest(
     secureComputationDatabaseAdmin,
     hmssEnabled = false,
     trusTeeEnabled = false,
+    resultMinimumThresholdsByEdp = emptyMap(),
   ) {
 
   @Test
