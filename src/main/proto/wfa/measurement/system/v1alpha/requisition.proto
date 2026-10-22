@@ -36,6 +36,9 @@ message Requisition {
   string name = 1;
 
   // SHA256 hash of encrypted `RequisitionSpec` from public API.
+  //
+  // For a multimeasurement, the hash of the serialized plaintext
+  // `RequisitionSpec`.
   bytes requisition_spec_hash = 2 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
@@ -43,10 +46,10 @@ message Requisition {
 
   // SHA256 hash of the `nonce` from the encrypted `RequisitionSpec` from the
   // public API.
-  bytes nonce_hash = 3 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  //
+  // Required unless this is a multimeasurement `Requisition`, whose
+  // `RequisitionSpec` carries no nonce.
+  bytes nonce_hash = 3 [(google.api.field_behavior) = IMMUTABLE];
 
   // State of a `Requisition`.
   enum State {
@@ -76,7 +79,8 @@ message Requisition {
 
   // `nonce` value from the encrypted `RequisitionSpec` from the public API.
   //
-  // Set when `state` is `FULFILLED`.
+  // Set when `state` is `FULFILLED`, unless this is a multimeasurement
+  // `Requisition`.
   //
   // (-- api-linter: core::0141::forbidden-types=disabled
   //     aip.dev/not-precedent: This is a random 64-bit value. --)
@@ -96,4 +100,12 @@ message Requisition {
   // Context information related to the fulfillment of the [Requisition][]. May
   // only be set when [state][] is [FULFILLED][Requisition.State.FULFILLED].
   FulfillmentContext fulfillment_context = 7;
+
+  // Index of this [Requisition][]'s base vector among the `Computation`'s
+  // vectors, which is what [VectorSet.base_vectors][] references.
+  //
+  // Copied by the Kingdom from the `Measurement.Multimeasurement.Vector.index`
+  // the `MeasurementConsumer` assigned. A Duchy resolves a base vector from
+  // the [Requisition][] its blob arrived on. Set only for a multimeasurement.
+  int32 vector_index = 8;
 }

@@ -37,6 +37,9 @@ val ComputationType.millType: MillType
       ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> MillType.LIQUID_LEGIONS_V2
       ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE -> MillType.HONEST_MAJORITY_SHARE_SHUFFLE
       ComputationType.TRUS_TEE -> MillType.TRUS_TEE
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4532):
+      //   Add the TrusTEE v2 mill.
+      ComputationType.TRUS_TEE_V2 -> error("TrusTEE v2 mill is not implemented")
       ComputationType.UNSPECIFIED,
       ComputationType.UNRECOGNIZED -> error("Not a real computation type")
     }
@@ -50,6 +53,9 @@ val ComputationType.prioritizedStages: List<ComputationStage>
       ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE ->
         HONEST_MAJORITY_SHARE_SHUFFLE_PRIORITIZED_STAGES
       ComputationType.TRUS_TEE -> TRUS_TEE_PRIORITIZED_STAGES
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4532):
+      //   Add the TrusTEE v2 mill.
+      ComputationType.TRUS_TEE_V2 -> error("TrusTEE v2 mill is not implemented")
       ComputationType.UNSPECIFIED,
       ComputationType.UNRECOGNIZED -> error("Not a real computation type")
     }
