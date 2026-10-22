@@ -16,13 +16,23 @@ package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.devtools.build.runfiles.Runfiles
+import com.google.type.interval
+import java.net.URI
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -53,11 +63,24 @@ abstract class InProcessEdpAggregatorOnboardingTest(
     trusTeeEnabled = true,
     multiEdpDisplayNames = setOf("edp1", "edp2"),
   ) {
+  override val edpsWithDeferredUploads: Set<String>
+    get() = setOf("edp1", "edp2")
+
   @Test
   fun `verified onboarding exports produce the expected TrusTee report`() = runBlocking {
     val edpDisplayNames = setOf("edp1", "edp2")
+    for (edpDisplayName in edpDisplayNames) {
+      assertThat(listCmmsEventGroups(edpDisplayName, listOf("campaign", "ad_group", "creative-id")))
+        .isEmpty()
+      assertThat(listImpressionMetadata(edpDisplayName)).isEmpty()
+      assertThat(getDataAvailabilityIntervals(edpDisplayName)).isEmpty()
+    }
 
-    val metadataUris = exportLabeledImpressions(edpDisplayNames)
+    val metadataUrisByEdp =
+      edpDisplayNames.sorted().associateWith { edpDisplayName ->
+        exportLabeledImpressions(setOf(edpDisplayName))
+      }
+    val metadataUris = metadataUrisByEdp.values.flatten()
     val impressionVerifierArgs =
       buildList {
           add("--kms-type=FAKE")
@@ -96,10 +119,97 @@ abstract class InProcessEdpAggregatorOnboardingTest(
       assertThat(eventGroupVerifierResult.output).contains("PASS: ${eventGroupFile.absolutePath}:")
     }
 
+    for ((edpDisplayName, edpMetadataUris) in metadataUrisByEdp) {
+      assertThat(listImpressionMetadata(edpDisplayName)).isEmpty()
+      assertThat(getDataAvailabilityIntervals(edpDisplayName)).isEmpty()
+      val expectedDoneUris =
+        edpMetadataUris.map { "${it.substringBeforeLast('/')}/done" }.distinct()
+      for (doneUri in expectedDoneUris) {
+        assertThat(Files.exists(tempPath.resolve(URI(doneUri).path.removePrefix("/")))).isFalse()
+      }
+      val publicationOutcomes = publishImpressions(edpDisplayName, edpMetadataUris)
+      assertThat(publicationOutcomes.keys).containsExactlyElementsIn(expectedDoneUris)
+      assertThat(publicationOutcomes.values.toSet())
+        .containsExactly(DataAvailabilitySync.Outcome.PUBLISHED)
+
+      val importedMetadata = listImpressionMetadata(edpDisplayName)
+      assertThat(importedMetadata.map { it.blobUri }).containsExactlyElementsIn(edpMetadataUris)
+      val sidecarsByUri =
+        edpMetadataUris.associateWith { metadataUri ->
+          BlobDetails.parseFrom(
+            Files.readAllBytes(tempPath.resolve(URI(metadataUri).path.removePrefix("/")))
+          )
+        }
+      for (metadata in importedMetadata) {
+        val sidecar = sidecarsByUri.getValue(metadata.blobUri)
+        assertThat(metadata.blobTypeUrl)
+          .isEqualTo("type.googleapis.com/${BlobDetails.getDescriptor().fullName}")
+        assertThat(metadata.modelLine).isEqualTo(sidecar.modelLine)
+        assertThat(metadata.interval).isEqualTo(sidecar.interval)
+        assertThat(metadata.state).isEqualTo(ImpressionMetadata.State.ACTIVE)
+        val expectedEntityKeys =
+          sidecar.entityKeysList.flatMap { group ->
+            group.entityIdsList.map { id ->
+              entityKey {
+                entityType = group.entityType
+                entityId = id
+              }
+            }
+          }
+        assertThat(metadata.entityKeysList).containsExactlyElementsIn(expectedEntityKeys)
+      }
+      val expectedAvailability = interval {
+        startTime = sidecarsByUri.values.minBy { it.interval.startTime.seconds }.interval.startTime
+        endTime = sidecarsByUri.values.maxBy { it.interval.endTime.seconds }.interval.endTime
+      }
+      assertThat(getDataAvailabilityIntervals(edpDisplayName))
+        .containsExactly(
+          sidecarsByUri.values.map { it.modelLine }.distinct().single(),
+          expectedAvailability,
+        )
+    }
+
     for ((edpDisplayName, eventGroupFile) in eventGroupFiles) {
       val sourceEventGroups = readEventGroups(eventGroupFile)
-      val mappedEventGroups = syncEventGroups(edpDisplayName, sourceEventGroups, emptyList())
-      assertThat(mappedEventGroups).hasSize(sourceEventGroups.size)
+      val entityTypes =
+        sourceEventGroups
+          .map { source -> if (source.hasEntityKey()) source.entityKey.entityType else "campaign" }
+          .distinct()
+      assertThat(listCmmsEventGroups(edpDisplayName, entityTypes)).isEmpty()
+      val mappedEventGroups = syncEventGroups(edpDisplayName, sourceEventGroups, entityTypes)
+      val importedEventGroups = listCmmsEventGroups(edpDisplayName, entityTypes)
+      assertThat(importedEventGroups.map { it.eventGroupReferenceId })
+        .containsExactlyElementsIn(sourceEventGroups.map { it.eventGroupReferenceId })
+      val expectedMappings =
+        sourceEventGroups.map { source ->
+          val imported =
+            importedEventGroups.single { it.eventGroupReferenceId == source.eventGroupReferenceId }
+          assertThat(imported.measurementConsumer).isEqualTo(source.measurementConsumer)
+          assertThat(imported.dataAvailabilityInterval).isEqualTo(source.dataAvailabilityInterval)
+          if (source.hasEntityKey()) {
+            assertThat(imported.entityKey.entityType).isEqualTo(source.entityKey.entityType)
+            assertThat(imported.entityKey.entityId).isEqualTo(source.entityKey.entityId)
+          } else {
+            assertThat(imported.entityKey.entityType).isEqualTo("campaign")
+            assertThat(imported.entityKey.entityId).isEmpty()
+          }
+          assertThat(imported.mediaTypesList).containsExactly(MediaType.VIDEO)
+          val campaign = imported.eventGroupMetadata.adMetadata.campaignMetadata
+          assertThat(campaign.brandName)
+            .isEqualTo(source.eventGroupMetadata.adMetadata.campaignMetadata.brand)
+          assertThat(campaign.campaignName)
+            .isEqualTo(source.eventGroupMetadata.adMetadata.campaignMetadata.campaign)
+          assertThat(imported.eventGroupMetadata.entityMetadata)
+            .isEqualTo(source.eventGroupMetadata.entityMetadata)
+          mappedEventGroup {
+            eventGroupReferenceId = source.eventGroupReferenceId
+            eventGroupResource = imported.name
+            if (source.hasEntityKey()) {
+              entityKey = source.entityKey
+            }
+          }
+        }
+      assertThat(mappedEventGroups).containsExactlyElementsIn(expectedMappings)
     }
 
     val eventGroups = getCreativeIdOnlyEventGroups()

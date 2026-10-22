@@ -107,10 +107,12 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupReader
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -204,6 +206,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     emptyMap(),
   private val mixedIdentifierHistoryEnabled: Boolean = false,
 ) {
+
+  /** EDPs that start without campaigns, impression objects, metadata, or availability intervals. */
+  protected open val edpsWithDeferredUploads: Set<String>
+    get() = emptySet()
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
     when {
@@ -491,6 +497,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               "edp4" to directNoiseType,
             ),
           edpMultiPartyNoiseTypes = multiPartyNoiseTypes,
+          edpsWithDeferredUploads = edpsWithDeferredUploads,
           resultMinimumThresholdsByEdp = resultMinimumThresholdsByEdp,
         )
         runBlocking {
@@ -1167,6 +1174,23 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
+  /** Publishes uploaded dates through the production data-availability sync. */
+  protected suspend fun publishImpressions(
+    edpDisplayName: String,
+    metadataUris: List<String>,
+  ): Map<String, DataAvailabilitySync.Outcome> =
+    inProcessEdpAggregatorComponents.publishImpressions(edpDisplayName, metadataUris)
+
+  /** Lists the impression metadata registered for [edpDisplayName]. */
+  protected suspend fun listImpressionMetadata(edpDisplayName: String): List<ImpressionMetadata> =
+    inProcessEdpAggregatorComponents.listImpressionMetadata(edpDisplayName)
+
+  /** Returns the availability published by [edpDisplayName], keyed by ModelLine resource name. */
+  protected suspend fun getDataAvailabilityIntervals(
+    edpDisplayName: String
+  ): Map<String, com.google.type.Interval> =
+    inProcessEdpAggregatorComponents.getDataAvailabilityIntervals(edpDisplayName)
+
   /** Exports EventGroup JSON for each EDP in [edpDisplayNames], keyed by EDP display name. */
   protected suspend fun exportEventGroups(edpDisplayNames: Set<String>): Map<String, File> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
@@ -1199,10 +1223,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   /** Returns the fake KEK URI shared by the writer, verifier, and in-process fulfiller. */
   protected fun fakeKmsKeyUri(): String = SHARED_KEK_URI
 
-  /**
-   * Re-runs [EventGroupSync] for a single EDP against the running in-process Kingdom. Test-only
-   * seam for driving repeated migration syncs after daemon startup.
-   */
+  /** Synchronizes [sources] for an EDP against the running in-process Kingdom. */
   protected fun syncEventGroups(
     edpAggregatorShortName: String,
     sources: List<EdpaEventGroup>,
@@ -1338,7 +1359,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   ) {
     val dataAvailabilityInterval = computeDataAvailabilityInterval()
     val modelLineName = inProcessCmmsComponents.modelLineResourceName
-    for ((_, resource) in edpDisplayNameToResourceMap) {
+    for ((edpDisplayName, resource) in edpDisplayNameToResourceMap) {
+      if (edpDisplayName in edpsWithDeferredUploads) {
+        continue
+      }
       val dataProvidersStub =
         DataProvidersCoroutineStub(kingdomChannel).withPrincipalName(resource.name)
       dataProvidersStub.replaceDataAvailabilityIntervals(
