@@ -228,16 +228,10 @@ class DefaultFulfillerSelector(
     val frequencyDataBytes = frequencyVector.getByteArray()
 
     val protocols = requisition.protocolConfig.protocolsList
-    // Match the selection precedence below. A Direct or TrusTeeV2 option takes precedence over
-    // EDPA-suppressed multi-publisher options and must retain its existing threshold behavior.
-    val selectedProtocolUsesEdpaMultiPublisherSuppression =
-      protocols.none { it.hasDirect() || it.hasTrusTeeV2() } &&
-        protocols.any { it.hasTrusTee() || it.hasHonestMajorityShareShuffle() }
+    // Direct takes precedence over multi-publisher options and retains its threshold behavior.
+    val selectedProtocolIsMultiPub = protocols.none { it.hasDirect() }
     val resultMinimumThresholdsForFrequencyVector =
-      if (
-        disableMultiPartyFrequencyVectorSuppression &&
-          selectedProtocolUsesEdpaMultiPublisherSuppression
-      ) {
+      if (disableMultiPartyFrequencyVectorSuppression && selectedProtocolIsMultiPub) {
         null
       } else {
         resultMinimumThresholds
