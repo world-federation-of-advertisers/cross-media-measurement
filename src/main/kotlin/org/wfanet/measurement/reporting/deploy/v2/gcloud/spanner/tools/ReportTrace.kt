@@ -2070,7 +2070,14 @@ internal object ReportTraceOutput {
     }
     if (
       context.basicReportState?.uppercase() in
-        setOf("CREATED", "REPORT_CREATED", "UNPROCESSED_RESULTS_READY", "RUNNING")
+        setOf(
+          "CREATED_LEGACY",
+          "CREATED_MULTIMEASUREMENT",
+          "MEASUREMENTS_CREATED",
+          "REPORT_CREATED",
+          "UNPROCESSED_RESULTS_READY",
+          "RUNNING",
+        )
     ) {
       return ReportTraceExecutionOutcome.IN_PROGRESS
     }
