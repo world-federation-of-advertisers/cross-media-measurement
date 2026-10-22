@@ -188,10 +188,12 @@ class VidLabelingSinkTest {
           ),
         )
 
-      val blobDetails = labelRawImpressions(keysByImpression)
+      val blobDetails =
+        labelRawImpressions(keysByImpression, requiredEntityTypes = setOf("campaign"))
       val impressions = readImpressions(blobDetails)
 
       assertThat(impressions).hasSize(2)
+      assertThat(impressions.map { it.entityKeysCount }).containsExactly(6, 6)
       assertThat(impressions.map { it.vid }.toSet()).containsExactly(VID)
       assertThat(
           impressions.map { impression ->
@@ -223,7 +225,11 @@ class VidLabelingSinkTest {
   @Test
   fun `commit reads person-only Parquet with optional hierarchy mappings`() =
     runBlocking<Unit> {
-      val blobDetails = labelRawImpressions(listOf(listOf(EntityKey("person", "p-1"))))
+      val blobDetails =
+        labelRawImpressions(
+          listOf(listOf(EntityKey("person", "p-1"))),
+          requiredEntityTypes = setOf("person"),
+        )
       val impressions = readImpressions(blobDetails)
 
       assertThat(impressions).hasSize(1)
@@ -656,7 +662,10 @@ class VidLabelingSinkTest {
     }
 
   /** Writes encrypted raw Parquet, then labels its decrypted rows with the production converter. */
-  private suspend fun labelRawImpressions(keysByImpression: List<List<EntityKey>>): BlobDetails {
+  private suspend fun labelRawImpressions(
+    keysByImpression: List<List<EntityKey>>,
+    requiredEntityTypes: Set<String>,
+  ): BlobDetails {
     tempFolder.root.resolve("labeled").mkdirs()
     val eventDate = LocalDate.parse("2020-01-01")
     val start = eventDate.atStartOfDay(ZoneOffset.UTC).toInstant()
@@ -698,10 +707,15 @@ class VidLabelingSinkTest {
         Path(tempFolder.root.toURI()),
         encryptionConfig = ParquetEncryptionConfig(kmsProvider = { kmsClient }),
       )
-    val rows = reader.getBlob(rawBlobKey)!!.readRows().toList()
+    val rows = checkNotNull(reader.getBlob(rawBlobKey)).readRows().toList()
     val config =
       VidLabelerParamsKt.modelLineConfig {
-        optionalEntityKeyFieldMapping.putAll(RawImpressionColumns.ENTITY_KEY_COLUMNS)
+        requiredEntityKeyFieldMapping.putAll(
+          RawImpressionColumns.ENTITY_KEY_COLUMNS.filterKeys { it in requiredEntityTypes }
+        )
+        optionalEntityKeyFieldMapping.putAll(
+          RawImpressionColumns.ENTITY_KEY_COLUMNS.filterKeys { it !in requiredEntityTypes }
+        )
         labelerInputFieldMapping += labelerInputFieldMapping {
           fieldPath = "event_id.id"
           scalar = scalarColumn { column = RawImpressionColumns.EVENT_ID }

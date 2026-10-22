@@ -92,23 +92,27 @@ writer, not required names.
 | Impression time | `event_time_usec` | INT64 | Required; Unix epoch microseconds in UTC |
 | Person or device input | `person_id` | STRING | As required by the VID model |
 | Demographic/model input | `person_gender`, `person_age_group`, … | Configured type | As required by the VID model |
-| Campaign/entity IDs | `campaign_id`, `adset_id`, `ad_id`, `account_id`, `creative_id` | STRING | One column per entity type; at least one populated mapped entity key per impression |
+| Entity keys | `campaign_id`, `adset_id`, `ad_id`, `account_id`, `creative_id` | STRING | One column per entity type; at least one populated mapped entity key per impression |
 | Measurement filter input | `video_completed_fraction`, … | Configured type | Required when a measurement filter reads it |
 
 The reference writer calls the video completion column
 `video_completed_fraction`. An EDP may use another name if the operator's
 mapping points the event field to that column.
 
-An impression can carry account, campaign, ad-set, ad, and creative keys together.
-Map each column to its entity type independently so every key is preserved on the
-labeled impression. Each column contains one ID of that type for that impression;
+Each impression should carry all applicable entity keys. Account, campaign,
+ad-set, ad, and creative are examples of entity types, not a required taxonomy.
+Map each entity type to its own STRING column so every applicable key is preserved
+on the labeled impression. Each column contains one ID of that type per impression;
 IDs must match the corresponding EventGroups.
 
-Required mapped columns must exist with the agreed type. Optional entity-key
-columns may be absent, null, or empty, allowing older files to omit newer hierarchy
-levels. A populated entity-key column must be a string. A filter field that is not
-mapped can remain at its event-schema default and cause impressions to fail that
-filter, so agree on filter inputs explicitly.
+For each entity type, configure a required or optional entity-key column mapping.
+A required mapping needs a present, non-null, non-empty string for that type on
+every impression. An optional mapping allows that type's column to be absent,
+null, or empty, so older files can omit newly introduced entity types. A populated
+entity-key column must always be a string.
+
+A filter field that is not mapped can remain at its event-schema default and
+cause impressions to fail that filter, so agree on filter inputs explicitly.
 
 The operator configures:
 

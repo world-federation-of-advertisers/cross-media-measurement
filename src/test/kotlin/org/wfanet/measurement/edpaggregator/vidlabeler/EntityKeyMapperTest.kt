@@ -47,8 +47,8 @@ class EntityKeyMapperTest {
   }
 
   @Test
-  fun `omits optional entity types whose column is absent, unset, or empty`() {
-    // hh_col set; cr_col explicitly unset (KIND_NOT_SET). An absent column behaves the same way.
+  fun `omits an optional entity type whose column is unset`() {
+    // hh_col is populated; cr_col is explicitly unset (KIND_NOT_SET).
     val row =
       mapOf(
         "person_col" to parquetValue { stringValue = "p-1" },
@@ -64,7 +64,43 @@ class EntityKeyMapperTest {
   }
 
   @Test
-  fun `throws when a required column is null or empty`() {
+  fun `omits optional entity types whose columns are absent`() {
+    val row = mapOf("person_col" to parquetValue { stringValue = "p-1" })
+
+    val keys = EntityKeyMapper(required, optional).map(row)
+
+    assertThat(keys.map { it.entityType to it.entityId }).containsExactly("person" to "p-1")
+  }
+
+  @Test
+  fun `omits optional entity types whose columns are empty`() {
+    val row =
+      mapOf(
+        "person_col" to parquetValue { stringValue = "p-1" },
+        "hh_col" to parquetValue { stringValue = "" },
+        "cr_col" to parquetValue { stringValue = "" },
+      )
+
+    val keys = EntityKeyMapper(required, optional).map(row)
+
+    assertThat(keys.map { it.entityType to it.entityId }).containsExactly("person" to "p-1")
+  }
+
+  @Test
+  fun `throws when a required hierarchy column is absent`() {
+    val row = mapOf("person_col" to parquetValue { stringValue = "p-1" })
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        EntityKeyMapper(mapOf("campaign" to "campaign_col"), mapOf("person" to "person_col"))
+          .map(row)
+      }
+
+    assertThat(exception).hasMessageThat().contains("campaign_col")
+  }
+
+  @Test
+  fun `throws when a required column is empty`() {
     val row =
       mapOf(
         "person_col" to parquetValue { stringValue = "" },
@@ -74,6 +110,23 @@ class EntityKeyMapperTest {
     val exception =
       assertFailsWith<IllegalArgumentException> { EntityKeyMapper(required, optional).map(row) }
     assertThat(exception).hasMessageThat().contains("person_col")
+  }
+
+  @Test
+  fun `throws when a required column is unset`() {
+    val row = mapOf("person_col" to parquetValue {})
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { EntityKeyMapper(required, optional).map(row) }
+
+    assertThat(exception).hasMessageThat().contains("person_col")
+  }
+
+  @Test
+  fun `throws when a required column is not a string`() {
+    val row = mapOf("person_col" to parquetValue { int64Value = 1L })
+
+    assertFailsWith<IllegalStateException> { EntityKeyMapper(required, optional).map(row) }
   }
 
   @Test
