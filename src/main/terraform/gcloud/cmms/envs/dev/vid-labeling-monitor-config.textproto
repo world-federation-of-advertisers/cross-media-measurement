@@ -77,6 +77,22 @@ configs {
         key: "person"
         value: "person_id"
       }
+      optional_entity_key_field_mapping {
+        key: "campaign"
+        value: "campaign_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "adset-id"
+        value: "adset_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "ad-id"
+        value: "ad_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "account-id"
+        value: "account_id"
+      }
     }
   }
   model_line_configs {
@@ -154,6 +170,22 @@ configs {
         key: "person"
         value: "person_id"
       }
+      optional_entity_key_field_mapping {
+        key: "campaign"
+        value: "campaign_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "adset-id"
+        value: "adset_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "ad-id"
+        value: "ad_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "account-id"
+        value: "account_id"
+      }
     }
   }
   model_line_configs {
@@ -230,6 +262,22 @@ configs {
       optional_entity_key_field_mapping {
         key: "person"
         value: "person_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "campaign"
+        value: "campaign_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "adset-id"
+        value: "adset_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "ad-id"
+        value: "ad_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "account-id"
+        value: "account_id"
       }
     }
   }
