@@ -85,5 +85,6 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:tee_stack_dump_logger",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )

@@ -46,7 +46,7 @@ object TeeStackDumpLogger {
   fun startFromEnvironment(environment: Map<String, String> = System.getenv()): Thread? {
     val raw: String = environment[INTERVAL_ENV]?.takeIf { it.isNotBlank() } ?: return null
     val seconds: Long? = raw.trim().toLongOrNull()
-    if (seconds == null || seconds <= 0) {
+    if (seconds == null || seconds <= 0 || !isRepresentableInMillis(Duration.ofSeconds(seconds))) {
       logger.warning("Ignoring $INTERVAL_ENV=$raw; expected a positive whole number of seconds")
       return null
     }
@@ -56,6 +56,7 @@ object TeeStackDumpLogger {
   /** Starts a daemon thread that logs a thread dump every [interval] until interrupted. */
   fun start(interval: Duration): Thread {
     require(interval > Duration.ZERO) { "interval must be positive" }
+    require(isRepresentableInMillis(interval)) { "interval must be representable in milliseconds" }
     return thread(isDaemon = true, name = THREAD_NAME) {
       logger.info("Logging thread stack dumps every ${interval.seconds}s")
       while (!Thread.currentThread().isInterrupted) {
@@ -64,10 +65,23 @@ object TeeStackDumpLogger {
         } catch (e: InterruptedException) {
           break
         }
-        logger.info(format(Thread.getAllStackTraces()))
+        logDumpNow()
       }
     }
   }
+
+  /** Logs one thread dump of every live thread immediately. */
+  fun logDumpNow() {
+    logger.info(format(Thread.getAllStackTraces()))
+  }
+
+  private fun isRepresentableInMillis(interval: Duration): Boolean =
+    try {
+      interval.toMillis()
+      true
+    } catch (e: ArithmeticException) {
+      false
+    }
 
   /**
    * Formats [stacks] as a thread dump ordered by thread name, with at most [maxFrames] frames per
