@@ -23,6 +23,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as edpaEntityKey
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.copy
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -297,13 +300,108 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
           .toSet()
       )
       .hasSize(3)
-    val updatedReferenceIdOnlyEventGroup =
-      updateCmmsEventGroup(referenceIdOnlyEventGroup.copy { clearEntityKey() })
+    assertThat(referenceIdOnlyEventGroup.hasEntityKey()).isFalse()
+    assertThat(entityKeyOnlyEventGroup.hasEntityKey()).isFalse()
+    assertThat(dualIdentifierEventGroup.hasEntityKey()).isFalse()
+
+    val sources = mixedHistoryUpgradeSources()
+    val mapped =
+      syncEventGroups(
+        "edp1",
+        listOf(
+          sources.getValue(MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID),
+          sources.getValue(MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID),
+        ),
+        entityKeyTypes = listOf("campaign"),
+      )
+    assertThat(mapped.map { it.eventGroupResource })
+      .containsExactly(entityKeyOnlyEventGroup.name, dualIdentifierEventGroup.name)
+    val afterSync = listCmmsEventGroups("edp1", listOf("campaign"))
+    assertThat(afterSync.map { it.name }).containsExactlyElementsIn(eventGroups.map { it.name })
+    val upgradedEntityKeyOnlyEventGroup =
+      afterSync.single { it.name == entityKeyOnlyEventGroup.name }
     val updatedEntityKeyOnlyEventGroup =
-      updateCmmsEventGroup(entityKeyOnlyEventGroup.copy { eventGroupReferenceId = "" })
-    assertThat(updatedReferenceIdOnlyEventGroup.name).isEqualTo(referenceIdOnlyEventGroup.name)
+      updateCmmsEventGroup(upgradedEntityKeyOnlyEventGroup.copy { eventGroupReferenceId = "" })
     assertThat(updatedEntityKeyOnlyEventGroup.name).isEqualTo(entityKeyOnlyEventGroup.name)
     return listReportingEventGroups()
+  }
+
+  private suspend fun mixedHistoryUpgradeSources(): Map<String, EdpaEventGroup> {
+    val sources = readEventGroups(exportEventGroups(setOf("edp1")).getValue("edp1"))
+    return listOf(
+        MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID to MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID,
+        MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID to MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID,
+        MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID to MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID,
+      )
+      .associate { (referenceId, entityId) ->
+        val source = sources.single { it.eventGroupReferenceId == referenceId }
+        assertThat(source.hasEntityKey()).isFalse()
+        referenceId to
+          source.copy {
+            entityKey = edpaEntityKey {
+              entityType = "campaign"
+              this.entityId = entityId
+            }
+          }
+      }
+  }
+
+  @Test
+  fun `sync upgrades a legacy EventGroup in place without changing report results`() = runBlocking {
+    val entityTypes = listOf("campaign", CREATIVE_ID_ENTITY_TYPE, "adset-id", "ad-id")
+    val beforeEventGroups = listCmmsEventGroups("edp1", entityTypes)
+    val legacyEventGroup =
+      beforeEventGroups.single {
+        it.eventGroupReferenceId == MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID
+      }
+    assertThat(legacyEventGroup.hasEntityKey()).isFalse()
+    val beforeReportingEventGroup =
+      listReportingEventGroups().single { it.cmmsEventGroup == legacyEventGroup.name }
+    assertThat(beforeReportingEventGroup.entityKey.entityId).isEmpty()
+    val beforeReport = runBasicReport(beforeReportingEventGroup, "before-legacy-upgrade")
+
+    val source = mixedHistoryUpgradeSources().getValue(MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID)
+    val firstSync = syncEventGroups("edp1", listOf(source), entityTypes)
+    assertThat(firstSync.single().eventGroupResource).isEqualTo(legacyEventGroup.name)
+    val afterEventGroups = listCmmsEventGroups("edp1", entityTypes)
+    assertThat(afterEventGroups.map { it.name })
+      .containsExactlyElementsIn(beforeEventGroups.map { it.name })
+    val upgradedEventGroup = afterEventGroups.single { it.name == legacyEventGroup.name }
+    assertThat(upgradedEventGroup.eventGroupReferenceId)
+      .isEqualTo(MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID)
+    assertThat(upgradedEventGroup.entityKey.entityType).isEqualTo("campaign")
+    assertThat(upgradedEventGroup.entityKey.entityId)
+      .isEqualTo(MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID)
+
+    // Repeating the migration must not create another resource.
+    val secondSync = syncEventGroups("edp1", listOf(source), entityTypes)
+    assertThat(secondSync.single()).isEqualTo(firstSync.single())
+    assertThat(listCmmsEventGroups("edp1", entityTypes).map { it.name })
+      .containsExactlyElementsIn(beforeEventGroups.map { it.name })
+
+    val afterReportingEventGroup =
+      listReportingEventGroups().single { it.cmmsEventGroup == legacyEventGroup.name }
+    assertThat(afterReportingEventGroup.name).isEqualTo(beforeReportingEventGroup.name)
+    assertThat(afterReportingEventGroup.entityKey.entityId)
+      .isEqualTo(MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID)
+    val afterReport = runBasicReport(afterReportingEventGroup, "after-legacy-upgrade")
+
+    for (report in listOf(beforeReport, afterReport)) {
+      assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertStructuralResults(report)
+      assertSingleEdpNoNoiseResults(
+        report,
+        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+        expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
+        expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
+      )
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(report.name))
+    }
+    assertThat(afterReport.resultGroupsList.single().resultsList.map { it.metricSet })
+      .containsExactlyElementsIn(
+        beforeReport.resultGroupsList.single().resultsList.map { it.metricSet }
+      )
+      .inOrder()
   }
 
   @Test

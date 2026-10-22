@@ -287,9 +287,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_ENTITY_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_ENTITY_ID)),
                     syntheticEventGroupSpec2,
-                    emptyList(),
                     ENTITY_METADATA,
                   )
                 ),
@@ -300,15 +299,13 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_A_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_A_ID)),
                     syntheticEventGroupSpec2,
-                    emptyList(),
                     ENTITY_METADATA,
                   ),
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_B_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_B_ID)),
                     syntheticEventGroupSpec2,
-                    emptyList(),
                     ENTITY_METADATA,
                   ),
                 ),
@@ -327,9 +324,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     entityKeySpecs =
                       listOf(
                         EntityKeySpec(
-                          EntityKey("campaign", entityId),
+                          listOf(EntityKey("campaign", entityId)),
                           syntheticEventGroupSpec2,
-                          emptyList(),
                           ENTITY_METADATA,
                         )
                       ),
@@ -346,15 +342,14 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     entityKeySpecs =
                       listOf("a", "b").map { suffix ->
                         EntityKeySpec(
-                          entityKey =
-                            EntityKey(CREATIVE_ID_ENTITY_TYPE, "blob-hierarchy-creative-$suffix"),
-                          spec = syntheticEventGroupSpec2,
-                          parentEntityKeys =
+                          entityKeys =
                             listOf(
                               EntityKey("campaign", HIERARCHY_CAMPAIGN_ENTITY_ID),
                               EntityKey("adset-id", "blob-hierarchy-adset-$suffix"),
                               EntityKey("ad-id", "blob-hierarchy-ad-$suffix"),
+                              EntityKey(CREATIVE_ID_ENTITY_TYPE, "blob-hierarchy-creative-$suffix"),
                             ),
+                          spec = syntheticEventGroupSpec2,
                           entityMetadata = ENTITY_METADATA,
                         )
                       },
@@ -371,9 +366,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("campaign", "edp2-eg-ref-1"),
+                    listOf(EntityKey("campaign", "edp2-eg-ref-1")),
                     syntheticEventGroupSpec1,
-                    emptyList(),
                     ENTITY_METADATA,
                   )
                 ),
@@ -384,9 +378,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_ENTITY_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_ENTITY_ID)),
                     syntheticEventGroupSpec1,
-                    emptyList(),
                     ENTITY_METADATA,
                   )
                 ),
@@ -397,9 +390,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("campaign", SPARSE_FREQUENCY_EVENT_GROUP_REF_ID),
+                    listOf(EntityKey("campaign", SPARSE_FREQUENCY_EVENT_GROUP_REF_ID)),
                     sparseFrequencyEventGroupSpec,
-                    emptyList(),
                     ENTITY_METADATA,
                   )
                 ),
@@ -413,9 +405,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("campaign", "edp3-eg-ref-1"),
+                    listOf(EntityKey("campaign", "edp3-eg-ref-1")),
                     syntheticEventGroupSpec2,
-                    emptyList(),
                     ENTITY_METADATA,
                   )
                 ),
@@ -429,9 +420,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("ad_group", AD_GROUP_EDP_ENTITY_ID),
+                    listOf(EntityKey("ad_group", AD_GROUP_EDP_ENTITY_ID)),
                     syntheticEventGroupSpec1,
-                    emptyList(),
                     ENTITY_METADATA,
                   )
                 ),

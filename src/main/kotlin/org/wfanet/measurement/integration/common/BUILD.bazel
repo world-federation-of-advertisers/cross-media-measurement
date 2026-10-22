@@ -375,6 +375,7 @@ kt_jvm_library(
         ":synthetic_generation_specs",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:event_group_reference_id_entity_key_mapping",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/client:labeled_impression_writer",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_blobs",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",

@@ -72,9 +72,11 @@ object ImpressionTestDataConfigs {
         when (config) {
           is EventGroupConfig.LegacySpec -> listOf(key to config)
           is EventGroupConfig.MultiEntityKey ->
-            config.entityKeySpecs.map { entityKeySpec ->
-              "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}" to
-                config.copy(entityKeySpecs = listOf(entityKeySpec))
+            config.entityKeySpecs.flatMap { entityKeySpec ->
+              entityKeySpec.entityKeys.map { entityKey ->
+                "${entityKey.entityType}-${entityKey.entityId}" to
+                  config.copy(entityKeySpecs = listOf(entityKeySpec))
+              }
             }
         }
       }
@@ -88,9 +90,8 @@ object ImpressionTestDataConfigs {
       EventGroupConfig.MultiEntityKey(
         eg.entityKeySpecsList.map { eksProto ->
           EntityKeySpec(
-            entityKey = EntityKey(eksProto.entityType, eksProto.entityId),
+            entityKeys = listOf(EntityKey(eksProto.entityType, eksProto.entityId)),
             spec = resolveSyntheticEventGroupSpec(eksProto.dataSpecResourcePath),
-            parentEntityKeys = emptyList(),
             entityMetadata = if (eg.hasEntityMetadata()) eg.entityMetadata else null,
           )
         },
