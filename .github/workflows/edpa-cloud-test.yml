@@ -46,6 +46,12 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Load CMMS environment configuration
+        id: cmms-config
+        uses: ./.github/actions/load-cmms-environment
+        with:
+          environment: ${{ inputs.environment }}
+
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
 
@@ -53,10 +59,10 @@ jobs:
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
           token_format: 'id_token'
-          id_token_audience: ${{ vars.REQUISITION_FETCHER_ENDPOINT }}
+          id_token_audience: ${{ fromJSON(steps.cmms-config.outputs.config).REQUISITION_FETCHER_ENDPOINT }}
 
       - name: Write auth.bazelrc
         env:
@@ -68,13 +74,13 @@ jobs:
 
       - name: Write ~/.bazelrc
         env:
-          KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
-          MC_NAME: ${{ vars.MC_NAME }}
+          KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
+          MC_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
-          REQUISITION_FETCHER_ENDPOINT: ${{ vars.REQUISITION_FETCHER_ENDPOINT }}
+          REQUISITION_FETCHER_ENDPOINT: ${{ fromJSON(steps.cmms-config.outputs.config).REQUISITION_FETCHER_ENDPOINT }}
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
-          MODEL_LINE: ${{ vars.MODEL_LINE_NAME }}
+          MODEL_LINE: ${{ fromJSON(steps.cmms-config.outputs.config).MODEL_LINE_NAME }}
 
         run: |
           cat << EOF > ~/.bazelrc
@@ -111,13 +117,13 @@ jobs:
         id: aws_auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
           token_format: 'id_token'
           # Google->AWS: the aud must be an audience the AWS accounts.google.com OIDC provider
           # accepts (the edpa_meta identity), NOT sts.amazonaws.com. The CI SA's sub is in the
           # GcpSyntheticDataKmsRole trust.
-          id_token_audience: ${{ vars.EDPA_META_AWS_AUDIENCE }}
+          id_token_audience: ${{ fromJSON(steps.cmms-config.outputs.config).EDPA_META_AWS_AUDIENCE }}
           create_credentials_file: false
           export_environment_variables: false
 
@@ -133,13 +139,13 @@ jobs:
       - name: Run tests
         id: run-tests
         env:
-          MODEL_LINE_NAME: ${{ vars.MODEL_LINE_NAME }}
+          MODEL_LINE_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MODEL_LINE_NAME }}
           DASHBOARD_CONFIG_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/dashboard-config.json
-          EDPA_PUBLIC_API_TARGET: ${{ vars.METADATA_STORAGE_PUBLIC_API_TARGET }}
+          EDPA_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).METADATA_STORAGE_PUBLIC_API_TARGET }}
           # Deployed Spanner instance; lets SeedRawImpressionsRule hard-delete this test's own
           # RawImpressionUpload rows before seeding (scoped by DoneBlobUri prefix) so re-runs do not
           # collide on the RawImpressionUploadFileByBlobUri unique index.
-          SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+          SPANNER_INSTANCE: ${{ fromJSON(steps.cmms-config.outputs.config).SPANNER_INSTANCE }}
           # edpa_meta publisher AWS KMS settings, used to (re)generate its labeled impressions
           # in-test. The runner must also produce AWS_WEB_IDENTITY_TOKEN_FILE (AWS web-identity
           # token); it is forwarded to the test below.

@@ -325,8 +325,8 @@ After Terraform deploys and other cloud tests generate data, the workflow:
     `dashboard-compliance@<DASHBOARD_PROJECT>.iam.gserviceaccount.com` (the least-privilege
     SA, not the broader operator/terraform SA)
 
-Ensure the GitHub environment has the required deployment variables
-(`GCLOUD_PROJECT`, `TF_SERVICE_ACCOUNT`, `WORKLOAD_IDENTITY_PROVIDER`).
+Ensure `.github/env-configs/<env>/cmms.json` defines the required deployment
+values (`GCLOUD_PROJECT`, `TF_SERVICE_ACCOUNT`, `WORKLOAD_IDENTITY_PROVIDER`).
 
 ## Ongoing Operations
 

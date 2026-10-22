@@ -44,17 +44,23 @@ jobs:
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+    - name: Load CMMS environment configuration
+      id: cmms-config
+      uses: ./.github/actions/load-cmms-environment
+      with:
+        environment: ${{ inputs.environment }}
+
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
-        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
+        workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ fromJSON(steps.cmms-config.outputs.config).GKE_CONFIG_SERVICE_ACCOUNT }}
 
     - name: Get GKE cluster credentials
       uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
       with:
         cluster_name: reporting-v2
-        location: ${{ vars.GCLOUD_ZONE }}
+        location: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_ZONE }}
 
     - name: Write auth.bazelrc
       env:
@@ -64,41 +70,21 @@ jobs:
         build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
         EOF
 
-    - name: Read simulator EDP config
-      id: simulator-edps
-      env:
-        CONFIG_PATH: .github/env-configs/${{ inputs.environment }}/simulator_edps.json
-      run: |
-        for key in edp1_name edp2_name edp3_name edp4_name edp5_name edp6_name; do
-          value=$(jq -r --arg k "$key" '.[$k]' "$CONFIG_PATH")
-          if [ -z "$value" ] || [ "$value" = "null" ]; then
-            echo "Missing key '$key' in $CONFIG_PATH" >&2
-            exit 1
-          fi
-          echo "${key}=${value}" >> "$GITHUB_OUTPUT"
-        done
-
     - name: Write ~/.bazelrc
       env:
-        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
-        MC_NAME: ${{ vars.MC_NAME }}
+        KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
+        MC_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MC_NAME }}
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
-        GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
-        REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
-        REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
-        ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
-        REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
-        MCP_HOST: ${{ vars.MCP_HOST }}
+        GCLOUD_PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
+        REPORTING_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_PUBLIC_API_TARGET }}
+        REPORTING_SERVICE_ENDPOINT: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_SERVICE_ENDPOINT }}
+        ACCESS_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).ACCESS_PUBLIC_API_TARGET }}
+        REPORTING_TOKEN_AUDIENCE: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_TOKEN_AUDIENCE }}
+        MCP_HOST: ${{ fromJSON(steps.cmms-config.outputs.config).MCP_HOST }}
 
-        EDP1_NAME: ${{ steps.simulator-edps.outputs.edp1_name }}
-        EDP2_NAME: ${{ steps.simulator-edps.outputs.edp2_name }}
-        EDP3_NAME: ${{ steps.simulator-edps.outputs.edp3_name }}
-        EDP4_NAME: ${{ steps.simulator-edps.outputs.edp4_name }}
-        EDP5_NAME: ${{ steps.simulator-edps.outputs.edp5_name }}
-        EDP6_NAME: ${{ steps.simulator-edps.outputs.edp6_name }}
-        PDP_NAME: ${{ vars.PDP_NAME }}
-        MP_NAME: ${{ vars.MP_NAME }}
-        MODEL_LINE_NAME: ${{ vars.MODEL_LINE_NAME }}
+        PDP_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).PDP_NAME }}
+        MP_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MP_NAME }}
+        MODEL_LINE_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MODEL_LINE_NAME }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci

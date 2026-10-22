@@ -42,6 +42,39 @@ jobs:
       - name: Check out revision
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Validate committed CMMS environment configuration
+        run: |
+          set -euo pipefail
+          reference_keys=$(jq -cS 'keys' .github/env-configs/dev/cmms.json)
+          for env_name in dev head qa; do
+            config_path=".github/env-configs/$env_name/cmms.json"
+            jq -e '
+              type == "object"
+              and length > 0
+              and (to_entries | all(.key | test("^[A-Z][A-Z0-9_]*$")))
+              and (to_entries | all(.value |
+                type == "string" and length > 0 and (contains("\n") | not)))
+            ' "$config_path" > /dev/null
+            test "$(jq -cS 'keys' "$config_path")" = "$reference_keys"
+            jq -e '
+              has("WORKLOAD_IDENTITY_PROVIDER")
+              and has("TF_SERVICE_ACCOUNT")
+              and has("GKE_CONFIG_SERVICE_ACCOUNT")
+            ' "$config_path" > /dev/null
+          done
+
+          {
+            grep -rhoE 'fromJSON\(steps\.cmms-config\.outputs\.config\)\.[A-Z][A-Z0-9_]*' .github/workflows \
+              | sed 's/.*\.//'
+            printf '%s\n' \
+              EDP1_NAME EDP1_CERT_NAME EDP2_NAME EDP2_CERT_NAME \
+              EDP3_NAME EDP3_CERT_NAME EDP4_NAME EDP4_CERT_NAME \
+              EDP5_NAME EDP5_CERT_NAME EDP6_NAME EDP6_CERT_NAME
+          } | sort -u | while IFS= read -r config_key; do
+            jq -e --arg key "$config_key" 'has($key)' \
+              .github/env-configs/dev/cmms.json > /dev/null
+          done
+
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
 
