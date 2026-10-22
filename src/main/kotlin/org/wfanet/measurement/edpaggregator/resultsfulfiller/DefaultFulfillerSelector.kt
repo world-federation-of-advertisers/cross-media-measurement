@@ -157,8 +157,8 @@ internal fun frequencyVectorCap(
  * @param resultMinimumThresholds optional small-cell suppression thresholds; null disables
  *   suppression
  * @param disableMultiPartyFrequencyVectorSuppression whether to skip result-minimum suppression for
- *   legacy HMSS and TrusTee frequency-vector contributions. Direct and TrusTeeV2 results are
- *   unaffected.
+ *   HMSS and TrusTee v1 multi-publisher frequency-vector contributions. Direct and TrusTeeV2
+ *   results are unaffected.
  * @param impressionCapMode how the per-user impression cap is chosen.
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
@@ -229,12 +229,15 @@ class DefaultFulfillerSelector(
 
     val protocols = requisition.protocolConfig.protocolsList
     // Match the selection precedence below. A Direct or TrusTeeV2 option takes precedence over
-    // legacy multi-party options and must retain its existing threshold behavior.
-    val selectedProtocolIsLegacyMultiParty =
+    // EDPA-suppressed multi-publisher options and must retain its existing threshold behavior.
+    val selectedProtocolUsesEdpaMultiPublisherSuppression =
       protocols.none { it.hasDirect() || it.hasTrusTeeV2() } &&
         protocols.any { it.hasTrusTee() || it.hasHonestMajorityShareShuffle() }
     val resultMinimumThresholdsForFrequencyVector =
-      if (disableMultiPartyFrequencyVectorSuppression && selectedProtocolIsLegacyMultiParty) {
+      if (
+        disableMultiPartyFrequencyVectorSuppression &&
+          selectedProtocolUsesEdpaMultiPublisherSuppression
+      ) {
         null
       } else {
         resultMinimumThresholds

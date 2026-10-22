@@ -3422,7 +3422,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         // These thresholds would suppress the contribution if multi-party suppression were
-        // enabled. The downstream multi-party computation is responsible for disclosure control.
+        // enabled, even though downstream noise is much greater than the configured thresholds.
         resultMinimumThresholds = ResultMinimumThresholds(minImpressions = 1000, minUsers = 1000),
         disableMultiPartyFrequencyVectorSuppression = true,
         overrideImpressionMaxFrequencyPerUser = null,

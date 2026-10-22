@@ -174,13 +174,14 @@ message ResultsFulfillerParams {
     // When empty, no multi-party noise validation is performed.
     repeated NoiseParams.NoiseType supported_noise_types = 1;
 
-    // Whether to disable EDP Aggregator result-minimum suppression for legacy
-    // HMSS and TrusTee frequency-vector contributions. This does not affect
-    // Direct results. TrusTeeV2 applies thresholds in its attested computation.
+    // Whether to disable EDP Aggregator result-minimum suppression for HMSS and
+    // TrusTee v1 multi-publisher frequency-vector contributions. This does not
+    // affect Direct results. TrusTeeV2 applies thresholds in its attested
+    // computation.
     //
-    // Only enable this when the downstream multi-party computation provides
-    // the required disclosure control. When false, the existing suppression
-    // behavior is preserved.
+    // Only enable this where downstream noise is much greater than the
+    // configured thresholds. When false, the existing suppression behavior is
+    // preserved.
     bool disable_frequency_vector_suppression = 2;
   }
 

@@ -1174,10 +1174,10 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
 * `multi_party_config.supported_noise_types` — restricts accepted noise mechanisms
   for HMSS / TrusTEE requisitions.
 * `multi_party_config.disable_frequency_vector_suppression` — when `true`, the EDPA does not
-  apply `k_anonymity_params` to legacy HMSS or TrusTEE frequency-vector contributions. Direct
+  apply `k_anonymity_params` to HMSS or TrusTEE v1 frequency-vector contributions. Direct
   results remain thresholded, and TrusTeeV2 remains thresholded in its attested computation.
-  The default is `false`, preserving existing behavior. Enable this only when the downstream
-  multi-party computation provides the required disclosure control.
+  The default is `false`, preserving existing behavior. Enable this only where downstream noise
+  is much greater than the configured thresholds.
 
 * `event_group_reference_id_entity_key_mapping` — optional equivalence between
   legacy event-group reference IDs and one entity-key type. Presence enables
