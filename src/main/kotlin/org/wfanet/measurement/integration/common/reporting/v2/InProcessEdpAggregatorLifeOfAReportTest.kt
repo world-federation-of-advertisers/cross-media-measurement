@@ -107,7 +107,6 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupReader
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
@@ -1178,7 +1177,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   protected suspend fun publishImpressions(
     edpDisplayName: String,
     metadataUris: List<String>,
-  ): Map<String, DataAvailabilitySync.Outcome> =
+  ): InProcessEdpAggregatorComponents.ImpressionPublicationResult =
     inProcessEdpAggregatorComponents.publishImpressions(edpDisplayName, metadataUris)
 
   /** Lists the impression metadata registered for [edpDisplayName]. */

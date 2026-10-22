@@ -922,15 +922,23 @@ class InProcessEdpAggregatorComponents(
     return metadataUris
   }
 
+  /** Results of publishing uploaded impressions through data-availability discovery. */
+  data class ImpressionPublicationResult(
+    /** Sync outcome keyed by completion-marker URI. */
+    val outcomes: Map<String, DataAvailabilitySync.Outcome>,
+    /** Custom lifecycle timestamp keyed by object URI. */
+    val customCreateTimes: Map<String, Instant>,
+  )
+
   /**
    * Publishes each uploaded date's `done` marker and runs the data-availability discovery job.
    *
-   * @return the sync outcome for each completion-marker URI
+   * @return the sync outcomes and resulting custom lifecycle timestamps
    */
   suspend fun publishImpressions(
     edpAggregatorShortName: String,
     metadataUris: List<String>,
-  ): Map<String, DataAvailabilitySync.Outcome> {
+  ): ImpressionPublicationResult {
     val bucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
     val bucketStorage =
       MetadataStorageClient(FileSystemStorageClient(storagePath.resolve(bucket).toFile()))
@@ -961,20 +969,27 @@ class InProcessEdpAggregatorComponents(
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
       )
-    return doneKeys.associate { doneKey ->
-      val doneUri = "file:///$bucket/$doneKey"
-      val outcome = sync.sync(doneUri)
-      if (outcome == DataAvailabilitySync.Outcome.PUBLISHED) {
-        check(
-          DataAvailabilityBlobs.isDataAvailabilityPublished(
-            checkNotNull(bucketStorage.getBlob(doneKey))
-          )
-        ) {
-          "Publication marker missing for $doneUri"
+    val outcomes =
+      doneKeys.associate { doneKey ->
+        val doneUri = "file:///$bucket/$doneKey"
+        val outcome = sync.sync(doneUri)
+        if (outcome == DataAvailabilitySync.Outcome.PUBLISHED) {
+          check(
+            DataAvailabilityBlobs.isDataAvailabilityPublished(
+              checkNotNull(bucketStorage.getBlob(doneKey))
+            )
+          ) {
+            "Publication marker missing for $doneUri"
+          }
         }
+        doneUri to outcome
       }
-      doneUri to outcome
-    }
+    return ImpressionPublicationResult(
+      outcomes,
+      bucketStorage.snapshotCustomCreateTimes().mapKeys { (blobKey, _) ->
+        "file:///$bucket/$blobKey"
+      },
+    )
   }
 
   /** Lists the impression metadata imported for the EDP through the public EDPA API. */
@@ -1011,6 +1026,8 @@ class InProcessEdpAggregatorComponents(
     BlobMetadataStorageClient, StorageClient by delegate {
     private val metadataByKey = mutableMapOf<String, Map<String, String>>()
     private val customCreateTimes = mutableMapOf<String, Instant>()
+
+    fun snapshotCustomCreateTimes(): Map<String, Instant> = customCreateTimes.toMap()
 
     override suspend fun updateBlobMetadata(
       blobKey: String,

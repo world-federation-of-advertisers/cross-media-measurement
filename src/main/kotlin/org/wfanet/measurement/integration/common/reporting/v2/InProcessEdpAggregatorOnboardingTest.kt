@@ -28,6 +28,7 @@ import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -127,9 +128,9 @@ abstract class InProcessEdpAggregatorOnboardingTest(
       for (doneUri in expectedDoneUris) {
         assertThat(Files.exists(tempPath.resolve(URI(doneUri).path.removePrefix("/")))).isFalse()
       }
-      val publicationOutcomes = publishImpressions(edpDisplayName, edpMetadataUris)
-      assertThat(publicationOutcomes.keys).containsExactlyElementsIn(expectedDoneUris)
-      assertThat(publicationOutcomes.values.toSet())
+      val publicationResult = publishImpressions(edpDisplayName, edpMetadataUris)
+      assertThat(publicationResult.outcomes.keys).containsExactlyElementsIn(expectedDoneUris)
+      assertThat(publicationResult.outcomes.values.toSet())
         .containsExactly(DataAvailabilitySync.Outcome.PUBLISHED)
 
       val importedMetadata = listImpressionMetadata(edpDisplayName)
@@ -140,6 +141,15 @@ abstract class InProcessEdpAggregatorOnboardingTest(
             Files.readAllBytes(tempPath.resolve(URI(metadataUri).path.removePrefix("/")))
           )
         }
+      val expectedCustomCreateTimes = buildMap {
+        for ((metadataUri, sidecar) in sidecarsByUri) {
+          val startTime = sidecar.interval.startTime.toInstant()
+          put(metadataUri, startTime)
+          put(sidecar.blobUri, startTime)
+        }
+      }
+      assertThat(publicationResult.customCreateTimes)
+        .containsExactlyEntriesIn(expectedCustomCreateTimes)
       for (metadata in importedMetadata) {
         val sidecar = sidecarsByUri.getValue(metadata.blobUri)
         assertThat(metadata.blobTypeUrl)
