@@ -810,22 +810,11 @@ class InProcessEdpAggregatorComponents(
     }
 
     // Write legacy (non-multi-entity-key) configs as before.
-    val configByRefId: Map<String, EventGroupConfig> =
-      resolveSpecsByReferenceId(edpAggregatorShortName)
     mappedEventGroups.forEach { mappedEventGroup ->
       val refId = mappedEventGroup.eventGroupReferenceId
       if (refId in writtenMultiEntityKeyRefIds) return@forEach
-      val resolvedConfig = configByRefId[refId] ?: return@forEach
-      val entityKey =
-        when (resolvedConfig) {
-          is EventGroupConfig.LegacySpec -> null
-          is EventGroupConfig.MultiEntityKey -> resolvedConfig.entityKeySpecs.single().entityKey
-        }
-      val spec =
-        when (resolvedConfig) {
-          is EventGroupConfig.LegacySpec -> resolvedConfig.spec
-          is EventGroupConfig.MultiEntityKey -> resolvedConfig.entityKeySpecs.single().spec
-        }
+      val legacyConfig = originalConfigs[refId] as? EventGroupConfig.LegacySpec ?: return@forEach
+      val spec = legacyConfig.spec
       val impressionWriter =
         ImpressionsWriter(
           refId,
@@ -843,7 +832,7 @@ class InProcessEdpAggregatorComponents(
           .map { shard ->
             EntityKeyedLabeledEventDateShard(
               shard.localDate,
-              sequenceOf(EntityKeysWithLabeledEvents(listOfNotNull(entityKey), shard.labeledEvents)),
+              sequenceOf(EntityKeysWithLabeledEvents(emptyList(), shard.labeledEvents)),
             )
           }
       impressionWriter.writeLabeledImpressionData(entityKeyedEvents, modelLineName, null)
