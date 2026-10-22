@@ -581,6 +581,62 @@ class BaseTeeApplicationTest {
   }
 
   @Test
+  fun `renews lease while runWork blocks its thread without suspending`() = runBlocking {
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+      leaseExpirationTime = timestamp { seconds = 1L }
+    }
+    val leaseRenewed = CompletableDeferred<Unit>()
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { renewWorkItemAttempt(any()) }
+        .thenAnswer {
+          leaseRenewed.complete(Unit)
+          testWorkItemAttempt
+        }
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      object :
+        BaseTeeApplication(
+          subscriptionId = SUBSCRIPTION_ID,
+          queueSubscriber = fakeSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+          workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+          attemptUpdateRetryDelay = {},
+          attemptLeaseRenewalInterval = Duration.ofMillis(10),
+        ) {
+        override suspend fun runWork(message: Any) {
+          // Occupies this runBlocking's only thread without ever suspending, like a CPU-bound
+          // rank-index build. Renewal must still run on its own context. Bounded so a regression
+          // fails the assertion below instead of hanging the test.
+          val deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos()
+          while (!leaseRenewed.isCompleted && System.nanoTime() < deadline) {
+            Thread.onSpinWait()
+          }
+        }
+      }
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "blocking-work-ack-id",
+      )
+    )
+
+    consumer.disposition.await()
+
+    assertThat(leaseRenewed.isCompleted).isTrue()
+    assertThat(consumer.ackCount).isEqualTo(1)
+    assertThat(consumer.nackCount).isEqualTo(0)
+    job.cancelAndJoin()
+  }
+
+  @Test
   fun `acks message when WorkItem is already terminal`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
