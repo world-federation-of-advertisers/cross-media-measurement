@@ -86,11 +86,17 @@ class BasicReportReportingSetBackfiller(
 
   private data class CampaignGroupResolution(
     val effectiveKey: CampaignGroupKey,
+    val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
     val reportingSetIdsByMembership: MutableMap<Set<ReportingSet.Primitive.EventGroupKey>, String>,
   )
 
   private data class CampaignGroupResolutionKey(
     val originalKey: CampaignGroupKey,
+    val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
+  )
+
+  private data class CampaignGroupUniverseKey(
+    val cmmsMeasurementConsumerId: String,
     val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
   )
 
@@ -167,9 +173,16 @@ class BasicReportReportingSetBackfiller(
 
   private val campaignGroupSources = mutableMapOf<CampaignGroupKey, CampaignGroupSource>()
 
-  /** ReportingSet membership index per Campaign Group, reused across `BasicReport`s. */
-  private val campaignGroupResolutions =
+  private val campaignGroupResolutionsBySource =
     mutableMapOf<CampaignGroupResolutionKey, CampaignGroupResolution>()
+
+  /** Effective Campaign Group per complete EventGroup universe. */
+  private val effectiveCampaignGroupsByUniverse =
+    mutableMapOf<CampaignGroupUniverseKey, EffectiveCampaignGroup>()
+
+  /** ReportingSet membership index shared by every source resolving to the Campaign Group. */
+  private val campaignGroupResolutionsByEffectiveKey =
+    mutableMapOf<CampaignGroupKey, CampaignGroupResolution>()
 
   private val unresolvableCampaignGroupKeys = mutableSetOf<CampaignGroupKey>()
 
@@ -189,7 +202,9 @@ class BasicReportReportingSetBackfiller(
       backfillMeasurementConsumer(cmmsMeasurementConsumerId)
       // Campaign Groups belong to a single MeasurementConsumer.
       campaignGroupSources.clear()
-      campaignGroupResolutions.clear()
+      campaignGroupResolutionsBySource.clear()
+      effectiveCampaignGroupsByUniverse.clear()
+      campaignGroupResolutionsByEffectiveKey.clear()
     }
 
     val result =
@@ -417,7 +432,7 @@ class BasicReportReportingSetBackfiller(
       CampaignGroupResolutionKey(campaignGroupKey, targetCampaignGroupEventGroupKeys)
     val campaignGroupResolution =
       try {
-        campaignGroupResolutions.getOrPut(campaignGroupResolutionKey) {
+        campaignGroupResolutionsBySource.getOrPut(campaignGroupResolutionKey) {
           materializeCampaignGroup(campaignGroupSource, targetCampaignGroupEventGroupKeys)
         }
       } catch (e: CampaignGroupInvalidException) {
@@ -676,6 +691,18 @@ class BasicReportReportingSetBackfiller(
     effectiveCampaignGroup: EffectiveCampaignGroup,
     targetEventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
   ): CampaignGroupResolution {
+    val cachedResolution: CampaignGroupResolution? =
+      campaignGroupResolutionsByEffectiveKey[effectiveCampaignGroup.key]
+    if (cachedResolution != null) {
+      if (cachedResolution.eventGroupKeys != targetEventGroupKeys) {
+        throw CampaignGroupInvalidException(
+          source.originalKey.cmmsMeasurementConsumerId,
+          source.originalKey.externalCampaignGroupId,
+        )
+      }
+      return cachedResolution
+    }
+
     val readContext = postgresClient.readTransaction()
     val reportingSets: MutableList<ReportingSet> =
       try {
@@ -720,15 +747,19 @@ class BasicReportReportingSetBackfiller(
     }
 
     // Matches the read path: unfiltered primitives only, keyed by exact EventGroup membership.
-    return CampaignGroupResolution(
-      effectiveKey = effectiveCampaignGroup.key,
-      reportingSetIdsByMembership =
-        reportingSets
-          .filter { it.filter.isEmpty() && it.hasPrimitive() }
-          .associateTo(mutableMapOf()) {
-            it.primitive.eventGroupKeysList.toSet() to it.externalReportingSetId
-          },
-    )
+    val resolution =
+      CampaignGroupResolution(
+        effectiveKey = effectiveCampaignGroup.key,
+        eventGroupKeys = campaignGroupEventGroupKeys,
+        reportingSetIdsByMembership =
+          reportingSets
+            .filter { it.filter.isEmpty() && it.hasPrimitive() }
+            .associateTo(mutableMapOf()) {
+              it.primitive.eventGroupKeysList.toSet() to it.externalReportingSetId
+            },
+      )
+    campaignGroupResolutionsByEffectiveKey[effectiveCampaignGroup.key] = resolution
+    return resolution
   }
 
   private suspend fun migratePrimitiveCampaignGroup(
@@ -768,58 +799,62 @@ class BasicReportReportingSetBackfiller(
     reportingSetResult: ReportingSetReader.Result,
     targetEventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
   ): EffectiveCampaignGroup {
-    val newExternalReportingSetId = "a${UUID.randomUUID()}"
-    val synthesizedReportingSet = internalReportingSet {
-      cmmsMeasurementConsumerId = source.originalKey.cmmsMeasurementConsumerId
-      externalReportingSetId = newExternalReportingSetId
-      externalCampaignGroupId = newExternalReportingSetId
-      primitive = ReportingSetKt.primitive { eventGroupKeys += targetEventGroupKeys }
-    }
-
-    val equivalentCampaignGroupReadContext = postgresClient.readTransaction()
-    val existingExternalReportingSetId: String? =
-      try {
-        ReportingSetReader(equivalentCampaignGroupReadContext)
-          .readCampaignGroupByEventGroups(
-            reportingSetResult.measurementConsumerId,
-            targetEventGroupKeys,
-          )
-          ?.externalReportingSetId
-      } finally {
-        equivalentCampaignGroupReadContext.close()
+    val universeKey =
+      CampaignGroupUniverseKey(source.originalKey.cmmsMeasurementConsumerId, targetEventGroupKeys)
+    return effectiveCampaignGroupsByUniverse.getOrPut(universeKey) {
+      val newExternalReportingSetId = "a${UUID.randomUUID()}"
+      val synthesizedReportingSet = internalReportingSet {
+        cmmsMeasurementConsumerId = source.originalKey.cmmsMeasurementConsumerId
+        externalReportingSetId = newExternalReportingSetId
+        externalCampaignGroupId = newExternalReportingSetId
+        primitive = ReportingSetKt.primitive { eventGroupKeys += targetEventGroupKeys }
       }
 
-    val effectiveReportingSet: ReportingSet
-    val dryRunReportingSet: ReportingSet?
-    if (dryRun) {
-      effectiveReportingSet =
-        if (existingExternalReportingSetId == null) synthesizedReportingSet
-        else
-          readReportingSet(
-              source.originalKey.copy(externalCampaignGroupId = existingExternalReportingSetId)
+      val equivalentCampaignGroupReadContext = postgresClient.readTransaction()
+      val existingExternalReportingSetId: String? =
+        try {
+          ReportingSetReader(equivalentCampaignGroupReadContext)
+            .readCampaignGroupByEventGroups(
+              reportingSetResult.measurementConsumerId,
+              targetEventGroupKeys,
             )
-            .reportingSet
-      dryRunReportingSet =
-        if (existingExternalReportingSetId == null) synthesizedReportingSet else null
-    } else {
-      effectiveReportingSet =
-        EnsureSynthesizedCampaignGroupReportingSet(
-            ensureSynthesizedCampaignGroupReportingSetRequest {
-              externalReportingSetId = newExternalReportingSetId
-              reportingSet = synthesizedReportingSet
-            }
-          )
-          .execute(postgresClient, idGenerator)
-      dryRunReportingSet = null
-    }
+            ?.externalReportingSetId
+        } finally {
+          equivalentCampaignGroupReadContext.close()
+        }
 
-    return EffectiveCampaignGroup(
-      CampaignGroupKey(
-        source.originalKey.cmmsMeasurementConsumerId,
-        effectiveReportingSet.externalReportingSetId,
-      ),
-      dryRunReportingSet,
-    )
+      val effectiveReportingSet: ReportingSet
+      val dryRunReportingSet: ReportingSet?
+      if (dryRun) {
+        effectiveReportingSet =
+          if (existingExternalReportingSetId == null) synthesizedReportingSet
+          else
+            readReportingSet(
+                source.originalKey.copy(externalCampaignGroupId = existingExternalReportingSetId)
+              )
+              .reportingSet
+        dryRunReportingSet =
+          if (existingExternalReportingSetId == null) synthesizedReportingSet else null
+      } else {
+        effectiveReportingSet =
+          EnsureSynthesizedCampaignGroupReportingSet(
+              ensureSynthesizedCampaignGroupReportingSetRequest {
+                externalReportingSetId = newExternalReportingSetId
+                reportingSet = synthesizedReportingSet
+              }
+            )
+            .execute(postgresClient, idGenerator)
+        dryRunReportingSet = null
+      }
+
+      EffectiveCampaignGroup(
+        CampaignGroupKey(
+          source.originalKey.cmmsMeasurementConsumerId,
+          effectiveReportingSet.externalReportingSetId,
+        ),
+        dryRunReportingSet,
+      )
+    }
   }
 
   /**

@@ -399,6 +399,122 @@ class BasicReportReportingSetBackfillerTest {
     }
 
   @Test
+  fun `shares child ReportingSets across legacy references resolving to one Campaign Group`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup(INVALID_CAMPAIGN_GROUP_ID, listOf(EVENT_GROUP_ID_1))
+      createNonCampaignGroup(
+        SECOND_INVALID_CAMPAIGN_GROUP_ID,
+        listOf(EVENT_GROUP_ID_2, EVENT_GROUP_ID_3),
+      )
+      val initialComponents =
+        listOf(
+          ComponentSpec(cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1)),
+          ComponentSpec(cmmsEventGroupIds = listOf(EVENT_GROUP_ID_2, EVENT_GROUP_ID_3)),
+        )
+      val expandedComponents =
+        initialComponents +
+          listOf(
+            ComponentSpec(cmmsEventGroupIds = listOf(EVENT_GROUP_ID_2)),
+            ComponentSpec(cmmsEventGroupIds = listOf(EVENT_GROUP_ID_3)),
+          )
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID,
+        externalCampaignGroupId = INVALID_CAMPAIGN_GROUP_ID,
+        components = initialComponents,
+      )
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID_2,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID_2,
+        externalCampaignGroupId = SECOND_INVALID_CAMPAIGN_GROUP_ID,
+        components = initialComponents,
+      )
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID_3,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID_3,
+        externalCampaignGroupId = INVALID_CAMPAIGN_GROUP_ID,
+        components = expandedComponents,
+      )
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID_4,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID_4,
+        externalCampaignGroupId = SECOND_INVALID_CAMPAIGN_GROUP_ID,
+        components = expandedComponents,
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.reportingSetsCreated).isEqualTo(4)
+      assertThat(result.updated).isEqualTo(4)
+      val migratedCampaignGroupIds =
+        listOf(
+            EXTERNAL_BASIC_REPORT_ID,
+            EXTERNAL_BASIC_REPORT_ID_2,
+            EXTERNAL_BASIC_REPORT_ID_3,
+            EXTERNAL_BASIC_REPORT_ID_4,
+          )
+          .map { readInternalBasicReport(it).externalCampaignGroupId }
+      assertThat(migratedCampaignGroupIds)
+        .containsExactlyElementsIn(List(4) { migratedCampaignGroupIds.first() })
+      assertThat(readComponentSummaryReportingSetIds(EXTERNAL_BASIC_REPORT_ID_3))
+        .containsExactlyElementsIn(readComponentSummaryReportingSetIds(EXTERNAL_BASIC_REPORT_ID_4))
+
+      val campaignGroupId = migratedCampaignGroupIds.first()
+      val childMemberships =
+        readAllReportingSets()
+          .filter {
+            it.externalCampaignGroupId == campaignGroupId &&
+              it.externalReportingSetId != campaignGroupId
+          }
+          .map { reportingSet ->
+            reportingSet.primitive.eventGroupKeysList.map { it.cmmsEventGroupId }.toSet()
+          }
+      assertThat(childMemberships)
+        .containsExactly(
+          setOf(EVENT_GROUP_ID_1),
+          setOf(EVENT_GROUP_ID_2, EVENT_GROUP_ID_3),
+          setOf(EVENT_GROUP_ID_2),
+          setOf(EVENT_GROUP_ID_3),
+        )
+    }
+
+  @Test
+  fun `dry run creation count matches apply across legacy references`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup(INVALID_CAMPAIGN_GROUP_ID, listOf(EVENT_GROUP_ID_1))
+      createNonCampaignGroup(SECOND_INVALID_CAMPAIGN_GROUP_ID, listOf(EVENT_GROUP_ID_2))
+      val components =
+        listOf(
+          ComponentSpec(cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1)),
+          ComponentSpec(cmmsEventGroupIds = listOf(EVENT_GROUP_ID_2)),
+        )
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID,
+        externalCampaignGroupId = INVALID_CAMPAIGN_GROUP_ID,
+        components = components,
+      )
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID_2,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID_2,
+        externalCampaignGroupId = SECOND_INVALID_CAMPAIGN_GROUP_ID,
+        components = components,
+      )
+      val reportingSetsBefore = readAllReportingSets()
+
+      val dryRunResult = newBackfiller(dryRun = true).run()
+
+      assertThat(dryRunResult.reportingSetsCreated).isEqualTo(2)
+      assertThat(dryRunResult.updated).isEqualTo(2)
+      assertThat(readAllReportingSets()).containsExactlyElementsIn(reportingSetsBefore)
+
+      val appliedResult = newBackfiller(dryRun = false).run()
+
+      assertThat(appliedResult.reportingSetsCreated).isEqualTo(dryRunResult.reportingSetsCreated)
+      assertThat(appliedResult.updated).isEqualTo(dryRunResult.updated)
+    }
+
+  @Test
   fun `primitive migration does not drop EventGroups from the referenced ReportingSet`() =
     runBlocking<Unit> {
       createNonCampaignGroup()
@@ -1616,6 +1732,7 @@ class BasicReportReportingSetBackfillerTest {
     private const val EVENT_GROUP_ID_NOT_IN_UNIVERSE = "event-group-not-in-universe"
     private const val CAMPAIGN_GROUP_ID = "campaign-group"
     private const val INVALID_CAMPAIGN_GROUP_ID = "invalid-campaign-group"
+    private const val SECOND_INVALID_CAMPAIGN_GROUP_ID = "invalid-campaign-group-2"
     private const val EVENT_GROUP_DIRECTORY_REPORTING_SET_ID = "event-group-directory"
     private const val EQUIVALENT_CAMPAIGN_GROUP_ID = "equivalent-campaign-group"
     private const val OTHER_NON_CAMPAIGN_GROUP_ID = "other-invalid-campaign-group"
@@ -1625,9 +1742,13 @@ class BasicReportReportingSetBackfillerTest {
     private const val MISSING_CAMPAIGN_GROUP_ID = "missing-campaign-group"
     private const val EXTERNAL_BASIC_REPORT_ID = "basic-report"
     private const val EXTERNAL_BASIC_REPORT_ID_2 = "basic-report-2"
+    private const val EXTERNAL_BASIC_REPORT_ID_3 = "basic-report-3"
+    private const val EXTERNAL_BASIC_REPORT_ID_4 = "basic-report-4"
     private const val MEASUREMENT_CONSUMER_ID = 1L
     private const val BASIC_REPORT_ID = 1L
     private const val BASIC_REPORT_ID_2 = 2L
+    private const val BASIC_REPORT_ID_3 = 3L
+    private const val BASIC_REPORT_ID_4 = 4L
 
     private var idCounter = 0L
 
