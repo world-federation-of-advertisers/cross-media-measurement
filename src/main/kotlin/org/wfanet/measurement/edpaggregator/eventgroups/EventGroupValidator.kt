@@ -94,6 +94,9 @@ object EventGroupValidator {
       check(eventGroup.clientAccountReferenceId.length <= MAX_CLIENT_ACCOUNT_REFERENCE_ID_LENGTH) {
         "client_account_reference_id must not exceed $MAX_CLIENT_ACCOUNT_REFERENCE_ID_LENGTH characters"
       }
+      check(URL_SAFE_VALUE.matches(eventGroup.clientAccountReferenceId)) {
+        "client_account_reference_id must be URL-safe"
+      }
     }
   }
 

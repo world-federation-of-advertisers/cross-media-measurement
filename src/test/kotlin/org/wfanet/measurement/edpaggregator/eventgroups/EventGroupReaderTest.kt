@@ -16,6 +16,7 @@ package org.wfanet.measurement.edpaggregator.eventgroups
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.gson.stream.MalformedJsonException
 import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
@@ -64,6 +65,32 @@ class EventGroupReaderTest {
       JsonFormat.printer()
         .print(eventGroups { eventGroups += EVENT_GROUPS })
         .replaceFirst("{", "{\"ignored\": {\"nested\": true},")
+    storageClient().writeBlob("event-groups.json", flowOf(ByteString.copyFromUtf8(json)))
+
+    val actual = reader().read("event-groups.json").toList()
+
+    assertEventGroups(actual)
+  }
+
+  @Test
+  fun `read rejects trailing JSON after EventGroups wrapper`(): Unit = runBlocking {
+    val json = JsonFormat.printer().print(eventGroups { eventGroups += EVENT_GROUPS }) + "{}"
+    storageClient().writeBlob("event-groups.json", flowOf(ByteString.copyFromUtf8(json)))
+
+    assertFailsWith<MalformedJsonException> { reader().read("event-groups.json").toList() }
+  }
+
+  @Test
+  fun `read rejects trailing garbage after EventGroups wrapper`(): Unit = runBlocking {
+    val json = JsonFormat.printer().print(eventGroups { eventGroups += EVENT_GROUPS }) + "garbage"
+    storageClient().writeBlob("event-groups.json", flowOf(ByteString.copyFromUtf8(json)))
+
+    assertFailsWith<MalformedJsonException> { reader().read("event-groups.json").toList() }
+  }
+
+  @Test
+  fun `read accepts trailing whitespace after EventGroups wrapper`() = runBlocking {
+    val json = JsonFormat.printer().print(eventGroups { eventGroups += EVENT_GROUPS }) + " \n\t\r"
     storageClient().writeBlob("event-groups.json", flowOf(ByteString.copyFromUtf8(json)))
 
     val actual = reader().read("event-groups.json").toList()

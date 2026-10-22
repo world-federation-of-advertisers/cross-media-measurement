@@ -50,6 +50,45 @@ class EventGroupValidatorTest {
   }
 
   @Test
+  fun `validate accepts both advertiser identifiers with URL-safe account reference`() {
+    val eventGroup =
+      VALID_EVENT_GROUP.copy { clientAccountReferenceId = "Account._~-" + "a".repeat(25) }
+
+    EventGroupValidator.validate(eventGroup)
+  }
+
+  @Test
+  fun `validate rejects non-URL-safe client account reference ID`() {
+    for (referenceId in listOf("account/1", "account 1", " ", "account%2F1")) {
+      val eventGroup =
+        VALID_EVENT_GROUP.copy {
+          measurementConsumer = ""
+          clientAccountReferenceId = referenceId
+        }
+
+      assertInvalid(eventGroup, "client_account_reference_id must be URL-safe")
+    }
+  }
+
+  @Test
+  fun `validate rejects non-URL-safe client account reference when measurement consumer is set`() {
+    val eventGroup = VALID_EVENT_GROUP.copy { clientAccountReferenceId = "account/1" }
+
+    assertInvalid(eventGroup, "client_account_reference_id must be URL-safe")
+  }
+
+  @Test
+  fun `validate rejects malformed measurement consumer when client account reference is set`() {
+    val eventGroup =
+      VALID_EVENT_GROUP.copy {
+        measurementConsumer = "mc-1"
+        clientAccountReferenceId = "account-1"
+      }
+
+    assertInvalid(eventGroup, "Malformed measurement_consumer")
+  }
+
+  @Test
   fun `validate accepts EventGroup with legacy reference ID only`() {
     val eventGroup = VALID_EVENT_GROUP.copy { clearEntityKey() }
 

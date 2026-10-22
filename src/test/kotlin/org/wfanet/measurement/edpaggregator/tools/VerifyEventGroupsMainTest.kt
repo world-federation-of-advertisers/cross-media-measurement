@@ -206,6 +206,79 @@ class VerifyEventGroupsMainTest {
   }
 
   @Test
+  fun `main rejects trailing JSON after valid wrapper`() {
+    val file = writeJson("event-groups.json", listOf(VALID_EVENT_GROUP))
+    file.appendText("{}")
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(arrayOf("--event-groups-file", file.absolutePath), ::main)
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(1)
+    subject.err().contains(file.path)
+    subject.err().contains("parse failure after 1 successfully parsed EventGroup")
+    subject.out().doesNotContain("PASS:")
+  }
+
+  @Test
+  fun `main rejects trailing garbage and continues with later files`() {
+    val invalidFile = writeJson("invalid.json", listOf(VALID_EVENT_GROUP))
+    invalidFile.appendText("garbage")
+    val validFile = writeJson("valid.json", listOf(VALID_EVENT_GROUP))
+    validFile.appendText(" \n\t\r")
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(
+        arrayOf(
+          "--event-groups-file",
+          invalidFile.absolutePath,
+          "--event-groups-file",
+          validFile.absolutePath,
+        ),
+        ::main,
+      )
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(1)
+    subject.err().contains(invalidFile.path)
+    subject.err().contains("parse failure after 1 successfully parsed EventGroup")
+    subject.out().doesNotContain("PASS: ${invalidFile.path}")
+    subject.out().contains("PASS: ${validFile.path}")
+  }
+
+  @Test
+  fun `main rejects non-URL-safe client account reference ID in JSON`() {
+    val eventGroup =
+      VALID_EVENT_GROUP.copy {
+        measurementConsumer = ""
+        clientAccountReferenceId = "account/1"
+      }
+    val file = writeJson("event-groups.json", listOf(eventGroup))
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(arrayOf("--event-groups-file", file.absolutePath), ::main)
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(1)
+    subject.err().contains("client_account_reference_id must be URL-safe")
+    subject.out().doesNotContain("PASS:")
+  }
+
+  @Test
+  fun `main rejects invalid account reference alongside valid measurement consumer in RecordIO`() {
+    val eventGroup = VALID_EVENT_GROUP.copy { clientAccountReferenceId = "account/1" }
+    val file = writeBinpb("event-groups.binpb", listOf(eventGroup))
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(arrayOf("--event-groups-file", file.absolutePath), ::main)
+
+    val subject = CommandLineTesting.assertThat(capturedOutput)
+    subject.status().isEqualTo(1)
+    subject.err().contains("client_account_reference_id must be URL-safe")
+    subject.out().doesNotContain("PASS:")
+  }
+
+  @Test
   fun `main rejects malformed Mesos RecordIO file`() {
     val file = temporaryFolder.newFile("event-groups.binpb")
     file.writeText("4\nbad!")

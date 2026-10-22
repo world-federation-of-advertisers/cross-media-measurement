@@ -16,6 +16,7 @@ package org.wfanet.measurement.edpaggregator.eventgroups
 
 import com.google.gson.JsonParser
 import com.google.gson.stream.JsonReader
+import com.google.gson.stream.JsonToken
 import com.google.protobuf.util.JsonFormat
 import java.io.InputStreamReader
 import kotlinx.coroutines.flow.Flow
@@ -88,6 +89,9 @@ class EventGroupReader(private val storageClient: ConditionalOperationStorageCli
         }
       }
       jsonReader.endObject()
+      check(jsonReader.peek() == JsonToken.END_DOCUMENT) {
+        "Unexpected trailing content after EventGroup JSON wrapper"
+      }
     }
     if (count == 0) {
       throw EmptyEventGroupFileException()
