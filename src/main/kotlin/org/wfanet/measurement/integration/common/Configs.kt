@@ -289,6 +289,7 @@ fun getResultsFulfillerParams(
     ResultsFulfillerParams.EventGroupReferenceIdEntityKeyMapping?,
   wholeBlobEntityTypes: Set<String>,
   resultMinimumThresholds: ResultsFulfillerParams.KAnonymityParams? = null,
+  disableMultiPartyFrequencyVectorSuppression: Boolean,
 ): ResultsFulfillerParams {
   return resultsFulfillerParams {
     this.dataProvider = edpResourceName
@@ -315,10 +316,11 @@ fun getResultsFulfillerParams(
     if (resultMinimumThresholds != null) {
       this.kAnonymityParams = resultMinimumThresholds
     }
-    if (supportedMultiPartyNoiseTypes.isNotEmpty()) {
+    if (supportedMultiPartyNoiseTypes.isNotEmpty() || disableMultiPartyFrequencyVectorSuppression) {
       this.multiPartyConfig =
         ResultsFulfillerParamsKt.multiPartyConfig {
           this.supportedNoiseTypes += supportedMultiPartyNoiseTypes
+          this.disableFrequencyVectorSuppression = disableMultiPartyFrequencyVectorSuppression
         }
     }
     if (eventGroupReferenceIdEntityKeyMapping != null) {

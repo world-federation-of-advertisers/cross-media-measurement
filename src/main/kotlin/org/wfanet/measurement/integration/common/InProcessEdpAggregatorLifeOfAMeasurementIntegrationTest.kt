@@ -49,6 +49,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
@@ -73,6 +74,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
   hmssEnabled: Boolean,
   trusTeeEnabled: Boolean,
+  private val resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams>,
+  private val disableMultiPartyFrequencyVectorSuppressionByEdp: Set<String>,
 ) {
 
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
@@ -261,6 +264,9 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         ),
       edpMultiPartyNoiseTypes =
         mapOf("edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.NONE)),
+      resultMinimumThresholdsByEdp = resultMinimumThresholdsByEdp,
+      disableMultiPartyFrequencyVectorSuppressionByEdp =
+        disableMultiPartyFrequencyVectorSuppressionByEdp,
     )
     initMcSimulator()
   }
@@ -331,6 +337,16 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   }
 
   companion object {
+    internal val ALL_EDP_DISPLAY_NAMES = setOf("edp1", "edp2", "edp3", "edp4")
+    internal val SUPPRESSING_RESULT_MINIMUM_THRESHOLDS_BY_EDP =
+      ALL_EDP_DISPLAY_NAMES.associateWith {
+        ResultsFulfillerParamsKt.kAnonymityParams {
+          minUsers = 1_000_000
+          minImpressions = 1_000_000
+          reachMaxFrequencyPerUser = 127
+        }
+      }
+
     // edp1 deliberately has no entity_key/entity_metadata override (legacy path); it also
     // happens
     // to be the EDP that requires no measurement noise on the HMSS protocol, used by the

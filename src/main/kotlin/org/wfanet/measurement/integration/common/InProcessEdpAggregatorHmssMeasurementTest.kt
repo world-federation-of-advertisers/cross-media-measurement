@@ -35,7 +35,13 @@ abstract class InProcessEdpAggregatorHmssMeasurementTest(
     secureComputationDatabaseAdmin,
     hmssEnabled = true,
     trusTeeEnabled = false,
+    resultMinimumThresholdsByEdp = SUPPRESSING_RESULT_MINIMUM_THRESHOLDS_BY_EDP,
+    disableMultiPartyFrequencyVectorSuppressionByEdp = ALL_EDP_DISPLAY_NAMES,
   ) {
+
+  // The inherited success tests use thresholds that would erase every EDP contribution unless
+  // the multi-party suppression opt-out is propagated through ResultsFulfillerApp. Their exact
+  // reach and frequency assertions prove that HMSS recombines the unsuppressed vectors.
 
   @Test
   fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
