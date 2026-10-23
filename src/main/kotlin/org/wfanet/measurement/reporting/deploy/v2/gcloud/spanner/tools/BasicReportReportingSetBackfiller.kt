@@ -329,9 +329,18 @@ class BasicReportReportingSetBackfiller(
       )
     metricSetIdentityConflicts += metricIdentityConflicts
     val customSummaryCountMismatches = countCustomSummaryCountMismatches(basicReport)
-    unresolvedComponents += customSummaryCountMismatches
+    val providerSummaryCoverageMismatches =
+      countDataProviderSummaryCoverageMismatches(
+        basicReport,
+        basicReport.resultDetails,
+        deferBlankSummaryProviderIds = true,
+      )
+    unresolvedComponents += customSummaryCountMismatches + providerSummaryCoverageMismatches
     if (
-      unresolvableComponents > 0 || metricIdentityConflicts > 0 || customSummaryCountMismatches > 0
+      unresolvableComponents > 0 ||
+        metricIdentityConflicts > 0 ||
+        customSummaryCountMismatches > 0 ||
+        providerSummaryCoverageMismatches > 0
     ) {
       skipped++
       return
@@ -543,14 +552,22 @@ class BasicReportReportingSetBackfiller(
       componentSummariesToResolve[componentIndex].cmmsDataProviderId =
         checkNotNull(membershipResolutions[componentIndex].membership).first().cmmsDataProviderId
     }
+    val resolvedResultDetails: BasicReportResultDetails = resultDetailsBuilder.build()
     val resolvedMetricIdentityConflicts =
       countMetricIdentityConflicts(
         basicReport,
-        resultDetailsBuilder.build(),
+        resolvedResultDetails,
         deferBlankSummaryProviderIds = false,
       )
     metricSetIdentityConflicts += resolvedMetricIdentityConflicts
-    if (resolvedMetricIdentityConflicts > 0) {
+    val resolvedProviderSummaryCoverageMismatches =
+      countDataProviderSummaryCoverageMismatches(
+        basicReport,
+        resolvedResultDetails,
+        deferBlankSummaryProviderIds = false,
+      )
+    unresolvedComponents += resolvedProviderSummaryCoverageMismatches
+    if (resolvedMetricIdentityConflicts > 0 || resolvedProviderSummaryCoverageMismatches > 0) {
       skipped++
       return
     }
@@ -689,6 +706,43 @@ class BasicReportReportingSetBackfiller(
     val cmmsDataProviderId: String,
     val cmmsEventGroupIds: List<String>,
   )
+
+  private fun countDataProviderSummaryCoverageMismatches(
+    basicReport: BasicReport,
+    resultDetails: BasicReportResultDetails,
+    deferBlankSummaryProviderIds: Boolean,
+  ): Int {
+    var mismatches = 0
+    for ((groupIndex, group) in resultDetails.resultGroupsList.withIndex()) {
+      val reportingUnit =
+        basicReport.details.resultGroupSpecsList.getOrNull(groupIndex)?.reportingUnit
+      if (reportingUnit?.componentsCase != ReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS) {
+        continue
+      }
+      val requestedProviderIds: Set<String> =
+        reportingUnit.dataProviderKeys.dataProviderKeysList.map { it.cmmsDataProviderId }.toSet()
+      for ((resultIndex, result) in group.resultsList.withIndex()) {
+        val summaryProviderIds: Set<String> =
+          result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList
+            .map { it.cmmsDataProviderId }
+            .toSet()
+        // Blank identities require directory resolution before checking provider coverage.
+        if (deferBlankSummaryProviderIds && "" in summaryProviderIds) {
+          continue
+        }
+        val missingProviderIds: Set<String> = requestedProviderIds - summaryProviderIds
+        if (missingProviderIds.isNotEmpty()) {
+          mismatches++
+          logger.warning {
+            "BasicReport ${basicReport.externalBasicReportId} result group $groupIndex result $resultIndex " +
+              "has no resolved component summary for requested DataProviders $missingProviderIds. " +
+              "Not updating."
+          }
+        }
+      }
+    }
+    return mismatches
+  }
 
   private fun countCustomSummaryCountMismatches(basicReport: BasicReport): Int {
     var mismatches = 0
