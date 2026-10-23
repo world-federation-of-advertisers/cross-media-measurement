@@ -1626,6 +1626,75 @@ class BasicReportReportingSetBackfillerTest {
     }
 
   @Test
+  fun `composite migration blocks provider metrics without component summaries`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroupWithMissingRhs()
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID)),
+        listOf(ComponentSpec()),
+        emptyList(),
+        listOf(OTHER_CMMS_DATA_PROVIDER_ID),
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+      )
+      assertBlockingIdentityRuns()
+      assertThat(newBackfiller(dryRun = false).run().metricSetIdentityConflicts).isEqualTo(1)
+    }
+
+  @Test
+  fun `composite migration blocks intersections after resolving blank summary providers`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroupWithMissingRhs()
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID)),
+        listOf(ComponentSpec(cmmsDataProviderId = "")),
+        emptyList(),
+        emptyList(),
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+      )
+      addIntersectionMetric(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID))
+      assertBlockingIdentityRuns()
+      assertThat(newBackfiller(dryRun = false).run().metricSetIdentityConflicts).isEqualTo(1)
+    }
+
+  @Test
+  fun `composite migration preserves valid intersections with inferred provider summaries`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroup(externalCampaignGroupId = "")
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID)),
+        listOf(
+          ComponentSpec(),
+          ComponentSpec(cmmsDataProviderId = "", cmmsEventGroupIds = listOf(OTHER_EVENT_GROUP_ID)),
+        ),
+        emptyList(),
+        emptyList(),
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+      )
+      addIntersectionMetric(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID))
+      val before = readInternalBasicReport()
+      val originalComposite = readReportingSet(COMPOSITE_NON_CAMPAIGN_GROUP_ID)
+      val reportingSetsBefore = readAllReportingSets()
+      val dryRun = newBackfiller(dryRun = true).run()
+      assertThat(dryRun.updated).isEqualTo(1)
+      assertThat(dryRun.metricSetIdentityConflicts).isEqualTo(0)
+      assertThat(dryRun.dataProviderIdsFilled).isEqualTo(1)
+      assertThat(readInternalBasicReport()).isEqualTo(before)
+      assertThat(readAllReportingSets()).containsExactlyElementsIn(reportingSetsBefore)
+
+      val result = newBackfiller(dryRun = false).run()
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.compositeCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(result.metricSetIdentityConflicts).isEqualTo(0)
+      assertThat(result.dataProviderIdsFilled).isEqualTo(1)
+      assertThat(result.readyToRemoveReadPathFallback).isTrue()
+      val migrated = readInternalBasicReport()
+      assertThat(migrated.details).isEqualTo(before.details)
+      assertThat(migrated.resultDetails.resultGroupsList.single().resultsList.single().metricSet)
+        .isEqualTo(before.resultDetails.resultGroupsList.single().resultsList.single().metricSet)
+      assertThat(readReportingSet(COMPOSITE_NON_CAMPAIGN_GROUP_ID)).isEqualTo(originalComposite)
+    }
+
+  @Test
   fun `composite migration includes report EventGroups outside the referenced subset`() =
     runBlocking<Unit> {
       createCompositeNonCampaignGroup(externalCampaignGroupId = "")
