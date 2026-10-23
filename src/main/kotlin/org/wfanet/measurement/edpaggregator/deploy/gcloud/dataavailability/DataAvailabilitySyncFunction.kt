@@ -316,7 +316,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
   companion object {
     private val RETRYABLE_GRPC_STATUS_CODES =
-      setOf(Status.Code.DEADLINE_EXCEEDED, Status.Code.RESOURCE_EXHAUSTED, Status.Code.UNAVAILABLE)
+      setOf(
+        Status.Code.ABORTED,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.RESOURCE_EXHAUSTED,
+        Status.Code.UNAVAILABLE,
+      )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private const val THROTTLER_DURATION_MILLIS = 1000L
