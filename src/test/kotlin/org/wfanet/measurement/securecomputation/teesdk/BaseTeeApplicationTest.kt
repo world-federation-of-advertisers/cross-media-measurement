@@ -29,6 +29,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -42,6 +43,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
@@ -849,6 +851,7 @@ class BaseTeeApplicationTest {
         )
       )
       terminated.await()
+      consumer.disposition.await()
       job.cancelAndJoin()
 
       assertThat(synchronized(terminations) { terminations.toList() })
@@ -859,6 +862,98 @@ class BaseTeeApplicationTest {
       assertThat(consumer.nackCount).isEqualTo(1)
       assertThat(consumer.ackCount).isEqualTo(0)
     }
+
+  @Test
+  fun `stop grace period runs while attempt failure reporting is pending`() = runBlocking {
+    val maxRuntime = Duration.ofMinutes(30)
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val consumer = TestMessageConsumer()
+    val gracePeriodStarted = CompletableDeferred<Unit>()
+    val failureReportStarted = CountDownLatch(1)
+    val releaseFailureReport = CountDownLatch(1)
+    val failureReportInFlight = AtomicBoolean(false)
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { failWorkItemAttempt(any()) }
+        .thenAnswer {
+          failureReportInFlight.set(true)
+          failureReportStarted.countDown()
+          // Without the fix the grace period hasn't started yet, so the report completes and the
+          // test fails on its assertions rather than hanging.
+          if (gracePeriodStarted.isCompleted) {
+            releaseFailureReport.await()
+          }
+          failureReportInFlight.set(false)
+          testWorkItemAttempt
+        }
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val workStarted = CompletableDeferred<Unit>()
+    val releaseWork = CountDownLatch(1)
+    val terminations = mutableListOf<Int>()
+    var reportPendingAtTermination = false
+    var nackCountAtTermination = -1
+    val terminated = CompletableDeferred<Unit>()
+    val app =
+      object :
+        BaseTeeApplication(
+          subscriptionId = SUBSCRIPTION_ID,
+          queueSubscriber = fakeSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+          workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+          attemptUpdateRetryDelay = {},
+          maxAttemptRuntime = maxRuntime,
+          // The runtime limit elapses once work has started. The grace period elapses only once
+          // the failure report is in flight, so termination must not wait for that report.
+          attemptRuntimeTimer = { duration ->
+            if (duration == maxRuntime) {
+              workStarted.await()
+            } else {
+              gracePeriodStarted.complete(Unit)
+              withContext(Dispatchers.IO) { failureReportStarted.await() }
+            }
+          },
+          terminateProcess = { exitCode ->
+            synchronized(terminations) { terminations += exitCode }
+            reportPendingAtTermination = failureReportInFlight.get()
+            nackCountAtTermination = consumer.nackCallCount
+            terminated.complete(Unit)
+            // A real process would exit here; release the report and work so the test can finish.
+            releaseFailureReport.countDown()
+            releaseWork.countDown()
+          },
+        ) {
+        override suspend fun runWork(message: Any) {
+          workStarted.complete(Unit)
+          // Blocks its thread without suspending, so it cannot observe cancellation.
+          releaseWork.await()
+        }
+      }
+    val job = launch { app.run() }
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "max-runtime-pending-report-ack-id",
+      )
+    )
+    terminated.await()
+    consumer.disposition.await()
+    job.cancelAndJoin()
+
+    assertThat(synchronized(terminations) { terminations.toList() })
+      .containsExactly(BaseTeeApplication.ATTEMPT_RUNTIME_EXCEEDED_EXIT_CODE)
+    assertThat(reportPendingAtTermination).isTrue()
+    assertThat(nackCountAtTermination).isEqualTo(0)
+    verifyBlocking(workItemAttemptsServiceMock, times(1)) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    assertThat(consumer.nackCount).isEqualTo(1)
+    assertThat(consumer.ackCount).isEqualTo(0)
+  }
 
   @Test
   fun `constructor rejects non-positive max attempt runtime`() {

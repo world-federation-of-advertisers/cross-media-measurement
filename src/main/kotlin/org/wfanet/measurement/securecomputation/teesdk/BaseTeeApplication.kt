@@ -30,6 +30,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.system.exitProcess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -87,11 +88,13 @@ private fun canonicalWorkItemName(name: String): String {
  *   the attempt is created. `null` (the default unless [MAX_ATTEMPT_RUNTIME_ENV] is set) disables
  *   the bound. When exceeded, a watchdog that runs independently of [runWork]'s thread stops lease
  *   renewal, cancels [runWork], reports the attempt as failed, and nacks the message so the
- *   WorkItem can be retried. If [runWork] has not stopped after [attemptStopGracePeriod] — e.g.
- *   non-cooperative work that ignores cancellation — the process is terminated with exit code
- *   [ATTEMPT_RUNTIME_EXCEEDED_EXIT_CODE] so the runtime environment restarts it.
+ *   WorkItem can be retried. If [runWork] has not stopped within [attemptStopGracePeriod] of the
+ *   limit being exceeded — e.g. non-cooperative work that ignores cancellation — the process is
+ *   terminated with exit code [ATTEMPT_RUNTIME_EXCEEDED_EXIT_CODE] so the runtime environment
+ *   restarts it, whether or not failure reporting has finished.
  * @param attemptStopGracePeriod how long [runWork] may take to stop after [maxAttemptRuntime] is
- *   exceeded before the process is terminated.
+ *   exceeded before the process is terminated. It starts when the limit is exceeded, so failure
+ *   reporting and its retries cannot extend it.
  * @param attemptRuntimeWatchdogContext [CoroutineContext] the runtime watchdog runs in. Like
  *   [attemptLeaseRenewalContext], it must not share a thread with [runWork] or contain a [Job].
  * @param attemptRuntimeTimer suspends for the given duration; used for [maxAttemptRuntime] and
@@ -493,7 +496,8 @@ abstract class BaseTeeApplication(
    * The watchdog runs in [attemptRuntimeWatchdogContext], independently of [runWork]'s thread. On
    * expiry it claims the attempt (so the normal path neither completes nor reports it), cancels the
    * work and therefore its lease renewal, reports the attempt as failed, and nacks [queueMessage].
-   * If the work then fails to stop within [attemptStopGracePeriod], it terminates the process.
+   * Independently of that reporting, it terminates the process if the work fails to stop within
+   * [attemptStopGracePeriod] of expiry.
    */
   private fun startAttemptRuntimeWatchdog(
     scope: CoroutineScope,
@@ -510,6 +514,19 @@ abstract class BaseTeeApplication(
       }
       val error = AttemptRuntimeExceededException(workItemAttempt.name, limit)
       logger.log(Level.SEVERE, error) { "Stopping work and lease renewal for abandoned attempt" }
+      // Start the stop grace period now, before failure reporting, so slow or retried reporting
+      // cannot extend how long non-cooperative work keeps running. UNDISPATCHED starts the grace
+      // timer before reporting begins.
+      val stopEnforcer =
+        launch(start = CoroutineStart.UNDISPATCHED) {
+          if (!awaitWorkStopped(guard)) {
+            logger.severe(
+              "runWork for ${workItemAttempt.name} did not stop within $attemptStopGracePeriod " +
+                "of exceeding the maximum attempt runtime; terminating the process"
+            )
+            terminateProcess(ATTEMPT_RUNTIME_EXCEEDED_EXIT_CODE)
+          }
+        }
       try {
         failWorkItemAttempt(workItemAttempt, error)
         logger.info("WorkItemAttempt failure reported. Nacking message ${queueMessage.ackId}")
@@ -526,13 +543,7 @@ abstract class BaseTeeApplication(
         logger.log(Level.SEVERE, e) { "Failed to report work item attempt failure" }
       }
       queueMessage.nack()
-      if (!awaitWorkStopped(guard)) {
-        logger.severe(
-          "runWork for ${workItemAttempt.name} did not stop within $attemptStopGracePeriod of " +
-            "exceeding the maximum attempt runtime; terminating the process"
-        )
-        terminateProcess(ATTEMPT_RUNTIME_EXCEEDED_EXIT_CODE)
-      }
+      stopEnforcer.join()
     }
   }
 
@@ -541,8 +552,10 @@ abstract class BaseTeeApplication(
     // Not yet attached: attachWork cancels the work as soon as it starts.
     val work: Job = guard.work ?: return true
     return coroutineScope {
-      val stopped = async { work.join() }
-      val expired = async { attemptRuntimeTimer(attemptStopGracePeriod) }
+      // UNDISPATCHED so the grace timer starts immediately, not when this thread is next free.
+      val stopped = async(start = CoroutineStart.UNDISPATCHED) { work.join() }
+      val expired =
+        async(start = CoroutineStart.UNDISPATCHED) { attemptRuntimeTimer(attemptStopGracePeriod) }
       select {
           stopped.onAwait { true }
           expired.onAwait { false }
