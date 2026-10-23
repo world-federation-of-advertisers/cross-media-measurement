@@ -41,6 +41,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
+import org.wfanet.measurement.internal.reporting.v2.BasicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingUnit
@@ -66,6 +67,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertMeasur
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToSucceeded
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToUnprocessedResultsReady
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.updateBasicReportResultDetails
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
@@ -246,6 +248,215 @@ class BasicReportReportingSetBackfillerTest {
         listOf(OTHER_CMMS_DATA_PROVIDER_ID),
         INVALID_CAMPAIGN_GROUP_ID,
       )
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `run blocks requested provider metric without a component summary`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID)),
+        listOf(ComponentSpec()),
+        emptyList(),
+        listOf(OTHER_CMMS_DATA_PROVIDER_ID),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+      assertBlockingIdentityRuns()
+      assertThat(newBackfiller(dryRun = false).run().metricSetIdentityConflicts).isEqualTo(1)
+    }
+
+  @Test
+  fun `run blocks provider metric without a summary when summary IDs are complete`() =
+    runBlocking<Unit> {
+      createCampaignGroup()
+      val childId = createChildReportingSet(listOf(EVENT_GROUP_ID_1))
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID)),
+        listOf(
+          ComponentSpec(
+            cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1),
+            externalReportingSetId = childId,
+          )
+        ),
+        emptyList(),
+        listOf(OTHER_CMMS_DATA_PROVIDER_ID),
+        CAMPAIGN_GROUP_ID,
+      )
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `run blocks provider metric missing a summary after blank provider resolution`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID)),
+        listOf(ComponentSpec(cmmsDataProviderId = "")),
+        emptyList(),
+        listOf(OTHER_CMMS_DATA_PROVIDER_ID),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+      assertBlockingIdentityRuns()
+      assertThat(newBackfiller(dryRun = false).run().metricSetIdentityConflicts).isEqualTo(1)
+    }
+
+  @Test
+  fun `run requires provider metric summary coverage in the same result`() =
+    runBlocking<Unit> {
+      createCampaignGroup()
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID)),
+        listOf(ComponentSpec()),
+        emptyList(),
+        listOf(OTHER_CMMS_DATA_PROVIDER_ID),
+        CAMPAIGN_GROUP_ID,
+      )
+      val resultDetails = readInternalBasicReport().resultDetails.toBuilder()
+      val otherResult = resultDetails.getResultGroups(0).getResults(0).toBuilder()
+      otherResult.metadataBuilder.reportingUnitSummaryBuilder
+        .getReportingUnitComponentSummaryBuilder(0)
+        .apply {
+          cmmsDataProviderId = OTHER_CMMS_DATA_PROVIDER_ID
+          @Suppress("DEPRECATION") clearEventGroupSummaries()
+          @Suppress("DEPRECATION")
+          addEventGroupSummaries(
+            InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+              .eventGroupSummary {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                cmmsEventGroupId = OTHER_EVENT_GROUP_ID
+              }
+          )
+        }
+      resultDetails.getResultGroupsBuilder(0).addResults(otherResult)
+      replaceTestResultDetails(resultDetails.build())
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `run blocks intersection naming an unrequested provider`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID)),
+        listOf(ComponentSpec()),
+        emptyList(),
+        emptyList(),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+      addIntersectionMetric(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID))
+      assertBlockingIdentityRuns()
+      assertThat(newBackfiller(dryRun = false).run().metricSetIdentityConflicts).isEqualTo(1)
+    }
+
+  @Test
+  fun `run blocks intersection naming a requested provider missing from summaries`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID)),
+        listOf(ComponentSpec()),
+        emptyList(),
+        emptyList(),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+      addIntersectionMetric(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID))
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `run blocks intersection with a blank provider identity`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID)),
+        listOf(ComponentSpec()),
+        emptyList(),
+        emptyList(),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+      addIntersectionMetric(listOf(CMMS_DATA_PROVIDER_ID, ""))
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `run blocks provider intersections for custom ReportingSet components`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup(INVALID_CAMPAIGN_GROUP_ID, listOf(EVENT_GROUP_ID_1))
+      createFilteredCustomComponent()
+      insertIdentityBasicReport(
+        customReportingUnit(listOf(CUSTOM_COMPONENT_ID)),
+        listOf(
+          ComponentSpec(cmmsDataProviderId = "", cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1))
+        ),
+        emptyList(),
+        emptyList(),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+      addIntersectionMetric(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID))
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `run preserves intersection values with inferred reordered summaries and no component metrics`() =
+    runBlocking<Unit> {
+      createCampaignGroup()
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID)),
+        listOf(
+          ComponentSpec(cmmsDataProviderId = "", cmmsEventGroupIds = listOf(OTHER_EVENT_GROUP_ID)),
+          ComponentSpec(cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1)),
+        ),
+        emptyList(),
+        emptyList(),
+        CAMPAIGN_GROUP_ID,
+      )
+      addIntersectionMetric(listOf(OTHER_CMMS_DATA_PROVIDER_ID, CMMS_DATA_PROVIDER_ID))
+      val before = readInternalBasicReport()
+      val reportingSetsBefore = readAllReportingSets()
+      val dryRun = newBackfiller(dryRun = true).run()
+      assertThat(dryRun.updated).isEqualTo(1)
+      assertThat(dryRun.dataProviderIdsFilled).isEqualTo(1)
+      assertThat(dryRun.metricSetIdentityConflicts).isEqualTo(0)
+      assertThat(readInternalBasicReport()).isEqualTo(before)
+      assertThat(readAllReportingSets()).containsExactlyElementsIn(reportingSetsBefore)
+
+      val result = newBackfiller(dryRun = false).run()
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.dataProviderIdsFilled).isEqualTo(1)
+      assertThat(result.metricSetIdentityConflicts).isEqualTo(0)
+      assertThat(result.readyToRemoveReadPathFallback).isTrue()
+      val migratedResult =
+        readInternalBasicReport().resultDetails.resultGroupsList.single().resultsList.single()
+      assertThat(migratedResult.metricSet)
+        .isEqualTo(before.resultDetails.resultGroupsList.single().resultsList.single().metricSet)
+      assertThat(
+          migratedResult.metadata.reportingUnitSummary.reportingUnitComponentSummaryList.map {
+            it.cmmsDataProviderId
+          }
+        )
+        .containsExactly(OTHER_CMMS_DATA_PROVIDER_ID, CMMS_DATA_PROVIDER_ID)
+        .inOrder()
+    }
+
+  @Test
+  fun `run validates intersection identities when all summaries are already complete`() =
+    runBlocking<Unit> {
+      createCampaignGroup()
+      val childId = createChildReportingSet(listOf(EVENT_GROUP_ID_1))
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID)),
+        listOf(
+          ComponentSpec(
+            cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1),
+            externalReportingSetId = childId,
+          )
+        ),
+        emptyList(),
+        emptyList(),
+        CAMPAIGN_GROUP_ID,
+      )
+      addIntersectionMetric(listOf(CMMS_DATA_PROVIDER_ID, OTHER_CMMS_DATA_PROVIDER_ID))
       assertBlockingIdentityRuns()
     }
 
@@ -1398,6 +1609,34 @@ class BasicReportReportingSetBackfillerTest {
       assertThat(readInternalBasicReport()).isEqualTo(before)
       assertThat(readComponentSummaryReportingSetId(EXTERNAL_BASIC_REPORT_ID_2)).isNotEmpty()
     }
+
+  private suspend fun addIntersectionMetric(providerIds: List<String>) {
+    val resultDetails = readInternalBasicReport().resultDetails.toBuilder()
+    resultDetails
+      .getResultGroupsBuilder(0)
+      .getResultsBuilder(0)
+      .metricSetBuilder
+      .addComponentIntersections(
+        InternalResultGroupKt.MetricSetKt.dataProviderComponentIntersectionMetricSet {
+          cmmsDataProviderIds += providerIds
+          nonCumulative = InternalResultGroupKt.MetricSetKt.basicMetricSet { reach = 7 }
+          cumulative = InternalResultGroupKt.MetricSetKt.basicMetricSet { reach = 11 }
+        }
+      )
+    replaceTestResultDetails(resultDetails.build())
+  }
+
+  private suspend fun replaceTestResultDetails(resultDetails: BasicReportResultDetails) {
+    val report = readInternalBasicReport()
+    spannerClient.readWriteTransaction().run { txn ->
+      txn.updateBasicReportResultDetails(
+        measurementConsumerId = MEASUREMENT_CONSUMER_ID,
+        basicReportId = BASIC_REPORT_ID,
+        externalCampaignGroupId = report.externalCampaignGroupId,
+        resultDetails = resultDetails,
+      )
+    }
+  }
 
   private suspend fun assertBlockingIdentityRuns() {
     val before = readInternalBasicReport()

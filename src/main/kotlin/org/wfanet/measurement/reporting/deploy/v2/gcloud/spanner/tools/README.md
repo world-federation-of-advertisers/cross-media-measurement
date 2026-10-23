@@ -190,9 +190,13 @@ Entries in `metric_set.reporting_set_components` carry no membership, so an
 entry missing `external_reporting_set_id` cannot be backfilled. A populated
 custom metric ID must belong to the validated component identity set for that
 result group. Metric entries may be reordered or cover only some requested
-components. DataProvider metric keys must also agree with the component
-identities. The tool does not rename conflicting metric keys or change metric
-values.
+components. Every DataProvider metric key and every provider ID in
+`metric_set.component_intersections` must agree with the stored request and
+have a resolved component summary in the same result. A provider named only
+in the request or in another result is not enough. Blank summary provider IDs
+are resolved from supported request and EventGroup evidence before this
+coverage check. Intersections do not require separate component metric entries.
+The tool does not rename conflicting metric keys or change metric values.
 
 Missing metric ReportingSet IDs and conflicting metric identities are checked
 before any writes, including on reports whose summary IDs are complete. The

@@ -314,7 +314,12 @@ class BasicReportReportingSetBackfiller(
       }
       unresolvableMetricSetComponents += unresolvableComponents
     }
-    val metricIdentityConflicts = countMetricIdentityConflicts(basicReport)
+    val metricIdentityConflicts =
+      countMetricIdentityConflicts(
+        basicReport,
+        basicReport.resultDetails,
+        deferBlankSummaryProviderIds = true,
+      )
     metricSetIdentityConflicts += metricIdentityConflicts
     if (unresolvableComponents > 0 || metricIdentityConflicts > 0) {
       skipped++
@@ -514,6 +519,31 @@ class BasicReportReportingSetBackfiller(
       return
     }
 
+    // Resolve blank provider identities before validating metric coverage or creating resources.
+    val componentIndexesMissingDataProviderId =
+      componentSummariesToResolve.indices
+        .filter {
+          componentSummariesToResolve[it].cmmsDataProviderId.isEmpty() &&
+            componentIdentitiesToResolve[it].externalReportingSetId == null
+        }
+        .toSet()
+    for (componentIndex in componentIndexesMissingDataProviderId) {
+      checkNotNull(componentIdentitiesToResolve[componentIndex].requestedDataProviderIds)
+      componentSummariesToResolve[componentIndex].cmmsDataProviderId =
+        checkNotNull(membershipResolutions[componentIndex].membership).first().cmmsDataProviderId
+    }
+    val resolvedMetricIdentityConflicts =
+      countMetricIdentityConflicts(
+        basicReport,
+        resultDetailsBuilder.build(),
+        deferBlankSummaryProviderIds = false,
+      )
+    metricSetIdentityConflicts += resolvedMetricIdentityConflicts
+    if (resolvedMetricIdentityConflicts > 0) {
+      skipped++
+      return
+    }
+
     val targetCampaignGroupEventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey> =
       if (campaignGroupChanged) {
         membershipResolutions.flatMap { checkNotNull(it.membership) }.toSet()
@@ -578,9 +608,7 @@ class BasicReportReportingSetBackfiller(
       val resolution = membershipResolutions[componentIndex]
       val membership: Set<ReportingSet.Primitive.EventGroupKey> =
         checkNotNull(resolution.membership)
-      if (componentSummary.cmmsDataProviderId.isEmpty()) {
-        checkNotNull(identity.requestedDataProviderIds)
-        componentSummary.cmmsDataProviderId = membership.first().cmmsDataProviderId
+      if (componentIndex in componentIndexesMissingDataProviderId) {
         dataProviderIdsFilled++
       }
       val existingId: String? = reportingSetIdsByMembership[membership]
@@ -724,9 +752,13 @@ class BasicReportReportingSetBackfiller(
   }
 
   /** Metric keys identify computed values and cannot safely be guessed or renamed. */
-  private fun countMetricIdentityConflicts(basicReport: BasicReport): Int {
+  private fun countMetricIdentityConflicts(
+    basicReport: BasicReport,
+    resultDetails: BasicReportResultDetails,
+    deferBlankSummaryProviderIds: Boolean,
+  ): Int {
     var conflicts = 0
-    for ((groupIndex, group) in basicReport.resultDetails.resultGroupsList.withIndex()) {
+    for ((groupIndex, group) in resultDetails.resultGroupsList.withIndex()) {
       val reportingUnit =
         basicReport.details.resultGroupSpecsList.getOrNull(groupIndex)?.reportingUnit
       for ((resultIndex, result) in group.resultsList.withIndex()) {
@@ -734,7 +766,17 @@ class BasicReportReportingSetBackfiller(
           result.metricSet.reportingSetComponentsList
             .map { it.externalReportingSetId }
             .filter { it.isNotEmpty() }
-        val providerIds = result.metricSet.componentsList.map { it.key }
+        val providerIds =
+          result.metricSet.componentsList.map { it.key } +
+            result.metricSet.componentIntersectionsList.flatMap { it.cmmsDataProviderIdsList }
+        val summaryProviderIds =
+          result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList
+            .map { it.cmmsDataProviderId }
+            .toSet()
+        val deferSummaryProviderCheck =
+          deferBlankSummaryProviderIds &&
+            reportingUnit?.componentsCase == ReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS &&
+            "" in summaryProviderIds
         val expectedCustomIds =
           if (reportingUnit?.componentsCase == ReportingUnit.ComponentsCase.REPORTING_SET_KEYS) {
             reportingUnit.reportingSetKeys.reportingSetKeysList
@@ -766,6 +808,7 @@ class BasicReportReportingSetBackfiller(
           providerIds.filter {
             it.isEmpty() ||
               it !in expectedProviderIds ||
+              (!deferSummaryProviderCheck && it !in summaryProviderIds) ||
               reportingUnit?.componentsCase == ReportingUnit.ComponentsCase.REPORTING_SET_KEYS
           }
         if (invalidCustomIds.isNotEmpty() || invalidProviderIds.isNotEmpty()) {
@@ -773,7 +816,8 @@ class BasicReportReportingSetBackfiller(
           logger.warning {
             "BasicReport ${basicReport.externalBasicReportId} result group $groupIndex result $resultIndex " +
               "has conflicting metric component identities. Expected ReportingSets $expectedCustomIds " +
-              "and DataProviders $expectedProviderIds; conflicting ReportingSets $invalidCustomIds " +
+              "and DataProviders $expectedProviderIds with summary providers $summaryProviderIds; " +
+              "conflicting ReportingSets $invalidCustomIds " +
               "and DataProviders $invalidProviderIds. Not updating."
           }
         }
