@@ -172,14 +172,13 @@ Group. The tool does not force those reports into one shared universe.
 The tool does not guess. A missing, empty, composite, or already-assigned
 Campaign Group reference is left unchanged. A report is also left unchanged
 when a component has no EventGroups, references an unknown EventGroup, has a
-blank DataProvider without explicit request evidence or unique membership, identifies a custom
-ReportingSet that is missing, empty, or not primitive, has an existing
+blank DataProvider without explicit request evidence or unique membership,
+identifies a custom ReportingSet that is missing, empty, or not primitive, has an existing
 ReportingSet ID without stored request evidence of its identity, disagrees with
 the custom component identity stored in the request, omits an EventGroup
 contained in the referenced Campaign Group source, or has linked results that
 would also need migration. These rows are counted as blocking, the scan
-continues, and the
-environment is reported as not ready to remove the read fallback.
+continues, and the environment is reported as not ready to remove the read fallback.
 
 No Campaign Group or component ReportingSet is created and no `BasicReport`
 is updated unless every component summary that needs resolution can be
@@ -232,8 +231,7 @@ rather than failing, so an incomplete resource is served without any error.
 An applied, unbounded run reports `Ready to remove read-path fallback: yes`
 only when no examined `SUCCEEDED` row remains blocked by these checks. This
 is a check of the scanned rows, not a guarantee about other states or future
-writes. A
-bounded run never reports ready because it does not examine older rows. A dry
+writes. A bounded run never reports ready because it does not examine older rows. A dry
 run reports ready only when it finds that no writes or primitive Campaign Group
 migrations would be needed.
 

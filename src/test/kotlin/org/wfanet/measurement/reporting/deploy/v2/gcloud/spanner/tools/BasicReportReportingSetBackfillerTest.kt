@@ -1306,6 +1306,99 @@ class BasicReportReportingSetBackfillerTest {
   private fun newBackfiller(dryRun: Boolean) =
     BasicReportReportingSetBackfiller(spannerClient, postgresClient, ID_GENERATOR, dryRun)
 
+  @Test
+  fun `run blocks an ambiguous blank DataProvider even with request evidence`() =
+    runBlocking<Unit> {
+      createAmbiguousCampaignGroup()
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID)),
+        listOf(
+          ComponentSpec(cmmsDataProviderId = "", cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1))
+        ),
+        emptyList(),
+        listOf(CMMS_DATA_PROVIDER_ID),
+        CAMPAIGN_GROUP_ID,
+      )
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `run blocks conflicting custom metric identity when summary IDs are already complete`() =
+    runBlocking<Unit> {
+      createCampaignGroup()
+      createFilteredCustomComponent()
+      insertIdentityBasicReport(
+        customReportingUnit(listOf(CUSTOM_COMPONENT_ID)),
+        listOf(
+          ComponentSpec(
+            cmmsDataProviderId = "",
+            cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1),
+            externalReportingSetId = CUSTOM_COMPONENT_ID,
+          )
+        ),
+        listOf("other-custom-component"),
+        emptyList(),
+        CAMPAIGN_GROUP_ID,
+      )
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `run accepts partial custom metric identities without requiring one entry per component`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup(INVALID_CAMPAIGN_GROUP_ID, listOf(EVENT_GROUP_ID_1))
+      createFilteredCustomComponent()
+      createNonCampaignGroup("other-custom-component", listOf(EVENT_GROUP_ID_2))
+      insertIdentityBasicReport(
+        customReportingUnit(listOf(CUSTOM_COMPONENT_ID, "other-custom-component")),
+        listOf(
+          ComponentSpec(cmmsDataProviderId = "", cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1)),
+          ComponentSpec(cmmsDataProviderId = "", cmmsEventGroupIds = listOf(EVENT_GROUP_ID_2)),
+        ),
+        listOf(CUSTOM_COMPONENT_ID),
+        emptyList(),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+      val result = newBackfiller(dryRun = false).run()
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.metricSetIdentityConflicts).isEqualTo(0)
+      assertThat(result.dataProviderIdsFilled).isEqualTo(0)
+      assertThat(readComponentSummaryReportingSetIds())
+        .containsExactly(CUSTOM_COMPONENT_ID, "other-custom-component")
+        .inOrder()
+    }
+
+  @Test
+  fun `run continues past metric conflict and keeps overall readiness false`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup(INVALID_CAMPAIGN_GROUP_ID, listOf(EVENT_GROUP_ID_1))
+      createFilteredCustomComponent()
+      insertIdentityBasicReport(
+        customReportingUnit(listOf(CUSTOM_COMPONENT_ID)),
+        listOf(
+          ComponentSpec(cmmsDataProviderId = "", cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1))
+        ),
+        listOf("other-custom-component"),
+        emptyList(),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+      val before = readInternalBasicReport()
+      createCampaignGroup()
+      insertTestBasicReport(
+        BASIC_REPORT_ID_2,
+        EXTERNAL_BASIC_REPORT_ID_2,
+        CAMPAIGN_GROUP_ID,
+        listOf(ComponentSpec()),
+      )
+      val result = newBackfiller(dryRun = false).run()
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.metricSetIdentityConflicts).isEqualTo(1)
+      assertThat(result.readyToRemoveReadPathFallback).isFalse()
+      assertThat(readInternalBasicReport()).isEqualTo(before)
+      assertThat(readComponentSummaryReportingSetId(EXTERNAL_BASIC_REPORT_ID_2)).isNotEmpty()
+    }
+
   private suspend fun assertBlockingIdentityRuns() {
     val before = readInternalBasicReport()
     val reportingSetsBefore = readAllReportingSets()
