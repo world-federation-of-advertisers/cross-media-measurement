@@ -182,8 +182,8 @@ The tool does not guess. A missing, empty, cyclic, incomplete, or
 already-assigned Campaign Group reference is left unchanged. A report is also
 left unchanged when a component has no EventGroups, references an unknown
 EventGroup, has a blank DataProvider without explicit request evidence or
-unique membership,
-identifies a custom ReportingSet that is missing, empty, or invalid, has an
+unique membership, identifies a custom ReportingSet that is missing, empty,
+or invalid, has an
 existing ReportingSet ID without stored request evidence of its identity,
 disagrees with the custom component identity stored in the request, omits an
 EventGroup contained in the referenced Campaign Group source, or has linked
@@ -242,8 +242,8 @@ rather than failing, so an incomplete resource is served without any error.
 An applied, unbounded run reports `Ready to remove read-path fallback: yes`
 only when no examined `SUCCEEDED` row remains blocked by these checks. This
 is a check of the scanned rows, not a guarantee about other states or future
-writes. A
-bounded run never reports ready because it does not examine older rows. A dry
+writes. A bounded run never reports ready because it does not examine older
+rows. A dry
 run reports ready only when it finds that no writes or Campaign Group
 migrations would be needed.
 

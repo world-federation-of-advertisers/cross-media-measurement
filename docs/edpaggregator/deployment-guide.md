@@ -235,8 +235,12 @@ under an impressions date directory, signaling that a day's impressions and meta
 have finished uploading. It locates the directory, scans metadata (including
 subfolders), records impression availability in the Metadata Storage database, and
 notifies the Kingdom that impressions for that day are available.
+When `event_group_activity_publishing` is configured, the same sync also derives
+positive EventGroup activity from the finalized metadata and appends it in the Kingdom.
 
 Config: [`DataAvailabilitySyncConfigs`](#dataavailabilitysync-config-dataavailabilitysyncconfigs).
+For historical replay or EventGroup activity backfill, see
+[Replay DataAvailabilitySync](../gke/replay-data-availability-sync.md).
 
 ### DataAvailabilityCleanup
 
@@ -1008,6 +1012,34 @@ configs {
 }
 ```
 
+Set `event_group_reference_id_entity_key_mapping` only when one entity type's
+IDs are equivalent to legacy event-group reference IDs. Both
+`event_group_reference_id_prefix` and `entity_id_prefix` are optional and are
+applied independently; an empty prefix is valid.
+
+Use this rollout order:
+
+1. Configure and deploy the equivalent mapping in `ResultsFulfillerParams` for
+   every affected EDP. Its entity type and both prefixes must exactly match the
+   EventGroupSync mapping. Leave it enabled while fulfillment must search or
+   filter impression history written in either identifier format.
+2. Ensure every EventGroupSync input with the mapped entity type supplies both
+   a non-blank `event_group_reference_id` and a non-blank `entity_key.entity_id`.
+   The two values must be exactly equivalent after prefix conversion.
+3. Prevent reports from selecting a partially migrated EventGroup cohort. Pause
+   report creation during a batched migration, or migrate every EventGroup that
+   can occur in one report before allowing that report. RequisitionFetcher
+   refuses a report as `UNFULFILLABLE` when some selected EventGroups have entity
+   keys and others are still reference-ID-only; the ResultsFulfiller mapping
+   cannot bypass that validation.
+4. Configure and run EventGroupSync with the same mapping, then verify the
+   targeted EventGroups have entity keys before resuming report creation.
+
+EventGroupSync uses both supplied identifiers to find and update the existing
+EventGroup instead of creating a second resource. It does not derive a missing
+identifier. Missing identifiers, prefix mismatches, and non-equivalent values
+are skipped and counted by `edpa.event_group.invalid_event_group_failure`.
+
 ### DataAvailabilitySync config (`DataAvailabilitySyncConfigs`)
 
 Proto: `wfa/measurement/config/edpaggregator/data_availability_sync_config.proto`.
@@ -1023,8 +1055,48 @@ configs {
   edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"   # optional today; required in a future release
   # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
+  # event_group_activity_publishing {
+  #   market_time_zone { id: "America/New_York" }
+  #   event_group_map_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb"
+  #   event_group_map_storage {
+  #     gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" }
+  #   }
+  # }
 }
 ```
+
+`event_group_activity_publishing` is optional. When present, `DataAvailabilitySync`:
+
+* reads the Mesos RecordIO `MappedEventGroup` output produced by `EventGroupSync`;
+* joins every entity key in finalized impression metadata to all EventGroups mapped to that key;
+* converts each metadata interval to every inclusive calendar date that it touches in
+  `market_time_zone`; and
+* appends the resulting `EventGroupActivity` resources without deleting historical activity.
+
+Set `market_time_zone.id` to an IANA Time Zone Database identifier. `UTC` is valid, as are regional
+identifiers such as `America/New_York`. Use the market's calendar time zone so intervals that cross
+a UTC date boundary are attributed to the market dates they touch. Both endpoint dates are included
+intentionally, favoring over-reporting over omitting a potentially active date.
+
+The map join uses entity keys only. A key may map to multiple EventGroups, and keys at any entity
+hierarchy level are eligible. Legacy EventGroup reference-ID-only map records are ignored. Keep the
+map current: missing map keys and stale EventGroup resources are skipped, logged, and counted by
+these metrics, all with a `data_provider_name` attribute:
+
+* `edpa.event_group_activity.map_records_missing_entity_key`
+* `edpa.event_group_activity.unmapped_entity_keys`
+* `edpa.event_group_activity.event_groups_not_found`
+
+After correcting a missing or stale mapping, use
+[Replay DataAvailabilitySync](../gke/replay-data-availability-sync.md) in
+`EVENT_GROUP_ACTIVITY_ONLY` mode for the affected completion blobs. This mode reads only active
+ImpressionMetadata and does not rewrite metadata or data availability. Publishing is idempotent, so
+republishing an EventGroup/date pair does not create a duplicate.
+
+For targeted corrections, `SyncEventGroupActivities` PATCH mode can explicitly append or delete
+dates. Do not use its SYNC mode for the same DataProvider: SYNC treats its input as authoritative
+and can delete activity appended by `DataAvailabilitySync`. See
+[the EventGroupActivity Sync guide](../gke/sync-event-group-activities-deployment.md).
 
 ### DataAvailabilityMonitor config (`DataAvailabilityMonitorConfigs`)
 
@@ -1088,10 +1160,12 @@ Function-to-TEE boundary as the WorkItem payload, so RequisitionFetcher validate
 without converting it to a duplicated unversioned wire schema. Beyond the `data_provider`,
 `storage_params`, `consent_params`, and `cmms_connection` shown above, it supports:
 
-* `noise_params.noise_type` — `NONE` / `CONTINUOUS_GAUSSIAN` (direct single-EDP
-  results).
-* `k_anonymity_params` — `{ min_impressions, min_users, reach_max_frequency_per_user }`;
-  a below-threshold result returns zero.
+* `noise_params.noise_type` — `NONE`, `CONTINUOUS_GAUSSIAN`, or
+  `DETERMINISTIC_TRUNCATED_LAPLACE` for direct single-EDP results.
+* `k_anonymity_params` — `{ min_impressions, min_users, reach_max_frequency_per_user,
+  disable_multi_party_frequency_vector_suppression }`; a below-threshold result returns zero unless
+  multi-party suppression is disabled as described below. When this is configured,
+  `noise_params.noise_type` must be `NONE`.
 * `impression_max_frequency_per_user` — direct impression measurements only.
 * `model_line_map` — optional external→internal model-line remapping for impression
   lookup.
@@ -1101,6 +1175,25 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
   [TrusTEE section](README.md#configure-trustee-if-enabled)).
 * `multi_party_config.supported_noise_types` — restricts accepted noise mechanisms
   for HMSS / TrusTEE requisitions.
+* `k_anonymity_params.disable_multi_party_frequency_vector_suppression` — when `true`, the EDPA
+  does not apply `k_anonymity_params` to HMSS or TrusTEE v1 frequency-vector contributions. Direct
+  results remain thresholded, and TrusTeeV2 remains thresholded in its attested computation. The
+  default is `false`, preserving existing behavior. Enable this only where downstream noise is much
+  greater than the configured thresholds.
+
+* `event_group_reference_id_entity_key_mapping` — optional equivalence between
+  legacy event-group reference IDs and one entity-key type. Presence enables
+  lookup and filtering through both representations. Its two prefixes are
+  independent and optional; leave either blank when that representation is
+  unprefixed.
+* `whole_blob_entity_types` — entity types whose `BlobDetails.entity_keys` group
+  is guaranteed to list every ID at that level in the blob. If a requisition
+  selects every ID in a listed group, ResultsFulfiller accepts the entire blob,
+  including records without `entity_keys`. Only list types that are truly
+  exhaustive: listing a partial type can silently include unmatched impressions
+  and overcount. This is also the whole-blob path for data whose sidecar has been
+  backfilled with entity keys while its impression records remain in the legacy
+  format.
 
 ---
 

@@ -90,6 +90,13 @@ jobs:
           test --test_timeout=5400
           EOF
 
+      - name: Wait for Kingdom public API
+        uses: ./.github/actions/wait-for-kingdom
+        with:
+          kingdom-public-api-target: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+          kingdom-public-api-cert-host: localhost
+          model-line-name: ${{ vars.MODEL_LINE_NAME }}
+
       # Reduce chance of disconnection from the Build Event Service.
       - name: Set TCP keepalive
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60

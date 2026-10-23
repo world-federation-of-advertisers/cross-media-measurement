@@ -319,6 +319,7 @@ jobs:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
+      stability-window-seconds: 60
 
   # Update the Reporting system.
   #
