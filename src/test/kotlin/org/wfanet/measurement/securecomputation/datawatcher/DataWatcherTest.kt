@@ -790,7 +790,7 @@ class DataWatcherTest() {
   @Test
   fun `surfaces retryable HTTP dispatch failures so Eventarc can retry`() {
     runBlocking {
-      for (statusCode in listOf(408, 429, 500, 502, 503, 504)) {
+      for (statusCode in listOf(408, 429, 502, 503, 504)) {
         val localPort = ServerSocket(0).use { it.localPort }
         val config = watchedPath {
           sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
@@ -830,7 +830,7 @@ class DataWatcherTest() {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
         this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
       }
-      val server = TestServer(statusCode = 400)
+      val server = TestServer(statusCode = 500)
       server.start(localPort)
       val dataWatcher =
         DataWatcher(

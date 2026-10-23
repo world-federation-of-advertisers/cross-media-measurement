@@ -418,7 +418,7 @@ class DataWatcher(
     private fun isRetryableHttpStatusCode(statusCode: Int): Boolean =
       statusCode in RETRYABLE_HTTP_STATUS_CODES
 
-    private val RETRYABLE_HTTP_STATUS_CODES = setOf(408, 429, 500, 502, 503, 504)
+    private val RETRYABLE_HTTP_STATUS_CODES = setOf(408, 429, 502, 503, 504)
 
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
