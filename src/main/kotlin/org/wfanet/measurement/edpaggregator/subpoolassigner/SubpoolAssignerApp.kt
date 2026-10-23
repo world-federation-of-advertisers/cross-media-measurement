@@ -161,45 +161,48 @@ class SubpoolAssignerApp(
     }
     val eventIdColumn = eventIdMapping.scalar.column
 
-    val rawImpressionSource =
-      RawImpressionSource<ParquetDigestedEvent>(
-        parquetStorageClient =
-          buildParquetStorageClient(
-            getRawImpressionsStorageConfig(params.rawImpressionStorageParams),
-            kmsClient,
-          ),
-        rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
-        metadataReadThrottler = rpcThrottlers.metadataRead,
-        rawImpressionUpload = params.rawImpressionUpload,
-        eventIdColumn = eventIdColumn,
-        shardIndex = params.shardIndex,
-        totalShards = params.totalShards,
-        eventIdDigestExtractor = eventIdDigestExtractor,
-        toEvent = { row, digest -> DigestedEvent(row, checkNotNull(digest)) },
-      )
-
-    val mapper = LabelerInputMapper(params.labelerInputFieldMappingList)
-    // Schema-drift guard: fail fast if a mapped raw column is missing from the upload's parquet
-    // schema (e.g. renamed upstream) instead of silently unsetting the field on every impression.
-    rawImpressionSource.validateSchema(mapper.referencedColumnKinds())
-    val activeWindow =
-      ActiveWindow.of(
-        params.activeStartTime.toInstant(),
-        if (params.hasActiveEndTime()) params.activeEndTime.toInstant() else null,
-      )
-    val store =
-      SubpoolFingerprintsStore(
-        buildSubpoolMapStorageClient(getSubpoolMapStorageConfig(params.subpoolMapStorageParams)),
-        kmsClient,
-      )
-
-    // Static Phase-1 params, passed through from this shard's SubpoolAssignerParams. The
-    // last-shard-out fan-out fills in the per-RankerJob fields (encrypted_subpool_maps_dek,
-    // ranker_job, subpool_map_blob_uris, max_event_date) on top of this template.
-    val vidRankBuilderParamsTemplate = buildVidRankBuilderParamsTemplate(params)
-
     loadPoolEmitLabeler(getModelStorageConfig(params.modelStorageParams), params.modelBlobPath)
       .use { labeler ->
+        val rawImpressionSource =
+          RawImpressionSource<ParquetDigestedEvent>(
+            parquetStorageClient =
+              buildParquetStorageClient(
+                getRawImpressionsStorageConfig(params.rawImpressionStorageParams),
+                kmsClient,
+              ),
+            rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+            metadataReadThrottler = rpcThrottlers.metadataRead,
+            rawImpressionUpload = params.rawImpressionUpload,
+            eventIdColumn = eventIdColumn,
+            shardIndex = params.shardIndex,
+            totalShards = params.totalShards,
+            eventIdDigestExtractor = eventIdDigestExtractor,
+            toEvent = { row, digest -> DigestedEvent(row, checkNotNull(digest)) },
+          )
+
+        val mapper = LabelerInputMapper(params.labelerInputFieldMappingList)
+        // Schema-drift guard: fail fast if a mapped raw column is missing from the upload's parquet
+        // schema (e.g. renamed upstream) instead of silently unsetting the field on every
+        // impression.
+        rawImpressionSource.validateSchema(mapper.referencedColumnKinds())
+        val activeWindow =
+          ActiveWindow.of(
+            params.activeStartTime.toInstant(),
+            if (params.hasActiveEndTime()) params.activeEndTime.toInstant() else null,
+          )
+        val store =
+          SubpoolFingerprintsStore(
+            buildSubpoolMapStorageClient(
+              getSubpoolMapStorageConfig(params.subpoolMapStorageParams)
+            ),
+            kmsClient,
+          )
+
+        // Static Phase-1 params, passed through from this shard's SubpoolAssignerParams. The
+        // last-shard-out fan-out fills in the per-RankerJob fields (encrypted_subpool_maps_dek,
+        // ranker_job, subpool_map_blob_uris, max_event_date) on top of this template.
+        val vidRankBuilderParamsTemplate = buildVidRankBuilderParamsTemplate(params)
+
         SubpoolAssigner(
             rawImpressionSource = rawImpressionSource,
             mapper = mapper,
