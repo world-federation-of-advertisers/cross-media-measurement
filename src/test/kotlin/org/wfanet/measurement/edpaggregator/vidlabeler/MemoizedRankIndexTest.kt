@@ -28,9 +28,16 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -519,6 +526,113 @@ class MemoizedRankIndexTest {
       .containsExactly(10L to 5L)
     assertThat(index.lookup(digestOf(fp(0x22))).map { it.poolOffset to it.localRank })
       .containsExactly(20L to 7L)
+  }
+
+  @Test
+  fun `buildFrom rejects a load context containing a Job`() {
+    val row =
+      seedSnapshot("ranks/pool10/up1", poolOffset = 10L, fp(0x11), rank = 5, createTimeSeconds = 1L)
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking {
+          MemoizedRankIndex.buildFrom(
+            rankStore,
+            DP,
+            MODEL_LINE,
+            listOf(row),
+            loadContext = Dispatchers.Default + Job(),
+          )
+        }
+      }
+
+    assertThat(exception).hasMessageThat().contains("loadContext must not contain a Job")
+  }
+
+  @Test
+  fun `buildFrom cancels sibling subpool loads when one load fails`() {
+    val failingRow =
+      seedSnapshot("ranks/pool10/up1", poolOffset = 10L, fp(0x11), rank = 5, createTimeSeconds = 1L)
+    val siblingRow =
+      seedSnapshot("ranks/pool20/up1", poolOffset = 20L, fp(0x22), rank = 7, createTimeSeconds = 1L)
+    val siblingStarted = CompletableDeferred<Unit>()
+    val siblingCancelled = CompletableDeferred<Unit>()
+    val storage =
+      object : ConditionalOperationStorageClient by storageClient {
+        override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
+          if (blobKey.contains(siblingRow.blobUri)) {
+            siblingStarted.complete(Unit)
+            try {
+              awaitCancellation()
+            } finally {
+              siblingCancelled.complete(Unit)
+            }
+          }
+          // Fail only once the sibling load is in progress.
+          siblingStarted.await()
+          throw IllegalStateException("storage failure")
+        }
+      }
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        runBlocking {
+          MemoizedRankIndex.buildFrom(
+            RankIndexStore(storage, kmsClient),
+            DP,
+            MODEL_LINE,
+            listOf(failingRow, siblingRow),
+          )
+        }
+      }
+
+    assertThat(exception).hasMessageThat().isEqualTo("storage failure")
+    assertThat(siblingCancelled.isCompleted).isTrue()
+  }
+
+  @Test
+  fun `cancelling the build cancels in-flight subpool loads`() {
+    val rows =
+      listOf(
+        seedSnapshot(
+          "ranks/pool10/up1",
+          poolOffset = 10L,
+          fp(0x11),
+          rank = 5,
+          createTimeSeconds = 1L,
+        ),
+        seedSnapshot(
+          "ranks/pool20/up1",
+          poolOffset = 20L,
+          fp(0x22),
+          rank = 7,
+          createTimeSeconds = 1L,
+        ),
+      )
+    val loadsStarted = CountDownLatch(rows.size)
+    val loadsCancelled = CountDownLatch(rows.size)
+    val storage =
+      object : ConditionalOperationStorageClient by storageClient {
+        override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
+          loadsStarted.countDown()
+          try {
+            awaitCancellation()
+          } finally {
+            loadsCancelled.countDown()
+          }
+        }
+      }
+
+    runBlocking {
+      val build = launch {
+        MemoizedRankIndex.buildFrom(RankIndexStore(storage, kmsClient), DP, MODEL_LINE, rows)
+      }
+      // Waits on another thread so this runBlocking thread stays free.
+      withContext(Dispatchers.IO) { loadsStarted.await() }
+      build.cancelAndJoin()
+    }
+
+    assertThat(loadsCancelled.count).isEqualTo(0)
   }
 
   companion object {
