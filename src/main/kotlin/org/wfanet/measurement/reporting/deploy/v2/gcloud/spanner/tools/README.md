@@ -144,6 +144,12 @@ and those consistency checks pass does the tool:
     while preserving the exact IDs of caller-supplied ReportingSet components,
     including their filter semantics.
 
+A caller-supplied ReportingSet component must name the same MeasurementConsumer
+as the `BasicReport`. Its recorded component EventGroups must match the
+referenced ReportingSet's membership, including the number of occurrences of
+each EventGroup ID. A foreign-consumer key or conflicting EventGroup metadata
+blocks the report in both dry-run and applied runs and keeps readiness at `no`.
+
 The original ordinary ReportingSet is never modified. The Campaign Group
 change and all component IDs are written to the `BasicReport` in one Spanner
 mutation. Creating or finding the replacement Campaign Group in Postgres is
