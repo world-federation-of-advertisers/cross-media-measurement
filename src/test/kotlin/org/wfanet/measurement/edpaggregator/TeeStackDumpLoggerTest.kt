@@ -37,13 +37,16 @@ class TeeStackDumpLoggerTest {
   private data class Published(val message: String, val thread: Thread)
 
   private val published = mutableListOf<Published>()
+  /** Released once per capture, when its final part has been published. */
   private val dumpPublished = Semaphore(0)
   private val handler =
     object : Handler() {
       override fun publish(record: LogRecord) {
         val message = record.message
         synchronized(published) { published += Published(message, Thread.currentThread()) }
-        if (message.startsWith("Thread dump ") && message.contains(" part=1/")) {
+        val part = if (message.startsWith("Thread dump ")) PART.find(message) else null
+        // Parts are published in order, so the final part means the whole capture is visible.
+        if (part != null && part.groupValues[1] == part.groupValues[2]) {
           dumpPublished.release()
         }
       }
@@ -245,5 +248,9 @@ class TeeStackDumpLoggerTest {
     assertThat(record).contains("at com.example.Deep.frame0(Deep.kt:1)")
     assertThat(record).doesNotContain("frame${TeeStackDumpLogger.MAX_FRAMES_PER_THREAD}(")
     assertThat(record).contains("... 5 more")
+  }
+
+  companion object {
+    private val PART = Regex(" part=(\\d+)/(\\d+) ")
   }
 }
