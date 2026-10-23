@@ -149,6 +149,16 @@ variable "stack_dump_interval_seconds" {
   description = "If set, the TEE application logs all thread stacks at this interval in seconds, for diagnosing stuck workers. Null disables dumps."
   type        = number
   default     = null
+
+  validation {
+    condition = (
+      var.stack_dump_interval_seconds == null ? true :
+      var.stack_dump_interval_seconds == floor(var.stack_dump_interval_seconds) &&
+      var.stack_dump_interval_seconds > 0 &&
+      var.stack_dump_interval_seconds <= 9223372036854775
+    )
+    error_message = "stack_dump_interval_seconds must be null or a positive whole number of seconds no greater than 9223372036854775."
+  }
 }
 
 variable "extra_metadata" {
