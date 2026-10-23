@@ -29,28 +29,22 @@ import org.wfanet.virtualpeople.common.CompiledNode
 import org.wfanet.virtualpeople.common.PopulationNodeKt
 import org.wfanet.virtualpeople.common.branchNode
 import org.wfanet.virtualpeople.common.compiledNode
-import org.wfanet.virtualpeople.common.eventId
-import org.wfanet.virtualpeople.common.labelerInput
+import org.wfanet.virtualpeople.common.populationNode
 import org.wfanet.virtualpeople.common.rankedPopulationNode
 
 @RunWith(JUnit4::class)
 class VirtualPeoplePoolEmitLabelerTest {
   @Test
-  fun `fromCompiledNodeBlob reads a Riegeli CompiledNode list`() {
+  fun `fromCompiledNodeBlob rejects a model without ranked pools`() {
     val modelBlob: ByteString =
       MODEL_BLOB_PATH.toFile().inputStream().use { ByteString.readFrom(it) }
 
-    // Loads without throwing: the blob is a Riegeli record list, so the pre-fix single-node
-    // `CompiledNode.parseFrom(modelBlob)` threw here; the list reader succeeds.
-    val labeler = VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBlob)
-    val offsets = buildList {
-      labeler.emit(labelerInput { eventId = eventId { id = "any-event" } }) { add(it) }
-    }
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBlob)
+      }
 
-    // `single_id_model` is a single-VID model with no `RankedPopulationNode`, so POOL_IDENTITY
-    // emits no pool offsets. The point of this test is that the Riegeli list is read and the
-    // `Labeler` builds — the load path the pre-fix loader broke.
-    assertThat(offsets).isEmpty()
+    assertThat(exception.message).contains("memoized_vid_assignment_enabled")
   }
 
   @Test
@@ -67,6 +61,14 @@ class VirtualPeoplePoolEmitLabelerTest {
     // into embedded branches, not just look at top-level records).
     val subtree = compiledNode {
       branchNode = branchNode {
+        branches +=
+          BranchNodeKt.branch {
+            node = compiledNode {
+              populationNode = populationNode {
+                pools += PopulationNodeKt.virtualPersonPool { populationOffset = 8 }
+              }
+            }
+          }
         branches +=
           BranchNodeKt.branch {
             node = compiledNode {

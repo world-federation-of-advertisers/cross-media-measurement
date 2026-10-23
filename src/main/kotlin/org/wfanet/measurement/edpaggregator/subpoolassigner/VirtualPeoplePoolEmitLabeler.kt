@@ -73,13 +73,21 @@ private constructor(
      * overload rather than parsed as a single root node. This mirrors
      * `VirtualPeopleVidAssigner.fromCompiledNodeBlob` so Phase-0 pool assignment and Phase-2
      * labeling load the identical model.
+     *
+     * @throws IllegalArgumentException if the model has no ranked pools. Such a model must use
+     *   non-memoized VID assignment instead of Phase-0 pool assignment.
      */
     fun fromCompiledNodeBlob(modelBlob: ByteString): VirtualPeoplePoolEmitLabeler {
       val nodes: List<CompiledNode> =
         Riegeli.readRecords(modelBlob.newInput())
           .map { record -> ProtoAny.parseFrom(record).unpack(CompiledNode::class.java) }
           .toList()
-      return VirtualPeoplePoolEmitLabeler(Labeler.build(nodes), rankedSizesByPoolOffset(nodes))
+      val rankedSizeByPoolOffset = rankedSizesByPoolOffset(nodes)
+      require(rankedSizeByPoolOffset.isNotEmpty()) {
+        "Memoized VID assignment requires a RankedPopulationNode pool; set " +
+          "memoized_vid_assignment_enabled to false for a non-memoized model"
+      }
+      return VirtualPeoplePoolEmitLabeler(Labeler.build(nodes), rankedSizeByPoolOffset)
     }
 
     /**
