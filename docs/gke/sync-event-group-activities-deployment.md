@@ -209,6 +209,13 @@ explicitly for each run:
 Add `--preview` to either mode to report its planned changes without applying
 mutations.
 
+PATCH mode can coexist with automatic EventGroup activity publishing by `DataAvailabilitySync`.
+Use it for targeted corrections: each record explicitly appends or deletes one date, and all other
+dates remain untouched. Do not run SYNC mode for a DataProvider whose activity is published by
+`DataAvailabilitySync`. SYNC treats its input file as the complete source of truth and can delete
+dates that the EDPA publisher appended, causing those dates to be removed and re-added on later
+availability syncs.
+
 To change input semantics or enable writes, edit the `--mode=...` and
 `--preview` entries in
 [`_syncEventGroupActivitiesArgs.edp7`](../../src/main/k8s/dev/edp_aggregator_gke.cue)
