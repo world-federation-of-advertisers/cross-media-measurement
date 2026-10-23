@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Semaphore
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
@@ -101,9 +102,21 @@ class TeeStackDumpLoggerTest {
 
   @Test
   fun `sampler logs a dump on each tick while a worker thread stays blocked`() {
+    val workerStarted = CountDownLatch(1)
     val releaseWorker = CountDownLatch(1)
-    val worker = Thread(null, { releaseWorker.await() }, "worker")
+    val workerFinished = AtomicBoolean(false)
+    val worker =
+      Thread(
+        null,
+        {
+          workerStarted.countDown()
+          releaseWorker.await()
+          workerFinished.set(true)
+        },
+        "worker",
+      )
     worker.start()
+    workerStarted.await()
     val ticks = Semaphore(0)
     val sampler = TeeStackDumpLogger.start(Duration.ofSeconds(30)) { ticks.acquire() }
     try {
@@ -118,9 +131,15 @@ class TeeStackDumpLoggerTest {
         dumpRecords.map { Regex("capture=(\\S+)").find(it.message)!!.groupValues[1] }.toSet()
       assertThat(captureIds).hasSize(2)
       assertThat(dumpRecords.map { it.thread }.toSet()).containsExactly(sampler)
-      assertThat(releaseWorker.count).isEqualTo(1)
-      val workerLine = "thread id=${worker.id} daemon=false state=WAITING"
-      assertThat(dumpRecords.count { it.message.contains(workerLine) }).isEqualTo(2)
+      // The worker's thread state depends on scheduling, so only its ID is checked.
+      val captureIdsWithWorker =
+        dumpRecords
+          .filter { it.message.contains("\nthread id=${worker.id} ") }
+          .map { Regex("capture=(\\S+)").find(it.message)!!.groupValues[1] }
+          .toSet()
+      assertThat(captureIdsWithWorker).isEqualTo(captureIds)
+      assertThat(workerFinished.get()).isFalse()
+      assertThat(worker.isAlive).isTrue()
     } finally {
       sampler.interrupt()
       sampler.join()
