@@ -145,6 +145,22 @@ variable "java_tool_options" {
   default     = null
 }
 
+variable "max_attempt_runtime_seconds" {
+  description = "Maximum WorkItemAttempt runtime in whole seconds, after which the TEE application fails the attempt for retry and, if its work does not stop, restarts. Null disables the limit."
+  type        = number
+  default     = null
+
+  validation {
+    condition = (
+      var.max_attempt_runtime_seconds == null ? true :
+      var.max_attempt_runtime_seconds == floor(var.max_attempt_runtime_seconds) &&
+      var.max_attempt_runtime_seconds > 0 &&
+      var.max_attempt_runtime_seconds <= 9223372036854775
+    )
+    error_message = "max_attempt_runtime_seconds must be null or a positive whole number of seconds no greater than 9223372036854775."
+  }
+}
+
 variable "extra_metadata" {
   description = "Extra metadata for the instance template."
   type        = map(string)

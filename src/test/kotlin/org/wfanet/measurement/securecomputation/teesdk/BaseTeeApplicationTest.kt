@@ -36,6 +36,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -654,6 +655,249 @@ class BaseTeeApplicationTest {
       }
 
     assertThat(exception).hasMessageThat().contains("must not contain a Job")
+  }
+
+  @Test
+  fun `permanent renewal failure cancels work and fails attempt before nacking`() = runBlocking {
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+      leaseExpirationTime = timestamp { seconds = 1L }
+    }
+    val consumer = TestMessageConsumer()
+    var failureReportedBeforeNack = false
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { renewWorkItemAttempt(any()) } doThrow
+        io.grpc.Status.FAILED_PRECONDITION.asRuntimeException()
+      onBlocking { failWorkItemAttempt(any()) }
+        .thenAnswer {
+          failureReportedBeforeNack = consumer.nackCallCount == 0
+          testWorkItemAttempt
+        }
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val workCancelled = CompletableDeferred<Unit>()
+    val app =
+      object :
+        BaseTeeApplication(
+          subscriptionId = SUBSCRIPTION_ID,
+          queueSubscriber = fakeSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+          workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+          attemptUpdateRetryDelay = {},
+          attemptLeaseRenewalInterval = Duration.ofNanos(1),
+        ) {
+        override suspend fun runWork(message: Any) {
+          try {
+            awaitCancellation()
+          } finally {
+            workCancelled.complete(Unit)
+          }
+        }
+      }
+    val job = launch { app.run() }
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "renewal-failure-ack-id",
+      )
+    )
+    consumer.disposition.await()
+    job.cancelAndJoin()
+
+    assertThat(workCancelled.isCompleted).isTrue()
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(1)) { failWorkItemAttempt(any()) }
+    assertThat(failureReportedBeforeNack).isTrue()
+    assertThat(consumer.nackCount).isEqualTo(1)
+    assertThat(consumer.ackCount).isEqualTo(0)
+  }
+
+  @Test
+  fun `exceeding max attempt runtime cancels cooperative work and fails attempt`() = runBlocking {
+    val maxRuntime = Duration.ofMinutes(30)
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val consumer = TestMessageConsumer()
+    var failureReportedBeforeNack = false
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { failWorkItemAttempt(any()) }
+        .thenAnswer {
+          failureReportedBeforeNack = consumer.nackCallCount == 0
+          testWorkItemAttempt
+        }
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val workStarted = CompletableDeferred<Unit>()
+    val workCancelled = CompletableDeferred<Unit>()
+    val gracePeriodStarted = CompletableDeferred<Unit>()
+    val terminations = mutableListOf<Int>()
+    val app =
+      object :
+        BaseTeeApplication(
+          subscriptionId = SUBSCRIPTION_ID,
+          queueSubscriber = fakeSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+          workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+          attemptUpdateRetryDelay = {},
+          maxAttemptRuntime = maxRuntime,
+          // The runtime limit elapses once work has started; the grace period never elapses.
+          attemptRuntimeTimer = { duration ->
+            if (duration == maxRuntime) {
+              workStarted.await()
+            } else {
+              gracePeriodStarted.complete(Unit)
+              awaitCancellation()
+            }
+          },
+          terminateProcess = { exitCode -> terminations += exitCode },
+        ) {
+        override suspend fun runWork(message: Any) {
+          workStarted.complete(Unit)
+          try {
+            awaitCancellation()
+          } finally {
+            workCancelled.complete(Unit)
+          }
+        }
+      }
+    val job = launch { app.run() }
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "max-runtime-cooperative-ack-id",
+      )
+    )
+    consumer.disposition.await()
+    workCancelled.await()
+    job.cancelAndJoin()
+
+    val requestCaptor = argumentCaptor<FailWorkItemAttemptRequest>()
+    verifyBlocking(workItemAttemptsServiceMock, times(1)) {
+      failWorkItemAttempt(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.errorMessage).contains("exceeded its maximum runtime")
+    assertThat(failureReportedBeforeNack).isTrue()
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    assertThat(consumer.nackCount).isEqualTo(1)
+    assertThat(consumer.ackCount).isEqualTo(0)
+    assertThat(terminations).isEmpty()
+  }
+
+  @Test
+  fun `exceeding max attempt runtime terminates process when work ignores cancellation`() =
+    runBlocking {
+      val maxRuntime = Duration.ofMinutes(30)
+      val testWorkItemAttempt = workItemAttempt {
+        name = "workItems/workItem/workItemAttempts/workItemAttempt"
+      }
+      workItemAttemptsServiceMock.stub {
+        onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+        onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      }
+      val fakeSubscriber = FakeQueueSubscriber()
+      val workStarted = CompletableDeferred<Unit>()
+      val releaseWork = CountDownLatch(1)
+      val terminations = mutableListOf<Int>()
+      val terminated = CompletableDeferred<Unit>()
+      val app =
+        object :
+          BaseTeeApplication(
+            subscriptionId = SUBSCRIPTION_ID,
+            queueSubscriber = fakeSubscriber,
+            parser = WorkItem.parser(),
+            workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+            workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+            attemptUpdateRetryDelay = {},
+            maxAttemptRuntime = maxRuntime,
+            // The runtime limit elapses once work has started, then the grace period elapses
+            // immediately while the work is still blocked.
+            attemptRuntimeTimer = { duration ->
+              if (duration == maxRuntime) {
+                workStarted.await()
+              }
+            },
+            terminateProcess = { exitCode ->
+              synchronized(terminations) { terminations += exitCode }
+              terminated.complete(Unit)
+              // A real process would exit here; release the work so the test can finish.
+              releaseWork.countDown()
+            },
+          ) {
+          override suspend fun runWork(message: Any) {
+            workStarted.complete(Unit)
+            // Blocks its thread without suspending, so it cannot observe cancellation.
+            releaseWork.await()
+          }
+        }
+      val job = launch { app.run() }
+      val consumer = TestMessageConsumer()
+
+      fakeSubscriber.send(
+        QueueSubscriber.QueueMessage(
+          body = createWorkItem(createTestWork()),
+          consumer = consumer,
+          ackId = "max-runtime-blocked-ack-id",
+        )
+      )
+      terminated.await()
+      job.cancelAndJoin()
+
+      assertThat(synchronized(terminations) { terminations.toList() })
+        .containsExactly(BaseTeeApplication.ATTEMPT_RUNTIME_EXCEEDED_EXIT_CODE)
+      // The watchdog reported the outcome exactly once; the normal path did not report it again.
+      verifyBlocking(workItemAttemptsServiceMock, times(1)) { failWorkItemAttempt(any()) }
+      verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+      assertThat(consumer.nackCount).isEqualTo(1)
+      assertThat(consumer.ackCount).isEqualTo(0)
+    }
+
+  @Test
+  fun `constructor rejects non-positive max attempt runtime`() {
+    for (maxRuntime in listOf(Duration.ZERO, Duration.ofSeconds(-1))) {
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          object :
+            BaseTeeApplication(
+              subscriptionId = SUBSCRIPTION_ID,
+              queueSubscriber = FakeQueueSubscriber(),
+              parser = WorkItem.parser(),
+              workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+              workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+              maxAttemptRuntime = maxRuntime,
+            ) {
+            override suspend fun runWork(message: Any) {}
+          }
+        }
+
+      assertThat(exception).hasMessageThat().contains("maxAttemptRuntime must be positive")
+    }
+  }
+
+  @Test
+  fun `parseMaxAttemptRuntime accepts whole seconds and rejects other values`() {
+    assertThat(BaseTeeApplication.parseMaxAttemptRuntime(null)).isNull()
+    assertThat(BaseTeeApplication.parseMaxAttemptRuntime(" ")).isNull()
+    assertThat(BaseTeeApplication.parseMaxAttemptRuntime("3600"))
+      .isEqualTo(Duration.ofSeconds(3600))
+    val messages =
+      listOf("0", "-1", "1.5", "1h", "secret-value", Long.MAX_VALUE.toString()).map { value ->
+        assertFailsWith<IllegalArgumentException> {
+            BaseTeeApplication.parseMaxAttemptRuntime(value)
+          }
+          .message
+      }
+    // The message is fixed, so it never echoes the configured value.
+    assertThat(messages.toSet()).hasSize(1)
+    assertThat(messages.first()).doesNotContain("secret-value")
   }
 
   @Test

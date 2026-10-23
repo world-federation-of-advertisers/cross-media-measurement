@@ -460,6 +460,7 @@ module "result_fulfiller_tee_app" {
   max_replicas                  = var.requisition_fulfiller_config.worker.max_replicas
   machine_type                  = var.requisition_fulfiller_config.worker.machine_type
   java_tool_options             = var.requisition_fulfiller_config.worker.java_tool_options
+  max_attempt_runtime_seconds   = var.requisition_fulfiller_config.worker.max_attempt_runtime_seconds
   docker_image                  = var.requisition_fulfiller_config.worker.docker_image
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
@@ -834,6 +835,7 @@ module "vid_labeling_tee_app" {
   machine_type                  = each.value.worker.machine_type
   disk_type                     = each.value.worker.disk_type
   java_tool_options             = each.value.worker.java_tool_options
+  max_attempt_runtime_seconds   = each.value.worker.max_attempt_runtime_seconds
   docker_image                  = each.value.worker.docker_image
   mig_distribution_policy_zones = each.value.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account

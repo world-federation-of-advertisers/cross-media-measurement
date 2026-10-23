@@ -35,6 +35,9 @@ locals {
     var.java_tool_options == null ? {} : {
       "tee-env-JAVA_TOOL_OPTIONS" = var.java_tool_options
     },
+    var.max_attempt_runtime_seconds == null ? {} : {
+      "tee-env-WORK_ITEM_ATTEMPT_MAX_RUNTIME_SECONDS" = tostring(var.max_attempt_runtime_seconds)
+    },
     var.extra_metadata,
   )
 }
