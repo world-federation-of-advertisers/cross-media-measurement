@@ -321,7 +321,11 @@ class BasicReportReportingSetBackfiller(
         deferBlankSummaryProviderIds = true,
       )
     metricSetIdentityConflicts += metricIdentityConflicts
-    if (unresolvableComponents > 0 || metricIdentityConflicts > 0) {
+    val customSummaryCountMismatches = countCustomSummaryCountMismatches(basicReport)
+    unresolvedComponents += customSummaryCountMismatches
+    if (
+      unresolvableComponents > 0 || metricIdentityConflicts > 0 || customSummaryCountMismatches > 0
+    ) {
       skipped++
       return
     }
@@ -679,6 +683,30 @@ class BasicReportReportingSetBackfiller(
     val cmmsEventGroupIds: List<String>,
   )
 
+  private fun countCustomSummaryCountMismatches(basicReport: BasicReport): Int {
+    var mismatches = 0
+    for ((groupIndex, group) in basicReport.resultDetails.resultGroupsList.withIndex()) {
+      val reportingUnit =
+        basicReport.details.resultGroupSpecsList.getOrNull(groupIndex)?.reportingUnit
+      if (reportingUnit?.componentsCase != ReportingUnit.ComponentsCase.REPORTING_SET_KEYS) {
+        continue
+      }
+      val requestedCount = reportingUnit.reportingSetKeys.reportingSetKeysCount
+      for ((resultIndex, result) in group.resultsList.withIndex()) {
+        val summaryCount = result.metadata.reportingUnitSummary.reportingUnitComponentSummaryCount
+        if (requestedCount != summaryCount) {
+          mismatches++
+          logger.warning {
+            "BasicReport ${basicReport.externalBasicReportId} result group $groupIndex result $resultIndex " +
+              "has $summaryCount custom component summaries for $requestedCount requested ReportingSets. " +
+              "Not updating."
+          }
+        }
+      }
+    }
+    return mismatches
+  }
+
   private fun resolveComponentIdentities(
     basicReport: BasicReport
   ): List<ComponentIdentityResolution> = buildList {
@@ -714,8 +742,6 @@ class BasicReportReportingSetBackfiller(
             val requestedReportingSetId = requestedReportingSetKey?.externalReportingSetId
             val reason =
               when {
-                requestedReportingSetKeys.size != componentSummaries.size ->
-                  "its custom component count does not match the stored request"
                 requestedReportingSetKey == null || requestedReportingSetId.isNullOrEmpty() ->
                   "its custom ReportingSet ID is empty in the stored request"
                 requestedReportingSetKey.cmmsMeasurementConsumerId !=
