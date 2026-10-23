@@ -116,9 +116,13 @@ determines the identity of each blank component:
     ReportingSet's EventGroups for membership validation, and preserves the
     exact ID and any filter.
 *   For a DataProvider component, the tool resolves membership from its
-    `event_group_summaries`. If `cmms_data_provider_id` is blank, the
-    DataProvider is inferred only when the MeasurementConsumer's EventGroup
-    directory has exactly one matching key.
+    `event_group_summaries`. A blank `cmms_data_provider_id` is filled only
+    when the stored request explicitly identifies DataProvider components,
+    every EventGroup resolves uniquely to the same requested DataProvider,
+    and the metric identities agree. A unique EventGroup owner alone does
+    not prove that the component was intended to be a DataProvider component.
+    Populated, consistent DataProvider IDs are preserved. Custom ReportingSet
+    components keep their intentionally blank DataProvider ID.
 
 Every resolved EventGroup key must belong to the Campaign Group universe. For a
 DataProvider component, the tool reuses an unfiltered primitive ReportingSet
@@ -177,7 +181,8 @@ Group. The tool does not force those reports into one shared universe.
 The tool does not guess. A missing, empty, cyclic, incomplete, or
 already-assigned Campaign Group reference is left unchanged. A report is also
 left unchanged when a component has no EventGroups, references an unknown
-EventGroup, has a blank DataProvider that cannot be inferred uniquely,
+EventGroup, has a blank DataProvider without explicit request evidence or
+unique membership,
 identifies a custom ReportingSet that is missing, empty, or invalid, has an
 existing ReportingSet ID without stored request evidence of its identity,
 disagrees with the custom component identity stored in the request, omits an
@@ -188,12 +193,45 @@ fallback.
 
 No Campaign Group or component ReportingSet is created and no `BasicReport`
 is updated unless every component summary that needs resolution can be
-resolved. If every component already has `external_reporting_set_id`, the
-report is left untouched.
+resolved and the metric identities are consistent. A blank DataProvider ID
+with explicit request evidence is checked even if the component ReportingSet
+ID is already populated.
 
 Entries in `metric_set.reporting_set_components` carry no membership, so an
-entry missing `external_reporting_set_id` cannot be backfilled. Such entries
-are counted and reported.
+entry missing `external_reporting_set_id` cannot be backfilled. A populated
+custom metric ID must belong to the validated component identity set for that
+result group. Metric entries may be reordered or cover only some requested
+components. DataProvider metric keys must also agree with the component
+identities. The tool does not rename conflicting metric keys or change metric
+values.
+
+Missing metric ReportingSet IDs and conflicting metric identities are checked
+before any writes, including on reports whose summary IDs are complete. The
+entire report is left unchanged and counted as blocking. The summary reports
+`Unresolvable metric_set components`, `Conflicting metric_set identities`, and
+`DataProvider identities filled` separately.
+
+### Operator flow
+
+No new flags or prerequisite tool are required.
+
+1.  Run an unbounded `--dry-run` against the intended environment. Review the
+    planned writes, the blocking counts, and the per-report warnings.
+2.  If the plan is acceptable, run the same tool without `--dry-run`. It
+    validates each report before creating Campaign Groups or component
+    ReportingSets, then updates that report. A conflicting report is left
+    unchanged while the scan continues through other reports.
+3.  If any rows are blocking, save the diagnostics. Ask the report owner to
+    compare the original request, the exact referenced ReportingSets and
+    filters, and the source results when available. Repair stored data only
+    through a separately approved, evidence-backed process. Do not guess an
+    ID, blindly rename metric keys, or mutate ordinary ReportingSets.
+4.  After a justified repair, rerun an unbounded dry-run and then an applied
+    run. If the intended identity cannot be proven, the migration remains
+    incomplete and readiness must stay `no`.
+5.  Keep the read fallback until the completion conditions below are met.
+    The fallback tolerates blank summary ReportingSet IDs; it does not repair
+    invalid Campaign Groups or contradictory metric identities.
 
 ### After the backfill
 
@@ -202,7 +240,9 @@ summaries still lack `external_reporting_set_id`: it omits `reporting_set`
 rather than failing, so an incomplete resource is served without any error.
 
 An applied, unbounded run reports `Ready to remove read-path fallback: yes`
-only when every examined `SUCCEEDED` row has complete component summaries. A
+only when no examined `SUCCEEDED` row remains blocked by these checks. This
+is a check of the scanned rows, not a guarantee about other states or future
+writes. A
 bounded run never reports ready because it does not examine older rows. A dry
 run reports ready only when it finds that no writes or Campaign Group
 migrations would be needed.

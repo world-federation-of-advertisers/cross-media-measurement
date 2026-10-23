@@ -116,6 +116,7 @@ class BasicReportReportingSetBackfiller(
 
   private data class ComponentIdentityResolution(
     val externalReportingSetId: String?,
+    val requestedDataProviderIds: Set<String>?,
     val reason: String?,
   )
 
@@ -135,6 +136,8 @@ class BasicReportReportingSetBackfiller(
     val reportingSetsCreated: Int,
     val unresolvedComponents: Int,
     val unresolvableMetricSetComponents: Int,
+    val metricSetIdentityConflicts: Int,
+    val dataProviderIdsFilled: Int,
     val primitiveCampaignGroupsMigrated: Int,
     val compositeCampaignGroupsMigrated: Int,
     val unresolvableCampaignGroupReferences: Int,
@@ -154,6 +157,8 @@ class BasicReportReportingSetBackfiller(
         "reportingSetsCreated=$reportingSetsCreated, " +
         "unresolvedComponents=$unresolvedComponents, " +
         "unresolvableMetricSetComponents=$unresolvableMetricSetComponents, " +
+        "metricSetIdentityConflicts=$metricSetIdentityConflicts, " +
+        "dataProviderIdsFilled=$dataProviderIdsFilled, " +
         "primitiveCampaignGroupsMigrated=$primitiveCampaignGroupsMigrated, " +
         "compositeCampaignGroupsMigrated=$compositeCampaignGroupsMigrated, " +
         "unresolvableCampaignGroupReferences=$unresolvableCampaignGroupReferences, " +
@@ -172,6 +177,8 @@ class BasicReportReportingSetBackfiller(
   private var reportingSetsCreated = 0
   private var unresolvedComponents = 0
   private var unresolvableMetricSetComponents = 0
+  private var metricSetIdentityConflicts = 0
+  private var dataProviderIdsFilled = 0
   private var primitiveCampaignGroupsMigrated = 0
   private var compositeCampaignGroupsMigrated = 0
   private var unresolvableCampaignGroupReferences = 0
@@ -227,6 +234,8 @@ class BasicReportReportingSetBackfiller(
         reportingSetsCreated = reportingSetsCreated,
         unresolvedComponents = unresolvedComponents,
         unresolvableMetricSetComponents = unresolvableMetricSetComponents,
+        metricSetIdentityConflicts = metricSetIdentityConflicts,
+        dataProviderIdsFilled = dataProviderIdsFilled,
         primitiveCampaignGroupsMigrated = primitiveCampaignGroupsMigrated,
         compositeCampaignGroupsMigrated = compositeCampaignGroupsMigrated,
         unresolvableCampaignGroupReferences = unresolvableCampaignGroupReferences,
@@ -234,6 +243,8 @@ class BasicReportReportingSetBackfiller(
         readyToRemoveReadPathFallback =
           createTimeAfter == null &&
             skipped == 0 &&
+            unresolvableMetricSetComponents == 0 &&
+            metricSetIdentityConflicts == 0 &&
             (!dryRun ||
               (updated == 0 &&
                 primitiveCampaignGroupsMigrated == 0 &&
@@ -310,6 +321,12 @@ class BasicReportReportingSetBackfiller(
       }
       unresolvableMetricSetComponents += unresolvableComponents
     }
+    val metricIdentityConflicts = countMetricIdentityConflicts(basicReport)
+    metricSetIdentityConflicts += metricIdentityConflicts
+    if (unresolvableComponents > 0 || metricIdentityConflicts > 0) {
+      skipped++
+      return
+    }
 
     val resultDetailsBuilder: BasicReportResultDetails.Builder =
       basicReport.resultDetails.toBuilder()
@@ -319,8 +336,26 @@ class BasicReportReportingSetBackfiller(
         .flatMap {
           it.metadataBuilder.reportingUnitSummaryBuilder.reportingUnitComponentSummaryBuilderList
         }
-    val emptyComponentSummaries = componentSummaries.filter { it.externalReportingSetId.isEmpty() }
-    if (emptyComponentSummaries.isEmpty()) {
+    val componentIdentityResolutions = resolveComponentIdentities(basicReport)
+    check(componentIdentityResolutions.size == componentSummaries.size)
+    val invalidIdentities = componentIdentityResolutions.filter { it.reason != null }
+    if (invalidIdentities.isNotEmpty()) {
+      for (identity in invalidIdentities) {
+        logger.warning {
+          "BasicReport $externalBasicReportId cannot resolve a component: ${identity.reason}."
+        }
+      }
+      unresolvedComponents += invalidIdentities.size
+      skipped++
+      return
+    }
+    val componentIndexesNeedingRepair =
+      componentSummaries.indices.filter {
+        componentSummaries[it].externalReportingSetId.isEmpty() ||
+          (componentSummaries[it].cmmsDataProviderId.isEmpty() &&
+            componentIdentityResolutions[it].requestedDataProviderIds != null)
+      }
+    if (componentIndexesNeedingRepair.isEmpty()) {
       alreadyValid++
       return
     }
@@ -359,16 +394,11 @@ class BasicReportReportingSetBackfiller(
     // Existing component IDs refer to the old Campaign Group. Re-resolve all of them when the
     // Campaign Group changes, except for custom ReportingSet components whose IDs are their
     // identities and may carry filters.
-    val componentIdentityResolutions: List<ComponentIdentityResolution> =
-      resolveComponentIdentities(basicReport)
-    check(componentIdentityResolutions.size == componentSummaries.size)
     val componentIndexesToResolve: List<Int> =
       if (campaignGroupChanged) {
         componentSummaries.indices.toList()
       } else {
-        componentSummaries.indices.filter {
-          componentSummaries[it].externalReportingSetId.isEmpty()
-        }
+        componentIndexesNeedingRepair
       }
     val componentSummariesToResolve = componentIndexesToResolve.map { componentSummaries[it] }
     val componentIdentitiesToResolve =
@@ -380,8 +410,8 @@ class BasicReportReportingSetBackfiller(
     // unresolvable, since the BasicReport itself is then skipped.
     //
     // The component's own EventGroups are what the BasicReport was computed over. Prefer a
-    // populated DataProvider; otherwise infer it only when the MeasurementConsumer has exactly
-    // one match.
+    // populated DataProvider. A blank identity requires an explicit DataProvider request and a
+    // unique directory match for every EventGroup; membership alone cannot prove component type.
     val dataProviderMembershipResolutions: Iterator<ComponentMembershipResolution> =
       resolveComponentMemberships(
           campaignGroupSource.measurementConsumerId,
@@ -417,8 +447,22 @@ class BasicReportReportingSetBackfiller(
           }
         val membership = resolution.membership
         val metadataValidatedResolution =
-          if (customReportingSetId == null || membership == null) {
+          if (membership == null) {
             resolution
+          } else if (customReportingSetId == null) {
+            val providerIds = membership.map { it.cmmsDataProviderId }.toSet()
+            val requestedProviderIds = identity.requestedDataProviderIds
+            if (
+              providerIds.size != 1 ||
+                (requestedProviderIds != null && !requestedProviderIds.containsAll(providerIds))
+            ) {
+              ComponentMembershipResolution(
+                null,
+                "its EventGroups do not identify one requested DataProvider",
+              )
+            } else {
+              resolution
+            }
           } else {
             val componentSummary = componentSummariesToResolve[componentIndex]
             @Suppress("DEPRECATION") // Only stored record of legacy component membership.
@@ -541,6 +585,11 @@ class BasicReportReportingSetBackfiller(
       val resolution = membershipResolutions[componentIndex]
       val membership: Set<ReportingSet.Primitive.EventGroupKey> =
         checkNotNull(resolution.membership)
+      if (componentSummary.cmmsDataProviderId.isEmpty()) {
+        checkNotNull(identity.requestedDataProviderIds)
+        componentSummary.cmmsDataProviderId = membership.first().cmmsDataProviderId
+        dataProviderIdsFilled++
+      }
       val existingId: String? = reportingSetIdsByMembership[membership]
       if (existingId != null) {
         componentSummary.externalReportingSetId = existingId
@@ -624,6 +673,17 @@ class BasicReportReportingSetBackfiller(
         } else {
           null
         }
+      val requestedDataProviderIds =
+        if (
+          resultGroupSpec?.reportingUnit?.componentsCase ==
+            ReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS
+        ) {
+          resultGroupSpec.reportingUnit.dataProviderKeys.dataProviderKeysList
+            .map { it.cmmsDataProviderId }
+            .toSet()
+        } else {
+          null
+        }
       for (result in resultGroup.resultsList) {
         val componentSummaries =
           result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList
@@ -648,23 +708,85 @@ class BasicReportReportingSetBackfiller(
                   "its ReportingSet ID does not match the stored request"
                 else -> null
               }
-            add(ComponentIdentityResolution(requestedReportingSetId, reason))
-          } else if (
-            componentSummary.cmmsDataProviderId.isEmpty() &&
-              componentSummary.externalReportingSetId.isNotEmpty()
-          ) {
-            add(
-              ComponentIdentityResolution(
-                null,
-                "it has a ReportingSet ID but no stored component identity",
-              )
-            )
+            add(ComponentIdentityResolution(requestedReportingSetId, null, reason))
           } else {
-            add(ComponentIdentityResolution(null, null))
+            val reason =
+              when {
+                requestedDataProviderIds != null &&
+                  (requestedDataProviderIds.isEmpty() || "" in requestedDataProviderIds) ->
+                  "its DataProvider request contains an empty identity"
+                componentSummary.cmmsDataProviderId.isEmpty() && requestedDataProviderIds == null ->
+                  "its blank DataProvider identity has no stored DataProvider request evidence"
+                requestedDataProviderIds != null &&
+                  componentSummary.cmmsDataProviderId.isNotEmpty() &&
+                  componentSummary.cmmsDataProviderId !in requestedDataProviderIds ->
+                  "its DataProvider ID does not match the stored request"
+                else -> null
+              }
+            add(ComponentIdentityResolution(null, requestedDataProviderIds, reason))
           }
         }
       }
     }
+  }
+
+  /** Metric keys identify computed values and cannot safely be guessed or renamed. */
+  private fun countMetricIdentityConflicts(basicReport: BasicReport): Int {
+    var conflicts = 0
+    for ((groupIndex, group) in basicReport.resultDetails.resultGroupsList.withIndex()) {
+      val reportingUnit =
+        basicReport.details.resultGroupSpecsList.getOrNull(groupIndex)?.reportingUnit
+      for ((resultIndex, result) in group.resultsList.withIndex()) {
+        val customIds =
+          result.metricSet.reportingSetComponentsList
+            .map { it.externalReportingSetId }
+            .filter { it.isNotEmpty() }
+        val providerIds = result.metricSet.componentsList.map { it.key }
+        val expectedCustomIds =
+          if (reportingUnit?.componentsCase == ReportingUnit.ComponentsCase.REPORTING_SET_KEYS) {
+            reportingUnit.reportingSetKeys.reportingSetKeysList
+              .map { it.externalReportingSetId }
+              .toSet()
+          } else {
+            result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList
+              .filter { it.cmmsDataProviderId.isEmpty() && it.externalReportingSetId.isNotEmpty() }
+              .map { it.externalReportingSetId }
+              .toSet()
+          }
+        val expectedProviderIds =
+          if (reportingUnit?.componentsCase == ReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS) {
+            reportingUnit.dataProviderKeys.dataProviderKeysList
+              .map { it.cmmsDataProviderId }
+              .toSet()
+          } else {
+            result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList
+              .map { it.cmmsDataProviderId }
+              .filter { it.isNotEmpty() }
+              .toSet()
+          }
+        val invalidCustomIds =
+          customIds.filter {
+            it !in expectedCustomIds ||
+              reportingUnit?.componentsCase == ReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS
+          }
+        val invalidProviderIds =
+          providerIds.filter {
+            it.isEmpty() ||
+              it !in expectedProviderIds ||
+              reportingUnit?.componentsCase == ReportingUnit.ComponentsCase.REPORTING_SET_KEYS
+          }
+        if (invalidCustomIds.isNotEmpty() || invalidProviderIds.isNotEmpty()) {
+          conflicts += invalidCustomIds.size + invalidProviderIds.size
+          logger.warning {
+            "BasicReport ${basicReport.externalBasicReportId} result group $groupIndex result $resultIndex " +
+              "has conflicting metric component identities. Expected ReportingSets $expectedCustomIds " +
+              "and DataProviders $expectedProviderIds; conflicting ReportingSets $invalidCustomIds " +
+              "and DataProviders $invalidProviderIds. Not updating."
+          }
+        }
+      }
+    }
+    return conflicts
   }
 
   private suspend fun resolveCustomComponentMembership(
@@ -799,6 +921,8 @@ class BasicReportReportingSetBackfiller(
         "ReportingSets created" to result.reportingSetsCreated.toString(),
         "Unresolved components" to result.unresolvedComponents.toString(),
         "Unresolvable metric_set components" to result.unresolvableMetricSetComponents.toString(),
+        "Conflicting metric_set identities" to result.metricSetIdentityConflicts.toString(),
+        "DataProvider identities filled" to result.dataProviderIdsFilled.toString(),
         "Primitive Campaign Groups migrated" to result.primitiveCampaignGroupsMigrated.toString(),
         "Composite Campaign Groups migrated" to result.compositeCampaignGroupsMigrated.toString(),
         "Unresolvable Campaign Group references" to
