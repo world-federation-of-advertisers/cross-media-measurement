@@ -149,6 +149,11 @@ and those consistency checks pass does the tool:
     while preserving the exact IDs of caller-supplied ReportingSet components,
     including their filter semantics.
 
+Every result must contain the same number of custom component summaries as
+ReportingSets in its stored request, including results with no summaries. A
+count mismatch leaves the whole report unchanged, counts as unresolved
+components, and keeps readiness at `no`. Partial metric entries remain valid.
+
 A caller-supplied ReportingSet component must name the same MeasurementConsumer
 as the `BasicReport`. Its recorded component EventGroups must match the
 referenced primitive's membership or the EventGroups reachable through a
