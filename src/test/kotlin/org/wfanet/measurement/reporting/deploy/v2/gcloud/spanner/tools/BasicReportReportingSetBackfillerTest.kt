@@ -251,7 +251,10 @@ class BasicReportReportingSetBackfillerTest {
     runBlocking<Unit> {
       createNonCampaignGroup(INVALID_CAMPAIGN_GROUP_ID, listOf(EVENT_GROUP_ID_1))
       createFilteredCustomComponent()
-      insertCustomComponentBasicReport()
+      insertCustomComponentBasicReport(
+        requestedMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID,
+        recordedEventGroupIds = listOf(EVENT_GROUP_ID_1),
+      )
 
       val result = newBackfiller(dryRun = false).run()
 
@@ -299,7 +302,10 @@ class BasicReportReportingSetBackfillerTest {
     runBlocking<Unit> {
       createNonCampaignGroup()
       createCompositeCustomComponent()
-      insertCustomComponentBasicReport()
+      insertCustomComponentBasicReport(
+        requestedMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID,
+        recordedEventGroupIds = listOf(EVENT_GROUP_ID_1, EVENT_GROUP_ID_2),
+      )
 
       val result = newBackfiller(dryRun = false).run()
 
@@ -318,6 +324,122 @@ class BasicReportReportingSetBackfillerTest {
         .isEqualTo(customComponentName)
       assertThat(publicResult.metricSet.componentsList.map { it.key })
         .containsExactly(customComponentName)
+    }
+
+  @Test
+  fun `run blocks a custom composite component owned by another consumer`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      createCompositeCustomComponent()
+      insertCustomComponentBasicReport(
+        requestedMeasurementConsumerId = OTHER_CMMS_MEASUREMENT_CONSUMER_ID,
+        recordedEventGroupIds = listOf(EVENT_GROUP_ID_1, EVENT_GROUP_ID_2),
+      )
+
+      val dryRunResult = newBackfiller(dryRun = true).run()
+
+      assertThat(dryRunResult.updated).isEqualTo(0)
+      assertThat(dryRunResult.skipped).isEqualTo(1)
+      assertThat(dryRunResult.readyToRemoveReadPathFallback).isFalse()
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.updated).isEqualTo(0)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.unresolvedComponents).isEqualTo(1)
+      assertThat(result.readyToRemoveReadPathFallback).isFalse()
+      assertThat(readInternalBasicReport().externalCampaignGroupId)
+        .isEqualTo(INVALID_CAMPAIGN_GROUP_ID)
+      assertThat(readComponentSummaryReportingSetId()).isEmpty()
+      assertThat(readAllReportingSets().map { it.externalReportingSetId })
+        .containsExactly(
+          INVALID_CAMPAIGN_GROUP_ID,
+          CUSTOM_COMPONENT_ID,
+          CUSTOM_COMPONENT_PRIMITIVE_1_ID,
+          CUSTOM_COMPONENT_PRIMITIVE_2_ID,
+        )
+    }
+
+  @Test
+  fun `run blocks custom composite metadata missing a reachable EventGroup`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      createCompositeCustomComponent()
+      insertCustomComponentBasicReport(
+        requestedMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID,
+        recordedEventGroupIds = listOf(EVENT_GROUP_ID_1),
+      )
+
+      val dryRunResult = newBackfiller(dryRun = true).run()
+
+      assertThat(dryRunResult.updated).isEqualTo(0)
+      assertThat(dryRunResult.skipped).isEqualTo(1)
+      assertThat(dryRunResult.readyToRemoveReadPathFallback).isFalse()
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.updated).isEqualTo(0)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.unresolvedComponents).isEqualTo(1)
+      assertThat(result.readyToRemoveReadPathFallback).isFalse()
+      assertThat(readInternalBasicReport().externalCampaignGroupId)
+        .isEqualTo(INVALID_CAMPAIGN_GROUP_ID)
+      assertThat(readComponentSummaryReportingSetId()).isEmpty()
+      assertThat(readAllReportingSets().map { it.externalReportingSetId })
+        .containsExactly(
+          INVALID_CAMPAIGN_GROUP_ID,
+          CUSTOM_COMPONENT_ID,
+          CUSTOM_COMPONENT_PRIMITIVE_1_ID,
+          CUSTOM_COMPONENT_PRIMITIVE_2_ID,
+        )
+    }
+
+  @Test
+  fun `primitive migration blocks a custom component owned by another consumer`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup(INVALID_CAMPAIGN_GROUP_ID, listOf(EVENT_GROUP_ID_1))
+      createFilteredCustomComponent()
+      insertCustomComponentBasicReport(
+        requestedMeasurementConsumerId = OTHER_CMMS_MEASUREMENT_CONSUMER_ID,
+        recordedEventGroupIds = listOf(EVENT_GROUP_ID_1),
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.updated).isEqualTo(0)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.unresolvedComponents).isEqualTo(1)
+      assertThat(result.primitiveCampaignGroupsMigrated).isEqualTo(0)
+      assertThat(result.readyToRemoveReadPathFallback).isFalse()
+      assertThat(readInternalBasicReport().externalCampaignGroupId)
+        .isEqualTo(INVALID_CAMPAIGN_GROUP_ID)
+      assertThat(readComponentSummaryReportingSetId()).isEmpty()
+      assertThat(readAllReportingSets().map { it.externalReportingSetId })
+        .containsExactly(INVALID_CAMPAIGN_GROUP_ID, CUSTOM_COMPONENT_ID)
+    }
+
+  @Test
+  fun `primitive migration blocks conflicting custom component EventGroups`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup(INVALID_CAMPAIGN_GROUP_ID, listOf(EVENT_GROUP_ID_1))
+      createFilteredCustomComponent()
+      insertCustomComponentBasicReport(
+        requestedMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID,
+        recordedEventGroupIds = listOf(EVENT_GROUP_ID_2),
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.updated).isEqualTo(0)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.unresolvedComponents).isEqualTo(1)
+      assertThat(result.primitiveCampaignGroupsMigrated).isEqualTo(0)
+      assertThat(result.readyToRemoveReadPathFallback).isFalse()
+      assertThat(readInternalBasicReport().externalCampaignGroupId)
+        .isEqualTo(INVALID_CAMPAIGN_GROUP_ID)
+      assertThat(readComponentSummaryReportingSetId()).isEmpty()
+      assertThat(readAllReportingSets().map { it.externalReportingSetId })
+        .containsExactly(INVALID_CAMPAIGN_GROUP_ID, CUSTOM_COMPONENT_ID)
     }
 
   @Test
@@ -1457,7 +1579,10 @@ class BasicReportReportingSetBackfillerTest {
     )
   }
 
-  private suspend fun insertCustomComponentBasicReport() {
+  private suspend fun insertCustomComponentBasicReport(
+    requestedMeasurementConsumerId: String,
+    recordedEventGroupIds: List<String>,
+  ) {
     val basicReport = internalBasicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
@@ -1468,7 +1593,7 @@ class BasicReportReportingSetBackfillerTest {
             reportingSetKeys =
               ReportingUnitKt.reportingSetKeys {
                 reportingSetKeys += reportingSetKey {
-                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                  cmmsMeasurementConsumerId = requestedMeasurementConsumerId
                   externalReportingSetId = CUSTOM_COMPONENT_ID
                 }
               }
@@ -1487,11 +1612,13 @@ class BasicReportReportingSetBackfillerTest {
                         InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           @Suppress("DEPRECATION")
                           eventGroupSummaries +=
-                            InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
-                              .eventGroupSummary {
-                                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                                cmmsEventGroupId = EVENT_GROUP_ID_1
-                              }
+                            recordedEventGroupIds.map { recordedEventGroupId ->
+                              InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                                .eventGroupSummary {
+                                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                                  cmmsEventGroupId = recordedEventGroupId
+                                }
+                            }
                         }
                     }
                 }
@@ -1999,6 +2126,7 @@ class BasicReportReportingSetBackfillerTest {
 
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "mc"
+    private const val OTHER_CMMS_MEASUREMENT_CONSUMER_ID = "other-mc"
     private const val CMMS_DATA_PROVIDER_ID = "dp"
     private const val EVENT_GROUP_ID_1 = "eg1"
     private const val EVENT_GROUP_ID_2 = "eg2"

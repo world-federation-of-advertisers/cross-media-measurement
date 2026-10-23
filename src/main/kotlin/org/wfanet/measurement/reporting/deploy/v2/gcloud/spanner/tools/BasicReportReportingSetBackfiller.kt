@@ -401,7 +401,7 @@ class BasicReportReportingSetBackfiller(
         .iterator()
     val customMembershipsByReportingSetId = mutableMapOf<String, ComponentMembershipResolution>()
     val membershipResolutions: List<ComponentMembershipResolution> = buildList {
-      for (identity in componentIdentitiesToResolve) {
+      for ((componentIndex, identity) in componentIdentitiesToResolve.withIndex()) {
         val customReportingSetId = identity.externalReportingSetId
         val resolution =
           when {
@@ -415,18 +415,42 @@ class BasicReportReportingSetBackfiller(
               }
             else -> dataProviderMembershipResolutions.next()
           }
+        val membership = resolution.membership
+        val metadataValidatedResolution =
+          if (customReportingSetId == null || membership == null) {
+            resolution
+          } else {
+            val componentSummary = componentSummariesToResolve[componentIndex]
+            @Suppress("DEPRECATION") // Only stored record of legacy component membership.
+            val recordedEventGroupCounts: Map<String, Int> =
+              componentSummary.eventGroupSummariesList
+                .groupingBy { it.cmmsEventGroupId }
+                .eachCount()
+            val reportingSetEventGroupCounts: Map<String, Int> =
+              membership.groupingBy { it.cmmsEventGroupId }.eachCount()
+            if (recordedEventGroupCounts == reportingSetEventGroupCounts) {
+              resolution
+            } else {
+              ComponentMembershipResolution(
+                null,
+                "its recorded EventGroups do not match custom ReportingSet " + customReportingSetId,
+              )
+            }
+          }
         add(
           if (
             !campaignGroupChanged &&
-              resolution.membership != null &&
-              !campaignGroupSource.eventGroupKeys.containsAll(resolution.membership)
+              metadataValidatedResolution.membership != null &&
+              !campaignGroupSource.eventGroupKeys.containsAll(
+                metadataValidatedResolution.membership
+              )
           ) {
             ComponentMembershipResolution(
               null,
               "its EventGroups are not all in the Campaign Group universe",
             )
           } else {
-            resolution
+            metadataValidatedResolution
           }
         )
       }
@@ -591,14 +615,12 @@ class BasicReportReportingSetBackfiller(
     for ((resultGroupIndex, resultGroup) in
       basicReport.resultDetails.resultGroupsList.withIndex()) {
       val resultGroupSpec = basicReport.details.resultGroupSpecsList.getOrNull(resultGroupIndex)
-      val requestedReportingSetIds: List<String>? =
+      val requestedReportingSetKeys =
         if (
           resultGroupSpec?.reportingUnit?.componentsCase ==
             ReportingUnit.ComponentsCase.REPORTING_SET_KEYS
         ) {
-          resultGroupSpec.reportingUnit.reportingSetKeys.reportingSetKeysList.map {
-            it.externalReportingSetId
-          }
+          resultGroupSpec.reportingUnit.reportingSetKeys.reportingSetKeysList
         } else {
           null
         }
@@ -606,14 +628,18 @@ class BasicReportReportingSetBackfiller(
         val componentSummaries =
           result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList
         for ((componentIndex, componentSummary) in componentSummaries.withIndex()) {
-          if (requestedReportingSetIds != null) {
-            val requestedReportingSetId = requestedReportingSetIds.getOrNull(componentIndex)
+          if (requestedReportingSetKeys != null) {
+            val requestedReportingSetKey = requestedReportingSetKeys.getOrNull(componentIndex)
+            val requestedReportingSetId = requestedReportingSetKey?.externalReportingSetId
             val reason =
               when {
-                requestedReportingSetIds.size != componentSummaries.size ->
+                requestedReportingSetKeys.size != componentSummaries.size ->
                   "its custom component count does not match the stored request"
-                requestedReportingSetId == null || requestedReportingSetId.isEmpty() ->
+                requestedReportingSetKey == null || requestedReportingSetId.isNullOrEmpty() ->
                   "its custom ReportingSet ID is empty in the stored request"
+                requestedReportingSetKey.cmmsMeasurementConsumerId !=
+                  basicReport.cmmsMeasurementConsumerId ->
+                  "its custom ReportingSet belongs to a different MeasurementConsumer"
                 componentSummary.cmmsDataProviderId.isNotEmpty() ->
                   "its stored request identifies a custom ReportingSet but the result identifies " +
                     "a DataProvider"

@@ -145,6 +145,13 @@ and those consistency checks pass does the tool:
     while preserving the exact IDs of caller-supplied ReportingSet components,
     including their filter semantics.
 
+A caller-supplied ReportingSet component must name the same MeasurementConsumer
+as the `BasicReport`. Its recorded component EventGroups must match the
+referenced primitive's membership or the EventGroups reachable through a
+composite, including the number of occurrences of each EventGroup ID. A
+foreign-consumer key or conflicting EventGroup metadata blocks the report in
+both dry-run and applied runs and keeps readiness at `no`.
+
 For a composite reference with no `CampaignGroupId`, the tool recursively
 collects the EventGroups from every referenced primitive ReportingSet. Set
 operations and filters affect population semantics, but every referenced
