@@ -149,9 +149,13 @@ and those consistency checks pass does the tool:
     including their filter semantics.
 
 Every result must contain the same number of custom component summaries as
-ReportingSets in its stored request, including results with no summaries. A
-count mismatch leaves the whole report unchanged, counts as unresolved
-components, and keeps readiness at `no`. Partial metric entries remain valid.
+ReportingSets in its stored request. For DataProvider components, each result
+must have a resolved summary for every requested provider, including providers
+without metric entries. Blank provider IDs are resolved before checking this
+coverage. Missing summaries, including empty summary lists, leave the whole
+report unchanged, count as unresolved components, and keep readiness at `no`,
+even when existing summary ReportingSet IDs are complete. Partial metric entries
+remain valid when summaries cover every requested component.
 
 A caller-supplied ReportingSet component must name the same MeasurementConsumer
 as the `BasicReport`. Its recorded component EventGroups must match the
