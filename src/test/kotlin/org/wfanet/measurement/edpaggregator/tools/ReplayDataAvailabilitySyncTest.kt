@@ -56,16 +56,22 @@ import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchUpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLease
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RenewDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.gcloud.gcs.testing.StorageEmulatorRule
@@ -179,10 +185,12 @@ class ReplayDataAvailabilitySyncTest {
           Status.PERMISSION_DENIED.withDescription("Metadata access denied").asRuntimeException()
         )
     }
+    val leaseService = ReplayLeaseService()
     val server: Server =
       NettyServerBuilder.forPort(0)
         .sslContext(serverCerts.toServerTlsContext())
         .addService(impressionMetadataServiceMock)
+        .addService(leaseService)
         .build()
         .start()
     val logRecords = mutableListOf<LogRecord>()
@@ -216,6 +224,12 @@ class ReplayDataAvailabilitySyncTest {
       val exception = checkNotNull(errorRecord.thrown)
       assertThat(exception.cause).isNotNull()
       assertThat(Status.fromThrowable(exception).code).isEqualTo(Status.Code.PERMISSION_DENIED)
+      if (mode == ReplayDataAvailabilitySync.Mode.FULL_SYNC) {
+        assertThat(leaseService.acquiredNames).hasSize(1)
+        assertThat(leaseService.releasedNames).containsExactlyElementsIn(leaseService.acquiredNames)
+      } else {
+        assertThat(leaseService.acquiredNames).isEmpty()
+      }
     } finally {
       logger.removeHandler(logHandler)
       server.shutdown()
@@ -281,11 +295,13 @@ class ReplayDataAvailabilitySyncTest {
       onBlocking { batchUpdateEventGroupActivities(any<BatchUpdateEventGroupActivitiesRequest>()) }
         .thenReturn(batchUpdateEventGroupActivitiesResponse {})
     }
+    val leaseService = ReplayLeaseService()
     val server: Server =
       NettyServerBuilder.forPort(0)
         .sslContext(serverCerts.toServerTlsContext())
         .addService(dataProvidersServiceMock)
         .addService(impressionMetadataServiceMock)
+        .addService(leaseService)
         .addService(activitiesServiceMock)
         .build()
         .start()
@@ -325,6 +341,12 @@ class ReplayDataAvailabilitySyncTest {
       val createdMetadata = createRequest.firstValue.requestsList.single().impressionMetadata
       assertThat(createdMetadata.blobUri).isEqualTo("gs://$BUCKET_NAME/$NEW_METADATA_BLOB_KEY")
       assertThat(createdMetadata.eventGroupReferenceId).isEqualTo(NEW_EVENT_GROUP_REFERENCE_ID)
+      assertThat(createdMetadata.outputDoneBlobGeneration).isEqualTo(doneGeneration)
+      val leaseName = leaseService.acquiredNames.single()
+      assertThat(leaseName).startsWith("$DATA_PROVIDER_NAME/dataAvailabilitySyncLeases/")
+      assertThat(createRequest.firstValue.dataAvailabilitySyncLease).isEqualTo(leaseName)
+      assertThat(createRequest.firstValue.requestsList.single().dataAvailabilitySyncLease)
+        .isEqualTo(leaseName)
 
       val updateRequest = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -336,6 +358,12 @@ class ReplayDataAvailabilitySyncTest {
       assertThat(updatedMetadata.eventGroupReferenceId).isEqualTo(UPDATED_EVENT_GROUP_REFERENCE_ID)
       assertThat(updatedMetadata.interval.startTime.seconds)
         .isEqualTo(UPDATED_INTERVAL_START_SECONDS)
+      assertThat(updatedMetadata.outputDoneBlobGeneration).isEqualTo(doneGeneration)
+      assertThat(updateRequest.firstValue.dataAvailabilitySyncLease).isEqualTo(leaseName)
+      assertThat(updateRequest.firstValue.requestsList.single().dataAvailabilitySyncLease)
+        .isEqualTo(leaseName)
+      assertThat(leaseService.renewalCount).isGreaterThan(0)
+      assertThat(leaseService.releasedNames).containsExactly(leaseName)
 
       verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
       verifyBlocking(activitiesServiceMock, never()) { batchUpdateEventGroupActivities(any()) }
@@ -349,6 +377,52 @@ class ReplayDataAvailabilitySyncTest {
       server.shutdown()
       server.awaitTermination(1, SECONDS)
       storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
+  }
+
+  private class ReplayLeaseService : DataAvailabilitySyncLeaseServiceCoroutineImplBase() {
+    val acquiredNames = mutableListOf<String>()
+    val releasedNames = mutableListOf<String>()
+    var renewalCount = 0
+      private set
+
+    private var currentLease: DataAvailabilitySyncLease? = null
+
+    override suspend fun acquireDataAvailabilitySyncLease(
+      request: AcquireDataAvailabilitySyncLeaseRequest
+    ): DataAvailabilitySyncLease {
+      assertThat(currentLease).isNull()
+      assertThat(request.requestId).isNotEmpty()
+      acquiredNames += request.name
+      return dataAvailabilitySyncLease {
+          name = request.name
+          state = DataAvailabilitySyncLease.State.ACTIVE
+          etag = "lease-0"
+        }
+        .also { currentLease = it }
+    }
+
+    override suspend fun renewDataAvailabilitySyncLease(
+      request: RenewDataAvailabilitySyncLeaseRequest
+    ): DataAvailabilitySyncLease {
+      val lease = checkNotNull(currentLease)
+      assertThat(request.name).isEqualTo(lease.name)
+      assertThat(request.etag).isEqualTo(lease.etag)
+      assertThat(request.requestId).isNotEmpty()
+      renewalCount++
+      return lease.copy { etag = "lease-$renewalCount" }.also { currentLease = it }
+    }
+
+    override suspend fun releaseDataAvailabilitySyncLease(
+      request: ReleaseDataAvailabilitySyncLeaseRequest
+    ): DataAvailabilitySyncLease {
+      val lease = checkNotNull(currentLease)
+      assertThat(request.name).isEqualTo(lease.name)
+      assertThat(request.etag).isEqualTo(lease.etag)
+      assertThat(request.requestId).isNotEmpty()
+      releasedNames += request.name
+      currentLease = null
+      return lease.copy { state = DataAvailabilitySyncLease.State.RELEASED }
     }
   }
 
