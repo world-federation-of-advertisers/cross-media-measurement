@@ -2,7 +2,7 @@
 # EDP Aggregator System
 
 Edp Aggregator components for Google Cloud.
-## Durable EventGroupSync
+## Durable EventGroupSync WorkItems
 
 Event-group finalize routes enqueue a generation-specific `WorkItem` on
 `event-group-sync-queue`. DataWatcher returns after the control plane durably accepts the task.
@@ -34,7 +34,9 @@ For queued GCS inputs, configure each provider's `event_groups_blob_uri` with it
 input object URI. The consumer restricts incoming sources to that bucket and directory and
 reads the exact finalized generation. Update this URI when moving the input location.
 
-Set `event_group_sync_memory` to the existing environment allocation before redeployment. Its default remains `512MB`; larger inputs need an explicitly sized allocation.
+Set `event_group_sync_memory` to the existing environment allocation before redeployment.
+Leaving it unset preserves the existing deployment replacement keys; a new or redeployed
+function still uses the legacy `512MB` allocation unless overridden.
 
 ## External data availability WorkItems
 
