@@ -29,16 +29,12 @@ watched_paths {
 watched_paths {
   identifier: "data-availability"
   source_path_regex: "^gs://secure-computation-storage-dev-bucket/edp/edp7/model-line/[^/]+/[^/]+/done$"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-sync"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/T5RryPMNong"
     app_params {
-      fields {
-        key: "@type"
-        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams" }
-      }
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/T5RryPMNong" }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/T5RryPMNong"
       }
     }
   }
@@ -46,16 +42,12 @@ watched_paths {
 watched_paths {
   identifier: "data-availability"
   source_path_regex: "^gs://secure-computation-storage-dev-bucket/edp/edpa_meta/model-line/[^/]+/[^/]+/done$"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-sync"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/J3-pzhqS9Lo"
     app_params {
-      fields {
-        key: "@type"
-        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams" }
-      }
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/J3-pzhqS9Lo" }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/J3-pzhqS9Lo"
       }
     }
   }
@@ -179,21 +171,16 @@ watched_paths {
 watched_paths {
   identifier: "data-availability"
   source_path_regex: "^gs://secure-computation-storage-dev-bucket/edp/edpa_video_pub/model-line/[^/]+/[^/]+/done$"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-sync"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/KYq_ciWaP94"
     app_params {
-      fields {
-        key: "@type"
-        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams" }
-      }
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/KYq_ciWaP94" }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/KYq_ciWaP94"
       }
     }
   }
 }
-
 watched_paths {
   identifier: "results-fulfiller"
   source_path_regex: "gs://secure-computation-storage-dev-bucket/edpa_video_pub/requisitions/(.*)"
@@ -246,21 +233,16 @@ watched_paths {
 watched_paths {
   identifier: "data-availability"
   source_path_regex: "^gs://secure-computation-storage-dev-bucket/edp/edpa_retail_pub/model-line/[^/]+/[^/]+/done$"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-sync"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/bvIQ5SrPwhk"
     app_params {
-      fields {
-        key: "@type"
-        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams" }
-      }
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/bvIQ5SrPwhk" }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/bvIQ5SrPwhk"
       }
     }
   }
 }
-
 watched_paths {
   identifier: "results-fulfiller"
   source_path_regex: "gs://secure-computation-storage-dev-bucket/edpa_retail_pub/requisitions/(.*)"
