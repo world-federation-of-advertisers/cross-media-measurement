@@ -29,7 +29,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -560,7 +559,7 @@ class VidLabelingMonitor(
 
   /**
    * Counts, across COMPLETED uploads and their COMPLETED model lines, the `(model line, event
-   * date)` pairs missing their labeled `done` blob at `model-line/<modelLineId>/<event_date>/done`.
+   * date)` pairs missing their upload-specific labeled `done` blob.
    *
    * The event dates come from the upload's registered `RawImpressionUploadFile`s (`event_date`,
    * populated at registration from the file's plaintext footer). At last-job-out the labeler writes
@@ -584,9 +583,9 @@ class VidLabelingMonitor(
           it.state == RawImpressionUploadModelLine.State.COMPLETED
         }
       for (modelLine in completedModelLines) {
-        val modelLineId = ModelLineKey.fromName(modelLine.cmmsModelLine)?.modelLineId ?: continue
         for (eventDate in eventDates) {
-          val doneKey = "model-line/$modelLineId/$eventDate/done"
+          val doneKey =
+            LabeledImpressionsBlobKeys.forDone(upload.name, modelLine.cmmsModelLine, eventDate)
           if (vidLabeledImpressionsStorageClient.getBlob(doneKey) == null) {
             missing++
           }
@@ -726,6 +725,7 @@ class VidLabelingMonitor(
       val doneUri =
         LabeledImpressionsBlobKeys.forDoneUri(
           vidLabeledImpressionsBlobPrefix,
+          uploadName,
           modelLine.cmmsModelLine,
           eventDate,
         )
