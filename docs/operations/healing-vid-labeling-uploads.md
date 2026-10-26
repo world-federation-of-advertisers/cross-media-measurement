@@ -34,7 +34,7 @@ List candidate summaries when the plan needs more investigation:
 ```shell
 vid-labeling-heal list-correction-candidates \
   --data-provider=dataProviders/DATA_PROVIDER \
-  --state=PLANNED \
+  --state=ASSIGNED \
   --edpa-public-api-target=EDPA_TARGET \
   TLS_FLAGS
 
@@ -70,11 +70,14 @@ Approval freezes the candidate set and decisions. The controller then drains in-
 evicts derived state and output, replays approved replacements, observes normal pipeline recovery,
 and releases the DataProvider fence. Operators do not run eviction, replay, or resume commands.
 
-Eviction permanently terminates unfinished availability tasks for obsolete output. A replacement
-uses the normal VID-labeling path: VidLabeler writes the versioned output `done` object, creates its
-durable availability task, and then completes the model line. Healing completion does not wait for
-that task to synchronize because the fence prevents it from acquiring a lease. After the controller
-releases the fence, the replacement task acquires its lease and synchronizes availability.
+Eviction deletes obsolete versioned output; any stale availability WorkItem later fails its
+exact-generation check. A replacement uses the normal VID-labeling path: VidLabeler writes the
+versioned output `done` object, moves the model line to `AVAILABILITY_SYNCING` with its pending
+event dates, and creates durable availability WorkItems. Healing completion does not wait for those
+WorkItems to synchronize because the fence prevents them from acquiring a lease. After the
+controller releases the fence, the WorkItems acquire leases and synchronize availability. Each
+acknowledged event date is removed from the pending set; the model line becomes `COMPLETED` only
+after that set is empty.
 
 Uploads received while the fence exists are registered with `processing_deferred=true`; they become
 eligible only after the plan completes and the fence is released.
