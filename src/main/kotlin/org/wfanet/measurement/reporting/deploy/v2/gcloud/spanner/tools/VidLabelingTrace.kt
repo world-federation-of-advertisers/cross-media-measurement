@@ -746,6 +746,8 @@ internal class VidLabelingTraceCollector(
         "xmm.edpa.impression_metadata.action",
         "xmm.edpa.availability.interval_start",
         "xmm.edpa.availability.interval_end",
+        "xmm.error.type",
+        "xmm.error.code",
       )
     private val UNIQUE_CORRELATION_FIELDS =
       setOf(

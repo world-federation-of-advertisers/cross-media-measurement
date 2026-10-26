@@ -280,6 +280,68 @@ class VidLabelingTraceTest {
   }
 
   @Test
+  fun `collect and render retain safe error classification from logs and spans`() = runBlocking {
+    val logEntry =
+      entry(
+        "label",
+        "xmm.error.type=IllegalStateException xmm.error.code=grpc.INTERNAL " +
+          "exception.message=sensitive-log-message " +
+          "xmm.edpa.processed_column.value=email_address",
+        rawImpressionUpload = RAW_UPLOAD,
+        outcome = "failed",
+        traceId = ROOT_TRACE,
+      )
+    val traceSpan =
+      CloudTraceSpan(
+        "observability-project",
+        ROOT_TRACE,
+        "span-error",
+        null,
+        "edpa.vid_labeling.label",
+        "worker",
+        Instant.parse("2026-09-01T00:00:01Z"),
+        Instant.parse("2026-09-01T00:00:02Z"),
+        mapOf(
+          "xmm.lifecycle.stage" to "label",
+          "xmm.outcome" to "failed",
+          "xmm.edpa.raw_impression_upload.name" to RAW_UPLOAD,
+          "xmm.error.type" to "StorageException",
+          "xmm.error.code" to "storage.500",
+          "exception.message" to "sensitive-span-message",
+          "xmm.edpa.processed_column.value" to "email_address",
+        ),
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(listOf(logEntry)) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> listOf(traceSpan) },
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val collection = collector.collect(request())
+
+    val collectedLog = collection.evidence.single { it.source == "log" }
+    assertThat(collectedLog.identifiers).containsEntry("xmm.error.type", "IllegalStateException")
+    assertThat(collectedLog.identifiers).containsEntry("xmm.error.code", "grpc.INTERNAL")
+    assertThat(collectedLog.identifiers).doesNotContainKey("exception.message")
+    assertThat(collectedLog.identifiers).doesNotContainKey("xmm.edpa.processed_column.value")
+    val collectedSpan = collection.evidence.single { it.source == "span" }
+    assertThat(collectedSpan.identifiers).containsEntry("xmm.error.type", "StorageException")
+    assertThat(collectedSpan.identifiers).containsEntry("xmm.error.code", "storage.500")
+    assertThat(collectedSpan.identifiers).doesNotContainKey("exception.message")
+    assertThat(collectedSpan.identifiers).doesNotContainKey("xmm.edpa.processed_column.value")
+    val output = VidLabelingTraceOutput.render(collection)
+    assertThat(output).contains("IllegalStateException")
+    assertThat(output).contains("grpc.INTERNAL")
+    assertThat(output).contains("StorageException")
+    assertThat(output).contains("storage.500")
+    assertThat(output).doesNotContain("sensitive-log-message")
+    assertThat(output).doesNotContain("sensitive-span-message")
+    assertThat(output).doesNotContain("email_address")
+  }
+
+  @Test
   fun `collect traverses mixed routes and excludes another upload`() = runBlocking {
     val entries = buildList {
       add(entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE))
