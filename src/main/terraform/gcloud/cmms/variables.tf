@@ -507,3 +507,15 @@ variable "dashboard_alert_notification_channels" {
   type        = list(string)
   default     = []
 }
+
+variable "event_group_sync_schedules" {
+  description = "Optional direct HTTP EGS schedules. Empty preserves DataWatcher triggering; remove matching DataWatcher routes before enabling. Syncs must finish within 29 minutes."
+  type = map(object({
+    schedule       = string
+    time_zone      = optional(string, "Etc/UTC")
+    paused         = optional(bool, false)
+    data_provider  = string
+    input_blob_uri = string
+  }))
+  default = {}
+}
