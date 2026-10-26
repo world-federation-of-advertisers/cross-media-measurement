@@ -173,6 +173,8 @@ class VidRankBuilderApp(
         dataProvider = dataProvider,
         rawImpressionUpload = params.rawImpressionUpload,
         modelLine = params.modelLine,
+        allowedPriorSnapshotRawImpressionUploads =
+          params.allowedPriorSnapshotRawImpressionUploadsList.toSet(),
         vidRankMapBlobPrefix =
           SelectedStorageClient.parseBlobUri(params.vidRankMapStorageParams.blobPrefix).key,
         kekUri = params.encryptedSubpoolMapsDek.kekUri,
