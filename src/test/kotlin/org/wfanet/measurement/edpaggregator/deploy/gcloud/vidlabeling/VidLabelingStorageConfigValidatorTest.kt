@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
 import com.google.protobuf.TextFormat
 import com.google.protobuf.struct
 import com.google.protobuf.value
@@ -38,6 +39,7 @@ import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlan
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpointSink
 import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
 import org.wfanet.measurement.config.securecomputation.watchedPath
+import org.wfanet.measurement.edpaggregator.v1alpha.externalDataAvailabilitySyncParams
 import picocli.CommandLine
 
 @RunWith(JUnit4::class)
@@ -508,6 +510,46 @@ class VidLabelingStorageConfigValidatorTest {
       }
 
     assertThat(error).hasMessageThat().contains("paths overlap")
+  }
+
+  @Test
+  fun `queued external route cannot match internal VID Labeler outputs`() {
+    val watcher = dataWatcherConfig {
+      watchedPaths += watchedPath {
+        sourcePathRegex = "gs://bucket/$LABELED_OUTPUT_PATH/model-line/.*/.*/done"
+        controlPlaneQueueSink = controlPlaneQueueSink {
+          queue = "data-availability-sync-queue"
+          appParams = Any.pack(externalDataAvailabilitySyncParams { dataProvider = DATA_PROVIDER })
+        }
+      }
+    }
+    assertFailsWith<IllegalArgumentException> {
+      VidLabelingStorageConfigValidator.validate(
+        vidConfigs(LABELED_OUTPUT_PATH),
+        vidConfigs(LABELED_OUTPUT_PATH),
+        syncConfigs(LABELED_OUTPUT_PATH),
+        watcher,
+      )
+    }
+  }
+
+  @Test
+  fun `queued external route on a separate prefix is accepted`() {
+    val watcher = dataWatcherConfig {
+      watchedPaths += watchedPath {
+        sourcePathRegex = "gs://bucket/edp/external/model-line/.*/.*/done"
+        controlPlaneQueueSink = controlPlaneQueueSink {
+          queue = "data-availability-sync-queue"
+          appParams = Any.pack(externalDataAvailabilitySyncParams { dataProvider = DATA_PROVIDER })
+        }
+      }
+    }
+    VidLabelingStorageConfigValidator.validate(
+      vidConfigs(LABELED_OUTPUT_PATH),
+      vidConfigs(LABELED_OUTPUT_PATH),
+      syncConfigs(LABELED_OUTPUT_PATH),
+      watcher,
+    )
   }
 
   private fun vidConfigs(path: String, rawPrefix: String = RAW_INPUT_PATH) = vidLabelingConfigs {
