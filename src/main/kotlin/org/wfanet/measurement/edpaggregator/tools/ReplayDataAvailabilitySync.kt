@@ -46,9 +46,12 @@ import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncReplay
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityBackfill
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobUri
@@ -195,11 +198,13 @@ class ReplayDataAvailabilitySync : Runnable {
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
     val instrumentedKingdomChannel =
       ClientInterceptors.intercept(kingdomChannel, grpcTelemetry.newClientInterceptor())
-    val impressionMetadataStub =
-      ImpressionMetadataServiceCoroutineStub(
-        ClientInterceptors.intercept(
-          impressionMetadataChannel,
-          grpcTelemetry.newClientInterceptor(),
+    val instrumentedMetadataChannel =
+      ClientInterceptors.intercept(impressionMetadataChannel, grpcTelemetry.newClientInterceptor())
+    val impressionMetadataStub = ImpressionMetadataServiceCoroutineStub(instrumentedMetadataChannel)
+    val leaseRunner =
+      DataAvailabilitySyncLeaseRunner(
+        GrpcDataAvailabilitySyncLeaseClient(
+          DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedMetadataChannel)
         )
       )
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
@@ -254,10 +259,16 @@ class ReplayDataAvailabilitySync : Runnable {
                   storageRootUri = storageRootUri,
                   selection = selection,
                   sync = { doneBlobUri ->
-                    dataAvailabilitySync.sync(
-                      doneBlobPath = doneBlobUri,
-                      doneBlobGeneration = DoneBlobGenerationResolver.resolve(storage, doneBlobUri),
-                    )
+                    leaseRunner.run(config.dataProvider) { lease ->
+                      dataAvailabilitySync.sync(
+                        doneBlobPath = doneBlobUri,
+                        dataAvailabilitySyncLease = lease.name,
+                        doneBlobGeneration =
+                          DoneBlobGenerationResolver.resolve(storage, doneBlobUri),
+                        discoveryMode = DataAvailabilitySync.DiscoveryMode.FolderScan,
+                        ensureLeaseActive = lease::invoke,
+                      )
+                    }
                   },
                 )
                 .replay()
