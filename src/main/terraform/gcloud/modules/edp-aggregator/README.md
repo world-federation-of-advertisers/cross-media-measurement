@@ -30,4 +30,8 @@ configured client TLS identity. Terraform mounts the control-plane CA and grants
 identity invocation on EGS. Monitor WorkItem states and mapping freshness alongside push/DLQ
 metrics: delivery failures are distinct from synchronization outcomes.
 
+For queued GCS inputs, configure each provider's `event_groups_blob_uri` with its canonical
+input object URI. The consumer restricts incoming sources to that bucket and directory and
+reads the exact finalized generation. Update this URI when moving the input location.
+
 Set `event_group_sync_memory` to the existing environment allocation before redeployment. Its default remains `512MB`; larger inputs need an explicitly sized allocation.
