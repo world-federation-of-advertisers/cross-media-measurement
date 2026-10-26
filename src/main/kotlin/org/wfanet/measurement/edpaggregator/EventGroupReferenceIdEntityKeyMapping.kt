@@ -56,25 +56,67 @@ data class EventGroupReferenceIdEntityKeyMapping(
 
   /** Returns the equivalent reference ID, throwing [IllegalArgumentException] if unmappable. */
   fun requireEventGroupReferenceId(entityType: String, entityId: String): String {
+    validateEntityId(entityType, entityId)
+    return eventGroupReferenceIdPrefix + entityId.substring(entityIdPrefix.length)
+  }
+
+  /** Returns the equivalent entity ID, throwing [IllegalArgumentException] if unmappable. */
+  fun requireEntityId(eventGroupReferenceId: String): String {
+    validateEventGroupReferenceId(eventGroupReferenceId)
+    return entityIdPrefix + eventGroupReferenceId.substring(eventGroupReferenceIdPrefix.length)
+  }
+
+  /**
+   * Validates [entityId] without constructing its equivalent reference ID.
+   *
+   * @throws IllegalArgumentException if the ID is blank or unmappable.
+   */
+  fun validateEntityId(entityType: String, entityId: String) {
     require(entityId.isNotBlank()) {
       "Entity ID must not be blank under event_group_reference_id_entity_key_mapping"
     }
-    return requireNotNull(toEventGroupReferenceId(entityType, entityId)) {
+    require(
+      entityType == this.entityType &&
+        canReplacePrefix(entityId, entityIdPrefix, eventGroupReferenceIdPrefix)
+    ) {
       "Entity ID $entityId of type $entityType cannot be converted to a non-blank reference ID " +
         "by event_group_reference_id_entity_key_mapping (entity_id_prefix: $entityIdPrefix)"
     }
   }
 
-  /** Returns the equivalent entity ID, throwing [IllegalArgumentException] if unmappable. */
-  fun requireEntityId(eventGroupReferenceId: String): String {
+  /**
+   * Validates [eventGroupReferenceId] without constructing its equivalent entity ID.
+   *
+   * @throws IllegalArgumentException if the ID is blank or unmappable.
+   */
+  fun validateEventGroupReferenceId(eventGroupReferenceId: String) {
     require(eventGroupReferenceId.isNotBlank()) {
       "Event-group reference ID must not be blank under event_group_reference_id_entity_key_mapping"
     }
-    return requireNotNull(toEntityId(eventGroupReferenceId)) {
+    require(canReplacePrefix(eventGroupReferenceId, eventGroupReferenceIdPrefix, entityIdPrefix)) {
       "Event-group reference ID $eventGroupReferenceId cannot be converted to a non-blank " +
         "entity ID by event_group_reference_id_entity_key_mapping " +
         "(event_group_reference_id_prefix: $eventGroupReferenceIdPrefix)"
     }
+  }
+
+  private fun canReplacePrefix(value: String, sourcePrefix: String, targetPrefix: String): Boolean {
+    if (sourcePrefix.isEmpty()) {
+      // Removing an empty prefix cannot make an already non-blank ID blank.
+      return true
+    }
+    if (!value.startsWith(sourcePrefix)) {
+      return false
+    }
+    if (targetPrefix.isNotBlank()) {
+      return true
+    }
+    for (index in sourcePrefix.length until value.length) {
+      if (!value[index].isWhitespace()) {
+        return true
+      }
+    }
+    return false
   }
 
   private fun replacePrefix(value: String, sourcePrefix: String, targetPrefix: String): String? {

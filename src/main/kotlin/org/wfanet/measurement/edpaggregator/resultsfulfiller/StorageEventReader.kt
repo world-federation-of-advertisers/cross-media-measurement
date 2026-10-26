@@ -158,11 +158,11 @@ class StorageEventReader(
   private fun validateImpressionMapping(impression: LabeledImpression) {
     val mapping: EventGroupReferenceIdEntityKeyMapping = mapping ?: return
     if (impression.eventGroupReferenceId.isNotBlank()) {
-      mapping.requireEntityId(impression.eventGroupReferenceId)
+      mapping.validateEventGroupReferenceId(impression.eventGroupReferenceId)
     }
     for (key in impression.entityKeysList) {
       if (key.entityType == mapping.entityType) {
-        mapping.requireEventGroupReferenceId(key.entityType, key.entityId)
+        mapping.validateEntityId(key.entityType, key.entityId)
       }
     }
   }

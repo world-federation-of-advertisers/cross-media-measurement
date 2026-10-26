@@ -247,11 +247,13 @@ class StorageEventSource(
   private fun validateBlobDetailsMapping(blobDetails: BlobDetails) {
     val mapping: EventGroupReferenceIdEntityKeyMapping = resolvedEventGroups.mapping ?: return
     if (blobDetails.eventGroupReferenceId.isNotBlank()) {
-      mapping.requireEntityId(blobDetails.eventGroupReferenceId)
+      mapping.validateEventGroupReferenceId(blobDetails.eventGroupReferenceId)
     }
     for (group in blobDetails.entityKeysList) {
       if (group.entityType == mapping.entityType) {
-        group.entityIdsList.forEach { mapping.requireEventGroupReferenceId(group.entityType, it) }
+        for (entityId in group.entityIdsList) {
+          mapping.validateEntityId(group.entityType, entityId)
+        }
       }
     }
   }
