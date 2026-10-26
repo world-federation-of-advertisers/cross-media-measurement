@@ -95,6 +95,7 @@ internal data class VidLabelingAvailabilityWorkItem(
   val doneBlobPathHash: String,
   val doneBlobGeneration: Long,
   val rawImpressionUploadModelLine: String = "",
+  val createTimeNanos: Long = 0L,
 ) {
   val attemptCount: Int
     get() = attempts.maxOfOrNull { it.attemptNumber } ?: 0
@@ -705,6 +706,7 @@ internal class GrpcVidLabelingStateResolver(
           hash(dataPath.dataPath),
           dataPath.generation,
           appParams.rawImpressionUploadModelLine,
+          Timestamps.toNanos(workItem.createTime),
         )
       }
   }
