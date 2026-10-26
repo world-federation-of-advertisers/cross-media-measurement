@@ -51,6 +51,8 @@ object TeeStackDumpLogger {
   const val MAX_RECORD_BYTES = 200 * 1024
 
   private const val THREAD_NAME = "tee-stack-dump"
+  private val MIN_INTERVAL: Duration = Duration.ofMillis(1)
+  private val MAX_INTERVAL: Duration = Duration.ofMillis(Long.MAX_VALUE)
   private val logger: Logger = Logger.getLogger(TeeStackDumpLogger::class.java.name)
 
   /**
@@ -77,7 +79,7 @@ object TeeStackDumpLogger {
    * Starts a daemon thread that logs a thread dump after each [awaitTick] returns, until the thread
    * is interrupted.
    *
-   * @param interval time between dumps.
+   * @param interval time between dumps, between 1 ms and [Long.MAX_VALUE] ms.
    * @param awaitTick blocks until the next dump is due; by default, sleeps for [interval]. It must
    *   respond to interruption by throwing [InterruptedException].
    */
@@ -85,9 +87,10 @@ object TeeStackDumpLogger {
     interval: Duration,
     awaitTick: (Duration) -> Unit = { Thread.sleep(it.toMillis()) },
   ): Thread {
-    require(interval > Duration.ZERO) { "interval must be positive" }
-    require(interval.seconds <= MAX_SUPPORTED_INTERVAL_SECONDS) {
-      "interval must be no greater than $MAX_SUPPORTED_INTERVAL_SECONDS seconds"
+    // The default awaitTick sleeps for whole milliseconds: a shorter interval would spin, and a
+    // longer one would overflow the conversion.
+    require(interval in MIN_INTERVAL..MAX_INTERVAL) {
+      "interval must be between 1 ms and ${Long.MAX_VALUE} ms"
     }
     return thread(isDaemon = true, name = THREAD_NAME) {
       logger.info("Logging thread stack dumps every ${interval.seconds}s")

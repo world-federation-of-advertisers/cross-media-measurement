@@ -96,9 +96,19 @@ class TeeStackDumpLoggerTest {
   }
 
   @Test
-  fun `start rejects non-positive and overflowing intervals`() {
-    for (interval in
-      listOf(Duration.ZERO, Duration.ofSeconds(-1), Duration.ofSeconds(Long.MAX_VALUE))) {
+  fun `start rejects intervals outside the millisecond range`() {
+    val invalid =
+      listOf(
+        Duration.ZERO,
+        Duration.ofSeconds(-1),
+        // Would sleep for 0 ms and spin.
+        Duration.ofNanos(1),
+        Duration.ofNanos(999_999),
+        // Whole seconds within range, but the fractional part overflows the millisecond conversion.
+        Duration.ofSeconds(TeeStackDumpLogger.MAX_SUPPORTED_INTERVAL_SECONDS, 999_999_999),
+        Duration.ofSeconds(Long.MAX_VALUE),
+      )
+    for (interval in invalid) {
       assertFailsWith<IllegalArgumentException> { TeeStackDumpLogger.start(interval) }
     }
   }
