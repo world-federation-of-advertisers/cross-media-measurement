@@ -1570,3 +1570,22 @@ image is not `STABLE`). Never use a debug image in production.
 For tracing a specific report and the full failure-mode catalog (model-line mismatch,
 missing impression blobs, KMS-type mismatch, MIG scaling, capacity exhaustion), see
 the [Report Debugging Guide](report-debugging-guide.md).
+
+### VID labeling dispatch recovery
+
+The default CMMS deployment invokes `VidLabelingMonitor.runDispatch` every five
+minutes. This is the durable fallback when registration succeeds but fast-path
+dispatch fails. Dispatch requests retry up to three times with 30–120 second
+backoff and a four-minute retry window. A persistent failure remains visible as a
+failed Scheduler execution and is retried by the next scheduled invocation.
+
+The daily health scan shares the monitor's single-instance cap with dispatch.
+Its Scheduler requests retry up to three times with 300–600 second backoff and
+a 30-minute retry window. The cap continues to bound metadata RPC load; the daily
+health cadence and stuck-phase recovery thresholds are unchanged.
+
+The development Secure Computation internal API requests and limits 1 GiB of
+container memory and bounds Java direct buffers at 128 MiB. Container RSS includes
+the heap, direct buffers, JVM native memory, and instrumentation. Monitor container
+RSS and OOM events when sizing a deployment; the Java heap limit alone does not
+bound total memory.

@@ -965,7 +965,16 @@ module "vid_labeling_monitor_cloud_scheduler" {
   # Wait beyond the function's 600-second timeout so Scheduler can receive its terminal response.
   scheduler_config = merge(
     var.vid_labeling_monitor_scheduler_config,
-    { attempt_deadline = "660s" },
+    {
+      attempt_deadline = "660s"
+      retry_config = {
+        retry_count          = 3
+        max_retry_duration   = "1800s"
+        min_backoff_duration = "300s"
+        max_backoff_duration = "600s"
+        max_doublings        = 2
+      }
+    },
   )
   depends_on = [module.vid_labeling_monitor_cloud_function]
 }
@@ -976,7 +985,16 @@ module "vid_labeling_dispatch_cloud_scheduler" {
   # This job invokes the same function in dispatch mode and needs the same response headroom.
   scheduler_config = merge(
     var.vid_labeling_dispatch_scheduler_config,
-    { attempt_deadline = "660s" },
+    {
+      attempt_deadline = "660s"
+      retry_config = {
+        retry_count          = 3
+        max_retry_duration   = "240s"
+        min_backoff_duration = "30s"
+        max_backoff_duration = "120s"
+        max_doublings        = 2
+      }
+    },
   )
   depends_on = [module.vid_labeling_monitor_cloud_function]
 }
