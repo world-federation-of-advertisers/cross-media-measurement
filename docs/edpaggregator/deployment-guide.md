@@ -84,7 +84,7 @@ services:
 ```
 EDP uploads                          Operator services                     TEE
 -----------                          -----------------                     ---
-event-groups/*  ── finalize ──► DataWatcher ──► EventGroupSync ──► Kingdom public API
+event-groups/*  ── finalize ──► DataWatcher ──► WorkItem ──► EventGroupSync ──► Kingdom public API
                                                                        │
 Kingdom requisitions ◄── Cloud Scheduler ──► RequisitionFetcher ──────┘
         writes requisitions/* ──► Secure Computation API ──► Pub/Sub
@@ -185,7 +185,7 @@ the correct pipeline.
 
 The two watched-path types per EDP:
 
-1. **Event group detection** — an event-group blob invokes EventGroupSync.
+1. **Event group detection** — an event-group blob creates an EventGroupSync WorkItem.
 2. **Impressions / data availability** — a `done` marker invokes DataAvailabilitySync.
 
 Requisition blobs are not watched in the recommended configuration. RequisitionFetcher creates
@@ -203,12 +203,19 @@ DataWatcher.
 
 ### EventGroupSync
 
-A Cloud Function invoked by the DataWatcher when a new event-group file is written.
+A Cloud Function consuming WorkItems created by DataWatcher when a new event-group file is
+written. DataWatcher returns after durable task creation. The consumer renews its attempt lease
+during the sync, publishes the mapping, and records completion; terminal task redeliveries skip
+the sync. Legacy HTTP invocation remains supported.
 It registers or updates the EDP's event groups in the Kingdom public API. To onboard
 a new EDP, add an `event-groups` watched path in the DataWatcher config and a
 per-EDP entry in the EventGroupSync config.
 
 Config: [`EventGroupSyncConfigs`](#eventgroupsync-config-eventgroupsyncconfigs).
+Deploy the lease-aware control plane and queue registry, then the consumer infrastructure,
+then the DataWatcher routes. Drain legacy HTTP deliveries before cutover. See the
+[WorkItem deployment instructions](../../src/main/terraform/gcloud/modules/edp-aggregator/README.md#durable-eventgroupsync-workitems)
+for invocation IAM, TLS, and task outcome monitoring.
 
 ### RequisitionFetcher
 
@@ -776,22 +783,17 @@ exactly one sink — either an `http_endpoint_sink` (JSON `app_params`) or a
 # proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
 # proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
 
-# 1) Event groups -> EventGroupSync (HTTP)
+# 1) Event groups -> EventGroupSync (durable WorkItem)
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups/(.*)"
-  http_endpoint_sink {
-    endpoint_uri: "https://REGION-PROJECT_ID.cloudfunctions.net/event-group-sync"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/DATA_PROVIDER_ID"
     app_params {
-      fields { key: "dataProvider" value { string_value: "dataProviders/DATA_PROVIDER_ID" } }
-      fields { key: "eventGroupMapBlobUri"
-               value { string_value: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb" } }
-      fields { key: "cmmsConnection" value { struct_value {
-        fields { key: "certFilePath"           value { string_value: "/secrets/cert/<edp-id>_tls.pem" } }
-        fields { key: "privateKeyFilePath"     value { string_value: "/secrets/key/<edp-id>_tls.key" } }
-        fields { key: "certCollectionFilePath" value { string_value: "/secrets/ca/kingdom_root.pem" } }
-      } } }
-      # eventGroupStorage / eventGroupMapStorage: gcs { projectId, bucketName }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/DATA_PROVIDER_ID"
+      }
     }
   }
 }
@@ -1000,6 +1002,8 @@ One `configs` entry per EDP (each `data_provider` must be unique).
 # proto-message: wfa.measurement.config.edpaggregator.EventGroupSyncConfigs
 configs {
   data_provider: "dataProviders/DATA_PROVIDER_ID"
+  # Queued GCS sources must be in this object's bucket and directory.
+  event_groups_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups/event_groups.json"
   event_group_map_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb"
   cmms_connection {
     cert_file_path: "/secrets/cert/<edp-id>_tls.pem"
