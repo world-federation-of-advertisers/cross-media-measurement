@@ -6,9 +6,21 @@ Terraform script to provision the Service Account required by the HTTP Cloud Fun
 
 The deploy provisioner retries a Cloud Build `EXPIRED` queue failure up to three
 total attempts, waiting 30 and 60 seconds before retrying the same deployment
-arguments. Compilation, configuration, and permission failures return immediately.
-Retries occur inside the function provisioner rather than reapplying a saved
-Terraform plan after other resources may have changed.
+arguments. Deployment output streams throughout each attempt. The provisioner
+uses the build link in that attempt's output to look up its API status and retries
+only a confirmed `EXPIRED` build. Compilation, configuration, and permission
+failures remain fatal.
+
+The deployment identity needs `cloudbuild.builds.get` on the build's project
+(included in `roles/cloudbuild.builds.viewer`). Missing or ambiguous build links,
+unreadable status, and all other statuses stop retries and preserve the original
+deployment exit code.
+
+The limit counts attempts, not elapsed time. Two additional six-minute queue
+expirations add about 13.5 minutes, including backoff, for an affected function.
+Processing can remain paused during this interval. Repeated expiration still
+requires investigating Cloud Build scheduling or quota. Retries occur inside the
+function provisioner; recovery runs a fresh plan after a partially completed apply.
 
 If retries are exhausted, Terraform still fails. During Update CMMS quiescence,
 this can leave consumers or RequisitionFetcher paused. The workflow reports the
