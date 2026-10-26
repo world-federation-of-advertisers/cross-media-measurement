@@ -248,4 +248,13 @@ message VidRankBuilderParams {
   // rejects a WorkItem without it, so an omission here is a dispatch bug that
   // would otherwise only surface as a crash-looping TEE.
   string population_spec_blob_uri = 25 [(google.api.field_behavior) = REQUIRED];
+
+  // Earlier uploads in the same healing operation whose durable rank snapshots
+  // may be consumed before availability synchronization completes. Forwarded
+  // from `SubpoolAssignerParams`; empty for ordinary dispatches.
+  repeated string allowed_prior_snapshot_raw_impression_uploads = 26 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/RawImpressionUpload"
+  ];
 }
