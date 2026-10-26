@@ -449,6 +449,7 @@ class DataAvailabilitySyncTest {
     val outputKey = vidLabelerOutputKey(rawBlobUri, eventDate)
     val outputUri = "$bucket/$outputKey"
     val metadataKey = outputKey + ".metadata.binpb"
+    val doneBlobUri = vidLabelerDoneUri(eventDate)
     storageClient.writeBlob(outputKey, ByteString.copyFromUtf8("labeled"))
     writeVidLabelerMetadata(storageClient, metadataKey, outputUri, eventDate)
     storageClient.writeBlob(
@@ -466,7 +467,7 @@ class DataAvailabilitySyncTest {
     val outcome =
       newDataAvailabilitySync(storageClient)
         .sync(
-          "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+          doneBlobUri,
           TestDataAvailabilitySyncLease.NAME,
           doneBlobGeneration = 77L,
           discoveryMode =
@@ -497,11 +498,12 @@ class DataAvailabilitySyncTest {
         FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
       val eventDate = LocalDate.of(2026, 3, 15)
       writeVidLabelerDone(storageClient, eventDate)
+      val doneBlobUri = vidLabelerDoneUri(eventDate)
 
       val outcome =
         newDataAvailabilitySync(storageClient)
           .sync(
-            "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+            doneBlobUri,
             TestDataAvailabilitySyncLease.NAME,
             doneBlobGeneration = 77L,
             discoveryMode =
@@ -518,8 +520,7 @@ class DataAvailabilitySyncTest {
       verifyBlocking(impressionMetadataServiceMock, times(0)) {
         batchCreateImpressionMetadata(any())
       }
-      val doneMetadata =
-        storageClient.blobMetadata.getValue("edp/edpa_edp/model-line/modelLine1/$eventDate/done")
+      val doneMetadata = storageClient.blobMetadata.getValue(vidLabelerDoneKey(eventDate))
       assertThat(doneMetadata)
         .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
       assertThat(doneMetadata[DataAvailabilityBlobs.SYNC_ID_KEY]).isNotEmpty()
@@ -533,6 +534,7 @@ class DataAvailabilitySyncTest {
       FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
     val eventDate = LocalDate.of(2026, 3, 15)
     val rawBlobUri = "gs://raw-bucket/upload/input.parquet"
+    val doneBlobUri = vidLabelerDoneUri(eventDate)
     storageClient.writeBlob(
       vidLabelerOutputKey(rawBlobUri, eventDate),
       ByteString.copyFromUtf8("labeled"),
@@ -543,7 +545,7 @@ class DataAvailabilitySyncTest {
       assertFailsWith<IllegalStateException> {
         newDataAvailabilitySync(storageClient)
           .sync(
-            "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+            doneBlobUri,
             TestDataAvailabilitySyncLease.NAME,
             doneBlobGeneration = 77L,
             discoveryMode =
@@ -566,6 +568,7 @@ class DataAvailabilitySyncTest {
       FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
     val eventDate = LocalDate.of(2026, 3, 15)
     val rawBlobUri = "gs://raw-bucket/upload/input.parquet"
+    val doneBlobUri = vidLabelerDoneUri(eventDate)
     val outputKey = vidLabelerOutputKey(rawBlobUri, eventDate)
     writeVidLabelerMetadata(
       storageClient,
@@ -579,7 +582,7 @@ class DataAvailabilitySyncTest {
       assertFailsWith<IllegalStateException> {
         newDataAvailabilitySync(storageClient)
           .sync(
-            "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+            doneBlobUri,
             TestDataAvailabilitySyncLease.NAME,
             doneBlobGeneration = 77L,
             discoveryMode =
@@ -594,6 +597,34 @@ class DataAvailabilitySyncTest {
       }
 
     assertThat(error).hasMessageThat().contains("without its output")
+  }
+
+  @Test
+  fun `VID Labeler discovery rejects another upload's same-date marker`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val eventDate = LocalDate.of(2026, 3, 15)
+    writeVidLabelerDone(storageClient, eventDate)
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        newDataAvailabilitySync(storageClient)
+          .sync(
+            vidLabelerDoneUri(eventDate),
+            TestDataAvailabilitySyncLease.NAME,
+            doneBlobGeneration = 77L,
+            discoveryMode =
+              DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                rawImpressionUpload = "dataProviders/dp/rawImpressionUploads/other",
+                rawImpressionBlobUris = listOf("gs://raw-bucket/upload/input.parquet"),
+                modelLine = MODEL_LINE,
+                eventDate = eventDate,
+              ),
+            ensureLeaseActive = {},
+          )
+      }
+
+    assertThat(error).hasMessageThat().contains("expected upload")
   }
 
   private fun newDataAvailabilitySync(
@@ -614,6 +645,13 @@ class DataAvailabilitySyncTest {
 
   private fun vidLabelerOutputKey(rawBlobUri: String, eventDate: LocalDate): String =
     "edp/edpa_edp/" + LabeledImpressionsBlobKeys.forInput(rawBlobUri, MODEL_LINE, eventDate)
+
+  private fun vidLabelerDoneKey(eventDate: LocalDate): String =
+    "edp/edpa_edp/" +
+      LabeledImpressionsBlobKeys.forDone(RAW_IMPRESSION_UPLOAD, MODEL_LINE, eventDate)
+
+  private fun vidLabelerDoneUri(eventDate: LocalDate): String =
+    "$bucket/${vidLabelerDoneKey(eventDate)}"
 
   private suspend fun writeVidLabelerMetadata(
     storageClient: StorageClient,
@@ -638,7 +676,7 @@ class DataAvailabilitySyncTest {
   }
 
   private suspend fun writeVidLabelerDone(storageClient: StorageClient, eventDate: LocalDate) {
-    storageClient.writeBlob("edp/edpa_edp/model-line/modelLine1/$eventDate/done", ByteString.EMPTY)
+    storageClient.writeBlob(vidLabelerDoneKey(eventDate), ByteString.EMPTY)
   }
 
   @Test
