@@ -647,7 +647,8 @@ locals {
 }
 
 module "edp_aggregator" {
-  source = "../modules/edp-aggregator"
+  event_group_sync_memory = var.event_group_sync_memory
+  source                  = "../modules/edp-aggregator"
 
   depends_on = [google_project_iam_member.terraform_metric_writer]
 

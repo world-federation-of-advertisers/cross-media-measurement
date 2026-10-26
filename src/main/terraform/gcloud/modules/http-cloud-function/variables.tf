@@ -94,3 +94,15 @@ variable "concurrency" {
   nullable    = true
   default     = null
 }
+
+variable "memory" {
+  description = "Function memory passed to gcloud, sized for the environment."
+  type        = string
+  nullable    = false
+  default     = "512MB"
+
+  validation {
+    condition     = contains(["128MB", "256MB", "512MB", "1GiB", "2GiB", "4GiB", "8GiB", "16GiB", "32GiB"], var.memory)
+    error_message = "Use a supported gen2 Cloud Function memory allocation."
+  }
+}
