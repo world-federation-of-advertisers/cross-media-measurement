@@ -1017,6 +1017,10 @@ IDs are equivalent to legacy event-group reference IDs. Both
 `event_group_reference_id_prefix` and `entity_id_prefix` are optional and are
 applied independently; an empty prefix is valid.
 
+ResultsFulfiller rejects entity IDs of the configured mapped type that cannot
+convert to a non-blank reference ID. For that type, a requisition EventGroup's
+dual identifiers must be exactly equivalent under that mapping.
+
 Use this rollout order:
 
 1. Configure and deploy the equivalent mapping in `ResultsFulfillerParams` for

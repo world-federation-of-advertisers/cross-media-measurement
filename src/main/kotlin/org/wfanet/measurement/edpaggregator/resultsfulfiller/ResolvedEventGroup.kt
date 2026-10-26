@@ -92,10 +92,22 @@ data class ResolvedEventGroups(
             entityType = detailsEntityKey.entityType
             entityId = detailsEntityKey.entityId
           }
+        val mappedReferenceId: String? =
+          mapping?.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId)
+        if (mapping?.entityType == entityKey.entityType) {
+          require(mappedReferenceId != null) {
+            "Entity ID ${entityKey.entityId} of type ${entityKey.entityType} cannot be converted " +
+              "to a non-blank reference ID by event_group_reference_id_entity_key_mapping"
+          }
+          val nativeReferenceId: String? = details.eventGroupReferenceId.takeIf { it.isNotBlank() }
+          require(nativeReferenceId == null || nativeReferenceId == mappedReferenceId) {
+            "Event-group reference ID $nativeReferenceId and entity ID ${entityKey.entityId} " +
+              "are not equivalent under event_group_reference_id_entity_key_mapping"
+          }
+        }
         return ResolvedEventGroup(
           collectionIntervals = details.collectionIntervalsList,
-          eventGroupReferenceId =
-            mapping?.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId),
+          eventGroupReferenceId = mappedReferenceId,
           entityKey = entityKey,
         )
       }
