@@ -6,10 +6,16 @@ filegroup(
     srcs = [
         "envs/dev/data-availability-sync-config.textproto",
         "envs/dev/data-watcher-config.textproto",
+        "envs/dev/vid-labeling-dispatcher-config.textproto",
+        "envs/dev/vid-labeling-monitor-config.textproto",
         "envs/head/data-availability-sync-config.textproto",
         "envs/head/data-watcher-config.textproto",
+        "envs/head/vid-labeling-dispatcher-config.textproto",
+        "envs/head/vid-labeling-monitor-config.textproto",
         "envs/qa/data-availability-sync-config.textproto",
         "envs/qa/data-watcher-config.textproto",
+        "envs/qa/vid-labeling-dispatcher-config.textproto",
+        "envs/qa/vid-labeling-monitor-config.textproto",
     ],
     visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator:__pkg__"],
 )
