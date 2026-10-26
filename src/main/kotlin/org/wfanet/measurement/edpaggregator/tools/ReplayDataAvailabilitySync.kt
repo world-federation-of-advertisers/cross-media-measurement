@@ -265,6 +265,7 @@ class ReplayDataAvailabilitySync : Runnable {
                         dataAvailabilitySyncLease = lease.name,
                         doneBlobGeneration =
                           DoneBlobGenerationResolver.resolve(storage, doneBlobUri),
+                        discoveryMode = DataAvailabilitySync.DiscoveryMode.FolderScan,
                         ensureLeaseActive = lease::invoke,
                       )
                     }
