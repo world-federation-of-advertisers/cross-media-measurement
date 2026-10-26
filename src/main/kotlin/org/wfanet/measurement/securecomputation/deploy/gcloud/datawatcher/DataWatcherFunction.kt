@@ -45,6 +45,7 @@ import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
@@ -237,6 +238,7 @@ class DataWatcherFunction(
           TypeRegistry.newBuilder()
             .add(ResultsFulfillerParams.getDescriptor())
             .add(EventGroupSyncParams.getDescriptor())
+            .add(ExternalDataAvailabilitySyncParams.getDescriptor())
             .build(),
         )
       }
