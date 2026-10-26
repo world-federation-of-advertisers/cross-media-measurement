@@ -160,3 +160,15 @@ method name being tested.
 *   [Code Style](code-style.md) — general testing guidance, assertion library
     choices, and test double recommendations
 *   [Dev Standards](dev-standards.md) — code review workflow and PR requirements
+
+## CI test results
+
+The `results` Bazel configuration uploads Build Event Service results in the
+background. The upload still has a 60-second timeout, but its availability does
+not change the command's build or test outcome. A subsequent Bazel invocation
+waits for the previous upload and reports any upload failure as a warning.
+
+The Kubernetes, EDPA, and EDPA reporting cloud-test workflows upload testlogs as
+GitHub artifacts after both successful and failed test commands. Use those logs
+when the BuildBuddy invocation is incomplete. Artifact upload is best effort;
+the test command remains the gate for correctness.

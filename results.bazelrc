@@ -2,5 +2,8 @@
 
 build:results --bes_backend=grpcs://halo-cmm.buildbuddy.io
 build:results --bes_results_url=https://halo-cmm.buildbuddy.io/invocation/
+# Upload in the background so BES outages do not replace the build or test result.
+# Bazel waits for the previous upload before starting the next invocation.
+build:results --bes_upload_mode=nowait_for_upload_complete
 build:results --bes_timeout=60s
 build:results --nolegacy_important_outputs
