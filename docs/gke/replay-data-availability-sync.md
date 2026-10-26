@@ -39,6 +39,8 @@ The runtime identity needs:
 * read access to the EventGroup map when publishing EventGroup activity;
 * network access to the Kingdom and ImpressionMetadata public APIs;
 * permission to list and write ImpressionMetadata in `DATA_AVAILABILITY_ONLY` and `FULL_SYNC`;
+* permission to acquire, renew, and release DataAvailabilitySyncLeases on the ImpressionMetadata
+  endpoint in `DATA_AVAILABILITY_ONLY` and `FULL_SYNC`;
 * permission to list ImpressionMetadata and update EventGroup activity in
   `EVENT_GROUP_ACTIVITY_ONLY`; and
 * access to the TLS files referenced by the config.
@@ -97,6 +99,11 @@ folders from being attempted, and the process exits nonzero if any folder fails.
 publication.
 Failures are logged with the affected completion blob and the exception's cause chain, including
 underlying RPC statuses.
+
+Each data-availability replay acquires a renewable DataProvider synchronization lease and reads
+its completion blob's current GCS generation. Metadata mutations include that lease and generation.
+The lease is released after each folder, including when synchronization fails. Activity-only
+replay does not acquire a synchronization lease.
 
 `DATA_AVAILABILITY_ONLY` and `FULL_SYNC` scan the folder's current metadata and check its
 referenced impressions blobs. If blobs were added or overwritten after the original `done` blob
