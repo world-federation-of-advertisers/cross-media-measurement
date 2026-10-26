@@ -73,31 +73,43 @@ class SecureComputationRequisitionWorkItemDispatcher(
     }
     val ensured =
       try {
-        controlPlaneThrottler.onReady { workItemsStub.ensureWorkItem(request) }
+        try {
+          controlPlaneThrottler.onReady { workItemsStub.ensureWorkItem(request) }
+        } catch (e: Exception) {
+          if (Status.fromThrowable(e).code != Status.Code.ALREADY_EXISTS) throw e
+          val existing =
+            controlPlaneThrottler.onReady {
+              workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName(groupId) })
+            }
+          val existingParams = validateExistingWorkItem(existing, requestedWorkItem)
+          controlPlaneThrottler.onReady {
+            workItemsStub.ensureWorkItem(
+              ensureWorkItemRequest {
+                this.workItemId = workItemId
+                workItem = workItem {
+                  queue = requestedWorkItem.queue
+                  workItemParams =
+                    workItemParams {
+                        appParams = existingParams.appParams
+                        dataPathParams = existingParams.dataPathParams
+                        traceContext.putAll(existingParams.traceContextMap)
+                      }
+                      .pack()
+                }
+              }
+            )
+          }
+        }
       } catch (e: Exception) {
-        if (Status.fromThrowable(e).code != Status.Code.ALREADY_EXISTS) throw e
+        if (Status.fromThrowable(e).code != Status.Code.FAILED_PRECONDITION) throw e
+        // A worker can complete between the read and the trace-preserving ensure above.
         val existing =
           controlPlaneThrottler.onReady {
             workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName(groupId) })
           }
-        val existingParams = validateExistingWorkItem(existing, requestedWorkItem)
-        controlPlaneThrottler.onReady {
-          workItemsStub.ensureWorkItem(
-            ensureWorkItemRequest {
-              this.workItemId = workItemId
-              workItem = workItem {
-                queue = requestedWorkItem.queue
-                workItemParams =
-                  workItemParams {
-                      appParams = existingParams.appParams
-                      dataPathParams = existingParams.dataPathParams
-                      traceContext.putAll(existingParams.traceContextMap)
-                    }
-                    .pack()
-              }
-            }
-          )
-        }
+        if (existing.state != WorkItem.State.SUCCEEDED) throw e
+        validateExistingWorkItem(existing, requestedWorkItem)
+        existing
       }
     logger.info(
       "Ensured WorkItem $workItemId for requisition group $groupId in state ${ensured.state}"

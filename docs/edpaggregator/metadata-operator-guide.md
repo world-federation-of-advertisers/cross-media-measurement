@@ -76,6 +76,11 @@ queued, and its initial publication cannot be stranded between the WorkItem comm
 and outbox commit. Use `RetryWorkItem` for explicit repair of a legacy queued
 WorkItem that has no outbox record.
 
+If a worker completes while the fetcher reconciles an existing WorkItem, the
+fetcher accepts `SUCCEEDED` only after verifying the queue, application parameters,
+and persisted blob URI. It does not republish completed work or automatically retry
+a `FAILED` WorkItem. A mismatched WorkItem remains an error requiring investigation.
+
 Keep the configured direct-dispatch prefix unchanged while any direct group remains
 `STORED`, `QUEUED`, or `PROCESSING`. Recovery compares each persisted `blob_uri`
 with a URI derived from the current prefix, so changing it earlier prevents the
