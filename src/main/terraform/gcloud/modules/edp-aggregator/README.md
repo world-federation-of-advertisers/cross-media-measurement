@@ -30,13 +30,15 @@ configured client TLS identity. Terraform mounts the control-plane CA and grants
 identity invocation on EGS. Monitor WorkItem states and mapping freshness alongside push/DLQ
 metrics: delivery failures are distinct from synchronization outcomes.
 
+Set `event_group_sync_memory` to the existing environment allocation before redeployment. Its default remains `512MB`; larger inputs need an explicitly sized allocation.
+
 ## External data availability WorkItems
 
 External labeled-output `done` routes now enqueue `ExternalDataAvailabilitySyncParams` on
 `data-availability-sync-queue`. DataWatcher returns once the task is durably accepted. The
 existing consumer uses the same attempt lifecycle and per-provider synchronization lease as
-VID Labeler tasks, and records success after availability publication. Attempt renewal continues through completion
-bookkeeping and the final control-plane write. It discovers external
+VID Labeler tasks, and records success after availability publication. Attempt renewal continues
+through completion bookkeeping and the final control-plane write. It discovers external
 sidecars by scanning the done object's folder and does not require internal raw-upload names
 or mark VID Labeler pipeline completion rows.
 
