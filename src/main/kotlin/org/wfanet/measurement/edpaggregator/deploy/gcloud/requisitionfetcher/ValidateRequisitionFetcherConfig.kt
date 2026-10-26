@@ -23,6 +23,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import picocli.CommandLine
 
@@ -57,6 +58,7 @@ class ValidateRequisitionFetcherConfig : Runnable {
       TypeRegistry.newBuilder()
         .add(ResultsFulfillerParams.getDescriptor())
         .add(EventGroupSyncParams.getDescriptor())
+        .add(ExternalDataAvailabilitySyncParams.getDescriptor())
         .build()
     val dataWatcherConfig =
       parseTextProto(dataWatcherConfigFile, DataWatcherConfig.getDefaultInstance(), typeRegistry)
