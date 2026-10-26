@@ -221,13 +221,15 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     val providerConfig =
       runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
     val internalPath = providerConfig.vidLabeledImpressionPath
-    require(internalPath.isNotBlank()) {
-      "vid_labeled_impression_path is required for VID labeling WorkItems on " +
-        providerConfig.dataProvider
+    if (!input.isExternal) {
+      require(internalPath.isNotBlank()) {
+        "vid_labeled_impression_path is required for VID labeling WorkItems on " +
+          providerConfig.dataProvider
+      }
     }
     val doneBlobKey = SelectedStorageClient.parseBlobUri(input.doneBlobUri).key
     val config =
-      if (doneBlobKey.startsWith("$internalPath/")) {
+      if (!input.isExternal && doneBlobKey.startsWith("$internalPath/")) {
         providerConfig.copy { edpImpressionPath = internalPath }
       } else {
         // Queued WorkItems retain the output path encoded before a prefix cutover.
@@ -259,11 +261,22 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           )
         ),
         synchronize = { workItem, lease, onStage ->
-          val rawImpressionBlobUris =
-            listRawImpressionBlobUris(rawImpressionUploadFilesStub, workItem, globalThrottler)
-          check(rawImpressionBlobUris.isNotEmpty()) {
-            "No RawImpressionUploadFile rows matched the WorkItem event date"
-          }
+          val discoveryMode =
+            if (workItem.isExternal) {
+              DataAvailabilitySync.DiscoveryMode.FolderScan
+            } else {
+              val rawImpressionBlobUris =
+                listRawImpressionBlobUris(rawImpressionUploadFilesStub, workItem, globalThrottler)
+              check(rawImpressionBlobUris.isNotEmpty()) {
+                "No RawImpressionUploadFile rows matched the WorkItem event date"
+              }
+              DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                rawImpressionUpload = workItem.appParams.triggeringRawImpressionUpload,
+                rawImpressionBlobUris = rawImpressionBlobUris,
+                modelLine = workItem.appParams.modelLine,
+                eventDate = workItem.eventDate,
+              )
+            }
           buildDataAvailabilitySync(
               config,
               availabilityImpressionPaths =
@@ -276,13 +289,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               workItem.doneBlobUri,
               dataAvailabilitySyncLease = lease.name,
               doneBlobGeneration = workItem.doneBlobGeneration,
-              discoveryMode =
-                DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
-                  rawImpressionUpload = workItem.appParams.triggeringRawImpressionUpload,
-                  rawImpressionBlobUris = rawImpressionBlobUris,
-                  modelLine = workItem.appParams.modelLine,
-                  eventDate = workItem.eventDate,
-                ),
+              discoveryMode = discoveryMode,
               onStage = onStage,
               ensureLeaseActive = lease::invoke,
             )
@@ -338,9 +345,27 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     workItem: DataAvailabilitySyncWorkItem,
     config: DataAvailabilitySyncConfig,
   ) {
+    val doneBlobUri = SelectedStorageClient.parseBlobUri(workItem.doneBlobUri)
+    if (workItem.isExternal) {
+      require(doneBlobUri.scheme == "gs") { "External done object must use gs://" }
+      require(doneBlobUri.bucket == config.dataAvailabilityStorage.gcs.bucketName) {
+        "External done object is outside the configured bucket"
+      }
+      val prefix = "${config.edpImpressionPath.trimEnd('/')}/model-line/"
+      require(doneBlobUri.key.startsWith(prefix)) {
+        "External done object is outside the configured labeled-output prefix"
+      }
+      val parts = doneBlobUri.key.removePrefix(prefix).split('/')
+      require(
+        parts.size == 3 &&
+          parts[0].isNotEmpty() &&
+          parts[2] == "done" &&
+          runCatching { java.time.LocalDate.parse(parts[1]) }.isSuccess
+      ) {
+        "External done object must identify a model line and event date"
+      }
+    }
     if (!fileSystemPath.isNullOrEmpty()) return
-    val doneBlobUri =
-      org.wfanet.measurement.storage.SelectedStorageClient.parseBlobUri(workItem.doneBlobUri)
     require(doneBlobUri.scheme == "gs") { "WorkItem done object must use gs://" }
     require(doneBlobUri.bucket == config.dataAvailabilityStorage.gcs.bucketName) {
       "WorkItem done object is outside the configured bucket"
