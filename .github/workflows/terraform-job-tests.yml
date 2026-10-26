@@ -18,6 +18,7 @@ on:
   pull_request:
     paths:
       - 'src/main/terraform/gcloud/modules/event-group-sync-job/**'
+      - 'src/main/terraform/gcloud/modules/http-cloud-function/**'
       - '.github/workflows/terraform-job-tests.yml'
   workflow_dispatch:
 
@@ -41,3 +42,9 @@ jobs:
           terraform init -backend=false
           terraform test
           python3 tests/caller_test.py
+      - name: Test function memory configuration
+        working-directory: src/main/terraform/gcloud/modules/http-cloud-function
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform test
