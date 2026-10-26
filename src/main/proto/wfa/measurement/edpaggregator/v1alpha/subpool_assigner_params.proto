@@ -219,4 +219,14 @@ message SubpoolAssignerParams {
   // siblings: Phase-2 rejects a WorkItem without it, so an omission here is a
   // dispatch bug that would otherwise only surface as a crash-looping TEE.
   string population_spec_blob_uri = 23 [(google.api.field_behavior) = REQUIRED];
+
+  // Earlier uploads in the same healing operation whose durable rank snapshots
+  // may be consumed before availability synchronization completes. Empty for
+  // ordinary dispatches, whose snapshots must be owned by completed model
+  // lines.
+  repeated string allowed_prior_snapshot_raw_impression_uploads = 24 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/RawImpressionUpload"
+  ];
 }
