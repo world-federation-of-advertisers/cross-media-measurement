@@ -2,3 +2,30 @@
 # EDP Aggregator System
 
 Edp Aggregator components for Google Cloud.
+## Durable EventGroupSync
+
+Event-group finalize routes enqueue a generation-specific `WorkItem` on
+`event-group-sync-queue`. DataWatcher returns after the control plane durably accepts the task.
+The Pub/Sub push consumer claims an attempt, renews its lease, and records success after the
+mapping is published. Redelivery of a succeeded task does not repeat the sync. An active task
+remains protected by its lease even if push delivery expires or reaches the DLQ listener.
+
+Deploy the Secure Computation lease-aware API and updated queue registry first, then the EGS
+consumer and queue IAM, and finally the DataWatcher routes. Drain legacy HTTP deliveries before
+switching. Do not configure Scheduler and DataWatcher to run EGS for the same provider.
+
+Each route uses `EventGroupSyncParams` and a stable `serialization_key` per provider. Keep keys
+distinct from data availability tasks. The function retains one single-request instance.
+Ordered publication and attempt leases protect redeliveries; they do not promise exactly-once
+side effects after a crash between publishing a mapping and recording task completion.
+
+The source must remain the current generation at the configured input directory. EGS downloads
+that exact generation and checks it again before publishing the mapping. Superseded sources are
+terminal failures; the newer finalize event supplies the current task. The existing HTTP JSON
+formats remain supported for migration and manual invocations.
+
+The consumer uses `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`, optional
+`SECURE_COMPUTATION_CERT_HOST`, and `SECURE_COMPUTATION_CERT_COLLECTION_FILE` with the provider's
+configured client TLS identity. Terraform mounts the control-plane CA and grants the push
+identity invocation on EGS. Monitor WorkItem states and mapping freshness alongside push/DLQ
+metrics: delivery failures are distinct from synchronization outcomes.
