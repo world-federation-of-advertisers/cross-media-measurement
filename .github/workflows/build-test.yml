@@ -106,14 +106,14 @@ jobs:
 
       - name: Build
         run: >
-          bazel build --worker_quit_after_build
+          tools/bazel-with-results bazel build --worker_quit_after_build
           //...
           //src/main/k8s/local:cmms
           //src/main/k8s/dev:edp_simulators
 
       - name: Run tests
         id: run-tests
-        run: bazel test //...
+        run: tools/bazel-with-results bazel test //...
 
       # TODO(world-federation-of-advertisers/cross-media-measurement#3329): Re-enable coverage.
 
@@ -132,7 +132,7 @@ jobs:
       - name: Run correctness test
         id: run-correctness-test
         run: >
-          bazel test
+          tools/bazel-with-results bazel test
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest
           --test_output=streamed
 
@@ -145,7 +145,7 @@ jobs:
       - name: Run panelmatch correctness test
         id: run-panelmatch-correctness-test
         run: >
-          bazel test
+          tools/bazel-with-results bazel test
           //src/test/kotlin/org/wfanet/panelmatch/integration/k8s:EmptyClusterPanelMatchCorrectnessTest
           --test_output=streamed
 
@@ -168,4 +168,4 @@ jobs:
       - name: Upload Bazel testlogs
         continue-on-error: true
         uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
-        if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
+        if: ${{ !cancelled() && (steps.run-tests.outcome == 'success' || steps.run-tests.outcome == 'failure' || steps.run-correctness-test.outcome == 'success' || steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'success' || steps.run-panelmatch-correctness-test.outcome == 'failure') }}

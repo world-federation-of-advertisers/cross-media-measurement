@@ -163,12 +163,19 @@ method name being tested.
 
 ## CI test results
 
-The `results` Bazel configuration uploads Build Event Service results in the
-background. The upload still has a 60-second timeout, but its availability does
-not change the command's build or test outcome. A subsequent Bazel invocation
-waits for the previous upload and reports any upload failure as a warning.
+The `results` Bazel configuration waits for Build Event Service uploads to finish.
+Native uploads allow six retries, with a five-second initial
+backoff and Bazel's 1.6 exponential multiplier. The post-build upload timeout is
+300 seconds. Acknowledged progress resets the retry counter.
 
-The Kubernetes, EDPA, and EDPA reporting cloud-test workflows upload testlogs as
-GitHub artifacts after both successful and failed test commands. Use those logs
-when the BuildBuddy invocation is incomplete. Artifact upload is best effort;
-the test command remains the gate for correctness.
+The build/test, Kubernetes, EDPA, and EDPA reporting workflows use
+`tools/bazel-with-results BAZEL {build|test} [ARGUMENTS...]`. The tool runs Bazel
+once and records its completion verdict in a temporary local Build Event Protocol
+file. It waits for upload completion or the post-build timeout before returning. If publishing fails with exit 38, it preserves the recorded
+build/test exit code and emits a workflow warning. Missing or invalid completion
+evidence remains a failure; other Bazel errors are preserved. The temporary event
+file is deleted after the command.
+
+These workflows upload testlogs as GitHub artifacts after both successful and
+failed test commands. Use those logs when the BuildBuddy invocation is incomplete.
+Artifact upload is best effort; the build/test verdict remains the correctness gate.

@@ -166,7 +166,7 @@ jobs:
           export VID_LABELER_POPULATION_SPEC_BLOB_URI="$(tfvar vid_labeler_population_spec_blob_uri)"
           # Derive the ModelSuite from the ModelLine resource name.
           export MODEL_SUITE="${MODEL_LINE_NAME%/modelLines/*}"
-          bazel test \
+          tools/bazel-with-results bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
           --test_env=GOOGLE_CLOUD_PROJECT \
           --test_env=MODEL_SUITE \

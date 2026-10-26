@@ -143,7 +143,7 @@ jobs:
       - name: Run tests
         id: run-tests
         run: |
-          bazel test \
+          tools/bazel-with-results bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
           --test_env=GOOGLE_CLOUD_PROJECT \
           --test_env=AWS_WEB_IDENTITY_TOKEN_FILE \

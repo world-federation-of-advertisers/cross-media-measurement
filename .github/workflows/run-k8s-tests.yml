@@ -139,7 +139,7 @@ jobs:
     - name: Run correctness tests
       id: run-correctness-test
       run: |
-        bazelisk test \
+        tools/bazel-with-results bazelisk test \
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
 
     - name: Run reporting MCP smoke test through the in-cluster Service
@@ -234,7 +234,7 @@ jobs:
           sleep 1
         done
 
-        bazelisk test \
+        tools/bazel-with-results bazelisk test \
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingMcpSmokeTest
 
     - name: Upload Bazel testlogs
