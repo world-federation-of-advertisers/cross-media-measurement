@@ -28,19 +28,32 @@ object LabeledImpressionsBlobKeys {
     eventDate: LocalDate,
   ): String = "${prefix.trimEnd('/')}/${forInput(inputBlobUri, modelLine, eventDate)}"
 
-  /** Returns the absolute done-marker URI for one model line and event date. */
-  fun forDoneUri(prefix: String, modelLine: String, eventDate: LocalDate): String =
-    "${prefix.trimEnd('/')}/${forDateDirectory(modelLine, eventDate)}/done"
+  /** Returns the absolute done-marker URI for one upload, model line, and event date. */
+  fun forDoneUri(
+    prefix: String,
+    rawImpressionUpload: String,
+    modelLine: String,
+    eventDate: LocalDate,
+  ): String = "${prefix.trimEnd('/')}/${forDone(rawImpressionUpload, modelLine, eventDate)}"
+
+  /** Returns the relative done-marker key for one upload, model line, and event date. */
+  fun forDone(rawImpressionUpload: String, modelLine: String, eventDate: LocalDate): String {
+    require(rawImpressionUpload.isNotEmpty()) { "rawImpressionUpload must not be empty" }
+    return "${forDateDirectory(modelLine, eventDate)}/done-${sha256(rawImpressionUpload)}"
+  }
 
   /** Returns the relative output key for one raw-impression input and model line. */
   fun forInput(inputBlobUri: String, modelLine: String, eventDate: LocalDate): String {
     val dateDirectory = forDateDirectory(modelLine, eventDate)
-    val digest =
-      MessageDigest.getInstance("SHA-256")
-        .digest("$inputBlobUri|$modelLine".toByteArray(Charsets.UTF_8))
-    val sha = digest.joinToString("") { "%02x".format(it) }
-    return "$dateDirectory/$sha"
+    return "$dateDirectory/${sha256("$inputBlobUri|$modelLine")}"
   }
+
+  private fun sha256(value: String): String =
+    MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString(
+      ""
+    ) {
+      "%02x".format(it)
+    }
 
   private fun forDateDirectory(modelLine: String, eventDate: LocalDate): String {
     val modelLineId =

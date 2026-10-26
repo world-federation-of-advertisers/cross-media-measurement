@@ -963,6 +963,7 @@ class VidLabelerApp(
           )
             ?: writeDoneBlob(
               params.vidLabeledImpressionsStorageParams,
+              upload,
               completedModelLine,
               eventDate,
               dataProvider,
@@ -1212,14 +1213,15 @@ class VidLabelerApp(
   }
 
   /**
-   * Writes an empty `done` marker for [cmmsModelLine] at
-   * `<prefix>/model-line/<modelLineId>/<eventDate>/done` — the folder [VidLabelingSink] wrote this
-   * model line's labeled output to — so `DataAvailabilitySync` finalizes that (model line, date).
+   * Writes an empty upload-specific `done` marker for [cmmsModelLine] in the folder
+   * [VidLabelingSink] wrote this model line's labeled output to, so `DataAvailabilitySync`
+   * finalizes that upload, model line, and date without another upload replacing its marker.
    *
    * The marker is replaced when no existing object generation can be recovered.
    */
   private suspend fun writeDoneBlob(
     outputStorageParams: VidLabelerParams.StorageParams,
+    rawImpressionUpload: String,
     cmmsModelLine: String,
     eventDate: LocalDate,
     dataProvider: String,
@@ -1229,6 +1231,7 @@ class VidLabelerApp(
     val doneUri =
       LabeledImpressionsBlobKeys.forDoneUri(
         outputStorageParams.impressionsBlobPrefix,
+        rawImpressionUpload,
         cmmsModelLine,
         eventDate,
       )
@@ -1320,6 +1323,7 @@ class VidLabelerApp(
     val doneUri =
       LabeledImpressionsBlobKeys.forDoneUri(
         outputStorageParams.impressionsBlobPrefix,
+        rawImpressionUpload,
         modelLine,
         eventDate,
       )
