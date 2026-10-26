@@ -47,6 +47,7 @@ class CallerTest(unittest.TestCase):
                 [os.environ.get("TERRAFORM_BINARY", "terraform"), "console", "-var-file=" + params.name],
                 input=b"jsonencode(local.caller_script)\n",
                 cwd=MODULE,
+                timeout=30,
             )
         cls.script = json.loads(json.loads(output))
         subprocess.run(["/bin/sh", "-n"], input=cls.script.encode(), check=True)
@@ -71,7 +72,7 @@ class CallerTest(unittest.TestCase):
                        INPUT_BLOB_URI='gs://example-bucket/$(touch should-not-exist)',
                        REQUEST_BODY='{"dataProvider":"dataProviders/example"}')
             result = subprocess.run(['/bin/sh', '-c', self.script], cwd=temp, env=env,
-                                    capture_output=True, text=True)
+                                    capture_output=True, text=True, timeout=10)
             calls = [json.loads(line) for line in (temp / 'calls.jsonl').read_text().splitlines()]
             self.assertFalse((temp / 'should-not-exist').exists())
             return result, calls
