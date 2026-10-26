@@ -233,7 +233,7 @@ configs {
       }
     }
   }
-  edp_impression_path: "edp/edp7"
+  edp_impression_path: "edp/edp7/vid-labeler"
   raw_impressions_storage_params {
     gcs {
       project_id: "halo-cmm-dev"
@@ -298,7 +298,7 @@ configs {
 }
 configs {
   data_provider: "dataProviders/J3-pzhqS9Lo"
-  edp_impression_path: "edp/edpa_meta"
+  edp_impression_path: "edp/edpa_meta/vid-labeler"
   raw_impressions_storage_params {
     gcs {
       project_id: "halo-cmm-dev"
