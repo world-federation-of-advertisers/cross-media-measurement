@@ -2,6 +2,7 @@
 # proto-message: wfa.measurement.config.edpaggregator.VidLabelingConfigs
 configs {
   data_provider: "dataProviders/T5RryPMNong"
+  raw_impressions_blob_prefix: "raw-impressions/edp/edp7"
   model_line_configs {
     key: "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/b_LzatczKFY"
     value {
@@ -310,6 +311,7 @@ configs {
 }
 configs {
   data_provider: "dataProviders/J3-pzhqS9Lo"
+  raw_impressions_blob_prefix: "raw-impressions/edp/edpa_meta"
   edp_impression_path: "edp/edpa_meta/vid-labeler"
   raw_impressions_storage_params {
     gcs {
