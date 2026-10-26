@@ -88,8 +88,8 @@ on stored `BasicReport`s.
 `BasicReport`s written through the internal `InsertBasicReport` method can
 contain two related inconsistencies: a component summary can omit
 `external_reporting_set_id`, and `BasicReport.external_campaign_group_id` can
-refer to an ordinary primitive ReportingSet instead of a Campaign Group. A
-valid Campaign Group is a non-empty primitive ReportingSet whose
+refer to an ordinary primitive or composite ReportingSet instead of a Campaign
+Group. A valid Campaign Group is a non-empty primitive ReportingSet whose
 `CampaignGroupId` points to itself.
 
 The temporary public read fallback serves a blank component without
@@ -112,8 +112,9 @@ every component, including those with populated ReportingSet IDs:
 
 *   For a caller-supplied ReportingSet component, the ReportingSet ID in the
     stored request is authoritative. The tool verifies that it identifies a
-    non-empty primitive ReportingSet, uses that ReportingSet's EventGroups for
-    membership validation, and preserves the exact ID and any filter.
+    non-empty primitive or resolvable composite ReportingSet, uses that
+    ReportingSet's EventGroups for membership validation, and preserves the
+    exact ID and any filter.
 *   For a DataProvider component, the tool resolves membership from its
     `event_group_summaries`. A blank `cmms_data_provider_id` is filled only
     when the stored request explicitly identifies DataProvider components,
@@ -168,17 +169,29 @@ remain valid when summaries cover every requested component.
 
 A caller-supplied ReportingSet component must name the same MeasurementConsumer
 as the `BasicReport`. Its recorded component EventGroups must match the
-referenced ReportingSet's membership, including the number of occurrences of
-each EventGroup ID. A foreign-consumer key or conflicting EventGroup metadata
-blocks the report in both dry-run and applied runs and keeps readiness at `no`. Populated consumer
+referenced primitive's membership or the EventGroups reachable through a
+composite, including the number of occurrences of each EventGroup ID. A
+foreign-consumer key or conflicting EventGroup metadata blocks the report in
+both dry-run and applied runs and keeps readiness at `no`. Populated consumer
 IDs in recorded EventGroup summaries must also match the report's consumer;
 blank legacy consumer IDs remain supported. These checks run before a report
 is counted as already valid.
 
-The original ordinary ReportingSet is never modified. The Campaign Group
-change and all component IDs are written to the `BasicReport` in one Spanner
-mutation. Creating or finding the replacement Campaign Group in Postgres is
-idempotent.
+For a composite reference with no `CampaignGroupId`, the tool recursively
+collects the EventGroups from every referenced primitive ReportingSet. Set
+operations and filters affect population semantics, but every referenced
+EventGroup must appear in the report's component union. Unlike an ordinary
+primitive reference, a composite does not need to match one component exactly.
+The replacement Campaign Group contains the complete report union. Stored
+measurement bases must resolve to primitives whose EventGroups are contained in
+the expression's universe. Missing or nonprimitive bases, or bases introducing
+other EventGroups, block the report. Compiled bases may omit expression leaves
+that cancel algebraically.
+
+The original primitive or composite ReportingSet is never modified. The
+Campaign Group change and all component IDs are written to the `BasicReport` in
+one Spanner mutation. Creating or finding the replacement Campaign Group in
+Postgres is idempotent.
 
 A Campaign Group change is not attempted when the `BasicReport` has a linked
 `ReportResultId`. Those results contain ReportingSet references that this tool
@@ -190,16 +203,18 @@ If different reports reuse the same ordinary ReportingSet reference but contain
 different EventGroup unions, each distinct union resolves to its own Campaign
 Group. The tool does not force those reports into one shared universe.
 
-The tool does not guess. A missing, empty, composite, or already-assigned
-Campaign Group reference is left unchanged. A report is also left unchanged
-when a component has no EventGroups, references an unknown EventGroup, has a
-blank DataProvider without explicit request evidence or unique membership,
-identifies a custom ReportingSet that is missing, empty, or not primitive, has an existing
-ReportingSet ID without stored request evidence of its identity, disagrees with
-the custom component identity stored in the request, omits an EventGroup
-contained in the referenced Campaign Group source, or has linked results that
-would also need migration. These rows are counted as blocking, the scan
-continues, and the environment is reported as not ready to remove the read fallback.
+The tool does not guess. A missing, empty, cyclic, incomplete, or
+already-assigned Campaign Group reference is left unchanged. A report is also
+left unchanged when a component has no EventGroups, references an unknown
+EventGroup, has a blank DataProvider without explicit request evidence or
+unique membership, identifies a custom ReportingSet that is missing, empty,
+or invalid, has an
+existing ReportingSet ID without stored request evidence of its identity,
+disagrees with the custom component identity stored in the request, omits an
+EventGroup contained in the referenced Campaign Group source, or has linked
+results that would also need migration. These rows are counted as blocking, the
+scan continues, and the environment is reported as not ready to remove the read
+fallback.
 
 No Campaign Group or component ReportingSet is created and no `BasicReport`
 is updated unless every component summary that needs resolution can be
@@ -256,8 +271,9 @@ rather than failing, so an incomplete resource is served without any error.
 An applied, unbounded run reports `Ready to remove read-path fallback: yes`
 only when no examined `SUCCEEDED` row remains blocked by these checks. This
 is a check of the scanned rows, not a guarantee about other states or future
-writes. A bounded run never reports ready because it does not examine older rows. A dry
-run reports ready only when it finds that no writes or primitive Campaign Group
+writes. A bounded run never reports ready because it does not examine older
+rows. A dry
+run reports ready only when it finds that no writes or Campaign Group
 migrations would be needed.
 
 Each such `BasicReport` is logged once per read, at `WARNING`, by the Reporting
