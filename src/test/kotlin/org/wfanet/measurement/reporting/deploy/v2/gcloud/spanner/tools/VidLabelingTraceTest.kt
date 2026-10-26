@@ -459,6 +459,227 @@ class VidLabelingTraceTest {
   }
 
   @Test
+  fun `successful current handoff supersedes an older failed WorkItem`() =
+    runBlocking<Unit> {
+      val oldFailed =
+        availabilityWorkItem(
+          state = "FAILED",
+          name = "workItems/das-old-failed",
+          createTimeNanos = 1L,
+        )
+      val currentSucceeded =
+        availabilityWorkItem(
+          state = "SUCCEEDED",
+          name = "workItems/das-current-succeeded",
+          createTimeNanos = 2L,
+        )
+      val baseGraph = testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
+      val graph =
+        baseGraph.copy(
+          nodes =
+            baseGraph.nodes.map {
+              if (it.stage == "data_availability_publish") {
+                it.copy(authoritativeState = "PUBLISHED")
+              } else {
+                it
+              }
+            },
+          availabilityWorkItems = listOf(oldFailed, currentSucceeded),
+        )
+      val entries =
+        listOf(
+          entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE)
+        ) +
+          routeEntries(
+            NON_MEMOIZED_MODEL_LINE,
+            "non_memoized",
+            NON_MEMOIZED_STAGES,
+            "direct",
+            DIRECT_TRACE,
+          )
+      val collection =
+        VidLabelingTraceCollector(
+            logReaderFactory = { FakeCloudLogReader(entries) },
+            spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+            stateResolver = VidLabelingStateResolver { graph },
+            finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+          )
+          .collect(request())
+
+      assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.SUCCEEDED)
+      assertThat(collection.availabilityWorkItems).containsExactly(oldFailed, currentSucceeded)
+      assertThat(collection.warnings)
+        .contains(
+          "Earlier failed availability WorkItems were superseded by the current successful handoff."
+        )
+    }
+
+  @Test
+  fun `successful current handoff awaiting acknowledgement is in progress`() =
+    runBlocking<Unit> {
+      val oldFailed =
+        availabilityWorkItem(
+          state = "FAILED",
+          name = "workItems/das-old-failed",
+          createTimeNanos = 1L,
+        )
+      val currentSucceeded =
+        availabilityWorkItem(
+          state = "SUCCEEDED",
+          name = "workItems/das-current-succeeded",
+          createTimeNanos = 2L,
+        )
+      val baseGraph = testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
+      val pendingModelLine =
+        baseGraph.modelLines
+          .single()
+          .toBuilder()
+          .setState(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+          .addPendingAvailabilityDates(
+            com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1)
+          )
+          .build()
+      val graph =
+        baseGraph.copy(
+          modelLines = listOf(pendingModelLine),
+          availabilityWorkItems = listOf(oldFailed, currentSucceeded),
+        )
+      val entries =
+        listOf(
+          entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE)
+        ) +
+          routeEntries(
+            NON_MEMOIZED_MODEL_LINE,
+            "non_memoized",
+            NON_MEMOIZED_STAGES,
+            "direct",
+            DIRECT_TRACE,
+          )
+      val collection =
+        VidLabelingTraceCollector(
+            logReaderFactory = { FakeCloudLogReader(entries) },
+            spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+            stateResolver = VidLabelingStateResolver { graph },
+            finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+          )
+          .collect(request())
+
+      assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.IN_PROGRESS)
+      assertThat(collection.availabilityWorkItems).containsExactly(oldFailed, currentSucceeded)
+    }
+
+  @Test
+  fun `newest failed handoff remains failed when an older WorkItem succeeded`() =
+    runBlocking<Unit> {
+      val oldSucceeded =
+        availabilityWorkItem(
+          state = "SUCCEEDED",
+          name = "workItems/das-old-succeeded",
+          createTimeNanos = 1L,
+        )
+      val currentFailed =
+        availabilityWorkItem(
+          state = "FAILED",
+          name = "workItems/das-current-failed",
+          createTimeNanos = 2L,
+        )
+      val baseGraph = testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
+      val pendingModelLine =
+        baseGraph.modelLines
+          .single()
+          .toBuilder()
+          .setState(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+          .addPendingAvailabilityDates(
+            com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1)
+          )
+          .build()
+      val graph =
+        baseGraph.copy(
+          modelLines = listOf(pendingModelLine),
+          availabilityWorkItems = listOf(oldSucceeded, currentFailed),
+        )
+      val entries =
+        listOf(
+          entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE)
+        ) +
+          routeEntries(
+            NON_MEMOIZED_MODEL_LINE,
+            "non_memoized",
+            NON_MEMOIZED_STAGES,
+            "direct",
+            DIRECT_TRACE,
+          )
+      val collection =
+        VidLabelingTraceCollector(
+            logReaderFactory = { FakeCloudLogReader(entries) },
+            spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+            stateResolver = VidLabelingStateResolver { graph },
+            finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+          )
+          .collect(request())
+
+      assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.FAILED)
+      assertThat(collection.availabilityWorkItems).containsExactly(oldSucceeded, currentFailed)
+    }
+
+  @Test
+  fun `failed handoff for an acknowledged date does not override a pending date`() =
+    runBlocking<Unit> {
+      val acknowledgedFailure =
+        availabilityWorkItem(
+          state = "FAILED",
+          name = "workItems/das-acknowledged-failed",
+          eventDate = "2026-09-01",
+          createTimeNanos = 3L,
+        )
+      val pendingQueued =
+        availabilityWorkItem(
+          state = "QUEUED",
+          name = "workItems/das-pending-queued",
+          eventDate = "2026-09-02",
+          createTimeNanos = 2L,
+        )
+      val baseGraph = testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
+      val pendingModelLine =
+        baseGraph.modelLines
+          .single()
+          .toBuilder()
+          .setState(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+          .addPendingAvailabilityDates(
+            com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(2)
+          )
+          .build()
+      val graph =
+        baseGraph.copy(
+          modelLines = listOf(pendingModelLine),
+          availabilityWorkItems = listOf(acknowledgedFailure, pendingQueued),
+        )
+      val entries =
+        listOf(
+          entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE)
+        ) +
+          routeEntries(
+            NON_MEMOIZED_MODEL_LINE,
+            "non_memoized",
+            NON_MEMOIZED_STAGES,
+            "direct",
+            DIRECT_TRACE,
+          )
+      val collection =
+        VidLabelingTraceCollector(
+            logReaderFactory = { FakeCloudLogReader(entries) },
+            spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+            stateResolver = VidLabelingStateResolver { graph },
+            finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+          )
+          .collect(request())
+
+      assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.IN_PROGRESS)
+      assertThat(collection.availabilityWorkItems)
+        .containsExactly(acknowledgedFailure, pendingQueued)
+    }
+
+  @Test
   fun `availability syncing model line is in progress and renders pending dates`() = runBlocking {
     val baseGraph = testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
     val pendingModelLine =
@@ -1023,17 +1244,23 @@ class VidLabelingTraceTest {
       .collect(request())
   }
 
-  private fun availabilityWorkItem(state: String): VidLabelingAvailabilityWorkItem =
+  private fun availabilityWorkItem(
+    state: String,
+    name: String = "workItems/das-01234567",
+    eventDate: String = "2026-09-01",
+    createTimeNanos: Long = 0L,
+  ): VidLabelingAvailabilityWorkItem =
     VidLabelingAvailabilityWorkItem(
-      "workItems/das-01234567",
+      name,
       NON_MEMOIZED_MODEL_LINE,
       state,
       1,
       emptyList(),
-      "2026-09-01",
+      eventDate,
       "gs://bucket/model-line/2026-09-01/done",
       "0123456789abcdef",
       77,
+      createTimeNanos = createTimeNanos,
     )
 
   private fun testGraph(
