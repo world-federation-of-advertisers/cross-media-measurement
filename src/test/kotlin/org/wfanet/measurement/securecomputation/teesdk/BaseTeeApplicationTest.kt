@@ -30,9 +30,11 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -956,26 +958,124 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `constructor rejects non-positive max attempt runtime`() {
-    for (maxRuntime in listOf(Duration.ZERO, Duration.ofSeconds(-1))) {
-      val exception =
+  fun `constructor rejects timer durations outside the millisecond range`() {
+    val invalid =
+      listOf(
+        Duration.ZERO,
+        Duration.ofSeconds(-1),
+        Duration.ofNanos(999_999),
+        Duration.ofSeconds(Long.MAX_VALUE),
+      )
+    for (duration in invalid) {
+      val runtimeException =
+        assertFailsWith<IllegalArgumentException> { appWithTimers(maxAttemptRuntime = duration) }
+      assertThat(runtimeException).hasMessageThat().contains("maxAttemptRuntime must be between")
+
+      val graceException =
         assertFailsWith<IllegalArgumentException> {
-          object :
-            BaseTeeApplication(
-              subscriptionId = SUBSCRIPTION_ID,
-              queueSubscriber = FakeQueueSubscriber(),
-              parser = WorkItem.parser(),
-              workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
-              workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
-              maxAttemptRuntime = maxRuntime,
-            ) {
-            override suspend fun runWork(message: Any) {}
+          appWithTimers(maxAttemptRuntime = null, attemptStopGracePeriod = duration)
+        }
+      assertThat(graceException).hasMessageThat().contains("attemptStopGracePeriod must be between")
+    }
+    // The bounds themselves are accepted.
+    appWithTimers(
+      maxAttemptRuntime = Duration.ofMillis(1),
+      attemptStopGracePeriod = Duration.ofMillis(1),
+    )
+    appWithTimers(
+      maxAttemptRuntime = Duration.ofMillis(Long.MAX_VALUE),
+      attemptStopGracePeriod = Duration.ofMillis(Long.MAX_VALUE),
+    )
+  }
+
+  @Test
+  fun `work never starts when the runtime limit expires before the work is attached`() =
+    runBlocking {
+      val maxRuntime = Duration.ofMinutes(30)
+      val testWorkItemAttempt = workItemAttempt {
+        name = "workItems/workItem/workItemAttempts/workItemAttempt"
+      }
+      workItemAttemptsServiceMock.stub {
+        onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+        onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      }
+      val fakeSubscriber = FakeQueueSubscriber()
+      val workInvoked = AtomicBoolean(false)
+      val terminations = mutableListOf<Int>()
+      val app =
+        object :
+          BaseTeeApplication(
+            subscriptionId = SUBSCRIPTION_ID,
+            queueSubscriber = fakeSubscriber,
+            parser = WorkItem.parser(),
+            workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+            workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+            attemptUpdateRetryDelay = {},
+            maxAttemptRuntime = maxRuntime,
+            // An unconfined watchdog whose limit has already elapsed abandons the attempt before
+            // processing reaches the work.
+            attemptRuntimeWatchdogContext = Dispatchers.Unconfined,
+            attemptRuntimeTimer = { duration ->
+              if (duration != maxRuntime) {
+                awaitCancellation()
+              }
+            },
+            terminateProcess = { exitCode ->
+              synchronized(terminations) { terminations += exitCode }
+            },
+          ) {
+          override suspend fun runWork(message: Any) {
+            workInvoked.set(true)
           }
         }
+      // Processing on a dispatcher that runs dispatched blocks inline would run eagerly started
+      // work before it is attached.
+      val job = launch(InlineDispatcher) { app.run() }
+      val consumer = TestMessageConsumer()
 
-      assertThat(exception).hasMessageThat().contains("maxAttemptRuntime must be positive")
+      fakeSubscriber.send(
+        QueueSubscriber.QueueMessage(
+          body = createWorkItem(createTestWork()),
+          consumer = consumer,
+          ackId = "max-runtime-before-attach-ack-id",
+        )
+      )
+      consumer.disposition.await()
+      job.cancelAndJoin()
+
+      assertThat(workInvoked.get()).isFalse()
+      assertThat(synchronized(terminations) { terminations.toList() }).isEmpty()
+      verifyBlocking(workItemAttemptsServiceMock, times(1)) { failWorkItemAttempt(any()) }
+      verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+      assertThat(consumer.nackCount).isEqualTo(1)
+      assertThat(consumer.ackCount).isEqualTo(0)
     }
+
+  /**
+   * Runs each dispatched block immediately on the dispatching thread. Unlike
+   * [Dispatchers.Unconfined], it has no event loop that defers nested coroutines, so a coroutine
+   * that is started eagerly runs before its builder returns.
+   */
+  private object InlineDispatcher : CoroutineDispatcher() {
+    override fun dispatch(context: CoroutineContext, block: Runnable) = block.run()
   }
+
+  private fun appWithTimers(
+    maxAttemptRuntime: Duration?,
+    attemptStopGracePeriod: Duration = Duration.ofMinutes(1),
+  ): BaseTeeApplication =
+    object :
+      BaseTeeApplication(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = FakeQueueSubscriber(),
+        parser = WorkItem.parser(),
+        workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+        workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+        maxAttemptRuntime = maxAttemptRuntime,
+        attemptStopGracePeriod = attemptStopGracePeriod,
+      ) {
+      override suspend fun runWork(message: Any) {}
+    }
 
   @Test
   fun `parseMaxAttemptRuntime accepts whole seconds and rejects other values`() {

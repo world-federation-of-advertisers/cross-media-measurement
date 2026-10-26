@@ -94,7 +94,8 @@ private fun canonicalWorkItemName(name: String): String {
  *   restarts it, whether or not failure reporting has finished.
  * @param attemptStopGracePeriod how long [runWork] may take to stop after [maxAttemptRuntime] is
  *   exceeded before the process is terminated. It starts when the limit is exceeded, so failure
- *   reporting and its retries cannot extend it.
+ *   reporting and its retries cannot extend it. Like [maxAttemptRuntime], it must be between 1 ms
+ *   and [Long.MAX_VALUE] ms.
  * @param attemptRuntimeWatchdogContext [CoroutineContext] the runtime watchdog runs in. Like
  *   [attemptLeaseRenewalContext], it must not share a thread with [runWork] or contain a [Job].
  * @param attemptRuntimeTimer suspends for the given duration; used for [maxAttemptRuntime] and
@@ -132,10 +133,14 @@ abstract class BaseTeeApplication(
     require(attemptLeaseRenewalContext[Job] == null) {
       "attemptLeaseRenewalContext must not contain a Job"
     }
-    require(maxAttemptRuntime == null || maxAttemptRuntime > Duration.ZERO) {
-      "maxAttemptRuntime must be positive"
+    require(
+      maxAttemptRuntime == null || maxAttemptRuntime in MIN_TIMER_DURATION..MAX_TIMER_DURATION
+    ) {
+      "maxAttemptRuntime must be between 1 ms and ${Long.MAX_VALUE} ms"
     }
-    require(attemptStopGracePeriod > Duration.ZERO) { "attemptStopGracePeriod must be positive" }
+    require(attemptStopGracePeriod in MIN_TIMER_DURATION..MAX_TIMER_DURATION) {
+      "attemptStopGracePeriod must be between 1 ms and ${Long.MAX_VALUE} ms"
+    }
     require(attemptRuntimeWatchdogContext[Job] == null) {
       "attemptRuntimeWatchdogContext must not contain a Job"
     }
@@ -479,8 +484,12 @@ abstract class BaseTeeApplication(
     message: Any,
     guard: AttemptGuard,
   ): Boolean = coroutineScope {
-    val work = async { runWorkWithLeaseRenewal(workItemAttempt, message) }
+    // Attach before starting, so the watchdog can see any work that has started. Work cancelled
+    // by attachWork (the attempt was already abandoned) never starts.
+    val work =
+      async(start = CoroutineStart.LAZY) { runWorkWithLeaseRenewal(workItemAttempt, message) }
     guard.attachWork(work)
+    work.start()
     try {
       work.await()
       true
@@ -549,7 +558,7 @@ abstract class BaseTeeApplication(
 
   /** Returns whether the cancelled work stops within [attemptStopGracePeriod]. */
   private suspend fun awaitWorkStopped(guard: AttemptGuard): Boolean {
-    // Not yet attached: attachWork cancels the work as soon as it starts.
+    // Not yet attached: attachWork will cancel the work before it starts, so it never runs.
     val work: Job = guard.work ?: return true
     return coroutineScope {
       // UNDISPATCHED so the grace timer starts immediately, not when this thread is next free.
@@ -707,6 +716,10 @@ abstract class BaseTeeApplication(
     const val ATTEMPT_RUNTIME_EXCEEDED_EXIT_CODE = 75
 
     private val DEFAULT_ATTEMPT_STOP_GRACE_PERIOD: Duration = Duration.ofMinutes(1)
+
+    /** Bounds for timer durations: the default timer works in whole milliseconds. */
+    private val MIN_TIMER_DURATION: Duration = Duration.ofMillis(1)
+    private val MAX_TIMER_DURATION: Duration = Duration.ofMillis(Long.MAX_VALUE)
 
     /** Separate single-threaded view of [Dispatchers.IO] for the attempt runtime watchdog. */
     private val DEFAULT_ATTEMPT_RUNTIME_WATCHDOG_CONTEXT: CoroutineContext =
