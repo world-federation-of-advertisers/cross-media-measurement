@@ -1,0 +1,27 @@
+name: Terraform EGS job tests
+
+on:
+  pull_request:
+    paths:
+      - 'src/main/terraform/gcloud/modules/event-group-sync-job/**'
+      - '.github/workflows/terraform-job-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: '1.14.8'
+      - name: Test scheduled EGS caller
+        working-directory: src/main/terraform/gcloud/modules/event-group-sync-job
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform test
+          python3 tests/caller_test.py

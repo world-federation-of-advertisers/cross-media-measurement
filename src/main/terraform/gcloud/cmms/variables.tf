@@ -507,3 +507,16 @@ variable "dashboard_alert_notification_channels" {
   type        = list(string)
   default     = []
 }
+
+variable "event_group_sync_jobs" {
+  description = "Optional Scheduler-started EGS caller jobs. Empty preserves DataWatcher triggering; remove matching DataWatcher routes before enabling."
+  type = map(object({
+    schedule       = string
+    time_zone      = optional(string, "Etc/UTC")
+    paused         = optional(bool, false)
+    data_provider  = string
+    input_blob_uri = string
+    caller_image   = string
+  }))
+  default = {}
+}

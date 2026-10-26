@@ -377,9 +377,9 @@ module "event_group_sync_cloud_function" {
   )
 
   # The Kingdom rate limit and mapped output are shared across syncs for the same DataProvider.
-  # Keep one single-request instance so syncs cannot overlap, and finish before the DataWatcher's
-  # 540-second timeout so it can handle or retry failures.
-  timeout_seconds = 480
+  # A caller job waits for up to 65 minutes; EGS itself may run for 60 minutes. The default
+  # object-triggered deployment retains its shorter timeout.
+  timeout_seconds = length(var.event_group_sync_jobs) > 0 ? 3600 : 480
   max_instances   = 1
   concurrency     = 1
 }
@@ -996,4 +996,16 @@ resource "google_storage_bucket_iam_member" "vid_labeling_monitor_config_storage
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.vid_labeling_monitor_cloud_function.cloud_function_service_account.email}"
+}
+
+module "event_group_sync_job" {
+  source                    = "../event-group-sync-job"
+  for_each                  = var.event_group_sync_jobs
+  project                   = data.google_client_config.default.project
+  region                    = data.google_client_config.default.region
+  name                      = each.key
+  terraform_service_account = var.terraform_service_account
+  function_name             = var.cloud_function_configs.event_group_sync.function_name
+  target                    = each.value
+  depends_on                = [module.event_group_sync_cloud_function]
 }

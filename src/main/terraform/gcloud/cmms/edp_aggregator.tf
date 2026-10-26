@@ -609,6 +609,7 @@ module "edp_aggregator" {
   requisition_fetcher_config                       = local.requisition_fetcher_config
   edps_config                                      = local.edps_config
   event_group_sync_config                          = local.event_group_sync_config
+  event_group_sync_jobs                            = var.event_group_sync_jobs
   data_availability_sync_config                    = local.data_availability_sync_config
   results_fulfiller_event_descriptor               = local.results_fulfiller_event_descriptor
   results_fulfiller_population_spec                = local.results_fulfiller_population_spec
