@@ -289,6 +289,13 @@ internal class VidLabelingTraceCollector(
     ) {
       warnings += "Earlier failed attempts were followed by successful terminal evidence."
     }
+    if (
+      executionStatus == VidLabelingExecutionStatus.SUCCEEDED &&
+        availabilityWorkItems.any { it.state == "FAILED" }
+    ) {
+      warnings +=
+        "Earlier failed availability WorkItems were superseded by the current successful handoff."
+    }
     val traceStatus =
       when {
         orderedEvidence.isEmpty() -> VidLabelingTraceStatus.FAILED
@@ -584,12 +591,6 @@ internal class VidLabelingTraceCollector(
     if (graph.upload.registrationComplete && graph.modelLines.isEmpty()) {
       return VidLabelingExecutionStatus.NO_WORK
     }
-    if (graph.availabilityWorkItems.any { it.state == "FAILED" }) {
-      return VidLabelingExecutionStatus.FAILED
-    }
-    if (graph.availabilityWorkItems.any { it.state == "QUEUED" || it.state == "RUNNING" }) {
-      return VidLabelingExecutionStatus.IN_PROGRESS
-    }
     if (
       graph.modelLines.any {
         it.state == RawImpressionUploadModelLine.State.FAILED &&
@@ -609,6 +610,13 @@ internal class VidLabelingTraceCollector(
         availabilityNodes.all { it.authoritativeState == "PUBLISHED" }
     ) {
       return VidLabelingExecutionStatus.SUCCEEDED
+    }
+    val currentAvailabilityWorkItems = currentAvailabilityWorkItems(graph)
+    if (currentAvailabilityWorkItems.any { it.state == "FAILED" }) {
+      return VidLabelingExecutionStatus.FAILED
+    }
+    if (currentAvailabilityWorkItems.any { it.state == "QUEUED" || it.state == "RUNNING" }) {
+      return VidLabelingExecutionStatus.IN_PROGRESS
     }
     if (graph.modelLines.any { it.state.name in ACTIVE_MODEL_LINE_STATES }) {
       return VidLabelingExecutionStatus.IN_PROGRESS
@@ -638,6 +646,47 @@ internal class VidLabelingTraceCollector(
       "no_work" in latestOutcomes -> VidLabelingExecutionStatus.NO_WORK
       else -> VidLabelingExecutionStatus.UNKNOWN
     }
+  }
+
+  private fun currentAvailabilityWorkItems(
+    graph: VidLabelingAuthoritativeGraph
+  ): List<VidLabelingAvailabilityWorkItem> {
+    return graph.availabilityWorkItems
+      .mapNotNull { workItem ->
+        val modelLine =
+          graph.modelLines.singleOrNull {
+            if (workItem.rawImpressionUploadModelLine.isNotEmpty()) {
+              it.name == workItem.rawImpressionUploadModelLine
+            } else {
+              it.cmmsModelLine == workItem.modelLine
+            }
+          } ?: return@mapNotNull null
+        if (
+          modelLine.state != RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING &&
+            modelLine.state != RawImpressionUploadModelLine.State.COMPLETED
+        ) {
+          return@mapNotNull null
+        }
+        val pendingDates =
+          modelLine.pendingAvailabilityDatesList.mapTo(mutableSetOf()) { date ->
+            date.year.toString().padStart(4, '0') +
+              "-" +
+              date.month.toString().padStart(2, '0') +
+              "-" +
+              date.day.toString().padStart(2, '0')
+          }
+        if (pendingDates.isNotEmpty() && workItem.eventDate !in pendingDates) {
+          return@mapNotNull null
+        }
+        (modelLine.name to workItem.eventDate) to workItem
+      }
+      .groupBy({ it.first }, { it.second })
+      .values
+      .map { handoffs ->
+        handoffs.maxWith(
+          compareBy(VidLabelingAvailabilityWorkItem::createTimeNanos).thenBy { it.name }
+        )
+      }
   }
 
   private fun durableUnit(item: VidLabelingEvidence): String {

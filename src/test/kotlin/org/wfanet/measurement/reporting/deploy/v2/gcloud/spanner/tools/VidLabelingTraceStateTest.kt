@@ -508,6 +508,7 @@ class VidLabelingTraceStateTest {
       .containsAtLeast(originalWorkItemName, retryWorkItemName)
     assertThat(graph.nodes.flatMap { it.identifiers.values }.any { "/workItemAttempts/" in it })
       .isTrue()
+    assertThat(availabilityWorkItems.single().createTimeNanos).isEqualTo(123_000_000_000L)
     assertThat(graph.nodes.filter { it.stage == "data_availability_publish" }).hasSize(2)
     assertThat(graph.availabilityWorkItems).hasSize(1)
     assertThat(graph.availabilityWorkItems.single().attemptCount).isEqualTo(2)
@@ -629,6 +630,7 @@ class VidLabelingTraceStateTest {
       .setWorkItemParams(Any.pack(params))
       .setState(WorkItem.State.valueOf(state))
       .setGeneration(1)
+      .setCreateTime(Timestamp.newBuilder().setSeconds(123))
       .build()
   }
 
