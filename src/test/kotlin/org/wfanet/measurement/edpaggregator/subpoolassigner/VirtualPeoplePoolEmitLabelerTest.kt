@@ -31,26 +31,37 @@ import org.wfanet.virtualpeople.common.branchNode
 import org.wfanet.virtualpeople.common.compiledNode
 import org.wfanet.virtualpeople.common.eventId
 import org.wfanet.virtualpeople.common.labelerInput
+import org.wfanet.virtualpeople.common.populationNode
 import org.wfanet.virtualpeople.common.rankedPopulationNode
 
 @RunWith(JUnit4::class)
 class VirtualPeoplePoolEmitLabelerTest {
   @Test
-  fun `fromCompiledNodeBlob reads a Riegeli CompiledNode list`() {
+  fun `fromCompiledNodeBlob rejects a model without ranked pools`() {
     val modelBlob: ByteString =
       MODEL_BLOB_PATH.toFile().inputStream().use { ByteString.readFrom(it) }
 
-    // Loads without throwing: the blob is a Riegeli record list, so the pre-fix single-node
-    // `CompiledNode.parseFrom(modelBlob)` threw here; the list reader succeeds.
-    val labeler = VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBlob)
-    val offsets = buildList {
-      labeler.emit(labelerInput { eventId = eventId { id = "any-event" } }) { add(it) }
-    }
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBlob)
+      }
 
-    // `single_id_model` is a single-VID model with no `RankedPopulationNode`, so POOL_IDENTITY
-    // emits no pool offsets. The point of this test is that the Riegeli list is read and the
-    // `Labeler` builds — the load path the pre-fix loader broke.
-    assertThat(offsets).isEmpty()
+    assertThat(exception.message).contains("memoized_vid_assignment_enabled")
+  }
+
+  @Test
+  fun `fromCompiledNodeBlob loads a ranked model and emits its pool offset`() {
+    val modelBlob = RANKED_MODEL_BLOB_PATH.toFile().inputStream().use { ByteString.readFrom(it) }
+    val poolOffsets = mutableListOf<Long>()
+
+    VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBlob).use { labeler ->
+      val count =
+        labeler.emit(labelerInput { eventId = eventId { id = "test-event" } }) { poolOffsets += it }
+
+      assertThat(count).isEqualTo(1)
+      assertThat(poolOffsets).containsExactly(1000L)
+      assertThat(labeler.rankedSize(1000L)).isEqualTo(80)
+    }
   }
 
   @Test
@@ -67,6 +78,14 @@ class VirtualPeoplePoolEmitLabelerTest {
     // into embedded branches, not just look at top-level records).
     val subtree = compiledNode {
       branchNode = branchNode {
+        branches +=
+          BranchNodeKt.branch {
+            node = compiledNode {
+              populationNode = populationNode {
+                pools += PopulationNodeKt.virtualPersonPool { populationOffset = 8 }
+              }
+            }
+          }
         branches +=
           BranchNodeKt.branch {
             node = compiledNode {
@@ -110,7 +129,10 @@ class VirtualPeoplePoolEmitLabelerTest {
      * `src/main/resources/testing/labeler`. Shared with `VirtualPeopleVidAssignerTest`; exercises
      * the Riegeli-list read path in [VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob].
      */
-    private val MODEL_BLOB_PATH =
+    private val MODEL_BLOB_PATH = modelBlobPath("single_id_model_riegeli_list")
+    private val RANKED_MODEL_BLOB_PATH = modelBlobPath("ranked_model_riegeli_list")
+
+    private fun modelBlobPath(fileName: String) =
       getRuntimePath(
         Paths.get(
           "wfa_measurement_system",
@@ -119,7 +141,7 @@ class VirtualPeoplePoolEmitLabelerTest {
           "resources",
           "testing",
           "labeler",
-          "single_id_model_riegeli_list",
+          fileName,
         )
       )!!
   }
