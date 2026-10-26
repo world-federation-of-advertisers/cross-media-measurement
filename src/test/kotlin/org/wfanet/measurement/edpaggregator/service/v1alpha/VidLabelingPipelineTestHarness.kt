@@ -130,6 +130,7 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyn
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncWorkItem
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncWorkItemProcessor
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.validateWorkItemDoneObjectGeneration
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServices as EdpaInternalApiServices
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata as EdpaSchemata
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
@@ -701,8 +702,8 @@ abstract class VidLabelingPipelineTestHarness(
         },
         verifyDoneObject = { workItem ->
           val key = SelectedStorageClient.parseBlobUri(workItem.doneBlobUri).key
-          val generation = checkNotNull(fileStorage.getFreshnessToken(key)).toLong()
-          check(generation == workItem.doneBlobGeneration)
+          val actualGeneration = fileStorage.getFreshnessToken(key)?.toLong()
+          validateWorkItemDoneObjectGeneration(actualGeneration, workItem.doneBlobGeneration)
         },
         markAvailabilitySynchronized = { workItem ->
           modelLineRowsStub.markRawImpressionUploadModelLineAvailabilitySynchronized(
