@@ -26,10 +26,12 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.DIRECT_MODEL_LINE
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.EVENT_DATE
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.MEMOIZED_MODEL_LINE
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -486,7 +488,7 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
   }
 
   @Test
-  fun `queued old availability work becomes obsolete during correction healing`() = runBlocking {
+  fun `missing old availability markers fail terminally during correction healing`() = runBlocking {
     workItemTransport.dropNextPublications(DataAvailabilitySyncWorkItems.QUEUE, count = 2)
     writeRawFile("queued-obsolete", "input.parquet", listOf("old-person"))
     finalizeRawUpload("queued-obsolete")
@@ -514,13 +516,22 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
     endpointFailure.getAndSet(null)?.let { throw AssertionError("Correction replay failed", it) }
     assertThat(controller.run().failedDataProviders).isEqualTo(0)
 
+    val missingMarkerTask = originalTasks.single { it.cmmsModelLine == MEMOIZED_MODEL_LINE }
+    checkNotNull(fileStorage.getBlob(blobKey(missingMarkerTask.doneBlobUri))).delete()
+    assertThat(fileStorage.getBlob(blobKey(missingMarkerTask.doneBlobUri))).isNull()
+    val mismatchedMarkerTask = originalTasks.single { it.cmmsModelLine == DIRECT_MODEL_LINE }
+    fileStorage.writeBlob(blobKey(mismatchedMarkerTask.doneBlobUri), flowOf(ByteString.EMPTY))
+    assertThat(generationOf(mismatchedMarkerTask.doneBlobUri))
+      .isNotEqualTo(mismatchedMarkerTask.doneBlobGeneration)
+
     for (task in originalTasks) {
       workItemTransport.redeliverWorkItem(task.name)
     }
     workItemTransport.awaitIdle(allowFailures = true)
     assertThat(listMetadata()).isEmpty()
-    assertThat(listAvailabilityTasks(original.name).map { it.state }.toSet())
-      .containsExactly(WorkItem.State.FAILED)
+    val failedOriginalTasks = listAvailabilityTasks(original.name)
+    assertThat(failedOriginalTasks.map { it.state }.toSet()).containsExactly(WorkItem.State.FAILED)
+    assertThat(failedOriginalTasks.map { it.attemptCount }.toSet()).containsExactly(1)
 
     workItemTransport.republishQueuedWorkItems(DataAvailabilitySyncWorkItems.QUEUE)
     awaitPipelineIdle(allowFailures = true)
@@ -584,9 +595,6 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
     assertThat(listHealingOperations().single().state)
       .isEqualTo(UploadHealingOperation.State.COMPLETE)
 
-    workItemTransport.republishQueuedWorkItems(DataAvailabilitySyncWorkItems.QUEUE)
-    awaitPipelineIdle()
-
     val day1 = originalsByDate.getValue(EVENT_DATE)
     val day1Rows = listRankIndexBlobs(day1.name, showDeleted = true).associateBy { it.name }
     for (original in originalRankRows.getValue(EVENT_DATE)) {
@@ -595,6 +603,33 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
     for (date in listOf(EVENT_DATE.plusDays(1), EVENT_DATE.plusDays(2))) {
       assertSnapshotsEvicted(originalsByDate.getValue(date).name, originalRankRows.getValue(date))
     }
+    val correctedDay2 =
+      listUploads().single {
+        it.replacesRawImpressionUpload == originalsByDate.getValue(EVENT_DATE.plusDays(1)).name
+      }
+    val rebuiltDay3 =
+      listUploads().single {
+        it.replacesRawImpressionUpload == originalsByDate.getValue(EVENT_DATE.plusDays(2)).name
+      }
+    assertThat(listModelLines(correctedDay2.name).single().state)
+      .isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+    assertThat(listModelLines(rebuiltDay3.name).single().state)
+      .isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+    val correctedDay2Entry =
+      rankEntries(correctedDay2, RankIndexBlob.BlobType.SNAPSHOT).single {
+        it.digest == digest("corrected-day-2-1")
+      }
+    val rebuiltDay3Entries = rankEntries(rebuiltDay3, RankIndexBlob.BlobType.SNAPSHOT)
+    val correctedDay2InDay3 = rebuiltDay3Entries.single { it.digest == digest("corrected-day-2-1") }
+    assertThat(correctedDay2InDay3.poolOffset).isEqualTo(correctedDay2Entry.poolOffset)
+    assertThat(correctedDay2InDay3.rank).isEqualTo(correctedDay2Entry.rank)
+    assertThat(rebuiltDay3Entries.map { it.digest }).doesNotContain(digest("day-2-1"))
+    assertThat(rebuiltDay3Entries.map { it.poolOffset to it.rank }.toSet())
+      .hasSize(rebuiltDay3Entries.size)
+
+    workItemTransport.republishQueuedWorkItems(DataAvailabilitySyncWorkItems.QUEUE)
+    awaitPipelineIdle()
+
     assertThat(listMetadata()).hasSize(3)
     assertThat(
         readLabeledPeople(MEMOIZED_MODEL_LINE)
@@ -654,6 +689,92 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
     assertThat(listHealingOperations().single().state)
       .isEqualTo(UploadHealingOperation.State.COMPLETE)
     assertThat(listMetadata()).isEmpty()
+  }
+
+  @Test
+  fun `same-date replacements retain independent availability handoffs`() = runBlocking {
+    setVisibleModelLines(DIRECT_MODEL_LINE)
+    writeRawFile("shared-replacement/main", "main.parquet", listOf("main-original"))
+    finalizeRawUpload("shared-replacement/main")
+    awaitPipelineIdle()
+    val mainOriginal =
+      listUploads().single { it.doneBlobUri == "$rawPrefix/shared-replacement/main/done" }
+    writeRawFile(
+      "shared-replacement/advertiser-a",
+      "advertiser.parquet",
+      listOf("advertiser-original"),
+    )
+    finalizeRawUpload("shared-replacement/advertiser-a")
+    awaitPipelineIdle()
+    val advertiserOriginal =
+      listUploads().single { it.doneBlobUri == "$rawPrefix/shared-replacement/advertiser-a/done" }
+
+    writeRawFile("shared-replacement/main", "main.parquet", listOf("main-corrected"))
+    finalizeRawUpload("shared-replacement/main")
+    workItemTransport.awaitIdle()
+    writeRawFile(
+      "shared-replacement/advertiser-a",
+      "advertiser.parquet",
+      listOf("advertiser-corrected"),
+    )
+    finalizeRawUpload("shared-replacement/advertiser-a")
+    workItemTransport.awaitIdle()
+
+    val controller = buildHealingController()
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    val draft = listHealingOperations().single()
+    approveHealingOperation(
+      draft,
+      draft.rawImpressionUploadCorrectionCandidatesList.associateWith {
+        RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+      },
+    )
+    withholdNextAvailabilityPublications(count = 2)
+
+    repeat(10) {
+      if (listHealingOperations().single().state != UploadHealingOperation.State.COMPLETE) {
+        assertThat(controller.run().failedDataProviders).isEqualTo(0)
+        workItemTransport.awaitIdle()
+        endpointFailure.getAndSet(null)?.let {
+          throw AssertionError("Same-date replacement replay failed", it)
+        }
+      }
+    }
+    assertThat(listHealingOperations().single().state)
+      .isEqualTo(UploadHealingOperation.State.COMPLETE)
+
+    val replacements =
+      listOf(mainOriginal, advertiserOriginal).map { original ->
+        listUploads().single { it.replacesRawImpressionUpload == original.name }
+      }
+    val syncingRows = replacements.map { listModelLines(it.name).single() }
+    assertThat(syncingRows.map { it.state }.toSet())
+      .containsExactly(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+    assertThat(
+        syncingRows.flatMap { row ->
+          row.pendingAvailabilityDatesList.map { date -> date.toLocalDate() }
+        }
+      )
+      .containsExactly(EVENT_DATE, EVENT_DATE)
+    val queuedTasks = replacements.flatMap { listAvailabilityTasks(it.name) }
+    assertThat(queuedTasks).hasSize(2)
+    assertThat(queuedTasks.map { it.doneBlobUri }.toSet()).hasSize(2)
+    assertThat(queuedTasks.map { it.state }.toSet()).containsExactly(WorkItem.State.QUEUED)
+    assertThat(listMetadata()).isEmpty()
+
+    republishQueuedAvailability()
+    awaitPipelineIdle()
+
+    for (replacement in replacements) {
+      val completed = listModelLines(replacement.name).single()
+      assertThat(completed.state).isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+      assertThat(completed.pendingAvailabilityDatesList).isEmpty()
+      assertThat(listAvailabilityTasks(replacement.name).single().state)
+        .isEqualTo(WorkItem.State.SUCCEEDED)
+    }
+    assertThat(listMetadata().map { it.rawImpressionUpload }.toSet())
+      .containsExactlyElementsIn(replacements.map { it.name })
+    assertReadablePeople(DIRECT_MODEL_LINE, setOf("main-corrected", "advertiser-corrected"))
   }
 
   @Test
