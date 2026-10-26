@@ -733,15 +733,21 @@ class VidLabelerAppTest {
 
     app.runWork(buildMessage(params))
 
+    val doneBlobUri =
+      LabeledImpressionsBlobKeys.forDoneUri(
+        "gs://output-bucket/labeled",
+        UPLOAD,
+        MODEL_LINE,
+        LocalDate.of(2026, 6, 30),
+      )
     assertThat(capturedProject.get()).isEqualTo("output-project")
     val blobInfo = capturedBlobInfo.get()
     assertThat(blobInfo.blobId.bucket).isEqualTo("output-bucket")
-    assertThat(blobInfo.blobId.name).endsWith("/model-line/ml1/2026-06-30/done")
+    assertThat(blobInfo.blobId.name).isEqualTo(doneBlobUri.substringAfter("gs://output-bucket/"))
     assertThat(capturedContent.get()).isEmpty()
     assertThat(blobInfo.metadata.orEmpty()).isEmpty()
     val request = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService) { createWorkItem(request.capture()) }
-    val doneBlobUri = "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
     val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneBlobUri)
     val expectedWorkItemId = WorkItemIds.forDataAvailabilitySync(pathHash, 321L)
     assertThat(request.firstValue.workItemId).isEqualTo(expectedWorkItemId)
@@ -783,11 +789,7 @@ class VidLabelerAppTest {
     assertThat(doneEvent.attributes.get(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION))
       .isEqualTo(321L)
     assertThat(doneEvent.attributes.get(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH))
-      .isEqualTo(
-        VidLabelingTraceAttributes.gcsObjectPathHash(
-          "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
-        )
-      )
+      .isEqualTo(VidLabelingTraceAttributes.gcsObjectPathHash(doneBlobUri))
   }
 
   @Test
@@ -874,21 +876,19 @@ class VidLabelerAppTest {
 
     app.runWork(buildMessage(taskParams()))
 
+    val expectedDoneUris =
+      listOf(LocalDate.of(2026, 6, 29), LocalDate.of(2026, 6, 30)).map {
+        LabeledImpressionsBlobKeys.forDoneUri("gs://output-bucket/labeled", UPLOAD, MODEL_LINE, it)
+      }
     assertThat(writtenDoneKeys)
-      .containsExactly(
-        "labeled/model-line/ml1/2026-06-29/done",
-        "labeled/model-line/ml1/2026-06-30/done",
-      )
+      .containsExactlyElementsIn(expectedDoneUris.map { it.substringAfter("gs://output-bucket/") })
       .inOrder()
     val workItemParams =
       workItemRequests.map {
         it.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
       }
     assertThat(workItemParams.map { it.dataPathParams.dataPath })
-      .containsExactly(
-        "gs://output-bucket/labeled/model-line/ml1/2026-06-29/done",
-        "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done",
-      )
+      .containsExactlyElementsIn(expectedDoneUris)
       .inOrder()
     assertThat(workItemParams.map { it.dataPathParams.generation })
       .containsExactly(321L, 322L)
@@ -1010,10 +1010,24 @@ class VidLabelerAppTest {
           }
       }
       val writtenDoneKeys = mutableListOf<String>()
+      val existingDoneUri =
+        LabeledImpressionsBlobKeys.forDoneUri(
+          "gs://output-bucket/labeled",
+          UPLOAD,
+          MODEL_LINE,
+          existingDate,
+        )
+      val missingDoneUri =
+        LabeledImpressionsBlobKeys.forDoneUri(
+          "gs://output-bucket/labeled",
+          UPLOAD,
+          MODEL_LINE,
+          missingDate,
+        )
 
       createApp(
           getGcsObjectGeneration = { _, _, key ->
-            if (key.endsWith("${existingDate}/done")) 321L else null
+            if (key == existingDoneUri.substringAfter("gs://output-bucket/")) 321L else null
           },
           writeGcsObject = { _, blobInfo, _ ->
             writtenDoneKeys += blobInfo.blobId.name
@@ -1022,14 +1036,13 @@ class VidLabelerAppTest {
         )
         .runWork(buildMessage(taskParams()))
 
-      assertThat(writtenDoneKeys).containsExactly("labeled/model-line/ml1/${missingDate}/done")
+      assertThat(writtenDoneKeys)
+        .containsExactly(missingDoneUri.substringAfter("gs://output-bucket/"))
       assertThat(workItemRequests.map { it.workItemId })
         .containsExactly(
           existingWorkItem.name.substringAfter("workItems/"),
           WorkItemIds.forDataAvailabilitySync(
-            VidLabelingTraceAttributes.gcsObjectPathHash(
-              "gs://output-bucket/labeled/model-line/ml1/${missingDate}/done"
-            ),
+            VidLabelingTraceAttributes.gcsObjectPathHash(missingDoneUri),
             322L,
           ),
         )
@@ -1202,7 +1215,12 @@ class VidLabelerAppTest {
         PARENT_NAME,
         MODEL_LINE,
         eventDate,
-        "gs://output-bucket/labeled/model-line/ml1/$eventDate/done",
+        LabeledImpressionsBlobKeys.forDoneUri(
+          "gs://output-bucket/labeled",
+          rawImpressionUpload,
+          MODEL_LINE,
+          eventDate,
+        ),
         generation,
         emptyMap(),
       )

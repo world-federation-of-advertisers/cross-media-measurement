@@ -524,7 +524,13 @@ class DataAvailabilitySyncFunctionTest {
                 }
               )
             dataPathParams = dataPathParams {
-              dataPath = "file:////$outputDirectory/done"
+              dataPath =
+                LabeledImpressionsBlobKeys.forDoneUri(
+                  "file:////edp/edp_name",
+                  RAW_UPLOAD,
+                  MODEL_LINE,
+                  LocalDate.of(2025, 1, 5),
+                )
               generation = 123L
               eventType = StorageEventType.FINALIZED
             }
@@ -581,17 +587,17 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `WorkItems process sequential same-date uploads as distinct handoffs`() {
-    val previousRawUpload = "$DATA_PROVIDER/rawImpressionUploads/previous"
-    val previousRawModelLine = "$previousRawUpload/rawImpressionUploadModelLines/upload-model-line"
-    val previousRawInputBlobUri = "gs://raw-bucket/previous/input.parquet"
+  fun `WorkItems preserve delayed same-date main and advertiser handoffs`() {
+    val mainRawUpload = "$DATA_PROVIDER/rawImpressionUploads/main"
+    val mainRawModelLine = "$mainRawUpload/rawImpressionUploadModelLines/upload-model-line"
+    val mainRawInputBlobUri = "gs://raw-bucket/main/input.parquet"
     rawImpressionUploadFileServiceMock.stub {
       onBlocking { listRawImpressionUploadFiles(any<ListRawImpressionUploadFilesRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
           val (rawInputBlobUri, fileName) =
             when (request.parent) {
-              previousRawUpload -> previousRawInputBlobUri to "$previousRawUpload/files/file-1"
+              mainRawUpload -> mainRawInputBlobUri to "$mainRawUpload/files/file-1"
               RAW_UPLOAD -> RAW_INPUT_BLOB_URI to "$RAW_UPLOAD/files/file-1"
               else -> error("Unexpected upload: ${request.parent}")
             }
@@ -624,7 +630,7 @@ class DataAvailabilitySyncFunctionTest {
     File(tempFolder.root, outputDirectory).mkdirs()
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val expectedOutputs =
-      listOf(previousRawInputBlobUri, RAW_INPUT_BLOB_URI).map { rawInputBlobUri ->
+      listOf(mainRawInputBlobUri, RAW_INPUT_BLOB_URI).map { rawInputBlobUri ->
         "edp/edp_name/" +
           LabeledImpressionsBlobKeys.forInput(rawInputBlobUri, MODEL_LINE, eventDate)
       }
@@ -668,13 +674,16 @@ class DataAvailabilitySyncFunctionTest {
         )
       )
     }
-    val previousWorkItem =
-      availabilityWorkItem(previousRawUpload, previousRawModelLine, eventDate, 321L)
-    val currentWorkItem = availabilityWorkItem(RAW_UPLOAD, RAW_MODEL_LINE, eventDate, 322L)
-    assertThat(currentWorkItem.name).isNotEqualTo(previousWorkItem.name)
+    val mainWorkItem = availabilityWorkItem(mainRawUpload, mainRawModelLine, eventDate, 321L)
+    val advertiserWorkItem = availabilityWorkItem(RAW_UPLOAD, RAW_MODEL_LINE, eventDate, 322L)
+    assertThat(advertiserWorkItem.name).isNotEqualTo(mainWorkItem.name)
+    assertThat(DataAvailabilitySyncWorkItem.parse(advertiserWorkItem).doneBlobUri)
+      .isNotEqualTo(DataAvailabilitySyncWorkItem.parse(mainWorkItem).doneBlobUri)
     val client = HttpClient.newHttpClient()
 
-    for (workItem in listOf(previousWorkItem, currentWorkItem)) {
+    // Both handoffs exist before either is delivered, modeling the healing fence delaying the
+    // serialized queue until every replacement has produced labeled output.
+    for (workItem in listOf(mainWorkItem, advertiserWorkItem)) {
       val request =
         HttpRequest.newBuilder()
           .uri(URI.create("http://localhost:$port"))
@@ -692,7 +701,7 @@ class DataAvailabilitySyncFunctionTest {
     val persistedMetadata =
       metadataRequests.allValues.map { it.requestsList.single().impressionMetadata }
     assertThat(persistedMetadata.map { it.rawImpressionUpload })
-      .containsExactly(previousRawUpload, RAW_UPLOAD)
+      .containsExactly(mainRawUpload, RAW_UPLOAD)
       .inOrder()
     assertThat(persistedMetadata.map { it.outputDoneBlobGeneration })
       .containsExactly(321L, 322L)
@@ -706,7 +715,7 @@ class DataAvailabilitySyncFunctionTest {
       markRawImpressionUploadModelLineAvailabilitySynchronized(synchronizedRequests.capture())
     }
     assertThat(synchronizedRequests.allValues.map { it.name })
-      .containsExactly(previousRawModelLine, RAW_MODEL_LINE)
+      .containsExactly(mainRawModelLine, RAW_MODEL_LINE)
       .inOrder()
     verifyBlocking(workItemAttemptsServiceMock, times(2)) { completeWorkItemAttempt(any()) }
   }
@@ -1228,7 +1237,13 @@ class DataAvailabilitySyncFunctionTest {
     eventDate: LocalDate,
     doneGeneration: Long,
   ): WorkItem {
-    val doneBlobUri = "file:////edp/edp_name/model-line/some-model-line/$eventDate/done"
+    val doneBlobUri =
+      LabeledImpressionsBlobKeys.forDoneUri(
+        "file:////edp/edp_name",
+        rawImpressionUpload,
+        MODEL_LINE,
+        eventDate,
+      )
     val createRequest =
       DataAvailabilitySyncWorkItems.createRequest(
         DATA_PROVIDER,

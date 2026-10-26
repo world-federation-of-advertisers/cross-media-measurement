@@ -175,6 +175,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:vid_labeling_rpc_throttlers",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_dispatch_sequencer",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_monitor",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",
