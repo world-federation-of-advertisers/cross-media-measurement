@@ -1020,7 +1020,7 @@ class BasicReportReportingSetBackfiller(
       } catch (_: CampaignGroupInvalidException) {
         return ComponentMembershipResolution(
           null,
-          "custom ReportingSet $externalReportingSetId has an invalid composite expression",
+          "custom ReportingSet $externalReportingSetId has an invalid composite expression or measurement basis",
         )
       }
     if (membership.isEmpty()) {
@@ -1400,13 +1400,35 @@ class BasicReportReportingSetBackfiller(
     val membership =
       when {
         reportingSet.hasPrimitive() -> reportingSet.primitive.eventGroupKeysList.toSet()
-        reportingSet.hasComposite() ->
-          collectExpressionEventGroupKeys(
-            campaignGroupKey,
-            reportingSet.composite,
-            membershipByReportingSetId,
-            visitingReportingSetIds,
-          )
+        reportingSet.hasComposite() -> {
+          val expressionMembership =
+            collectExpressionEventGroupKeys(
+              campaignGroupKey,
+              reportingSet.composite,
+              membershipByReportingSetId,
+              visitingReportingSetIds,
+            )
+          val primitiveBasisIds =
+            reportingSet.weightedSubsetUnionsList
+              .flatMap { it.primitiveReportingSetBasesList }
+              .map { it.externalReportingSetId }
+              .distinct()
+          for (primitiveBasisId in primitiveBasisIds) {
+            val primitiveBasis =
+              readReportingSet(campaignGroupKey.copy(externalCampaignGroupId = primitiveBasisId))
+                .reportingSet
+            if (
+              !primitiveBasis.hasPrimitive() ||
+                !expressionMembership.containsAll(primitiveBasis.primitive.eventGroupKeysList)
+            ) {
+              throw CampaignGroupInvalidException(
+                campaignGroupKey.cmmsMeasurementConsumerId,
+                campaignGroupKey.externalCampaignGroupId,
+              )
+            }
+          }
+          expressionMembership
+        }
         else ->
           throw CampaignGroupInvalidException(
             campaignGroupKey.cmmsMeasurementConsumerId,

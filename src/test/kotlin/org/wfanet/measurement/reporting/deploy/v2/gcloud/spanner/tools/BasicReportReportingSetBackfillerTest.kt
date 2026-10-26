@@ -3780,6 +3780,134 @@ class BasicReportReportingSetBackfillerTest {
     }
   }
 
+  @Test
+  fun `composite custom component blocks bases outside expression universe`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      createOtherNonCampaignGroup()
+      createBinaryComposite(
+        CUSTOM_COMPONENT_ID,
+        ReportingSet.SetExpression.Operation.UNION,
+        INVALID_CAMPAIGN_GROUP_ID,
+        INVALID_CAMPAIGN_GROUP_ID,
+        listOf(weightedUnion(1, 1, listOf(OTHER_NON_CAMPAIGN_GROUP_ID))),
+      )
+      insertIdentityBasicReport(
+        customReportingUnit(listOf(CUSTOM_COMPONENT_ID)),
+        listOf(ComponentSpec(cmmsDataProviderId = "")),
+        listOf(CUSTOM_COMPONENT_ID),
+        emptyList(),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `composite Campaign Group blocks bases outside expression universe`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      createOtherNonCampaignGroup()
+      createBinaryComposite(
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        ReportingSet.SetExpression.Operation.UNION,
+        INVALID_CAMPAIGN_GROUP_ID,
+        INVALID_CAMPAIGN_GROUP_ID,
+        listOf(weightedUnion(1, 1, listOf(OTHER_NON_CAMPAIGN_GROUP_ID))),
+      )
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID)),
+        listOf(ComponentSpec()),
+        emptyList(),
+        listOf(CMMS_DATA_PROVIDER_ID),
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+      )
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `composite custom component blocks a nonprimitive measurement basis`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      createBinaryComposite(
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        ReportingSet.SetExpression.Operation.UNION,
+        INVALID_CAMPAIGN_GROUP_ID,
+        INVALID_CAMPAIGN_GROUP_ID,
+        listOf(weightedUnion(1, 1, listOf(INVALID_CAMPAIGN_GROUP_ID))),
+      )
+      createBinaryComposite(
+        CUSTOM_COMPONENT_ID,
+        ReportingSet.SetExpression.Operation.UNION,
+        INVALID_CAMPAIGN_GROUP_ID,
+        INVALID_CAMPAIGN_GROUP_ID,
+        listOf(weightedUnion(1, 1, listOf(COMPOSITE_NON_CAMPAIGN_GROUP_ID))),
+      )
+      insertIdentityBasicReport(
+        customReportingUnit(listOf(CUSTOM_COMPONENT_ID)),
+        listOf(ComponentSpec(cmmsDataProviderId = "")),
+        listOf(CUSTOM_COMPONENT_ID),
+        emptyList(),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `composite migration accepts measurement bases omitting cancelled expression leaves`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup()
+      createOtherNonCampaignGroup()
+      createBinaryComposite(
+        "cancelled-component",
+        ReportingSet.SetExpression.Operation.DIFFERENCE,
+        OTHER_NON_CAMPAIGN_GROUP_ID,
+        OTHER_NON_CAMPAIGN_GROUP_ID,
+        listOf(weightedUnion(0, 1, listOf(OTHER_NON_CAMPAIGN_GROUP_ID))),
+      )
+      createBinaryComposite(
+        CUSTOM_COMPONENT_ID,
+        ReportingSet.SetExpression.Operation.UNION,
+        INVALID_CAMPAIGN_GROUP_ID,
+        "cancelled-component",
+        listOf(weightedUnion(1, 1, listOf(INVALID_CAMPAIGN_GROUP_ID))),
+      )
+      insertIdentityBasicReport(
+        customReportingUnit(listOf(CUSTOM_COMPONENT_ID)),
+        listOf(
+          ComponentSpec(
+            cmmsDataProviderId = "",
+            cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1, EVENT_GROUP_ID_2, OTHER_EVENT_GROUP_ID),
+          )
+        ),
+        listOf(CUSTOM_COMPONENT_ID),
+        emptyList(),
+        CUSTOM_COMPONENT_ID,
+      )
+      val before = readInternalBasicReport()
+      val setsBefore = readAllReportingSets()
+      val compositeBefore = readReportingSet(CUSTOM_COMPONENT_ID)
+      val cancelledBefore = readReportingSet("cancelled-component")
+      assertThat(newBackfiller(dryRun = true).run().updated).isEqualTo(1)
+      assertThat(readInternalBasicReport()).isEqualTo(before)
+      assertThat(readAllReportingSets()).containsExactlyElementsIn(setsBefore)
+      val applied = newBackfiller(dryRun = false).run()
+      assertThat(applied.updated).isEqualTo(1)
+      assertThat(applied.readyToRemoveReadPathFallback).isTrue()
+      val migrated = readInternalBasicReport()
+      assertThat(readReportingSet(migrated.externalCampaignGroupId).primitive.eventGroupKeysList)
+        .containsExactly(
+          eventGroupKey(EVENT_GROUP_ID_1),
+          eventGroupKey(EVENT_GROUP_ID_2),
+          eventGroupKey(OTHER_EVENT_GROUP_ID, OTHER_CMMS_DATA_PROVIDER_ID),
+        )
+      assertThat(readReportingSet(CUSTOM_COMPONENT_ID)).isEqualTo(compositeBefore)
+      assertThat(readReportingSet("cancelled-component")).isEqualTo(cancelledBefore)
+      assertThat(readComponentSummaryReportingSetId()).isEqualTo(CUSTOM_COMPONENT_ID)
+      assertThat(migrated.resultDetails.resultGroupsList.single().resultsList.single().metricSet)
+        .isEqualTo(before.resultDetails.resultGroupsList.single().resultsList.single().metricSet)
+      assertThat(newBackfiller(dryRun = false).run().alreadyValid).isEqualTo(1)
+    }
+
   private fun weightedUnion(
     weight: Int,
     binaryRepresentation: Int,

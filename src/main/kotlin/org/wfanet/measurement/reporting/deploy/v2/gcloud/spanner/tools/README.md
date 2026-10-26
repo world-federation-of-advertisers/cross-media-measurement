@@ -182,7 +182,11 @@ collects the EventGroups from every referenced primitive ReportingSet. Set
 operations and filters affect population semantics, but every referenced
 EventGroup must appear in the report's component union. Unlike an ordinary
 primitive reference, a composite does not need to match one component exactly.
-The replacement Campaign Group contains the complete report union.
+The replacement Campaign Group contains the complete report union. Stored
+measurement bases must resolve to primitives whose EventGroups are contained in
+the expression's universe. Missing or nonprimitive bases, or bases introducing
+other EventGroups, block the report. Compiled bases may omit expression leaves
+that cancel algebraically.
 
 The original primitive or composite ReportingSet is never modified. The
 Campaign Group change and all component IDs are written to the `BasicReport` in
