@@ -268,6 +268,9 @@ class SubpoolAssignerApp(
         // Per-impression entity-key columns pass-through (OPTIONAL), mirroring the descriptor.
         requiredEntityKeyFieldMapping.putAll(params.requiredEntityKeyFieldMappingMap)
         optionalEntityKeyFieldMapping.putAll(params.optionalEntityKeyFieldMappingMap)
+        allowedPriorSnapshotRawImpressionUploads.addAll(
+          params.allowedPriorSnapshotRawImpressionUploadsList
+        )
         totalShards = params.totalShards
         // Phase-2 bin-packing cap (REQUIRED), forwarded verbatim so the Phase-1 last-out can batch
         // the upload's files without round-tripping to the dispatcher.

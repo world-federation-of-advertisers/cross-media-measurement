@@ -30,6 +30,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 
 private const val DATA_PROVIDER = "dataProviders/dp"
 private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
+private const val ALLOWED_PRIOR_UPLOAD = "dataProviders/dp/rawImpressionUploads/up0"
 private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
 
 /**
@@ -66,6 +67,7 @@ class SubpoolAssignerAppTest {
     eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
     requiredEntityKeyFieldMapping.put("household", "hh_col")
     optionalEntityKeyFieldMapping.put("creative", "cr_col")
+    allowedPriorSnapshotRawImpressionUploads += ALLOWED_PRIOR_UPLOAD
     totalShards = 4
     maxFileBatchSizeBytes = 777
     activeStartTime = timestamp { seconds = 1000 }
@@ -116,6 +118,8 @@ class SubpoolAssignerAppTest {
     // Per-impression entity-key columns forwarded for the Phase-2 fan-out.
     assertThat(template.requiredEntityKeyFieldMappingMap).containsExactly("household", "hh_col")
     assertThat(template.optionalEntityKeyFieldMappingMap).containsExactly("creative", "cr_col")
+    assertThat(template.allowedPriorSnapshotRawImpressionUploadsList)
+      .containsExactly(ALLOWED_PRIOR_UPLOAD)
     // Active-window timestamps forwarded verbatim from Phase-0 for the Phase-2 fan-out.
     assertThat(template.activeStartTime).isEqualTo(timestamp { seconds = 1000 })
     assertThat(template.activeEndTime).isEqualTo(timestamp { seconds = 2000 })
