@@ -25,6 +25,12 @@ deployed configuration. See the
 [EDP Aggregator deployment guide](../edpaggregator/deployment-guide.md#dataavailabilitysync-config-dataavailabilitysyncconfigs)
 for the full configuration.
 
+When replaying external uploads from a deployment with `external_impression_path`, copy that
+value into the standalone replay config's `edp_impression_path`. The replay tool selects and
+validates folders using `edp_impression_path`. For internal VID Labeler output folders, keep
+the internal prefix. A metadata replay does not record VID Labeler pipeline completion; use
+the pipeline's WorkItem recovery path when that bookkeeping also needs repair.
+
 The runtime identity needs:
 
 * read, list, and metadata-update access to the configured GCS bucket for
