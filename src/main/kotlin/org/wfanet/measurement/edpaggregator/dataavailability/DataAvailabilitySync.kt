@@ -245,16 +245,17 @@ class DataAvailabilitySync(
       val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
       val vidLabelerOutputs = discoveryMode as? DiscoveryMode.VidLabelerOutputs
       if (vidLabelerOutputs != null) {
-        val modelLineId =
-          requireNotNull(ModelLineKey.fromName(vidLabelerOutputs.modelLine)) {
-              "modelLine is not a valid ModelLine resource name"
-            }
-            .modelLineId
         require(
           doneBlobUri.key ==
-            "$edpImpressionPath/model-line/$modelLineId/${vidLabelerOutputs.eventDate}/done"
+            "$edpImpressionPath/" +
+              LabeledImpressionsBlobKeys.forDone(
+                vidLabelerOutputs.rawImpressionUpload,
+                vidLabelerOutputs.modelLine,
+                vidLabelerOutputs.eventDate,
+              )
         ) {
-          "Done-object path does not match the expected model line, event date, and filename"
+          "Done-object path does not match the expected upload, model line, event date, and " +
+            "filename"
         }
         require(doneBlobGeneration > 0L) {
           "doneBlobGeneration must be positive for VID Labeler output discovery"
