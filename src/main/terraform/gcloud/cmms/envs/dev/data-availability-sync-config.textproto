@@ -2,7 +2,8 @@
 # proto-message: wfa.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 configs {
   data_provider: "dataProviders/T5RryPMNong"
-  edp_impression_path: "edp/edp7"
+  edp_impression_path: "edp/edp7/vid-labeler"
+  external_impression_path: "edp/edp7"
   data_availability_storage {
     gcs {
       project_id: "halo-cmm-dev"

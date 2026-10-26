@@ -134,7 +134,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       val dataAvailabilitySyncConfig =
         ConfigLoader.buildDataAvailabilitySyncConfig(requestBody, runtimeConfigs.configsList)
 
-      val dataAvailabilitySync = buildDataAvailabilitySync(externalSyncConfig(dataAvailabilitySyncConfig))
+      val dataAvailabilitySync =
+        buildDataAvailabilitySync(externalSyncConfig(dataAvailabilitySyncConfig))
 
       Tracing.withW3CTraceContext(request) {
         val generation =
@@ -222,20 +223,22 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           )
         ),
         synchronize = { workItem, lease, onStage ->
-          val discoveryMode = if (workItem.isExternal) {
-            DataAvailabilitySync.DiscoveryMode.FolderScan
-          } else {
-            val rawImpressionBlobUris = listRawImpressionBlobUris(rawImpressionUploadFilesStub, workItem)
-            check(rawImpressionBlobUris.isNotEmpty()) {
-              "No RawImpressionUploadFile rows matched the WorkItem event date"
+          val discoveryMode =
+            if (workItem.isExternal) {
+              DataAvailabilitySync.DiscoveryMode.FolderScan
+            } else {
+              val rawImpressionBlobUris =
+                listRawImpressionBlobUris(rawImpressionUploadFilesStub, workItem)
+              check(rawImpressionBlobUris.isNotEmpty()) {
+                "No RawImpressionUploadFile rows matched the WorkItem event date"
+              }
+              DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                rawImpressionUpload = workItem.appParams.triggeringRawImpressionUpload,
+                rawImpressionBlobUris = rawImpressionBlobUris,
+                modelLine = workItem.appParams.modelLine,
+                eventDate = workItem.eventDate,
+              )
             }
-            DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
-              rawImpressionUpload = workItem.appParams.triggeringRawImpressionUpload,
-              rawImpressionBlobUris = rawImpressionBlobUris,
-              modelLine = workItem.appParams.modelLine,
-              eventDate = workItem.eventDate,
-            )
-          }
           buildDataAvailabilitySync(if (workItem.isExternal) externalSyncConfig(config) else config)
             .sync(
               workItem.doneBlobUri,
@@ -304,8 +307,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         "External done object is outside the configured labeled-output prefix"
       }
       val parts = doneBlobUri.key.removePrefix(prefix).split('/')
-      require(parts.size == 3 && parts[0].isNotEmpty() && parts[2] == "done" &&
-        runCatching { java.time.LocalDate.parse(parts[1]) }.isSuccess) {
+      require(
+        parts.size == 3 &&
+          parts[0].isNotEmpty() &&
+          parts[2] == "done" &&
+          runCatching { java.time.LocalDate.parse(parts[1]) }.isSuccess
+      ) {
         "External done object must identify a model line and event date"
       }
     }
