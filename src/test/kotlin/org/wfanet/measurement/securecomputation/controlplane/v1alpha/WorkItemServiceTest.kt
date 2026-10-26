@@ -796,4 +796,97 @@ class WorkItemServiceTest {
         }
       )
   }
+
+  @Test
+  fun `createWorkItem preserves UNAVAILABLE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { createWorkItem(any()) } doThrow
+        Status.UNAVAILABLE.withDescription("Backend transport failure").asRuntimeException()
+    }
+    val request = createWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queue-id" }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.createWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description).isNull()
+  }
+
+  @Test
+  fun `ensureWorkItem preserves UNAVAILABLE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        Status.UNAVAILABLE.withDescription("Backend transport failure").asRuntimeException()
+    }
+    val request = ensureWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queue-id" }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.ensureWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description).isNull()
+  }
+
+  @Test
+  fun `getWorkItem preserves UNAVAILABLE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { getWorkItem(any()) } doThrow
+        Status.UNAVAILABLE.withDescription("Backend transport failure").asRuntimeException()
+    }
+    val request = getWorkItemRequest { name = "workItems/work-item" }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.getWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description).isNull()
+  }
+
+  @Test
+  fun `failWorkItem preserves UNAVAILABLE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { failWorkItem(any()) } doThrow
+        Status.UNAVAILABLE.withDescription("Backend transport failure").asRuntimeException()
+    }
+    val request = failWorkItemRequest { name = "workItems/work-item" }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.failWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description).isNull()
+  }
+
+  @Test
+  fun `retryWorkItem preserves UNAVAILABLE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { retryWorkItem(any()) } doThrow
+        Status.UNAVAILABLE.withDescription("Backend transport failure").asRuntimeException()
+    }
+    val request = retryWorkItemRequest { name = "workItems/work-item" }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.retryWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description).isNull()
+  }
+
+  @Test
+  fun `createWorkItem maps unclassified backend exhaustion to INTERNAL`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { createWorkItem(any()) } doThrow
+        Status.RESOURCE_EXHAUSTED.withDescription("Backend resource failure").asRuntimeException()
+    }
+    val request = createWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queue-id" }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.createWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+    assertThat(exception.status.description).isNull()
+  }
 }

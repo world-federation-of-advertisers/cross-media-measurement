@@ -52,7 +52,7 @@ import org.wfanet.measurement.storage.StorageClient
  *
  * Invoked by two Cloud Scheduler jobs against this one endpoint, selected by the `mode` query
  * parameter (anything else is rejected with HTTP 400):
- * - `?mode=dispatch` on a fast cadence (~6h) runs [VidLabelingMonitor.runDispatch] only, so a
+ * - `?mode=dispatch` every five minutes by default runs [VidLabelingMonitor.runDispatch] only, so a
  *   newly-registered upload starts promptly.
  * - `?mode=health` on a slow cadence (~daily, matching the DataAvailabilityMonitor) runs
  *   [VidLabelingMonitor.runHealth] only: staleness/failure monitoring, stuck-phase recovery, and

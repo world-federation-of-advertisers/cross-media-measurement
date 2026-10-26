@@ -1574,18 +1574,23 @@ the [Report Debugging Guide](report-debugging-guide.md).
 ### VID labeling dispatch recovery
 
 The default CMMS deployment invokes `VidLabelingMonitor.runDispatch` every five
-minutes. This is the durable fallback when registration succeeds but fast-path
-dispatch fails. Dispatch requests retry up to three times with 30–120 second
-backoff and a four-minute retry window. A persistent failure remains visible as a
-failed Scheduler execution and is retried by the next scheduled invocation.
+minutes to recover registered uploads whose fast-path dispatch failed. A dispatch
+tick scans metadata and starts eligible work; it does not rerun labeling or the
+daily health checks. Deterministic WorkItem IDs and etag claims protect dispatch
+when the fast path and monitor run concurrently.
 
-The daily health scan shares the monitor's single-instance cap with dispatch.
-Its Scheduler requests retry up to three times with 300–600 second backoff and
-a 30-minute retry window. The cap continues to bound metadata RPC load; the daily
-health cadence and stuck-phase recovery thresholds are unchanged.
+Both functions configure a maximum of one instance and one concurrent HTTP request.
+The monitor's dispatch and health modes share that instance. Long-running scans can
+delay or skip a scheduled tick; the five-minute cadence is not a completion deadline.
+Outbound RPC pacing remains process-scoped.
 
-The development Secure Computation internal API requests and limits 1 GiB of
-container memory and bounds Java direct buffers at 128 MiB. Container RSS includes
-the heap, direct buffers, JVM native memory, and instrumentation. Monitor container
-RSS and OOM events when sizing a deployment; the Java heap limit alone does not
-bound total memory.
+The public WorkItems API preserves backend `UNAVAILABLE` failures so the existing
+common-jvm gRPC retry policy can handle a transient outage. Backend diagnostics are
+retained as the server-side cause rather than exposed in the public status.
+
+Dispatch Scheduler requests rely on the next scheduled invocation for recovery.
+Daily health HTTP requests allow up to three retries, with 300–600 second backoff.
+This uses the retry-count limit without an additional retry-duration window. Both
+jobs allow 660 seconds for a request, beyond the monitor's 600-second timeout.
+The monitor reports application dispatch/recovery issues through logs and metrics
+and returns HTTP 200; Scheduler retries cover HTTP/platform failures only.

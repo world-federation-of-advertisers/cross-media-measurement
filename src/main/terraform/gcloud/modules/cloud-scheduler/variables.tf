@@ -27,7 +27,6 @@ variable "scheduler_config" {
     paused                    = optional(bool, false)
     retry_config = optional(object({
       retry_count          = number
-      max_retry_duration   = string
       min_backoff_duration = string
       max_backoff_duration = string
       max_doublings        = number

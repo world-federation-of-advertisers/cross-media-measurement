@@ -908,6 +908,7 @@ module "vid_labeling_dispatcher_cloud_function" {
   # 540-second timeout.
   timeout_seconds = 480
   max_instances   = 1
+  concurrency     = 1
 }
 
 # The DataWatcher invokes the dispatcher over HTTP when a "done" blob lands.
@@ -959,6 +960,7 @@ module "vid_labeling_monitor_cloud_function" {
   # Health scans may traverse multiple metadata pages, so retain the same timeout headroom.
   timeout_seconds = 600
   max_instances   = 1
+  concurrency     = 1
 }
 
 module "vid_labeling_monitor_cloud_scheduler" {
@@ -971,7 +973,6 @@ module "vid_labeling_monitor_cloud_scheduler" {
       attempt_deadline = "660s"
       retry_config = {
         retry_count          = 3
-        max_retry_duration   = "1800s"
         min_backoff_duration = "300s"
         max_backoff_duration = "600s"
         max_doublings        = 2
@@ -987,16 +988,7 @@ module "vid_labeling_dispatch_cloud_scheduler" {
   # This job invokes the same function in dispatch mode and needs the same response headroom.
   scheduler_config = merge(
     var.vid_labeling_dispatch_scheduler_config,
-    {
-      attempt_deadline = "660s"
-      retry_config = {
-        retry_count          = 3
-        max_retry_duration   = "240s"
-        min_backoff_duration = "30s"
-        max_backoff_duration = "120s"
-        max_doublings        = 2
-      }
-    },
+    { attempt_deadline = "660s" },
   )
   depends_on = [module.vid_labeling_monitor_cloud_function]
 }

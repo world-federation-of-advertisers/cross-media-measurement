@@ -44,7 +44,6 @@ resource "google_cloud_scheduler_job" "scheduler_job" {
     for_each = var.scheduler_config.retry_config == null ? [] : [var.scheduler_config.retry_config]
     content {
       retry_count          = retry_config.value.retry_count
-      max_retry_duration   = retry_config.value.max_retry_duration
       min_backoff_duration = retry_config.value.min_backoff_duration
       max_backoff_duration = retry_config.value.max_backoff_duration
       max_doublings        = retry_config.value.max_doublings
