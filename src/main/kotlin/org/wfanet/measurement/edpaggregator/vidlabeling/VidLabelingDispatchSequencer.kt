@@ -83,6 +83,12 @@ internal fun availabilitySyncingBlocksDispatch(
   candidateUploadHealingOperation.isEmpty() ||
     blockingUploadHealingOperation != candidateUploadHealingOperation
 
+private data class AvailabilityHandoff(
+  val rawImpressionUpload: String,
+  val uploadHealingOperation: String,
+  val uploadIndex: Int,
+)
+
 /**
  * Sequences VID labeling dispatch for one `DataProvider`.
  *
@@ -224,29 +230,34 @@ class VidLabelingDispatchSequencer(
         .filter { it.state in PROCESSING_STATES }
         .map { it.cmmsModelLine }
         .toMutableSet()
-    val availabilityOperationsByModelLine = mutableMapOf<String, MutableList<String>>()
-    for (upload in uploads) {
+    val availabilityHandoffsByModelLine = mutableMapOf<String, MutableList<AvailabilityHandoff>>()
+    for ((uploadIndex, upload) in uploads.withIndex()) {
       for (modelLine in
         modelLinesByUpload.getValue(upload.name).filter {
           it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
         }) {
-        availabilityOperationsByModelLine
+        availabilityHandoffsByModelLine
           .getOrPut(modelLine.cmmsModelLine) { mutableListOf() }
-          .add(upload.uploadHealingOperation)
+          .add(AvailabilityHandoff(upload.name, upload.uploadHealingOperation, uploadIndex))
       }
     }
 
     var dispatchedUpload: String? = null
     var queuedModelLines = 0
-    for (upload in uploads) {
+    for ((uploadIndex, upload) in uploads.withIndex()) {
       // Memoized model lines are dispatched individually (Phase-0 fan-out); non-memoized lines of
       // this upload are collected and dispatched together as one bundled Phase-2 fan-out.
       val nonMemoized = mutableListOf<BundledModelLine>()
       for (modelLine in modelLinesByUpload.getValue(upload.name)) {
         if (modelLine.state != RawImpressionUploadModelLine.State.CREATED) continue
+        val availabilityHandoffs =
+          availabilityHandoffsByModelLine[modelLine.cmmsModelLine].orEmpty()
         val blockedByAvailability =
-          availabilityOperationsByModelLine[modelLine.cmmsModelLine].orEmpty().any {
-            availabilitySyncingBlocksDispatch(it, upload.uploadHealingOperation)
+          availabilityHandoffs.any {
+            availabilitySyncingBlocksDispatch(
+              it.uploadHealingOperation,
+              upload.uploadHealingOperation,
+            ) || it.uploadIndex >= uploadIndex
           }
         if (modelLine.cmmsModelLine in busyModelLines || blockedByAvailability) {
           queuedModelLines++
@@ -260,7 +271,15 @@ class VidLabelingDispatchSequencer(
           continue
         }
         if (shardInfo.memoizationEnabled) {
-          dispatchMemoized(upload.name, modelLine, shardInfo)
+          val allowedPriorSnapshotUploads =
+            availabilityHandoffs
+              .filter {
+                it.uploadIndex < uploadIndex &&
+                  it.uploadHealingOperation == upload.uploadHealingOperation &&
+                  upload.uploadHealingOperation.isNotEmpty()
+              }
+              .map { it.rawImpressionUpload }
+          dispatchMemoized(upload.name, modelLine, shardInfo, allowedPriorSnapshotUploads)
           busyModelLines += modelLine.cmmsModelLine
           if (dispatchedUpload == null) dispatchedUpload = upload.name
         } else {
@@ -478,6 +497,7 @@ class VidLabelingDispatchSequencer(
     uploadName: String,
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
+    allowedPriorSnapshotUploads: List<String>,
   ) =
     Tracing.traceSuspending(
       spanName = "edpa.vid_labeling.dispatch",
@@ -488,7 +508,7 @@ class VidLabelingDispatchSequencer(
           .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME, modelLine.name)
           .build(),
     ) {
-      dispatchMemoizedInternal(uploadName, modelLine, shardInfo)
+      dispatchMemoizedInternal(uploadName, modelLine, shardInfo, allowedPriorSnapshotUploads)
       recordDispatched(uploadName, "phase0", modelLine.cmmsModelLine)
     }
 
@@ -496,6 +516,7 @@ class VidLabelingDispatchSequencer(
     uploadName: String,
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
+    allowedPriorSnapshotUploads: List<String>,
   ) {
     // `vid_rank_map_storage_params`, `subpool_map_storage_params`, and `model_storage_params` are
     // REQUIRED on `SubpoolAssignerParams` but OPTIONAL on `VidLabelingConfig` (only required for
@@ -544,6 +565,7 @@ class VidLabelingDispatchSequencer(
         modelLineConfig = modelLineConfig,
         poolAssignmentJob = poolAssignmentJob,
         shardIndex = shardIndex,
+        allowedPriorSnapshotUploads = allowedPriorSnapshotUploads,
       )
     }
     markPoolAssigning(modelLine.name, modelLine.etag)
@@ -984,6 +1006,7 @@ class VidLabelingDispatchSequencer(
     modelLineConfig: VidLabelerParams.ModelLineConfig,
     poolAssignmentJob: String,
     shardIndex: Int,
+    allowedPriorSnapshotUploads: List<String>,
   ) {
     // Start from the shared template (data provider, storage params, TLS connection) and fill in
     // the per-shard fields. `copy` carries every template field, so a field added to the template
@@ -1013,6 +1036,7 @@ class VidLabelingDispatchSequencer(
         requiredEntityKeyFieldMapping.putAll(modelLineConfig.requiredEntityKeyFieldMappingMap)
         optionalEntityKeyFieldMapping.putAll(modelLineConfig.optionalEntityKeyFieldMappingMap)
         this.poolAssignmentJob = poolAssignmentJob
+        allowedPriorSnapshotRawImpressionUploads.addAll(allowedPriorSnapshotUploads)
       }
 
     val workItemId = WorkItemIds.forSubpoolAssigner(uploadName, modelLineName, shardIndex)
