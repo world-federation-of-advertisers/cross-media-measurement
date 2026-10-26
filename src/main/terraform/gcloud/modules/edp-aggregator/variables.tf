@@ -645,3 +645,10 @@ variable "event_group_sync_work_item_queue" {
     maximum_backoff       = string
   })
 }
+
+variable "event_group_sync_memory" {
+  description = "EventGroupSync function memory; retain the allocation required by the input size."
+  type        = string
+  nullable    = false
+  default     = "512MB"
+}
