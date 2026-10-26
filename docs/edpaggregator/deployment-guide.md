@@ -90,7 +90,7 @@ Kingdom requisitions ◄── Cloud Scheduler ──► RequisitionFetcher ─�
         writes requisitions/* ──► Secure Computation API ──► Pub/Sub
                                                                   │
 edp/<edp-id>/<date>/{impressions,metadata,done}                               ▼
-        done ── finalize ──► DataWatcher ──► DataAvailabilitySync ──► ResultsFulfiller MIG
+        done ── finalize ──► DataWatcher ──► WorkItem ──► DataAvailabilitySync ──► ResultsFulfiller MIG
                                                     │                    (Confidential Space)
                                                     ▼                         │
                                         EDP Aggregator (Metadata) API ◄───────┘
@@ -186,7 +186,7 @@ the correct pipeline.
 The two watched-path types per EDP:
 
 1. **Event group detection** — an event-group blob creates an EventGroupSync WorkItem.
-2. **Impressions / data availability** — a `done` marker invokes DataAvailabilitySync.
+2. **Impressions / data availability** — an external `done` marker creates a DataAvailabilitySync WorkItem.
 
 Requisition blobs are not watched in the recommended configuration. RequisitionFetcher creates
 their WorkItems directly after the blob and all associated metadata rows are durable.
@@ -237,11 +237,12 @@ Config: [`RequisitionFetcherConfig`](#requisitionfetcher-config-requisitionfetch
 
 ### DataAvailabilitySync
 
-A Cloud Function invoked by the DataWatcher when an empty `done` file is written
-under an impressions date directory, signaling that a day's impressions and metadata
-have finished uploading. It locates the directory, scans metadata (including
-subfolders), records impression availability in the Metadata Storage database, and
-notifies the Kingdom that impressions for that day are available.
+A Cloud Function consuming external done-blob WorkItems from DataWatcher and internal
+WorkItems created directly by VID Labeler. DataWatcher returns after durable task creation.
+External tasks scan the finalized date folder; internal tasks use their raw-upload contract.
+Both publish metadata and Kingdom availability under the provider synchronization lease and
+record durable attempt completion. External tasks do not update VID Labeler pipeline rows.
+Legacy HTTP invocation remains supported for external folders.
 When `event_group_activity_publishing` is configured, the same sync also derives
 positive EventGroup activity from the finalized metadata and appends it in the Kingdom.
 
@@ -831,17 +832,17 @@ watched_paths {
   }
 }
 
-# 2) Data availability -> DataAvailabilitySync (HTTP), fires on the `done` marker
+# 2) External data availability -> DataAvailabilitySync (durable WorkItem)
 watched_paths {
   identifier: "data-availability"
-  source_path_regex: "^gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/.+/done$"
-  http_endpoint_sink {
-    endpoint_uri: "https://REGION-PROJECT_ID.cloudfunctions.net/data-availability-sync"
+  source_path_regex: "^gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/model-line/[^/]+/[0-9]{4}-[0-9]{2}-[0-9]{2}/done$"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/DATA_PROVIDER_ID"
     app_params {
-      fields { key: "dataProvider" value { string_value: "dataProviders/DATA_PROVIDER_ID" } }
-      # dataAvailabilityStorage.gcs { projectId, bucketName }
-      # cmmsConnection.{certFilePath, privateKeyFilePath, certCollectionFilePath}
-      # impressionMetadataStorageConnection.{certFilePath, privateKeyFilePath, certCollectionFilePath}
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/DATA_PROVIDER_ID"
+      }
     }
   }
 }
@@ -1089,7 +1090,10 @@ configs {
   data_availability_storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
   cmms_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   impression_metadata_storage_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
-  edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"   # optional today; required in a future release
+  # Internal VID Labeler output prefix: match the dispatcher and monitor configs.
+  edp_impression_path: "edp/<edp-id>/vid-labeler"
+  # External producers retain their existing upload prefix.
+  external_impression_path: "edp/<edp-id>"
   # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
   # event_group_activity_publishing {
@@ -1101,6 +1105,12 @@ configs {
   # }
 }
 ```
+
+For providers using both external uploads and VID Labeler, keep the external route outside
+the internal output namespace. The deployment validator checks HTTP and queued external
+routes for overlap. Drain active tasks before migrating dispatcher, monitor, and sync configs
+together. Keep historical impression metadata. When `external_impression_path` is empty,
+external and legacy HTTP syncs use `edp_impression_path`.
 
 `event_group_activity_publishing` is optional. When present, `DataAvailabilitySync`:
 
