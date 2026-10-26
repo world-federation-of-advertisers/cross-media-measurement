@@ -29,3 +29,5 @@ The consumer uses `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`, optional
 configured client TLS identity. Terraform mounts the control-plane CA and grants the push
 identity invocation on EGS. Monitor WorkItem states and mapping freshness alongside push/DLQ
 metrics: delivery failures are distinct from synchronization outcomes.
+
+Set `event_group_sync_memory` to the existing environment allocation before redeployment. Its default remains `512MB`; larger inputs need an explicitly sized allocation.
