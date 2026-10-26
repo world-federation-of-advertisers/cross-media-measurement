@@ -10,6 +10,7 @@ kt_jvm_library(
     name = "data_watcher_function",
     srcs = ["DataWatcherFunction.kt"],
     deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_params_kt_jvm_proto",
         "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
         "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
