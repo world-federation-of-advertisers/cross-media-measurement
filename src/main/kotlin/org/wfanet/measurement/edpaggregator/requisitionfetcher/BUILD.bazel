@@ -35,7 +35,10 @@ kt_jvm_library(
     name = "requisition_work_item_dispatcher",
     srcs = ["RequisitionWorkItemDispatcher.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:errors",
+        "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",

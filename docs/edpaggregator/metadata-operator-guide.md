@@ -80,6 +80,9 @@ If a worker completes while the fetcher reconciles an existing WorkItem, the
 fetcher accepts `SUCCEEDED` only after verifying the queue, application parameters,
 and persisted blob URI. It does not republish completed work or automatically retry
 a `FAILED` WorkItem. A mismatched WorkItem remains an error requiring investigation.
+Completion reconciliation requires the control plane's `INVALID_WORK_ITEM_STATE`
+error details; other precondition and lookup failures remain errors. Reconciliation
+of active work preserves the original packed parameters, including trace context.
 
 Keep the configured direct-dispatch prefix unchanged while any direct group remains
 `STORED`, `QUEUED`, or `PROCESSING`. Recovery compares each persisted `blob_uri`

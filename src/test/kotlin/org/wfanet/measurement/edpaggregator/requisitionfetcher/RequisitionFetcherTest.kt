@@ -20,10 +20,13 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.StringValue
+import com.google.protobuf.UnknownFieldSet
 import com.google.protobuf.timestamp
+import com.google.rpc.errorInfo
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.SpanContext
@@ -56,6 +59,8 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -76,6 +81,8 @@ import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.grpc.asRuntimeException
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
@@ -112,6 +119,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.securecomputation.service.Errors
+import org.wfanet.measurement.securecomputation.service.WorkItemInvalidStateException
+import org.wfanet.measurement.securecomputation.service.WorkItemPublicationPendingException
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -327,6 +337,22 @@ class RequisitionFetcherTest {
     spanExporter.reset()
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
+  }
+
+  private fun invalidWorkItemStateException(state: WorkItem.State): StatusRuntimeException =
+    WorkItemInvalidStateException("workItems/results-fulfiller-group-id", state.name, null)
+      .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+
+  private fun completedDispatchWorkItem(params: ResultsFulfillerParams): WorkItem = workItem {
+    name = "workItems/results-fulfiller-group-id"
+    queue = "results-fulfiller-queue"
+    workItemParams =
+      workItemParams {
+          appParams = params.pack()
+          dataPathParams = dataPathParams { dataPath = "gs://bucket/requisitions/group-id" }
+        }
+        .pack()
+    state = WorkItem.State.SUCCEEDED
   }
 
   private fun createFetcher(
@@ -1679,23 +1705,26 @@ class RequisitionFetcherTest {
         state = WorkItem.State.QUEUED
       }
     }
-    whenever(workItemsServiceMock.getWorkItem(any()))
-      .thenReturn(
-        workItem {
-          name = "workItems/results-fulfiller-group-id"
-          queue = "results-fulfiller-queue"
-          workItemParams =
-            workItemParams {
-                appParams = resultsFulfillerParams.pack()
-                dataPathParams = dataPathParams {
-                  dataPath = "gs://bucket/requisitions-v2/group-id"
-                }
-                traceContext["traceparent"] =
-                  "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
-              }
-              .pack()
-        }
-      )
+    val existingWorkItem = workItem {
+      state = WorkItem.State.RUNNING
+      name = "workItems/results-fulfiller-group-id"
+      queue = "results-fulfiller-queue"
+      workItemParams =
+        workItemParams {
+            appParams = resultsFulfillerParams.pack()
+            dataPathParams = dataPathParams { dataPath = "gs://bucket/requisitions-v2/group-id" }
+            traceContext["traceparent"] = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
+          }
+          .toBuilder()
+          .setUnknownFields(
+            UnknownFieldSet.newBuilder()
+              .addField(100, UnknownFieldSet.Field.newBuilder().addVarint(42).build())
+              .build()
+          )
+          .build()
+          .pack()
+    }
+    whenever(workItemsServiceMock.getWorkItem(any())).thenReturn(existingWorkItem)
     val dispatcher =
       SecureComputationRequisitionWorkItemDispatcher(
         workItemsStub = workItemsStub,
@@ -1718,8 +1747,10 @@ class RequisitionFetcherTest {
     }
 
     assertThat(requests).hasSize(2)
+    assertThat(requests.last().workItem.workItemParams).isEqualTo(existingWorkItem.workItemParams)
     val retriedParams =
       requests.last().workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    assertThat(retriedParams.unknownFields.asMap()).containsKey(100)
     assertThat(retriedParams.traceContextMap)
       .containsEntry("traceparent", "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01")
   }
@@ -1748,7 +1779,7 @@ class RequisitionFetcherTest {
       whenever(workItemsServiceMock.ensureWorkItem(any())).thenAnswer { invocation ->
         requests += invocation.getArgument<EnsureWorkItemRequest>(0)
         if (requests.size == 1) throw Status.ALREADY_EXISTS.asRuntimeException()
-        throw Status.FAILED_PRECONDITION.asRuntimeException()
+        throw invalidWorkItemStateException(WorkItem.State.SUCCEEDED)
       }
       val existingParams =
         workItemParams {
@@ -1790,7 +1821,7 @@ class RequisitionFetcherTest {
   fun `secure computation dispatcher accepts matching completed WorkItem`() = runBlocking {
     val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
     whenever(workItemsServiceMock.ensureWorkItem(any())).thenAnswer {
-      throw Status.FAILED_PRECONDITION.asRuntimeException()
+      throw invalidWorkItemStateException(WorkItem.State.SUCCEEDED)
     }
     whenever(workItemsServiceMock.getWorkItem(any()))
       .thenReturn(
@@ -1822,7 +1853,7 @@ class RequisitionFetcherTest {
     runBlocking {
       val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
       whenever(workItemsServiceMock.ensureWorkItem(any())).thenAnswer {
-        throw Status.FAILED_PRECONDITION.asRuntimeException()
+        throw invalidWorkItemStateException(WorkItem.State.SUCCEEDED)
       }
       whenever(workItemsServiceMock.getWorkItem(any()))
         .thenReturn(
@@ -1858,7 +1889,7 @@ class RequisitionFetcherTest {
     runBlocking {
       val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
       whenever(workItemsServiceMock.ensureWorkItem(any())).thenAnswer {
-        throw Status.FAILED_PRECONDITION.asRuntimeException()
+        throw invalidWorkItemStateException(WorkItem.State.SUCCEEDED)
       }
       whenever(workItemsServiceMock.getWorkItem(any()))
         .thenReturn(
@@ -1892,11 +1923,209 @@ class RequisitionFetcherTest {
     }
 
   @Test
+  fun `secure computation dispatcher accepts completed WorkItem after already exists without another ensure`() =
+    runBlocking<Unit> {
+      val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
+      whenever(workItemsServiceMock.ensureWorkItem(any()))
+        .thenThrow(
+          Status.ALREADY_EXISTS.asRuntimeException(),
+          invalidWorkItemStateException(WorkItem.State.SUCCEEDED),
+        )
+      whenever(workItemsServiceMock.getWorkItem(any()))
+        .thenReturn(completedDispatchWorkItem(params))
+      val dispatcher =
+        SecureComputationRequisitionWorkItemDispatcher(
+          workItemsStub,
+          "results-fulfiller-queue",
+          params,
+          throttler,
+        )
+
+      dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+
+      verify(workItemsServiceMock, times(1)).ensureWorkItem(any())
+      verify(workItemsServiceMock, times(1)).getWorkItem(any())
+    }
+
+  @Test
+  fun `secure computation dispatcher propagates precondition failure without error details`() =
+    runBlocking<Unit> {
+      val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
+      whenever(workItemsServiceMock.ensureWorkItem(any()))
+        .thenThrow(Status.FAILED_PRECONDITION.asRuntimeException())
+      whenever(workItemsServiceMock.getWorkItem(any()))
+        .thenReturn(completedDispatchWorkItem(params))
+      val dispatcher =
+        SecureComputationRequisitionWorkItemDispatcher(
+          workItemsStub,
+          "results-fulfiller-queue",
+          params,
+          throttler,
+        )
+
+      val exception =
+        assertFailsWith<StatusException> {
+          dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      verify(workItemsServiceMock, times(0)).getWorkItem(any())
+    }
+
+  @Test
+  fun `secure computation dispatcher propagates publication pending`() =
+    runBlocking<Unit> {
+      val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
+      whenever(workItemsServiceMock.ensureWorkItem(any()))
+        .thenThrow(
+          WorkItemPublicationPendingException("workItems/results-fulfiller-group-id", null)
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        )
+      whenever(workItemsServiceMock.getWorkItem(any()))
+        .thenReturn(completedDispatchWorkItem(params))
+      val dispatcher =
+        SecureComputationRequisitionWorkItemDispatcher(
+          workItemsStub,
+          "results-fulfiller-queue",
+          params,
+          throttler,
+        )
+
+      val exception =
+        assertFailsWith<StatusException> {
+          dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+        }
+
+      assertThat(exception.errorInfo?.reason)
+        .isEqualTo(Errors.Reason.WORK_ITEM_PUBLICATION_PENDING.name)
+      verify(workItemsServiceMock, times(0)).getWorkItem(any())
+    }
+
+  @Test
+  fun `secure computation dispatcher propagates invalid state from another error domain`() =
+    runBlocking<Unit> {
+      val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
+      whenever(workItemsServiceMock.ensureWorkItem(any()))
+        .thenThrow(
+          Status.FAILED_PRECONDITION.asRuntimeException(
+            errorInfo {
+              domain = "another-service.example"
+              reason = Errors.Reason.INVALID_WORK_ITEM_STATE.name
+            }
+          )
+        )
+      whenever(workItemsServiceMock.getWorkItem(any()))
+        .thenReturn(completedDispatchWorkItem(params))
+      val dispatcher =
+        SecureComputationRequisitionWorkItemDispatcher(
+          workItemsStub,
+          "results-fulfiller-queue",
+          params,
+          throttler,
+        )
+
+      val exception =
+        assertFailsWith<StatusException> {
+          dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+        }
+
+      assertThat(exception.errorInfo?.domain).isEqualTo("another-service.example")
+      verify(workItemsServiceMock, times(0)).getWorkItem(any())
+    }
+
+  @Test
+  fun `secure computation dispatcher propagates lookup failure without completion reconciliation`() =
+    runBlocking<Unit> {
+      val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
+      whenever(workItemsServiceMock.ensureWorkItem(any()))
+        .thenThrow(Status.ALREADY_EXISTS.asRuntimeException())
+      whenever(workItemsServiceMock.getWorkItem(any()))
+        .thenThrow(Status.FAILED_PRECONDITION.asRuntimeException())
+        .thenReturn(completedDispatchWorkItem(params))
+      val dispatcher =
+        SecureComputationRequisitionWorkItemDispatcher(
+          workItemsStub,
+          "results-fulfiller-queue",
+          params,
+          throttler,
+        )
+
+      val exception =
+        assertFailsWith<StatusException> {
+          dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      verify(workItemsServiceMock, times(1)).getWorkItem(any())
+      verify(workItemsServiceMock, times(1)).ensureWorkItem(any())
+    }
+
+  @Test
+  fun `secure computation dispatcher rejects completed WorkItem with different application parameters`() =
+    runBlocking<Unit> {
+      val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
+      whenever(workItemsServiceMock.ensureWorkItem(any()))
+        .thenThrow(invalidWorkItemStateException(WorkItem.State.SUCCEEDED))
+      whenever(workItemsServiceMock.getWorkItem(any()))
+        .thenReturn(
+          completedDispatchWorkItem(resultsFulfillerParams { dataProvider = "dataProviders/other" })
+        )
+      val dispatcher =
+        SecureComputationRequisitionWorkItemDispatcher(
+          workItemsStub,
+          "results-fulfiller-queue",
+          params,
+          throttler,
+        )
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+        }
+
+      assertThat(exception).hasMessageThat().contains("parameters")
+    }
+
+  @Test
+  fun `secure computation dispatcher propagates publication pending during trace context reconciliation`() =
+    runBlocking<Unit> {
+      val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
+      whenever(workItemsServiceMock.ensureWorkItem(any()))
+        .thenThrow(
+          Status.ALREADY_EXISTS.asRuntimeException(),
+          WorkItemPublicationPendingException("workItems/results-fulfiller-group-id", null)
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION),
+        )
+      whenever(workItemsServiceMock.getWorkItem(any()))
+        .thenReturn(
+          completedDispatchWorkItem(params).toBuilder().setState(WorkItem.State.RUNNING).build(),
+          completedDispatchWorkItem(params),
+        )
+      val dispatcher =
+        SecureComputationRequisitionWorkItemDispatcher(
+          workItemsStub,
+          "results-fulfiller-queue",
+          params,
+          throttler,
+        )
+
+      val exception =
+        assertFailsWith<StatusException> {
+          dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+        }
+
+      assertThat(exception.errorInfo?.reason)
+        .isEqualTo(Errors.Reason.WORK_ITEM_PUBLICATION_PENDING.name)
+      verify(workItemsServiceMock, times(1)).getWorkItem(any())
+      verify(workItemsServiceMock, times(2)).ensureWorkItem(any())
+    }
+
+  @Test
   fun `secure computation dispatcher propagates terminal WorkItem failure`() = runBlocking {
     whenever(workItemsServiceMock.getWorkItem(any()))
       .thenReturn(workItem { state = WorkItem.State.FAILED })
     whenever(workItemsServiceMock.ensureWorkItem(any())).thenAnswer {
-      throw Status.FAILED_PRECONDITION.asRuntimeException()
+      throw invalidWorkItemStateException(WorkItem.State.FAILED)
     }
     val dispatcher =
       SecureComputationRequisitionWorkItemDispatcher(
