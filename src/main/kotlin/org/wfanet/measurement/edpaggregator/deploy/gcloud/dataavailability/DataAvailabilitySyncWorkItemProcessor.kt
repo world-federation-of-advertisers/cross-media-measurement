@@ -48,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
@@ -66,6 +67,9 @@ internal data class DataAvailabilitySyncWorkItem(
   val appParams: DataAvailabilitySyncParams,
   val dataPathParams: WorkItem.WorkItemParams.DataPathParams,
 ) {
+  val isExternal: Boolean
+    get() = workItemParams.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)
+
   val workItemName: String
     get() = workItem.name
 
@@ -104,18 +108,26 @@ internal data class DataAvailabilitySyncWorkItem(
           throw IllegalArgumentException("work_item_params cannot be unpacked", e)
         }
       require(workItemParams.hasAppParams()) { "app_params is required" }
-      require(workItemParams.appParams.`is`(DataAvailabilitySyncParams::class.java)) {
-        "app_params must contain DataAvailabilitySyncParams"
+      val isExternal = workItemParams.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)
+      require(isExternal || workItemParams.appParams.`is`(DataAvailabilitySyncParams::class.java)) {
+        "app_params must contain internal or external DataAvailabilitySyncParams"
       }
       val appParams =
         try {
-          workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
+          if (isExternal) {
+            DataAvailabilitySyncParams.newBuilder().setDataProvider(
+              workItemParams.appParams.unpack(ExternalDataAvailabilitySyncParams::class.java).dataProvider
+            ).build()
+          } else {
+            workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
+          }
         } catch (e: InvalidProtocolBufferException) {
           throw IllegalArgumentException("app_params cannot be unpacked", e)
         }
       requireNotNull(DataProviderKey.fromName(appParams.dataProvider)) {
         "data_provider must be a DataProvider resource name"
       }
+      if (!isExternal) {
       requireNotNull(RawImpressionUploadKey.fromName(appParams.triggeringRawImpressionUpload)) {
         "raw_impression_upload must be a RawImpressionUpload resource name"
       }
@@ -129,6 +141,7 @@ internal data class DataAvailabilitySyncWorkItem(
       }
       require(appParams.hasEventDate()) { "event_date is required" }
       LocalDate.of(appParams.eventDate.year, appParams.eventDate.month, appParams.eventDate.day)
+      }
 
       require(workItemParams.hasDataPathParams()) { "data_path_params is required" }
       val dataPathParams = workItemParams.dataPathParams
@@ -225,7 +238,7 @@ internal class DataAvailabilitySyncWorkItemProcessor(
         outcome == DataAvailabilitySync.Outcome.PUBLISHED ||
           outcome == DataAvailabilitySync.Outcome.NO_WORK
       ) {
-        markAvailabilitySynchronized(input)
+        if (!input.isExternal) markAvailabilitySynchronized(input)
         completeWorkItemAttempt(attempt)
         val traceOutcome =
           if (outcome == DataAvailabilitySync.Outcome.NO_WORK) "no_work" else "succeeded"
