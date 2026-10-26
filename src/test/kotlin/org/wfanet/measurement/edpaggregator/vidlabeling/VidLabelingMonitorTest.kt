@@ -36,6 +36,7 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Handler
 import java.util.logging.LogRecord
@@ -110,6 +111,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -983,11 +985,10 @@ class VidLabelingMonitorTest {
 
   @Test
   fun `does not report missing labeled outputs when the labeled done blob exists`() = runBlocking {
-    // The labeler writes model-line/<id>/<date>/done for the input event date whether or not any
+    val completedUpload = upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW)
+    // The labeler writes an upload-specific marker for the input event date whether or not any
     // impression survived filtering, so a fully-dropped date is finalized and not a false positive.
-    stubUploads(
-      completed = listOf(upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW))
-    )
+    stubUploads(completed = listOf(completedUpload))
     stubModelLines(
       modelLine(
         "$DATA_PROVIDER/rawImpressionUploads/done-1",
@@ -1005,12 +1006,56 @@ class VidLabelingMonitorTest {
         }
       }
     )
-    seedLabeled("model-line/ml1/2026-06-01/done")
+    seedLabeled(
+      LabeledImpressionsBlobKeys.forDone(completedUpload.name, MODEL_LINE, LocalDate.of(2026, 6, 1))
+    )
 
     createMonitor().runHealth()
 
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
       .isEqualTo(0)
+  }
+
+  @Test
+  fun `same-date uploads require their own labeled done markers`() = runBlocking {
+    val mainUpload = upload("main", RawImpressionUpload.State.COMPLETED, FIXED_NOW)
+    val advertiserUpload =
+      upload("advertiser", RawImpressionUpload.State.COMPLETED, FIXED_NOW.plusSeconds(1))
+    stubUploads(completed = listOf(mainUpload, advertiserUpload))
+    stubModelLinesByParent(
+      mapOf(
+        mainUpload.name to
+          listOf(
+            modelLine(mainUpload.name, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED)
+          ),
+        advertiserUpload.name to
+          listOf(
+            modelLine(
+              advertiserUpload.name,
+              MODEL_LINE,
+              RawImpressionUploadModelLine.State.COMPLETED,
+            )
+          ),
+      )
+    )
+    stubFiles(
+      rawImpressionUploadFile {
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      }
+    )
+    seedLabeled(
+      LabeledImpressionsBlobKeys.forDone(mainUpload.name, MODEL_LINE, LocalDate.of(2026, 6, 1))
+    )
+
+    createMonitor().runHealth()
+
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
+      .isEqualTo(1)
   }
 
   @Test
