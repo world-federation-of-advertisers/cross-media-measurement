@@ -41,10 +41,13 @@ data class ResolvedEventGroup(
 /** Normalized event groups and blob-level entity-key configuration. */
 data class ResolvedEventGroups(
   val eventGroupsByKey: Map<EventGroupKey, ResolvedEventGroup>,
-  val mappedEntityType: String?,
+  val mapping: EventGroupReferenceIdEntityKeyMapping?,
   /** Entity types whose blob metadata IDs are guaranteed to be exhaustive at that entity level. */
   val wholeBlobEntityTypes: Set<String>,
 ) {
+  val mappedEntityType: String?
+    get() = mapping?.entityType
+
   init {
     require(wholeBlobEntityTypes.all { it.isNotBlank() }) {
       "Whole-blob entity types must not be blank"
@@ -76,7 +79,7 @@ data class ResolvedEventGroups(
       require(eventGroupsByKey.size == entries.size) { "Event-group keys must be unique" }
       return ResolvedEventGroups(
         eventGroupsByKey = eventGroupsByKey,
-        mappedEntityType = mapping?.entityType,
+        mapping = mapping,
         wholeBlobEntityTypes = wholeBlobEntityTypes,
       )
     }
@@ -93,12 +96,12 @@ data class ResolvedEventGroups(
             entityId = detailsEntityKey.entityId
           }
         val mappedReferenceId: String? =
-          mapping?.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId)
-        if (mapping?.entityType == entityKey.entityType) {
-          require(mappedReferenceId != null) {
-            "Entity ID ${entityKey.entityId} of type ${entityKey.entityType} cannot be converted " +
-              "to a non-blank reference ID by event_group_reference_id_entity_key_mapping"
+          if (mapping?.entityType == entityKey.entityType) {
+            mapping.requireEventGroupReferenceId(entityKey.entityType, entityKey.entityId)
+          } else {
+            null
           }
+        if (mappedReferenceId != null) {
           val nativeReferenceId: String? = details.eventGroupReferenceId.takeIf { it.isNotBlank() }
           require(nativeReferenceId == null || nativeReferenceId == mappedReferenceId) {
             "Event-group reference ID $nativeReferenceId and entity ID ${entityKey.entityId} " +
@@ -117,11 +120,9 @@ data class ResolvedEventGroups(
         if (mapping == null || referenceId == null) {
           null
         } else {
-          mapping.toEntityId(referenceId)?.let { entityId ->
-            LabeledImpressionKt.entityKey {
-              entityType = mapping.entityType
-              this.entityId = entityId
-            }
+          LabeledImpressionKt.entityKey {
+            entityType = mapping.entityType
+            entityId = mapping.requireEntityId(referenceId)
           }
         }
       return ResolvedEventGroup(

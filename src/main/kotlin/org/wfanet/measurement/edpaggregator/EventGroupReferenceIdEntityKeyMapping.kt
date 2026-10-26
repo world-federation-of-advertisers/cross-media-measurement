@@ -54,6 +54,29 @@ data class EventGroupReferenceIdEntityKeyMapping(
     return replacePrefix(eventGroupReferenceId, eventGroupReferenceIdPrefix, entityIdPrefix)
   }
 
+  /** Returns the equivalent reference ID, throwing [IllegalArgumentException] if unmappable. */
+  fun requireEventGroupReferenceId(entityType: String, entityId: String): String {
+    require(entityId.isNotBlank()) {
+      "Entity ID must not be blank under event_group_reference_id_entity_key_mapping"
+    }
+    return requireNotNull(toEventGroupReferenceId(entityType, entityId)) {
+      "Entity ID $entityId of type $entityType cannot be converted to a non-blank reference ID " +
+        "by event_group_reference_id_entity_key_mapping (entity_id_prefix: $entityIdPrefix)"
+    }
+  }
+
+  /** Returns the equivalent entity ID, throwing [IllegalArgumentException] if unmappable. */
+  fun requireEntityId(eventGroupReferenceId: String): String {
+    require(eventGroupReferenceId.isNotBlank()) {
+      "Event-group reference ID must not be blank under event_group_reference_id_entity_key_mapping"
+    }
+    return requireNotNull(toEntityId(eventGroupReferenceId)) {
+      "Event-group reference ID $eventGroupReferenceId cannot be converted to a non-blank " +
+        "entity ID by event_group_reference_id_entity_key_mapping " +
+        "(event_group_reference_id_prefix: $eventGroupReferenceIdPrefix)"
+    }
+  }
+
   private fun replacePrefix(value: String, sourcePrefix: String, targetPrefix: String): String? {
     if (!value.startsWith(sourcePrefix)) {
       return null

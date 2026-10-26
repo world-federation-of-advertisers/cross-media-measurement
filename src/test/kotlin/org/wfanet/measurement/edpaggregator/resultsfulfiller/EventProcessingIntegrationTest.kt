@@ -1373,6 +1373,7 @@ class EventProcessingIntegrationTest {
       kmsClient = null, // Unencrypted test data
       impressionsStorageConfig = StorageConfig(rootDirectory = impressionsRoot),
       descriptor = TestEvent.getDescriptor(),
+      mapping = null,
     )
   }
 
@@ -1444,7 +1445,7 @@ class EventProcessingIntegrationTest {
               entityKey = entityKeyMap[eventGroup],
             )
         },
-      mappedEntityType = null,
+      mapping = null,
       wholeBlobEntityTypes = emptySet(),
     )
   }
@@ -1900,17 +1901,48 @@ class EventProcessingIntegrationTest {
   }
 
   @Test
-  fun `fromEventGroupMapEntries preserves unmappable reference-only selectors`() {
+  fun `fromEventGroupMapEntries rejects unmappable reference-only selectors`() {
     val mapping =
       EventGroupReferenceIdEntityKeyMapping(
         entityType = "campaign",
         eventGroupReferenceIdPrefix = "ref/",
         entityIdPrefix = "cp_",
       )
-    val resolved: ResolvedEventGroups =
+    assertFailsWith<IllegalArgumentException> {
       ResolvedEventGroups.fromEventGroupMapEntries(
         listOf(mapEntryWithEntityKey("eventGroups/legacy", "", "", "unrelated")),
         mapping,
+        wholeBlobEntityTypes = emptySet(),
+      )
+    }
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries rejects reference IDs that convert to blank entity IDs`() {
+    val mapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "ref/",
+        entityIdPrefix = "",
+      )
+
+    for (referenceId in listOf("ref/", "ref/   ")) {
+      assertFailsWith<IllegalArgumentException> {
+        ResolvedEventGroups.fromEventGroupMapEntries(
+          listOf(mapEntryWithEntityKey("eventGroups/legacy", "", "", referenceId)),
+          mapping,
+          wholeBlobEntityTypes = emptySet(),
+        )
+      }
+    }
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries preserves reference-only selectors without mapping`() {
+    val resolved =
+      ResolvedEventGroups.fromEventGroupMapEntries(
+        listOf(mapEntryWithEntityKey("eventGroups/legacy", "", "", "unrelated")),
+        mapping = null,
         wholeBlobEntityTypes = emptySet(),
       )
 

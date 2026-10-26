@@ -130,6 +130,70 @@ class EventGroupReferenceIdEntityKeyMappingTest {
     }
   }
 
+  @Test
+  fun `required conversions accept every prefix combination`() {
+    for (referencePrefix in listOf("", "ref/")) {
+      for (entityPrefix in listOf("", "entity/")) {
+        val mapping =
+          EventGroupReferenceIdEntityKeyMapping(ENTITY_TYPE, referencePrefix, entityPrefix)
+
+        assertThat(mapping.requireEntityId(referencePrefix + "123")).isEqualTo(entityPrefix + "123")
+        assertThat(mapping.requireEventGroupReferenceId(ENTITY_TYPE, entityPrefix + "123"))
+          .isEqualTo(referencePrefix + "123")
+      }
+    }
+  }
+
+  @Test
+  fun `required conversions throw on source prefix mismatch while nullable conversions remain unchanged`() {
+    val mapping = EventGroupReferenceIdEntityKeyMapping(ENTITY_TYPE, "ref/", "entity/")
+
+    assertFailsWith<IllegalArgumentException> { mapping.requireEntityId("wrong/123") }
+    assertFailsWith<IllegalArgumentException> {
+      mapping.requireEventGroupReferenceId(ENTITY_TYPE, "wrong/123")
+    }
+    assertThat(mapping.toEntityId("wrong/123")).isNull()
+    assertThat(mapping.toEventGroupReferenceId(ENTITY_TYPE, "wrong/123")).isNull()
+  }
+
+  @Test
+  fun `required reference ID conversion rejects other entity types`() {
+    val mapping = EventGroupReferenceIdEntityKeyMapping(ENTITY_TYPE, "ref/", "entity/")
+
+    assertFailsWith<IllegalArgumentException> {
+      mapping.requireEventGroupReferenceId("ad", "entity/123")
+    }
+    assertThat(mapping.toEventGroupReferenceId("ad", "entity/123")).isNull()
+  }
+
+  @Test
+  fun `required conversions reject blank source IDs with empty prefixes`() {
+    val referencePrefixMapping = EventGroupReferenceIdEntityKeyMapping(ENTITY_TYPE, "ref/", "")
+    val entityPrefixMapping = EventGroupReferenceIdEntityKeyMapping(ENTITY_TYPE, "", "entity/")
+
+    for (blankId in listOf("", "   ")) {
+      assertFailsWith<IllegalArgumentException> {
+        referencePrefixMapping.requireEventGroupReferenceId(ENTITY_TYPE, blankId)
+      }
+      assertFailsWith<IllegalArgumentException> { entityPrefixMapping.requireEntityId(blankId) }
+    }
+  }
+
+  @Test
+  fun `required conversions reject blank destination IDs`() {
+    val referencePrefixMapping = EventGroupReferenceIdEntityKeyMapping(ENTITY_TYPE, "ref/", "")
+    val entityPrefixMapping = EventGroupReferenceIdEntityKeyMapping(ENTITY_TYPE, "", "entity/")
+
+    for (suffix in listOf("", "   ")) {
+      assertFailsWith<IllegalArgumentException> {
+        referencePrefixMapping.requireEntityId("ref/" + suffix)
+      }
+      assertFailsWith<IllegalArgumentException> {
+        entityPrefixMapping.requireEventGroupReferenceId(ENTITY_TYPE, "entity/" + suffix)
+      }
+    }
+  }
+
   companion object {
     private const val ENTITY_TYPE = "campaign"
   }

@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.ExponentialBackoff
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
@@ -148,7 +149,14 @@ class StorageEventSource(
   private val readMaxAttempts: Int = DEFAULT_READ_MAX_ATTEMPTS,
   private val readRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val eventReaderFactory: (BlobDetails) -> EventReader<Message> = { blobDetails ->
-    StorageEventReader(blobDetails, kmsClient, impressionsStorageConfig, descriptor, batchSize)
+    StorageEventReader(
+      blobDetails = blobDetails,
+      kmsClient = kmsClient,
+      impressionsStorageConfig = impressionsStorageConfig,
+      descriptor = descriptor,
+      mapping = resolvedEventGroups.mapping,
+      batchSize = batchSize,
+    )
   },
 ) : EventSource<Message> {
   init {
@@ -231,8 +239,21 @@ class StorageEventSource(
         modelLine,
         resolvedEventGroups.eventGroupsByKey.values,
       )
+    result.forEach { validateBlobDetailsMapping(it.blobDetails) }
     cachedImpressionDataSources = result
     return result
+  }
+
+  private fun validateBlobDetailsMapping(blobDetails: BlobDetails) {
+    val mapping: EventGroupReferenceIdEntityKeyMapping = resolvedEventGroups.mapping ?: return
+    if (blobDetails.eventGroupReferenceId.isNotBlank()) {
+      mapping.requireEntityId(blobDetails.eventGroupReferenceId)
+    }
+    for (group in blobDetails.entityKeysList) {
+      if (group.entityType == mapping.entityType) {
+        group.entityIdsList.forEach { mapping.requireEventGroupReferenceId(group.entityType, it) }
+      }
+    }
   }
 
   private fun validateAndCanonicalizeEntityKeyGroups(

@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -42,6 +43,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @property kmsClient KMS client for DEK decryption. If null, reads unencrypted data.
  * @property impressionsStorageConfig configuration for accessing impression blobs.
  * @property descriptor protobuf descriptor for dynamic parsing of the embedded event.
+ * @property mapping optional mapping used to validate present impression identifiers.
  * @property batchSize maximum number of events per emitted batch.
  * @property bufferCapacity number of upstream records to prefetch and buffer between I/O and
  *   parsing.
@@ -52,6 +54,7 @@ class StorageEventReader(
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val descriptor: Descriptors.Descriptor,
+  private val mapping: EventGroupReferenceIdEntityKeyMapping?,
   private val batchSize: Int = DEFAULT_BATCH_SIZE,
   private val bufferCapacity: Int = DEFAULT_BUFFER_CAPACITY,
 ) : EventReader<Message> {
@@ -127,6 +130,7 @@ class StorageEventReader(
 
       impressionBlob.read().buffer(bufferCapacity).collect { impressionByteString ->
         val impression: LabeledImpression = LabeledImpression.parseFrom(impressionByteString)
+        validateImpressionMapping(impression)
         val eventMessage: Message = DynamicMessage.parseFrom(descriptor, impression.event.value)
         val labeledEvent =
           LabeledEvent(
@@ -150,6 +154,18 @@ class StorageEventReader(
         emit(currentBatch.toList())
       }
     }
+
+  private fun validateImpressionMapping(impression: LabeledImpression) {
+    val mapping: EventGroupReferenceIdEntityKeyMapping = mapping ?: return
+    if (impression.eventGroupReferenceId.isNotBlank()) {
+      mapping.requireEntityId(impression.eventGroupReferenceId)
+    }
+    for (key in impression.entityKeysList) {
+      if (key.entityType == mapping.entityType) {
+        mapping.requireEventGroupReferenceId(key.entityType, key.entityId)
+      }
+    }
+  }
 
   companion object {
     /**

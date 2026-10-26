@@ -146,6 +146,7 @@ class EventReaderTest {
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         descriptor = TestEvent.getDescriptor(),
+        mapping = null,
       )
 
     // Read events
@@ -198,6 +199,7 @@ class EventReaderTest {
         kmsClient = null,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         descriptor = TestEvent.getDescriptor(),
+        mapping = null,
       )
 
     // Read events
@@ -237,6 +239,7 @@ class EventReaderTest {
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         descriptor = TestEvent.getDescriptor(),
+        mapping = null,
       )
     // Read events
     assertFailsWith<ImpressionReadException> { runBlocking { eventReader.readEvents().toList() } }
