@@ -107,8 +107,8 @@ at a time. Use `--create-time-after` to restrict this to `BasicReport`s
 created after a given time. A bounded run cannot establish that the full
 environment is ready to remove the fallback.
 
-For a report that already references a valid Campaign Group, the tool first
-determines the identity of each blank component:
+For a report that already references a valid Campaign Group, the tool validates
+every component, including those with populated ReportingSet IDs:
 
 *   For a caller-supplied ReportingSet component, the ReportingSet ID in the
     stored request is authoritative. The tool verifies that it identifies a
@@ -123,6 +123,11 @@ determines the identity of each blank component:
     not prove that the component was intended to be a DataProvider component.
     Populated, consistent DataProvider IDs are preserved. Custom ReportingSet
     components keep their intentionally blank DataProvider ID.
+
+A populated DataProvider ReportingSet ID must resolve under the report's consumer
+and name an unfiltered primitive with exactly the recorded component membership.
+Missing or contradictory references block the whole report, including reports
+whose component IDs are all populated. Valid populated IDs are preserved.
 
 Every resolved EventGroup key must belong to the Campaign Group universe. For a
 DataProvider component, the tool reuses an unfiltered primitive ReportingSet
@@ -149,6 +154,10 @@ and those consistency checks pass does the tool:
     while preserving the exact IDs of caller-supplied ReportingSet components,
     including their filter semantics.
 
+Before changing the Campaign Group, the stored result-group count must match the
+request, and every requested group must contain at least one result. Missing,
+extra, or empty groups block the whole report before either database is changed.
+
 Every result must contain the same number of custom component summaries as
 ReportingSets in its stored request. For DataProvider components, each result
 must have a resolved summary for every requested provider, including providers
@@ -163,7 +172,10 @@ as the `BasicReport`. Its recorded component EventGroups must match the
 referenced primitive's membership or the EventGroups reachable through a
 composite, including the number of occurrences of each EventGroup ID. A
 foreign-consumer key or conflicting EventGroup metadata blocks the report in
-both dry-run and applied runs and keeps readiness at `no`.
+both dry-run and applied runs and keeps readiness at `no`. Populated consumer
+IDs in recorded EventGroup summaries must also match the report's consumer;
+blank legacy consumer IDs remain supported. These checks run before a report
+is counted as already valid.
 
 For a composite reference with no `CampaignGroupId`, the tool recursively
 collects the EventGroups from every referenced primitive ReportingSet. Set
