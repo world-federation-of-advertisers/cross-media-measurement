@@ -43,6 +43,7 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyn
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
+import org.wfanet.measurement.edpaggregator.v1alpha.externalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
@@ -231,6 +232,45 @@ class DataAvailabilitySyncWorkItemProcessorTest {
       assertFailsWith<IllegalArgumentException> { DataAvailabilitySyncWorkItem.parse(workItem) }
 
     assertThat(error).hasMessageThat().contains("raw_impression_upload")
+  }
+
+
+  @Test
+  fun `external task completes without VID Labeler pipeline bookkeeping`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt { name = ATTEMPT_NAME; state = WorkItemAttempt.State.SUCCEEDED }
+    val external = externalInput()
+    assertThat(external.isExternal).isTrue()
+    assertThat(external.appParams.dataProvider).isEqualTo(DATA_PROVIDER)
+    assertThat(external.appParams.triggeringRawImpressionUpload).isEmpty()
+    assertThat(external.appParams.hasEventDate()).isFalse()
+    processor(synchronize = { task, _, _ ->
+      assertThat(task.doneBlobGeneration).isEqualTo(7L)
+      DataAvailabilitySync.Outcome.PUBLISHED
+    }, markAvailabilitySynchronized = { error("External tasks must not update internal pipeline rows") })
+      .process(external)
+    verifyBlocking(workItemAttemptsStub) { completeWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+  }
+
+  @Test
+  fun `external transient failure leaves the WorkItem retryable`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt { name = ATTEMPT_NAME; state = WorkItemAttempt.State.FAILED }
+    assertFailsWith<StatusException> {
+      processor(synchronize = { _, _, _ -> throw Status.UNAVAILABLE.asException() }).process(externalInput())
+    }
+    verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+  }
+
+  private fun externalInput(): DataAvailabilitySyncWorkItem {
+    val work = workItem()
+    val params = work.workItemParams.unpack(WorkItem.WorkItemParams::class.java).toBuilder()
+      .setAppParams(Any.pack(externalDataAvailabilitySyncParams { dataProvider = DATA_PROVIDER })).build()
+    return DataAvailabilitySyncWorkItem.parse(work.toBuilder().setWorkItemParams(Any.pack(params)).build())
   }
 
   private fun processor(

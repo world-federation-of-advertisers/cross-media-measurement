@@ -134,7 +134,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       val dataAvailabilitySyncConfig =
         ConfigLoader.buildDataAvailabilitySyncConfig(requestBody, runtimeConfigs.configsList)
 
-      val dataAvailabilitySync = buildDataAvailabilitySync(dataAvailabilitySyncConfig)
+      val dataAvailabilitySync = buildDataAvailabilitySync(externalSyncConfig(dataAvailabilitySyncConfig))
 
       Tracing.withW3CTraceContext(request) {
         val generation =
@@ -237,7 +237,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               eventDate = workItem.eventDate,
             )
           }
-          buildDataAvailabilitySync(config)
+          buildDataAvailabilitySync(if (workItem.isExternal) externalSyncConfig(config) else config)
             .sync(
               workItem.doneBlobUri,
               dataAvailabilitySyncLease = lease.name,
@@ -300,7 +300,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       require(doneBlobUri.bucket == config.dataAvailabilityStorage.gcs.bucketName) {
         "External done object is outside the configured bucket"
       }
-      val prefix = "${config.edpImpressionPath.trimEnd('/')}/model-line/"
+      val prefix = "${externalSyncConfig(config).edpImpressionPath.trimEnd('/')}/model-line/"
       require(doneBlobUri.key.startsWith(prefix)) {
         "External done object is outside the configured labeled-output prefix"
       }
@@ -327,6 +327,10 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     val blob = storage.get(BlobId.of(doneBlobUri.bucket, doneBlobUri.key))
     validateWorkItemDoneObjectGeneration(blob?.generation, workItem.doneBlobGeneration)
   }
+
+  private fun externalSyncConfig(config: DataAvailabilitySyncConfig): DataAvailabilitySyncConfig =
+    if (config.externalImpressionPath.isEmpty()) config
+    else config.toBuilder().setEdpImpressionPath(config.externalImpressionPath).build()
 
   private fun buildDataAvailabilitySync(
     dataAvailabilitySyncConfig: DataAvailabilitySyncConfig

@@ -32,7 +32,8 @@ configs {
 }
 configs {
   data_provider: "dataProviders/J3-pzhqS9Lo"
-  edp_impression_path: "edp/edpa_meta"
+  edp_impression_path: "edp/edpa_meta/vid-labeler"
+  external_impression_path: "edp/edpa_meta"
   data_availability_storage {
     gcs {
       project_id: "halo-cmm-dev"
