@@ -587,7 +587,8 @@ locals {
 }
 
 module "edp_aggregator" {
-  source = "../modules/edp-aggregator"
+  event_group_sync_memory = var.event_group_sync_memory
+  source                  = "../modules/edp-aggregator"
 
   tee_consumers_enabled                            = var.tee_consumers_enabled
   requisition_fulfiller_config                     = local.requisition_fulfiller_config

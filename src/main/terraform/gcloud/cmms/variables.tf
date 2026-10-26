@@ -519,3 +519,10 @@ variable "event_group_sync_schedules" {
   }))
   default = {}
 }
+
+variable "event_group_sync_memory" {
+  description = "EventGroupSync function memory; retain the allocation required by the input size."
+  type        = string
+  nullable    = false
+  default     = "512MB"
+}
