@@ -85,7 +85,7 @@ import org.wfanet.measurement.storage.StorageClient
  *   duration-window alerting (no per-tick `SEVERE`, to avoid re-paging until manual recovery).
  *
  * The health pass recovers stalled phase transitions (`POOL_ASSIGNING → RANKING → LABELING →
- * COMPLETED`) by replaying one completed child WorkItem.
+ * AVAILABILITY_SYNCING → COMPLETED`) by replaying one completed child WorkItem.
  *
  * @param rawImpressionUploadStub stub for `RawImpressionUploadService`.
  * @param rawImpressionUploadModelLineStub stub for `RawImpressionUploadModelLineService`.
@@ -93,6 +93,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param dispatchSequencer shared sequencer that performs dispatch for this DataProvider.
  * @param dataProviderName resource name of the `DataProvider` this monitor scans.
  * @param stalenessThreshold non-terminal uploads older than this are flagged as stuck.
+ * @param vidLabeledImpressionsBlobPrefix URI prefix for labeled output.
  * @param rpcThrottlers process-scoped rate limiters shared with the dispatch sequencer.
  * @param clock clock used for staleness evaluation.
  * @param metrics OpenTelemetry instruments recorder.
@@ -114,6 +115,7 @@ class VidLabelingMonitor(
   private val rankerJobStub: RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+  private val vidLabeledImpressionsBlobPrefix: String,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingMonitorMetrics = VidLabelingMonitorMetrics(),
@@ -281,7 +283,7 @@ class VidLabelingMonitor(
     // states eligible for the staleness check. FAILED is terminal but is still scanned below so a
     // rolled-up FAILED upload's model lines surface.
     val createdUploads: List<RawImpressionUpload> =
-      snapshot.uploads(RawImpressionUpload.State.CREATED)
+      snapshot.uploads(RawImpressionUpload.State.CREATED).filterNot { it.processingDeferred }
     val activeUploads: List<RawImpressionUpload> =
       snapshot.uploads(RawImpressionUpload.State.ACTIVE)
     val failedUploads: List<RawImpressionUpload> =
@@ -642,6 +644,8 @@ class VidLabelingMonitor(
             RawImpressionUploadModelLine.State.RANKING ->
               recoverIfAllRankerJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             RawImpressionUploadModelLine.State.LABELING ->
+              recoverIfAllVidLabelingJobsSucceeded(upload.name, modelLine.cmmsModelLine)
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING ->
               recoverIfAllVidLabelingJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             else -> RecoveryOutcome.NOOP
           }
