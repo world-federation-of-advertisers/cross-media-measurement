@@ -44,16 +44,13 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.unpack
-import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -108,8 +105,6 @@ import org.wfanet.measurement.storage.StorageClient
  * @property requisitionGrouper the in-memory grouper that builds [GroupedRequisitions].
  * @property metadataThrottler throttles all Requisition Metadata Service RPCs.
  * @property kingdomListThrottler process-scoped throttle shared across providers for Kingdom lists.
- * @property kingdomListRetryBackoff backoff for transient ListRequisitions failures.
- * @property maxKingdomListAttempts maximum attempts for a single ListRequisitions page.
  * @property workItemDispatcher dispatcher for the Secure Computation Control Plane.
  * @property requisitionRefusalDuration maximum age, measured from the Kingdom Requisition's
  *   `update_time`, before an unfulfilled Requisition is refused rather than dispatched.
@@ -145,8 +140,6 @@ class RequisitionFetcher(
   private val requisitionGrouper: RequisitionGrouperByReportId,
   private val metadataThrottler: Throttler,
   private val kingdomListThrottler: Throttler,
-  private val kingdomListRetryBackoff: ExponentialBackoff,
-  private val maxKingdomListAttempts: Int,
   private val workItemDispatcher: RequisitionWorkItemDispatcher,
   private val requisitionRefusalDuration: Duration,
   private val clock: Clock,
@@ -160,7 +153,6 @@ class RequisitionFetcher(
 ) {
 
   init {
-    require(maxKingdomListAttempts > 0) { "maxKingdomListAttempts must be positive" }
     // Fail fast at construction rather than deep in the run loop, where an invalid value would
     // surface as an opaque error: flushInterval <= 0 makes the drain ticker a delay(0) spin loop;
     // maxRequisitionsPerGroup <= 0 makes chunked() throw; channelCapacity <= 0 is rejected by
@@ -304,37 +296,6 @@ class RequisitionFetcher(
       totalFetched
     }
 
-  /** Retries the same read without turning quota failures into adaptive page-size reductions. */
-  private suspend fun listRequisitionsWithRetry(
-    request: ListRequisitionsRequest
-  ): ListRequisitionsResponse {
-    var attempt = 1
-    while (true) {
-      try {
-        return kingdomListThrottler.onReady { requisitionsStub.listRequisitions(request) }
-      } catch (e: StatusException) {
-        val rateLimited =
-          e.status.description?.contains("Rate limit exceeded", ignoreCase = true) == true
-        if (e.status.code == Status.Code.RESOURCE_EXHAUSTED && !rateLimited) throw e
-        val retryable =
-          e.status.code == Status.Code.UNAVAILABLE ||
-            e.status.code == Status.Code.DEADLINE_EXCEEDED ||
-            (e.status.code == Status.Code.RESOURCE_EXHAUSTED && rateLimited)
-        if (!retryable || attempt >= maxKingdomListAttempts) {
-          throw Exception(
-            "Error listing requisitions for $dataProviderName after $attempt attempts: ${e.status.code}",
-            e,
-          )
-        }
-        logger.warning(
-          "Transient ListRequisitions failure for $dataProviderName on attempt $attempt of $maxKingdomListAttempts (${e.status.code}); retrying the same page"
-        )
-        delay(kingdomListRetryBackoff.durationForAttempt(attempt).toMillis())
-        attempt++
-      }
-    }
-  }
-
   /**
    * Streams requisitions from the Kingdom and dispatches per-report work units onto [channel].
    *
@@ -380,7 +341,7 @@ class RequisitionFetcher(
           minPageSize = MIN_LIST_REQUISITIONS_PAGE_SIZE,
           onPageSizeReduced = { oldSize, newSize ->
             logger.warning(
-              "ListRequisitions returned RESOURCE_EXHAUSTED at page_size=$oldSize for " +
+              "ListRequisitions exceeded the inbound message size at page_size=$oldSize for " +
                 "$dataProviderName; halving to $newSize and retrying"
             )
             metrics.pageSizeReductions.add(1, dataProviderAttrs)
@@ -392,7 +353,19 @@ class RequisitionFetcher(
             this.pageSize = pageSize
             this.pageToken = pageToken
           }
-          val response = listRequisitionsWithRetry(request)
+          val response =
+            try {
+              kingdomListThrottler.onReady { requisitionsStub.listRequisitions(request) }
+            } catch (e: StatusException) {
+              val description = e.status.description.orEmpty()
+              val oversized =
+                description.startsWith(GRPC_MESSAGE_SIZE_ERROR_PREFIX) ||
+                  description.startsWith(GRPC_DECOMPRESSED_MESSAGE_SIZE_ERROR_PREFIX)
+              // Only transport message-size errors justify reducing the page. Quota rejection,
+              // overload, and unknown resource errors must not reach the adaptive-size handler.
+              if (e.status.code == Status.Code.RESOURCE_EXHAUSTED && oversized) throw e
+              throw Exception("Error listing requisitions for $dataProviderName", e)
+            }
           ResourceList(response.requisitionsList, response.nextPageToken)
         }
         .flattenConcat()
@@ -1497,6 +1470,10 @@ class RequisitionFetcher(
     Attributes.of(ATTR_DATA_PROVIDER_KEY, dataProviderName)
 
   companion object {
+    private const val GRPC_MESSAGE_SIZE_ERROR_PREFIX = "gRPC message exceeds maximum size "
+    private const val GRPC_DECOMPRESSED_MESSAGE_SIZE_ERROR_PREFIX =
+      "Decompressed gRPC message exceeds maximum size "
+
     private val logger: Logger = Logger.getLogger(RequisitionFetcher::class.java.name)
     private val ATTR_DATA_PROVIDER_KEY = AttributeKey.stringKey("edpa.data_provider_name")
     private val ATTR_REQUISITION_COUNT_KEY =

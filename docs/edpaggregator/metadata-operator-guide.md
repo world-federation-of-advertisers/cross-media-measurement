@@ -104,7 +104,8 @@ variable (see the memory row).
 | `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` | env var | none | Optional server name used to verify the Control Plane TLS certificate when it differs from the target host. |
 | `GRPC_REQUEST_INTERVAL` | env var | `1s` | Minimum interval between Kingdom mutation RPCs (e.g. `refuseRequisition`). |
 | `KINGDOM_EVENT_GROUP_REQUEST_INTERVAL` | env var | `50ms` | Minimum interval between Kingdom `getEventGroup` RPCs (called during grouping). |
-| `PAGE_SIZE` | env var | `50` | Starting page size for `listRequisitions`. Halved and retried on gRPC `RESOURCE_EXHAUSTED` (surfaced by the `page_size_reductions` metric), down to a floor of 1. |
+| `KINGDOM_LIST_REQUEST_INTERVAL` | env var | `250ms` | Process-scoped minimum interval between application-level Kingdom `ListRequisitions` calls, shared across providers. |
+| `PAGE_SIZE` | env var | `50` | Starting page size for `listRequisitions`. Halved and retried only for identified oversized gRPC responses (surfaced by the `page_size_reductions` metric), down to a floor of 1. |
 | function timeout | terraform `timeout_seconds` | `600s` | How long a single invocation may run. **Must exceed `FLUSH_INTERVAL`** so at least one drain happens. Max for an HTTP-triggered gen2 function is **3600s (60m)**. |
 | max instances | terraform `max_instances` | `1` | Concurrency cap. `1` prevents overlapping invocations from processing the same `UNFULFILLED` requisitions. |
 | function memory | **hardcoded** `--memory=512MB` in `http-cloud-function/main.tf` | `512MB` | Heap ceiling. **Not a terraform variable** — sizing it per environment currently requires editing the module. Must be above the peak buffered working set (see scale section). |
@@ -381,18 +382,16 @@ Check metrics and traces before grepping logs — see the
 | Overlapping runs | Ensure `max_instances = 1` |
 | `BatchCreate` mutation-limit failure | Keep `MAX_REQUISITIONS_PER_GROUP` at its safe default |
 
-
 ### Kingdom listing rate limits
 
 `KINGDOM_LIST_REQUEST_INTERVAL` controls a process-scoped throttle shared across
-RequisitionFetcher providers and retries (default `250ms`). This bounds one
-instance to four list requests per second. Account for the number of instances
-and other callers when sizing it against a shared Kingdom quota.
+RequisitionFetcher providers (default `250ms`). It paces each application-level
+ListRequisitions call, including retries with smaller pages. Account for the
+number of instances and other callers when sizing it against a shared Kingdom
+quota. Transport retries follow the existing common-jvm gRPC channel policy and
+are not paced separately by this throttle.
 
-ListRequisitions retries transient `UNAVAILABLE` and `DEADLINE_EXCEEDED` failures
-up to four total attempts with exponential backoff starting at one second.
-`RESOURCE_EXHAUSTED` with the Kingdom `Rate limit exceeded` description uses the
-same retry policy, supporting the corrected quota status as well as the legacy
-`UNAVAILABLE` status. Each retry preserves the page token and page size. Other
-`RESOURCE_EXHAUSTED` errors retain adaptive page shrinking for oversized payloads.
-Exhausted quota retries remain invocation errors and do not shrink pages.
+Page sizes are reduced only for `RESOURCE_EXHAUSTED` errors with gRPC's explicit
+inbound message-size diagnostics, including decompressed response limits. Quota,
+overload, and unspecified resource errors remain invocation errors and do not
+shrink pages. The fetcher adds no application-level transient retry loop.

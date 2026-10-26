@@ -38,7 +38,6 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
-import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -79,7 +78,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `GRPC_REQUEST_INTERVAL`: Optional. Minimum interval between Kingdom mutation RPCs (e.g.
  *   `refuseRequisition`). Default `1s`.
  * - `KINGDOM_LIST_REQUEST_INTERVAL`: Optional. Process-scoped minimum interval between Kingdom
- *   ListRequisitions requests across providers, including retries. Default `250ms`.
+ *   ListRequisitions calls across providers, including resized-page retries. Default `250ms`.
+ *   Transport retries follow the gRPC channel policy.
  * - `KINGDOM_EVENT_GROUP_REQUEST_INTERVAL`: Optional. Minimum interval between Kingdom
  *   `getEventGroup` RPCs. Default `50ms`.
  * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
@@ -305,13 +305,6 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionGrouper = requisitionGrouper,
       metadataThrottler = metadataThrottler,
       kingdomListThrottler = kingdomListThrottler,
-      kingdomListRetryBackoff =
-        ExponentialBackoff(
-          initialDelay = Duration.ofSeconds(1),
-          multiplier = 2.0,
-          randomnessFactor = 0.25,
-        ),
-      maxKingdomListAttempts = 4,
       workItemDispatcher = workItemDispatcher,
       requisitionRefusalDuration = requisitionRefusalDuration,
       clock = Clock.systemUTC(),
@@ -412,8 +405,10 @@ class RequisitionFetcherFunction : HttpFunction {
     private val kingdomListThrottler =
       MinimumIntervalThrottler(
         Clock.systemUTC(),
-        (System.getenv("KINGDOM_LIST_REQUEST_INTERVAL") ?: "250ms").toDuration(),
+        (System.getenv("KINGDOM_LIST_REQUEST_INTERVAL") ?: DEFAULT_KINGDOM_LIST_REQUEST_INTERVAL)
+          .toDuration(),
       )
+    private const val DEFAULT_KINGDOM_LIST_REQUEST_INTERVAL = "250ms"
     private const val DEFAULT_GRPC_REQUEST_INTERVAL = "1s"
     private const val DEFAULT_KINGDOM_EVENT_GROUP_REQUEST_INTERVAL = "50ms"
     private const val DEFAULT_METADATA_REQUEST_INTERVAL = "100ms"
