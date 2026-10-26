@@ -163,6 +163,7 @@ class InvokeDataWatcherFunctionTest() {
         "kind": "storage#object",
         "md5Hash": "...",
         "metageneration": "1",
+        "generation": "42",
         "name": "control-plane-sink-path-to-watch/some-blob",
         "size": "352",
         "storageClass": "MULTI_REGIONAL",
@@ -198,6 +199,75 @@ class InvokeDataWatcherFunctionTest() {
     verifyBlocking(workItemsServiceMock, times(1)) {
       ensureWorkItem(ensureWorkItemRequestCaptor.capture())
     }
+  }
+
+  @Test
+  fun `finalize event durably enqueues EventGroupSync with generation and ordering key`() {
+    val url = "http://localhost:${functionProcess.port}"
+    logger.info("Testing Cloud Function at: $url")
+    val client = HttpClient.newHttpClient()
+    val jsonData =
+      """
+      {
+        "bucket": "$BUCKET",
+        "contentType": "text/plain",
+        "kind": "storage#object",
+        "md5Hash": "...",
+        "metageneration": "1",
+        "generation": "42",
+        "name": "event-group-sink-path-to-watch/event_groups.json",
+        "size": "352",
+        "storageClass": "MULTI_REGIONAL",
+        "timeCreated": "2020-04-23T07:38:57.230Z",
+        "timeStorageClassUpdated": "2020-04-23T07:38:57.230Z",
+        "updated": "2020-04-23T07:38:57.230Z"
+      }
+    """
+        .trimIndent()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("Content-Type", "application/json")
+        .header("ce-id", "123451234512345")
+        .header("ce-specversion", "1.0")
+        .header("ce-time", "2020-01-02T12:34:56.789Z")
+        .header("ce-type", "google.cloud.storage.object.v1.finalized")
+        .header("ce-source", "//storage.googleapis.com/projects/_/buckets/$BUCKET")
+        .header("ce-subject", "objects/event-group-sink-path-to-watch/event_groups.json")
+        .POST(HttpRequest.BodyPublishers.ofString(jsonData))
+        .build()
+    val getResponse = client.send(getRequest, BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+
+    // Verify the function worked
+    // Note that this always returns 200 in spite of the documentation saying that it will return
+    // a 500 if the cloud function throws an exception.
+    assertThat(getResponse.statusCode()).isEqualTo(200)
+
+    val ensureWorkItemRequestCaptor = argumentCaptor<EnsureWorkItemRequest>()
+
+    verifyBlocking(workItemsServiceMock, times(1)) {
+      ensureWorkItem(ensureWorkItemRequestCaptor.capture())
+    }
+
+    val queued = ensureWorkItemRequestCaptor.firstValue.workItem
+    assertThat(queued.queue).isEqualTo("event-group-sync-queue")
+    assertThat(queued.serializationKey).isEqualTo("event-group-sync:dataProviders/example")
+    val params =
+      queued.workItemParams.unpack(
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams::class
+          .java
+      )
+    assertThat(
+        params.appParams
+          .unpack(org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams::class.java)
+          .dataProvider
+      )
+      .isEqualTo("dataProviders/example")
+    assertThat(params.dataPathParams.generation).isEqualTo(42L)
+    assertThat(params.dataPathParams.dataPath)
+      .isEqualTo("gs://test-bucket/event-group-sink-path-to-watch/event_groups.json")
   }
 
   companion object {

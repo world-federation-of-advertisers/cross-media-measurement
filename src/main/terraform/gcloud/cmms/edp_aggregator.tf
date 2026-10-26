@@ -387,11 +387,20 @@ locals {
       uber_jar_path = var.requisition_fetcher_uber_jar_path
     },
     event_group_sync = {
-      function_name   = "event-group-sync"
-      entry_point     = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
-      extra_env_vars  = "${var.event_group_env_var},CONFIG_BLOB_KEY=${local.event_group_sync_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
-      secret_mappings = join(",", local.event_group_secret_mappings)
-      uber_jar_path   = var.event_group_uber_jar_path
+      function_name = "event-group-sync"
+      entry_point   = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
+      extra_env_vars = join(",", compact([
+        var.event_group_env_var,
+        "CONFIG_BLOB_KEY=${local.event_group_sync_config.destination}",
+        "EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}",
+        "SECURE_COMPUTATION_CONTROL_PLANE_TARGET=${var.secure_computation_public_api_target}",
+        "SECURE_COMPUTATION_CERT_COLLECTION_FILE=/secrets/secure-computation-ca/secure_computation_root.pem",
+      ]))
+      secret_mappings = join(",", compact([
+        join(",", local.event_group_secret_mappings),
+        "/secrets/secure-computation-ca/secure_computation_root.pem=${local.secure_computation_root_ca.secret_id}:latest",
+      ]))
+      uber_jar_path = var.event_group_uber_jar_path
     }
     data_availability_sync = {
       function_name = "data-availability-sync"
@@ -602,6 +611,15 @@ locals {
     maximum_backoff       = "600s"
   }
 
+  event_group_sync_work_item_queue = {
+    topic_name            = "event-group-sync-queue"
+    subscription_name     = "event-group-sync-subscription"
+    ack_deadline_seconds  = 600
+    max_delivery_attempts = 100
+    minimum_backoff       = "10s"
+    maximum_backoff       = "600s"
+  }
+
 }
 
 module "edp_aggregator" {
@@ -627,6 +645,7 @@ module "edp_aggregator" {
   requisition_fetcher_config                       = local.requisition_fetcher_config
   edps_config                                      = local.edps_config
   event_group_sync_config                          = local.event_group_sync_config
+  event_group_sync_work_item_queue                 = local.event_group_sync_work_item_queue
   data_availability_sync_config                    = local.data_availability_sync_config
   results_fulfiller_event_descriptor               = local.results_fulfiller_event_descriptor
   results_fulfiller_population_spec                = local.results_fulfiller_population_spec

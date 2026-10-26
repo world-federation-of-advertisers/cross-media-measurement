@@ -26,3 +26,16 @@ watched_paths {
     }
   }
 }
+watched_paths {
+  identifier: "event-groups"
+  source_path_regex: "^gs://test-bucket/event-group-sink-path-to-watch/event_groups[.]json$"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/example"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/example"
+      }
+    }
+  }
+}

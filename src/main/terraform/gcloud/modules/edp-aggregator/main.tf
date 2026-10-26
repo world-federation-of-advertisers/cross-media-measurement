@@ -380,12 +380,13 @@ module "event_group_sync_cloud_function" {
   secrets_to_access = concat(
     [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id],
     var.event_group_sync_additional_secret_ids,
+    [var.secure_computation_root_ca.secret_id],
   )
 
   # The Kingdom rate limit and mapped output are shared across syncs for the same DataProvider.
-  # Keep one single-request instance so syncs cannot overlap, and finish before the DataWatcher's
-  # 540-second timeout so it can handle or retry failures.
-  timeout_seconds = 480
+  # Keep one single-request instance. Source events now enqueue WorkItems promptly; the consumer
+  # renews an attempt lease during the sync and records completion before acknowledging delivery.
+  timeout_seconds = 3600
   max_instances   = 1
   concurrency     = 1
 }
@@ -1051,4 +1052,52 @@ resource "google_storage_bucket_iam_member" "vid_labeling_monitor_config_storage
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.vid_labeling_monitor_cloud_function.cloud_function_service_account.email}"
+}
+
+module "event_group_sync_work_item_queue" {
+  source = "../pubsub"
+
+  depends_on = [google_service_account_iam_member.event_group_sync_work_item_token_creator]
+
+  topic_name                 = var.event_group_sync_work_item_queue.topic_name
+  subscription_name          = var.event_group_sync_work_item_queue.subscription_name
+  ack_deadline_seconds       = var.event_group_sync_work_item_queue.ack_deadline_seconds
+  max_delivery_attempts      = var.event_group_sync_work_item_queue.max_delivery_attempts
+  minimum_backoff            = var.event_group_sync_work_item_queue.minimum_backoff
+  maximum_backoff            = var.event_group_sync_work_item_queue.maximum_backoff
+  enable_message_ordering    = true
+  push_endpoint              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.event_group_sync_function_name}"
+  push_service_account_email = module.event_group_sync_cloud_function.cloud_function_service_account.email
+  push_audience              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.event_group_sync_function_name}"
+}
+
+resource "google_pubsub_topic_iam_member" "event_group_sync_work_item_publisher" {
+  topic  = module.event_group_sync_work_item_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_topic_iam_member" "event_group_sync_work_item_dead_letter_publisher" {
+  topic  = module.event_group_sync_work_item_queue.dead_letter_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_subscription_iam_member" "event_group_sync_work_item_dead_letter_subscriber" {
+  subscription = module.event_group_sync_work_item_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
+resource "google_service_account_iam_member" "event_group_sync_work_item_token_creator" {
+  service_account_id = module.event_group_sync_cloud_function.cloud_function_service_account.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_cloud_run_service_iam_member" "event_group_sync_work_item_invoker" {
+  depends_on = [module.event_group_sync_cloud_function]
+  service    = var.event_group_sync_function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}"
 }
