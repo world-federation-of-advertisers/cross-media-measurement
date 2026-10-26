@@ -45,6 +45,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -74,6 +75,7 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -82,6 +84,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -365,6 +368,14 @@ class RequisitionFetcherTest {
       requisitionValidator = validator,
       requisitionGrouper = grouper,
       metadataThrottler = metadataThrottler,
+      kingdomListThrottler = FakeThrottler(),
+      kingdomListRetryBackoff =
+        ExponentialBackoff(
+          initialDelay = Duration.ofMillis(1),
+          multiplier = 2.0,
+          randomnessFactor = 0.0,
+        ),
+      maxKingdomListAttempts = 4,
       workItemDispatcher = workItemDispatcher,
       requisitionRefusalDuration = requisitionRefusalDuration,
       clock = clock,
@@ -2450,6 +2461,97 @@ class RequisitionFetcherTest {
 
     assertThat(blobsList()).hasLength(n)
     assertThat(createRequisitionMetadataRequests).hasSize(n)
+  }
+
+  @Test
+  fun `fetchAndStoreRequisitions retries Kingdom rate limits without shrinking pages`() = runTest {
+    val requests = mutableListOf<ListRequisitionsRequest>()
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer { invocation ->
+      requests += invocation.getArgument<ListRequisitionsRequest>(0)
+      if (requests.size == 1) {
+        throw Status.UNAVAILABLE.withDescription("Rate limit exceeded").asRuntimeException()
+      }
+      listRequisitionsResponse { requisitions += TestRequisitionData.REQUISITION }
+    }
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    assertThat(requests).hasSize(2)
+    assertThat(requests[0]).isEqualTo(requests[1])
+    assertThat(blobsList()).hasLength(1)
+    assertThat(counterValue("edpa.requisition_fetcher.page_size_reductions")).isEqualTo(0)
+  }
+
+  @Test
+  fun `fetchAndStoreRequisitions retries corrected quota status without shrinking pages`() =
+    runTest {
+      val requests = mutableListOf<ListRequisitionsRequest>()
+      whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer { invocation ->
+        requests += invocation.getArgument<ListRequisitionsRequest>(0)
+        if (requests.size == 1) {
+          throw Status.RESOURCE_EXHAUSTED.withDescription("Rate limit exceeded")
+            .asRuntimeException()
+        }
+        listRequisitionsResponse { requisitions += TestRequisitionData.REQUISITION }
+      }
+
+      createFetcher().fetchAndStoreRequisitions()
+
+      assertThat(requests).hasSize(2)
+      assertThat(requests[0]).isEqualTo(requests[1])
+      assertThat(blobsList()).hasLength(1)
+      assertThat(counterValue("edpa.requisition_fetcher.page_size_reductions")).isEqualTo(0)
+    }
+
+  @Test
+  fun `fetchAndStoreRequisitions bounds quota retries without shrinking pages`() = runTest {
+    val requests = mutableListOf<ListRequisitionsRequest>()
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer { invocation ->
+      requests += invocation.getArgument<ListRequisitionsRequest>(0)
+      throw Status.RESOURCE_EXHAUSTED.withDescription("Rate limit exceeded").asRuntimeException()
+    }
+
+    val exception = assertFailsWith<Exception> { createFetcher().fetchAndStoreRequisitions() }
+
+    assertThat(Status.fromThrowable(exception).code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+    assertThat(requests).hasSize(4)
+    assertThat(requests.map { it.pageSize }).containsExactly(10, 10, 10, 10)
+    assertThat(counterValue("edpa.requisition_fetcher.page_size_reductions")).isEqualTo(0)
+  }
+
+  @Test
+  fun `fetchAndStoreRequisitions preserves continuation token during transient retry`() = runTest {
+    val requests = mutableListOf<ListRequisitionsRequest>()
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer { invocation ->
+      requests += invocation.getArgument<ListRequisitionsRequest>(0)
+      when (requests.size) {
+        1 -> listRequisitionsResponse { nextPageToken = "next-page" }
+        2 -> throw Status.DEADLINE_EXCEEDED.asRuntimeException()
+        else -> listRequisitionsResponse { requisitions += TestRequisitionData.REQUISITION }
+      }
+    }
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    assertThat(requests.map { it.pageToken })
+      .containsExactly("", "next-page", "next-page")
+      .inOrder()
+    assertThat(requests[1]).isEqualTo(requests[2])
+    assertThat(blobsList()).hasLength(1)
+  }
+
+  @Test
+  fun `fetchAndStoreRequisitions rejects permanent list failures without retry`() = runTest {
+    var calls = 0
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer {
+      calls++
+      throw Status.PERMISSION_DENIED.asRuntimeException()
+    }
+
+    val exception = assertFailsWith<Exception> { createFetcher().fetchAndStoreRequisitions() }
+
+    assertThat(Status.fromThrowable(exception).code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(calls).isEqualTo(1)
   }
 
   @Test

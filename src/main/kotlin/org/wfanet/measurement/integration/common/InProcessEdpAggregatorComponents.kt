@@ -75,6 +75,7 @@ import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -362,6 +363,10 @@ class InProcessEdpAggregatorComponents(
           requisitionValidator = requisitionsValidator,
           requisitionGrouper = requisitionGrouper,
           metadataThrottler = throttler,
+          kingdomListThrottler = FakeThrottler(),
+          kingdomListRetryBackoff =
+            ExponentialBackoff(initialDelay = Duration.ofSeconds(1), multiplier = 2.0),
+          maxKingdomListAttempts = 4,
           workItemDispatcher =
             SecureComputationRequisitionWorkItemDispatcher(
               workItemsStub = workItemsClient,

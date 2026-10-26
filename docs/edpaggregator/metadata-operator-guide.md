@@ -380,3 +380,19 @@ Check metrics and traces before grepping logs — see the
 | Requisitions remain `STORED` / `QUEUED` | Check RequisitionFetcher queue/dispatch logs and the deterministic `WorkItem` value |
 | Overlapping runs | Ensure `max_instances = 1` |
 | `BatchCreate` mutation-limit failure | Keep `MAX_REQUISITIONS_PER_GROUP` at its safe default |
+
+
+### Kingdom listing rate limits
+
+`KINGDOM_LIST_REQUEST_INTERVAL` controls a process-scoped throttle shared across
+RequisitionFetcher providers and retries (default `250ms`). This bounds one
+instance to four list requests per second. Account for the number of instances
+and other callers when sizing it against a shared Kingdom quota.
+
+ListRequisitions retries transient `UNAVAILABLE` and `DEADLINE_EXCEEDED` failures
+up to four total attempts with exponential backoff starting at one second.
+`RESOURCE_EXHAUSTED` with the Kingdom `Rate limit exceeded` description uses the
+same retry policy, supporting the corrected quota status as well as the legacy
+`UNAVAILABLE` status. Each retry preserves the page token and page size. Other
+`RESOURCE_EXHAUSTED` errors retain adaptive page shrinking for oversized payloads.
+Exhausted quota retries remain invocation errors and do not shrink pages.
