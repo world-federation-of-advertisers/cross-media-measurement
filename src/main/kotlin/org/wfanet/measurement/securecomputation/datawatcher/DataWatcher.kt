@@ -178,6 +178,7 @@ class DataWatcher(
         .pack()
     val requestedWorkItem = workItem {
       queue = queueConfig.queue
+      serializationKey = queueConfig.serializationKey
       this.workItemParams = workItemParams
     }
     try {
@@ -219,10 +220,7 @@ class DataWatcher(
     try {
       ensureWorkItem(
         workItemId,
-        workItem {
-          queue = requestedWorkItem.queue
-          workItemParams = existingWorkItemParams
-        },
+        requestedWorkItem.toBuilder().setWorkItemParams(existingWorkItemParams).build(),
       )
     } catch (e: Exception) {
       if (e.grpcStatusCode() != Status.Code.FAILED_PRECONDITION) {
@@ -261,6 +259,7 @@ class DataWatcher(
       requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     check(
       existing.queue == requestedWorkItem.queue &&
+        existing.serializationKey == requestedWorkItem.serializationKey &&
         existingParams.appParams == requestedParams.appParams &&
         existingParams.dataPathParams == requestedParams.dataPathParams
     ) {
