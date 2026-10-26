@@ -1,4 +1,4 @@
-# Copyright 2025 The Cross-Media Measurement Authors
+# Copyright 2026 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@ variables {
 run "existing_default" {
   command = plan
   assert {
-    condition     = contains(terraform_data.deploy_http_cloud_function.triggers_replace, "512MB")
-    error_message = "The existing default allocation must remain unchanged."
+    condition     = terraform_data.deploy_http_cloud_function.triggers_replace == ["/tmp/example/Function.jar", "", "", "", var.timeout_seconds, var.max_instances, var.concurrency]
+    error_message = "Leaving memory unset must preserve preexisting deployment replacement keys."
   }
 }
 
