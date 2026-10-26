@@ -55,6 +55,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     environment = {
+      FUNCTION_MEMORY     = var.memory
       FUNCTION_NAME       = var.function_name
       ENTRY_POINT         = var.entry_point
       CLOUD_REGION        = data.google_client_config.default.region
