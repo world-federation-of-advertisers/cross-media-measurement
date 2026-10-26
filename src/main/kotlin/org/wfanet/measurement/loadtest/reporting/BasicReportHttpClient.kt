@@ -20,14 +20,16 @@ import com.google.protobuf.util.JsonFormat
 import java.io.IOException
 import java.time.Duration
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.coerceAtMost
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 
-/** Reads BasicReports from the HTTP gateway with bounded retries for transient read failures. */
+/** Reads BasicReports from the HTTP gateway with bounded retries for transient HTTP responses. */
 class BasicReportHttpClient(
   private val httpClient: OkHttpClient,
   private val retryBackoff: ExponentialBackoff,
@@ -39,35 +41,35 @@ class BasicReportHttpClient(
     require(!maximumRetryDelay.isNegative && !maximumRetryDelay.isZero)
   }
 
-  /** Reads [request], which must use GET. Creation requests are never retried here. */
+  /** Reads a BasicReport using the GET [request]. */
   suspend fun getBasicReport(request: Request): BasicReport {
     require(request.method == "GET")
     var attempt = 1
     while (true) {
-      val json =
-        try {
+      val json: String? =
+        withContext(Dispatchers.IO) {
           httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
+            if (response.isSuccessful) {
+              checkNotNull(response.body).string()
+            } else {
               val message = "Error retrieving BasicReport: ${response.code} ${response.message}"
               if (response.code !in TRANSIENT_HTTP_CODES) throw IllegalStateException(message)
-              throw IOException(message)
+              if (attempt >= maxAttempts) throw IOException(message)
+              logger.warning(
+                "Transient BasicReport HTTP ${response.code} on attempt $attempt of $maxAttempts; retrying"
+              )
+              null
             }
-            checkNotNull(response.body).string()
           }
-        } catch (e: IOException) {
-          if (attempt >= maxAttempts) throw e
-          val retryDelay = retryBackoff.durationForAttempt(attempt).coerceAtMost(maximumRetryDelay)
-          logger.warning(
-            "Transient BasicReport read failure on attempt $attempt of $maxAttempts; retrying"
-          )
-          delay(retryDelay.toMillis())
-          attempt++
-          continue
         }
-      // Parse outside the I/O retry catch: malformed successful responses are not transient.
-      return BasicReport.newBuilder()
-        .also { JsonFormat.parser().ignoringUnknownFields().merge(json, it) }
-        .build()
+      if (json != null) {
+        return BasicReport.newBuilder()
+          .also { JsonFormat.parser().ignoringUnknownFields().merge(json, it) }
+          .build()
+      }
+      val retryDelay = retryBackoff.durationForAttempt(attempt).coerceAtMost(maximumRetryDelay)
+      delay(retryDelay.toMillis())
+      attempt++
     }
   }
 

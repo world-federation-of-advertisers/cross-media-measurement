@@ -67,7 +67,7 @@ class BasicReportHttpClientTest {
   }
 
   @Test
-  fun `getBasicReport retries connection failure`() = runTest {
+  fun `getBasicReport propagates IOException without additional retries`() = runTest {
     val interceptor =
       ScriptedInterceptor(
         listOf(
@@ -75,9 +75,9 @@ class BasicReportHttpClientTest {
           Result.success(response(200, "{\"state\":\"SUCCEEDED\"}")),
         )
       )
-    assertThat(createClient(interceptor).getBasicReport(REQUEST).state)
-      .isEqualTo(BasicReport.State.SUCCEEDED)
-    assertThat(interceptor.calls).isEqualTo(2)
+    val failure = assertFailsWith<IOException> { createClient(interceptor).getBasicReport(REQUEST) }
+    assertThat(failure.message).contains("connection reset")
+    assertThat(interceptor.calls).isEqualTo(1)
   }
 
   @Test
