@@ -30,8 +30,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -520,14 +518,14 @@ class DataAvailabilityMonitor(
     val healthyDatesList = mutableListOf<LocalDate>()
 
     val now = clock()
-    for ((date, doneBlob) in enumerated.datesWithDoneBlob) {
+    for ((date, doneBlobs) in enumerated.datesWithDoneBlob) {
       val dateString = date.toString()
 
       // Check if there is at least one non-done file with content
       val hasData =
-        storageClient.listBlobs("${prefix}$dateString/").take(2).toList().any {
-          !it.blobKey.endsWith("/done") && it.size > 0
-        }
+        storageClient.listBlobs("${prefix}$dateString/").firstOrNull {
+          !DataAvailabilityBlobs.isDoneBlob(it.blobKey) && it.size > 0
+        } != null
       if (!hasData) {
         zeroImpressionDatesList.add(date)
       }
@@ -540,26 +538,29 @@ class DataAvailabilityMonitor(
       //     rewritten data (the EDP overwrote a metadata blob after Sync ran; fresh GCS
       //     uploads replace prior user-set custom metadata).
       // Full Kingdom publication is tracked separately by matching per-attempt IDs on `done`.
-      val doneSynced = DataAvailabilityBlobs.isSynced(doneBlob)
+      val allDoneSynced = doneBlobs.all(DataAvailabilityBlobs::isSynced)
       val hasLateArrivals =
-        if (doneSynced) {
+        if (allDoneSynced) {
           storageClient.listBlobs("${prefix}$dateString/").firstOrNull { isUnsynced(it) } != null
         } else false
       if (hasLateArrivals) {
         lateArrivingDatesList.add(date)
       }
 
-      // Done blob exists but lacks the marker. If it has been there long enough that Sync
-      // should reasonably have processed it, flag the date as having an unprocessed done.
-      val doneAge = Duration.between(doneBlob.createTime, now)
-      val isUnprocessedDone = !doneSynced && doneAge >= unprocessedDoneThreshold
-      val hasSyncAttempt = doneBlob.metadata.containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
-      val publicationAttemptAge = Duration.between(doneBlob.updateTime, now)
+      // A done blob exists but lacks the marker. If it has been there long enough that Sync should
+      // reasonably have processed it, flag the date as having an unprocessed done.
+      val isUnprocessedDone =
+        doneBlobs.any {
+          !DataAvailabilityBlobs.isSynced(it) &&
+            Duration.between(it.createTime, now) >= unprocessedDoneThreshold
+        }
       val isUnpublishedAvailability =
-        doneSynced &&
-          hasSyncAttempt &&
-          !DataAvailabilityBlobs.isDataAvailabilityPublished(doneBlob) &&
-          publicationAttemptAge >= unprocessedDoneThreshold
+        doneBlobs.any {
+          DataAvailabilityBlobs.isSynced(it) &&
+            it.metadata.containsKey(DataAvailabilityBlobs.SYNC_ID_KEY) &&
+            !DataAvailabilityBlobs.isDataAvailabilityPublished(it) &&
+            Duration.between(it.updateTime, now) >= unprocessedDoneThreshold
+        }
       if (isUnprocessedDone) {
         unprocessedDoneDatesList.add(date)
       }

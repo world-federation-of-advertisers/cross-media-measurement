@@ -197,11 +197,12 @@ class DataAvailabilityMonitorTest {
     storageClient: InMemoryStorageClient,
     modelLine: String,
     date: String,
+    fileName: String = "done",
     synced: Boolean = true,
     availabilityPublished: Boolean = synced,
     includeSyncId: Boolean = synced,
   ): Unit = runBlocking {
-    val path = "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date/done"
+    val path = "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date/$fileName"
     storageClient.writeBlob(path, ByteString.copyFromUtf8("done"))
     val metadata = mutableMapOf<String, String>()
     if (synced) {
@@ -1713,6 +1714,50 @@ class DataAvailabilityMonitorTest {
     assertThat(status.unprocessedDoneDates).containsExactly(LocalDate.of(2026, 3, 15))
     assertThat(status.lateArrivingDates).isEmpty()
     assertThat(status.healthyDates).isEmpty()
+  }
+
+  @Test
+  fun `checkFullStatus inspects every same-date upload marker`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    val modelLine = MODEL_LINE_A.modelLineId
+    val date = "2026-03-15"
+    ensureDirectories(modelLine, date)
+    createDoneBlob(
+      storageClient,
+      modelLine,
+      date,
+      fileName = "done-${"a".repeat(64)}",
+      synced = true,
+    )
+    createDoneBlob(
+      storageClient,
+      modelLine,
+      date,
+      fileName = "done-${"b".repeat(64)}",
+      synced = false,
+    )
+    createDataFile(storageClient, modelLine, date)
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
+        clock = { Instant.now().plus(Duration.ofHours(25)) },
+      )
+
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
+        spuriousDeletionLookbackDays = null,
+      )
+
+    assertThat(result.statuses.single().unprocessedDoneDates)
+      .containsExactly(LocalDate.of(2026, 3, 15))
   }
 
   @Test
