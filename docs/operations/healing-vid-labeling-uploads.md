@@ -34,7 +34,7 @@ List candidate summaries when the plan needs more investigation:
 ```shell
 vid-labeling-heal list-correction-candidates \
   --data-provider=dataProviders/DATA_PROVIDER \
-  --state=PLANNED \
+  --state=ASSIGNED \
   --edpa-public-api-target=EDPA_TARGET \
   TLS_FLAGS
 
@@ -78,14 +78,16 @@ fence enters `EVICTING`. Only then does the controller capture and persist the e
 generations before deleting anything. An interrupted controller safely resumes either the drain or
 exact-version finalization.
 
-Eviction permanently terminates unfinished availability tasks for obsolete output. A replacement
-uses the normal VID-labeling path: VidLabeler writes the versioned output `done` object and records
-every pending model-line date without publishing availability work while the eviction fence is
-active. When replacement labeling is durable, the operation enters
-`AVAILABILITY_HANDOFF_PENDING` and atomically releases the fence. The controller then creates one
-exact-generation Data Availability WorkItem per pending model-line date and marks the operation
-`COMPLETE` after every WorkItem is durably scheduled or already exists with the same identity. It
-does not wait for Data Availability processing itself.
+Eviction deletes obsolete versioned output; any stale availability WorkItem later fails its
+exact-generation check. A replacement uses the normal VID-labeling path: VidLabeler writes the
+versioned output `done` object, moves the model line to `AVAILABILITY_SYNCING` with its pending
+event dates, and defers availability publication while the eviction fence is active. When
+replacement labeling is durable, the operation enters `AVAILABILITY_HANDOFF_PENDING` and
+atomically releases the fence. The controller then creates one exact-generation Data Availability
+WorkItem per pending model-line date and marks the operation `COMPLETE` after every WorkItem is
+durably scheduled or already exists with the same identity. It does not wait for those WorkItems to
+synchronize. Each acknowledged event date is removed from the pending set; the model line becomes
+`COMPLETED` only after that set is empty.
 
 Uploads received during healing remain deferred by the healing dispatch gate even during the brief
 post-fence handoff. A later correction does not acquire another fence while a preceding replacement
