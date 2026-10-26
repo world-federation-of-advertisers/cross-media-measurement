@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import java.time.Duration
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
@@ -148,9 +149,14 @@ object VidLabelingStorageConfigValidator {
 
       val availabilityRoutes =
         dataWatcherConfig.watchedPathsList.filter { watchedPath ->
-          watchedPath.hasHttpEndpointSink() &&
-            watchedPath.httpEndpointSink.appParams.fieldsMap["dataProvider"]?.stringValue ==
-              vidConfig.dataProvider
+          when {
+            watchedPath.hasHttpEndpointSink() ->
+              watchedPath.httpEndpointSink.appParams.fieldsMap["dataProvider"]?.stringValue == vidConfig.dataProvider
+            watchedPath.hasControlPlaneQueueSink() &&
+              watchedPath.controlPlaneQueueSink.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java) ->
+              watchedPath.controlPlaneQueueSink.appParams.unpack(ExternalDataAvailabilitySyncParams::class.java).dataProvider == vidConfig.dataProvider
+            else -> false
+          }
         }
       val labeledOutputPrefix = "$vidLabelingStorageRoot/${vidConfig.edpImpressionPath}"
       val labeledOutputExamples =

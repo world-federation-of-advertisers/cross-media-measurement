@@ -40,10 +40,20 @@ sidecars by scanning the done object's folder and does not require internal raw-
 or mark VID Labeler pipeline completion rows.
 
 Deploy the consumer and DataWatcher binary before switching route configuration. Drain legacy
-HTTP deliveries. Keep the external `${edp_impression_path}/model-line/<line>/<date>/done` prefix
-separate from internal VID Labeler outputs; internal tasks continue to be created by VID Labeler.
+HTTP deliveries. External tasks use
+`${external_impression_path}/model-line/<line>/<date>/done`; when `external_impression_path` is
+empty they use `edp_impression_path`. Providers also using VID Labeler must configure separate
+prefixes. `edp_impression_path` must match the dispatcher and monitor's internal output prefix;
+internal tasks continue to be created by VID Labeler. The deployment validator rejects both
+HTTP and queued DataWatcher routes that match internal outputs.
 The consumer validates the external bucket, prefix, date, and finalized object generation.
 Both producers use the provider's `data-availability:<DataProvider>` ordering key and the
 existing provider lease. DataAvailabilitySync allows five single-request instances and a
 60-minute invocation timeout. A completed WorkItem skips redelivered work; an interrupted
 attempt remains retryable through the lease-aware control plane and DLQ listener.
+
+The supplied environment configs preserve the external upload paths and place VID Labeler
+outputs under their `vid-labeler` subdirectory. Before adopting this configuration, drain active
+VID Labeler and availability tasks and migrate dispatcher, monitor, and sync configs together.
+Keep previously published impression metadata; new tasks derive their outputs from the new
+internal prefix. External upload producers do not need to change their paths.
