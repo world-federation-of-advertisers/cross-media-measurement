@@ -367,6 +367,7 @@ module "requisition_fetcher_cloud_scheduler" {
 }
 
 module "event_group_sync_cloud_function" {
+  memory = var.event_group_sync_memory
   source = "../http-cloud-function"
 
   depends_on = [module.secrets]
