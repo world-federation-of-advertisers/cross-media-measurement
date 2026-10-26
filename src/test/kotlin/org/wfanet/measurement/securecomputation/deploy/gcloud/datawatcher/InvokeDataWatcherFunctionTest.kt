@@ -330,7 +330,10 @@ class InvokeDataWatcherFunctionTest() {
       )
     assertThat(
         params.appParams
-          .unpack(org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams::class.java)
+          .unpack(
+            org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams::class
+              .java
+          )
           .dataProvider
       )
       .isEqualTo("dataProviders/example")

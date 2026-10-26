@@ -4,6 +4,7 @@ configs {
   data_provider: "dataProviders/T5RryPMNong"
   edp_impression_path: "edp/edp7"
   vid_labeled_impression_path: "vid-labeled-impressions/edp/edp7"
+  external_impression_path: "edp/edp7"
   data_availability_storage {
     gcs {
       project_id: "halo-cmm-dev"

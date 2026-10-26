@@ -32,6 +32,7 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingStorageConfigValidator
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
 @RunWith(JUnit4::class)
@@ -86,36 +87,34 @@ class DataAvailabilityWatcherConfigTest {
         .that(dataAvailabilityWatchedPaths)
         .isNotEmpty()
       for (watchedPath in dataAvailabilityWatchedPaths) {
-        val params = watchedPath.httpEndpointSink.appParams
-        assertWithMessage("$environment ${watchedPath.sourcePathRegex} parameter fields")
-          .that(params.fieldsMap.keys)
-          .containsExactly(TYPE_FIELD, DATA_PROVIDER_FIELD)
-        assertWithMessage("$environment ${watchedPath.sourcePathRegex} parameter type")
-          .that(params.fieldsMap.getValue(TYPE_FIELD).stringValue)
-          .isEqualTo(DATA_AVAILABILITY_SYNC_PARAMS_TYPE_URL)
-        val dataProvider = params.fieldsMap.getValue(DATA_PROVIDER_FIELD).stringValue
+        assertThat(watchedPath.hasControlPlaneQueueSink()).isTrue()
+        val sink = watchedPath.controlPlaneQueueSink
+        assertThat(sink.queue).isEqualTo("data-availability-sync-queue")
+        assertThat(sink.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)).isTrue()
+        val params = sink.appParams.unpack(ExternalDataAvailabilitySyncParams::class.java)
+        val dataProvider = params.dataProvider
+        assertThat(sink.serializationKey).isEqualTo("data-availability:$dataProvider")
         assertWithMessage("$environment runtime config for $dataProvider")
           .that(runtimeConfigsByDataProvider)
           .containsKey(dataProvider)
-
-        val selectedConfig =
-          ConfigLoader.buildDataAvailabilitySyncConfig(
-            JsonFormat.printer().print(params),
-            runtimeConfigs.configsList,
-          )
-
-        assertThat(selectedConfig).isEqualTo(runtimeConfigsByDataProvider.getValue(dataProvider))
+        val config = runtimeConfigsByDataProvider.getValue(dataProvider)
         assertWithMessage("$environment Secure Computation connection for $dataProvider")
-          .that(selectedConfig.hasSecureComputationControlPlaneConnection())
+          .that(config.hasSecureComputationControlPlaneConnection())
           .isTrue()
-        assertThat(selectedConfig.secureComputationControlPlaneConnection.certFilePath)
+        assertThat(config.secureComputationControlPlaneConnection.certFilePath)
           .endsWith("/edpa_tee_app_tls.pem")
-        assertThat(selectedConfig.secureComputationControlPlaneConnection.privateKeyFilePath)
+        assertThat(config.secureComputationControlPlaneConnection.privateKeyFilePath)
           .endsWith("/edpa_tee_app_tls.key")
-        assertThat(selectedConfig.secureComputationControlPlaneConnection.certCollectionFilePath)
+        assertThat(config.secureComputationControlPlaneConnection.certCollectionFilePath)
           .endsWith("/secure_computation_root.pem")
-        assertThat(selectedConfig.secureComputationControlPlaneConnection)
-          .isNotEqualTo(selectedConfig.impressionMetadataStorageConnection)
+        assertThat(config.secureComputationControlPlaneConnection)
+          .isNotEqualTo(config.impressionMetadataStorageConnection)
+        val prefix = config.externalImpressionPath.ifEmpty { config.edpImpressionPath }
+        val example =
+          "gs://${config.dataAvailabilityStorage.gcs.bucketName}/$prefix/model-line/example/2000-01-01/done"
+        assertWithMessage("$environment external route for $dataProvider")
+          .that(watchedPath.sourcePathRegex.toRegex().matches(example))
+          .isTrue()
       }
 
       for (config in runtimeConfigs.configsList) {
@@ -127,18 +126,15 @@ class DataAvailabilityWatcherConfigTest {
         assertWithMessage("$environment create route for ${config.dataProvider}")
           .that(createRoutes)
           .hasSize(1)
-        assertThat(
-            createRoutes
-              .single()
-              .httpEndpointSink
-              .appParams
-              .fieldsMap
-              .getValue(DATA_PROVIDER_FIELD)
-              .stringValue
+        val createRoute = createRoutes.single()
+        assertThat(createRoute.hasControlPlaneQueueSink()).isTrue()
+        assertThat(createRoute.controlPlaneQueueSink.queue)
+          .isEqualTo("data-availability-sync-queue")
+        val createParams =
+          createRoute.controlPlaneQueueSink.appParams.unpack(
+            ExternalDataAvailabilitySyncParams::class.java
           )
-          .isEqualTo(config.dataProvider)
-        assertThat(createRoutes.single().httpEndpointSink.endpointUri)
-          .endsWith("/data-availability-sync")
+        assertThat(createParams.dataProvider).isEqualTo(config.dataProvider)
 
         val vidConfig =
           dispatcherConfigs.configsList.singleOrNull { it.dataProvider == config.dataProvider }
@@ -195,6 +191,18 @@ class DataAvailabilityWatcherConfigTest {
           assertThat(pathMonitors.single().storage.gcs.bucketName).isEqualTo(bucket)
         }
       }
+      VidLabelingStorageConfigValidator.validate(
+        parseTextProto(
+          resolveRunfile("$configDirectory/vid-labeling-dispatcher-config.textproto").toFile(),
+          VidLabelingConfigs.getDefaultInstance(),
+        ),
+        parseTextProto(
+          resolveRunfile("$configDirectory/vid-labeling-monitor-config.textproto").toFile(),
+          VidLabelingConfigs.getDefaultInstance(),
+        ),
+        runtimeConfigs,
+        watcherConfig,
+      )
     }
   }
 
@@ -205,16 +213,13 @@ class DataAvailabilityWatcherConfigTest {
 
   companion object {
     private const val DATA_AVAILABILITY_IDENTIFIER = "data-availability"
-    private const val DATA_PROVIDER_FIELD = "dataProvider"
-    private const val TYPE_FIELD = "@type"
-    private const val DATA_AVAILABILITY_SYNC_PARAMS_TYPE_URL =
-      "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams"
     private val ENVIRONMENTS = listOf("dev", "head", "qa")
     private val RUNFILES = Runfiles.preload().withSourceRepository("")
     private val TYPE_REGISTRY =
       TypeRegistry.newBuilder()
         .add(ResultsFulfillerParams.getDescriptor())
         .add(EventGroupSyncParams.getDescriptor())
+        .add(ExternalDataAvailabilitySyncParams.getDescriptor())
         .build()
   }
 }
