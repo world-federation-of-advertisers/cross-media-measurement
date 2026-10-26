@@ -414,17 +414,13 @@ module "data_availability_sync_cloud_function" {
     for key in concat(local.data_availability_sync_secrets_access, ["secure_computation_root_ca"]) :
     local.all_secrets[key].secret_id
   ]
-
   # The RPC throttler is process-local. Bound service-wide concurrency to protect the shared
   # ImpressionMetadata service from completion-marker bursts.
   max_instances   = 5
   concurrency     = 1
-  timeout_seconds = 540
 
   # WorkItem attempts renew their leases while synchronizing, independently of source-event delivery.
   timeout_seconds = 3600
-  concurrency = 1
-  max_instances = 5
 }
 
 module "data_availability_cleanup_cloud_function" {

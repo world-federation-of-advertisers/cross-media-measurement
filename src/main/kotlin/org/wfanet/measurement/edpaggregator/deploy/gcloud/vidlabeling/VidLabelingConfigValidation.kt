@@ -16,13 +16,13 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
-import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import java.time.Duration
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 
 /**
  * LabelerInput field path the Phase-2 TEE requires: the raw event-id column that feeds
@@ -164,10 +164,15 @@ object VidLabelingStorageConfigValidator {
         dataWatcherConfig.watchedPathsList.filter { watchedPath ->
           when {
             watchedPath.hasHttpEndpointSink() ->
-              watchedPath.httpEndpointSink.appParams.fieldsMap["dataProvider"]?.stringValue == vidConfig.dataProvider
+              watchedPath.httpEndpointSink.appParams.fieldsMap["dataProvider"]?.stringValue ==
+                vidConfig.dataProvider
             watchedPath.hasControlPlaneQueueSink() &&
-              watchedPath.controlPlaneQueueSink.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java) ->
-              watchedPath.controlPlaneQueueSink.appParams.unpack(ExternalDataAvailabilitySyncParams::class.java).dataProvider == vidConfig.dataProvider
+              watchedPath.controlPlaneQueueSink.appParams.`is`(
+                ExternalDataAvailabilitySyncParams::class.java
+              ) ->
+              watchedPath.controlPlaneQueueSink.appParams
+                .unpack(ExternalDataAvailabilitySyncParams::class.java)
+                .dataProvider == vidConfig.dataProvider
             else -> false
           }
         }
