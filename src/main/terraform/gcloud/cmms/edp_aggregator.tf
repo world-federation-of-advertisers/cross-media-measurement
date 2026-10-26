@@ -464,6 +464,9 @@ locals {
   # Five-minute dispatch ticks recover uploads stranded by a fast-path failure.
   # ?mode=dispatch selects VidLabelingMonitor.runDispatch without health recovery.
   vid_labeling_dispatch_scheduler_config = {
+    # Development/cloud-test fallback: recover within the 30-minute test timeout.
+    # Long-lived deployments should run 1-4 times per day (every 6-24 hours);
+    # newly registered uploads normally start through fast-path dispatch.
     schedule                  = "*/5 * * * *" # Every 5 minutes
     time_zone                 = "UTC"
     name                      = "vid-labeling-dispatch-sched"

@@ -1573,11 +1573,15 @@ the [Report Debugging Guide](report-debugging-guide.md).
 
 ### VID labeling dispatch recovery
 
-The default CMMS deployment invokes `VidLabelingMonitor.runDispatch` every five
-minutes to recover registered uploads whose fast-path dispatch failed. A dispatch
-tick scans metadata and starts eligible work; it does not rerun labeling or the
-daily health checks. Deterministic WorkItem IDs and etag claims protect dispatch
-when the fast path and monitor run concurrently.
+The CMMS development/cloud-test deployment invokes `VidLabelingMonitor.runDispatch`
+every five minutes to allow recovery from fast-path dispatch failures during the
+30-minute cloud-test timeout. For long-lived deployments, configure
+fallback dispatch to run 1–4 times per day (every 6–24 hours); newly registered
+uploads normally start through fast-path dispatch.
+
+A dispatch tick scans metadata and starts eligible work; it does not rerun labeling
+or the daily health checks. Deterministic WorkItem IDs and etag claims protect
+dispatch when the fast path and monitor run concurrently.
 
 Both functions configure a maximum of one instance and one concurrent HTTP request.
 The monitor's dispatch and health modes share that instance. Long-running scans can
