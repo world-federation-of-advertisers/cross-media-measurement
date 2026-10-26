@@ -39,3 +39,21 @@ reads the exact finalized generation. Update this URI when moving the input loca
 Set `event_group_sync_memory` to the existing environment allocation before redeployment.
 Leaving it unset preserves the existing deployment replacement keys; a new or redeployed
 function still uses the legacy `512MB` allocation unless overridden.
+
+## External data availability WorkItems
+
+External labeled-output `done` routes now enqueue `ExternalDataAvailabilitySyncParams` on
+`data-availability-sync-queue`. DataWatcher returns once the task is durably accepted. The
+existing consumer uses the same attempt lifecycle and per-provider synchronization lease as
+VID Labeler tasks, and records success after availability publication. It discovers external
+sidecars by scanning the done object's folder and does not require internal raw-upload names
+or mark VID Labeler pipeline completion rows.
+
+Deploy the consumer and DataWatcher binary before switching route configuration. Drain legacy
+HTTP deliveries. Keep the external `${edp_impression_path}/model-line/<line>/<date>/done` prefix
+separate from internal VID Labeler outputs; internal tasks continue to be created by VID Labeler.
+The consumer validates the external bucket, prefix, date, and finalized object generation.
+Both producers use the provider's `data-availability:<DataProvider>` ordering key and the
+existing provider lease. DataAvailabilitySync allows five single-request instances and a
+60-minute invocation timeout. A completed WorkItem skips redelivered work; an interrupted
+attempt remains retryable through the lease-aware control plane and DLQ listener.

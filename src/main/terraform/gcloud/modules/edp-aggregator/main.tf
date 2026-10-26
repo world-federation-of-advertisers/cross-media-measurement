@@ -415,6 +415,11 @@ module "data_availability_sync_cloud_function" {
     local.all_secrets[key].secret_id
   ]
   timeout_seconds = 540
+
+  # WorkItem attempts renew their leases while synchronizing, independently of source-event delivery.
+  timeout_seconds = 3600
+  concurrency = 1
+  max_instances = 5
 }
 
 module "data_availability_cleanup_cloud_function" {
