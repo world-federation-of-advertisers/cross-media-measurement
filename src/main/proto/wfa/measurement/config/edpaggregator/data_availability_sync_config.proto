@@ -47,6 +47,12 @@ message DataAvailabilitySyncConfig {
   // a future release.
   string edp_impression_path = 5;
 
+  // External labeled-output prefix within the storage bucket. When empty,
+  // external and legacy HTTP syncs use edp_impression_path. Providers that
+  // also use VID Labeler must configure disjoint external and internal
+  // prefixes; edp_impression_path remains the VID Labeler output prefix.
+  string external_impression_path = 9 [(google.api.field_behavior) = OPTIONAL];
+
   // Mapping from an internal EDPA model line to one or more external model
   // lines to apply the same availability interval to.
   //
