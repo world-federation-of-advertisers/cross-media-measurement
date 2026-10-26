@@ -87,6 +87,8 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.client.LabeledImpressionWriter
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
@@ -1004,10 +1006,23 @@ class InProcessEdpAggregatorComponents(
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
       )
+    val leaseRunner =
+      DataAvailabilitySyncLeaseRunner(
+        GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient)
+      )
     val outcomes =
       doneKeys.associate { doneKey ->
         val doneUri = "file:///$bucket/$doneKey"
-        val outcome = sync.sync(doneUri)
+        val outcome =
+          leaseRunner.run(dataProviderName) { lease ->
+            sync.sync(
+              doneBlobPath = doneUri,
+              dataAvailabilitySyncLease = lease.name,
+              // Filesystem fixtures have no GCS generation. Each marker is written once above.
+              doneBlobGeneration = 1L,
+              ensureLeaseActive = lease::invoke,
+            )
+          }
         if (outcome == DataAvailabilitySync.Outcome.PUBLISHED) {
           check(
             DataAvailabilityBlobs.isDataAvailabilityPublished(
