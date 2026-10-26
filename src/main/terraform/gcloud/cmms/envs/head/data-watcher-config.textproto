@@ -3,16 +3,12 @@
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-head-bucket/edp7/event-groups/(.*)"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-head.cloudfunctions.net/event-group-sync"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/Z1YwJJmvvN8"
     app_params {
-      fields {
-        key: "@type"
-        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams" }
-      }
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/Z1YwJJmvvN8" }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/Z1YwJJmvvN8"
       }
     }
   }
@@ -20,16 +16,12 @@ watched_paths {
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-head-bucket/edpa_meta/event-groups/(.*)"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-head.cloudfunctions.net/event-group-sync"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/YpCPT-x89j4"
     app_params {
-      fields {
-        key: "@type"
-        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams" }
-      }
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/YpCPT-x89j4" }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/YpCPT-x89j4"
       }
     }
   }
@@ -161,39 +153,29 @@ watched_paths {
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-head-bucket/event_group_scale/event-groups/(.*)"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-head.cloudfunctions.net/event-group-sync"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/eO3DIA2ihRw"
     app_params {
-      fields {
-        key: "@type"
-        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams" }
-      }
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/eO3DIA2ihRw" }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/eO3DIA2ihRw"
       }
     }
   }
 }
-
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-head-bucket/edpa_video_pub/event-groups/(.*)"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-head.cloudfunctions.net/event-group-sync"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/DikW9D-jyWk"
     app_params {
-      fields {
-        key: "@type"
-        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams" }
-      }
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/DikW9D-jyWk" }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/DikW9D-jyWk"
       }
     }
   }
 }
-
 watched_paths {
   identifier: "data-availability"
   source_path_regex: "^gs://secure-computation-storage-head-bucket/edp/edpa_video_pub/model-line/[^/]+/[^/]+/done$"
@@ -251,21 +233,16 @@ watched_paths {
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-head-bucket/edpa_retail_pub/event-groups/(.*)"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-head.cloudfunctions.net/event-group-sync"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/TiyslcBcEfA"
     app_params {
-      fields {
-        key: "@type"
-        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams" }
-      }
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/TiyslcBcEfA" }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/TiyslcBcEfA"
       }
     }
   }
 }
-
 watched_paths {
   identifier: "data-availability"
   source_path_regex: "^gs://secure-computation-storage-head-bucket/edp/edpa_retail_pub/model-line/[^/]+/[^/]+/done$"

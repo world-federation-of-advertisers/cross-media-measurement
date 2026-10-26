@@ -45,6 +45,7 @@ import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
@@ -220,7 +221,10 @@ class DataWatcherFunction(
         getConfigAsProtoMessage(
           configBlobKey,
           DataWatcherConfig.getDefaultInstance(),
-          TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build(),
+          TypeRegistry.newBuilder()
+            .add(ResultsFulfillerParams.getDescriptor())
+            .add(EventGroupSyncParams.getDescriptor())
+            .build(),
         )
       }
     }
