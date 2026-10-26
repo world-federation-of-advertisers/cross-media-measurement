@@ -23,8 +23,8 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import picocli.CommandLine
 
