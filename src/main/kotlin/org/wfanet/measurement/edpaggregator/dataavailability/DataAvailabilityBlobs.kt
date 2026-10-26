@@ -26,10 +26,10 @@ import org.wfanet.measurement.storage.StorageClient
  * Conventions for blobs in an EDP date folder, shared by [DataAvailabilitySync] (the writer) and
  * [DataAvailabilityMonitor] (the reader).
  *
- * EDP date folders contain a per-date `done` marker and one or more metadata files whose names
- * contain the substring "metadata" (e.g. `metadata.binpb`, `metadata-creative.binpb`). The
- * encrypted impressions blobs that the metadata files reference live in a separate directory tree
- * and are not present here.
+ * EDP date folders contain a legacy per-date `done` marker or upload-specific `done-<hash>` markers
+ * and one or more metadata files whose names contain the substring "metadata" (e.g.
+ * `metadata.binpb`, `metadata-creative.binpb`). The encrypted impressions blobs that the metadata
+ * files reference live in a separate directory tree and are not present here.
  */
 object DataAvailabilityBlobs {
   /**
@@ -55,8 +55,11 @@ object DataAvailabilityBlobs {
   /** GCS custom metadata key identifying the sync attempt published to the Kingdom. */
   const val PUBLISHED_SYNC_ID_KEY = "data-availability-published-sync-id"
 
-  /** Filename suffix on the per-date "done" marker. */
-  private const val DONE_SUFFIX = "/done"
+  /** Filename on the legacy per-date marker. */
+  private const val LEGACY_DONE_FILE_NAME = "done"
+
+  /** Upload-specific marker filename produced by VidLabeler. */
+  private val UPLOAD_DONE_FILE_REGEX = Regex("done-[0-9a-f]{64}")
 
   /** Filename substring that identifies a metadata blob. */
   private const val METADATA_FILE_NAME = "metadata"
@@ -70,7 +73,7 @@ object DataAvailabilityBlobs {
    */
   fun isMetadataBlob(blob: StorageClient.Blob): Boolean {
     if (blob.size == 0L) return false
-    if (blob.blobKey.endsWith(DONE_SUFFIX)) return false
+    if (isDoneBlob(blob.blobKey)) return false
     val fileName = blob.blobKey.substringAfterLast("/").lowercase()
     return METADATA_FILE_NAME in fileName
   }
@@ -83,6 +86,12 @@ object DataAvailabilityBlobs {
     if (!isSynced(blob)) return false
     val syncId = blob.metadata[SYNC_ID_KEY] ?: return false
     return blob.metadata[PUBLISHED_SYNC_ID_KEY] == syncId
+  }
+
+  /** Returns whether [blobKey] names a legacy or upload-specific done marker. */
+  fun isDoneBlob(blobKey: String): Boolean {
+    val fileName = blobKey.substringAfterLast("/")
+    return fileName == LEGACY_DONE_FILE_NAME || UPLOAD_DONE_FILE_REGEX.matches(fileName)
   }
 
   /**
@@ -99,7 +108,7 @@ object DataAvailabilityBlobs {
    * @return [EnumeratedDateInfo] with disjoint `datesWithDoneBlob` and `datesWithoutDoneBlob`.
    */
   suspend fun enumerateDateInfo(storageClient: StorageClient, prefix: String): EnumeratedDateInfo {
-    val datesWithDoneBlob = mutableMapOf<LocalDate, StorageClient.Blob>()
+    val datesWithDoneBlob = mutableMapOf<LocalDate, List<StorageClient.Blob>>()
     val datesWithoutDoneBlob = mutableListOf<LocalDate>()
 
     val datePrefixes = storageClient.listBlobKeysAndPrefixes(prefix).toList()
@@ -112,9 +121,10 @@ object DataAvailabilityBlobs {
           logger.warning("Skipping non-date folder: $dateString")
           continue
         }
-      val doneBlob = storageClient.getBlob("${prefix}$dateString/done")
-      if (doneBlob != null) {
-        datesWithDoneBlob[date] = doneBlob
+      val doneBlobs =
+        storageClient.listBlobs("${prefix}$dateString/").toList().filter { isDoneBlob(it.blobKey) }
+      if (doneBlobs.isNotEmpty()) {
+        datesWithDoneBlob[date] = doneBlobs
       } else {
         datesWithoutDoneBlob.add(date)
       }
@@ -151,12 +161,12 @@ object DataAvailabilityBlobs {
    * Result of [enumerateDateInfo]. Each date is in exactly one of the two collections (enforced by
    * a `check` in the producer).
    *
-   * @property datesWithDoneBlob map from date to the `done` blob itself, so callers can read
-   *   `createTime` / `metadata` without re-fetching.
+   * @property datesWithDoneBlob map from date to every `done` blob, so callers can inspect each
+   *   upload handoff without re-fetching.
    * @property datesWithoutDoneBlob sorted list of date folders that exist but have no `done` blob.
    */
   data class EnumeratedDateInfo(
-    val datesWithDoneBlob: Map<LocalDate, StorageClient.Blob>,
+    val datesWithDoneBlob: Map<LocalDate, List<StorageClient.Blob>>,
     val datesWithoutDoneBlob: List<LocalDate>,
   )
 
