@@ -111,6 +111,16 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CompleteWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RenewWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -118,6 +128,38 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class EventGroupSyncFunctionTest() {
   private lateinit var grpcServer: CommonServer
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
+  private var workItemCompleted = false
+  private val workItemAttemptsService =
+    object : WorkItemAttemptsCoroutineImplBase() {
+      override suspend fun createWorkItemAttempt(
+        request: CreateWorkItemAttemptRequest
+      ): WorkItemAttempt {
+        check(request.supportsAttemptLease)
+        check(request.expectedWorkItemGeneration == 1L)
+        return workItemAttempt {
+          name = "${request.parent}/workItemAttempts/${request.workItemAttemptId}"
+          state = WorkItemAttempt.State.ACTIVE
+          leaseExpirationTime = timestamp { seconds = 1_900_000_000L }
+        }
+      }
+
+      override suspend fun renewWorkItemAttempt(
+        request: RenewWorkItemAttemptRequest
+      ): WorkItemAttempt = workItemAttempt {
+        name = request.name
+        state = WorkItemAttempt.State.ACTIVE
+      }
+
+      override suspend fun completeWorkItemAttempt(
+        request: CompleteWorkItemAttemptRequest
+      ): WorkItemAttempt {
+        workItemCompleted = true
+        return workItemAttempt {
+          name = request.name
+          state = WorkItemAttempt.State.SUCCEEDED
+        }
+      }
+    }
   private var firstBatchCreateStarted: CountDownLatch? = null
   private var firstBatchCreateMayComplete: CountDownLatch? = null
 
@@ -270,6 +312,7 @@ class EventGroupSyncFunctionTest() {
               eventGroupsServiceMock.bindService(),
               clientAccountsServiceMock.bindService(),
               unlinkedClientAccountsServiceMock.bindService(),
+              workItemAttemptsService.bindService(),
             ),
         )
         .start()
@@ -298,6 +341,73 @@ class EventGroupSyncFunctionTest() {
         "OTEL_LOGS_EXPORTER" to "logging",
       )
     return functionProcess.start(defaultEnv + envOverrides)
+  }
+
+  @Test
+  fun `binary push WorkItem publishes mapping and records completion`() = runBlocking {
+    val config = eventGroupSyncConfig {
+      dataProvider = "dataProviders/example"
+      eventGroupsBlobUri = "file:///source/event-groups.binpb"
+      eventGroupMapBlobUri = "file:///mapped/event-groups.binpb"
+      cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    File(tempFolder.root, "mapped").mkdirs()
+    val configDir = File(tempFolder.root, "configbucket").apply { mkdirs() }
+    File(configDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(eventGroupSyncConfigs { configs += config }))
+    MesosRecordIoStorageClient(FileSystemStorageClient(tempFolder.root))
+      .writeBlob(
+        "source/event-groups.binpb",
+        flowOf(buildConcurrentEventGroup("work-item-reference").toByteString()),
+      )
+    val port =
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+          "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+          "SECURE_COMPUTATION_CERT_HOST" to "localhost",
+        )
+      )
+    val task = workItem {
+      name = "workItems/egs-http-test"
+      generation = 1L
+      workItemParams =
+        Any.pack(
+          workItemParams {
+            appParams = Any.pack(eventGroupSyncParams { dataProvider = config.dataProvider })
+            dataPathParams = dataPathParams {
+              dataPath = config.eventGroupsBlobUri
+              generation = 7L
+              eventType = WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+            }
+          }
+        )
+    }
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("x-goog-pubsub-message-id", "synthetic-message-id")
+        .POST(HttpRequest.BodyPublishers.ofByteArray(task.toByteArray()))
+        .build()
+    val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+    assertThat(response.statusCode()).isEqualTo(200)
+    assertThat(workItemCompleted).isTrue()
+    val mapping =
+      checkNotNull(
+          MesosRecordIoStorageClient(FileSystemStorageClient(tempFolder.root))
+            .getBlob("mapped/event-groups.binpb")
+        )
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+    assertThat(mapping.single().eventGroupReferenceId).isEqualTo("work-item-reference")
   }
 
   private data class FailedInvocation(val statusCode: Int, val failureMetricLog: String?)
