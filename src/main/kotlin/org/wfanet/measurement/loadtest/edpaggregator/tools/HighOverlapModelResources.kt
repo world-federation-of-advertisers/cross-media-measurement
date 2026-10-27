@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.edpaggregator.tools
 
 import com.google.common.hash.Hashing
 import io.grpc.Channel
+import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -81,10 +82,13 @@ class HighOverlapModelResources(
         ModelLinesGrpc.newBlockingStub(mpChannel)
           .getModelLine(getModelLineRequest { name = modelLineName })
       } catch (e: StatusRuntimeException) {
-        throw IllegalStateException(
-          "ModelLine '$modelLineName' not found. Provision it with the ModelRepository tool first.",
-          e,
-        )
+        val message =
+          if (e.status.code == Status.Code.NOT_FOUND) {
+            "ModelLine '$modelLineName' not found. Provision it with the ModelRepository tool first."
+          } else {
+            "Unable to retrieve ModelLine '$modelLineName': ${e.status.code}"
+          }
+        throw IllegalStateException(message, e)
       }
     val activeStart = modelLine.activeStartTime.toInstant()
 

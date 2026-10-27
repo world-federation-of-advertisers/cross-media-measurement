@@ -65,4 +65,7 @@ message HighOverlapImpressionRow {
   float video_viewable_fraction = 14;
 
   float display_viewable_fraction = 15;
+
+  // Media type of the impression: `VIDEO` or `DISPLAY`.
+  string media_type = 17;
 }

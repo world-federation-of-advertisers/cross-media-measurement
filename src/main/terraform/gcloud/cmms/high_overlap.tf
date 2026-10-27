@@ -124,6 +124,12 @@ resource "google_bigquery_table" "impressions" {
     "name": "display_viewable_fraction",
     "type": "FLOAT",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "media_type",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Media type of the impression: VIDEO or DISPLAY"
   }
 ]
 EOF

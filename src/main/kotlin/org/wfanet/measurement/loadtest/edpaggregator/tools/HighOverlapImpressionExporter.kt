@@ -90,6 +90,9 @@ class HighOverlapImpressionExporter(
     entityKey: EntityKey,
     event: LabeledEvent<TestEvent>,
   ) {
+    require(event.message.hasVideo() != event.message.hasDisplay()) {
+      "High overlap impression must contain exactly one of video or display"
+    }
     val row = highOverlapImpressionRow {
       modelLine = this@HighOverlapImpressionExporter.modelLine
       specFingerprint = this@HighOverlapImpressionExporter.specFingerprint
@@ -107,6 +110,7 @@ class HighOverlapImpressionExporter(
       videoCompletedFraction = event.message.video.completedFraction
       videoViewableFraction = event.message.video.viewableFraction
       displayViewableFraction = event.message.display.viewableFraction
+      mediaType = if (event.message.hasVideo()) "VIDEO" else "DISPLAY"
     }
     val serialized = row.toByteString()
     batch.addSerializedRows(serialized)

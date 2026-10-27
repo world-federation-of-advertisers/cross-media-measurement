@@ -76,8 +76,8 @@ import picocli.CommandLine.Option
  *
  * Provisions the ModelLine's Population and rollout, uploads the EventGroups, writes the
  * impressions and exports them to BigQuery, writes the `done` blobs, and finally writes the
- * [HighOverlapDatasetManifest]. The manifest is written only once everything else has succeeded, so
- * a failed run leaves the previous one in place.
+ * [HighOverlapDatasetManifest]. The previous manifest is removed before seeding starts, and a new
+ * one is written only once everything else has succeeded.
  *
  * What this writes persists and the dataset is deterministic, so seeding is needed only when the
  * specs change or an environment gains an EDP.
@@ -266,50 +266,54 @@ class SeedHighOverlapDataset : Runnable {
       HighOverlapDataset.fingerprint(HighOverlapDataset.CONFIG_RESOURCE_PATH)
     logger.info("Seeding $seededEdps for $modelLine with specs $specFingerprint")
 
+    storage.delete(storageBucket, HighOverlapDataset.manifestBlobKey(modelLineId))
+
     provisionModelResources(populationSpec, datesByImpressionPath.values.flatten().min())
 
     val bigQuery: BigQuery =
       BigQueryOptions.newBuilder().setProjectId(googleProjectId).build().service
-    val exporter =
-      HighOverlapImpressionExporter(
-        bigQuery = bigQuery,
-        writeClient = BigQueryWriteClient.create(),
-        projectId = googleProjectId,
-        datasetId = bigQueryDataset,
-        tableId = bigQueryTable,
-        modelLine = modelLine,
-        specFingerprint = specFingerprint,
-      )
-    runBlocking {
-      uploadEventGroups(config)
-      exporter.use {
-        it.deleteExistingRows()
-        HighOverlapImpressionsWriter(
-            config = config,
-            populationSpec = populationSpec,
-            bucket = storageBucket,
-            modelLine = modelLine,
-            kmsClientsByEdp = kekClientsByEdp,
-            exporter = it,
-          )
-          .write()
-      }
-      writeDoneBlobs(datesByImpressionPath)
-
-      val exportedRowCount = exportedRowCount(bigQuery)
-      check(exportedRowCount == exporter.rowCount) {
-        "BigQuery holds $exportedRowCount row(s) for $modelLine, but ${exporter.rowCount} " +
-          "impression(s) were written"
-      }
-      writeManifest(
-        highOverlapDatasetManifest {
-          this.specFingerprint = specFingerprint
-          this.seededEdps += seededEdps
-          modelLine = this@SeedHighOverlapDataset.modelLine
-          generateTime = timestamp { seconds = Clock.systemUTC().instant().epochSecond }
-          impressionRowCount = exporter.rowCount
+    BigQueryWriteClient.create().use { writeClient ->
+      val exporter =
+        HighOverlapImpressionExporter(
+          bigQuery = bigQuery,
+          writeClient = writeClient,
+          projectId = googleProjectId,
+          datasetId = bigQueryDataset,
+          tableId = bigQueryTable,
+          modelLine = modelLine,
+          specFingerprint = specFingerprint,
+        )
+      runBlocking {
+        exporter.use {
+          uploadEventGroups(config)
+          it.deleteExistingRows()
+          HighOverlapImpressionsWriter(
+              config = config,
+              populationSpec = populationSpec,
+              bucket = storageBucket,
+              modelLine = modelLine,
+              kmsClientsByEdp = kekClientsByEdp,
+              exporter = it,
+            )
+            .write()
         }
-      )
+        writeDoneBlobs(datesByImpressionPath)
+
+        val exportedRowCount = exportedRowCount(bigQuery)
+        check(exportedRowCount == exporter.rowCount) {
+          "BigQuery holds $exportedRowCount row(s) for $modelLine, but ${exporter.rowCount} " +
+            "impression(s) were written"
+        }
+        writeManifest(
+          highOverlapDatasetManifest {
+            this.specFingerprint = specFingerprint
+            this.seededEdps += seededEdps
+            modelLine = this@SeedHighOverlapDataset.modelLine
+            generateTime = timestamp { seconds = Clock.systemUTC().instant().epochSecond }
+            impressionRowCount = exporter.rowCount
+          }
+        )
+      }
     }
   }
 
