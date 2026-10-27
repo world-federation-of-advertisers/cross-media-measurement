@@ -18,6 +18,7 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
 import com.google.type.interval
@@ -33,6 +34,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.logging.Logger
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -41,15 +44,18 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.ClassRule
+import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.EdpaCorrectnessTestConfig
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
+import org.measurement.integration.k8s.testing.copy
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
@@ -59,6 +65,8 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -94,6 +102,73 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     it.eventGroupReferenceId in setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, EDPA_META_EVENT_GROUP_REF_ID)
   }
 
+  @Test
+  fun `data availability sync publishes EventGroup activity`() = runBlocking {
+    val modelLine = checkNotNull(provisionModelResources.nonMemoizedModelLine)
+    val modelLineId = checkNotNull(ModelLineKey.fromName(modelLine)).modelLineId
+    val doneBlobKey = "$EDP7_IMPRESSION_PATH/model-line/$modelLineId/$ACTIVITY_START_DATE/done"
+    val storageClient = StorageOptions.getDefaultInstance().service
+
+    withTimeout(EVENT_GROUP_ACTIVITY_TIMEOUT) {
+      while (true) {
+        val metadata = storageClient.get(TEST_CONFIG.storageBucket, doneBlobKey)?.metadata.orEmpty()
+        val syncId = metadata[DATA_AVAILABILITY_SYNC_ID_METADATA_KEY]
+        if (
+          syncId != null && metadata[DATA_AVAILABILITY_PUBLISHED_SYNC_ID_METADATA_KEY] == syncId
+        ) {
+          break
+        }
+        delay(EVENT_GROUP_ACTIVITY_POLLING_INTERVAL)
+      }
+    }
+
+    val eventGroup =
+      withTimeout(EVENT_GROUP_ACTIVITY_TIMEOUT) {
+        var eventGroupWithActivity: CmmsEventGroup?
+        do {
+          eventGroupWithActivity = findEventGroupWithActivity()
+          if (eventGroupWithActivity == null) {
+            delay(EVENT_GROUP_ACTIVITY_POLLING_INTERVAL)
+          }
+        } while (eventGroupWithActivity == null)
+        eventGroupWithActivity
+      }
+
+    assertThat(eventGroup.aggregatedActivitiesList).isNotEmpty()
+  }
+
+  private suspend fun findEventGroupWithActivity(): CmmsEventGroup? {
+    var pageToken = ""
+    do {
+      val response =
+        measurementSystem.publicEventGroupsStub
+          .withAuthenticationKey(measurementSystem.apiAuthenticationKey)
+          .listEventGroups(
+            listEventGroupsRequest {
+              parent = measurementSystem.measurementConsumerName
+              pageSize = 500
+              this.pageToken = pageToken
+              view = CmmsEventGroup.View.WITH_ACTIVITY_SUMMARY
+              filter =
+                ListEventGroupsRequestKt.filter {
+                  dataProviderIn += measurementSystem.dataProviderNames.first()
+                  entityTypeIn += "creative-id"
+                }
+            }
+          )
+      val eventGroup =
+        response.eventGroupsList.firstOrNull {
+          it.eventGroupReferenceId == ACTIVITY_EVENT_GROUP_REF_ID &&
+            it.aggregatedActivitiesCount > 0
+        }
+      if (eventGroup != null) {
+        return eventGroup
+      }
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return null
+  }
+
   private class UploadEventGroup : TestRule {
 
     private val bucket = TEST_CONFIG.storageBucket
@@ -116,8 +191,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           objectKey = "edp7/event-groups/edp7-event-group.binpb",
           blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
           eventGroupReferenceIds =
-            setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
-              MULTI_CREATIVE_REF_IDS,
+            setOf(
+              EDP7_DIRECT_EVENT_GROUP_REF_ID,
+              CREATIVE_ID_EVENT_GROUP_REF_ID,
+              ACTIVITY_EVENT_GROUP_REF_ID,
+            ) + MULTI_CREATIVE_REF_IDS,
         ),
         EdpStorage(
           objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
@@ -192,13 +270,14 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             )
           is EventGroupConfig.MultiEntityKey ->
             config.entityKeySpecs.flatMap { entityKeySpec ->
-              buildEventGroupsFromSpec(
-                eventGroupReferenceId =
-                  "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}",
-                spec = entityKeySpec.spec,
-                dataEntityKey = entityKeySpec.entityKey,
-                entityMetadata = entityKeySpec.entityMetadata,
-              )
+              entityKeySpec.entityKeys.flatMap { entityKey ->
+                buildEventGroupsFromSpec(
+                  eventGroupReferenceId = "${entityKey.entityType}-${entityKey.entityId}",
+                  spec = entityKeySpec.spec,
+                  dataEntityKey = entityKey,
+                  entityMetadata = entityKeySpec.entityMetadata,
+                )
+              }
             }
         }
       }
@@ -511,6 +590,15 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
+    private val EVENT_GROUP_ACTIVITY_TIMEOUT = 5.minutes
+    private val EVENT_GROUP_ACTIVITY_POLLING_INTERVAL = 3.seconds
+    private const val ACTIVITY_START_DATE = "2021-03-15"
+    private val ACTIVITY_ENTITY_ID = "activity-${UUID.randomUUID()}"
+    private val ACTIVITY_EVENT_GROUP_REF_ID = "creative-id-$ACTIVITY_ENTITY_ID"
+    private const val EDP7_IMPRESSION_PATH = "edp/edp7"
+    private const val DATA_AVAILABILITY_SYNC_ID_METADATA_KEY = "data-availability-sync-id"
+    private const val DATA_AVAILABILITY_PUBLISHED_SYNC_ID_METADATA_KEY =
+      "data-availability-published-sync-id"
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "edpa_correctness_test_config.textproto"
@@ -540,7 +628,18 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       val configFile =
         getRuntimePath(CONFIG_PATH.resolve("impression_test_data_config.textproto"))!!.toFile()
-      parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
+      val config = parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
+      // A fresh entity key prevents historical activity from satisfying this run's assertion.
+      val template = config.eventGroupsList.first { it.edpName == "edp7" }
+      val activityEventGroup =
+        template.copy {
+          eventGroupReferenceId = ACTIVITY_EVENT_GROUP_REF_ID
+          outputKey = ACTIVITY_ENTITY_ID
+          entityKeySpecs.clear()
+          entityKeySpecs +=
+            template.entityKeySpecsList.single().copy { entityId = ACTIVITY_ENTITY_ID }
+        }
+      config.copy { eventGroups += activityEventGroup }
     }
 
     val populationSpec: PopulationSpec by lazy {

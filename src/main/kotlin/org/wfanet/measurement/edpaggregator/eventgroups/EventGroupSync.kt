@@ -112,8 +112,8 @@ data class EntityKeyId(
  * Pairing key used to match a `BatchCreateEventGroups` response row back to its request AND to
  * derive the request_id, keeping the two provably in lockstep. Prefers `entity_key` when populated
  * (the #4175 canonical identifier); otherwise falls back to `event_group_reference_id`.
- * `validateEventGroup` guarantees at least one is set on the source `EventGroup`, so [of] always
- * returns a well-formed key.
+ * [EventGroupValidator.validate] guarantees at least one is set on the source `EventGroup`, so [of]
+ * always returns a well-formed key.
  *
  * Using a sealed class rather than a compound `(refId, entityType, entityId, mc)` tuple keeps the
  * join robust if the kingdom ever stops echoing the "other" identifier: each side reads only the
@@ -409,7 +409,7 @@ class EventGroupSync(
             }
           }
           try {
-            validateDeletedEventGroup(eventGroup)
+            EventGroupValidator.validate(eventGroup)
           } catch (e: Exception) {
             logger.log(Level.SEVERE, e) {
               "Skipping deleted Event Group ${eventGroup.eventGroupReferenceId}" +
@@ -448,7 +448,7 @@ class EventGroupSync(
         }
 
         try {
-          validateEventGroup(eventGroup)
+          EventGroupValidator.validate(eventGroup)
         } catch (e: Exception) {
           logger.log(Level.SEVERE, e) {
             "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
@@ -597,7 +597,7 @@ class EventGroupSync(
         // Two rows in one sync that share an entity_key OR share a reference_id (independently)
         // are malformed EDP input — the kingdom enforces uniqueness on BOTH identifiers per
         // (DataProvider, MeasurementConsumer). Skip the second row per the same
-        // "log SEVERE + invalidEventGroupFailure metric + continue" pattern that validateEventGroup
+        // "log SEVERE + invalidEventGroupFailure metric + continue" pattern that validation
         // failures already use, so one malformed row doesn't take down the whole sync.
         //
         // Two rows sharing the primary pairing key produce the same request_id under
@@ -1499,8 +1499,8 @@ class EventGroupSync(
   /**
    * Builds the [MappedEventGroup] emitted for a successfully-synced item. Populates whichever
    * identifiers were carried by the source `EventGroup`; the `MappedEventGroup` contract requires
-   * at least one of `event_group_reference_id` / `entity_key` to be set, which [validateEventGroup]
-   * guarantees upstream.
+   * at least one of `event_group_reference_id` / `entity_key` to be set, which
+   * [EventGroupValidator.validate] guarantees upstream.
    */
   private fun buildMappedEventGroup(item: PendingWrite<*>, resourceName: String): MappedEventGroup =
     mappedEventGroup {
@@ -1545,46 +1545,5 @@ class EventGroupSync(
       )
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    /*
-     * Validates that event groups fields are populated
-     * Throws exceptions for any invalid fields.
-     */
-    fun validateEventGroup(eventGroup: EventGroup) {
-      check(eventGroup.mediaTypesList.size > 0) { "At least one media type must be set" }
-      check(eventGroup.hasDataAvailabilityInterval()) { "Data availability must be set" }
-      check(eventGroup.hasEventGroupMetadata()) { "Event Group Metadata must be set" }
-      check(
-        eventGroup.eventGroupReferenceId.isNotBlank() ||
-          (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank())
-      ) {
-        "Either Event Group Reference Id or Entity Key with entity ID must be set"
-      }
-      if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
-        check(eventGroup.entityKey.entityType.isNotBlank()) {
-          "EventGroup.entity_key.entity_type must be non-blank when entity_id is set"
-        }
-      }
-      if (eventGroup.measurementConsumer.isNotBlank()) {
-        val mcKey = MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)
-        check(mcKey != null && mcKey.measurementConsumerId.isNotBlank()) {
-          "Malformed measurement_consumer: ${eventGroup.measurementConsumer}"
-        }
-      } else {
-        check(eventGroup.clientAccountReferenceId.isNotEmpty()) {
-          "Either Measurement Consumer or Client Account Reference ID must be set"
-        }
-      }
-    }
-
-    /** Validates minimum fields required to identify and delete an EventGroup. */
-    fun validateDeletedEventGroup(eventGroup: EventGroup) {
-      check(eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
-        "Entity Key with entity ID must be set for deleted Event Groups"
-      }
-      check(eventGroup.measurementConsumer.isNotBlank()) {
-        "Measurement Consumer must be set for deleted Event Groups"
-      }
-    }
   }
 }

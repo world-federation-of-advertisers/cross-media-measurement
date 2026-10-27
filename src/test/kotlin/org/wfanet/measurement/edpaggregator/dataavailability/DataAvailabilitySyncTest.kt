@@ -68,6 +68,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
@@ -260,6 +261,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -299,6 +301,98 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `sync publishes EventGroup activity from scanned metadata`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    seedBlobDetails(
+      storageClient,
+      folderPrefix,
+      listOf(300L to 400L),
+      entityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "campaign-1"
+          }
+        ),
+      populateEventGroupReferenceId = false,
+    )
+    var publishedMetadata: Collection<ImpressionMetadata> = emptyList()
+    val publisher: suspend (Collection<ImpressionMetadata>) -> Int = { metadata ->
+      publishedMetadata = metadata
+      1
+    }
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        publishEventGroupActivities = publisher,
+      )
+
+    val outcome = dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    assertThat(publishedMetadata).hasSize(1)
+    assertThat(publishedMetadata.single().eventGroupReferenceId).isEmpty()
+    assertThat(publishedMetadata.single().entityKeysList)
+      .containsExactly(
+        entityKey {
+          entityType = "campaign"
+          entityId = "campaign-1"
+        }
+      )
+    verifyBlocking(dataProvidersServiceMock) { replaceDataAvailabilityIntervals(any()) }
+    assertThat(
+        storageClient.updateBlobMetadataCalls.any {
+          DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY in it.metadata
+        }
+      )
+      .isTrue()
+  }
+
+  @Test
+  fun `sync does not complete publication when EventGroup activity fails`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    val publisher: suspend (Collection<ImpressionMetadata>) -> Int = {
+      throw Exception("activity publication failed")
+    }
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        publishEventGroupActivities = publisher,
+      )
+
+    val exception =
+      assertFailsWith<Exception> { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+
+    assertThat(exception).hasMessageThat().isEqualTo("activity publication failed")
+    verifyBlocking(dataProvidersServiceMock) { replaceDataAvailabilityIntervals(any()) }
+    assertThat(
+        storageClient.updateBlobMetadataCalls.none {
+          DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY in it.metadata
+        }
+      )
+      .isTrue()
+  }
+
+  @Test
   fun `register single contiguous day for existing model line using json message`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
@@ -316,6 +410,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -354,6 +449,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = mapOf(modelLineKey to mappedLines),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -383,6 +479,7 @@ class DataAvailabilitySyncTest {
         modelLineMap =
           mapOf("modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA" to emptyList()),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
     }
   }
@@ -405,6 +502,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     assertFailsWith<IllegalStateException> {
@@ -462,6 +560,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -493,6 +592,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -524,6 +624,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -557,6 +658,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -588,6 +690,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     try {
@@ -616,6 +719,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     try {
@@ -644,6 +748,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     try {
@@ -672,6 +777,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -700,6 +806,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
           metrics = metricsEnv.metrics,
         )
 
@@ -744,6 +851,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
           metrics = metricsEnv.metrics,
         )
 
@@ -807,6 +915,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
@@ -877,6 +986,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/$doneBlobKey")
@@ -908,6 +1018,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     assertFailsWith<Exception> { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
@@ -952,6 +1063,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     // First sync — List returns empty, all entries are new -> batchCreate.
@@ -1002,6 +1114,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     // First sync — creates entries and stamps the marker.
@@ -1071,6 +1184,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = 2,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1111,6 +1225,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = 2,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -1141,6 +1256,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
@@ -1188,6 +1304,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1263,6 +1380,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1321,6 +1439,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
@@ -1380,6 +1499,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1441,6 +1561,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1494,6 +1615,7 @@ class DataAvailabilitySyncTest {
       impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
       modelLineMap = emptyMap(),
       errorIfGapsExist = true,
+      publishEventGroupActivities = null,
       metrics = metrics,
     )
 
@@ -1646,6 +1768,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
           metrics = metricsEnv.metrics,
         )
 
@@ -1699,6 +1822,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
           metrics = metricsEnv.metrics,
         )
 
@@ -1753,6 +1877,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = false,
+        publishEventGroupActivities = null,
       )
 
     // Should NOT throw despite gaps
@@ -1807,6 +1932,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = false,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1847,6 +1973,7 @@ class DataAvailabilitySyncTest {
             impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
             modelLineMap = emptyMap(),
             errorIfGapsExist = false,
+            publishEventGroupActivities = null,
             metrics = metricsEnv.metrics,
           )
 
@@ -1893,6 +2020,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -1946,6 +2074,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -2000,6 +2129,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       assertFailsWith<IllegalArgumentException> {
@@ -2041,6 +2171,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -2079,6 +2210,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -2119,6 +2251,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -2165,6 +2298,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -2233,6 +2367,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -2301,6 +2436,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -2355,6 +2491,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -2457,6 +2594,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
@@ -2503,6 +2641,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       // First sync — List returns empty, so all entries are new -> batchCreate is called.
@@ -2655,6 +2794,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
+          publishEventGroupActivities = null,
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")

@@ -762,6 +762,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -919,6 +920,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
@@ -1038,6 +1040,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = NoNoiserSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -1177,6 +1180,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = 2,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -1327,6 +1331,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = 3,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -1465,6 +1470,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = -1, // Uncapped
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -1600,6 +1606,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = DeterministicTruncatedLaplaceNoiseSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         impressionCapMode = ImpressionCapMode.DYNAMIC,
         supportedMultiPartyNoiseMechanisms = emptySet(),
@@ -1723,6 +1730,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -1837,6 +1845,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -1973,6 +1982,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -2089,6 +2099,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -2203,6 +2214,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -2324,6 +2336,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -2462,6 +2475,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = NoNoiserSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms =
           setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -2593,6 +2607,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
@@ -2698,6 +2713,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -2809,6 +2825,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = ResultMinimumThresholds(100, 100),
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -2941,6 +2958,8 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = ResultMinimumThresholds(100, 1000),
+          // Multi-party suppression opt-out does not apply to Direct results.
+          disableMultiPartyFrequencyVectorSuppression = true,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -3072,6 +3091,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -3274,6 +3294,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -3335,7 +3356,7 @@ class ResultsFulfillerTest {
   }
 
   @Test
-  fun `runWork processes TrusTee requisitions successfully`() = runBlocking {
+  fun `runWork does not suppress TrusTee frequency vector when disabled`() = runBlocking {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
@@ -3400,7 +3421,10 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        resultMinimumThresholds = null,
+        // These thresholds would suppress the contribution if multi-party suppression were
+        // enabled, even though downstream noise is much greater than the configured thresholds.
+        resultMinimumThresholds = ResultMinimumThresholds(minImpressions = 1000, minUsers = 1000),
+        disableMultiPartyFrequencyVectorSuppression = true,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -3454,14 +3478,19 @@ class ResultsFulfillerTest {
       )
     assertThat(fulfilledRequisitions[0].header.hasTrusTee()).isTrue()
     assertThat(fulfilledRequisitions[1].bodyChunk.data).isNotEmpty()
+    val frequencies =
+      decryptFrequencies(
+        TrusTeeFulfillment(requests = fulfilledRequisitions, kmsClient = kmsClient, kekUri = kekUri)
+      )
+    assertThat(frequencies.count { it > 0 }).isEqualTo(impressions.size)
     verifyBlocking(requisitionMetadataServiceMock, times(1)) {
       startProcessingRequisitionMetadata(any())
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
   }
 
-  /** What a TrusTeeV2 fulfillment emitted, with the keys needed to read its payload. */
-  private data class TrusTeeV2Fulfillment(
+  /** What a TrusTee fulfillment emitted, with the keys needed to read its payload. */
+  private data class TrusTeeFulfillment(
     val requests: List<FulfillRequisitionRequest>,
     val kmsClient: FakeKmsClient,
     val kekUri: String,
@@ -3476,7 +3505,7 @@ class ResultsFulfillerTest {
     vidCounts: Map<Long, Int> = (1L..130L).associateWith { 1 },
     trusTeeV2ImpressionCountMode: ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
     trusTeeV2MaxFrequencyPerUser: Int? = null,
-  ): TrusTeeV2Fulfillment {
+  ): TrusTeeFulfillment {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
@@ -3543,6 +3572,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = resultMinimumThresholds,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -3577,7 +3607,7 @@ class ResultsFulfillerTest {
       )
       .fulfillRequisitions()
 
-    return TrusTeeV2Fulfillment(
+    return TrusTeeFulfillment(
       requisitionFulfillmentMock.fullfillRequisitionInvocations.single().requests,
       kmsClient,
       kekUri,
@@ -3621,8 +3651,9 @@ class ResultsFulfillerTest {
   }
 
   /** Unwraps the DEK from the header and decrypts the frequency vector the fulfillment carried. */
-  private fun decryptFrequencies(fulfillment: TrusTeeV2Fulfillment): ByteArray {
+  private fun decryptFrequencies(fulfillment: TrusTeeFulfillment): ByteArray {
     val header = fulfillment.requests[0].header
+    val trusTee = if (header.hasTrusTeeV2()) header.trusTeeV2.trusTee else header.trusTee
     val encryptedPayload =
       fulfillment.requests
         .filter { it.hasBodyChunk() }
@@ -3630,9 +3661,7 @@ class ResultsFulfillerTest {
         .reduce { a, b -> a.concat(b) }
     val dekKeysetHandle =
       KeysetHandle.read(
-        BinaryKeysetReader.withInputStream(
-          header.trusTeeV2.trusTee.envelopeEncryption.encryptedDek.data.newInput()
-        ),
+        BinaryKeysetReader.withInputStream(trusTee.envelopeEncryption.encryptedDek.data.newInput()),
         fulfillment.kmsClient.getAead(fulfillment.kekUri),
       )
     return dekKeysetHandle
@@ -3643,7 +3672,7 @@ class ResultsFulfillerTest {
 
   /** Unwraps the DEK from the header and decrypts the `FulfillmentDetails` it carried. */
   private fun decryptFulfillmentDetails(
-    fulfillment: TrusTeeV2Fulfillment
+    fulfillment: TrusTeeFulfillment
   ): FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails {
     val trusTeeV2 = fulfillment.requests[0].header.trusTeeV2
     val encryptedDetails = trusTeeV2.encryptedFulfillmentDetails
@@ -3807,6 +3836,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = ContinuousGaussianNoiseSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -3919,6 +3949,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = ContinuousGaussianNoiseSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -4031,6 +4062,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -4232,6 +4264,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = NoNoiserSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -4606,6 +4639,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = NoNoiserSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         kekUriToKeyNameMap = mapOf("uri" to "invalid/key/name"),
@@ -4630,6 +4664,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = NoNoiserSelector(),
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         kekUriToKeyNameMap = mapOf("uri" to longKeyName),
@@ -4656,6 +4691,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -4691,6 +4727,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -4726,6 +4763,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -4763,6 +4801,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(
@@ -4803,6 +4842,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = ContinuousGaussianNoiseSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -4840,6 +4880,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
@@ -4872,6 +4913,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,

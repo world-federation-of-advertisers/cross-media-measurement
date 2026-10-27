@@ -422,7 +422,7 @@ class SeedHighOverlapDataset : Runnable {
         // The Kingdom enforces uniqueness on both reference ID and entity key, so there is one
         // EventGroup per entity key spanning every date spec.
         is EventGroupConfig.MultiEntityKey ->
-          config.entityKeySpecs.map { entityKeySpec ->
+          config.entityKeySpecs.flatMap { entityKeySpec ->
             val dateRanges = entityKeySpec.spec.dateSpecsList.map { it.dateRange }
             val startTime =
               dateRanges.minOf { it.start.toLocalDate() }.atStartOfDay(ZoneOffset.UTC).toInstant()
@@ -432,29 +432,30 @@ class SeedHighOverlapDataset : Runnable {
                 .maxOf { it.endExclusive.toLocalDate() }
                 .atStartOfDay(ZoneOffset.UTC)
                 .toInstant()
-            eventGroup {
-              eventGroupReferenceId =
-                "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}"
-              measurementConsumer = this@SeedHighOverlapDataset.measurementConsumer
-              dataAvailabilityInterval = interval {
-                this.startTime = timestamp { seconds = startTime.epochSecond }
-                this.endTime = timestamp { seconds = endTime.epochSecond }
-              }
-              eventGroupMetadata = eventGroupMetadata {
-                adMetadata = adMetadata {
-                  campaignMetadata = campaignMetadata {
-                    brand = "some-brand"
-                    campaign = "some-campaign"
-                  }
+            entityKeySpec.entityKeys.map { dataEntityKey ->
+              eventGroup {
+                eventGroupReferenceId = "${dataEntityKey.entityType}-${dataEntityKey.entityId}"
+                measurementConsumer = this@SeedHighOverlapDataset.measurementConsumer
+                dataAvailabilityInterval = interval {
+                  this.startTime = timestamp { seconds = startTime.epochSecond }
+                  this.endTime = timestamp { seconds = endTime.epochSecond }
                 }
-                entityKeySpec.entityMetadata?.let { entityMetadata = it }
+                eventGroupMetadata = eventGroupMetadata {
+                  adMetadata = adMetadata {
+                    campaignMetadata = campaignMetadata {
+                      brand = "some-brand"
+                      campaign = "some-campaign"
+                    }
+                  }
+                  entityKeySpec.entityMetadata?.let { entityMetadata = it }
+                }
+                entityKey = entityKey {
+                  entityType = dataEntityKey.entityType
+                  entityId = dataEntityKey.entityId
+                }
+                // Every segment alternates media per stripe.
+                mediaTypes += listOf(MediaType.VIDEO, MediaType.DISPLAY)
               }
-              entityKey = entityKey {
-                entityType = entityKeySpec.entityKey.entityType
-                entityId = entityKeySpec.entityKey.entityId
-              }
-              // Every segment alternates media per stripe.
-              mediaTypes += listOf(MediaType.VIDEO, MediaType.DISPLAY)
             }
           }
       }

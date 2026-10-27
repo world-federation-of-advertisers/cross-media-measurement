@@ -33,6 +33,10 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
+      stability-window-seconds:
+        description: "Time simulator pods must remain unchanged and ready"
+        type: number
+        required: true
   workflow_dispatch:
     inputs:
       environment:
@@ -51,6 +55,10 @@ on:
         description: "Apply the new configuration"
         type: boolean
         default: false
+      stability-window-seconds:
+        description: "Time simulator pods must remain unchanged and ready"
+        type: number
+        required: true
 
 permissions:
   contents: read
@@ -208,4 +216,74 @@ jobs:
       run: |
         for deployment in $(kubectl get deployments -l app.kubernetes.io/component=simulator -o name); do
           kubectl rollout status "$deployment" --timeout=5m
+        done
+
+    - name: Wait for stable simulator pods
+      if: ${{ inputs.apply }}
+      env:
+        STABILITY_WINDOW_SECONDS: ${{ inputs.stability-window-seconds }}
+      run: |
+        deployment_selector="app.kubernetes.io/component=simulator"
+        deployments="$(kubectl get deployments -l "$deployment_selector" -o json)"
+        expected_apps="$(jq -c '
+          [.items[].spec.selector.matchLabels.app] | map(select(. != null)) | sort' \
+          <<< "$deployments")"
+        if [[ "$(jq 'length' <<< "$expected_apps")" -eq 0 ]]; then
+          echo "No simulator deployment pod selectors found." >&2
+          exit 1
+        fi
+        selector="app in ($(jq -r 'join(",")' <<< "$expected_apps"))"
+
+        snapshot() {
+          kubectl get pods -l "$selector" -o json | jq -cS '
+            [.items[]
+            | select(.metadata.deletionTimestamp == null)
+            | {
+              app: .metadata.labels.app,
+              name: .metadata.name,
+              uid: .metadata.uid,
+              restarts: ([.status.containerStatuses[]?.restartCount] | add // 0),
+              ready: (
+                (.status.containerStatuses // []) as $statuses
+                | ($statuses | length) > 0 and ($statuses | all(.ready))
+              )
+            }] | sort_by(.app, .name)'
+        }
+
+        baseline=""
+        stable_since=""
+        deadline=$((SECONDS + 300 + STABILITY_WINDOW_SECONDS))
+        while true; do
+          current="$(snapshot)"
+          current_apps="$(jq -c '[.[].app] | sort' <<< "$current")"
+          all_ready="$(jq -r 'all(.[]; .ready)' <<< "$current")"
+
+          if [[ "$current_apps" != "$expected_apps" || "$all_ready" != "true" ]]; then
+            if [[ -n "$baseline" ]]; then
+              echo "Simulator pod readiness changed; restarting the stability window."
+              echo "Previous baseline: $baseline"
+              echo "Current:           $current"
+            fi
+            baseline=""
+            stable_since=""
+          elif [[ -z "$baseline" || "$baseline" != "$current" ]]; then
+            if [[ -n "$baseline" ]]; then
+              echo "Simulator pods changed; restarting the stability window."
+              echo "Previous baseline: $baseline"
+              echo "Current:           $current"
+            fi
+            baseline="$current"
+            stable_since=$SECONDS
+          elif (( SECONDS - stable_since >= STABILITY_WINDOW_SECONDS )); then
+            echo "Simulator pods remained ready and unchanged for ${STABILITY_WINDOW_SECONDS}s."
+            break
+          fi
+
+          if (( SECONDS >= deadline )); then
+            echo "Simulator pods did not remain ready and unchanged before the deadline." >&2
+            echo "Expected apps: $expected_apps" >&2
+            echo "Current active pods: $current" >&2
+            exit 1
+          fi
+          sleep 1
         done

@@ -312,6 +312,7 @@ class GenerateSyntheticData : Runnable {
             storagePath,
             scheme,
             spec.outputKey,
+            includeEventGroupReferenceIdInImpressions = false,
           )
         impressionWriter.writeLabeledImpressionData(
           trackingShards,

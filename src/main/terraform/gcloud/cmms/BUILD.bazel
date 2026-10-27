@@ -1,1 +1,15 @@
 exports_files(["dashboard.tf"])
+
+filegroup(
+    name = "data_availability_watcher_test_configs",
+    testonly = True,
+    srcs = [
+        "envs/dev/data-availability-sync-config.textproto",
+        "envs/dev/data-watcher-config.textproto",
+        "envs/head/data-availability-sync-config.textproto",
+        "envs/head/data-watcher-config.textproto",
+        "envs/qa/data-availability-sync-config.textproto",
+        "envs/qa/data-watcher-config.textproto",
+    ],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator:__pkg__"],
+)
