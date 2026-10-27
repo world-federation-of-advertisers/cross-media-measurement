@@ -1711,6 +1711,30 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `listEventGroups returns 1000 resources when page size exceeds maximum`() {
+    val internalEventGroups =
+      (1L..1_001L).map { id -> INTERNAL_EVENT_GROUP.copy { externalEventGroupId = id } }
+    whenever(internalEventGroupsMock.streamEventGroups(any()))
+      .thenReturn(flowOf(*internalEventGroups.toTypedArray()))
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 2_000
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listEventGroups(request) }
+      }
+
+    assertThat(response.eventGroupsCount).isEqualTo(1_000)
+    assertThat(response.nextPageToken).isNotEmpty()
+    val internalRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
+    assertThat(internalRequest.limit).isEqualTo(1_001)
+  }
+
+  @Test
   fun `listEventGroups uses default page size when unspecified`() {
     val request = listEventGroupsRequest { parent = DATA_PROVIDER_NAME }
 
