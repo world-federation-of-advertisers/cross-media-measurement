@@ -1,6 +1,35 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "HighOverlapImpressionExporterTest",
+    size = "small",
+    srcs = ["HighOverlapImpressionExporterTest.kt"],
+    test_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.HighOverlapImpressionExporterTest",
+    deps = [
+        "//imports/java/com/google/api/gax/grpc",
+        "//imports/java/com/google/cloud/bigquery/storage",
+        "//imports/java/com/google/cloud/bigquery/storage/v1:grpc",
+        "//imports/java/com/google/cloud/bigquery/storage/v1:proto",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:seed_high_overlap_dataset",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:high_overlap_impression_row_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/api/gax",
+        "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc/inprocess",
+        "@wfa_common_jvm//imports/java/io/grpc/stub",
+        "@wfa_common_jvm//imports/java/io/grpc/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)
+
+kt_jvm_test(
     name = "HighOverlapModelResourcesTest",
     size = "small",
     srcs = ["HighOverlapModelResourcesTest.kt"],

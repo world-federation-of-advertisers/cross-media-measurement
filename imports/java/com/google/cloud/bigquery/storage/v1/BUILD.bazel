@@ -1,0 +1,11 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "grpc",
+    actual = "@maven//:com_google_api_grpc_grpc_google_cloud_bigquerystorage_v1",
+)
+
+alias(
+    name = "proto",
+    actual = "@maven//:com_google_api_grpc_proto_google_cloud_bigquerystorage_v1",
+)

@@ -273,6 +273,10 @@ maven.install(
         "com.google.cloud:google-cloud-bigquery:2.51.0",
         "com.google.apis:google-api-services-bigquery:v2-rev20250511-2.0.0",
         "com.google.cloud:google-cloud-bigquerystorage",
+        # Direct APIs used by the in-process Storage Write API tests.
+        "com.google.api.grpc:grpc-google-cloud-bigquerystorage-v1",
+        "com.google.api.grpc:proto-google-cloud-bigquerystorage-v1",
+        "com.google.api:gax-grpc",
         "com.google.cloud:google-cloud-security-private-ca",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
         "com.google.cloud:google-cloud-secretmanager",
