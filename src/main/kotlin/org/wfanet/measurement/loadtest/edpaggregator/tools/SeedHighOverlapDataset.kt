@@ -62,6 +62,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
@@ -76,8 +77,8 @@ import picocli.CommandLine.Option
  *
  * Provisions the ModelLine's Population and rollout, uploads the EventGroups, writes the
  * impressions and exports them to BigQuery, writes the `done` blobs, and finally writes the
- * [HighOverlapDatasetManifest]. The previous manifest is removed before seeding starts, and a new
- * one is written only once everything else has succeeded.
+ * [HighOverlapDatasetManifest]. Before seeding, removes the previous manifest and clears each
+ * ModelLine impression prefix. A new manifest is written only once everything else has succeeded.
  *
  * What this writes persists and the dataset is deterministic, so seeding is needed only when the
  * specs change or an environment gains an EDP.
@@ -266,7 +267,10 @@ class SeedHighOverlapDataset : Runnable {
       HighOverlapDataset.fingerprint(HighOverlapDataset.CONFIG_RESOURCE_PATH)
     logger.info("Seeding $seededEdps for $modelLine with specs $specFingerprint")
 
-    storage.delete(storageBucket, HighOverlapDataset.manifestBlobKey(modelLineId))
+    runBlocking {
+      HighOverlapDatasetCleanup(GcsStorageClient(storage, storageBucket), modelLineId)
+        .prepareForReseeding(datesByImpressionPath.keys)
+    }
 
     provisionModelResources(populationSpec, datesByImpressionPath.values.flatten().min())
 

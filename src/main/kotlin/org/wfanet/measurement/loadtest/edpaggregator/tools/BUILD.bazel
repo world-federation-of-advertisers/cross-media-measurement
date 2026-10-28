@@ -74,6 +74,16 @@ java_binary(
 )
 
 kt_jvm_library(
+    name = "high_overlap_dataset_cleanup",
+    srcs = ["HighOverlapDatasetCleanup.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:high_overlap_dataset",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)
+
+kt_jvm_library(
     name = "high_overlap_impression_row_mapper",
     srcs = ["HighOverlapImpressionRowMapper.kt"],
     deps = [
@@ -94,6 +104,7 @@ kt_jvm_library(
     ],
     data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],
     deps = [
+        ":high_overlap_dataset_cleanup",
         ":high_overlap_impression_row_mapper",
         "//imports/java/com/google/cloud/bigquery/storage",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
@@ -133,6 +144,7 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
