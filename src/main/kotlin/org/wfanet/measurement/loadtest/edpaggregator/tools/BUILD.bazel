@@ -74,6 +74,17 @@ java_binary(
 )
 
 kt_jvm_library(
+    name = "high_overlap_impression_row_mapper",
+    srcs = ["HighOverlapImpressionRowMapper.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:high_overlap_impression_row_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
     name = "seed_high_overlap_dataset",
     srcs = [
         "HighOverlapImpressionExporter.kt",
@@ -83,6 +94,7 @@ kt_jvm_library(
     ],
     data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],
     deps = [
+        ":high_overlap_impression_row_mapper",
         "//imports/java/com/google/cloud/bigquery/storage",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",

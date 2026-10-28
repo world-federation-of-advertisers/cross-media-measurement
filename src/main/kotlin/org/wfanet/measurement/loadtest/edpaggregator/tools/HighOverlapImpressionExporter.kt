@@ -31,7 +31,6 @@ import com.google.rpc.Code
 import java.util.concurrent.Executors
 import java.util.logging.Logger
 import org.measurement.integration.k8s.testing.HighOverlapImpressionRow
-import org.measurement.integration.k8s.testing.highOverlapImpressionRow
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
@@ -51,8 +50,10 @@ class HighOverlapImpressionExporter(
   private val datasetId: String,
   private val tableId: String,
   private val modelLine: String,
-  private val specFingerprint: String,
+  specFingerprint: String,
 ) : AutoCloseable {
+  private val rowMapper = HighOverlapImpressionRowMapper(modelLine, specFingerprint)
+
   private val streamWriter: StreamWriter =
     StreamWriter.newBuilder(
         StreamWriter.getDefaultStreamName(TableName.of(projectId, datasetId, tableId)),
@@ -90,28 +91,7 @@ class HighOverlapImpressionExporter(
     entityKey: EntityKey,
     event: LabeledEvent<TestEvent>,
   ) {
-    require(event.message.hasVideo() != event.message.hasDisplay()) {
-      "High overlap impression must contain exactly one of video or display"
-    }
-    val row = highOverlapImpressionRow {
-      modelLine = this@HighOverlapImpressionExporter.modelLine
-      specFingerprint = this@HighOverlapImpressionExporter.specFingerprint
-      this.edpName = edpName
-      this.logicalGroup = logicalGroup
-      entityType = entityKey.entityType
-      entityId = entityKey.entityId
-      cmmsEventGroupReferenceId = "${entityKey.entityType}-${entityKey.entityId}"
-      vid = event.vid
-      eventTime = event.timestamp.epochSecond * MICROS_PER_SECOND + event.timestamp.nano / 1_000
-      gender = event.message.common.gender.name
-      ageGroup = event.message.common.ageGroup.name
-      usState = event.message.common.usState.name
-      signedIn = event.message.common.signedIn
-      videoCompletedFraction = event.message.video.completedFraction
-      videoViewableFraction = event.message.video.viewableFraction
-      displayViewableFraction = event.message.display.viewableFraction
-      mediaType = if (event.message.hasVideo()) "VIDEO" else "DISPLAY"
-    }
+    val row = rowMapper.map(edpName, logicalGroup, entityKey, event)
     val serialized = row.toByteString()
     batch.addSerializedRows(serialized)
     batchBytes += serialized.size()
@@ -162,7 +142,6 @@ class HighOverlapImpressionExporter(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    private const val MICROS_PER_SECOND = 1_000_000L
     private const val RETRY_COUNT = 3
 
     // The AppendRows request limit is 10 MiB; leave headroom for request overhead.
