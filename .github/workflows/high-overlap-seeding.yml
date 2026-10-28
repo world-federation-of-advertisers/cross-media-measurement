@@ -40,6 +40,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: high-overlap-seeding-${{ inputs.environment }}
+  cancel-in-progress: false
+
 jobs:
   seed:
     runs-on: ubuntu-24.04
