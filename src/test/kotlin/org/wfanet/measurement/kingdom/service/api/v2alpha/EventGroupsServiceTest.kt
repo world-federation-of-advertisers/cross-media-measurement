@@ -1727,7 +1727,8 @@ class EventGroupsServiceTest {
       }
 
     assertThat(response.eventGroupsCount).isEqualTo(2_000)
-    assertThat(response.nextPageToken).isNotEmpty()
+    val nextPageToken = ListEventGroupsPageToken.parseFrom(response.nextPageToken.base64UrlDecode())
+    assertThat(nextPageToken.lastEventGroup.externalEventGroupId).isEqualTo(2_000L)
     val internalRequest: StreamEventGroupsRequest = captureFirst {
       verify(internalEventGroupsMock).streamEventGroups(capture())
     }

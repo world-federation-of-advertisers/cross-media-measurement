@@ -101,14 +101,11 @@ class EventGroupSyncScaleTest {
           .withAuthenticationKey(apiKey)
       val reportingEventGroupsStub =
         ReportingEventGroupsCoroutineStub(reportingChannel.withDefaultDeadline(RPC_DEADLINE))
-      val current =
-        listKingdomEventGroups(kingdomEventGroupsStub, expectedFirstPageSize = null)
-          .map(::toStableSourceEventGroup)
+      val current = listKingdomEventGroups(kingdomEventGroupsStub).map(::toStableSourceEventGroup)
       val bootstrap = buildBootstrap(current)
       val bootstrapMappings =
         uploadAndAwaitMap(bootstrap.input, bootstrap.expectedMappedReferenceIds)
-      val stable =
-        listKingdomEventGroups(kingdomEventGroupsStub, expectedFirstPageSize = KINGDOM_PAGE_SIZE)
+      val stable = listKingdomEventGroups(kingdomEventGroupsStub)
       assertThat(stable).hasSize(TARGET_EVENT_GROUP_COUNT)
       val stableByReferenceId = stable.associateBy(CmmsEventGroup::getEventGroupReferenceId)
       assertMappedEventGroupResources(bootstrapMappings, stableByReferenceId)
@@ -123,8 +120,7 @@ class EventGroupSyncScaleTest {
       val mutation = buildMutation(stableSource, selection)
       val mutationMappings = uploadAndAwaitMap(mutation.input, mutation.expectedMappedReferenceIds)
 
-      val after =
-        listKingdomEventGroups(kingdomEventGroupsStub, expectedFirstPageSize = KINGDOM_PAGE_SIZE)
+      val after = listKingdomEventGroups(kingdomEventGroupsStub)
       assertThat(after).hasSize(TARGET_EVENT_GROUP_COUNT)
       val afterByReferenceId = after.associateBy(CmmsEventGroup::getEventGroupReferenceId)
       assertMappedEventGroupResources(mutationMappings, afterByReferenceId)
@@ -289,8 +285,7 @@ class EventGroupSyncScaleTest {
   }
 
   private suspend fun listKingdomEventGroups(
-    eventGroupsStub: KingdomEventGroupsCoroutineStub,
-    expectedFirstPageSize: Int?,
+    eventGroupsStub: KingdomEventGroupsCoroutineStub
   ): List<CmmsEventGroup> {
     val result = mutableListOf<CmmsEventGroup>()
     val seenPageTokens = mutableSetOf<String>()
@@ -312,8 +307,8 @@ class EventGroupSyncScaleTest {
               }
           }
         )
-      if (pageToken.isEmpty() && expectedFirstPageSize != null) {
-        assertThat(response.eventGroupsCount).isEqualTo(expectedFirstPageSize)
+      if (response.nextPageToken.isNotEmpty()) {
+        assertThat(response.eventGroupsCount).isEqualTo(KINGDOM_PAGE_SIZE)
       }
       result += response.eventGroupsList
       pageToken = response.nextPageToken
@@ -335,7 +330,7 @@ class EventGroupSyncScaleTest {
         eventGroupsStub.listEventGroups(
           reportingListEventGroupsRequest {
             parent = measurementConsumer
-            pageSize = REPORTING_PAGE_SIZE
+            pageSize = PAGE_SIZE
             this.pageToken = pageToken
             structuredFilter =
               ReportingListEventGroupsRequestKt.filter {
@@ -445,8 +440,8 @@ class EventGroupSyncScaleTest {
     private const val BASE_CAMPAIGN_NAME = "stable"
     private const val TARGET_EVENT_GROUP_COUNT = 5_000
     private const val MUTATION_COUNT = 50
+    private const val PAGE_SIZE = 500
     private const val KINGDOM_PAGE_SIZE = 2_000
-    private const val REPORTING_PAGE_SIZE = 1_000
 
     private fun mutationCampaignName(seed: String): String = "changed-$seed"
   }
