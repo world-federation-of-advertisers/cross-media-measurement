@@ -8,6 +8,7 @@ load("//build:defs.bzl", "proto_lib_prefix")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
 ])
 
 IMPORT_PREFIX = "/src/main/proto"
