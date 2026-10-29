@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
+import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
@@ -26,6 +27,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
+import java.time.Instant
 import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -173,6 +175,17 @@ class VidLabelerApp(
           ?.generation
       }
     },
+  private val getGcsObjectCreateTime:
+    suspend (projectId: String?, bucket: String, key: String, generation: Long) -> Instant? =
+    { projectId, bucket, key, generation ->
+      withContext(Dispatchers.IO) {
+        GcsStorageRetryConfig.DEFAULT.buildStorageOptions(projectId = projectId)
+          .service
+          .get(BlobId.of(bucket, key, generation))
+          ?.createTimeOffsetDateTime
+          ?.toInstant()
+      }
+    },
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
   // Process-scoped cache of the built memoized rank index, shared across WorkItems so consecutive
   // WorkItems for the same (dataProvider, modelLine) with an unchanged snapshot set reuse the index
@@ -209,7 +222,7 @@ class VidLabelerApp(
     val parentsCompleted: Int,
   )
 
-  private data class DoneObject(val uri: String, val generation: Long?)
+  private data class DoneObject(val uri: String, val generation: Long, val createTime: Instant)
 
   /**
    * Processes one VID-labeling WorkItem.
@@ -1219,19 +1232,29 @@ class VidLabelerApp(
         eventDate,
       )
     val doneBlobUri = SelectedStorageClient.parseBlobUri(doneUri)
-    val generation =
+    val doneObject =
       try {
         if (doneBlobUri.scheme == "gs") {
-          writeGcsObject(
-            storageConfig.projectId,
-            BlobInfo.newBuilder(checkNotNull(doneBlobUri.bucket), doneBlobUri.key).build(),
-            ByteArray(0),
-          )
+          val bucket = checkNotNull(doneBlobUri.bucket)
+          val generation =
+            writeGcsObject(
+              storageConfig.projectId,
+              BlobInfo.newBuilder(bucket, doneBlobUri.key).build(),
+              ByteArray(0),
+            )
+          val createTime =
+            requireNotNull(
+              getGcsObjectCreateTime(storageConfig.projectId, bucket, doneBlobUri.key, generation)
+            ) {
+              "Done object creation time is not available: $doneUri#$generation"
+            }
+          DoneObject(doneUri, generation, createTime)
         } else {
           val storage =
             SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
-          storage.writeBlob(doneBlobUri.key, ByteString.EMPTY)
-          checkNotNull(storage.getFreshnessToken(doneBlobUri.key)).toLong()
+          val blob = storage.writeBlob(doneBlobUri.key, ByteString.EMPTY)
+          val generation = checkNotNull(storage.getFreshnessToken(doneBlobUri.key)).toLong()
+          DoneObject(doneUri, generation, blob.createTime)
         }
       } catch (e: CancellationException) {
         throw e
@@ -1251,10 +1274,9 @@ class VidLabelerApp(
         )
         throw e
       }
-    val doneObjectIdentity =
-      generation?.let { VidLabelingTraceAttributes.gcsObjectIdentity(doneUri, it) }
-    val doneObjectPathHash =
-      doneObjectIdentity?.pathHash ?: VidLabelingTraceAttributes.gcsObjectPathHash(doneUri)
+    val generation = doneObject.generation
+    val doneObjectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(doneUri, generation)
+    val doneObjectPathHash = doneObjectIdentity.pathHash
     metrics.doneBlobsWrittenCounter.add(1, Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider))
     logger.info("Wrote done marker $doneUri")
     Span.current()
@@ -1264,15 +1286,8 @@ class VidLabelerApp(
           .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, cmmsModelLine)
           .put(VidLabelingTraceAttributes.LABEL_EVENT_DATE, eventDate.toString())
           .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, doneObjectPathHash)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, doneObjectIdentity.generation)
           .put(XmmTraceAttributes.OUTCOME, "written")
-          .also { builder ->
-            if (doneObjectIdentity != null) {
-              builder.put(
-                VidLabelingTraceAttributes.GCS_OBJECT_GENERATION,
-                doneObjectIdentity.generation,
-              )
-            }
-          }
           .build(),
       )
     logLabelLifecycle(
@@ -1285,9 +1300,9 @@ class VidLabelerApp(
       VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to cmmsModelLine,
       VidLabelingTraceAttributes.LABEL_EVENT_DATE_STRING to eventDate.toString(),
       VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to doneObjectPathHash,
-      VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation?.toString(),
+      VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation.toString(),
     )
-    return DoneObject(doneUri, generation)
+    return doneObject
   }
 
   /** Returns the live done object only when its WorkItem belongs to this exact handoff. */
@@ -1308,10 +1323,12 @@ class VidLabelerApp(
       )
     val parsed = SelectedStorageClient.parseBlobUri(doneUri)
     if (parsed.scheme != "gs") return null
+    val bucket = checkNotNull(parsed.bucket)
     val generation =
-      getGcsObjectGeneration(storageConfig.projectId, checkNotNull(parsed.bucket), parsed.key)
-        ?: return null
-    val doneObject = DoneObject(doneUri, generation)
+      getGcsObjectGeneration(storageConfig.projectId, bucket, parsed.key) ?: return null
+    val createTime =
+      getGcsObjectCreateTime(storageConfig.projectId, bucket, parsed.key, generation) ?: return null
+    val doneObject = DoneObject(doneUri, generation, createTime)
     val request =
       DataAvailabilitySyncWorkItems.createRequest(
         dataProvider,
@@ -1321,6 +1338,7 @@ class VidLabelerApp(
         eventDate,
         doneUri,
         generation,
+        createTime,
         Tracing.currentW3CTraceContext(),
       )
     val existing =
@@ -1354,10 +1372,7 @@ class VidLabelerApp(
     doneObject: DoneObject,
     params: VidLabelerParams,
   ) {
-    val generation =
-      requireNotNull(doneObject.generation) {
-        "Durable availability WorkItems require a versioned GCS done object"
-      }
+    val generation = doneObject.generation
     val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneObject.uri)
     val traceContext = Tracing.currentW3CTraceContext()
     val request =
@@ -1369,6 +1384,7 @@ class VidLabelerApp(
         eventDate,
         doneObject.uri,
         generation,
+        doneObject.createTime,
         traceContext,
       )
     val workItemName = "workItems/${request.workItemId}"

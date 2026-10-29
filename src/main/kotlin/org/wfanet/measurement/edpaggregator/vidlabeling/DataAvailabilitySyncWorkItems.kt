@@ -19,7 +19,9 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 import com.google.protobuf.Any
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.type.date
+import java.time.Instant
 import java.time.LocalDate
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
@@ -43,6 +45,7 @@ object DataAvailabilitySyncWorkItems {
     eventDate: LocalDate,
     doneBlobUri: String,
     doneBlobGeneration: Long,
+    doneBlobCreateTime: Instant,
     traceContext: Map<String, String>,
   ): CreateWorkItemRequest {
     require(doneBlobGeneration > 0L) { "doneBlobGeneration must be positive" }
@@ -76,6 +79,7 @@ object DataAvailabilitySyncWorkItems {
               dataPathParams = dataPathParams {
                 dataPath = doneBlobUri
                 generation = doneBlobGeneration
+                createTime = doneBlobCreateTime.toProtoTime()
                 eventType = StorageEventType.FINALIZED
               }
               this.traceContext.putAll(traceContext)
