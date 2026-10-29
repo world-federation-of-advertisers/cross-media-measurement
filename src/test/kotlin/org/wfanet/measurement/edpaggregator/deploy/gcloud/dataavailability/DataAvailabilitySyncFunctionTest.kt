@@ -37,6 +37,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Instant
 import java.time.LocalDate
 import java.util.Collections
 import java.util.logging.Logger
@@ -1238,6 +1239,7 @@ class DataAvailabilitySyncFunctionTest {
         eventDate,
         doneBlobUri,
         doneGeneration,
+        Instant.parse("2026-06-30T00:00:00Z"),
         emptyMap(),
       )
     return createRequest.workItem
