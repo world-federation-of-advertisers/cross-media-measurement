@@ -71,6 +71,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemPublicationCodec
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -90,7 +91,7 @@ class EventGroupSyncFunction() : HttpFunction {
         request.getFirstHeader("x-goog-pubsub-message-id").isPresent ||
           request.contentType.orElse("").substringBefore(';') == "application/octet-stream"
       ) {
-        runBlocking { serviceWorkItem(WorkItem.parseFrom(request.inputStream)) }
+        runBlocking { serviceWorkItem(WorkItemPublicationCodec.parse(request.inputStream)) }
         return
       }
       val dataWatcherPath: String = request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElse("")
