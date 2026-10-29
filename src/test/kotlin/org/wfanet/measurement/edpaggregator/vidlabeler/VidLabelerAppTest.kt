@@ -35,6 +35,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import java.time.Instant
 import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -68,6 +69,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
@@ -272,6 +274,9 @@ class VidLabelerAppTest {
       error("writeGcsObject should not be invoked")
     },
     getGcsObjectGeneration: suspend (String?, String, String) -> Long? = { _, _, _ -> null },
+    getGcsObjectCreateTime: suspend (String?, String, String, Long) -> Instant? = { _, _, _, _ ->
+      DONE_OBJECT_CREATE_TIME
+    },
   ): VidLabelerApp {
     return VidLabelerApp(
       subscriptionId = "test-subscription",
@@ -299,6 +304,7 @@ class VidLabelerAppTest {
       rpcThrottlers = rpcThrottlers,
       writeGcsObject = writeGcsObject,
       getGcsObjectGeneration = getGcsObjectGeneration,
+      getGcsObjectCreateTime = getGcsObjectCreateTime,
       metrics = metrics,
     )
   }
@@ -1114,6 +1120,8 @@ class VidLabelerAppTest {
     val workItemParams =
       request.firstValue.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     assertThat(workItemParams.dataPathParams.generation).isEqualTo(321L)
+    assertThat(workItemParams.dataPathParams.createTime.toInstant())
+      .isEqualTo(DONE_OBJECT_CREATE_TIME)
     verifyBlocking(rawImpressionUploadModelLinesService) {
       markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
@@ -1158,6 +1166,7 @@ class VidLabelerAppTest {
       val params =
         request.firstValue.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
       assertThat(params.dataPathParams.generation).isEqualTo(322L)
+      assertThat(params.dataPathParams.createTime.toInstant()).isEqualTo(DONE_OBJECT_CREATE_TIME)
       assertThat(
           params.appParams
             .unpack(DataAvailabilitySyncParams::class.java)
@@ -1204,6 +1213,7 @@ class VidLabelerAppTest {
         eventDate,
         "gs://output-bucket/labeled/model-line/ml1/$eventDate/done",
         generation,
+        DONE_OBJECT_CREATE_TIME,
         emptyMap(),
       )
     return request.workItem.toBuilder().setName("workItems/${request.workItemId}").build()
@@ -1816,5 +1826,6 @@ class VidLabelerAppTest {
     private const val PARENT_NAME =
       "dataProviders/edp123/rawImpressionUploads/up1/rawImpressionUploadModelLines/rl1"
     private const val RANK_BLOB_KEY = "rank-index/snapshot/pool0"
+    private val DONE_OBJECT_CREATE_TIME: Instant = Instant.parse("2026-06-30T00:00:00Z")
   }
 }
