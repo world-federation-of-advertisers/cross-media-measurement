@@ -504,7 +504,7 @@ class DataAvailabilitySyncFunctionTest {
       )
     }
     val workItem = workItem {
-      name = WORK_ITEM_NAME
+      name = WORK_ITEM_NAME.removePrefix("workItems/")
       queue = "data-availability-sync-queue"
       generation = 1L
       workItemParams =
@@ -689,7 +689,7 @@ class DataAvailabilitySyncFunctionTest {
         HttpRequest.newBuilder()
           .uri(URI.create("http://localhost:$port"))
           .header("Content-Type", "application/octet-stream")
-          .POST(HttpRequest.BodyPublishers.ofByteArray(workItem.toByteArray()))
+          .POST(HttpRequest.BodyPublishers.ofByteArray(publishedWorkItem(workItem).toByteArray()))
           .build()
       val response = client.send(request, HttpResponse.BodyHandlers.ofString())
       assertThat(response.statusCode()).isEqualTo(200)
@@ -1262,6 +1262,21 @@ class DataAvailabilitySyncFunctionTest {
       .setName("workItems/${createRequest.workItemId}")
       .setGeneration(1L)
       .build()
+  }
+
+  private fun publishedWorkItem(source: WorkItem): WorkItem = workItem {
+    name = source.name.removePrefix("workItems/")
+    queue = source.queue
+    workItemParams = source.workItemParams
+    state = source.state
+    generation = source.generation
+    serializationKey = source.serializationKey
+    if (source.hasCreateTime()) {
+      createTime = source.createTime
+    }
+    if (source.hasUpdateTime()) {
+      updateTime = source.updateTime
+    }
   }
 
   private fun parseTraceparentTraceId(header: String?): String? {
