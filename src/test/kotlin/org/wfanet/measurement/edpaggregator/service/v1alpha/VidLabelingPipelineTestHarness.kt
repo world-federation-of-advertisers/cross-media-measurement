@@ -2360,9 +2360,36 @@ abstract class VidLabelingPipelineTestHarness(
       }
     }
 
+    private fun validateSourceObjectContract(workItem: WorkItem) {
+      if (
+        !workItem.hasWorkItemParams() ||
+          !workItem.workItemParams.`is`(WorkItem.WorkItemParams::class.java)
+      ) {
+        return
+      }
+      val params = workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+      if (!params.hasDataPathParams()) return
+      val dataPathParams = params.dataPathParams
+      val sourceMetadataRequired =
+        workItem.serializationKey.isNotEmpty() ||
+          dataPathParams.hasGeneration() ||
+          dataPathParams.hasCreateTime()
+      if (!sourceMetadataRequired) return
+      if (
+        dataPathParams.dataPath.isEmpty() ||
+          !dataPathParams.hasGeneration() ||
+          dataPathParams.generation <= 0L ||
+          !dataPathParams.hasCreateTime()
+      ) {
+        throw Status.INVALID_ARGUMENT.withDescription("Incomplete source-object identity")
+          .asRuntimeException()
+      }
+    }
+
     val workItemsService =
       object : WorkItemsGrpcKt.WorkItemsCoroutineImplBase() {
         override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
+          validateSourceObjectContract(request.workItem)
           val name = "workItems/${request.workItemId}"
           val created =
             request.workItem
@@ -2379,6 +2406,7 @@ abstract class VidLabelingPipelineTestHarness(
         }
 
         override suspend fun ensureWorkItem(request: EnsureWorkItemRequest): WorkItem {
+          validateSourceObjectContract(request.workItem)
           val name = "workItems/${request.workItemId}"
           var created = false
           val ensured =
