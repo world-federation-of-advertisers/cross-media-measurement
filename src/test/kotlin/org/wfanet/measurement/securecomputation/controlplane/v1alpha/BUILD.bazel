@@ -1,6 +1,22 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "WorkItemPublicationCodecTest",
+    srcs = ["WorkItemPublicationCodecTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:resource_conversion",
+    ],
+    test_class = "org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemPublicationCodecTest",
+    deps = [
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+    ],
+)
+
+kt_jvm_test(
     name = "WorkItemsServiceTest",
     srcs = ["WorkItemServiceTest.kt"],
     associates = [
