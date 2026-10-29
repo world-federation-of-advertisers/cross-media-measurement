@@ -478,7 +478,7 @@ class DataAvailabilitySyncFunctionTest {
           )
         )
       val task = workItem {
-        name = WORK_ITEM_NAME
+        name = WORK_ITEM_NAME.removePrefix("workItems/")
         generation = 1L
         workItemParams =
           Any.pack(
