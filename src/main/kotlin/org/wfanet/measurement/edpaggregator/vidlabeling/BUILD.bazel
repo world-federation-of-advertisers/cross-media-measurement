@@ -42,6 +42,11 @@ kt_jvm_library(
 kt_jvm_library(
     name = "data_availability_sync_work_items",
     srcs = ["DataAvailabilitySyncWorkItems.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:__pkg__",
+    ],
     deps = [
         ":work_item_ids",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
