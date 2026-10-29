@@ -67,8 +67,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemPublicationCodec
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -193,7 +193,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   private fun serviceWorkItem(request: HttpRequest) {
-    val input = DataAvailabilitySyncWorkItem.parse(WorkItem.parseFrom(request.inputStream))
+    val input =
+      DataAvailabilitySyncWorkItem.parse(WorkItemPublicationCodec.parse(request.inputStream))
     val config =
       runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
     val grpcChannels = getOrCreateSharedChannels(config)
