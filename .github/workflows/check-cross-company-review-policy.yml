@@ -39,16 +39,22 @@ jobs:
   resolve-pr:
     name: Resolve which PR triggered the signal workflow
     runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read    
     outputs:
       pull-number: ${{ steps.resolve.outputs.pull-number }}
     steps:
       - name: Debug info
+        env:
+          WORKFLOW_RUN: ${{ toJSON(github.event.workflow_run) }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
           echo "sha=${{ github.sha }}"
-          echo "head_branch=${{ github.event.workflow_run.head_branch }}"
+          echo "head_branch=$HEAD_BRANCH"
           echo "head_sha=${{ github.event.workflow_run.head_sha }}"
+          echo "$WORKFLOW_RUN" | jq .
 
       - name: Resolve PR number
         id: resolve
@@ -58,12 +64,31 @@ jobs:
             let pullNumber;
             if (context.eventName === 'workflow_dispatch'){
               pullNumber = Number(context.payload.inputs.pull_number);
-              console.log(`PR ${pullNumber} provided by workflow_dispatch`);            
+              console.log(`PR ${pullNumber} provided by workflow_dispatch`);
             } else if (context.eventName === 'workflow_run') {
               const workflowRun = context.payload.workflow_run;
               pullNumber = workflowRun.pull_requests?.[0]?.number;
               if (!pullNumber) {
-                throw new Error('No PR found in workflow_run.pull_requests');
+                // Find the PR using head_sha and head_branch when the workflow is triggered by a 
+                // review comment on an already-merged PR, since payload.workflow_run.pull_requests 
+                // is empty in that case. This is only to prevent the workflow from failing with a 
+                // "PR not found" error and triggering an unnecessary failure notification that requires
+                // no action.
+                const { data: prs } =
+                  await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                    ...context.repo,
+                    commit_sha: workflowRun.head_sha,
+                  });
+                const matches = prs.filter(
+                  pr => pr.head.sha === workflowRun.head_sha &&
+                        pr.head.ref === workflowRun.head_branch
+                );
+                if (matches.length !== 1) {
+                  throw new Error(
+                    `Expected one PR for ${workflowRun.head_sha}, found ${matches.length}`
+                  );
+                }
+                pullNumber = matches[0].number;
               }
               console.log(`PR #${pullNumber} found in workflow_run.pull_requests`);
             }
