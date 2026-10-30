@@ -12,11 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_python//python:defs.bzl", "py_test")
-
-py_test(
-    name = "bazel_with_results_test",
-    size = "small",
-    srcs = ["bazel_with_results_test.py"],
-    data = ["bazel-with-results"],
+exports_files(
+    ["bazel-with-results"],
+    visibility = ["//src/test/python/wfa/measurement/tools:__pkg__"],
 )

@@ -168,14 +168,15 @@ Native uploads allow six retries, with a five-second initial
 backoff and Bazel's 1.6 exponential multiplier. The post-build upload timeout is
 300 seconds. Acknowledged progress resets the retry counter.
 
-The build/test, Kubernetes, EDPA, and EDPA reporting workflows use
+CI build and test commands, including deployment artifact builds, use
 `tools/bazel-with-results BAZEL {build|test} [ARGUMENTS...]`. The tool runs Bazel
 once and records its completion verdict in a temporary local Build Event Protocol
-file. It waits for upload completion or the post-build timeout before returning. If publishing fails with exit 38, it preserves the recorded
+file. It waits for upload completion or the post-build timeout before returning.
+If publishing fails with exit 38, it preserves the recorded
 build/test exit code and emits a workflow warning. Missing or invalid completion
 evidence remains a failure; other Bazel errors are preserved. The temporary event
 file is deleted after the command.
 
-These workflows upload testlogs as GitHub artifacts after both successful and
-failed test commands. Use those logs when the BuildBuddy invocation is incomplete.
+The build/test, Kubernetes, EDPA, and EDPA reporting workflows upload testlogs as
+GitHub artifacts after both successful and failed test commands. Use those logs when the BuildBuddy invocation is incomplete.
 Artifact upload is best effort; the build/test verdict remains the correctness gate.

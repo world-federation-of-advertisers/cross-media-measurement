@@ -201,14 +201,14 @@ jobs:
       env:
         BAZEL_TARGET_LABEL: "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_descriptor_set"
       run: |
-        bazelisk build "$BAZEL_TARGET_LABEL"
+        tools/bazel-with-results bazelisk build "$BAZEL_TARGET_LABEL"
         RELATIVE_PROTO_DESCRIPTORS_PATH=$(bazelisk cquery "$BAZEL_TARGET_LABEL" --output=files)
         ABSOLUTE_PROTO_DESCRIPTORS_PATH="$(realpath "$RELATIVE_PROTO_DESCRIPTORS_PATH")"
         echo "event_proto_descriptors_path=$ABSOLUTE_PROTO_DESCRIPTORS_PATH" >> "$GITHUB_OUTPUT"
 
     - name: Generate and copy trusted certs
       run: |
-        bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
+        tools/bazel-with-results bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
         cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
 
     - name: Validate direct RequisitionFetcher dispatch configuration

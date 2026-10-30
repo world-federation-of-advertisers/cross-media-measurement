@@ -116,7 +116,7 @@ jobs:
 
       - name: Generate archives
         run: >
-          bazelisk build 
+          tools/bazel-with-results bazelisk build
           //src/main/k8s/dev:kingdom.tar
           //src/main/k8s/testing/secretfiles:archive
 

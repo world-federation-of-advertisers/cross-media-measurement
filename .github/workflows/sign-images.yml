@@ -101,7 +101,7 @@ jobs:
 
       - name: Build image signing script
         run: >
-          bazelisk build 
+          tools/bazel-with-results bazelisk build
           //src/main/docker:sign_all_images
           //src/main/docker/panel_exchange_client:sign_all_images
 

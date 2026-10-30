@@ -33,6 +33,8 @@ def completed_exit_code(event_file: Path) -> int | None:
                     return None
                 if "buildFinished" not in event["id"]:
                     continue
+                if not isinstance(event["id"]["buildFinished"], dict):
+                    return None
                 finished = event.get("finished")
                 if not isinstance(finished, dict):
                     return None
@@ -46,7 +48,7 @@ def completed_exit_code(event_file: Path) -> int | None:
                 if type(code) is not int or not 0 <= code <= 255:
                     return None
                 codes.append(code)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return codes[0] if len(codes) == 1 else None
 

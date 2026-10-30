@@ -21,7 +21,14 @@ import tempfile
 import unittest
 
 
-TOOL = Path(__file__).with_name("bazel-with-results")
+if "TEST_SRCDIR" in os.environ:
+    TOOL = (
+        Path(os.environ["TEST_SRCDIR"])
+        / os.environ["TEST_WORKSPACE"]
+        / "tools/bazel-with-results"
+    )
+else:
+    TOOL = Path(__file__).resolve().parents[6] / "tools/bazel-with-results"
 
 
 def finished_event(code: int) -> str:
@@ -46,23 +53,25 @@ import json
 import os
 from pathlib import Path
 import sys
-import time
 
 with Path(os.environ["FAKE_BAZEL_CALLS"]).open("a") as calls:
     calls.write(json.dumps(sys.argv[1:]) + "\n")
 event_path = next((arg.split("=", 1)[1] for arg in sys.argv[1:] if arg.startswith("--build_event_json_file=")), None)
 if event_path is not None and "FAKE_BAZEL_EVENTS" in os.environ:
-    Path(event_path).write_text(os.environ["FAKE_BAZEL_EVENTS"])
+    Path(event_path).write_bytes(bytes.fromhex(os.environ["FAKE_BAZEL_EVENTS"]))
 print("Synthetic build output", flush=True)
 print("Synthetic diagnostic output", file=sys.stderr, flush=True)
-time.sleep(0.02)
 sys.exit(int(os.environ["FAKE_BAZEL_EXIT"]))
 """
         )
         self.fake_bazel.chmod(0o755)
 
     def invoke(
-        self, native_code: int, events: str | None, command: str, extra_args: list[str]
+        self,
+        native_code: int,
+        events: str | bytes | None,
+        command: str,
+        extra_args: list[str],
     ):
         self.calls.write_text("")
         env = dict(os.environ)
@@ -74,7 +83,9 @@ sys.exit(int(os.environ["FAKE_BAZEL_EXIT"]))
             }
         )
         if events is not None:
-            env["FAKE_BAZEL_EVENTS"] = events
+            env["FAKE_BAZEL_EVENTS"] = (
+                events.encode("utf-8") if isinstance(events, str) else events
+            ).hex()
         else:
             env.pop("FAKE_BAZEL_EVENTS", None)
         result = subprocess.run(
@@ -128,6 +139,30 @@ sys.exit(int(os.environ["FAKE_BAZEL_EXIT"]))
                 result, _ = self.invoke(38, events, "test", [])
                 self.assertEqual(result.returncode, 38)
                 self.assertIn("::warning::", result.stderr)
+
+    def test_invalid_completion_identifiers_remain_failed(self):
+        for identifier in (None, False, 0, "", []):
+            with self.subTest(identifier=identifier):
+                events = (
+                    json.dumps(
+                        {
+                            "id": {"buildFinished": identifier},
+                            "finished": {"exitCode": {"code": 0}},
+                        }
+                    )
+                    + "\n"
+                )
+                result, _ = self.invoke(38, events, "test", [])
+                self.assertEqual(result.returncode, 38)
+                self.assertIn("::warning::", result.stderr)
+
+    def test_invalid_utf8_completion_evidence_remains_failed(self):
+        result, _ = self.invoke(
+            38, finished_event(0).encode("utf-8") + b"\xff", "test", []
+        )
+        self.assertEqual(result.returncode, 38)
+        self.assertIn("::warning::", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_multiple_completion_events_remain_failed(self):
         result, _ = self.invoke(38, finished_event(0) + finished_event(3), "test", [])

@@ -96,7 +96,7 @@ jobs:
 
     - name: Generate archives
       run: >
-        bazelisk build
+        tools/bazel-with-results bazelisk build
         //src/main/k8s/dev:edp_aggregator.tar
         //src/main/k8s/testing/secretfiles:edp_aggregator_tls_files.tar
         //src/main/k8s/testing/secretfiles:edp7_tls_files.tar
