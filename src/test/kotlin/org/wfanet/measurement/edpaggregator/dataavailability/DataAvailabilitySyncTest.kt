@@ -344,7 +344,7 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = publisher,
       )
 
-    val outcome = dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    val outcome = dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
     assertThat(publishedMetadata).hasSize(1)
@@ -388,7 +388,9 @@ class DataAvailabilitySyncTest {
       )
 
     val exception =
-      assertFailsWith<Exception> { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+      assertFailsWith<Exception> {
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+      }
 
     assertThat(exception).hasMessageThat().isEqualTo("activity publication failed")
     verifyBlocking(dataProvidersServiceMock) { replaceDataAvailabilityIntervals(any()) }
@@ -446,6 +448,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
+        publishEventGroupActivities = null,
       )
 
     val error =
