@@ -127,6 +127,7 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 @RunWith(JUnit4::class)
 class EventGroupSyncFunctionTest() {
   private lateinit var grpcServer: CommonServer
+  private lateinit var controlPlaneServer: CommonServer
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
   private var workItemCompleted = false
   private val workItemAttemptsService =
@@ -316,6 +317,15 @@ class EventGroupSyncFunctionTest() {
             ),
         )
         .start()
+    controlPlaneServer =
+      CommonServer.fromParameters(
+          verboseGrpcLogging = true,
+          certs = controlPlaneServerCerts,
+          clientAuth = ClientAuth.REQUIRE,
+          nameForLogging = "SecureComputationServer",
+          services = listOf(workItemAttemptsService.bindService()),
+        )
+        .start()
     functionProcess =
       FunctionsFrameworkInvokerProcess(
         javaBinaryPath = FUNCTION_BINARY_PATH,
@@ -327,6 +337,7 @@ class EventGroupSyncFunctionTest() {
   @After
   fun cleanUp() {
     grpcServer.shutdown()
+    controlPlaneServer.shutdown()
   }
 
   private suspend fun startFunction(envOverrides: Map<String, String> = emptyMap()): Int {
@@ -371,8 +382,13 @@ class EventGroupSyncFunctionTest() {
         mapOf(
           "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configDir.absolutePath}",
           "CONFIG_BLOB_KEY" to "config.textproto",
-          "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+          "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${controlPlaneServer.port}",
           "SECURE_COMPUTATION_CERT_HOST" to "localhost",
+          "SECURE_COMPUTATION_CERT_FILE" to SECRETS_DIR.resolve("data_watcher_tls.pem").toString(),
+          "SECURE_COMPUTATION_PRIVATE_KEY_FILE" to
+            SECRETS_DIR.resolve("data_watcher_tls.key").toString(),
+          "SECURE_COMPUTATION_CERT_COLLECTION_FILE" to
+            SECRETS_DIR.resolve("secure_computation_root.pem").toString(),
         )
       )
     val task = workItem {
@@ -1784,6 +1800,12 @@ class EventGroupSyncFunctionTest() {
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
         privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
         trustedCertCollectionFile = SECRETS_DIR.resolve("edp7_root.pem").toFile(),
+      )
+    private val controlPlaneServerCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = SECRETS_DIR.resolve("secure_computation_tls.pem").toFile(),
+        privateKeyFile = SECRETS_DIR.resolve("secure_computation_tls.key").toFile(),
+        trustedCertCollectionFile = SECRETS_DIR.resolve("secure_computation_root.pem").toFile(),
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 

@@ -210,19 +210,9 @@ class EventGroupSyncFunction() : HttpFunction {
     val input = EventGroupSyncWorkItem.parse(workItem)
     val config =
       runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
-    val tls =
-      config.cmmsConnection
-        .toBuilder()
-        .apply {
-          System.getenv("SECURE_COMPUTATION_CERT_COLLECTION_FILE")?.let {
-            certCollectionFilePath = it
-          }
-        }
-        .build()
     val channel =
-      createKingdomPublicApiChannel(
+      createSecureComputationControlPlaneChannel(
         EnvVars.checkNotNullOrEmpty("SECURE_COMPUTATION_CONTROL_PLANE_TARGET"),
-        config.toBuilder().setCmmsConnection(tls).build(),
         System.getenv("SECURE_COMPUTATION_CERT_HOST"),
       )
     try {
@@ -486,6 +476,31 @@ class EventGroupSyncFunction() : HttpFunction {
         )
 
       return buildMutualTlsChannel(target, signingCerts, certHost)
+    }
+
+    private fun createSecureComputationControlPlaneChannel(
+      target: String,
+      certHost: String?,
+    ): ManagedChannel {
+      val certificateFile = File(EnvVars.checkNotNullOrEmpty("SECURE_COMPUTATION_CERT_FILE"))
+      val privateKeyFile = File(EnvVars.checkNotNullOrEmpty("SECURE_COMPUTATION_PRIVATE_KEY_FILE"))
+      val trustedCertCollectionFile =
+        File(EnvVars.checkNotNullOrEmpty("SECURE_COMPUTATION_CERT_COLLECTION_FILE"))
+      require(certificateFile.isFile) {
+        "SECURE_COMPUTATION_CERT_FILE must point to an existing file: ${certificateFile.path}"
+      }
+      require(privateKeyFile.isFile) {
+        "SECURE_COMPUTATION_PRIVATE_KEY_FILE must point to an existing file: ${privateKeyFile.path}"
+      }
+      require(trustedCertCollectionFile.isFile) {
+        "SECURE_COMPUTATION_CERT_COLLECTION_FILE must point to an existing file: " +
+          trustedCertCollectionFile.path
+      }
+      return buildMutualTlsChannel(
+        target,
+        SigningCerts.fromPemFiles(certificateFile, privateKeyFile, trustedCertCollectionFile),
+        certHost,
+      )
     }
   }
 }
