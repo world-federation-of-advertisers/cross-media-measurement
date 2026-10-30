@@ -28,6 +28,10 @@ option java_outer_classname = "UploadHealingOperationProto";
 // A durable, resumable workflow for evicting and replacing invalid VID-labeling
 // uploads.
 message UploadHealingOperation {
+  reserved 4, 5, 6;
+  reserved "labeled_impressions_blob_prefix", "bad_raw_impression_uploads",
+      "cutoff_time";
+
   option (google.api.resource) = {
     type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
     pattern: "dataProviders/{data_provider}/uploadHealingOperations/{upload_healing_operation}"
@@ -67,30 +71,15 @@ message UploadHealingOperation {
   State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Operator diagnosis recorded on evicted model lines.
-  string reason = 3 [(google.api.field_behavior) = REQUIRED];
-
-  // Absolute URI prefix containing generated VID-labeled outputs.
-  string labeled_impressions_blob_prefix = 4
-      [(google.api.field_behavior) = REQUIRED];
-
-  // Uploads whose derived output is invalidated by this plan.
-  repeated string bad_raw_impression_uploads = 5 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
-    }
-  ];
-
-  // Earliest upload creation time included by the retention policy.
-  google.protobuf.Timestamp cutoff_time = 6
-      [(google.api.field_behavior) = REQUIRED];
+  string reason = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Ordered checkpoints in the eviction and replacement graph.
   // (-- api-linter: core::0122::embedded-resource=disabled
   //     aip.dev/not-precedent: Steps are transactionally owned checkpoints
   //     returned with their operation so resume observes one consistent
   //     workflow snapshot. --)
-  repeated UploadHealingStep steps = 7 [(google.api.field_behavior) = REQUIRED];
+  repeated UploadHealingStep steps = 7
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Time when this operation was created.
   google.protobuf.Timestamp create_time = 8
@@ -103,9 +92,9 @@ message UploadHealingOperation {
   // Entity tag for optimistic concurrency control.
   string etag = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Correction candidates combined into this plan. Mutable until approval.
+  // Correction candidates combined into this plan.
   repeated string raw_impression_upload_correction_candidates = 11 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.resource_reference) = {
       type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
     }
@@ -120,18 +109,15 @@ message LabeledOutputManifest {
   // One labeled-output object version.
   message BlobVersion {
     // Absolute URI of the output object.
-    string blob_uri = 1 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
-    ];
+    string blob_uri = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 
     // Approved generation, absent when the object did not exist during
     // planning.
-    optional int64 generation = 2 [(google.api.field_behavior) = IMMUTABLE];
+    optional int64 generation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
   }
 
   // Expected labeled-output objects.
-  repeated BlobVersion blobs = 1 [(google.api.field_behavior) = IMMUTABLE];
+  repeated BlobVersion blobs = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // One ordered checkpoint in an UploadHealingOperation.
@@ -161,12 +147,11 @@ message UploadHealingStep {
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
   // Stable order in which this step must be processed.
-  int64 sequence_number = 2 [(google.api.field_behavior) = IMMUTABLE];
+  int64 sequence_number = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Upload whose invalid output is evicted by this step.
   string source_raw_impression_upload = 3 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.resource_reference) = {
       type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
     }
@@ -174,8 +159,7 @@ message UploadHealingStep {
 
   // Evicted source model-line row.
   string raw_impression_upload_model_line = 4 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.resource_reference) = {
       type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
     }
@@ -183,32 +167,29 @@ message UploadHealingStep {
 
   // CMMS ModelLine processed by this step.
   string cmms_model_line = 5 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
   ];
 
   // Whether the step invalidates cumulative memoized state.
-  bool memoized = 6 [(google.api.field_behavior) = IMMUTABLE];
+  bool memoized = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Action that creates the replacement output.
-  RawImpressionUploadModelLine.RecoveryAction recovery_action = 7 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  RawImpressionUploadModelLine.RecoveryAction recovery_action = 7
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Upload whose replacement must complete before this step can be recovered.
   // Empty when recovery starts a new memoized chain after its first upload was
   // permanently removed.
   string recovery_predecessor_raw_impression_upload = 8 [
-    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.resource_reference) = {
       type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
     }
   ];
 
   // Whether this row is the revision on which the replacement action runs.
-  bool recovery_target = 9 [(google.api.field_behavior) = IMMUTABLE];
+  bool recovery_target = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Current checkpoint state.
   State state = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
@@ -244,10 +225,9 @@ message UploadHealingStep {
   int64 recovery_done_blob_generation = 17
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Correction candidate responsible for this historical-owner step. Mutable
-  // until approval.
+  // Correction candidate responsible for this historical-owner step.
   string raw_impression_upload_correction_candidate = 18 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.resource_reference) = {
       type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
     }
@@ -255,5 +235,5 @@ message UploadHealingStep {
 
   // Labeled-output versions approved for eviction.
   LabeledOutputManifest labeled_output_manifest = 19
-      [(google.api.field_behavior) = IMMUTABLE];
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
