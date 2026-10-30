@@ -38,6 +38,9 @@ locals {
     var.max_attempt_runtime_seconds == null ? {} : {
       "tee-env-WORK_ITEM_ATTEMPT_MAX_RUNTIME_SECONDS" = tostring(var.max_attempt_runtime_seconds)
     },
+    var.stack_dump_interval_seconds == null ? {} : {
+      "tee-env-TEE_STACK_DUMP_INTERVAL_SECONDS" = tostring(var.stack_dump_interval_seconds)
+    },
     var.extra_metadata,
   )
 }
