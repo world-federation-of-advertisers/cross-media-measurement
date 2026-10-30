@@ -493,7 +493,7 @@ jobs:
       successfully-deployed: ${{ needs.publish-images.result == 'success' && needs.run-tests.result == 'success' && needs.run-edpa-cloud-test.result == 'success' && (inputs.environment == 'dev' || needs.run-event-group-sync-scale-test.result == 'success') && needs.run-edpa-reporting-integration-test.result == 'success' && needs.run-dashboard-isolation-test.result == 'success' && needs.run-dashboard-compliance-check.result == 'success' && needs.update-secure-computation.result == 'success' && needs.scan-images.result == 'success' }}
 
   report-incomplete-rollout:
-    if: ${{ always() && inputs.apply && needs.update-secure-computation-dlq-paused.result == 'success' && needs.terraform.result != 'success' }}
+    if: ${{ always() && inputs.apply && needs.update-secure-computation-dlq-paused.result != 'skipped' && needs.terraform.result != 'success' }}
     needs: [publish-images, update-secure-computation-dlq-paused, terraform-quiesced, wait-for-tee-consumers-to-stop, update-kingdom, update-secure-computation, update-edp-aggregator-service, terraform]
     runs-on: ubuntu-24.04
     permissions:
