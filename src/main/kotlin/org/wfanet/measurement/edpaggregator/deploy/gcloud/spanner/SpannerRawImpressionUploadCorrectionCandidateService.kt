@@ -69,6 +69,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorr
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesResponse
 import org.wfanet.measurement.internal.edpaggregator.PurgeExpiredRawImpressionUploadCorrectionCandidatesRequest
 import org.wfanet.measurement.internal.edpaggregator.PurgeExpiredRawImpressionUploadCorrectionCandidatesResponse
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction
@@ -200,8 +201,12 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
             .asRuntimeException()
         }
         if (
-          upload.replacesRawImpressionUploadResourceId !=
-            request.sourceRawImpressionUploadResourceId
+          !replacesUpload(
+            txn,
+            request.dataProviderResourceId,
+            upload,
+            request.sourceRawImpressionUploadResourceId,
+          )
         ) {
           throw Status.FAILED_PRECONDITION.withDescription(
               "Quarantined upload does not replace the requested source upload"
@@ -240,6 +245,25 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
         )
         .rawImpressionUpload
     }
+  }
+
+  private suspend fun replacesUpload(
+    txn: AsyncDatabaseClient.TransactionContext,
+    dataProviderResourceId: String,
+    candidate: RawImpressionUpload,
+    sourceResourceId: String,
+  ): Boolean {
+    val visited = mutableSetOf<String>()
+    var predecessorId = candidate.replacesRawImpressionUploadResourceId
+    while (predecessorId.isNotEmpty() && visited.add(predecessorId)) {
+      if (predecessorId == sourceResourceId) return true
+      predecessorId =
+        txn
+          .getRawImpressionUploadByResourceId(dataProviderResourceId, predecessorId)
+          .rawImpressionUpload
+          .replacesRawImpressionUploadResourceId
+    }
+    return false
   }
 
   override suspend fun registerDetectedRawImpressionUploadCorrectionCandidate(
