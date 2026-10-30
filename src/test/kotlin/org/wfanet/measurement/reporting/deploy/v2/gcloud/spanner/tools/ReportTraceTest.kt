@@ -81,7 +81,7 @@ class ReportTraceTest {
     val context =
       ReportTraceContext(
         basicReportName = "measurementConsumers/mc-1/basicReports/basic-report-1",
-        basicReportState = "CREATED",
+        basicReportState = "CREATED_LEGACY",
         reportName = "(not created)",
         metricNames = emptyList(),
         metricStates = emptyMap(),
