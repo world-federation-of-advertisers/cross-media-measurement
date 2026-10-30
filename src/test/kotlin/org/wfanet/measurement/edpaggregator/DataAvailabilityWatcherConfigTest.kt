@@ -21,6 +21,8 @@ import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Instant
+import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -34,6 +36,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelin
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 
 @RunWith(JUnit4::class)
 class DataAvailabilityWatcherConfigTest {
@@ -94,6 +97,24 @@ class DataAvailabilityWatcherConfigTest {
         val params = sink.appParams.unpack(ExternalDataAvailabilitySyncParams::class.java)
         val dataProvider = params.dataProvider
         assertThat(sink.serializationKey).isEqualTo("data-availability:$dataProvider")
+        val internalSerializationKey =
+          DataAvailabilitySyncWorkItems.createRequest(
+              dataProvider = dataProvider,
+              rawImpressionUpload = "$dataProvider/rawImpressionUploads/example",
+              rawImpressionUploadModelLine =
+                "$dataProvider/rawImpressionUploads/example/modelLines/example",
+              modelLine = "modelProviders/example/modelSuites/example/modelLines/example",
+              eventDate = LocalDate.of(2000, 1, 1),
+              doneBlobUri = "gs://example/internal/done-example",
+              doneBlobGeneration = 1L,
+              doneBlobCreateTime = Instant.EPOCH,
+              traceContext = emptyMap(),
+            )
+            .workItem
+            .serializationKey
+        assertWithMessage("$environment internal and external ordering key for $dataProvider")
+          .that(sink.serializationKey)
+          .isEqualTo(internalSerializationKey)
         assertWithMessage("$environment runtime config for $dataProvider")
           .that(runtimeConfigsByDataProvider)
           .containsKey(dataProvider)
