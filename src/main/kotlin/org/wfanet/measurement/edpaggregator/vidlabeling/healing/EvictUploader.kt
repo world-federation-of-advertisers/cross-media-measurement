@@ -245,9 +245,7 @@ class EvictUploader(
     val candidateSupersedingRows = candidateSupersedingUploads.associateWith { listModelLines(it) }
     val supersedingUploads =
       candidateSupersedingRows
-        .filterValues { rows ->
-          rows.any { it.state == RawImpressionUploadModelLine.State.COMPLETED }
-        }
+        .filterValues { rows -> rows.any { hasDurableLabeledOutput(it.state) } }
         .keys
     val plannedBadUploads =
       (badUploads + supersedingUploads)
@@ -300,7 +298,7 @@ class EvictUploader(
         rowsByCmmsModelLine.getValue(badRow.cmmsModelLine).filter { candidate ->
           val candidateUploadName = uploadNameOf(candidate.name)
           candidateUploadName !in requestedNames &&
-            candidate.state == RawImpressionUploadModelLine.State.COMPLETED &&
+            hasDurableLabeledOutput(candidate.state) &&
             replacesUpload(candidateUploadName, badUploadName, uploadsByName)
         }
       }
@@ -323,6 +321,7 @@ class EvictUploader(
         val uploadTime = createTimeByUpload[uploadName] ?: continue
         if (uploadTime < earliestBadTime) continue
         if (!isMemoized(row, snapshotRows)) continue
+        if (wasEvictedByAnotherOperation(row, evictionOperationId)) continue
         entries +=
           uploadTime to
             CascadeEntry(
@@ -343,6 +342,7 @@ class EvictUploader(
       }
     }
     for (row in nonMemoizedRequestedRows) {
+      if (wasEvictedByAnotherOperation(row, evictionOperationId)) continue
       val uploadName = uploadNameOf(row.name)
       entries +=
         createTimeByUpload.getValue(uploadName) to
@@ -402,7 +402,7 @@ class EvictUploader(
                 val uploadName = uploadNameOf(row.name)
                 createTimeByUpload.getValue(uploadName) < firstActionTime &&
                   uploadsByName.getValue(uploadName).doneBlobUri != firstActionDoneBlobUri &&
-                  isEligibleRecoveryPredecessor(row, activeSnapshotRows)
+                  isEligibleRecoveryPredecessor(row, activeSnapshotRows, evictionOperationId)
               }
               ?.let { uploadNameOf(it.name) }
               .orEmpty()
@@ -699,6 +699,7 @@ class EvictUploader(
   private fun isEligibleRecoveryPredecessor(
     row: RawImpressionUploadModelLine,
     activeSnapshotRows: Set<Pair<String, String>>,
+    evictionOperationId: String,
   ): Boolean {
     if (
       row.recoveryAction ==
@@ -707,19 +708,35 @@ class EvictUploader(
       return false
     }
     if (
-      row.state == RawImpressionUploadModelLine.State.COMPLETED &&
+      hasDurableLabeledOutput(row.state) &&
         uploadNameOf(row.name) to row.cmmsModelLine in activeSnapshotRows
     ) {
       return true
     }
-    return row.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT &&
-      row.evictionOperationId.isNotEmpty() &&
+    return !wasEvictedByAnotherOperation(row, evictionOperationId) &&
+      row.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT &&
+      row.evictionOperationId == evictionOperationId &&
       row.recoveryAction in
         setOf(
           RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
           RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
         )
   }
+
+  private fun wasEvictedByAnotherOperation(
+    row: RawImpressionUploadModelLine,
+    evictionOperationId: String,
+  ): Boolean =
+    row.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT &&
+      row.evictionOperationId.isNotEmpty() &&
+      row.evictionOperationId != evictionOperationId
+
+  private fun hasDurableLabeledOutput(state: RawImpressionUploadModelLine.State): Boolean =
+    state in
+      setOf(
+        RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+        RawImpressionUploadModelLine.State.COMPLETED,
+      )
 
   private data class OutputCleanupResult(val deletedMetadata: Int, val deletedBlobs: Int)
 
