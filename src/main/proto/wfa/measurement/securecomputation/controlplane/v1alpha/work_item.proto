@@ -55,8 +55,41 @@ message WorkItem {
         [(google.api.field_behavior) = IMMUTABLE];
     // Parameters for a data path work item.
     message DataPathParams {
+      // Type of storage event that produced this work.
+      enum StorageEventType {
+        // Unspecified storage event type.
+        STORAGE_EVENT_TYPE_UNSPECIFIED = 0;
+
+        // Object-finalized event.
+        FINALIZED = 1;
+
+        // Object-deleted event.
+        DELETED = 2;
+      }
+
       // The data path to process
       string data_path = 1 [(google.api.field_behavior) = REQUIRED];
+
+      // Generation of the source object.
+      optional int64 generation = 2 [
+        (google.api.field_behavior) = OPTIONAL,
+        (google.api.field_behavior) = IMMUTABLE
+      ];
+
+      // Creation time of the source object.
+      google.protobuf.Timestamp create_time = 3 [
+        (google.api.field_behavior) = OPTIONAL,
+        (google.api.field_behavior) = IMMUTABLE
+      ];
+
+      reserved 4;
+      reserved "metageneration";
+
+      // Storage event type.
+      StorageEventType event_type = 5 [
+        (google.api.field_behavior) = OPTIONAL,
+        (google.api.field_behavior) = IMMUTABLE
+      ];
     }
     // The data path params for this [WorkItem]
     DataPathParams data_path_params = 2
@@ -108,4 +141,12 @@ message WorkItem {
   // This advances only when the current execution is retried. Queue consumers
   // use it to reject stale deliveries from an earlier generation.
   int64 generation = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Key used to order execution relative to other `WorkItem`s. Data-path work
+  // items with this field set must include an object generation and creation
+  // time.
+  string serialization_key = 8 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 }
