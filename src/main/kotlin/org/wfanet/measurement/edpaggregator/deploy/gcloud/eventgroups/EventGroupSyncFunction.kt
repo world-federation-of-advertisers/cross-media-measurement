@@ -68,6 +68,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemPublicationCodec
@@ -94,7 +95,12 @@ class EventGroupSyncFunction() : HttpFunction {
         return
       }
       val dataWatcherPath: String = request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElse("")
-      logger.fine("Value of DATA_WATCHER_PATH_HEADER: $dataWatcherPath")
+      logger.fine(
+        "Received DataWatcher path hash: " +
+          dataWatcherPath
+            .takeIf { it.isNotEmpty() }
+            ?.let { VidLabelingTraceAttributes.gcsObjectPathHash(it) }
+      )
       val requestBody = request.reader.readText()
       val eventGroupSyncConfig =
         ConfigLoader.buildEventGroupSyncConfig(requestBody, runtimeConfigs.configsList)
