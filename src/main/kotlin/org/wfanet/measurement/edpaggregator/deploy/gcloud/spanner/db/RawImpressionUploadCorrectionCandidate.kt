@@ -406,14 +406,13 @@ fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadCorrectionCa
 fun AsyncDatabaseClient.TransactionContext.assignRawImpressionUploadCorrectionCandidate(
   candidate: RawImpressionUploadCorrectionCandidate,
   uploadHealingOperationId: String,
-  state: RawImpressionUploadCorrectionCandidate.State,
 ) {
   bufferUpdateMutation("RawImpressionUploadCorrectionCandidate") {
     set("DataProviderResourceId").to(candidate.dataProviderResourceId)
     set("RawImpressionUploadCorrectionCandidateId")
       .to(candidate.rawImpressionUploadCorrectionCandidateId)
     set("UploadHealingOperationId").to(uploadHealingOperationId)
-    set("State").to(state)
+    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }
@@ -427,22 +426,8 @@ fun AsyncDatabaseClient.TransactionContext.approveRawImpressionUploadCorrectionC
     set("DataProviderResourceId").to(candidate.dataProviderResourceId)
     set("RawImpressionUploadCorrectionCandidateId")
       .to(candidate.rawImpressionUploadCorrectionCandidateId)
-    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_APPROVED)
+    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED)
     set("Decision").to(decision)
-    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-  }
-}
-
-/** Returns an approved correction candidate to a mutable plan. */
-fun AsyncDatabaseClient.TransactionContext.reopenRawImpressionUploadCorrectionCandidate(
-  candidate: RawImpressionUploadCorrectionCandidate
-) {
-  bufferUpdateMutation("RawImpressionUploadCorrectionCandidate") {
-    set("DataProviderResourceId").to(candidate.dataProviderResourceId)
-    set("RawImpressionUploadCorrectionCandidateId")
-      .to(candidate.rawImpressionUploadCorrectionCandidateId)
-    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_PLANNED)
-    set("Decision").to(RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }
@@ -457,6 +442,7 @@ fun AsyncDatabaseClient.TransactionContext.unassignRawImpressionUploadCorrection
       .to(candidate.rawImpressionUploadCorrectionCandidateId)
     set("UploadHealingOperationId").to(null as String?)
     set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING)
+    set("Decision").to(RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }
