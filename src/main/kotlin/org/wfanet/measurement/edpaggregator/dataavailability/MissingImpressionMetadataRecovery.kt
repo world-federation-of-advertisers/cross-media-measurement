@@ -70,6 +70,7 @@ sealed class DataDateSelection {
  * @param throttler Throttles metadata list and mutation requests.
  * @param impressionMetadataBatchSize Maximum results per metadata list page.
  * @param dateSelection Date folders included in the reconciliation.
+ * @param dataAvailabilitySyncLease Synchronization lease resource name.
  * @param sync Re-runs data availability sync for a completion blob and selected metadata keys, and
  *   returns the keys that sync processed.
  * @param metrics Records reconciliation results.
@@ -83,8 +84,10 @@ class MissingImpressionMetadataRecovery(
   private val throttler: Throttler,
   private val impressionMetadataBatchSize: Int,
   private val dateSelection: DataDateSelection,
+  private val ensureLeaseActive: suspend () -> Unit,
   private val sync: suspend (doneBlobUri: String, metadataBlobKeys: Set<String>) -> Set<String>,
   private val metrics: MissingImpressionMetadataRecoveryMetrics,
+  private val dataAvailabilitySyncLease: String = "",
 ) {
   init {
     require(edpImpressionPath.isNotEmpty()) { "edpImpressionPath must not be empty" }
@@ -155,6 +158,8 @@ class MissingImpressionMetadataRecovery(
     var incompleteFullSyncFolders = 0
     val errors = mutableListOf<RecoveryError>()
 
+    ensureLeaseActive()
+
     val dateFolderPrefixes =
       try {
         listDateFolderPrefixes()
@@ -172,6 +177,27 @@ class MissingImpressionMetadataRecovery(
           recoverDateFolder(dateFolderPrefix)
         } catch (e: CancellationException) {
           throw e
+        } catch (e: StatusException) {
+          if (
+            e.status.code == Status.Code.UNAVAILABLE ||
+              e.status.code == Status.Code.ABORTED ||
+              e.status.code == Status.Code.FAILED_PRECONDITION
+          ) {
+            throw e
+          }
+          logger.log(Level.SEVERE, "Failed to reconcile date folder $dateFolderPrefix", e)
+          FolderRecoveryResult(
+            finalizedMetadataBlobs = 0,
+            missingBlobs = 0,
+            deletedRecordsWithBlobs = 0,
+            undeletedRecords = 0,
+            failedUndeletes = 0,
+            recoveredBlobs = 0,
+            failedBlobs = 0,
+            dateFoldersResynced = 0,
+            incompleteFullSyncFolders = 0,
+            errors = listOf(RecoveryError(dateFolderPrefix, e.message ?: e::class.java.simpleName)),
+          )
         } catch (e: Exception) {
           logger.log(Level.SEVERE, "Failed to reconcile date folder $dateFolderPrefix", e)
           FolderRecoveryResult(
@@ -261,10 +287,15 @@ class MissingImpressionMetadataRecovery(
     val undeletedBlobUris = mutableSetOf<String>()
     val errors = mutableListOf<RecoveryError>()
     for (metadata in deletedMetadataWithBlobs) {
+      ensureLeaseActive()
       try {
         throttler.onReady {
           impressionMetadataStub.undeleteImpressionMetadata(
-            undeleteImpressionMetadataRequest { name = metadata.name }
+            undeleteImpressionMetadataRequest {
+              name = metadata.name
+              this.dataAvailabilitySyncLease =
+                this@MissingImpressionMetadataRecovery.dataAvailabilitySyncLease
+            }
           )
         }
         undeletedRecords++

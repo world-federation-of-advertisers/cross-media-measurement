@@ -104,6 +104,14 @@ message CreateImpressionMetadataRequest {
   ImpressionMetadata impression_metadata = 2
       [(google.api.field_behavior) = REQUIRED];
 
+  // Synchronization lease authorizing this mutation.
+  string data_availability_sync_lease = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
+
   // A request ID provided by the client on creation to ensure idempotency.
   //
   // This field must be a UUID4 (RFC 4122) string.
@@ -130,6 +138,14 @@ message BatchCreateImpressionMetadataRequest {
   // The list of ImpressionMetadata to create.
   repeated CreateImpressionMetadataRequest requests = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // Synchronization lease authorizing this mutation.
+  string data_availability_sync_lease = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
 }
 
 // Response message for the `BatchCreateImpressionMetadata` method.
@@ -159,6 +175,14 @@ message UpdateImpressionMetadataRequest {
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_info).format = UUID4
   ];
+
+  // Synchronization lease authorizing this mutation.
+  string data_availability_sync_lease = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
 }
 
 // Request message for the `BatchUpdateImpressionMetadata` method.
@@ -178,6 +202,14 @@ message BatchUpdateImpressionMetadataRequest {
   // The list of ImpressionMetadata to update.
   repeated UpdateImpressionMetadataRequest requests = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // Synchronization lease authorizing this mutation.
+  string data_availability_sync_lease = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
 }
 
 // Response message for the `BatchUpdateImpressionMetadata` method.
@@ -311,6 +343,14 @@ message UndeleteImpressionMetadataRequest {
       type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
     }
   ];
+
+  // Synchronization lease authorizing this mutation.
+  string data_availability_sync_lease = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
 }
 
 // Request message for the `BatchDeleteImpressionMetadata` method.
@@ -358,6 +398,14 @@ message BatchUndeleteImpressionMetadataRequest {
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
       type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+
+  // Synchronization lease authorizing this mutation.
+  string data_availability_sync_lease = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
     }
   ];
 }
