@@ -32,7 +32,10 @@ class DataAvailabilitySyncReplay(
   private val sync: suspend (doneBlobUri: String) -> DataAvailabilitySync.Outcome,
 ) {
   sealed interface Selection {
-    data class BlobPrefix(val value: String) : Selection {
+    data class BlobPrefix(
+      val value: String,
+      val completionBlobType: CompletionBlobType = CompletionBlobType.EXTERNAL,
+    ) : Selection {
       init {
         require(value.isNotBlank()) { "blob prefix must not be blank" }
         require(!value.startsWith('/')) { "blob prefix must not start with a slash" }
@@ -99,16 +102,17 @@ class DataAvailabilitySyncReplay(
         val normalizedBlobPrefix = "${selection.value.trimEnd('/')}/"
         storageClient
           .listBlobs(normalizedBlobPrefix)
-          .filter { it.blobKey.substringAfterLast('/') == DONE_BLOB_FILE_NAME }
+          .filter {
+            CompletionBlobNames.matches(
+              selection.completionBlobType,
+              it.blobKey.substringAfterLast('/'),
+            )
+          }
           .map { BlobUris.buildUri(storageRootUri, it.blobKey) }
           .toList()
           .sorted()
       }
       is Selection.DoneBlobUris -> selection.values.sorted()
     }
-  }
-
-  companion object {
-    private const val DONE_BLOB_FILE_NAME = "done"
   }
 }
