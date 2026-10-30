@@ -47,9 +47,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "completion_blob",
+    srcs = ["CompletionBlob.kt"],
+)
+
+kt_jvm_library(
     name = "event_group_activity_backfill",
     srcs = ["EventGroupActivityBackfill.kt"],
     deps = [
+        ":completion_blob",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:blob_uris",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
@@ -64,6 +70,7 @@ kt_jvm_library(
     name = "data_availability_sync_replay",
     srcs = ["DataAvailabilitySyncReplay.kt"],
     deps = [
+        ":completion_blob",
         ":data_availability_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:blob_uris",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
