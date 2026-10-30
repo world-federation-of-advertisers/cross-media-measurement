@@ -38,6 +38,9 @@ message WatchedPath {
     string queue = 1;
     // Params passed to TEE Apps
     google.protobuf.Any app_params = 2;
+    // Stable ordering key for tasks sharing a synchronization destination.
+    // Empty preserves unordered publication.
+    string serialization_key = 3;
   }
   // The config used for any Webhooks
   message HttpEndpointSink {

@@ -633,3 +633,22 @@ variable "vid_labeling_healing_alert_notification_channels" {
   type        = list(string)
   default     = []
 }
+
+variable "event_group_sync_work_item_queue" {
+  description = "Pub/Sub queue for EventGroupSync WorkItems."
+  type = object({
+    topic_name            = string
+    subscription_name     = string
+    ack_deadline_seconds  = number
+    max_delivery_attempts = number
+    minimum_backoff       = string
+    maximum_backoff       = string
+  })
+}
+
+variable "event_group_sync_memory" {
+  description = "EventGroupSync function memory; retain the allocation required by the input size."
+  type        = string
+  nullable    = true
+  default     = null
+}

@@ -270,9 +270,10 @@ class VidLabelingDispatcherFunctionTest {
     // metadata.
     val footer = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01")
     runBlocking {
-      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_002", emptyFlow(), footer)
+      // Finalize the upload only after every raw file has been written.
+      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
     }
     val doneGeneration = File(tempFolder.root, "edp/edp_name/timestamp/done").lastModified()
 
@@ -325,8 +326,8 @@ class VidLabelingDispatcherFunctionTest {
       ParquetStorageClient(parquetConf, org.apache.hadoop.fs.Path(tempFolder.root.path))
     val footer = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01")
     runBlocking {
-      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
+      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
     }
     val doneGeneration = File(tempFolder.root, "edp/edp_name/timestamp/done").lastModified()
     val sourceUpload = rawImpressionUpload {
