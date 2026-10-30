@@ -64,4 +64,27 @@ class VidLabelingHealTest {
 
     assertThat(exception).hasMessageThat().contains("complete human-readable duration")
   }
+
+  @Test
+  fun `retry failed accepts separate EDPA and control plane TLS files`() {
+    val result =
+      CommandLine(VidLabelingHeal())
+        .parseArgs(
+          "retry-failed",
+          "--edpa-public-api-target=edpa.example:443",
+          "--control-plane-api-target=control-plane.example:443",
+          "--raw-impression-upload=dataProviders/dp/rawImpressionUploads/upload",
+          "--model-line=modelProviders/mp/modelSuites/ms/modelLines/ml",
+          "--tls-cert-file=edpa.pem",
+          "--tls-key-file=edpa.key",
+          "--cert-collection-file=edpa-roots.pem",
+          "--control-plane-tls-cert-file=control-plane.pem",
+          "--control-plane-tls-key-file=control-plane.key",
+          "--control-plane-cert-collection-file=control-plane-roots.pem",
+        )
+
+    val retryFailed = checkNotNull(result.subcommand())
+    assertThat(retryFailed.hasMatchedOption("--tls-cert-file")).isTrue()
+    assertThat(retryFailed.hasMatchedOption("--control-plane-tls-cert-file")).isTrue()
+  }
 }
