@@ -33,6 +33,7 @@ kt_jvm_library(
     srcs = ["ReplayDataAvailabilitySync.kt"],
     deps = [
         "//imports/java/io/opentelemetry/instrumentation/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:completion_blob",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync_lease_runner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync_replay",
