@@ -24,6 +24,13 @@ variable "subscription_name" {
   nullable    = false
 }
 
+variable "enable_message_ordering" {
+  description = "Whether messages with the same ordering key are delivered in order."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "subscription_queue_retention_period" {
   description = "The duration (in seconds) for which the subscription queue retains unacknowledged messages."
   type        = string
@@ -52,4 +59,22 @@ variable "maximum_backoff" {
   description = "The maximum delay between consecutive delivery attempts of a message, as a duration in seconds (e.g. \"600s\")."
   type        = string
   nullable    = false
+}
+
+variable "push_endpoint" {
+  description = "HTTPS endpoint for push delivery. Null configures a pull subscription."
+  type        = string
+  default     = null
+}
+
+variable "push_service_account_email" {
+  description = "Service account used to authenticate push delivery."
+  type        = string
+  default     = null
+}
+
+variable "push_audience" {
+  description = "OIDC audience for push delivery."
+  type        = string
+  default     = null
 }
