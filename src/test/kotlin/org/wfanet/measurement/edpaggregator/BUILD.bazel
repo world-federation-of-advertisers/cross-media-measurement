@@ -25,6 +25,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.DataAvailabilityWatcherConfigTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:vid_labeling_config_validation",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:data_availability_sync_work_items",
         "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
