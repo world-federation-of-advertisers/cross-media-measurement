@@ -143,6 +143,44 @@ class EventGroupActivityBackfillTest {
     }
 
   @Test
+  fun `backfill accepts upload-specific VID Labeler completion blobs`() =
+    runBlocking<Unit> {
+      val storageClient = InMemoryStorageClient()
+      val uploadHash = "b".repeat(64)
+      storageClient.writeBlob(
+        "edp/internal/model-line/1/2026-01-01/done-$uploadHash",
+        ByteString.EMPTY,
+      )
+      registeredMetadata +=
+        impressionMetadataRecord(
+          name = "internal",
+          blobUri = "gs://bucket/edp/internal/model-line/1/2026-01-01/metadata.binpb",
+          state = ImpressionMetadata.State.ACTIVE,
+        )
+      val publishedMetadata = mutableListOf<ImpressionMetadata>()
+      val backfill =
+        newBackfill(
+          storageClient = storageClient,
+          selection =
+            EventGroupActivityBackfill.Selection.BlobPrefix(
+              value = "edp/internal",
+              completionBlobType = CompletionBlobType.VID_LABELER,
+            ),
+          impressionMetadataPageSize = 10,
+          publishEventGroupActivities = { metadata ->
+            publishedMetadata += metadata
+            metadata.size
+          },
+        )
+
+      val result = backfill.backfill()
+
+      assertThat(publishedMetadata.map { it.name }).containsExactly("internal")
+      assertThat(result.doneBlobsSelected).isEqualTo(1)
+      assertThat(result.activityPairsPublished).isEqualTo(1)
+    }
+
+  @Test
   fun `backfill continues after publisher failure`() =
     runBlocking<Unit> {
       val storageClient = InMemoryStorageClient()
