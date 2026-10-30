@@ -22,6 +22,7 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 
 /**
  * LabelerInput field path the Phase-2 TEE requires: the raw event-id column that feeds
@@ -161,9 +162,19 @@ object VidLabelingStorageConfigValidator {
 
       val availabilityRoutes =
         dataWatcherConfig.watchedPathsList.filter { watchedPath ->
-          watchedPath.hasHttpEndpointSink() &&
-            watchedPath.httpEndpointSink.appParams.fieldsMap["dataProvider"]?.stringValue ==
-              vidConfig.dataProvider
+          when {
+            watchedPath.hasHttpEndpointSink() ->
+              watchedPath.httpEndpointSink.appParams.fieldsMap["dataProvider"]?.stringValue ==
+                vidConfig.dataProvider
+            watchedPath.hasControlPlaneQueueSink() &&
+              watchedPath.controlPlaneQueueSink.appParams.`is`(
+                ExternalDataAvailabilitySyncParams::class.java
+              ) ->
+              watchedPath.controlPlaneQueueSink.appParams
+                .unpack(ExternalDataAvailabilitySyncParams::class.java)
+                .dataProvider == vidConfig.dataProvider
+            else -> false
+          }
         }
       val labeledOutputPrefix = "$vidLabelingStorageRoot/${vidConfig.edpImpressionPath}"
       val labeledOutputExamples =

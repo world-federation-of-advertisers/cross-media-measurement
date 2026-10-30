@@ -24,6 +24,7 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import picocli.CommandLine
 
@@ -56,6 +57,7 @@ class ValidateVidLabelingStorageConfig : Runnable {
       TypeRegistry.newBuilder()
         .add(ResultsFulfillerParams.getDescriptor())
         .add(EventGroupSyncParams.getDescriptor())
+        .add(ExternalDataAvailabilitySyncParams.getDescriptor())
         .build()
     val watcherConfig =
       parseTextProto(dataWatcherConfigFile, DataWatcherConfig.getDefaultInstance(), typeRegistry)

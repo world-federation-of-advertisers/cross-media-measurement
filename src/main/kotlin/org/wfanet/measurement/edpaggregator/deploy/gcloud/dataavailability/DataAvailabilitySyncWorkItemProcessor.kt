@@ -49,6 +49,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
@@ -66,6 +67,9 @@ internal data class DataAvailabilitySyncWorkItem(
   val appParams: DataAvailabilitySyncParams,
   val dataPathParams: WorkItem.WorkItemParams.DataPathParams,
 ) {
+  val isExternal: Boolean
+    get() = workItemParams.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)
+
   val workItemName: String
     get() = workItem.name
 
@@ -104,31 +108,44 @@ internal data class DataAvailabilitySyncWorkItem(
           throw IllegalArgumentException("work_item_params cannot be unpacked", e)
         }
       require(workItemParams.hasAppParams()) { "app_params is required" }
-      require(workItemParams.appParams.`is`(DataAvailabilitySyncParams::class.java)) {
-        "app_params must contain DataAvailabilitySyncParams"
+      val isExternal = workItemParams.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)
+      require(isExternal || workItemParams.appParams.`is`(DataAvailabilitySyncParams::class.java)) {
+        "app_params must contain internal or external DataAvailabilitySyncParams"
       }
       val appParams =
         try {
-          workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
+          if (isExternal) {
+            DataAvailabilitySyncParams.newBuilder()
+              .setDataProvider(
+                workItemParams.appParams
+                  .unpack(ExternalDataAvailabilitySyncParams::class.java)
+                  .dataProvider
+              )
+              .build()
+          } else {
+            workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
+          }
         } catch (e: InvalidProtocolBufferException) {
           throw IllegalArgumentException("app_params cannot be unpacked", e)
         }
       requireNotNull(DataProviderKey.fromName(appParams.dataProvider)) {
         "data_provider must be a DataProvider resource name"
       }
-      requireNotNull(RawImpressionUploadKey.fromName(appParams.triggeringRawImpressionUpload)) {
-        "raw_impression_upload must be a RawImpressionUpload resource name"
+      if (!isExternal) {
+        requireNotNull(RawImpressionUploadKey.fromName(appParams.triggeringRawImpressionUpload)) {
+          "raw_impression_upload must be a RawImpressionUpload resource name"
+        }
+        requireNotNull(ModelLineKey.fromName(appParams.modelLine)) {
+          "model_line must be a ModelLine resource name"
+        }
+        requireNotNull(
+          RawImpressionUploadModelLineKey.fromName(appParams.rawImpressionUploadModelLine)
+        ) {
+          "raw_impression_upload_model_line must be a RawImpressionUploadModelLine resource name"
+        }
+        require(appParams.hasEventDate()) { "event_date is required" }
+        LocalDate.of(appParams.eventDate.year, appParams.eventDate.month, appParams.eventDate.day)
       }
-      requireNotNull(ModelLineKey.fromName(appParams.modelLine)) {
-        "model_line must be a ModelLine resource name"
-      }
-      requireNotNull(
-        RawImpressionUploadModelLineKey.fromName(appParams.rawImpressionUploadModelLine)
-      ) {
-        "raw_impression_upload_model_line must be a RawImpressionUploadModelLine resource name"
-      }
-      require(appParams.hasEventDate()) { "event_date is required" }
-      LocalDate.of(appParams.eventDate.year, appParams.eventDate.month, appParams.eventDate.day)
 
       require(workItemParams.hasDataPathParams()) { "data_path_params is required" }
       val dataPathParams = workItemParams.dataPathParams
@@ -205,28 +222,39 @@ internal class DataAvailabilitySyncWorkItemProcessor(
     try {
       val outcome =
         runWithAttemptLeaseRenewal(attempt) {
-          leaseRunner.run(input.appParams.dataProvider, claimed.synchronizationAttemptId) { lease ->
-            leaseName = lease.name
-            Span.current()
-              .setAttribute(
-                VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_LEASE_NAME,
-                lease.name,
-              )
-            verifyDoneObject(input)
-            synchronize(input, lease) { nextStage ->
-              stage = nextStage
+          val synchronized =
+            leaseRunner.run(input.appParams.dataProvider, claimed.synchronizationAttemptId) { lease
+              ->
+              leaseName = lease.name
               Span.current()
-                .setAttribute(VidLabelingTraceAttributes.PIPELINE_PHASE, nextStage.name.lowercase())
+                .setAttribute(
+                  VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_LEASE_NAME,
+                  lease.name,
+                )
+              verifyDoneObject(input)
+              synchronize(input, lease) { nextStage ->
+                stage = nextStage
+                Span.current()
+                  .setAttribute(
+                    VidLabelingTraceAttributes.PIPELINE_PHASE,
+                    nextStage.name.lowercase(),
+                  )
+              }
             }
+          if (
+            synchronized == DataAvailabilitySync.Outcome.PUBLISHED ||
+              synchronized == DataAvailabilitySync.Outcome.NO_WORK
+          ) {
+            if (!input.isExternal) markAvailabilitySynchronized(input)
+            completeWorkItemAttempt(attempt)
           }
+          synchronized
         }
 
       if (
         outcome == DataAvailabilitySync.Outcome.PUBLISHED ||
           outcome == DataAvailabilitySync.Outcome.NO_WORK
       ) {
-        markAvailabilitySynchronized(input)
-        completeWorkItemAttempt(attempt)
         val traceOutcome =
           if (outcome == DataAvailabilitySync.Outcome.NO_WORK) "no_work" else "succeeded"
         Span.current().setAttribute(XmmTraceAttributes.OUTCOME, traceOutcome)

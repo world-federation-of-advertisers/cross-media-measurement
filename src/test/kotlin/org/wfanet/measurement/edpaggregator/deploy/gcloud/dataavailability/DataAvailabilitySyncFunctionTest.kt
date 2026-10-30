@@ -97,6 +97,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.externalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
@@ -417,6 +418,107 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(parseDataWatcherGeneration(DONE_BLOB_GENERATION.toString()))
       .isEqualTo(DONE_BLOB_GENERATION)
   }
+
+  @Test
+  fun `external WorkItem scans external folder without raw-upload discovery or bookkeeping`() =
+    runBlocking {
+      val config =
+        fileSystemDataAvailabilitySyncConfig()
+          .toBuilder()
+          .setEdpImpressionPath("edp/edp_name/vid-labeler")
+          .setExternalImpressionPath("edp/edp_name")
+          .setDataAvailabilityStorage(
+            storageParams {
+              gcs =
+                org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage {
+                  bucketName = "bucket"
+                }
+            }
+          )
+          .build()
+      val configDir = File(tempFolder.root, "configbucket").apply { mkdirs() }
+      File(configDir, "config.textproto")
+        .writeText(
+          TextFormat.printer().printToString(dataAvailabilitySyncConfigs { configs += config })
+        )
+      val folder = "edp/edp_name/model-line/some-model-line/2025-01-05"
+      val outputKey = "$folder/external-output"
+      val storage = FileSystemStorageClient(tempFolder.root)
+      storage.writeBlob(outputKey, emptyFlow())
+      storage.writeBlob(
+        "$outputKey.metadata.binpb",
+        flowOf(
+          blobDetails {
+              blobUri = "file:////$outputKey"
+              eventGroupReferenceId = "external-reference"
+              modelLine = MODEL_LINE
+              interval = interval {
+                startTime = timestamp { seconds = 1736035200 }
+                endTime = timestamp { seconds = 1736121600 }
+              }
+            }
+            .toByteString()
+        ),
+      )
+      val port =
+        functionProcess.start(
+          mapOf(
+            "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+            "KINGDOM_CERT_HOST" to "localhost",
+            "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+            "IMPRESSION_METADATA_CERT_HOST" to "localhost",
+            "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+            "SECURE_COMPUTATION_CERT_HOST" to "localhost",
+            "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+            "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configDir.absolutePath}",
+            "CONFIG_BLOB_KEY" to "config.textproto",
+            "OTEL_METRICS_EXPORTER" to "none",
+            "OTEL_TRACES_EXPORTER" to "none",
+            "OTEL_LOGS_EXPORTER" to "none",
+          )
+        )
+      val task = workItem {
+        name = WORK_ITEM_NAME.removePrefix("workItems/")
+        generation = 1L
+        workItemParams =
+          Any.pack(
+            workItemParams {
+              appParams =
+                Any.pack(externalDataAvailabilitySyncParams { dataProvider = DATA_PROVIDER })
+              dataPathParams = dataPathParams {
+                dataPath = "gs://bucket/$folder/done"
+                generation = 123L
+                eventType = StorageEventType.FINALIZED
+              }
+            }
+          )
+      }
+      val request =
+        HttpRequest.newBuilder()
+          .uri(URI.create("http://localhost:$port"))
+          .header("Content-Type", "application/octet-stream")
+          .POST(HttpRequest.BodyPublishers.ofByteArray(task.toByteArray()))
+          .build()
+      val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+      assertThat(response.statusCode()).isEqualTo(200)
+      verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+      verifyBlocking(rawImpressionUploadFileServiceMock, times(0)) {
+        listRawImpressionUploadFiles(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+        markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+      }
+      val metadata = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchCreateImpressionMetadata(metadata.capture())
+      }
+      assertThat(
+          metadata.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+        )
+        .isEqualTo(123L)
+      assertThat(metadata.firstValue.requestsList.single().impressionMetadata.blobUri)
+        .isEqualTo("gs://bucket/$outputKey.metadata.binpb")
+    }
 
   @Test
   fun `WorkItem synchronizes only deterministic outputs for its raw upload`() {
