@@ -34,6 +34,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
@@ -125,6 +126,7 @@ class VidLabelingHealingControllerFunction(
         EdpAggregatorConfig.getConfigAsProtoMessage(
           EnvVars.checkNotNullOrEmpty("DATA_WATCHER_CONFIG_BLOB_KEY"),
           DataWatcherConfig.getDefaultInstance(),
+          DataWatcherConfigTypes.registry,
         )
       }
     }
