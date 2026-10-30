@@ -488,6 +488,146 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
   }
 
   @Test
+  fun `approved correction replays through a superseded candidate revision`() = runBlocking {
+    setVisibleModelLines(MEMOIZED_MODEL_LINE)
+    writeRawFile("superseded-replay", "input.parquet", listOf("original"))
+    val originalGeneration = finalizeRawUpload("superseded-replay")
+    awaitPipelineIdle()
+    val original = listUploads().single { it.doneBlobGeneration == originalGeneration }
+
+    writeRawFile("superseded-replay", "input.parquet", listOf("first-correction"))
+    val firstCorrectionGeneration = finalizeRawUpload("superseded-replay")
+    workItemTransport.awaitIdle()
+    val firstCorrection =
+      listUploads().single { it.doneBlobGeneration == firstCorrectionGeneration }
+    assertThat(firstCorrection.state).isEqualTo(RawImpressionUpload.State.CORRECTION_REQUIRED)
+
+    writeRawFile("superseded-replay", "input.parquet", listOf("final-correction"))
+    val finalCorrectionGeneration = finalizeRawUpload("superseded-replay")
+    workItemTransport.awaitIdle()
+    val finalCorrection =
+      listUploads().single { it.doneBlobGeneration == finalCorrectionGeneration }
+    assertThat(finalCorrection.replacesRawImpressionUpload).isEqualTo(firstCorrection.name)
+
+    val candidates = listCorrectionCandidates()
+    val supersededCandidate =
+      candidates.single {
+        it.rawImpressionUpload == firstCorrection.name &&
+          it.state == RawImpressionUploadCorrectionCandidate.State.SUPERSEDED
+      }
+    val finalCandidate =
+      candidates.single {
+        it.rawImpressionUpload == finalCorrection.name &&
+          it.state == RawImpressionUploadCorrectionCandidate.State.PENDING
+      }
+    assertThat(supersededCandidate.supersedingRawImpressionUploadCorrectionCandidate)
+      .isEqualTo(finalCandidate.name)
+    val editedDifference =
+      getCorrectionCandidate(finalCandidate.name).manifestDifferencesList.single()
+    assertThat(editedDifference.priorOutputSourceRawImpressionUpload).isEqualTo(original.name)
+
+    val controller = buildHealingController()
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    val draft =
+      listHealingOperations().single { it.state == UploadHealingOperation.State.APPROVAL_REQUIRED }
+    assertThat(draft.rawImpressionUploadCorrectionCandidatesList)
+      .containsExactly(finalCandidate.name)
+    assertThat(draft.stepsList.single { it.recoveryTarget }.sourceRawImpressionUpload)
+      .isEqualTo(original.name)
+    approveHealingOperation(
+      draft,
+      mapOf(
+        finalCandidate.name to
+          RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+      ),
+      requestId = "123e4567-e89b-42d3-a456-426614174201",
+    )
+
+    withholdNextAvailabilityPublications()
+    advanceHealingUntilComplete(controller, draft.name)
+    republishQueuedAvailability()
+    awaitPipelineIdle()
+
+    val completed = listHealingOperations().single { it.name == draft.name }
+    assertThat(completed.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertReadablePeople(MEMOIZED_MODEL_LINE, setOf("final-correction"))
+  }
+
+  @Test
+  fun `later healing uses the live predecessor rebuilt by an earlier operation`() = runBlocking {
+    setVisibleModelLines(MEMOIZED_MODEL_LINE)
+    val rawUrisByDate = linkedMapOf<java.time.LocalDate, String>()
+    val originalsByDate = linkedMapOf<java.time.LocalDate, RawImpressionUpload>()
+    for ((offset, person) in (1..4).map { "chain-day-$it" }.withIndex()) {
+      val date = EVENT_DATE.plusDays(offset.toLong())
+      setToday(date)
+      rawUrisByDate[date] =
+        writeRawFile("chained-healing/$person", "input.parquet", listOf(person), date)
+      val generation = finalizeRawUpload("chained-healing/$person")
+      awaitPipelineIdle()
+      originalsByDate[date] = listUploads().single { it.doneBlobGeneration == generation }
+    }
+
+    val day2 = EVENT_DATE.plusDays(1)
+    checkNotNull(fileStorage.getBlob(blobKey(rawUrisByDate.getValue(day2)))).delete()
+    finalizeRawUpload("chained-healing/chain-day-2")
+    workItemTransport.awaitIdle()
+
+    val controller = buildHealingController()
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    val firstDraft =
+      listHealingOperations().single { it.state == UploadHealingOperation.State.APPROVAL_REQUIRED }
+    approveHealingOperation(
+      firstDraft,
+      firstDraft.rawImpressionUploadCorrectionCandidatesList.associateWith {
+        RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
+      },
+      requestId = "123e4567-e89b-42d3-a456-426614174202",
+    )
+    withholdNextAvailabilityPublications(count = 2)
+    advanceHealingUntilComplete(controller, firstDraft.name)
+
+    val day3 = EVENT_DATE.plusDays(2)
+    val day4 = EVENT_DATE.plusDays(3)
+    val rebuiltDay3 =
+      listUploads().single { it.replacesRawImpressionUpload == originalsByDate.getValue(day3).name }
+    val rebuiltDay4 =
+      listUploads().single { it.replacesRawImpressionUpload == originalsByDate.getValue(day4).name }
+    assertThat(listModelLines(rebuiltDay3.name).single().state)
+      .isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+    assertThat(listModelLines(rebuiltDay4.name).single().state)
+      .isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+
+    checkNotNull(fileStorage.getBlob(blobKey(rawUrisByDate.getValue(day4)))).delete()
+    finalizeRawUpload("chained-healing/chain-day-4")
+    workItemTransport.awaitIdle()
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    val secondDraft =
+      listHealingOperations().single { it.state == UploadHealingOperation.State.APPROVAL_REQUIRED }
+    val secondApproved =
+      approveHealingOperation(
+        secondDraft,
+        secondDraft.rawImpressionUploadCorrectionCandidatesList.associateWith {
+          RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
+        },
+        requestId = "123e4567-e89b-42d3-a456-426614174203",
+      )
+    val rebuiltDay4Step =
+      secondApproved.stepsList.single { it.sourceRawImpressionUpload == rebuiltDay4.name }
+    assertThat(rebuiltDay4Step.recoveryPredecessorRawImpressionUpload).isEqualTo(rebuiltDay3.name)
+    assertThat(rebuiltDay4Step.recoveryPredecessorRawImpressionUpload)
+      .isNotEqualTo(originalsByDate.getValue(day3).name)
+
+    advanceHealingUntilComplete(controller, secondDraft.name)
+    workItemTransport.republishWorkItem(listAvailabilityTasks(rebuiltDay3.name).single().name)
+    awaitPipelineIdle()
+
+    assertThat(listHealingOperations().single { it.name == secondDraft.name }.state)
+      .isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertReadablePeople(MEMOIZED_MODEL_LINE, setOf("chain-day-1", "chain-day-3"))
+  }
+
+  @Test
   fun `missing old availability markers fail terminally during correction healing`() = runBlocking {
     workItemTransport.dropNextPublications(DataAvailabilitySyncWorkItems.QUEUE, count = 2)
     writeRawFile("queued-obsolete", "input.parquet", listOf("old-person"))
