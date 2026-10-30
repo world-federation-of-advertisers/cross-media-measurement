@@ -52,8 +52,9 @@ import org.wfanet.measurement.storage.StorageClient
  *
  * Invoked by two Cloud Scheduler jobs against this one endpoint, selected by the `mode` query
  * parameter (anything else is rejected with HTTP 400):
- * - `?mode=dispatch` every five minutes by default runs [VidLabelingMonitor.runDispatch] only, so a
- *   newly-registered upload starts promptly.
+ * - `?mode=dispatch` runs [VidLabelingMonitor.runDispatch] on the configured fallback schedule:
+ *   every five minutes for CMMS development/cloud tests, or 1–4 times per day for long-lived
+ *   deployments. It starts eligible work after fast-path dispatch retries are exhausted.
  * - `?mode=health` on a slow cadence (~daily, matching the DataAvailabilityMonitor) runs
  *   [VidLabelingMonitor.runHealth] only: staleness/failure monitoring, stuck-phase recovery, and
  *   data-quality checks. Recovery wants a slow, well-spaced clock so it never races an in-flight
