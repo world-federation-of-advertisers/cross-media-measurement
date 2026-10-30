@@ -148,6 +148,21 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
   }
 
   @Test
+  fun `activation accepts candidate descended from approved source dependency`() = runBlocking {
+    val quarantined = createAuthorizedQuarantine(includeIntermediateRevision = true)
+
+    val activated =
+      grpcStub.activateQuarantinedRawImpressionUpload(
+        activationRequest(quarantined.rawImpressionUploadResourceId)
+      )
+
+    assertThat(activated.rawImpressionUploadResourceId)
+      .isEqualTo(quarantined.rawImpressionUploadResourceId)
+    assertThat(activated.state)
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED)
+  }
+
+  @Test
   fun `activation rejects no-replacement decision`() = runBlocking {
     val quarantined = createAuthorizedQuarantine()
     setCandidateHealing(
@@ -1510,22 +1525,32 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     )
   }
 
-  private suspend fun createAuthorizedQuarantine():
-    org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload {
+  private suspend fun createAuthorizedQuarantine(
+    includeIntermediateRevision: Boolean = false
+  ): org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload {
     insertRawUpload(
       1L,
       UPLOAD_ID,
       RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
       doneBlobUri = SHARED_DONE_BLOB_URI,
     )
+    if (includeIntermediateRevision) {
+      insertRawUpload(
+        2L,
+        UPLOAD_ID_2,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
+        doneBlobUri = SHARED_DONE_BLOB_URI,
+        replacesRawImpressionUploadResourceId = UPLOAD_ID,
+      )
+    }
     val quarantined =
       grpcStub.createQuarantinedRawImpressionUpload(
         createQuarantinedRawImpressionUploadRequest {
           dataProviderResourceId = DATA_PROVIDER_ID
           rawImpressionUpload = rawImpressionUpload {
             doneBlobUri = SHARED_DONE_BLOB_URI
-            doneBlobGeneration = 2L
-            doneBlobCreateTime = timestamp { seconds = 2L }
+            doneBlobGeneration = if (includeIntermediateRevision) 3L else 2L
+            doneBlobCreateTime = timestamp { seconds = if (includeIntermediateRevision) 3L else 2L }
           }
           rawImpressionUploadCorrectionCandidateId = CANDIDATE_ID
           requestId = CREATE_REQUEST_ID
@@ -1853,6 +1878,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     includeDoneBlobCreateTime: Boolean = true,
     processingDeferred: Boolean = false,
     correctionCandidateId: String = "",
+    replacesRawImpressionUploadResourceId: String = "",
   ) {
     val mutation =
       Mutation.newInsertBuilder("RawImpressionUpload")
@@ -1881,6 +1907,11 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     }
     if (correctionCandidateId.isNotEmpty()) {
       mutation.set("CorrectionCandidateId").to(correctionCandidateId)
+    }
+    if (replacesRawImpressionUploadResourceId.isNotEmpty()) {
+      mutation
+        .set("ReplacesRawImpressionUploadResourceId")
+        .to(replacesRawImpressionUploadResourceId)
     }
     spannerDatabase.databaseClient.write(listOf(mutation.build()))
   }
