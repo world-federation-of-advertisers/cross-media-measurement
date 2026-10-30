@@ -1524,7 +1524,8 @@ class VidLabelingDispatcher(
         "Recovery object creation time must be newer than the source upload"
       }
     }
-    val latest = findLatestUploadByDoneBlob(doneBlobPath)
+    val revisions = listUploadsByDoneBlob(doneBlobPath)
+    val latest = findLatestUpload(revisions)
     if (
       committedReplay == null &&
         latest != null &&
@@ -1538,7 +1539,7 @@ class VidLabelingDispatcher(
     val isInitialDelivery = latest?.name == sourceUploadName
     val isApprovedQuarantinedDelivery =
       latest?.state == RawImpressionUpload.State.CORRECTION_REQUIRED &&
-        latest.replacesRawImpressionUpload == sourceUploadName &&
+        replacesUpload(latest.name, sourceUploadName, revisions) &&
         latest.doneBlobGeneration == doneBlobGeneration
     val isRetryOfLatestRecovery =
       registeredRecovery != null &&
