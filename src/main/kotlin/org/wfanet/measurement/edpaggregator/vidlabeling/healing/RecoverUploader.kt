@@ -33,6 +33,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 
+/** Starts or resumes one memoized recovery upload. */
+fun interface RecoveryExecutor {
+  suspend fun recover(
+    sourceUploadName: String,
+    cmmsModelLines: List<String>,
+  ): RecoverUploader.Result
+}
+
 /**
  * Registers a fresh done-object generation for operator recovery of an evicted upload on the
  * memoized path only.
@@ -193,8 +201,14 @@ class RecoverUploader(
     }
     val replacementRow =
       listModelLines(latest.name).firstOrNull { it.cmmsModelLine == row.cmmsModelLine }
-    require(replacementRow?.state == RawImpressionUploadModelLine.State.COMPLETED) {
-      "Recovery predecessor $predecessorName has not been replaced by a completed upload for " +
+    require(
+      replacementRow?.state in
+        setOf(
+          RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+          RawImpressionUploadModelLine.State.COMPLETED,
+        )
+    ) {
+      "Recovery predecessor $predecessorName has not produced durable labeled output for " +
         row.cmmsModelLine
     }
     require(hasActiveSnapshot(latest.name, row.cmmsModelLine)) {

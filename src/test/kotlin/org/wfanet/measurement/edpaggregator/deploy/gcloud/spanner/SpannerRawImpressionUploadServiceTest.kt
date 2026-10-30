@@ -57,6 +57,23 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
   }
 
   override suspend fun createActiveModelLine(dataProviderResourceId: String) {
+    insertModelLine(
+      dataProviderResourceId,
+      RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+    )
+  }
+
+  private suspend fun insertAvailabilitySyncingModelLine() {
+    insertModelLine(
+      TEST_DATA_PROVIDER_ID,
+      RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
+    )
+  }
+
+  private suspend fun insertModelLine(
+    dataProviderResourceId: String,
+    state: RawImpressionUploadModelLineState,
+  ) {
     val databaseClient = spannerDatabase.databaseClient
     databaseClient.write(
       listOf(
@@ -81,12 +98,7 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
           set("RawImpressionUploadModelLineId").to(1L)
           set("RawImpressionUploadModelLineResourceId").to("model-line-active")
           set("CmmsModelLine").to("modelProviders/mp/modelSuites/ms/modelLines/ml")
-          set("State")
-            .to(
-              Value.protoEnum(
-                RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
-              )
-            )
+          set("State").to(Value.protoEnum(state))
           set("CreateTime").to(Value.COMMIT_TIMESTAMP)
           set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
         }
@@ -152,6 +164,8 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
         )
 
     assertThat(response.newlyAcquired).isTrue()
+    assertThat(response.state)
+      .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING)
     assertThat(response.etag).isNotEmpty()
   }
 
@@ -312,6 +326,42 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
     releaseDataAvailabilitySyncLease()
     service.advanceRawImpressionUploadEvictionFence(evictionRequest)
   }
+
+  @Test
+  fun `evicting fence accepts output waiting for availability synchronization`(): Unit =
+    runBlocking {
+      insertAvailabilitySyncingModelLine()
+      val service = newService()
+      val acquired =
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = TEST_DATA_PROVIDER_ID
+            evictionOperationId = EVICTION_OPERATION_ID
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      val draining =
+        service.advanceRawImpressionUploadEvictionFence(
+          advanceRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = TEST_DATA_PROVIDER_ID
+            evictionOperationId = EVICTION_OPERATION_ID
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+            etag = acquired.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      service.advanceRawImpressionUploadEvictionFence(
+        advanceRawImpressionUploadEvictionFenceRequest {
+          dataProviderResourceId = TEST_DATA_PROVIDER_ID
+          evictionOperationId = EVICTION_OPERATION_ID
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          etag = draining.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    }
 
   @Test
   fun `direct evicting fence rejects active data-availability lease`() = runBlocking {
