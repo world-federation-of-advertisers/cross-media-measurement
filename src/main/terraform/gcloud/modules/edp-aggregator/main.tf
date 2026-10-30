@@ -1018,7 +1018,7 @@ module "meta_impression_query_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = local.meta_impression_query_function_name
   entry_point                              = "org.wfanet.measurement.edpcomponents.meta.MetaImpressionQueryFunction"
-  extra_env_vars                           = ""
+  extra_env_vars                           = "OTEL_METRICS_EXPORTER=google_cloud_monitoring,OTEL_SERVICE_NAME=meta.impression_query"
   secret_mappings                          = "META_ACCESS_TOKEN=meta-access-token:latest,META_APP_SECRET=meta-app-secret:latest"
   uber_jar_path                            = var.meta_impression_query_uber_jar_path
   secrets_to_access                        = ["meta-access-token", "meta-app-secret"]
@@ -1036,6 +1036,20 @@ resource "google_cloud_run_service_iam_member" "meta_impression_query_invoker" {
   service    = local.meta_impression_query_function_name
   role       = "roles/run.invoker"
   member     = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
+}
+
+resource "google_project_iam_member" "meta_impression_query_metric_writer" {
+  count   = local.deploy_meta_impression_query ? 1 : 0
+  project = data.google_project.project.id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${module.meta_impression_query_cloud_function[0].cloud_function_service_account.email}"
+}
+
+# The metric names and attributes come from edp-components' MetaImpressionQueryMetrics; change both
+# together.
+resource "google_monitoring_dashboard" "meta_impression_query" {
+  count          = local.deploy_meta_impression_query ? 1 : 0
+  dashboard_json = file("${path.module}/meta_impression_query_dashboard.json")
 }
 
 # Lets Update CMMS mint an ID token as the Results Fulfiller, so the post-deploy test calls the
