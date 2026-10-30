@@ -25,10 +25,12 @@ terminal failures; the newer finalize event supplies the current task. The exist
 formats remain supported for migration and manual invocations.
 
 The consumer uses `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`, optional
-`SECURE_COMPUTATION_CERT_HOST`, and `SECURE_COMPUTATION_CERT_COLLECTION_FILE` with the provider's
-configured client TLS identity. Terraform mounts the control-plane CA and grants the push
-identity invocation on EGS. Monitor WorkItem states and mapping freshness alongside push/DLQ
-metrics: delivery failures are distinct from synchronization outcomes.
+`SECURE_COMPUTATION_CERT_HOST`, and the `SECURE_COMPUTATION_CERT_FILE`,
+`SECURE_COMPUTATION_PRIVATE_KEY_FILE`, and `SECURE_COMPUTATION_CERT_COLLECTION_FILE` paths for a
+Secure Computation client identity. The provider's `cmms_connection` remains exclusive to Kingdom.
+Terraform mounts both trust-domain identities and the control-plane CA. Monitor WorkItem states and
+mapping freshness alongside push/DLQ metrics: delivery failures are distinct from synchronization
+outcomes.
 
 For queued GCS inputs, configure each provider's `event_groups_blob_uri` with its canonical
 input object URI. The consumer restricts incoming sources to that bucket and directory and
