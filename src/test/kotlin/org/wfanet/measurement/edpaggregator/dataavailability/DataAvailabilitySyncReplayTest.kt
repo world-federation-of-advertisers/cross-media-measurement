@@ -66,6 +66,42 @@ class DataAvailabilitySyncReplayTest {
   }
 
   @Test
+  fun `replay selects only upload-specific VID Labeler completion blobs`() = runBlocking {
+    val storageClient = InMemoryStorageClient()
+    val uploadHash = "a".repeat(64)
+    storageClient.writeBlob(
+      "edp/internal/model-line/1/2026-01-01/done-$uploadHash",
+      ByteString.EMPTY,
+    )
+    storageClient.writeBlob("edp/internal/model-line/1/2026-01-01/done", ByteString.EMPTY)
+    storageClient.writeBlob(
+      "edp/internal/model-line/1/2026-01-01/done-not-a-hash",
+      ByteString.EMPTY,
+    )
+    val replayedUris = mutableListOf<String>()
+    val replay =
+      DataAvailabilitySyncReplay(
+        storageClient = storageClient,
+        storageRootUri = BlobUri(scheme = "gs", bucket = "bucket", key = ""),
+        selection =
+          DataAvailabilitySyncReplay.Selection.BlobPrefix(
+            value = "edp/internal",
+            completionBlobType = CompletionBlobType.VID_LABELER,
+          ),
+        sync = { doneBlobUri ->
+          replayedUris += doneBlobUri
+          DataAvailabilitySync.Outcome.PUBLISHED
+        },
+      )
+
+    val result = replay.replay()
+
+    assertThat(replayedUris)
+      .containsExactly("gs://bucket/edp/internal/model-line/1/2026-01-01/done-$uploadHash")
+    assertThat(result.doneBlobsSelected).isEqualTo(1)
+  }
+
+  @Test
   fun `replay reports every outcome and continues after a failure`() =
     runBlocking<Unit> {
       val storageClient = InMemoryStorageClient()
