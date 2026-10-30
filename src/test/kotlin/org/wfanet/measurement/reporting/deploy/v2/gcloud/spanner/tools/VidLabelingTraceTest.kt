@@ -719,6 +719,12 @@ class VidLabelingTraceTest {
           "--tls-cert-file=unused",
           "--tls-key-file=unused",
           "--cert-collection-file=unused",
+          "--control-plane-tls-cert-file=unused-control-plane",
+          "--control-plane-tls-key-file=unused-control-plane",
+          "--control-plane-cert-collection-file=unused-control-plane",
+          "--kingdom-tls-cert-file=unused-kingdom",
+          "--kingdom-tls-key-file=unused-kingdom",
+          "--kingdom-cert-collection-file=unused-kingdom",
         ),
         VidLabelingTraceDependencies(
           collector,

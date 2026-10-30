@@ -16,6 +16,7 @@ package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.StorageOptions
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -983,9 +984,48 @@ internal data class VidLabelingTraceDependencies(
   val output: java.io.PrintWriter = java.io.PrintWriter(System.out, true),
 )
 
+internal class VidLabelingTraceServiceTlsFlags {
+  @Option(names = ["--control-plane-tls-cert-file"], required = true)
+  lateinit var controlPlaneCertFile: File
+    private set
+
+  @Option(names = ["--control-plane-tls-key-file"], required = true)
+  lateinit var controlPlanePrivateKeyFile: File
+    private set
+
+  @Option(names = ["--control-plane-cert-collection-file"], required = true)
+  lateinit var controlPlaneCertCollectionFile: File
+    private set
+
+  @Option(names = ["--kingdom-tls-cert-file"], required = true)
+  lateinit var kingdomCertFile: File
+    private set
+
+  @Option(names = ["--kingdom-tls-key-file"], required = true)
+  lateinit var kingdomPrivateKeyFile: File
+    private set
+
+  @Option(names = ["--kingdom-cert-collection-file"], required = true)
+  lateinit var kingdomCertCollectionFile: File
+    private set
+
+  val controlPlaneSigningCerts: SigningCerts by lazy {
+    SigningCerts.fromPemFiles(
+      controlPlaneCertFile,
+      controlPlanePrivateKeyFile,
+      controlPlaneCertCollectionFile,
+    )
+  }
+
+  val kingdomSigningCerts: SigningCerts by lazy {
+    SigningCerts.fromPemFiles(kingdomCertFile, kingdomPrivateKeyFile, kingdomCertCollectionFile)
+  }
+}
+
 internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDependencies? = null) :
   Callable<Int> {
   @Mixin private lateinit var tlsFlags: TlsFlags
+  @Mixin private lateinit var serviceTlsFlags: VidLabelingTraceServiceTlsFlags
 
   @Option(
     names = ["--edpa-public-api-target"],
@@ -1118,17 +1158,20 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
       GoogleCloudTraceReader(::vidTraceAttributesFor)
         .withMaxConcurrency(traceConcurrency)
         .withRequestThrottlerFactory { MaximumRateThrottler(traceRequestsPerSecond) }
-    val certs =
-      SigningCerts.fromPemFiles(
-        certificateFile = tlsFlags.certFile,
-        privateKeyFile = tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = tlsFlags.certCollectionFile,
-      )
-    val edpaChannel = buildMutualTlsChannel(edpaPublicApiTarget, certs, edpaPublicApiCertHost)
+    val edpaChannel =
+      buildMutualTlsChannel(edpaPublicApiTarget, tlsFlags.signingCerts, edpaPublicApiCertHost)
     val controlPlaneChannel =
-      buildMutualTlsChannel(controlPlaneApiTarget, certs, controlPlaneApiCertHost)
+      buildMutualTlsChannel(
+        controlPlaneApiTarget,
+        serviceTlsFlags.controlPlaneSigningCerts,
+        controlPlaneApiCertHost,
+      )
     val kingdomChannel =
-      buildMutualTlsChannel(kingdomPublicApiTarget, certs, kingdomPublicApiCertHost)
+      buildMutualTlsChannel(
+        kingdomPublicApiTarget,
+        serviceTlsFlags.kingdomSigningCerts,
+        kingdomPublicApiCertHost,
+      )
     val storage =
       if (gcsProject == null) StorageOptions.getDefaultInstance().service
       else StorageOptions.newBuilder().setProjectId(gcsProject).build().service
