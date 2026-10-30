@@ -58,7 +58,7 @@ object DataAvailabilitySyncWorkItems {
       this.workItemId = workItemId
       workItem = workItem {
         queue = QUEUE
-        serializationKey = "data-availability-sync:$dataProvider"
+        serializationKey = "data-availability:$dataProvider"
         workItemParams =
           Any.pack(
             workItemParams {
