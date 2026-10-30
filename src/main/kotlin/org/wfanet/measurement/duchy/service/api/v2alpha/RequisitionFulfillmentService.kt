@@ -162,6 +162,9 @@ class RequisitionFulfillmentService(
                     dataProviderCertificate = hmss.dataProviderCertificate,
                   )
                 }
+                // TODO(world-federation-of-advertisers/cross-media-measurement#4532):
+                //   Implement TrusTEE v2.
+                ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
                 ComputationStage.StageCase.TRUS_TEE -> {
                   val trusTee = header.trusTee
                   when (trusTee.dataFormat) {
