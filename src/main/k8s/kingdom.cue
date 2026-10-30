@@ -138,6 +138,7 @@ import ("strings")
 					_kingdom_root_cert_file_flag,
 					_knownEventGroupMetadataTypeFlag,
 					_debug_verbose_grpc_server_logging_flag,
+					"--max-event-group-read-staleness=100ms",
 				] + Container._commonServerFlags + _spannerConfig.flags
 			}
 			_updateSchemaContainer: Container=#Container & {
