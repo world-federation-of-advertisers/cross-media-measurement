@@ -67,6 +67,7 @@ internal class VidLabelingPipelineHappyPathIntegrationTest : VidLabelingPipeline
     assertThat(direct.map { it.eventDate }.toSet()).containsExactlyElementsIn(dates)
     assertThat(memoized.filter { it.personId == "stable-person" }.map { it.vid }.toSet()).hasSize(1)
     assertAvailabilityPublished(setOf(MEMOIZED_MODEL_LINE, DIRECT_MODEL_LINE), dates.toSet())
+    assertOutputIntervalsContainEveryImpression()
   }
 
   @Test

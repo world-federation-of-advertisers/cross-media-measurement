@@ -175,12 +175,20 @@ class VidLabelingSinkTest {
 
       val blobDetails = readSoleBlobDetails()
       assertThat(blobDetails.modelLine).isEqualTo(MODEL_LINE)
+      assertThat(blobDetails.interval.startTime).isEqualTo(Timestamps.fromMicros(1_000L))
+      assertThat(blobDetails.interval.endTime).isEqualTo(Timestamps.fromMicros(2_000L))
       // The pipeline no longer carries event_group_reference_id; the per-blob entity-key union
       // identifies the blob for DataAvailabilitySync instead.
 
       val impressions = readImpressions(blobDetails)
       assertThat(impressions).hasSize(2)
       assertThat(impressions.map { it.vid }.toSet()).containsExactly(VID)
+      for (impression in impressions) {
+        assertThat(Timestamps.compare(impression.eventTime, blobDetails.interval.startTime))
+          .isAtLeast(0)
+        assertThat(Timestamps.compare(impression.eventTime, blobDetails.interval.endTime))
+          .isLessThan(0)
+      }
 
       // Each impression carries its source row's entity keys verbatim (idBytes 1 and 2 survive).
       assertThat(impressions.map { it.entityKeysList.toSet() })
@@ -223,6 +231,92 @@ class VidLabelingSinkTest {
       assertThat(publications.map { it.outcome }).containsExactly("written", "written")
       assertThat(publications[0].uri).isEqualTo(blobDetails.blobUri)
       assertThat(publications[1].uri).isEqualTo("${blobDetails.blobUri}.metadata.binpb")
+    }
+
+  @Test
+  fun `commit writes a nonempty exclusive interval for one impression`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val sink = sink(listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))))
+
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1)))
+      sink.commit()
+      sink.close()
+
+      val interval = readSoleBlobDetails().interval
+      assertThat(interval.startTime).isEqualTo(Timestamps.fromMicros(1_500L))
+      assertThat(interval.endTime).isEqualTo(Timestamps.fromMicros(1_501L))
+    }
+
+  @Test
+  fun `commit compares timestamps without overflowing nanoseconds`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val earlierMicros = Long.MAX_VALUE / 1_000L
+      val laterMicros = earlierMicros + 1L
+      val sink =
+        sink(
+          listOf(
+            context(ActiveWindow(startMicros = earlierMicros - 1L, endMicros = laterMicros + 1L))
+          )
+        )
+
+      sink.processBatch(
+        listOf(
+          rawEvent(eventTimeMicros = earlierMicros, idByte = 1),
+          rawEvent(eventTimeMicros = laterMicros, idByte = 2),
+        )
+      )
+      sink.commit()
+      sink.close()
+
+      val interval = readSoleBlobDetails().interval
+      assertThat(interval.startTime).isEqualTo(Timestamps.fromMicros(earlierMicros))
+      assertThat(interval.endTime).isEqualTo(Timestamps.fromMicros(laterMicros + 1L))
+    }
+
+  @Test
+  fun `commit writes no output when every impression is filtered out`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val sink = sink(listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))))
+
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = 2_000L, idByte = 1)))
+      sink.commit()
+      sink.close()
+
+      assertThat(tempFolder.root.walkTopDown().filter { it.isFile }.toList()).isEmpty()
+    }
+
+  @Test
+  fun `commit fails without metadata when the exclusive interval end is unrepresentable`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val maxTimestampMicros = Timestamps.toMicros(Timestamps.MAX_VALUE)
+      val sink =
+        sink(
+          listOf(
+            context(
+              ActiveWindow(
+                startMicros = maxTimestampMicros - 1L,
+                endMicros = maxTimestampMicros + 1L,
+              )
+            )
+          )
+        )
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = maxTimestampMicros, idByte = 1)))
+
+      val exception = assertFailsWith<IllegalStateException> { sink.commit() }
+      sink.close()
+
+      assertThat(exception).hasMessageThat().contains("exclusive interval end")
+      assertThat(
+          tempFolder.root
+            .walkTopDown()
+            .filter { it.isFile && it.name.endsWith(".metadata.binpb") }
+            .toList()
+        )
+        .isEmpty()
     }
 
   @Test
