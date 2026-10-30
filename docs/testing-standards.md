@@ -166,7 +166,7 @@ method name being tested.
 The `results` Bazel configuration waits for Build Event Service uploads to finish.
 Native uploads allow six retries, with a five-second initial
 backoff and Bazel's 1.6 exponential multiplier. The post-build upload timeout is
-300 seconds. Acknowledged progress resets the retry counter.
+600 seconds. Acknowledged progress resets the retry counter.
 
 CI build and test commands, including deployment artifact builds, use
 `tools/bazel-with-results BAZEL {build|test} [ARGUMENTS...]`. The tool runs Bazel

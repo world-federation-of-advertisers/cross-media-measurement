@@ -7,5 +7,5 @@ build:results --bes_results_url=https://halo-cmm.buildbuddy.io/invocation/
 build:results --bes_upload_mode=wait_for_upload_complete
 build:results --build_event_upload_max_retries=6
 build:results --experimental_build_event_upload_retry_minimum_delay=5s
-build:results --bes_timeout=300s
+build:results --bes_timeout=600s
 build:results --nolegacy_important_outputs
