@@ -1151,6 +1151,24 @@ abstract class VidLabelingPipelineTestHarness(
       }
     )
 
+  protected suspend fun advanceHealingUntilComplete(
+    controller: VidLabelingHealingController,
+    operationName: String,
+  ) {
+    repeat(20) {
+      if (
+        listHealingOperations().single { it.name == operationName }.state ==
+          UploadHealingOperation.State.COMPLETE
+      ) {
+        return
+      }
+      assertThat(controller.run().failedDataProviders).isEqualTo(0)
+      awaitPipelineIdle()
+    }
+    assertThat(listHealingOperations().single { it.name == operationName }.state)
+      .isEqualTo(UploadHealingOperation.State.COMPLETE)
+  }
+
   protected fun startApplications() {
     val rawParquetClient = { storageConfig: StorageConfig, kms: KmsClient ->
       parquetClient(
@@ -1687,6 +1705,32 @@ abstract class VidLabelingPipelineTestHarness(
           group.entityIdsList.map { entityId -> group.entityType to entityId }
         }
       )
+  }
+
+  protected suspend fun assertOutputIntervalsContainEveryImpression() {
+    for (metadata in listMetadata()) {
+      val details =
+        BlobDetails.parseFrom(
+          checkNotNull(fileStorage.getBlob(blobKey(metadata.blobUri))).read().flatten()
+        )
+      val impressions =
+        StorageEventReader(
+            blobDetails = details,
+            kmsClient = kmsClient,
+            impressionsStorageConfig = StorageConfig(rootDirectory = File("/")),
+            descriptor = TestEvent.getDescriptor(),
+          )
+          .readEvents()
+          .toList()
+          .flatten()
+      assertThat(impressions).isNotEmpty()
+      val startTime = details.interval.startTime.toInstant()
+      val endTime = details.interval.endTime.toInstant()
+      for (impression in impressions) {
+        assertThat(impression.timestamp.isBefore(startTime)).isFalse()
+        assertThat(impression.timestamp.isBefore(endTime)).isTrue()
+      }
+    }
   }
 
   protected suspend fun assertAvailabilityPublished(
