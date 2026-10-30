@@ -16,15 +16,12 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher
 
-import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import picocli.CommandLine
 
 /** Validates the deployed RequisitionFetcher and DataWatcher configs before direct dispatch. */
@@ -54,14 +51,12 @@ class ValidateRequisitionFetcherConfig : Runnable {
   override fun run() {
     val requisitionFetcherConfig =
       parseTextProto(requisitionFetcherConfigFile, RequisitionFetcherConfig.getDefaultInstance())
-    val typeRegistry =
-      TypeRegistry.newBuilder()
-        .add(ResultsFulfillerParams.getDescriptor())
-        .add(EventGroupSyncParams.getDescriptor())
-        .add(ExternalDataAvailabilitySyncParams.getDescriptor())
-        .build()
     val dataWatcherConfig =
-      parseTextProto(dataWatcherConfigFile, DataWatcherConfig.getDefaultInstance(), typeRegistry)
+      parseTextProto(
+        dataWatcherConfigFile,
+        DataWatcherConfig.getDefaultInstance(),
+        DataWatcherConfigTypes.registry,
+      )
     RequisitionFetcherConfigValidator.validate(
       requisitionFetcherConfig,
       controlPlaneTarget,

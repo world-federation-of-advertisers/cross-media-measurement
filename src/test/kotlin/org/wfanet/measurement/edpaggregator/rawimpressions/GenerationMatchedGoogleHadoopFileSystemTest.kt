@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.rawimpressions
 
+import com.google.cloud.storage.Blob
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageException
@@ -27,7 +28,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 @RunWith(JUnit4::class)
@@ -42,7 +45,7 @@ class GenerationMatchedGoogleHadoopFileSystemTest {
       )
 
     assertThat(path.cleanPath.toString()).isEqualTo("gs://bucket/folder/file.parquet")
-    assertThat(path.blobId).isEqualTo(BlobId.of("bucket", "folder/file.parquet"))
+    assertThat(path.blobId).isEqualTo(BlobId.of("bucket", "folder/file.parquet", 123L))
     assertThat(path.generation).isEqualTo(123L)
   }
 
@@ -56,12 +59,31 @@ class GenerationMatchedGoogleHadoopFileSystemTest {
   }
 
   @Test
+  fun `metadata lookup requests the captured object version`() {
+    val storage = mock<Storage>()
+    val blob = mock<Blob>()
+    val path =
+      checkNotNull(
+        parseGenerationMatchedPath(
+          Path(generationMatchedBlobUri("gs://bucket/folder/file.parquet", 123L))
+        )
+      )
+    whenever(blob.generation).thenReturn(123L)
+    whenever(storage.get(eq(path.blobId), any<Storage.BlobGetOption>())).thenReturn(blob)
+
+    assertThat(getGenerationMatchedBlob(storage, path)).isSameInstanceAs(blob)
+
+    verify(storage)
+      .get(eq(BlobId.of("bucket", "folder/file.parquet", 123L)), any<Storage.BlobGetOption>())
+  }
+
+  @Test
   fun `generation mismatch gives EDP actionable recovery instruction`() {
     val storage = mock<Storage>()
     val path =
       GenerationMatchedPath(
         Path("gs://bucket/file.parquet"),
-        BlobId.of("bucket", "file.parquet"),
+        BlobId.of("bucket", "file.parquet", 123L),
         123L,
       )
     whenever(storage.get(any<BlobId>(), any<Storage.BlobGetOption>()))

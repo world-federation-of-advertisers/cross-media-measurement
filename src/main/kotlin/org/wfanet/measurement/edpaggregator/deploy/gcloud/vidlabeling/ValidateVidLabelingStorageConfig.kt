@@ -16,16 +16,13 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
-import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import picocli.CommandLine
 
 /** Validates labeled-output storage routing before deployment. */
@@ -53,14 +50,12 @@ class ValidateVidLabelingStorageConfig : Runnable {
         dataAvailabilitySyncConfigFile,
         DataAvailabilitySyncConfigs.getDefaultInstance(),
       )
-    val typeRegistry =
-      TypeRegistry.newBuilder()
-        .add(ResultsFulfillerParams.getDescriptor())
-        .add(EventGroupSyncParams.getDescriptor())
-        .add(ExternalDataAvailabilitySyncParams.getDescriptor())
-        .build()
     val watcherConfig =
-      parseTextProto(dataWatcherConfigFile, DataWatcherConfig.getDefaultInstance(), typeRegistry)
+      parseTextProto(
+        dataWatcherConfigFile,
+        DataWatcherConfig.getDefaultInstance(),
+        DataWatcherConfigTypes.registry,
+      )
     VidLabelingStorageConfigValidator.validate(
       dispatcherConfigs,
       monitorConfigs,
