@@ -27,16 +27,23 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.approveUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.retryUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest as InternalAdvanceRequest
+import org.wfanet.measurement.internal.edpaggregator.ApproveUploadHealingOperationRequest as InternalApproveRequest
 import org.wfanet.measurement.internal.edpaggregator.CreateUploadHealingOperationRequest as InternalCreateRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
+import org.wfanet.measurement.internal.edpaggregator.RetryUploadHealingOperationRequest as InternalRetryRequest
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep as InternalStep
@@ -229,6 +236,194 @@ class UploadHealingOperationServiceTest {
   }
 
   @Test
+  fun `list forwards filters and page tokens`() = runBlocking {
+    val captured =
+      mutableListOf<
+        org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsRequest
+      >()
+    val nextPageToken =
+      org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsPageToken {
+        after =
+          org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsPageTokenKt
+            .after {
+              createTime = timestamp { seconds = 1L }
+              uploadHealingOperationId = OPERATION_ID
+            }
+      }
+    org.mockito.kotlin
+      .whenever(internalService.listUploadHealingOperations(org.mockito.kotlin.any()))
+      .thenAnswer { invocation ->
+        captured +=
+          invocation.getArgument<
+            org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+        org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsResponse {
+          uploadHealingOperations += INTERNAL_OPERATION
+          this.nextPageToken = nextPageToken
+        }
+      }
+    val service = newService()
+
+    val first =
+      service.listUploadHealingOperations(
+        listUploadHealingOperationsRequest {
+          parent = DATA_PROVIDER
+          pageSize = 10
+          filter =
+            ListUploadHealingOperationsRequestKt.filter {
+              stateIn += UploadHealingOperation.State.APPROVAL_REQUIRED
+            }
+        }
+      )
+    service.listUploadHealingOperations(
+      listUploadHealingOperationsRequest {
+        parent = DATA_PROVIDER
+        pageSize = 10
+        pageToken = first.nextPageToken
+        filter =
+          ListUploadHealingOperationsRequestKt.filter {
+            stateIn += UploadHealingOperation.State.APPROVAL_REQUIRED
+          }
+      }
+    )
+
+    assertThat(first.uploadHealingOperationsList.map { it.name })
+      .containsExactly("$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID")
+    assertThat(captured[0].filter.stateInList)
+      .containsExactly(InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED)
+    assertThat(captured[1].pageToken).isEqualTo(nextPageToken)
+  }
+
+  @Test
+  fun `approve forwards decision etag and request ID`() = runBlocking {
+    var captured: InternalApproveRequest? = null
+    org.mockito.kotlin
+      .whenever(internalService.approveUploadHealingOperation(org.mockito.kotlin.any()))
+      .thenAnswer { invocation ->
+        captured = invocation.getArgument(0)
+        INTERNAL_OPERATION.copy {
+          state = InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED
+        }
+      }
+
+    val operation =
+      newService()
+        .approveUploadHealingOperation(
+          approveUploadHealingOperationRequest {
+            name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+            candidateDecisions +=
+              approvalDecision(
+                RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+              )
+            etag = "etag"
+            requestId = REQUEST_ID
+          }
+        )
+
+    assertThat(captured!!.dataProviderResourceId).isEqualTo("dp")
+    assertThat(captured!!.uploadHealingOperationId).isEqualTo(OPERATION_ID)
+    assertThat(captured!!.candidateDecisionsList.single().decision)
+      .isEqualTo(
+        org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
+          .Decision
+          .DECISION_APPLY_CANDIDATE
+      )
+    assertThat(captured!!.etag).isEqualTo("etag")
+    assertThat(captured!!.requestId).isEqualTo(REQUEST_ID)
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.APPROVED)
+  }
+
+  @Test
+  fun `approve rejects non-version-4 request ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService()
+          .approveUploadHealingOperation(
+            approveUploadHealingOperationRequest {
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+              candidateDecisions +=
+                approvalDecision(
+                  RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+                )
+              etag = "etag"
+              requestId = "11111111-1111-1111-8111-111111111111"
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `approve rejects non-RFC-4122 request ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService()
+          .approveUploadHealingOperation(
+            approveUploadHealingOperationRequest {
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+              candidateDecisions +=
+                approvalDecision(
+                  RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+                )
+              etag = "etag"
+              requestId = "11111111-1111-4111-0111-111111111111"
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `approve rejects noncanonical request ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService()
+          .approveUploadHealingOperation(
+            approveUploadHealingOperationRequest {
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+              candidateDecisions +=
+                approvalDecision(
+                  RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+                )
+              etag = "etag"
+              requestId = "1-1-4111-8111-1"
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `retry forwards etag and request ID`() = runBlocking {
+    var captured: InternalRetryRequest? = null
+    org.mockito.kotlin
+      .whenever(internalService.retryUploadHealingOperation(org.mockito.kotlin.any()))
+      .thenAnswer { invocation ->
+        captured = invocation.getArgument(0)
+        INTERNAL_OPERATION
+      }
+
+    newService()
+      .retryUploadHealingOperation(
+        retryUploadHealingOperationRequest {
+          name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+          etag = "etag"
+          requestId = REQUEST_ID
+        }
+      )
+
+    assertThat(captured!!.dataProviderResourceId).isEqualTo("dp")
+    assertThat(captured!!.uploadHealingOperationId).isEqualTo(OPERATION_ID)
+    assertThat(captured!!.etag).isEqualTo("etag")
+    assertThat(captured!!.requestId).isEqualTo(REQUEST_ID)
+  }
+
+  @Test
   fun `advance forwards a server-verified action instead of writable state`() = runBlocking {
     var captured: InternalAdvanceRequest? = null
     org.mockito.kotlin
@@ -377,6 +572,16 @@ class UploadHealingOperationServiceTest {
         }
       }
     }
+
+  private fun approvalDecision(
+    decision: RawImpressionUploadCorrectionCandidate.Decision,
+    candidateName: String = "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/$CANDIDATE_ID",
+  ) =
+    org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequestKt
+      .candidateDecision {
+        rawImpressionUploadCorrectionCandidate = candidateName
+        this.decision = decision
+      }
 
   companion object {
     private const val DATA_PROVIDER = "dataProviders/dp"
