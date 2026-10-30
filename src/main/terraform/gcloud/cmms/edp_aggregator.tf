@@ -202,6 +202,8 @@ locals {
       "/secrets/ca/kingdom_root.pem=${local.trusted_root_ca_collection.secret_id}:latest",
       "/secrets/key-scale/event_group_scale_tls.key=event_group_scale-tls-key:latest",
       "/secrets/cert-scale/event_group_scale_tls.pem=event_group_scale-tls-pem:latest",
+      "/secrets/key-control-plane/data_watcher_tls.key=${local.data_watcher_tls_key.secret_id}:latest",
+      "/secrets/cert-control-plane/data_watcher_tls.pem=${local.data_watcher_tls_pem.secret_id}:latest",
     ]
   )
 
@@ -394,6 +396,8 @@ locals {
         "CONFIG_BLOB_KEY=${local.event_group_sync_config.destination}",
         "EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}",
         "SECURE_COMPUTATION_CONTROL_PLANE_TARGET=${var.secure_computation_public_api_target}",
+        "SECURE_COMPUTATION_CERT_FILE=/secrets/cert-control-plane/data_watcher_tls.pem",
+        "SECURE_COMPUTATION_PRIVATE_KEY_FILE=/secrets/key-control-plane/data_watcher_tls.key",
         "SECURE_COMPUTATION_CERT_COLLECTION_FILE=/secrets/secure-computation-ca/secure_computation_root.pem",
       ]))
       secret_mappings = join(",", compact([

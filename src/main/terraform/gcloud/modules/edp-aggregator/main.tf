@@ -144,7 +144,12 @@ locals {
   )
 
   event_group_sync_secrets_access = concat(
-    ["trusted_root_ca_collection"],
+    [
+      "trusted_root_ca_collection",
+      "data_watcher_tls_key",
+      "data_watcher_tls_pem",
+      "secure_computation_root_ca",
+    ],
     local.edp_tls_keys
   )
 
