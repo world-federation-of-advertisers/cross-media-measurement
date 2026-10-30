@@ -400,6 +400,7 @@ class VidLabelingDispatcherTest {
   private suspend fun stubRecoverySource(
     source: RawImpressionUpload,
     latestSourceRevision: RawImpressionUpload = source,
+    intermediateSourceRevisions: List<RawImpressionUpload> = emptyList(),
     predecessorModelLineState: RawImpressionUploadModelLine.State =
       RawImpressionUploadModelLine.State.COMPLETED,
     recoveryPredecessorUpload: String = RECOVERY_PREDECESSOR_UPLOAD,
@@ -442,6 +443,7 @@ class VidLabelingDispatcherTest {
           rawImpressionUploads += predecessor
           rawImpressionUploads += predecessorReplacement
         } else {
+          rawImpressionUploads += intermediateSourceRevisions
           rawImpressionUploads += latestSourceRevision
         }
       }
@@ -711,12 +713,23 @@ class VidLabelingDispatcherTest {
       )
     val manifestComparison =
       candidate.firstValue.rawImpressionUploadCorrectionCandidate.manifestComparison
-    assertThat(manifestComparison.priorManifestList.single().ownerRawImpressionUploadResourceId)
+    assertThat(
+        manifestComparison.priorManifestList.single().outputSourceRawImpressionUploadResourceId
+      )
       .isEqualTo("previous")
-    assertThat(manifestComparison.currentManifestList.single().ownerRawImpressionUploadResourceId)
+    assertThat(
+        manifestComparison.currentManifestList.single().outputSourceRawImpressionUploadResourceId
+      )
       .isEqualTo(RAW_IMPRESSION_UPLOAD_ID)
     assertThat(manifestComparison.currentManifestList.single().eventDate)
       .isEqualTo(EVENT_DATE_PROTO)
+    assertThat(candidate.firstValue.rawImpressionUploadCorrectionCandidate.currentManifestDigest)
+      .isEqualTo(
+        RawImpressionUploadManifestClassifier()
+          .digest(
+            listOf(RawImpressionUploadManifestClassifier.File(blobUri, 20L, EVENT_DATE_PROTO))
+          )
+      )
     assertThat(manifestComparison.differencesList.single().type)
       .isEqualTo(InternalCandidate.ManifestDifference.Type.TYPE_EDITED)
     verifyBlocking(rawImpressionUploadService, never()) {
@@ -726,6 +739,50 @@ class VidLabelingDispatcherTest {
       batchCreateRawImpressionUploadModelLines(any())
     }
     verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `event date move uses the dated mixed classification`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val previous = previousUpload()
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubCorrectionCandidateRegistration()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += previous })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += manifestFile(previous.name, blobUri, 10L)
+        }
+      )
+    val movedDate = EVENT_DATE.plusDays(1)
+
+    createDispatcher(
+        readEventDate = { movedDate },
+        readBlobMetadata = { RawImpressionBlobMetadata(20L, 100L, RAW_BLOB_CREATE_TIME) },
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val candidate = argumentCaptor<RegisterDetectedRawImpressionUploadCorrectionCandidateRequest>()
+    verifyBlocking(correctionCandidateService) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(candidate.capture())
+    }
+    val registered = candidate.firstValue.rawImpressionUploadCorrectionCandidate
+    assertThat(registered.classification)
+      .isEqualTo(InternalCandidate.Classification.CLASSIFICATION_MIXED)
+    assertThat(registered.manifestComparison.differencesList.single().type)
+      .isEqualTo(InternalCandidate.ManifestDifference.Type.TYPE_EVENT_DATE_CHANGED)
+    assertThat(registered.manifestComparison.currentManifestList.single().eventDate)
+      .isEqualTo(
+        date {
+          year = movedDate.year
+          month = movedDate.monthValue
+          day = movedDate.dayOfMonth
+        }
+      )
   }
 
   @Test
@@ -815,6 +872,45 @@ class VidLabelingDispatcherTest {
     verifyBlocking(rawImpressionUploadModelLineService, never()) {
       batchCreateRawImpressionUploadModelLines(any())
     }
+  }
+
+  @Test
+  fun `rewrite after complete no-replacement deletion uses the empty boundary`() = runBlocking {
+    val old = previousUpload(generation = 90L, nameSuffix = "old")
+    val removed =
+      previousUpload(generation = 100L, nameSuffix = "removed").copy {
+        state = RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT
+        replacesRawImpressionUpload = old.name
+      }
+    val oldBlobUri = "file:///test-bucket/$FOLDER_PREFIX/file.parquet"
+    whenever(storageClient.listBlobs(any())).thenReturn(emptyFlow())
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += old
+          rawImpressionUploads += removed
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val parent = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0).parent
+      listRawImpressionUploadFilesResponse {
+        if (parent == old.name) {
+          rawImpressionUploadFiles += manifestFile(old.name, oldBlobUri, 10L)
+        }
+      }
+    }
+
+    val outcome = createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.NO_WORK)
+    verifyBlocking(correctionCandidateService, never()) {
+      createQuarantinedRawImpressionUpload(any())
+    }
+    verifyBlocking(correctionCandidateService, never()) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(any())
+    }
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 
   @Test
@@ -1552,6 +1648,76 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
+  fun `upload activates an approved correction descended from its historical source`() =
+    runBlocking {
+      val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+      val source = rawImpressionUpload {
+        name = sourceUploadName
+        state = RawImpressionUpload.State.FAILED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 100
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(2).toProtoTime()
+      }
+      val intermediate = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/intermediate-upload"
+        state = RawImpressionUpload.State.FAILED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 101
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+        replacesRawImpressionUpload = source.name
+        registrationComplete = true
+      }
+      val candidate = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/candidate-upload"
+        state = RawImpressionUpload.State.CORRECTION_REQUIRED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+        replacesRawImpressionUpload = intermediate.name
+        registrationComplete = true
+      }
+      stubRecoverySource(
+        source,
+        latestSourceRevision = candidate,
+        intermediateSourceRevisions = listOf(intermediate),
+        recoveryPredecessorUpload = "",
+        recoveryAction = RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+      )
+      whenever(correctionCandidateService.activateQuarantinedRawImpressionUpload(any()))
+        .thenReturn(
+          internalRawImpressionUpload {
+            dataProviderResourceId = "edp123"
+            rawImpressionUploadResourceId = "candidate-upload"
+            state =
+              org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+                .RAW_IMPRESSION_UPLOAD_STATE_CREATED
+            doneBlobUri = DONE_BLOB_PATH
+            doneBlobGeneration = DONE_BLOB_GENERATION
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+            etag = UPLOAD_ETAG
+            evictionOperationId = EVICTION_OPERATION_ID
+          }
+        )
+      whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
+        .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
+      stubOverrideResolutionChain()
+
+      createDispatcher(
+          overrideModelLines = listOf(MODEL_LINE_1),
+          recoverySourceUpload = sourceUploadName,
+          recoveryOperationId = EVICTION_OPERATION_ID,
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      val request = argumentCaptor<ActivateQuarantinedRawImpressionUploadRequest>()
+      verifyBlocking(correctionCandidateService) {
+        activateQuarantinedRawImpressionUpload(request.capture())
+      }
+      assertThat(request.firstValue.rawImpressionUploadResourceId).isEqualTo("candidate-upload")
+      assertThat(request.firstValue.sourceRawImpressionUploadResourceId).isEqualTo("source-upload")
+    }
+
+  @Test
   fun `upload accepts root recovery when no predecessor remains`() = runBlocking {
     val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
     val source = rawImpressionUpload {
@@ -1620,7 +1786,7 @@ class VidLabelingDispatcherTest {
         dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
       }
 
-    assertThat(error).hasMessageThat().contains("has not been replaced by a completed upload")
+    assertThat(error).hasMessageThat().contains("has not produced durable labeled output")
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 
@@ -1692,7 +1858,7 @@ class VidLabelingDispatcherTest {
         createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
       }
 
-    assertThat(error).hasMessageThat().contains("has not been replaced by a completed upload")
+    assertThat(error).hasMessageThat().contains("has not produced durable labeled output")
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 

@@ -22,6 +22,7 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Value
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import java.util.UUID
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -128,10 +129,17 @@ suspend fun AsyncDatabaseClient.ReadContext.hasActiveRawImpressionUploadModelLin
     )
   val sql =
     """
-    SELECT RawImpressionUploadModelLineId
-    FROM RawImpressionUploadModelLine@{FORCE_INDEX=RawImpressionUploadModelLineByState}
-    WHERE DataProviderResourceId = @dataProviderResourceId
-      AND CAST(State AS INT64) IN UNNEST(@activeStates)
+    SELECT modelLine.RawImpressionUploadModelLineId
+    FROM RawImpressionUploadModelLine@{FORCE_INDEX=RawImpressionUploadModelLineByState} AS modelLine
+    JOIN RawImpressionUpload AS upload
+      ON upload.DataProviderResourceId = modelLine.DataProviderResourceId
+      AND upload.RawImpressionUploadId = modelLine.RawImpressionUploadId
+    WHERE modelLine.DataProviderResourceId = @dataProviderResourceId
+      AND CAST(modelLine.State AS INT64) IN UNNEST(@activeStates)
+      AND NOT (
+        modelLine.State = @createdState
+        AND upload.ProcessingDeferred = TRUE
+      )
     LIMIT 1
     """
       .trimIndent()
@@ -139,6 +147,8 @@ suspend fun AsyncDatabaseClient.ReadContext.hasActiveRawImpressionUploadModelLin
       statement(sql) {
         bind("dataProviderResourceId").to(dataProviderResourceId)
         bind("activeStates").toInt64Array(activeStates.map { it.number.toLong() })
+        bind("createdState")
+          .to(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED)
       },
       Options.tag("action=hasActiveRawImpressionUploadModelLine"),
     )
@@ -228,6 +238,7 @@ fun AsyncDatabaseClient.TransactionContext.transferVidLabelingEvictionFence(
   bufferUpdateMutation("VidLabelingEvictionFence") {
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("EvictionOperationId").to(evictionOperationId)
+    set("Etag").to(UUID.randomUUID().toString())
     set("State")
       .to(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING)
   }

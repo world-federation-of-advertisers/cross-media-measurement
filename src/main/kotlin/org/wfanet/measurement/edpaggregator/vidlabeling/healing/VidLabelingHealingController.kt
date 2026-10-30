@@ -79,6 +79,7 @@ fun interface CorrectionManifestReader {
   suspend fun read(
     doneBlobUri: String,
     doneBlobGeneration: Long,
+    persistedManifest: Collection<RawImpressionUploadManifestClassifier.File>,
   ): Collection<RawImpressionUploadManifestClassifier.File>
 }
 
@@ -118,6 +119,7 @@ fun interface VidLabelingHealingControllerEventSink {
 class VidLabelingHealingController(
   dataProviderConfigs: Collection<DataProviderConfig>,
   private val candidatesStub: RawImpressionUploadCorrectionCandidateServiceCoroutineStub,
+  private val candidateCleaner: CorrectionCandidateCleaner,
   private val operationsStub: UploadHealingOperationServiceCoroutineStub,
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val filesStub: RawImpressionUploadFileServiceCoroutineStub,
@@ -172,6 +174,7 @@ class VidLabelingHealingController(
       try {
         reconcileDraft(config)
         advanceUntilBlocked(config)
+        candidateCleaner.purge(config.name)
         processed++
       } catch (e: Exception) {
         if (e is CancellationException) throw e
@@ -640,21 +643,26 @@ class VidLabelingHealingController(
     upload: RawImpressionUpload,
     completeSnapshot: Boolean,
   ): ByteString {
-    val persistedDigest =
+    val persistedManifest =
       if (completeSnapshot) {
-        digestPersistedManifest(upload.name)
+        listPersistedFiles(upload.name)
       } else {
-        digestEffectivePersistedManifest(upload)
+        effectivePersistedManifest(upload)
       }
+    val persistedDigest = manifestClassifier.digest(persistedManifest)
     val liveDigest =
-      manifestClassifier.digest(manifestReader.read(upload.doneBlobUri, upload.doneBlobGeneration))
+      manifestClassifier.digest(
+        manifestReader.read(upload.doneBlobUri, upload.doneBlobGeneration, persistedManifest)
+      )
     if (liveDigest != persistedDigest) {
       throw ManifestMismatchException("Live manifest no longer matches ${upload.name}")
     }
     return liveDigest
   }
 
-  private suspend fun digestEffectivePersistedManifest(upload: RawImpressionUpload): ByteString {
+  private suspend fun effectivePersistedManifest(
+    upload: RawImpressionUpload
+  ): List<RawImpressionUploadManifestClassifier.File> {
     val parent = requireNotNull(RawImpressionUploadKey.fromName(upload.name)).parentKey.toName()
     val revisions =
       listUploads(parent, upload.doneBlobUri).map { revision ->
@@ -673,22 +681,19 @@ class VidLabelingHealingController(
           uploadHealingOperation = revision.uploadHealingOperation,
           registrationComplete = revision.registrationComplete,
           failed = revision.state == RawImpressionUpload.State.FAILED,
+          quarantined = revision.state == RawImpressionUpload.State.CORRECTION_REQUIRED,
+          manifestBoundary =
+            revision.state == RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT,
           files = listPersistedFiles(revision.name),
         )
       }
-    return manifestClassifier.digest(
-      manifestClassifier
-        .reconstructEffectiveManifest(
-          requireNotNull(revisions.singleOrNull { it.rawImpressionUpload == upload.name }),
-          revisions,
-        )
-        .values
-        .map { it.file }
-    )
-  }
-
-  private suspend fun digestPersistedManifest(uploadName: String): ByteString {
-    return manifestClassifier.digest(listPersistedFiles(uploadName))
+    return manifestClassifier
+      .reconstructEffectiveManifest(
+        requireNotNull(revisions.singleOrNull { it.rawImpressionUpload == upload.name }),
+        revisions,
+      )
+      .values
+      .map { it.file }
   }
 
   private suspend fun listPersistedFiles(
@@ -956,7 +961,13 @@ class VidLabelingHealingController(
     val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
     return if (timestamped.isNotEmpty()) {
       timestamped.maxWithOrNull { left, right ->
-        Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+        val doneTime = Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+        if (doneTime != 0) {
+          doneTime
+        } else {
+          val createTime = Timestamps.compare(left.createTime, right.createTime)
+          if (createTime != 0) createTime else left.name.compareTo(right.name)
+        }
       }
     } else {
       uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }

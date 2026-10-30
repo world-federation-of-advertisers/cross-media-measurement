@@ -23,6 +23,7 @@ import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
+import com.google.type.Date
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongCounter
@@ -48,10 +49,12 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManif
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManifestReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcCorrectionCandidateCleaner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUploadCorrectionPlanner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingControllerEventSink
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalRawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
@@ -78,6 +81,12 @@ class VidLabelingHealingControllerFunction(
     private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
     private val rawApiTarget by lazy { EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET") }
     private val rawApiCertHost by lazy { System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST") }
+    private val healingInternalApiTarget by lazy {
+      EnvVars.checkNotNullOrEmpty("HEALING_INTERNAL_API_TARGET")
+    }
+    private val healingInternalApiCertHost by lazy {
+      System.getenv("HEALING_INTERNAL_API_CERT_HOST")
+    }
     private val controlPlaneTarget by lazy { EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET") }
     private val controlPlaneCertHost by lazy { System.getenv("CONTROL_PLANE_CERT_HOST") }
     private val retention by lazy {
@@ -123,12 +132,24 @@ class VidLabelingHealingControllerFunction(
           rawApiCertHost,
           grpcTelemetry,
         )
+      val internalChannel =
+        VidLabelingFunctionHelpers.createInstrumentedChannel(
+          firstConfig.rawImpressionMetadataStorageConnection,
+          healingInternalApiTarget,
+          healingInternalApiCertHost,
+          grpcTelemetry,
+        )
       val uploads = RawImpressionUploadServiceCoroutineStub(rawChannel)
       val files = RawImpressionUploadFileServiceCoroutineStub(rawChannel)
       val modelLines = RawImpressionUploadModelLineServiceCoroutineStub(rawChannel)
       val ranks = RankIndexBlobServiceCoroutineStub(rawChannel)
       val impressionMetadata = ImpressionMetadataServiceCoroutineStub(rawChannel)
       val candidates = RawImpressionUploadCorrectionCandidateServiceCoroutineStub(rawChannel)
+      val candidateCleaner =
+        GrpcCorrectionCandidateCleaner(
+          InternalRawImpressionUploadCorrectionCandidateServiceGrpcKt
+            .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(internalChannel)
+        )
       val operations = UploadHealingOperationServiceCoroutineStub(rawChannel)
       val labeledOutputStore = GcsLabeledOutputStore(storage)
       val watchers =
@@ -172,6 +193,7 @@ class VidLabelingHealingControllerFunction(
           )
         },
         candidates,
+        candidateCleaner,
         operations,
         uploads,
         files,
@@ -241,6 +263,7 @@ internal class GcsCorrectionManifestReader(private val storage: Storage) :
   override suspend fun read(
     doneBlobUri: String,
     doneBlobGeneration: Long,
+    persistedManifest: Collection<RawImpressionUploadManifestClassifier.File>,
   ): Collection<RawImpressionUploadManifestClassifier.File> {
     val done = GcsUri.parse(doneBlobUri)
     val current = checkNotNull(storage.get(done.bucket, done.key)) { "$doneBlobUri does not exist" }
@@ -249,6 +272,7 @@ internal class GcsCorrectionManifestReader(private val storage: Storage) :
       done.key.substringBeforeLast('/', missingDelimiterValue = "").let {
         if (it.isEmpty()) "" else "$it/"
       }
+    val persistedByIdentity = persistedManifest.associateBy { it.blobUri to it.blobGeneration }
     val manifest =
       storage
         .list(done.bucket, Storage.BlobListOption.prefix(prefix))
@@ -256,9 +280,11 @@ internal class GcsCorrectionManifestReader(private val storage: Storage) :
         .asSequence()
         .filterNot { it.name.substringAfterLast('/').equals("done", ignoreCase = true) }
         .map {
+          val blobUri = "gs://${done.bucket}/${it.name}"
           RawImpressionUploadManifestClassifier.File(
-            "gs://${done.bucket}/${it.name}",
+            blobUri,
             it.generation,
+            persistedByIdentity[blobUri to it.generation]?.eventDate ?: Date.getDefaultInstance(),
           )
         }
         .toList()
