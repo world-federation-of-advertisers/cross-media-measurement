@@ -45,6 +45,9 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.time.Instant
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -856,11 +859,34 @@ class DataWatcherTest() {
           dataWatcherConfigs = listOf(config),
           idTokenProvider = mockIdTokenProvider,
         )
+      val path = "test-schema://test-bucket/path-to-watch/some-data"
+      val logMessages = mutableListOf<String>()
+      val handler =
+        object : Handler() {
+          override fun publish(record: LogRecord) {
+            logMessages += record.message
+          }
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+          override fun flush() {}
+
+          override fun close() {}
+        }
+      val dataWatcherLogger = Logger.getLogger(DataWatcher::class.java.name)
+      dataWatcherLogger.addHandler(handler)
+
+      try {
+        dataWatcher.receivePath(path, emptyMap())
+      } finally {
+        dataWatcherLogger.removeHandler(handler)
+        server.stop()
+      }
 
       assertThat(server.getLastRequest()).isNotEmpty()
-      server.stop()
+      val combinedLogs = logMessages.joinToString("\n")
+      assertThat(combinedLogs).doesNotContain(path)
+      assertThat(combinedLogs).doesNotContain("returned 500")
+      assertThat(combinedLogs).contains(VidLabelingTraceAttributes.gcsObjectPathHash(path))
+      assertThat(combinedLogs).contains("errorCode=500")
     }
   }
 
