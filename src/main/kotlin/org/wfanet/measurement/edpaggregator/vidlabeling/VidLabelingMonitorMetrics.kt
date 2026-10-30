@@ -133,7 +133,7 @@ class VidLabelingMonitorMetrics(meter: Meter = Instrumentation.meter) {
   val lateArrivingFilesGauge: LongGauge =
     meter
       .gaugeBuilder("edpa.vid_labeling_monitor.late_arriving_files")
-      .setDescription("Files uploaded after the date folder's done blob was written")
+      .setDescription("Files uploaded after the owning raw-upload done blob was written")
       .setUnit("{file}")
       .ofLongs()
       .build()
@@ -154,30 +154,48 @@ class VidLabelingMonitorMetrics(meter: Meter = Instrumentation.meter) {
       .build()
 
   /**
-   * Current number of date folders that exist but have no `done` blob this scan (a partial or
-   * incomplete upload). Keyed by [DATA_PROVIDER_ATTR].
+   * Current number of raw-upload directories that exist but have no `done` blob this scan (a
+   * partial or incomplete upload). Keyed by [DATA_PROVIDER_ATTR].
    *
    * A gauge (not a counter): a steady-state data-quality observation, set each run (including `0`).
    */
   val missingDoneBlobsGauge: LongGauge =
     meter
       .gaugeBuilder("edpa.vid_labeling_monitor.missing_done_blobs")
-      .setDescription("Date folders that exist but have no done blob")
-      .setUnit("{date}")
+      .setDescription("Raw-upload directories that exist but have no done blob")
+      .setUnit("{directory}")
       .ofLongs()
       .build()
 
   /**
-   * Current number of date folders whose `done` blob exists but that contain no data files this
-   * scan. Keyed by [DATA_PROVIDER_ATTR].
+   * Current number of raw-upload directories whose `done` blob exists but that contain no data
+   * files this scan. Keyed by [DATA_PROVIDER_ATTR].
    *
    * A gauge (not a counter): a steady-state data-quality observation, set each run (including `0`).
    */
   val zeroImpressionDatesGauge: LongGauge =
     meter
       .gaugeBuilder("edpa.vid_labeling_monitor.zero_impression_dates")
-      .setDescription("Date folders whose done blob exists but that contain no data files")
-      .setUnit("{date}")
+      .setDescription("Raw-upload directories whose done blob exists but contain no data files")
+      .setUnit("{directory}")
+      .ofLongs()
+      .build()
+
+  /** Current number of done-object generations with raw data but no matching upload row. */
+  val unregisteredDoneBlobsGauge: LongGauge =
+    meter
+      .gaugeBuilder("edpa.vid_labeling_monitor.unregistered_done_blobs")
+      .setDescription("Done-object generations with raw data but no matching upload registration")
+      .setUnit("{directory}")
+      .ofLongs()
+      .build()
+
+  /** Current number of parent/child done-marker pairs that claim common raw data. */
+  val ambiguousDoneMarkerLayoutsGauge: LongGauge =
+    meter
+      .gaugeBuilder("edpa.vid_labeling_monitor.ambiguous_done_marker_layouts")
+      .setDescription("Parent/child done-marker pairs that claim common raw data")
+      .setUnit("{layout}")
       .ofLongs()
       .build()
 

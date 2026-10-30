@@ -67,6 +67,50 @@ class VidLabelingStorageConfigValidatorTest {
   }
 
   @Test
+  fun `validate rejects different dispatcher and monitor raw prefixes`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH, rawPrefix = "raw/other"),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcherConfig("gs://bucket/edp/event-groups/.*"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("storage routes differ")
+  }
+
+  @Test
+  fun `validate allows configured labeled descendant of raw root`() {
+    val overlappingConfigs = vidConfigs(LABELED_OUTPUT_PATH, rawPrefix = "edp")
+
+    VidLabelingStorageConfigValidator.validate(
+      overlappingConfigs,
+      overlappingConfigs,
+      syncConfigs(LABELED_OUTPUT_PATH),
+      watcherConfig("gs://bucket/edp/event-groups/.*"),
+    )
+  }
+
+  @Test
+  fun `validate rejects raw prefix within labeled output`() {
+    val overlappingConfigs = vidConfigs(LABELED_OUTPUT_PATH, rawPrefix = "$LABELED_OUTPUT_PATH/raw")
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          overlappingConfigs,
+          overlappingConfigs,
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcherConfig("gs://bucket/edp/event-groups/.*"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("is within labeled output")
+  }
+
+  @Test
   fun `validate rejects DataWatcher route matching VidLabeler-managed output`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
@@ -104,10 +148,12 @@ class VidLabelingStorageConfigValidatorTest {
     assertThat(exitCode).isEqualTo(0)
   }
 
-  private fun vidConfigs(path: String) = vidLabelingConfigs {
+  private fun vidConfigs(path: String, rawPrefix: String = RAW_INPUT_PATH) = vidLabelingConfigs {
     configs += vidLabelingConfig {
       dataProvider = DATA_PROVIDER
       edpImpressionPath = path
+      rawImpressionsBlobPrefix = rawPrefix
+      rawImpressionsStorageParams = storageParams { gcs = gcsStorage { bucketName = "bucket" } }
       vidLabeledImpressionsStorageParams = storageParams {
         gcs = gcsStorage { bucketName = "bucket" }
       }
@@ -138,5 +184,6 @@ class VidLabelingStorageConfigValidatorTest {
     private const val DATA_PROVIDER = "dataProviders/edp7"
     private const val LABELED_OUTPUT_PATH = "edp/vid-labeler"
     private const val OTHER_OUTPUT_PATH = "edp/other"
+    private const val RAW_INPUT_PATH = "raw-impressions/edp/edp7"
   }
 }

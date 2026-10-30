@@ -38,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
@@ -82,7 +83,8 @@ import org.wfanet.measurement.storage.StorageClient
  * - `MODEL_SHARDS_TARGET`: Required. Target endpoint for the VID Repository ModelShards service.
  * - `MODEL_SHARDS_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`,
- *   `RawImpressionUploadModelLineService`, and `PoolAssignmentJobService`.
+ *   `RawImpressionUploadModelLineService`, `RawImpressionUploadCorrectionCandidateService`, and
+ *   `PoolAssignmentJobService`.
  * - `RAW_IMPRESSION_UPLOAD_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `VID_LABELER_QUEUE_NAME`: Required. Resource name of the Phase-2 VidLabeler Secure Computation
  *   queue.
@@ -182,6 +184,7 @@ class VidLabelingMonitorFunction : HttpFunction {
     requireValidModelLineConfigs(config)
     // Fail fast on the bin-packing cap the memoized path only rejects inside the TEE.
     requireValidMaxFileBatchSizeBytes(config)
+    requireValidRawImpressionsBlobPrefix(config)
 
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
 
@@ -249,6 +252,9 @@ class VidLabelingMonitorFunction : HttpFunction {
       RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
         rawImpressionUploadChannel
       )
+    val correctionCandidateStub =
+      RawImpressionUploadCorrectionCandidateServiceGrpcKt
+        .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(rawImpressionUploadChannel)
     // VidLabelingJobService is served by the same RawImpressionMetadata storage deployment.
     val vidLabelingJobStub =
       VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(rawImpressionUploadChannel)
@@ -291,6 +297,11 @@ class VidLabelingMonitorFunction : HttpFunction {
         dispatchSequencer = dispatchSequencer,
         dataProviderName = config.dataProvider,
         stalenessThreshold = config.stalenessThreshold.toDuration(),
+        rawImpressionsStorageRootUri = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}",
+        rawImpressionsBlobPrefix = config.rawImpressionsBlobPrefix,
+        rawInputQuietPeriod = config.stalenessThreshold.toDuration(),
+        rawImpressionsExcludedBlobPrefixes = rawImpressionsExcludedBlobPrefixes(config),
+        correctionCandidateStub = correctionCandidateStub,
         rawImpressionUploadFileStub = rawImpressionUploadFileStub,
         rawImpressionsStorageClientProvider = {
           createStorageClient(
@@ -318,6 +329,30 @@ class VidLabelingMonitorFunction : HttpFunction {
         result.dispatchError
       }
       MonitorMode.HEALTH -> monitor.runHealth().hasIssues
+    }
+  }
+
+  private fun rawImpressionsExcludedBlobPrefixes(config: VidLabelingConfig): Set<String> {
+    val rawBucket = config.rawImpressionsStorageParams.gcs.bucketName
+    val rawPrefix = config.rawImpressionsBlobPrefix
+    return buildSet {
+      for (otherConfig in monitorConfigs.configsList) {
+        if (
+          otherConfig.vidLabeledImpressionsStorageParams.hasGcs() &&
+            otherConfig.vidLabeledImpressionsStorageParams.gcs.bucketName == rawBucket &&
+            otherConfig.edpImpressionPath.startsWith("$rawPrefix/")
+        ) {
+          add(otherConfig.edpImpressionPath)
+        }
+        if (
+          otherConfig.dataProvider != config.dataProvider &&
+            otherConfig.rawImpressionsStorageParams.hasGcs() &&
+            otherConfig.rawImpressionsStorageParams.gcs.bucketName == rawBucket &&
+            otherConfig.rawImpressionsBlobPrefix.startsWith("$rawPrefix/")
+        ) {
+          add(otherConfig.rawImpressionsBlobPrefix)
+        }
+      }
     }
   }
 
