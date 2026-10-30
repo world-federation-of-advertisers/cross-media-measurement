@@ -37,9 +37,9 @@ message DataAvailabilitySyncParams {
   ];
 
   // Resource name of the `RawImpressionUpload` whose completion triggered this
-  // synchronization. This does not identify ownership of the cumulative output
-  // manifest; each `BlobDetails.raw_impression_upload` carries per-blob
-  // lineage.
+  // synchronization. This does not identify ownership of every blob in the
+  // cumulative output manifest; per-blob lineage is persisted on
+  // `ImpressionMetadata.raw_impression_upload`.
   string triggering_raw_impression_upload = 2 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.resource_reference).type =
