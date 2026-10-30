@@ -330,6 +330,7 @@ class ComputationsService(
       newCreateComputationLogEntryRequest(
         request.token.globalComputationId,
         request.nextComputationStage,
+        callerInstanceId = request.token.lockOwner,
       )
     )
     return computationsDatabase
