@@ -39,7 +39,6 @@ import java.time.Clock
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -108,13 +107,21 @@ class EventGroupSyncFunction() : HttpFunction {
       }
     } catch (e: Exception) {
       functionFailureCounter.add(1, failureAttributes)
+      val errorType = e::class.java.simpleName
+      val errorCode = Status.fromThrowable(e).code.name
       if (isRetryableKingdomFailure(e)) {
-        logger.log(Level.WARNING, "Transient Kingdom failure; requesting redelivery", e)
+        logger.warning(
+          "Transient EventGroupSync failure; requesting redelivery: " +
+            "errorType=$errorType, errorCode=$errorCode"
+        )
         response.setStatusCode(HttpURLConnection.HTTP_UNAVAILABLE)
-        response.writer.write("EventGroup sync failed due to a transient Kingdom error")
+        response.writer.write("EventGroup sync failed due to a transient error")
         return
       }
-      throw e
+      logger.warning("EventGroupSync failed: errorType=$errorType, errorCode=$errorCode")
+      response.setStatusCode(HttpURLConnection.HTTP_INTERNAL_ERROR)
+      response.writer.write("EventGroup sync failed")
+      return
     } finally {
       // Critical: flush metrics and traces before function terminates
       // Without this, all telemetry recorded during execution will be lost
