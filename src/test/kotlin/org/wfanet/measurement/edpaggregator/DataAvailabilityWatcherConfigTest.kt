@@ -17,23 +17,24 @@ package org.wfanet.measurement.edpaggregator
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.devtools.build.runfiles.Runfiles
-import com.google.protobuf.TypeRegistry
+import com.google.protobuf.TextFormat
+import java.io.StringReader
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Instant
 import java.time.LocalDate
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingStorageConfigValidator
-import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 
 @RunWith(JUnit4::class)
@@ -47,7 +48,7 @@ class DataAvailabilityWatcherConfigTest {
         parseTextProto(
           resolveRunfile("$configDirectory/data-watcher-config.textproto").toFile(),
           DataWatcherConfig.getDefaultInstance(),
-          TYPE_REGISTRY,
+          DataWatcherConfigTypes.registry,
         )
       val runtimeConfigs =
         parseTextProto(
@@ -113,6 +114,31 @@ class DataAvailabilityWatcherConfigTest {
     }
   }
 
+  @Test
+  fun `data watcher config rejects an unsupported route parameter type`() {
+    val error =
+      assertFailsWith<TextFormat.ParseException> {
+        parseTextProto(
+          StringReader(
+            """
+            watched_paths {
+              control_plane_queue_sink {
+                app_params {
+                  [type.googleapis.com/example.UnsupportedParams] {}
+                }
+              }
+            }
+            """
+              .trimIndent()
+          ),
+          DataWatcherConfig.getDefaultInstance(),
+          DataWatcherConfigTypes.registry,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("Unable to parse Any of type")
+  }
+
   private fun resolveRunfile(relativePath: String): Path =
     checkNotNull(RUNFILES.getRuntimePath(Paths.get("wfa_measurement_system", relativePath))) {
       "Runfile not found: $relativePath"
@@ -122,11 +148,5 @@ class DataAvailabilityWatcherConfigTest {
     private const val DATA_AVAILABILITY_IDENTIFIER = "data-availability"
     private val ENVIRONMENTS = listOf("dev", "head", "qa")
     private val RUNFILES = Runfiles.preload().withSourceRepository("")
-    private val TYPE_REGISTRY =
-      TypeRegistry.newBuilder()
-        .add(ResultsFulfillerParams.getDescriptor())
-        .add(EventGroupSyncParams.getDescriptor())
-        .add(ExternalDataAvailabilitySyncParams.getDescriptor())
-        .build()
   }
 }
