@@ -52,7 +52,10 @@ class EventGroupActivityBackfill(
   }
 
   sealed interface Selection {
-    data class BlobPrefix(val value: String) : Selection {
+    data class BlobPrefix(
+      val value: String,
+      val completionBlobType: CompletionBlobType = CompletionBlobType.EXTERNAL,
+    ) : Selection {
       init {
         require(value.isNotBlank()) { "blob prefix must not be blank" }
         require(!value.startsWith('/')) { "blob prefix must not start with a slash" }
@@ -118,10 +121,15 @@ class EventGroupActivityBackfill(
   }
 
   private suspend fun listActiveImpressionMetadata(doneBlobUri: String): List<ImpressionMetadata> {
-    require(doneBlobUri.endsWith(DONE_BLOB_SUFFIX)) {
-      "Completion blob URI must end with $DONE_BLOB_SUFFIX: $doneBlobUri"
+    require(
+      CompletionBlobNames.matches(
+        completionBlobType(doneBlobUri),
+        doneBlobUri.substringAfterLast('/'),
+      )
+    ) {
+      "Invalid completion blob URI: $doneBlobUri"
     }
-    val blobUriPrefix = doneBlobUri.removeSuffix(DONE_BLOB_FILE_NAME)
+    val blobUriPrefix = doneBlobUri.substringBeforeLast('/') + "/"
     val impressionMetadata = mutableListOf<ImpressionMetadata>()
     var pageToken = ""
     do {
@@ -156,7 +164,12 @@ class EventGroupActivityBackfill(
         val normalizedBlobPrefix = "${selection.value.trimEnd('/')}/"
         storageClient
           .listBlobs(normalizedBlobPrefix)
-          .filter { it.blobKey.substringAfterLast('/') == DONE_BLOB_FILE_NAME }
+          .filter {
+            CompletionBlobNames.matches(
+              selection.completionBlobType,
+              it.blobKey.substringAfterLast('/'),
+            )
+          }
           .map { BlobUris.buildUri(storageRootUri, it.blobKey) }
           .toList()
           .sorted()
@@ -166,7 +179,11 @@ class EventGroupActivityBackfill(
   }
 
   companion object {
-    private const val DONE_BLOB_FILE_NAME = "done"
-    private const val DONE_BLOB_SUFFIX = "/$DONE_BLOB_FILE_NAME"
+    private fun completionBlobType(doneBlobUri: String): CompletionBlobType =
+      if (doneBlobUri.substringAfterLast('/') == "done") {
+        CompletionBlobType.EXTERNAL
+      } else {
+        CompletionBlobType.VID_LABELER
+      }
   }
 }
