@@ -2,5 +2,5 @@
 
 build:results --bes_backend=grpcs://halo-cmm.buildbuddy.io
 build:results --bes_results_url=https://halo-cmm.buildbuddy.io/invocation/
-build:results --bes_timeout=60s
+build:results --bes_timeout=600s
 build:results --nolegacy_important_outputs
