@@ -1,0 +1,100 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# DO_NOT_SUBMIT: remove 'Test'
+name: Test Compute repo stats
+
+on:
+  # DO_NOT_SUBMIT: remove pull_request and add workflow_dispatch
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-release-notes:
+    name: Compute repo stats
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.14'
+
+      - name: Fetch created issues
+        id: fetch-created-issues
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # DO_NOT_SUBMIT: use parameters
+          bash .github/workflows/scripts/repo-stats/fetch_issues_data.sh \
+            "created" \
+            "2026-05-01" \
+            "2026-05-31" \
+            | tee raw.json | jq .
+          cat raw.json | jq .data.rateLimit
+          echo "json=$(cat raw.json | jq .data.search.nodes.[] -c | jq . -sc)" | tee -a $GITHUB_OUTPUT
+
+      - name: Compute created issues stats
+        env:
+          JSON: ${{ steps.fetch-created-issues.outputs.json }}
+        run: python .github/workflows/scripts/repo-stats/process_issues.py
+
+
+      - name: Fetch closed issues
+        id: fetch-closed-issues
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # DO_NOT_SUBMIT: use parameters
+          bash .github/workflows/scripts/repo-stats/fetch_issues_data.sh \
+            "closed" \
+            "2026-05-01" \
+            "2026-05-31" \
+            | tee raw.json | jq .
+          cat raw.json | jq .data.rateLimit
+          echo "json=$(cat raw.json | jq .data.search.nodes.[] -c | jq . -sc)" | tee -a $GITHUB_OUTPUT
+
+      - name: Compute closed issues stats
+        env:
+          JSON: ${{ steps.fetch-closed-issues.outputs.json }}
+        run: python .github/workflows/scripts/repo-stats/process_issues.py
+
+      - name: Fetch PR reviewers
+        id: fetch-pr-reviewers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # DO_NOT_SUBMIT: use parameters
+          bash .github/workflows/scripts/repo-stats/fetch_pr_reviewers.sh \
+            "2026-05-01" \
+            "2026-05-31" \
+            | tee raw.json | jq .
+          cat raw.json | jq .data.rateLimit
+          echo "json=$(cat raw.json | jq .data.search.nodes.[] -c | jq . -sc)" | tee -a $GITHUB_OUTPUT
+
+      - name: Compute PR reviewers stats
+        env:
+          JSON: ${{ steps.fetch-pr-reviewers.outputs.json }}
+        run: python .github/workflows/scripts/repo-stats/process_pr_reviewers.py
