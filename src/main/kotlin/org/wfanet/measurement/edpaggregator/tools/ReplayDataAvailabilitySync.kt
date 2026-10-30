@@ -170,22 +170,20 @@ class ReplayDataAvailabilitySync : Runnable {
     require(storageConfig.bucketName.isNotEmpty()) { "GCS bucket_name must be set" }
     val selection = buildReplaySelection(config.edpImpressionPath, storageConfig.bucketName)
     val storageApiEndpoint = storageApiEndpoint
-    val storageClient =
-      GcsStorageClient(
-        StorageOptions.newBuilder()
-          .apply {
-            if (storageConfig.projectId.isNotEmpty()) {
-              setProjectId(storageConfig.projectId)
-            }
-            if (storageApiEndpoint != null) {
-              setHost(storageApiEndpoint)
-              setCredentials(NoCredentials.getInstance())
-            }
+    val storage =
+      StorageOptions.newBuilder()
+        .apply {
+          if (storageConfig.projectId.isNotEmpty()) {
+            setProjectId(storageConfig.projectId)
           }
-          .build()
-          .service,
-        storageConfig.bucketName,
-      )
+          if (storageApiEndpoint != null) {
+            setHost(storageApiEndpoint)
+            setCredentials(NoCredentials.getInstance())
+          }
+        }
+        .build()
+        .service
+    val storageClient = GcsStorageClient(storage, storageConfig.bucketName)
     val kingdomChannel =
       buildChannel(config.cmmsConnection, kingdomPublicApiTarget, kingdomPublicApiCertHost)
     val impressionMetadataChannel =
@@ -255,7 +253,12 @@ class ReplayDataAvailabilitySync : Runnable {
                   storageClient = storageClient,
                   storageRootUri = storageRootUri,
                   selection = selection,
-                  sync = dataAvailabilitySync::sync,
+                  sync = { doneBlobUri ->
+                    dataAvailabilitySync.sync(
+                      doneBlobPath = doneBlobUri,
+                      doneBlobGeneration = DoneBlobGenerationResolver.resolve(storage, doneBlobUri),
+                    )
+                  },
                 )
                 .replay()
             }

@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.cloud.NoCredentials
-import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
@@ -322,7 +321,7 @@ class RecoverMissingImpressionMetadata : Runnable {
               errorIfGapsExist = config.errorIfGapsExist,
               publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
             )
-            .sync(doneBlobUri, resolveDoneBlobGeneration(storage, doneBlobUri))
+            .sync(doneBlobUri, DoneBlobGenerationResolver.resolve(storage, doneBlobUri))
           filteringStorageClient.processedMetadataBlobKeys
         },
         metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),
@@ -380,17 +379,6 @@ class RecoverMissingImpressionMetadata : Runnable {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val SHUTDOWN_TIMEOUT_SECONDS = 30L
   }
-}
-
-internal fun resolveDoneBlobGeneration(storage: Storage, doneBlobUri: String): Long {
-  val parsed = SelectedStorageClient.parseBlobUri(doneBlobUri)
-  require(parsed.scheme == "gs") { "done blob must use gs://" }
-  val generation =
-    requireNotNull(storage.get(parsed.bucket, parsed.key)?.generation) {
-      "Done blob $doneBlobUri does not exist"
-    }
-  require(generation > 0L) { "Done blob $doneBlobUri has a non-positive generation" }
-  return generation
 }
 
 fun main(args: Array<String>) = commandLineMain(RecoverMissingImpressionMetadata(), args)
