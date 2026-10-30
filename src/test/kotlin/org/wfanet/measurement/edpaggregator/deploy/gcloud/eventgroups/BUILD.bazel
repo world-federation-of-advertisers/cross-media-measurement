@@ -4,6 +4,7 @@ kt_jvm_test(
     name = "EventGroupSyncFunctionTest",
     srcs = ["EventGroupSyncFunctionTest.kt"],
     data = [
+        "//src/main/k8s/testing/secretfiles:data_watcher_secret_files",
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups/testing:InvokeEventGroupSyncFunction",
