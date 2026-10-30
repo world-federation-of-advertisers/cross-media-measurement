@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import io.grpc.ManagedChannel
+import java.io.File
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
@@ -122,6 +123,24 @@ abstract class EdpaApiCommand : Runnable {
   }
 }
 
+private class ControlPlaneTlsFlags {
+  @Option(names = ["--control-plane-tls-cert-file"], required = true)
+  lateinit var certFile: File
+    private set
+
+  @Option(names = ["--control-plane-tls-key-file"], required = true)
+  lateinit var privateKeyFile: File
+    private set
+
+  @Option(names = ["--control-plane-cert-collection-file"], required = true)
+  lateinit var certCollectionFile: File
+    private set
+
+  val signingCerts: SigningCerts by lazy {
+    SigningCerts.fromPemFiles(certFile, privateKeyFile, certCollectionFile)
+  }
+}
+
 /**
  * Force-fails a stuck or hanging `RawImpressionUpload`, unblocking subsequent uploads.
  *
@@ -194,6 +213,8 @@ class MarkFailedCommand : EdpaApiCommand() {
   mixinStandardHelpOptions = true,
 )
 class RetryFailedCommand : EdpaApiCommand() {
+  @Mixin private lateinit var controlPlaneTlsFlags: ControlPlaneTlsFlags
+
   @Option(
     names = ["--metadata-read-rpc-min-interval"],
     description = ["Minimum interval between outbound metadata read RPCs."],
@@ -258,7 +279,12 @@ class RetryFailedCommand : EdpaApiCommand() {
 
   override fun run() {
     val edpaChannel = buildEdpaChannel()
-    val controlPlaneChannel = buildChannel(controlPlaneApiTarget, controlPlaneApiCertHost)
+    val controlPlaneChannel =
+      buildMutualTlsChannel(
+        controlPlaneApiTarget,
+        controlPlaneTlsFlags.signingCerts,
+        controlPlaneApiCertHost,
+      )
     try {
       runBlocking {
         val result =
