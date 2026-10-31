@@ -85,48 +85,180 @@ Backfills
 `ResultGroup.MetricMetadata.ReportingUnitComponentSummary.external_reporting_set_id`
 on stored `BasicReport`s.
 
-`BasicReport`s written through the internal `InsertBasicReport` method before
-that field was validated have it unset. The public read path assembles a
-`ReportingSet` resource name from it, so such a `BasicReport` cannot be served
-by `GetBasicReport`, and fails the whole page for `ListBasicReports`. See
+`BasicReport`s written through the internal `InsertBasicReport` method can
+contain two related inconsistencies: a component summary can omit
+`external_reporting_set_id`, and `BasicReport.external_campaign_group_id` can
+refer to an ordinary primitive ReportingSet instead of a Campaign Group. A
+valid Campaign Group is a non-empty primitive ReportingSet whose
+`CampaignGroupId` points to itself.
+
+The temporary public read fallback serves a blank component without
+`reporting_set`. This tool completes safely resolvable reports so the fallback
+can be removed. See
 [issue #4289](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4289).
 
 Run the tool with `--help` for usage information.
 
 ### What it does
 
-Every `BasicReport` in state `SUCCEEDED`, across all `MeasurementConsumer`s, is
-examined, one `MeasurementConsumer` at a time and a page at a time. Use
-`--create-time-after` to restrict this to `BasicReport`s created after a given
-time, which both bounds the work and makes it impossible to modify a
-`BasicReport` outside that window.
+Every `BasicReport` in state `SUCCEEDED`, across all
+`MeasurementConsumer`s, is examined one `MeasurementConsumer` and one page
+at a time. Use `--create-time-after` to restrict this to `BasicReport`s
+created after a given time. A bounded run cannot establish that the full
+environment is ready to remove the fallback.
 
-For each component summary missing `external_reporting_set_id`:
+For a report that already references a valid Campaign Group, the tool validates
+every component, including those with populated ReportingSet IDs:
 
-1.  The component's membership is taken from its own `event_group_summaries`,
-    paired with the component's `cmms_data_provider_id`.
-2.  The Campaign Group's unfiltered primitive children are searched for a
-    `ReportingSet` whose membership is exactly that set. If one is found, its ID
-    is used.
-3.  Otherwise a `ReportingSet` with that membership is created under the
-    Campaign Group, and its ID is used.
+*   For a caller-supplied ReportingSet component, the ReportingSet ID in the
+    stored request is authoritative. The tool verifies that it identifies a
+    non-empty primitive ReportingSet, uses that ReportingSet's EventGroups for
+    membership validation, and preserves the exact ID and any filter.
+*   For a DataProvider component, the tool resolves membership from its
+    `event_group_summaries`. A blank `cmms_data_provider_id` is filled only
+    when the stored request explicitly identifies DataProvider components,
+    every EventGroup resolves uniquely to the same requested DataProvider,
+    and the metric identities agree. A unique EventGroup owner alone does
+    not prove that the component was intended to be a DataProvider component.
+    Populated, consistent DataProvider IDs are preserved. Custom ReportingSet
+    components keep their intentionally blank DataProvider ID.
 
-Neither database is written for a `BasicReport` unless all of its component
-summaries resolve. Every membership is resolved before any `ReportingSet` is
-created, so a skipped `BasicReport` leaves no `ReportingSet` behind. A component
-summary with no `event_group_summaries` cannot be resolved, and its
-`BasicReport` is left unmodified and reported.
+A populated DataProvider ReportingSet ID must resolve under the report's consumer
+and name an unfiltered primitive with exactly the recorded component membership.
+Missing or contradictory references block the whole report, including reports
+whose component IDs are all populated. Valid populated IDs are preserved.
 
-Note that `metric_set.reporting_set_components` entries carry no membership, so
-an entry missing `external_reporting_set_id` cannot be backfilled. Any such
-entry is counted and reported.
+Every resolved EventGroup key must belong to the Campaign Group universe. For a
+DataProvider component, the tool reuses an unfiltered primitive ReportingSet
+under the Campaign Group when its membership is an exact match, or creates one
+otherwise. It never substitutes that unfiltered ReportingSet for a
+caller-supplied ReportingSet component.
+
+For a report whose Campaign Group reference is instead a non-empty ordinary
+primitive ReportingSet with no `CampaignGroupId`, the tool treats that
+ReportingSet as evidence of the caller's intended Campaign Group. It resolves
+DataProvider components from the MeasurementConsumer's EventGroup directory and
+caller-supplied ReportingSet components from the stored request and ReportingSet
+membership. It uses the union of all component EventGroups as the replacement
+Campaign Group universe. The referenced ReportingSet's EventGroups must appear in
+that union and must exactly match at least one component; the report may contain
+additional EventGroups in other components. Only when all components resolve
+and those consistency checks pass does the tool:
+
+1.  reuse or create an equivalent non-empty primitive, self-linked Campaign
+    Group with exactly the report's EventGroups;
+2.  change `BasicReport.external_campaign_group_id` to that valid Campaign
+    Group; and
+3.  populate DataProvider component summaries under the valid Campaign Group
+    while preserving the exact IDs of caller-supplied ReportingSet components,
+    including their filter semantics.
+
+Before changing the Campaign Group, the stored result-group count must match the
+request, and every requested group must contain at least one result. Missing,
+extra, or empty groups block the whole report before either database is changed.
+
+Every result must contain the same number of custom component summaries as
+ReportingSets in its stored request. For DataProvider components, each result
+must have a resolved summary for every requested provider, including providers
+without metric entries. Blank provider IDs are resolved before checking this
+coverage. Missing summaries, including empty summary lists, leave the whole
+report unchanged, count as unresolved components, and keep readiness at `no`,
+even when existing summary ReportingSet IDs are complete. Partial metric entries
+remain valid when summaries cover every requested component.
+
+A caller-supplied ReportingSet component must name the same MeasurementConsumer
+as the `BasicReport`. Its recorded component EventGroups must match the
+referenced ReportingSet's membership, including the number of occurrences of
+each EventGroup ID. A foreign-consumer key or conflicting EventGroup metadata
+blocks the report in both dry-run and applied runs and keeps readiness at `no`. Populated consumer
+IDs in recorded EventGroup summaries must also match the report's consumer;
+blank legacy consumer IDs remain supported. These checks run before a report
+is counted as already valid.
+
+The original ordinary ReportingSet is never modified. The Campaign Group
+change and all component IDs are written to the `BasicReport` in one Spanner
+mutation. Creating or finding the replacement Campaign Group in Postgres is
+idempotent.
+
+A Campaign Group change is not attempted when the `BasicReport` has a linked
+`ReportResultId`. Those results contain ReportingSet references that this tool
+cannot safely rewrite. The report is left completely unchanged, counted under
+`Linked results blocking migration`, and the run reports that the read-path
+fallback is not ready for removal.
+
+If different reports reuse the same ordinary ReportingSet reference but contain
+different EventGroup unions, each distinct union resolves to its own Campaign
+Group. The tool does not force those reports into one shared universe.
+
+The tool does not guess. A missing, empty, composite, or already-assigned
+Campaign Group reference is left unchanged. A report is also left unchanged
+when a component has no EventGroups, references an unknown EventGroup, has a
+blank DataProvider without explicit request evidence or unique membership,
+identifies a custom ReportingSet that is missing, empty, or not primitive, has an existing
+ReportingSet ID without stored request evidence of its identity, disagrees with
+the custom component identity stored in the request, omits an EventGroup
+contained in the referenced Campaign Group source, or has linked results that
+would also need migration. These rows are counted as blocking, the scan
+continues, and the environment is reported as not ready to remove the read fallback.
+
+No Campaign Group or component ReportingSet is created and no `BasicReport`
+is updated unless every component summary that needs resolution can be
+resolved and the metric identities are consistent. A blank DataProvider ID
+with explicit request evidence is checked even if the component ReportingSet
+ID is already populated.
+
+Entries in `metric_set.reporting_set_components` carry no membership, so an
+entry missing `external_reporting_set_id` cannot be backfilled. A populated
+custom metric ID must belong to the validated component identity set for that
+result group. Metric entries may be reordered or cover only some requested
+components. Every DataProvider metric key and every provider ID in
+`metric_set.component_intersections` must agree with the stored request and
+have a resolved component summary in the same result. A provider named only
+in the request or in another result is not enough. Blank summary provider IDs
+are resolved from supported request and EventGroup evidence before this
+coverage check. Intersections do not require separate component metric entries.
+The tool does not rename conflicting metric keys or change metric values.
+
+Missing metric ReportingSet IDs and conflicting metric identities are checked
+before any writes, including on reports whose summary IDs are complete. The
+entire report is left unchanged and counted as blocking. The summary reports
+`Unresolvable metric_set components`, `Conflicting metric_set identities`, and
+`DataProvider identities filled` separately.
+
+### Operator flow
+
+No new flags or prerequisite tool are required.
+
+1.  Run an unbounded `--dry-run` against the intended environment. Review the
+    planned writes, the blocking counts, and the per-report warnings.
+2.  If the plan is acceptable, run the same tool without `--dry-run`. It
+    validates each report before creating Campaign Groups or component
+    ReportingSets, then updates that report. A conflicting report is left
+    unchanged while the scan continues through other reports.
+3.  If any rows are blocking, save the diagnostics. Ask the report owner to
+    compare the original request, the exact referenced ReportingSets and
+    filters, and the source results when available. Repair stored data only
+    through a separately approved, evidence-backed process. Do not guess an
+    ID, blindly rename metric keys, or mutate ordinary ReportingSets.
+4.  After a justified repair, rerun an unbounded dry-run and then an applied
+    run. If the intended identity cannot be proven, the migration remains
+    incomplete and readiness must stay `no`.
+5.  Keep the read fallback until the completion conditions below are met.
+    The fallback tolerates blank summary ReportingSet IDs; it does not repair
+    invalid Campaign Groups or contradictory metric identities.
 
 ### After the backfill
 
-The public read path tolerates a `BasicReport` whose component summaries still
-lack `external_reporting_set_id`: it omits `reporting_set` rather than failing,
-so an incomplete resource is served without any error. A run of this tool that
-misses records therefore produces no visible symptom.
+The public read path temporarily tolerates a `BasicReport` whose component
+summaries still lack `external_reporting_set_id`: it omits `reporting_set`
+rather than failing, so an incomplete resource is served without any error.
+
+An applied, unbounded run reports `Ready to remove read-path fallback: yes`
+only when no examined `SUCCEEDED` row remains blocked by these checks. This
+is a check of the scanned rows, not a guarantee about other states or future
+writes. A bounded run never reports ready because it does not examine older rows. A dry
+run reports ready only when it finds that no writes or primitive Campaign Group
+migrations would be needed.
 
 Each such `BasicReport` is logged once per read, at `WARNING`, by the Reporting
 public API server:
@@ -136,10 +268,14 @@ BasicReport <id> of MeasurementConsumer <id> has N component summary/summaries
 without external_reporting_set_id.
 ```
 
-That warning is the completion signal. It going quiet means every affected
-`BasicReport` has been repaired and no new ones are being written. It recurring
-after a completed run means records are still being written without the field,
-by a path that the `InsertBasicReport` validation does not cover.
+After a successful unbounded run, that warning staying quiet confirms that no
+new incomplete records are being written. If it recurs, a write path is still
+storing incomplete component summaries.
+
+This migration does not strengthen `InsertBasicReport` validation. Callers of
+that internal method must supply a valid self-linked primitive Campaign Group
+and populated component ReportingSet IDs. Add write-time validation separately
+before treating a quiet warning as a permanent guarantee.
 
 The tolerance in the read path should be removed only once the warning has
 stayed silent over a sustained period, not on a schedule.
@@ -247,12 +383,13 @@ include the full path to the executable.
 ### Output
 
 Each run ends with a summary of the `BasicReport`s examined, those already
-valid, those updated, those skipped, the `ReportingSet`s reused and created, and
-any components that could not be resolved.
+valid, those updated, any blocking unbackfilled records, the Campaign Groups
+repaired or migrated, the `ReportingSet`s reused and created, and any
+components or linked results that block migration.
 
-Run with `--dry-run` first. The unresolved counts should both be zero; a
-non-zero count means some component summaries would remain unserveable, and the
-per-`BasicReport` reasons are logged.
+Run with `--dry-run` first. A non-zero blocking count means some component
+summaries would remain incomplete or some linked results cannot be migrated;
+the per-`BasicReport` reasons are logged and the readiness result is `no`.
 
 Check the reported `create_time` range as well. It covers only the
 `BasicReport`s that were backfilled, so it can be compared against the window in

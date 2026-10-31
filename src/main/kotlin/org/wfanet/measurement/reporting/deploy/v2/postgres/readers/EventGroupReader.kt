@@ -84,4 +84,33 @@ class EventGroupReader(private val readContext: ReadContext) {
 
     return readContext.executeQuery(statement).consume(::translate)
   }
+
+  /**
+   * Reads EventGroups for [measurementConsumerId] whose CMMS ID is in [cmmsEventGroupIds].
+   *
+   * One CMMS EventGroup ID can return results for more than one DataProvider.
+   */
+  suspend fun getByCmmsEventGroupIds(
+    measurementConsumerId: InternalId,
+    cmmsEventGroupIds: Collection<String>,
+  ): Flow<Result> {
+    val distinctCmmsEventGroupIds = cmmsEventGroupIds.distinct()
+    if (distinctCmmsEventGroupIds.isEmpty()) {
+      return emptyFlow()
+    }
+
+    val parameters: List<String> = distinctCmmsEventGroupIds.indices.map { "\$${it + 2}" }
+    val statement =
+      boundStatement(
+        "$baseSql WHERE MeasurementConsumerId = \$1 " +
+          "AND CmmsEventGroupId IN (${parameters.joinToString()})"
+      ) {
+        bind("\$1", measurementConsumerId)
+        distinctCmmsEventGroupIds.forEachIndexed { index, cmmsEventGroupId ->
+          bind(parameters[index], cmmsEventGroupId)
+        }
+      }
+
+    return readContext.executeQuery(statement).consume(::translate)
+  }
 }
