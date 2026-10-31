@@ -362,6 +362,7 @@ class InProcessEdpAggregatorComponents(
           requisitionValidator = requisitionsValidator,
           requisitionGrouper = requisitionGrouper,
           metadataThrottler = throttler,
+          kingdomListThrottler = FakeThrottler(),
           workItemDispatcher =
             SecureComputationRequisitionWorkItemDispatcher(
               workItemsStub = workItemsClient,

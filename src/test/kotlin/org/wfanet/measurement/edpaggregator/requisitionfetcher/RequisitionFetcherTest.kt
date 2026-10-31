@@ -46,8 +46,13 @@ import java.time.ZoneOffset
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -89,6 +94,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -305,6 +311,7 @@ class RequisitionFetcherTest {
   }
 
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1L))
+  private var kingdomListThrottler: Throttler = FakeThrottler()
 
   private lateinit var storageClient: FileSystemStorageClient
   private lateinit var metricReader: InMemoryMetricReader
@@ -391,6 +398,7 @@ class RequisitionFetcherTest {
       requisitionValidator = validator,
       requisitionGrouper = grouper,
       metadataThrottler = metadataThrottler,
+      kingdomListThrottler = kingdomListThrottler,
       workItemDispatcher = workItemDispatcher,
       requisitionRefusalDuration = requisitionRefusalDuration,
       clock = clock,
@@ -2871,7 +2879,167 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `fetchAndStoreRequisitions halves page size on RESOURCE_EXHAUSTED and retries`() =
+  fun `fetchAndStoreRequisitions rejects quota failures without shrinking pages`() = runTest {
+    val requests = mutableListOf<ListRequisitionsRequest>()
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer { invocation ->
+      requests += invocation.getArgument<ListRequisitionsRequest>(0)
+      throw Status.RESOURCE_EXHAUSTED.withDescription("Rate limit exceeded").asRuntimeException()
+    }
+
+    val exception = assertFailsWith<Exception> { createFetcher().fetchAndStoreRequisitions() }
+
+    assertThat(Status.fromThrowable(exception).code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+    assertThat(requests.map { it.pageSize }).containsExactly(10)
+    assertThat(counterValue("edpa.requisition_fetcher.page_size_reductions")).isEqualTo(0)
+  }
+
+  @Test
+  fun `fetchAndStoreRequisitions surfaces list deadlines without additional retries`() = runTest {
+    var calls = 0
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer {
+      calls++
+      throw Status.DEADLINE_EXCEEDED.asRuntimeException()
+    }
+
+    val exception = assertFailsWith<Exception> { createFetcher().fetchAndStoreRequisitions() }
+
+    assertThat(Status.fromThrowable(exception).code).isEqualTo(Status.Code.DEADLINE_EXCEEDED)
+    assertThat(calls).isEqualTo(1)
+  }
+
+  @Test
+  fun `fetchAndStoreRequisitions rejects unrelated RESOURCE_EXHAUSTED without shrinking pages`() =
+    runTest {
+      val requests = mutableListOf<ListRequisitionsRequest>()
+      whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer { invocation ->
+        requests += invocation.getArgument<ListRequisitionsRequest>(0)
+        throw Status.RESOURCE_EXHAUSTED.withDescription("Service executor rejected the task")
+          .asRuntimeException()
+      }
+
+      val exception = assertFailsWith<Exception> { createFetcher().fetchAndStoreRequisitions() }
+
+      assertThat(Status.fromThrowable(exception).code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+      assertThat(requests.map { it.pageSize }).containsExactly(10)
+      assertThat(counterValue("edpa.requisition_fetcher.page_size_reductions")).isEqualTo(0)
+    }
+
+  @Test
+  fun `fetchAndStoreRequisitions rejects unspecified RESOURCE_EXHAUSTED without shrinking pages`() =
+    runTest {
+      val requests = mutableListOf<ListRequisitionsRequest>()
+      whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer { invocation ->
+        requests += invocation.getArgument<ListRequisitionsRequest>(0)
+        throw Status.RESOURCE_EXHAUSTED.asRuntimeException()
+      }
+
+      val exception = assertFailsWith<Exception> { createFetcher().fetchAndStoreRequisitions() }
+
+      assertThat(Status.fromThrowable(exception).code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+      assertThat(requests.map { it.pageSize }).containsExactly(10)
+      assertThat(counterValue("edpa.requisition_fetcher.page_size_reductions")).isEqualTo(0)
+    }
+
+  @Test
+  @OptIn(ExperimentalCoroutinesApi::class)
+  fun `fetchAndStoreRequisitions waits for shared throttle permits on every page`() = runTest {
+    val permits = Channel<Unit>(Channel.UNLIMITED)
+    kingdomListThrottler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T {
+          permits.receive()
+          return block()
+        }
+      }
+    val requests = Channel<ListRequisitionsRequest>(Channel.UNLIMITED)
+    val calls = AtomicInteger(0)
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer { invocation ->
+      requests.trySend(invocation.getArgument<ListRequisitionsRequest>(0))
+      listRequisitionsResponse { if (calls.incrementAndGet() % 2 == 1) nextPageToken = "next-page" }
+    }
+    val fetching =
+      backgroundScope.async {
+        createFetcher().fetchAndStoreRequisitions()
+        createFetcher().fetchAndStoreRequisitions()
+      }
+
+    runCurrent()
+    assertThat(requests.tryReceive().isFailure).isTrue()
+    val receivedRequests = mutableListOf<ListRequisitionsRequest>()
+    repeat(4) {
+      permits.send(Unit)
+      receivedRequests += requests.receive()
+      runCurrent()
+      assertThat(requests.tryReceive().isFailure).isTrue()
+    }
+    fetching.await()
+
+    assertThat(permits.tryReceive().isFailure).isTrue()
+    assertThat(receivedRequests.map { it.pageToken })
+      .containsExactly("", "next-page", "", "next-page")
+      .inOrder()
+  }
+
+  @Test
+  @OptIn(ExperimentalCoroutinesApi::class)
+  fun `fetchAndStoreRequisitions waits for throttle permits on oversized response retries`() =
+    runTest {
+      val permits = Channel<Unit>(Channel.UNLIMITED)
+      kingdomListThrottler =
+        object : Throttler {
+          override suspend fun <T> onReady(block: suspend () -> T): T {
+            permits.receive()
+            return block()
+          }
+        }
+      val requests = Channel<ListRequisitionsRequest>(Channel.UNLIMITED)
+      val calls = AtomicInteger(0)
+      whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer { invocation ->
+        requests.trySend(invocation.getArgument<ListRequisitionsRequest>(0))
+        if (calls.incrementAndGet() == 1) {
+          throw Status.RESOURCE_EXHAUSTED.withDescription(
+              "Decompressed gRPC message exceeds maximum size 4194304"
+            )
+            .asRuntimeException()
+        }
+        listRequisitionsResponse {}
+      }
+      val fetching = backgroundScope.async { createFetcher().fetchAndStoreRequisitions() }
+
+      runCurrent()
+      assertThat(requests.tryReceive().isFailure).isTrue()
+      permits.send(Unit)
+      val firstRequest = requests.receive()
+      runCurrent()
+      assertThat(requests.tryReceive().isFailure).isTrue()
+      permits.send(Unit)
+      val secondRequest = requests.receive()
+      fetching.await()
+
+      assertThat(permits.tryReceive().isFailure).isTrue()
+      assertThat(listOf(firstRequest.pageSize, secondRequest.pageSize))
+        .containsExactly(10, 5)
+        .inOrder()
+      assertThat(secondRequest.pageToken).isEqualTo(firstRequest.pageToken)
+      assertThat(counterValue("edpa.requisition_fetcher.page_size_reductions")).isEqualTo(1)
+    }
+
+  @Test
+  fun `fetchAndStoreRequisitions rejects permanent list failures without retry`() = runTest {
+    var calls = 0
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer {
+      calls++
+      throw Status.PERMISSION_DENIED.asRuntimeException()
+    }
+
+    val exception = assertFailsWith<Exception> { createFetcher().fetchAndStoreRequisitions() }
+
+    assertThat(Status.fromThrowable(exception).code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(calls).isEqualTo(1)
+  }
+
+  @Test
+  fun `fetchAndStoreRequisitions halves page size for oversized responses and retries`() =
     runBlocking {
       val r1 = TestRequisitionData.REQUISITION
       val callCount = AtomicInteger(0)
@@ -2881,7 +3049,11 @@ class RequisitionFetcherTest {
         captured += request.pageSize
         val attempt = callCount.incrementAndGet()
         if (attempt < 4) {
-          throw StatusException(Status.RESOURCE_EXHAUSTED.withDescription("too big"))
+          throw StatusException(
+            Status.RESOURCE_EXHAUSTED.withDescription(
+              "gRPC message exceeds maximum size 4194304: 8388608"
+            )
+          )
         }
         listRequisitionsResponse { requisitions += r1 }
       }
@@ -2898,17 +3070,22 @@ class RequisitionFetcherTest {
     }
 
   @Test
-  fun `fetchAndStoreRequisitions surfaces RESOURCE_EXHAUSTED at minimum page size`() = runBlocking {
-    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer {
-      throw StatusException(Status.RESOURCE_EXHAUSTED.withDescription("still too big"))
-    }
-
-    val e =
-      assertThrows(StatusException::class.java) {
-        runBlocking { createFetcher().fetchAndStoreRequisitions() }
+  fun `fetchAndStoreRequisitions surfaces oversized responses at minimum page size`() =
+    runBlocking {
+      whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer {
+        throw StatusException(
+          Status.RESOURCE_EXHAUSTED.withDescription(
+            "gRPC message exceeds maximum size 4194304: 8388608"
+          )
+        )
       }
-    assertThat(e.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
-  }
+
+      val e =
+        assertThrows(StatusException::class.java) {
+          runBlocking { createFetcher().fetchAndStoreRequisitions() }
+        }
+      assertThat(e.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+    }
 
   @Test
   fun `fetchAndStoreRequisitions stays at reduced page size on subsequent pages`() = runBlocking {
@@ -2919,7 +3096,12 @@ class RequisitionFetcherTest {
       captured += request.pageSize
       val attempt = callCount.incrementAndGet()
       when (attempt) {
-        1 -> throw StatusException(Status.RESOURCE_EXHAUSTED.withDescription("page 1 too big"))
+        1 ->
+          throw StatusException(
+            Status.RESOURCE_EXHAUSTED.withDescription(
+              "gRPC message exceeds maximum size 4194304: 8388608"
+            )
+          )
         2 ->
           listRequisitionsResponse {
             requisitions += TestRequisitionData.REQUISITION
