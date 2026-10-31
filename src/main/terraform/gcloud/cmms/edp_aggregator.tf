@@ -447,12 +447,9 @@ locals {
     destination = "vid-labeling-monitor-config.textproto"
   }
 
-  # Health cadence: staleness alerting, stuck-phase recovery, and data-quality
-  # checks (VidLabelingMonitor.runHealth, selected by ?mode=health). Runs once
-  # daily, 30 minutes after the 06:00 dispatch tick, so the two scheduled requests
-  # do not compete for the function's single instance. Recovery attempts remain
-  # spaced a day apart and never race an in-flight last-out (see
-  # staleness_threshold's 24h floor).
+  # Daily health checks select VidLabelingMonitor.runHealth with ?mode=health.
+  # HTTP retries accommodate a busy monitor; stuck-phase recovery remains spaced
+  # a day apart by the staleness threshold's 24h floor.
   vid_labeling_monitor_scheduler_config = {
     schedule                  = "30 6 * * *" # Daily at 06:30
     time_zone                 = "UTC"
@@ -464,18 +461,19 @@ locals {
     scheduler_job_name        = "vid-labeling-monitor"
   }
 
-  # Dispatch cadence: publish WorkItems for newly-registered uploads
-  # (VidLabelingMonitor.runDispatch, selected by ?mode=dispatch). Runs every 6h
-  # so new uploads start promptly; dispatch is user-visible latency, so it wants
-  # a fast clock independent of the slow health cadence.
+  # Fallback dispatch recovers registered uploads after fast-path retries are exhausted.
+  # ?mode=dispatch selects VidLabelingMonitor.runDispatch without health recovery.
   vid_labeling_dispatch_scheduler_config = {
-    schedule                  = "0 */6 * * *" # Every 6 hours
+    # Short fallback interval for development/cloud tests (30-minute setup timeout).
+    # Long-lived deployments should run 1-4 times per day (every 6-24 hours);
+    # newly registered uploads normally start through fast-path dispatch.
+    schedule                  = "*/5 * * * *" # Every 5 minutes
     time_zone                 = "UTC"
     name                      = "vid-labeling-dispatch-sched"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor?mode=dispatch"
     scheduler_sa_display_name = "VID Labeling Dispatch Scheduler"
     scheduler_sa_description  = "Service account for Cloud Scheduler to trigger VID labeling dispatch"
-    scheduler_job_description = "Six-hourly job dispatching VID labeling WorkItems for newly-registered uploads"
+    scheduler_job_description = "Five-minute job dispatching VID labeling WorkItems for newly-registered uploads"
     scheduler_job_name        = "vid-labeling-dispatcher"
   }
 

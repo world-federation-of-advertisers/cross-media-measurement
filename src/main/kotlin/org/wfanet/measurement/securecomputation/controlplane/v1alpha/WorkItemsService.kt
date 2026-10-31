@@ -18,6 +18,7 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.io.IOException
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -101,7 +102,7 @@ class WorkItemsService(
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          null -> backendError(e)
         }
       }
 
@@ -163,7 +164,7 @@ class WorkItemsService(
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          null -> backendError(e)
         }
       }
 
@@ -201,7 +202,7 @@ class WorkItemsService(
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
           InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          null -> backendError(e)
         }
       }
 
@@ -298,7 +299,7 @@ class WorkItemsService(
           InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          null -> backendError(e)
         }
       }
 
@@ -351,11 +352,17 @@ class WorkItemsService(
           InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          null -> backendError(e)
         }
       }
 
     return internalResponse.toWorkItem()
+  }
+
+  private fun backendError(cause: StatusException): StatusRuntimeException {
+    val status =
+      if (cause.status.code == Status.Code.UNAVAILABLE) Status.UNAVAILABLE else Status.INTERNAL
+    return status.withCause(cause).asRuntimeException()
   }
 
   companion object {

@@ -1570,3 +1570,48 @@ image is not `STABLE`). Never use a debug image in production.
 For tracing a specific report and the full failure-mode catalog (model-line mismatch,
 missing impression blobs, KMS-type mismatch, MIG scaling, capacity exhaustion), see
 the [Report Debugging Guide](report-debugging-guide.md).
+
+### VID labeling dispatch recovery
+
+Newly registered uploads normally start through fast-path dispatch. Registration
+is durable and acknowledged even when best-effort dispatch fails. The public
+WorkItems API preserves backend `UNAVAILABLE` failures so the existing common-jvm
+gRPC retry policy can handle a transient outage; backend diagnostics remain in the
+server-side cause. If those retries are exhausted, scheduled dispatch can discover
+the registered upload and start its eligible work.
+
+Set `vid_labeling_dispatch_scheduler_config.schedule` for the deployment's recovery
+needs. The following examples use `time_zone = "UTC"`:
+
+| Deployment | Dispatch schedule | Purpose |
+|---|---|---|
+| CMMS development/cloud tests | `*/5 * * * *` | Allow another dispatch attempt during the 30-minute setup timeout |
+| Long-lived deployment, four runs per day | `0 */6 * * *` | Check every six hours |
+| Long-lived deployment, one run per day | `0 0 * * *` | Check daily |
+
+Use 1–4 fallback runs per day (every 6–24 hours) for long-lived deployments. A
+longer interval reduces metadata scans and increases the time a registration can
+wait after fast-path retries are exhausted. Recovery also depends on service
+availability and scan duration; a schedule does not set a completion deadline.
+
+A `?mode=dispatch` tick scans metadata and starts eligible work; it does not rerun
+completed labeling or the daily health checks. Deterministic WorkItem IDs and etag
+claims protect dispatch when the fast path and monitor run concurrently.
+
+The dispatcher and monitor each configure a maximum of one instance and one
+concurrent HTTP request. The dispatcher and monitor can still run concurrently.
+The monitor's dispatch and health modes share its instance. Long-running scans can
+delay or skip a scheduled tick. Outbound RPC pacing remains process-scoped.
+
+Dispatch Scheduler requests rely on the next scheduled invocation for recovery.
+Daily health HTTP requests allow up to three retries, with 300–600 second backoff.
+This uses the retry-count limit without an additional retry-duration window. Both
+jobs allow 660 seconds for a request, beyond the monitor's 600-second timeout.
+The monitor reports application dispatch/recovery issues through logs and metrics
+and returns HTTP 200; Scheduler retries cover HTTP/platform failures only.
+
+Health recovery creates at most three recovery WorkItems for a stuck transition.
+If a previous recovery already exists, it must be older than the configured
+`staleness_threshold` before another is created. A missing/future creation time or
+failed lookup defers recovery. This prevents repeated health requests or a lost
+HTTP response from consuming all three attempts while recovery is still in progress.

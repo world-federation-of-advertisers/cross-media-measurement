@@ -1153,6 +1153,170 @@ class VidLabelingMonitorTest {
       .isTrue()
   }
 
+  private suspend fun stubStuckRankingRecovery(recoveries: MutableMap<String, WorkItem>) {
+    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "$DATA_PROVIDER/rawImpressionUploads/active-1/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.RANKING
+      }
+    )
+    stubRankerJobs(
+      total = 2,
+      nonSucceeded = 0,
+      succeededJobName = "$DATA_PROVIDER/rawImpressionUploads/active-1/rankerJobs/rj1",
+    )
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      if (request.name == "workItems/$RANKER_WORK_ITEM") workItem { queue = "queues/ranker" }
+      else recoveries[request.name] ?: throw Status.NOT_FOUND.asRuntimeException()
+    }
+    whenever(workItemsService.createWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<CreateWorkItemRequest>(0)
+      val name = "workItems/${request.workItemId}"
+      if (name in recoveries) throw Status.ALREADY_EXISTS.asRuntimeException()
+      workItem {
+          this.name = name
+          queue = request.workItem.queue
+          workItemParams = request.workItem.workItemParams
+          createTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli())
+        }
+        .also { recoveries[name] = it }
+    }
+  }
+
+  @Test
+  fun `runHealth repeats do not publish another recent recovery`() =
+    runBlocking<Unit> {
+      val recoveries = mutableMapOf<String, WorkItem>()
+      stubStuckRankingRecovery(recoveries)
+      val monitor = createMonitor()
+
+      assertThat(monitor.runHealth().recoveredTransitions).isEqualTo(1)
+      repeat(3) {
+        val result = monitor.runHealth()
+        assertThat(result.recoveredTransitions).isEqualTo(0)
+        assertThat(result.recoveryExhausted).isEqualTo(0)
+      }
+
+      assertThat(recoveries.keys).containsExactly("workItems/$RANKER_WORK_ITEM-monitor-recovery-1")
+    }
+
+  @Test
+  fun `runHealth retries reuse a recovery whose publish response was lost`() =
+    runBlocking<Unit> {
+      val recoveries = mutableMapOf<String, WorkItem>()
+      stubStuckRankingRecovery(recoveries)
+      whenever(workItemsService.createWorkItem(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<CreateWorkItemRequest>(0)
+        val name = "workItems/${request.workItemId}"
+        if (name in recoveries) throw Status.ALREADY_EXISTS.asRuntimeException()
+        recoveries[name] = workItem {
+          this.name = name
+          createTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli())
+        }
+        throw Status.UNAVAILABLE.asRuntimeException()
+      }
+      val monitor = createMonitor()
+
+      repeat(4) {
+        val result = monitor.runHealth()
+        assertThat(result.recoveredTransitions).isEqualTo(0)
+        assertThat(result.recoveryExhausted).isEqualTo(0)
+      }
+
+      assertThat(recoveries.keys).containsExactly("workItems/$RANKER_WORK_ITEM-monitor-recovery-1")
+    }
+
+  @Test
+  fun `runHealth defers recovery when creation time is missing`() = runBlocking {
+    val recoveries = mutableMapOf("workItems/$RANKER_WORK_ITEM-monitor-recovery-1" to workItem {})
+    stubStuckRankingRecovery(recoveries)
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.recoveryExhausted).isEqualTo(0)
+    assertThat(recoveries).hasSize(1)
+  }
+
+  @Test
+  fun `runHealth defers recovery through the staleness threshold`() = runBlocking {
+    val recoveries =
+      mutableMapOf(
+        "workItems/$RANKER_WORK_ITEM-monitor-recovery-1" to
+          workItem {
+            createTime = Timestamps.fromMillis(FIXED_NOW.minus(STALENESS_THRESHOLD).toEpochMilli())
+          }
+      )
+    stubStuckRankingRecovery(recoveries)
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.recoveryExhausted).isEqualTo(0)
+    assertThat(recoveries).hasSize(1)
+  }
+
+  @Test
+  fun `runHealth defers recovery with a future creation time`() = runBlocking {
+    val recoveries =
+      mutableMapOf(
+        "workItems/$RANKER_WORK_ITEM-monitor-recovery-1" to
+          workItem { createTime = Timestamps.fromMillis(FIXED_NOW.plusSeconds(60).toEpochMilli()) }
+      )
+    stubStuckRankingRecovery(recoveries)
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.recoveryExhausted).isEqualTo(0)
+    assertThat(recoveries).hasSize(1)
+  }
+
+  @Test
+  fun `runHealth stops at a recent recovery after an older attempt`() = runBlocking {
+    val recoveries =
+      mutableMapOf(
+        "workItems/$RANKER_WORK_ITEM-monitor-recovery-1" to
+          workItem {
+            createTime =
+              Timestamps.fromMillis(
+                FIXED_NOW.minus(STALENESS_THRESHOLD).minusSeconds(1).toEpochMilli()
+              )
+          },
+        "workItems/$RANKER_WORK_ITEM-monitor-recovery-2" to
+          workItem { createTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli()) },
+      )
+    stubStuckRankingRecovery(recoveries)
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.recoveryExhausted).isEqualTo(0)
+    assertThat(recoveries).hasSize(2)
+  }
+
+  @Test
+  fun `runHealth defers recovery when the previous attempt cannot be read`() = runBlocking {
+    val recoveries = mutableMapOf("workItems/$RANKER_WORK_ITEM-monitor-recovery-1" to workItem {})
+    stubStuckRankingRecovery(recoveries)
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      if (request.name == "workItems/$RANKER_WORK_ITEM") workItem { queue = "queues/ranker" }
+      else throw Status.UNAVAILABLE.asRuntimeException()
+    }
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.recoveryExhausted).isEqualTo(0)
+    verifyBlocking(workItemsService, times(1)) { createWorkItem(any()) }
+    assertThat(collectMetrics().counterValue("edpa.vid_labeling_monitor.recovery_step_failures"))
+      .isEqualTo(1)
+  }
+
   @Test
   fun `recovery publishes the next suffix when an earlier attempt already exists`() = runBlocking {
     stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
@@ -1171,7 +1335,13 @@ class VidLabelingMonitorTest {
     whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<GetWorkItemRequest>(0)
       if (request.name == "workItems/$RANKER_WORK_ITEM") workItem { queue = "queues/ranker" }
-      else throw Status.NOT_FOUND.asRuntimeException()
+      else
+        workItem {
+          createTime =
+            Timestamps.fromMillis(
+              FIXED_NOW.minus(STALENESS_THRESHOLD).minusSeconds(1).toEpochMilli()
+            )
+        }
     }
     // Attempt 1 was published on a prior tick and persists in the queue; attempt 2 is free.
     whenever(workItemsService.createWorkItem(any())).thenAnswer { invocation ->
@@ -1213,7 +1383,13 @@ class VidLabelingMonitorTest {
     whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<GetWorkItemRequest>(0)
       if (request.name == "workItems/$RANKER_WORK_ITEM") workItem { queue = "queues/ranker" }
-      else throw Status.NOT_FOUND.asRuntimeException()
+      else
+        workItem {
+          createTime =
+            Timestamps.fromMillis(
+              FIXED_NOW.minus(STALENESS_THRESHOLD).minusSeconds(1).toEpochMilli()
+            )
+        }
     }
     // All MAX_RECOVERY_ATTEMPTS recovery WorkItems were published on prior ticks and remain queued.
     whenever(workItemsService.createWorkItem(any()))
