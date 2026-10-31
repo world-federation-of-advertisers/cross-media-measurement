@@ -107,7 +107,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
         args+=("--concurrency=$CONCURRENCY")
       fi
 
-      gcloud $${args[@]}
+      bash "${path.module}/deploy_with_retry.sh" "$${args[@]}"
     EOT
   }
 }

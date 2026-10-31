@@ -491,3 +491,26 @@ jobs:
     with:
       nightly-build-tag: ${{ github.ref_name }}
       successfully-deployed: ${{ needs.publish-images.result == 'success' && needs.run-tests.result == 'success' && needs.run-edpa-cloud-test.result == 'success' && (inputs.environment == 'dev' || needs.run-event-group-sync-scale-test.result == 'success') && needs.run-edpa-reporting-integration-test.result == 'success' && needs.run-dashboard-isolation-test.result == 'success' && needs.run-dashboard-compliance-check.result == 'success' && needs.update-secure-computation.result == 'success' && needs.scan-images.result == 'success' }}
+
+  report-incomplete-rollout:
+    if: ${{ always() && inputs.apply && needs.update-secure-computation-dlq-paused.result != 'skipped' && needs.terraform.result != 'success' }}
+    needs: [publish-images, update-secure-computation-dlq-paused, terraform-quiesced, wait-for-tee-consumers-to-stop, update-kingdom, update-secure-computation, update-edp-aggregator-service, terraform]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+    - name: Report paused rollout and recovery
+      env:
+        IMAGE_TAG: ${{ needs.publish-images.outputs.image-tag }}
+        QUIESCE_RESULT: ${{ needs.terraform-quiesced.result }}
+        ACTIVATION_RESULT: ${{ needs.terraform.result }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        echo "::error::Rollout incomplete: WorkItem publication, consumers, or RequisitionFetcher may remain paused."
+        {
+          printf '## Rollout incomplete\n\n'
+          printf 'Image tag: `%s`. Quiescence: `%s`. Activation: `%s`.\n\n' "$IMAGE_TAG" "$QUIESCE_RESULT" "$ACTIVATION_RESULT"
+          printf 'WorkItem publication, consumers, or RequisitionFetcher may remain paused after partial changes.\n\n'
+          printf 'After correcting the failure, use **Re-run failed jobs** on [this Update CMMS run](%s). This completes the original rollout and its consumer-stop and API compatibility barriers before activation.\n\n' "$RUN_URL"
+          printf 'If the commit is older than the deployment age limit, start a fresh full Update CMMS rollout from main. Keep consumers paused until that rollout reaches activation. Do not enable consumers through a standalone Terraform apply during a partial upgrade.\n'
+        } >> "$GITHUB_STEP_SUMMARY"
