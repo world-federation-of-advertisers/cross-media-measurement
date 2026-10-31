@@ -84,7 +84,9 @@ class BasicReportHttpClientTest {
   @OptIn(ExperimentalCoroutinesApi::class)
   fun `getBasicReport stops after bounded transient failures`() = runTest {
     val interceptor = ScriptedInterceptor(List(3) { Result.success(response(503, "unavailable")) })
-    assertFailsWith<IOException> { createClient(interceptor).getBasicReport(REQUEST) }
+    val failure = assertFailsWith<IOException> { createClient(interceptor).getBasicReport(REQUEST) }
+    assertThat(failure.message).contains("503 test")
+    assertThat(failure.message).contains("unavailable")
     assertThat(interceptor.calls).isEqualTo(3)
     assertThat(testScheduler.currentTime).isEqualTo(3000L)
   }
@@ -93,7 +95,10 @@ class BasicReportHttpClientTest {
   fun `getBasicReport rejects permanent HTTP errors without retry`() = runTest {
     for (code in listOf(400, 401, 403, 404)) {
       val interceptor = ScriptedInterceptor(listOf(Result.success(response(code, "permanent"))))
-      assertFailsWith<IllegalStateException> { createClient(interceptor).getBasicReport(REQUEST) }
+      val failure =
+        assertFailsWith<IllegalStateException> { createClient(interceptor).getBasicReport(REQUEST) }
+      assertThat(failure.message).contains("$code test")
+      assertThat(failure.message).contains("permanent")
       assertThat(interceptor.calls).isEqualTo(1)
     }
   }

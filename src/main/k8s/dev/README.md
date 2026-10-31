@@ -11,9 +11,17 @@ PodDisruptionBudget retains one available replica during voluntary node drains.
 Provide at least two eligible nodes; a replacement replica remains pending when
 that capacity is unavailable. The budget does not prevent involuntary node loss.
 
+Before rollout, validate the rendered Access Deployment and PodDisruptionBudget
+with `kubectl apply --dry-run=server` against the target cluster. After rollout,
+confirm two ready replicas on different nodes and one allowed disruption in the
+budget. During a planned node drain, watch that one Access replica remains ready
+and an authorization request through the public API succeeds. This exercises the
+deployed readiness, eviction, and topology-spread behavior.
+
 Reporting simulator BasicReport GETs retry HTTP 429, 500, 502, 503, and 504
 responses with up to six calls to OkHttp. Delays double from the configured initial
 polling delay and are capped by the maximum polling delay. Connection recovery
 uses OkHttp's built-in policy; any final I/O failure propagates immediately.
 Successful responses resume normal report polling; malformed responses and other
-HTTP errors fail immediately. Report creation is not retried by this read policy.
+HTTP errors fail immediately. Final HTTP failures include the status and response
+body for diagnosis. Report creation is not retried by this read policy.
