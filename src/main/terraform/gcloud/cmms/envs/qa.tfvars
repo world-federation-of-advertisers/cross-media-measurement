@@ -1,5 +1,4 @@
 spanner_processing_units                          = 1000
-secure_computation_storage_bucket_name            = "secure-computation-storage-qa-bucket"
 edpa_config_files_bucket_name                     = "edpa-configs-storage-qa-bucket"
 data_watcher_config_file_path                     = "envs/qa/data-watcher-config.textproto"
 data_watcher_delete_config_file_path              = "envs/qa/data-watcher-delete-config.textproto"

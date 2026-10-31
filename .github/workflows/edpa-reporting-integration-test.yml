@@ -69,7 +69,7 @@ jobs:
           KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
           MC_NAME: ${{ vars.MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
-          STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
+          STORAGE_BUCKET: ${{ vars.SECURE_COMPUTATION_STORAGE_BUCKET }}
           REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
           REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
           REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}

@@ -16,8 +16,8 @@ name: Seed High Overlap Dataset
 
 run-name: Seed High Overlap Dataset [${{ inputs.environment }}]
 
-# Run when the high overlap dataset's specs change or an environment gains an EDP. The reporting
-# integration test refuses to run against a dataset that no longer matches its specs.
+# Manually trigger this workflow after the high overlap dataset's specs change or an environment
+# gains an EDP, before running the reporting integration test against that environment.
 on:
   workflow_dispatch:
     inputs:
@@ -52,9 +52,21 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     env:
-      ENVIRONMENT: ${{ inputs.environment }}
+      SECURE_COMPUTATION_STORAGE_BUCKET: ${{ vars.SECURE_COMPUTATION_STORAGE_BUCKET }}
+      EDP7_KEK_URI: ${{ vars.EDP7_KEK_URI }}
+      EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
+      EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
+      EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Validate seeding configuration
+        run: |
+          : "${SECURE_COMPUTATION_STORAGE_BUCKET:?GitHub environment variable SECURE_COMPUTATION_STORAGE_BUCKET is required}"
+          : "${EDP7_KEK_URI:?GitHub environment variable EDP7_KEK_URI is required}"
+          : "${EDPA_META_KEK_URI:?GitHub environment variable EDPA_META_KEK_URI is required}"
+          : "${EDPA_META_AWS_ROLE_ARN:?GitHub environment variable EDPA_META_AWS_ROLE_ARN is required}"
+          : "${EDPA_META_AWS_REGION:?GitHub environment variable EDPA_META_AWS_REGION is required}"
 
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
@@ -114,19 +126,8 @@ jobs:
           MC_NAME: ${{ vars.MC_NAME }}
           PDP_NAME: ${{ vars.PDP_NAME }}
           HIGH_OVERLAP_MODEL_LINE: ${{ vars.HIGH_OVERLAP_MODEL_LINE }}
-          EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
-          EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
-          EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
         run: |
           set -euo pipefail
-          config_dir="src/main/terraform/gcloud/cmms/envs/$ENVIRONMENT"
-          tfvar() { grep -E "^$1 " "$config_dir.tfvars" | head -1 | cut -d'"' -f2; }
-          edp7_id="$(jq -er '.edps[] | select(.name == "edp7") | .resource_id' "$config_dir/dashboard-config.json")"
-          # edp7's KEK is shared by every EDP that encrypts with Google Cloud KMS.
-          edp7_kek_uri="$(awk -v dp="dataProviders/$edp7_id" \
-            'index($0, "data_provider: \"" dp "\"") {found = 1}
-             found && /kek_uri:/ {split($0, parts, "\""); print parts[2]; exit}' \
-            "$config_dir/event-data-provider-configs.textproto")"
           secret_files="$GITHUB_WORKSPACE/src/main/k8s/testing/secretfiles"
 
           bazel run //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:SeedHighOverlapDataset -- \
@@ -140,9 +141,9 @@ jobs:
             --population-data-provider="$PDP_NAME" \
             --model-line="$HIGH_OVERLAP_MODEL_LINE" \
             --measurement-consumer="$MC_NAME" \
-            --storage-bucket="$(tfvar secure_computation_storage_bucket_name)" \
+            --storage-bucket="$SECURE_COMPUTATION_STORAGE_BUCKET" \
             --google-project-id="$GOOGLE_CLOUD_PROJECT" \
-            --google-cloud-kms-kek-uri="$edp7_kek_uri" \
+            --google-cloud-kms-kek-uri="$EDP7_KEK_URI" \
             --aws-kms-kek-uri="$EDPA_META_KEK_URI" \
             --aws-role-arn="$EDPA_META_AWS_ROLE_ARN" \
             --aws-region="$EDPA_META_AWS_REGION" \

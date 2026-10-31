@@ -97,7 +97,7 @@ jobs:
           KINGDOM_PUBLIC_API_CERT_HOST: localhost
           MC_NAME: ${{ vars.MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
-          STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
+          STORAGE_BUCKET: ${{ vars.SECURE_COMPUTATION_STORAGE_BUCKET }}
           EVENT_GROUP_SCALE_SEED: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           bazel test \

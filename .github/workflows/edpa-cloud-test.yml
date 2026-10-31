@@ -73,7 +73,7 @@ jobs:
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
           REQUISITION_FETCHER_ENDPOINT: ${{ vars.REQUISITION_FETCHER_ENDPOINT }}
-          STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
+          STORAGE_BUCKET: ${{ vars.SECURE_COMPUTATION_STORAGE_BUCKET }}
           MODEL_LINE: ${{ vars.MODEL_LINE_NAME }}
 
         run: |
@@ -134,6 +134,7 @@ jobs:
         id: run-tests
         env:
           MODEL_LINE_NAME: ${{ vars.MODEL_LINE_NAME }}
+          RAW_IMPRESSIONS_BUCKET: ${{ vars.SECURE_COMPUTATION_STORAGE_BUCKET }}
           DASHBOARD_CONFIG_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/dashboard-config.json
           EDPA_PUBLIC_API_TARGET: ${{ vars.METADATA_STORAGE_PUBLIC_API_TARGET }}
           # Deployed Spanner instance; lets SeedRawImpressionsRule hard-delete this test's own
@@ -152,11 +153,9 @@ jobs:
           }
           export PIPELINED_DATA_PROVIDER="dataProviders/$(edp_resource_id edp7)"
           export EDPA_DATA_PROVIDERS="${PIPELINED_DATA_PROVIDER},dataProviders/$(edp_resource_id meta)"
-          # Storage settings live in the committed per-env tfvars (single source of truth after
-          # #4168/#4227); read them here so this workflow never drifts from what Terraform deployed.
+          # Remaining storage settings live in the committed per-env tfvars.
           TFVARS="src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}.tfvars"
           tfvar() { grep -E "^$1 " "$TFVARS" | head -1 | cut -d'"' -f2; }
-          export RAW_IMPRESSIONS_BUCKET="$(tfvar secure_computation_storage_bucket_name)"
           export EDPA_CONFIG_STORAGE_BUCKET="$(tfvar edpa_config_files_bucket_name)"
           export EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI="$(tfvar results_fulfiller_event_proto_descriptor_blob_uri)"
           export EVENT_TEMPLATE_TYPE="$(tfvar results_fulfiller_event_template_type_name)"

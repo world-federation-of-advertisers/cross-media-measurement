@@ -66,12 +66,17 @@ jobs:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
       GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       GCLOUD_ZONE: ${{ vars.GCLOUD_ZONE }}
+      SECURE_COMPUTATION_STORAGE_BUCKET: ${{ vars.SECURE_COMPUTATION_STORAGE_BUCKET }}
       RESULTS_FULFILLER_TRUSTED_CA_CONTENT: ${{ secrets.RESULTS_FULFILLER_TRUSTED_CA_CONTENT }}
       CMMS_OPERATOR_MEMBERS_JSON: ${{ secrets.CMMS_OPERATOR_MEMBERS_JSON }}
       EDP_SIMULATOR_NAMES: '["edp1-simulator", "edp2-simulator", "edp3-simulator", "edp4-simulator", "edp5-simulator", "edp6-simulator"]'
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Validate storage configuration
+      run: |
+        : "${SECURE_COMPUTATION_STORAGE_BUCKET:?GitHub environment variable SECURE_COMPUTATION_STORAGE_BUCKET is required}"
 
     - name: Compute commit age
       id: compute-commit-age
@@ -326,6 +331,7 @@ jobs:
         -var-file=envs/${{ inputs.environment }}.tfvars
         -var="spanner_instance_name=$SPANNER_INSTANCE"
         -var="storage_bucket_name=$STORAGE_BUCKET"
+        -var="secure_computation_storage_bucket_name=$SECURE_COMPUTATION_STORAGE_BUCKET"
         -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT"
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -var="postgres_password=$POSTGRES_PASSWORD"

@@ -28,10 +28,6 @@ option java_outer_classname = "EdpaReportingIntegrationTestConfigProto";
 // TODO(world-federation-of-advertisers/cross-media-measurement#4561):
 // Factor the fields shared with CorrectnessTestConfig into a common message.
 message EdpaReportingIntegrationTestConfig {
-  reserved 13 to 18;
-  reserved "edp_names", "population_data_provider", "edp7_kek_uri",
-      "edpa_meta_kek_uri", "edpa_meta_aws_role_arn", "edpa_meta_aws_region";
-
   // gRPC target of Kingdom public API server.
   string kingdom_public_api_target = 1;
 

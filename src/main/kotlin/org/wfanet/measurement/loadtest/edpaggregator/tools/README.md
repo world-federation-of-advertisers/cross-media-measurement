@@ -28,3 +28,21 @@ the impression blobs, the manifest and the BigQuery ground-truth table.
 relies on (VID ranges, stripe layout, demographic coverage). Run it before
 seeding — it is cheap and catches a bad generator change without burning a
 seeding run.
+
+## Workflow configuration
+
+Configure these GitHub environment variables before running Terraform or seeding
+in `dev`, `qa`, or `head`:
+
+| Variable | Value |
+| --- | --- |
+| `SECURE_COMPUTATION_STORAGE_BUCKET` | Existing Secure Computation bucket name; shared by Terraform, seeding and the integration tests. |
+| `EDP7_KEK_URI` | Google Cloud KMS key URI shared by the Google Cloud EDPs. |
+| `EDPA_META_KEK_URI` | AWS KMS key URI for `edpa_meta`. |
+| `EDPA_META_AWS_ROLE_ARN` | AWS role used to access that key. |
+| `EDPA_META_AWS_REGION` | AWS region containing that key. |
+
+`SECURE_COMPUTATION_STORAGE_BUCKET` replaces `secure_computation_storage_bucket_name`
+in the environment's `.tfvars` file. Use the existing bucket name when configuring
+it. For local Terraform runs, pass `-var="secure_computation_storage_bucket_name=..."`.
+The workflows fail before deployment or seeding if required configuration is missing.
