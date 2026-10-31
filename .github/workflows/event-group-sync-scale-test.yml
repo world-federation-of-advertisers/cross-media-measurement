@@ -98,10 +98,7 @@ jobs:
         id: run-test
         env:
           GOOGLE_CLOUD_PROJECT: halo-cmm-${{ inputs.environment }}
-          KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
-          REPORTING_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_PUBLIC_API_TARGET }}
           KINGDOM_PUBLIC_API_CERT_HOST: localhost
-          MC_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
           EVENT_GROUP_SCALE_SEED: ${{ github.run_id }}-${{ github.run_attempt }}

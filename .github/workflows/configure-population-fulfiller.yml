@@ -95,8 +95,6 @@ jobs:
       - name: Write ~/.bazelrc
         env:
           IMAGE_TAG: ${{ inputs.image-tag }}
-          PDP_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).PDP_NAME }}
-          PDP_CERT_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).PDP_CERT_NAME }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci

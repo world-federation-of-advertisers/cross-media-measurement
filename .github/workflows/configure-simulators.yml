@@ -100,12 +100,6 @@ jobs:
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
-        WORKER1_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER1_PUBLIC_API_TARGET }}
-        WORKER2_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER2_PUBLIC_API_TARGET }}
-        AGGREGATOR_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).AGGREGATOR_PUBLIC_API_TARGET }}
-        MC_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MC_NAME }}
-        GCLOUD_REGION: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_REGION }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci

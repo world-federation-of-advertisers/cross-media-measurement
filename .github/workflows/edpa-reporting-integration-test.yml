@@ -72,20 +72,8 @@ jobs:
 
       - name: Write ~/.bazelrc
         env:
-          KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
-          MC_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
-          REPORTING_SERVICE_ENDPOINT: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_SERVICE_ENDPOINT }}
-          REPORTING_TOKEN_AUDIENCE: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_TOKEN_AUDIENCE }}
-          REPORTING_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_PUBLIC_API_TARGET }}
-          ACCESS_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).ACCESS_PUBLIC_API_TARGET }}
-          HIGH_OVERLAP_MODEL_LINE: ${{ fromJSON(steps.cmms-config.outputs.config).HIGH_OVERLAP_MODEL_LINE }}
-          PDP_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).PDP_NAME }}
-          EDP7_KEK_URI: ${{ vars.EDP7_KEK_URI }}
-          EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
-          EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
-          EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci

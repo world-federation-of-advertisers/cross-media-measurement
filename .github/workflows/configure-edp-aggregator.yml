@@ -74,9 +74,6 @@ jobs:
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        SPANNER_INSTANCE: ${{ fromJSON(steps.cmms-config.outputs.config).SPANNER_INSTANCE }}
-        GCLOUD_REGION: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_REGION }}
-        KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci

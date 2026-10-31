@@ -218,7 +218,6 @@ jobs:
     - name: Validate direct RequisitionFetcher dispatch configuration
       env:
         CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
-        SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).SECURE_COMPUTATION_PUBLIC_API_TARGET }}
       run: |
         bazelisk run \
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:ValidateRequisitionFetcherConfig \
@@ -251,7 +250,6 @@ jobs:
       env:
         DASHBOARD_CONFIG_FILE: envs/${{ inputs.environment }}/dashboard-config.json
         SPANNER_PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
-        SPANNER_INSTANCE: ${{ fromJSON(steps.cmms-config.outputs.config).SPANNER_INSTANCE }}
       run: |
         set -euo pipefail
         # Dashboard config (EDPs, operators, deletion protection) is consolidated
@@ -287,21 +285,13 @@ jobs:
 
     - name: terraform plan
       env:
-        SPANNER_INSTANCE: ${{ fromJSON(steps.cmms-config.outputs.config).SPANNER_INSTANCE }}
-        STORAGE_BUCKET: ${{ fromJSON(steps.cmms-config.outputs.config).STORAGE_BUCKET }}
         TERRAFORM_SERVICE_ACCOUNT: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
-        POSTGRES_INSTANCE: ${{ fromJSON(steps.cmms-config.outputs.config).POSTGRES_INSTANCE }}
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         RESULTS_FULFILLER_TRUSTED_CA_FILE: ${{ runner.temp }}/results-fulfiller-trusted-root-ca.pem
-        KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
-        SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).SECURE_COMPUTATION_PUBLIC_API_TARGET }}
-        METADATA_STORAGE_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).METADATA_STORAGE_PUBLIC_API_TARGET }}
         IMAGE_TAG: ${{ inputs.image-tag }}
         DUCHY_WORKER1_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER2_PUBLIC_API_TARGET }}
         DUCHY_AGGREGATOR_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).AGGREGATOR_PUBLIC_API_TARGET }}
-        KINGDOM_SYSTEM_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_SYSTEM_API_TARGET }}
-        AGGREGATOR_DUCHY_CERT_ID: ${{ fromJSON(steps.cmms-config.outputs.config).AGGREGATOR_DUCHY_CERT_ID }}
         TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >

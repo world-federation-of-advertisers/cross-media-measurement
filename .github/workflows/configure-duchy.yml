@@ -98,10 +98,6 @@ jobs:
         service_account: ${{ fromJSON(steps.cmms-config.outputs.config).GKE_CONFIG_SERVICE_ACCOUNT }}
 
     - name: Export DUCHY_CERT_ID
-      env:
-        AGGREGATOR_DUCHY_CERT_ID: ${{ fromJSON(steps.cmms-config.outputs.config).AGGREGATOR_DUCHY_CERT_ID }}
-        WORKER1_DUCHY_CERT_ID: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER1_DUCHY_CERT_ID }}
-        WORKER2_DUCHY_CERT_ID: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER2_DUCHY_CERT_ID }}
       run: ./.github/workflows/export-duchy-cert-id.sh
 
     - name: Write auth.bazelrc
@@ -115,13 +111,6 @@ jobs:
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        KINGDOM_SYSTEM_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_SYSTEM_API_TARGET }}
-        KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
-        AGGREGATOR_SYSTEM_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).AGGREGATOR_SYSTEM_API_TARGET }}
-        WORKER1_SYSTEM_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER1_SYSTEM_API_TARGET }}
-        WORKER2_SYSTEM_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER2_SYSTEM_API_TARGET }}
-        SPANNER_INSTANCE: ${{ fromJSON(steps.cmms-config.outputs.config).SPANNER_INSTANCE }}
-        STORAGE_BUCKET: ${{ fromJSON(steps.cmms-config.outputs.config).STORAGE_BUCKET }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci

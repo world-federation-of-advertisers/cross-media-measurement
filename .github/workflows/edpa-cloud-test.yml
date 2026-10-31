@@ -74,11 +74,8 @@ jobs:
 
       - name: Write ~/.bazelrc
         env:
-          KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
-          MC_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
-          REQUISITION_FETCHER_ENDPOINT: ${{ fromJSON(steps.cmms-config.outputs.config).REQUISITION_FETCHER_ENDPOINT }}
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
           MODEL_LINE: ${{ fromJSON(steps.cmms-config.outputs.config).MODEL_LINE_NAME }}
 
@@ -132,19 +129,14 @@ jobs:
       - name: Run tests
         id: run-tests
         env:
-          MODEL_LINE_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MODEL_LINE_NAME }}
           DASHBOARD_CONFIG_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/dashboard-config.json
           EDPA_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).METADATA_STORAGE_PUBLIC_API_TARGET }}
           # Deployed Spanner instance; lets SeedRawImpressionsRule hard-delete this test's own
           # RawImpressionUpload rows before seeding (scoped by DoneBlobUri prefix) so re-runs do not
           # collide on the RawImpressionUploadFileByBlobUri unique index.
-          SPANNER_INSTANCE: ${{ fromJSON(steps.cmms-config.outputs.config).SPANNER_INSTANCE }}
           # edpa_meta publisher AWS KMS settings, used to (re)generate its labeled impressions
           # in-test. The runner must also produce AWS_WEB_IDENTITY_TOKEN_FILE (AWS web-identity
           # token); it is forwarded to the test below.
-          EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
-          EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
-          EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
         run: |
           edp_resource_id() {
             jq -er --arg name "$1" '.edps[] | select(.name == $name) | .resource_id' "$DASHBOARD_CONFIG_FILE"

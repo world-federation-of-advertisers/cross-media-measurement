@@ -40,7 +40,7 @@ on:
         description: "OAuth issuer URL for the MCP server (blank uses the environment's OPEN_ID_PROVIDER_ISSUER)"
         type: string
       oauth_protected_resource:
-        description: "OAuth protected-resource identifier the MCP server advertises (blank uses the environment's OAUTH_PROTECTED_RESOURCE, else defaults to https://<mcp_host>)"
+        description: "OAuth protected-resource identifier the MCP server advertises (blank defaults to https://<mcp_host>)"
         type: string
   workflow_dispatch:
     inputs:
@@ -67,7 +67,7 @@ on:
         description: "OAuth issuer URL for the MCP server (blank uses the environment's OPEN_ID_PROVIDER_ISSUER)"
         type: string
       oauth_protected_resource:
-        description: "OAuth protected-resource identifier the MCP server advertises (blank uses the environment's OAUTH_PROTECTED_RESOURCE, else defaults to https://<mcp_host>)"
+        description: "OAuth protected-resource identifier the MCP server advertises (blank defaults to https://<mcp_host>)"
         type: string
 
 permissions:
@@ -112,14 +112,9 @@ jobs:
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        SPANNER_INSTANCE: ${{ fromJSON(steps.cmms-config.outputs.config).SPANNER_INSTANCE }}
-        POSTGRES_INSTANCE: ${{ fromJSON(steps.cmms-config.outputs.config).POSTGRES_INSTANCE }}
-        GCLOUD_REGION: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_REGION }}
-        KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
-        PDP_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).PDP_NAME }}
         MCP_HOST: ${{ inputs.mcp_host || fromJSON(steps.cmms-config.outputs.config).MCP_HOST }}
-        OPEN_ID_PROVIDER_ISSUER: ${{ inputs.oauth_issuer || vars.OPEN_ID_PROVIDER_ISSUER }}
-        OAUTH_PROTECTED_RESOURCE: ${{ inputs.oauth_protected_resource || vars.OAUTH_PROTECTED_RESOURCE }}
+        OPEN_ID_PROVIDER_ISSUER: ${{ inputs.oauth_issuer || fromJSON(steps.cmms-config.outputs.config).OPEN_ID_PROVIDER_ISSUER }}
+        OAUTH_PROTECTED_RESOURCE: ${{ inputs.oauth_protected_resource }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -197,8 +192,7 @@ jobs:
 
     - name: Write OpenIdProvidersConfig
       env:
-        OPEN_ID_PROVIDER_ISSUER: ${{ vars.OPEN_ID_PROVIDER_ISSUER }}
-        REPORTING_TOKEN_AUDIENCE: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_TOKEN_AUDIENCE }}
+        OPEN_ID_PROVIDER_ISSUER: ${{ inputs.oauth_issuer || fromJSON(steps.cmms-config.outputs.config).OPEN_ID_PROVIDER_ISSUER }}
       run: |
         jwks_uri="${OPEN_ID_PROVIDER_ISSUER%/}/.well-known/jwks.json"
         curl -L "${jwks_uri}" -o "$RUNNER_TEMP/jwks.json"

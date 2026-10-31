@@ -72,19 +72,7 @@ jobs:
 
     - name: Write ~/.bazelrc
       env:
-        KINGDOM_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
-        MC_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MC_NAME }}
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
-        GCLOUD_PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
-        REPORTING_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_PUBLIC_API_TARGET }}
-        REPORTING_SERVICE_ENDPOINT: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_SERVICE_ENDPOINT }}
-        ACCESS_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).ACCESS_PUBLIC_API_TARGET }}
-        REPORTING_TOKEN_AUDIENCE: ${{ fromJSON(steps.cmms-config.outputs.config).REPORTING_TOKEN_AUDIENCE }}
-        MCP_HOST: ${{ fromJSON(steps.cmms-config.outputs.config).MCP_HOST }}
-
-        PDP_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).PDP_NAME }}
-        MP_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MP_NAME }}
-        MODEL_LINE_NAME: ${{ fromJSON(steps.cmms-config.outputs.config).MODEL_LINE_NAME }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci

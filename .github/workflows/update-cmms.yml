@@ -122,7 +122,6 @@ jobs:
     - name: Validate RequisitionFetcher and DataWatcher configuration
       env:
         CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
-        SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).SECURE_COMPUTATION_PUBLIC_API_TARGET }}
       run: |
         bazelisk run \
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:ValidateRequisitionFetcherConfig \
@@ -185,7 +184,6 @@ jobs:
     - name: Wait for WorkItem TEE consumers to stop
       if: ${{ inputs.apply }}
       env:
-        GCLOUD_REGION: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_REGION }}
         MIG_NAMES_JSON: ${{ needs.terraform-quiesced.outputs.work_item_tee_mig_names }}
       run: |
         set -euo pipefail

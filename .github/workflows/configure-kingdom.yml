@@ -94,7 +94,6 @@ jobs:
       - name: Write ~/.bazelrc
         env:
           IMAGE_TAG: ${{ inputs.image-tag }}
-          SPANNER_INSTANCE: ${{ fromJSON(steps.cmms-config.outputs.config).SPANNER_INSTANCE }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
