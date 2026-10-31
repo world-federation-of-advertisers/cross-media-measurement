@@ -1017,6 +1017,18 @@ IDs are equivalent to legacy event-group reference IDs. Both
 `event_group_reference_id_prefix` and `entity_id_prefix` are optional and are
 applied independently; an empty prefix is valid.
 
+ResultsFulfiller rejects requisition reference IDs that cannot convert to a
+non-blank entity ID, and entity IDs of the mapped type that cannot convert to a
+non-blank reference ID. For that type, a requisition EventGroup's dual
+identifiers must be exactly equivalent. It also validates present reference
+IDs and mapped-type entity IDs in retrieved `BlobDetails` and impressions
+before whole-blob acceptance or event filtering. Legacy impressions may omit
+both identifiers; keys of other entity types are not subject to the mapping.
+These checks do not audit history omitted by a metadata query. When only one
+identifier is available, successful conversion cannot prove that the
+destination prefix matches stored history. Correct the mapping or invalid
+data before retrying a failed fulfillment.
+
 Use this rollout order:
 
 1. Configure and deploy the equivalent mapping in `ResultsFulfillerParams` for

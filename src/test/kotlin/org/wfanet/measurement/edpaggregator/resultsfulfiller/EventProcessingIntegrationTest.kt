@@ -1373,6 +1373,7 @@ class EventProcessingIntegrationTest {
       kmsClient = null, // Unencrypted test data
       impressionsStorageConfig = StorageConfig(rootDirectory = impressionsRoot),
       descriptor = TestEvent.getDescriptor(),
+      mapping = null,
     )
   }
 
@@ -1444,7 +1445,7 @@ class EventProcessingIntegrationTest {
               entityKey = entityKeyMap[eventGroup],
             )
         },
-      mappedEntityType = null,
+      mapping = null,
       wholeBlobEntityTypes = emptySet(),
     )
   }
@@ -1636,7 +1637,12 @@ class EventProcessingIntegrationTest {
     val entries =
       listOf(
         mapEntryWithEntityKey("eventGroups/legacy", "campaign", "", "ref/legacy"),
-        mapEntryWithEntityKey("eventGroups/campaign", "campaign", "entity/campaign", "ignored"),
+        mapEntryWithEntityKey(
+          "eventGroups/campaign",
+          "campaign",
+          "entity/campaign",
+          "ref/campaign",
+        ),
         mapEntryWithEntityKey("eventGroups/ad", "ad", "ad-1", "ignored"),
       )
     val resolvedEventGroups =
@@ -1682,7 +1688,7 @@ class EventProcessingIntegrationTest {
     val entries =
       listOf(
         mapEntryWithEntityKey("eventGroups/legacy", "campaign", "", "legacy"),
-        mapEntryWithEntityKey("eventGroups/campaign", "campaign", "campaign", "ignored"),
+        mapEntryWithEntityKey("eventGroups/campaign", "campaign", "campaign", "campaign"),
       )
 
     val eventGroupsByKey: Map<EventGroupKey, ResolvedEventGroup> =
@@ -1707,6 +1713,245 @@ class EventProcessingIntegrationTest {
           collectionIntervals = emptyList(),
           eventGroupReferenceId = "campaign",
           entityKey = labeledImpressionEntityKey("campaign", "campaign"),
+        )
+      )
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries rejects mapped entity IDs with the wrong prefix`() {
+    val mapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "ref/",
+        entityIdPrefix = "campaign/cp_",
+      )
+    for (referenceId in listOf("", "ref/123")) {
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          ResolvedEventGroups.fromEventGroupMapEntries(
+            listOf(
+              mapEntryWithEntityKey("eventGroups/campaign", "campaign", "cp_123", referenceId)
+            ),
+            mapping,
+            wholeBlobEntityTypes = emptySet(),
+          )
+        }
+
+      assertThat(exception).hasMessageThat().contains("mapping")
+    }
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries rejects mapped entity IDs that produce blank reference IDs`() {
+    val mapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "",
+        entityIdPrefix = "cp_",
+      )
+    for (entityId in listOf("cp_", "cp_   ")) {
+      assertFailsWith<IllegalArgumentException> {
+        ResolvedEventGroups.fromEventGroupMapEntries(
+          listOf(mapEntryWithEntityKey("eventGroups/campaign", "campaign", entityId, "")),
+          mapping,
+          wholeBlobEntityTypes = emptySet(),
+        )
+      }
+    }
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries rejects non-equivalent dual identifiers`() {
+    val mapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "ref/",
+        entityIdPrefix = "cp_",
+      )
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResolvedEventGroups.fromEventGroupMapEntries(
+          listOf(mapEntryWithEntityKey("eventGroups/campaign", "campaign", "cp_123", "ref/456")),
+          mapping,
+          wholeBlobEntityTypes = emptySet(),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("equivalent")
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries rejects a mismatched reference ID prefix`() {
+    val mapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "wrong/",
+        entityIdPrefix = "cp_",
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      ResolvedEventGroups.fromEventGroupMapEntries(
+        listOf(mapEntryWithEntityKey("eventGroups/campaign", "campaign", "cp_123", "ref/123")),
+        mapping,
+        wholeBlobEntityTypes = emptySet(),
+      )
+    }
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries rejects non-equivalent dual identifiers with empty entity prefix`() {
+    val mapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "",
+        entityIdPrefix = "",
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      ResolvedEventGroups.fromEventGroupMapEntries(
+        listOf(mapEntryWithEntityKey("eventGroups/campaign", "campaign", "cp_123", "123")),
+        mapping,
+        wholeBlobEntityTypes = emptySet(),
+      )
+    }
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries accepts equivalent identifiers with all prefix combinations`() {
+    for (referenceIdPrefix in listOf("", "ref/")) {
+      for (entityIdPrefix in listOf("", "campaign/cp_")) {
+        val mapping =
+          EventGroupReferenceIdEntityKeyMapping(
+            entityType = "campaign",
+            eventGroupReferenceIdPrefix = referenceIdPrefix,
+            entityIdPrefix = entityIdPrefix,
+          )
+        val referenceId = "${referenceIdPrefix}123"
+        val entityId = "${entityIdPrefix}123"
+        val entries =
+          listOf(
+            mapEntryWithEntityKey("eventGroups/dual", "campaign", entityId, referenceId),
+            mapEntryWithEntityKey("eventGroups/entity", "campaign", entityId, ""),
+            mapEntryWithEntityKey("eventGroups/legacy", "campaign", "", referenceId),
+          )
+
+        val resolved: ResolvedEventGroups =
+          ResolvedEventGroups.fromEventGroupMapEntries(
+            entries,
+            mapping,
+            wholeBlobEntityTypes = emptySet(),
+          )
+
+        assertThat(resolved.eventGroupsByKey.values)
+          .containsExactlyElementsIn(
+            List(3) {
+              ResolvedEventGroup(
+                collectionIntervals = emptyList(),
+                eventGroupReferenceId = referenceId,
+                entityKey = labeledImpressionEntityKey("campaign", entityId),
+              )
+            }
+          )
+      }
+    }
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries keeps dual identifiers entity-key-only without mapping`() {
+    val resolved: ResolvedEventGroups =
+      ResolvedEventGroups.fromEventGroupMapEntries(
+        listOf(mapEntryWithEntityKey("eventGroups/campaign", "campaign", "cp_123", "123")),
+        mapping = null,
+        wholeBlobEntityTypes = emptySet(),
+      )
+
+    assertThat(resolved.eventGroupsByKey.values)
+      .containsExactly(
+        ResolvedEventGroup(
+          collectionIntervals = emptyList(),
+          eventGroupReferenceId = null,
+          entityKey = labeledImpressionEntityKey("campaign", "cp_123"),
+        )
+      )
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries keeps unmapped entity types entity-key-only`() {
+    val mapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "ref/",
+        entityIdPrefix = "cp_",
+      )
+    val resolved: ResolvedEventGroups =
+      ResolvedEventGroups.fromEventGroupMapEntries(
+        listOf(mapEntryWithEntityKey("eventGroups/ad", "ad", "ad-1", "unrelated")),
+        mapping,
+        wholeBlobEntityTypes = emptySet(),
+      )
+
+    assertThat(resolved.eventGroupsByKey.values)
+      .containsExactly(
+        ResolvedEventGroup(
+          collectionIntervals = emptyList(),
+          eventGroupReferenceId = null,
+          entityKey = labeledImpressionEntityKey("ad", "ad-1"),
+        )
+      )
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries rejects unmappable reference-only selectors`() {
+    val mapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "ref/",
+        entityIdPrefix = "cp_",
+      )
+    assertFailsWith<IllegalArgumentException> {
+      ResolvedEventGroups.fromEventGroupMapEntries(
+        listOf(mapEntryWithEntityKey("eventGroups/legacy", "", "", "unrelated")),
+        mapping,
+        wholeBlobEntityTypes = emptySet(),
+      )
+    }
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries rejects reference IDs that convert to blank entity IDs`() {
+    val mapping =
+      EventGroupReferenceIdEntityKeyMapping(
+        entityType = "campaign",
+        eventGroupReferenceIdPrefix = "ref/",
+        entityIdPrefix = "",
+      )
+
+    for (referenceId in listOf("ref/", "ref/   ")) {
+      assertFailsWith<IllegalArgumentException> {
+        ResolvedEventGroups.fromEventGroupMapEntries(
+          listOf(mapEntryWithEntityKey("eventGroups/legacy", "", "", referenceId)),
+          mapping,
+          wholeBlobEntityTypes = emptySet(),
+        )
+      }
+    }
+  }
+
+  @Test
+  fun `fromEventGroupMapEntries preserves reference-only selectors without mapping`() {
+    val resolved =
+      ResolvedEventGroups.fromEventGroupMapEntries(
+        listOf(mapEntryWithEntityKey("eventGroups/legacy", "", "", "unrelated")),
+        mapping = null,
+        wholeBlobEntityTypes = emptySet(),
+      )
+
+    assertThat(resolved.eventGroupsByKey.values)
+      .containsExactly(
+        ResolvedEventGroup(
+          collectionIntervals = emptyList(),
+          eventGroupReferenceId = "unrelated",
+          entityKey = null,
         )
       )
   }

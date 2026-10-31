@@ -1291,6 +1291,24 @@ requisition, `ImpressionMetadata`, and `BlobDetails`. The prefixes are
 independent, and either may be blank. With the mapping absent, the two formats
 remain distinct.
 
+ResultsFulfiller fails before metadata lookup when a reference-only requisition
+ID cannot convert to a non-blank entity ID, or a mapped-type entity ID cannot
+convert to a non-blank reference ID. A mapped-type requisition EventGroup's
+dual identifiers must agree exactly. Retrieved `BlobDetails` and impression
+records are also checked for failed conversions in either direction, before
+whole-blob acceptance or event filtering. Records without identifiers remain
+valid for legacy blobs; other entity types are outside the mapping. Inspect the
+exception mentioning `event_group_reference_id_entity_key_mapping` in the
+`edp_aggregator.results_fulfiller.group_failed` log. Correct the entity type and
+prefixes, or the invalid EventGroup, blob, or impression identifiers, before
+retrying. Blob and impression failures occur after metadata lookup, when the
+data is read.
+
+A single-identifier EventGroup has no counterpart to compare. A successful
+conversion alone does not verify that the destination prefix matches stored
+history. Validation covers only blobs returned by metadata lookup, not history
+that an incorrect query omits.
+
 EventGroupSync has a separate config representation of the same mapping. When
 enabled, input for the mapped entity type must supply both the legacy reference
 ID and its equivalent entity key. EventGroupSync skips an input instead of

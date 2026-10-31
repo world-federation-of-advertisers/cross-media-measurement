@@ -4128,6 +4128,79 @@ class ResultsFulfillerTest {
   }
 
   @Test
+  fun `fulfillRequisitions fails before metadata lookup when the mapping is invalid`() =
+    runBlocking {
+      val tmpDir = Files.createTempDirectory(null).toFile()
+      val resultsFulfiller =
+        ResultsFulfiller(
+          dataProvider = EDP_NAME,
+          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+          requisitionMetadataStub = requisitionMetadataStub,
+          requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "invalid-mapping-group"
+              eventGroupMap += eventGroupMapEntry {
+                eventGroup = EVENT_GROUP_NAME
+                details = eventGroupDetails {
+                  eventGroupReferenceId = "123"
+                  entityKey =
+                    GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                      entityType = "campaign"
+                      entityId = "campaign/cp_123"
+                    }
+                }
+              }
+              requisitions += requisitionEntry {
+                requisition = Any.pack(DIRECT_IMPRESSION_REQUISITION)
+              }
+            },
+          modelLineInfoMap = emptyMap(),
+          pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+          impressionDataSourceProvider =
+            ImpressionDataSourceProvider(
+              impressionMetadataStub = impressionMetadataStub,
+              dataProvider = EDP_NAME,
+              impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmpDir),
+            ),
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmpDir),
+          kmsClient = null,
+          fulfillerSelector = NoOpFulfillerSelector(),
+          eventGroupReferenceIdEntityKeyMapping =
+            EventGroupReferenceIdEntityKeyMapping(
+              entityType = "campaign",
+              eventGroupReferenceIdPrefix = "",
+              entityIdPrefix = "cp_",
+            ),
+          wholeBlobEntityTypes = emptySet(),
+          metrics = metrics,
+        )
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> { resultsFulfiller.fulfillRequisitions() }
+
+      assertThat(exception.message).contains("mapping")
+      verifyBlocking(impressionMetadataServiceMock, times(0)) { listImpressionMetadata(any()) }
+      verifyBlocking(requisitionMetadataServiceMock, times(0)) { listRequisitionMetadata(any()) }
+      verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
+      verifyBlocking(requisitionMetadataServiceMock, times(0)) {
+        startProcessingRequisitionMetadata(any())
+      }
+      val failureSpan =
+        collectSpans().single { it.name == "edp_aggregator.results_fulfiller.shared_failure" }
+      assertThat(failureSpan.status.statusCode).isEqualTo(StatusCode.ERROR)
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+        .isEqualTo(DIRECT_IMPRESSION_REQUISITION.name)
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.GROUP_ID))
+        .isEqualTo("invalid-mapping-group")
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+        .isEqualTo("IllegalArgumentException")
+    }
+
+  @Test
   fun `runWork mapping handles all blob representations without double counting`() = runBlocking {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
