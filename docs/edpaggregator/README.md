@@ -544,6 +544,13 @@ Use `entity_key` for new integrations. `event_group_reference_id` is the legacy
 alternative. The entity type and ID must exactly match the corresponding values
 produced by the selected impression path.
 
+Within a (`DataProvider`, `MeasurementConsumer`) pair, each (`entity_type`,
+`entity_id`) pair must identify exactly one `EventGroup`, regardless of its
+parent in an entity hierarchy. If an EDP's native entity IDs are unique only
+within their parent, the EDP must provide stable, URL-safe IDs that are unique
+across parents and use those same IDs in its campaign information and impression
+data.
+
 ### Validate campaign information before upload
 
 Download `VerifyEventGroups_deploy.jar` from the project's
