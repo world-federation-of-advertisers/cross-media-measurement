@@ -224,22 +224,20 @@ class RecoverMissingImpressionMetadata : Runnable {
         )
       }
     val storageApiEndpoint = storageApiEndpoint
-    val storageClient =
-      GcsStorageClient(
-        StorageOptions.newBuilder()
-          .also {
-            if (storageConfig.projectId.isNotEmpty()) {
-              it.setProjectId(storageConfig.projectId)
-            }
-            if (storageApiEndpoint != null) {
-              it.setHost(storageApiEndpoint)
-              it.setCredentials(NoCredentials.getInstance())
-            }
+    val storage =
+      StorageOptions.newBuilder()
+        .also {
+          if (storageConfig.projectId.isNotEmpty()) {
+            it.setProjectId(storageConfig.projectId)
           }
-          .build()
-          .service,
-        storageConfig.bucketName,
-      )
+          if (storageApiEndpoint != null) {
+            it.setHost(storageApiEndpoint)
+            it.setCredentials(NoCredentials.getInstance())
+          }
+        }
+        .build()
+        .service
+    val storageClient = GcsStorageClient(storage, storageConfig.bucketName)
     val kingdomChannel =
       buildChannel(config.cmmsConnection, kingdomPublicApiTarget, kingdomPublicApiCertHost)
     val impressionMetadataChannel =
@@ -323,7 +321,7 @@ class RecoverMissingImpressionMetadata : Runnable {
               errorIfGapsExist = config.errorIfGapsExist,
               publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
             )
-            .sync(doneBlobUri)
+            .sync(doneBlobUri, DoneBlobGenerationResolver.resolve(storage, doneBlobUri))
           filteringStorageClient.processedMetadataBlobKeys
         },
         metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),

@@ -983,7 +983,12 @@ class InProcessEdpAggregatorComponents(
     val outcomes =
       doneKeys.associate { doneKey ->
         val doneUri = "file:///$bucket/$doneKey"
-        val outcome = sync.sync(doneUri)
+        val outcome =
+          sync.sync(
+            doneBlobPath = doneUri,
+            // Filesystem fixtures have no GCS generation. Each marker is written once above.
+            doneBlobGeneration = 1L,
+          )
         if (outcome == DataAvailabilitySync.Outcome.PUBLISHED) {
           check(
             DataAvailabilityBlobs.isDataAvailabilityPublished(
