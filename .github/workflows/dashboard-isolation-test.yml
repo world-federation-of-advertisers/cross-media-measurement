@@ -194,7 +194,7 @@ jobs:
           EDP_DELEGATES: dashboard-compliance@${{ vars.GCLOUD_PROJECT }}.iam.gserviceaccount.com
           EDP_IMPERSONATE_SA: edp-${{ matrix.edp.name }}-dashboard@${{ vars.GCLOUD_PROJECT }}.iam.gserviceaccount.com
         run: |
-          bazel test \
+          tools/bazel-with-results bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
           --test_env=GOOGLE_CLOUD_PROJECT \
           --test_env=BIGQUERY_REGION \

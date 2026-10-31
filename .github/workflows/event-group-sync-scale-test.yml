@@ -100,7 +100,7 @@ jobs:
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
           EVENT_GROUP_SCALE_SEED: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          bazel test \
+          tools/bazel-with-results bazel test \
             --config=ci \
             --test_output=streamed \
             --test_timeout=2700 \

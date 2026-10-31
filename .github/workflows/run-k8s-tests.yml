@@ -139,7 +139,7 @@ jobs:
     - name: Run correctness tests
       id: run-correctness-test
       run: |
-        bazelisk test \
+        tools/bazel-with-results bazelisk test \
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
 
     - name: Run reporting MCP smoke test through the in-cluster Service
@@ -234,10 +234,10 @@ jobs:
           sleep 1
         done
 
-        bazelisk test \
+        tools/bazel-with-results bazelisk test \
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingMcpSmokeTest
 
     - name: Upload Bazel testlogs
       continue-on-error: true
       uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
-      if: failure() && (steps.run-correctness-test.outcome == 'failure' || steps.run-mcp-smoke-test.outcome == 'failure')
+      if: ${{ !cancelled() && (steps.run-correctness-test.outcome == 'success' || steps.run-correctness-test.outcome == 'failure' || steps.run-mcp-smoke-test.outcome == 'success' || steps.run-mcp-smoke-test.outcome == 'failure') }}

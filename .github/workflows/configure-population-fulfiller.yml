@@ -116,7 +116,7 @@ jobs:
 
       - name: Generate archives
         run: >
-          bazelisk build 
+          tools/bazel-with-results bazelisk build
           //src/main/k8s/dev:population_requisition_fulfiller.tar
           //src/main/k8s/testing/secretfiles:pdp1_tls_files.tar
           //src/main/k8s/testing/secretfiles:pdp1_consent_signaling_files.tar

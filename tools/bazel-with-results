@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Run a Bazel build/test and preserve its verdict if BES publishing fails."""
+
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+
+def completed_exit_code(event_file: Path) -> int | None:
+    codes = []
+    try:
+        with event_file.open(encoding="utf-8") as events:
+            for line in events:
+                event = json.loads(line)
+                if not isinstance(event, dict) or not isinstance(event.get("id"), dict):
+                    return None
+                if "buildFinished" not in event["id"]:
+                    continue
+                if not isinstance(event["id"]["buildFinished"], dict):
+                    return None
+                finished = event.get("finished")
+                if not isinstance(finished, dict):
+                    return None
+                exit_code = finished.get("exitCode")
+                if not isinstance(exit_code, dict):
+                    return None
+                code = exit_code.get("code")
+                # Proto JSON omits the default numeric value for SUCCESS.
+                if code is None and exit_code.get("name") == "SUCCESS":
+                    code = 0
+                if type(code) is not int or not 0 <= code <= 255:
+                    return None
+                codes.append(code)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return codes[0] if len(codes) == 1 else None
+
+
+def warning(message: str) -> None:
+    prefix = (
+        "::warning::" if os.environ.get("GITHUB_ACTIONS") == "true" else "WARNING: "
+    )
+    print(prefix + message, file=sys.stderr)
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) < 2 or argv[1] not in ("build", "test"):
+        print(
+            "Usage: bazel-with-results BAZEL {build|test} [ARGUMENTS...]",
+            file=sys.stderr,
+        )
+        return 2
+
+    with tempfile.TemporaryDirectory(prefix="bazel-results-") as directory:
+        event_file = Path(directory) / "events.json"
+        args = list(argv)
+        option_index = args.index("--") if "--" in args else len(args)
+        args[option_index:option_index] = [
+            "--bes_upload_mode=wait_for_upload_complete",
+            f"--build_event_json_file={event_file}",
+        ]
+        try:
+            result = subprocess.run(args, check=False)
+        except OSError as error:
+            print(f"Unable to start Bazel: {error}", file=sys.stderr)
+            return 127
+
+        if result.returncode < 0:
+            return 128 - result.returncode
+        if result.returncode != 38:
+            return result.returncode
+
+        # PUBLISH_ERROR can replace either a successful or failed build/test exit.
+        code = completed_exit_code(event_file)
+        if code is None:
+            warning(
+                "Bazel event upload failed; no valid completion verdict was recorded. Keeping exit 38."
+            )
+            return 38
+        warning(
+            f"Bazel event upload failed; preserving the completed {argv[1]} exit code {code}."
+        )
+        return code
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
