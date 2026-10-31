@@ -1,0 +1,59 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Load CMMS environment configuration
+description: Loads committed non-secret configuration for a Halo CMMS environment
+inputs:
+  environment:
+    description: Halo CMMS environment
+    required: true
+outputs:
+  config:
+    description: The complete environment configuration as compact JSON
+    value: ${{ steps.load.outputs.config }}
+runs:
+  using: composite
+  steps:
+  - id: load
+    shell: bash
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+    run: |
+      set -euo pipefail
+      case "$ENVIRONMENT" in
+        dev|head|qa) ;;
+        *)
+          echo "Unsupported CMMS environment: $ENVIRONMENT" >&2
+          exit 1
+          ;;
+      esac
+
+      config_path=".github/env-configs/$ENVIRONMENT/cmms.json"
+      jq -e '
+        type == "object"
+        and length > 0
+        and (to_entries | all(.key | test("^[A-Z][A-Z0-9_]*$")))
+        and (to_entries | all(.value |
+          type == "string" and length > 0 and (contains("\n") | not)))
+      ' "$config_path" > /dev/null || {
+        echo "$config_path must be a non-empty object of non-empty, single-line strings keyed by environment variable name" >&2
+        exit 1
+      }
+
+      jq -r 'to_entries[] | @base64' "$config_path" | while IFS= read -r entry; do
+        key=$(base64 --decode <<< "$entry" | jq -r '.key')
+        value=$(base64 --decode <<< "$entry" | jq -r '.value')
+        printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+      done
+      printf 'config=%s\n' "$(jq -c . "$config_path")" >> "$GITHUB_OUTPUT"
