@@ -316,18 +316,19 @@ building against a path that is going away.
 
 The high overlap dataset therefore uses the aggregator path, but it does **not** live
 in `EdpAggregatorCorrectnessTest`. It has its own test, `EdpAggregatorReportingIntegrationTest`, which
-owns the whole chain end to end: it provisions the model resources, registers the
-EventGroups, writes the impressions, and only then reads back a `BasicReport`.
-`EdpAggregatorCorrectnessTest` is left on the low overlap data set, untouched.
+reads back a `BasicReport` over the dataset. Seeding is separate: the
+`SeedHighOverlapDataset` tool provisions the model resources, registers the
+EventGroups and writes the impressions, and the test refuses to run unless the
+seeded dataset matches its specs. `EdpAggregatorCorrectnessTest` is left on the
+low overlap data set, untouched.
 
 The split exists because the two datasets have no reason to share a test run:
 
 *   **Runtime.** Both are cloud tests against a deployed environment, and folding
     high overlap into the existing one made a long job much longer. Separate jobs run in
     parallel instead of in series.
-*   **Self-containment.** Because `EdpAggregatorReportingIntegrationTest` creates everything it reads,
-    the ordering it depends on is internal to the test rather than an implicit
-    dependency on rules in another test's class-rule chain.
+*   **Independence.** `EdpAggregatorReportingIntegrationTest` depends only on the
+    seeded dataset, not on rules in another test's class-rule chain.
 *   **Coverage.** It raises what the suite covers. The other two stop at the CMMS
     `Measurement` layer; a `BasicReport` exercises the layer a Measurement
     Consumer actually uses — campaign group, per-line-item results, media type
@@ -349,9 +350,7 @@ Opting an environment in is a second, independent switch: the
 `high_overlap_model_line` Bazel Make var. That lands in the generated
 `edpa_reporting_integration_test_config.textproto` as `model_line`, so Bazel sees
 it as a build input and a changed ModelLine re-runs the test rather than reusing
-a cached result. Every setup rule no-ops
-while it is empty, so an environment is unaffected until its ModelLine has been
-provisioned. The test method itself does not no-op — it fails fast if the field
+a cached result. The test method itself does not no-op — it fails fast if the field
 is empty, so a misconfigured environment reports an error rather than a silent
 pass.
 
@@ -386,14 +385,14 @@ an operator, using the `ModelRepository` tool, and referenced by resource name.
 
 `model-lines create` requires `--population`, because it creates the ModelLine, a
 `ModelRelease` and a `ModelRollout` together. Bootstrap it against any existing
-Population: `HighOverlapModelResourcesRule` then creates the correct high overlap Population
+Population: seeding then creates the correct high overlap Population
 and attaches its own release and rollout, which supersedes the bootstrap because
 the PDP resolves the **most recent** rollout on a line.
 
 That accumulation is the intended design, not a workaround — a line collects
 rollouts over time and the newest is live. The same pattern already runs in
 `SyntheticGeneratorCorrectnessTest`, whose `ensurePopulation` and
-`ensureModelRelease` this rule mirrors. Those two are wired to the 2021 spec and
+`ensureModelRelease` `HighOverlapModelResources` follows. Those two are wired to the 2021 spec and
 the 2021 line, which is why the logic is repeated here rather than reused.
 
 The Population only affects **population measurements** (`population_size`).
