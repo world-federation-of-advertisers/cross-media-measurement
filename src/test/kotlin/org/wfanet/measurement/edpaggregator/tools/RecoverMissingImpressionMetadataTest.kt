@@ -119,6 +119,23 @@ class RecoverMissingImpressionMetadataTest {
   }
 
   @Test
+  fun `main exits nonzero when activity publishing config is missing`() {
+    val configFile = writeConfigFile(validConfig())
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(
+        requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0) +
+          "--publish-event-group-activities",
+        ::main,
+      )
+
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+    CommandLineTesting.assertThat(capturedOutput)
+      .err()
+      .contains("event_group_activity_publishing must be set")
+  }
+
+  @Test
   fun `main exits zero when no date folders exist`() {
     storageEmulator.createBucket(BUCKET_NAME)
     try {

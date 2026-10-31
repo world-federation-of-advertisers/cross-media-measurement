@@ -44,10 +44,22 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "event_group_reference_id_entity_key_mapping_proto",
+    srcs = ["event_group_reference_id_entity_key_mapping.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "event_group_reference_id_entity_key_mapping_kt_jvm_proto",
+    deps = [":event_group_reference_id_entity_key_mapping_proto"],
+)
+
+proto_library(
     name = "event_group_sync_config_proto",
     srcs = ["event_group_sync_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":event_group_reference_id_entity_key_mapping_proto",
         ":storage_params_proto",
         ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:resource_proto",
@@ -116,6 +128,7 @@ proto_library(
         ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:datetime_proto",
     ],
 )
 

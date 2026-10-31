@@ -412,6 +412,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/cloud/bigdataoss:gcs_connector",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
         "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_api",
         "@wfa_common_jvm//imports/java/org/junit",

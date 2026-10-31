@@ -156,6 +156,9 @@ internal fun frequencyVectorCap(
  * @param noiserSelector strategy for selecting differential privacy mechanisms
  * @param resultMinimumThresholds optional small-cell suppression thresholds; null disables
  *   suppression
+ * @param disableMultiPartyFrequencyVectorSuppression whether to skip result-minimum suppression for
+ *   HMSS and TrusTee v1 multi-publisher frequency-vector contributions. Direct and TrusTeeV2
+ *   results are unaffected.
  * @param impressionCapMode how the per-user impression cap is chosen.
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
@@ -180,6 +183,7 @@ class DefaultFulfillerSelector(
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val noiserSelector: NoiserSelector,
   private val resultMinimumThresholds: ResultMinimumThresholds?,
+  private val disableMultiPartyFrequencyVectorSuppression: Boolean,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
   private val impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
   private val supportedMultiPartyNoiseMechanisms: Set<NoiseMechanism>,
@@ -223,13 +227,23 @@ class DefaultFulfillerSelector(
 
     val frequencyDataBytes = frequencyVector.getByteArray()
 
+    val protocols = requisition.protocolConfig.protocolsList
+    // Direct takes precedence over multi-publisher options and retains its threshold behavior.
+    val selectedProtocolIsMultiPub = protocols.none { it.hasDirect() }
+    val resultMinimumThresholdsForFrequencyVector =
+      if (disableMultiPartyFrequencyVectorSuppression && selectedProtocolIsMultiPub) {
+        null
+      } else {
+        resultMinimumThresholds
+      }
+
     val vec =
       FrequencyVectorBuilder(
         populationSpec = populationSpec,
         measurementSpec = measurementSpec,
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
-        resultMinimumThresholds = resultMinimumThresholds,
+        resultMinimumThresholds = resultMinimumThresholdsForFrequencyVector,
         overrideImpressionMaxFrequencyPerUser =
           frequencyVectorCap(impressionCapMode, overrideImpressionMaxFrequencyPerUser),
       )
@@ -281,7 +295,7 @@ class DefaultFulfillerSelector(
 
       val trusTeeEncryptionParams = buildTrusTeeEncryptionParams(kekUri, frequencyVector)
 
-      if (resultMinimumThresholds == null) {
+      if (resultMinimumThresholdsForFrequencyVector == null) {
         TrusTeeMeasurementFulfiller(
           requisition,
           requisitionSpec.nonce,
@@ -307,7 +321,7 @@ class DefaultFulfillerSelector(
           requisitionFulfillmentStubMap,
           requisitionsStub,
           requisitionsThrottler,
-          resultMinimumThresholds,
+          resultMinimumThresholdsForFrequencyVector,
           protocolMinUsers,
           protocolMinImpressions,
           maxPopulation = null,
@@ -324,7 +338,7 @@ class DefaultFulfillerSelector(
           .noiseMechanism
       validateMultiPartyNoiseMechanism(hmssNoiseMechanism)
 
-      if (resultMinimumThresholds == null) {
+      if (resultMinimumThresholdsForFrequencyVector == null) {
         HMShuffleMeasurementFulfiller(
           requisition,
           requisitionSpec.nonce,
@@ -347,7 +361,7 @@ class DefaultFulfillerSelector(
           requisitionFulfillmentStubMap,
           requisitionsStub,
           requisitionsThrottler,
-          resultMinimumThresholds,
+          resultMinimumThresholdsForFrequencyVector,
           maxPopulation = null,
         )
       }

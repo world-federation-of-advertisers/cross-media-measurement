@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.resultsfulfiller
+package org.wfanet.measurement.edpaggregator
 
 /**
  * Maps equivalent event-group reference IDs and entity IDs for one entity type.

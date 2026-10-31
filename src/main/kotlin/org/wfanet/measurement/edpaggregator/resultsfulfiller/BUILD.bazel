@@ -23,7 +23,6 @@ kt_jvm_library(
         ":continuous_gaussian_noiser_selector",
         ":deterministic_truncated_laplace_noiser_selector",
         ":event_batch",
-        ":event_group_reference_id_entity_key_mapping",
         ":event_processing_orchestrator",
         ":event_reader",
         ":event_source",
@@ -41,6 +40,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:event_group_reference_id_entity_key_mapping",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_measurement_result_factory",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:direct_measurement_fulfiller",
@@ -133,16 +133,11 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "event_group_reference_id_entity_key_mapping",
-    srcs = ["EventGroupReferenceIdEntityKeyMapping.kt"],
-)
-
-kt_jvm_library(
     name = "resolved_event_group",
     srcs = ["ResolvedEventGroup.kt"],
     deps = [
-        ":event_group_reference_id_entity_key_mapping",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:event_group_reference_id_entity_key_mapping",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/com/google/type:interval_kt_jvm_proto",
@@ -489,8 +484,10 @@ java_image(
         # - OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID: Forces telemetry exporter to use a specific project
         # - OTEL_LOGS_EXPORTER: Configures log export path (set to logging for stdout collection)
         # - OTEL_METRIC_EXPORT_INTERVAL: Interval in milliseconds for exporting metrics
+        # - WORK_ITEM_ATTEMPT_MAX_RUNTIME_SECONDS: Optional maximum WorkItemAttempt runtime; unset disables it
+        # - TEE_STACK_DUMP_INTERVAL_SECONDS: Opt-in periodic thread dumps for diagnosing stuck workers
         # Note: OpenTelemetry variables are automatically configured by the SDK
-        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET,WORK_ITEM_CONSUMPTION_ENABLED,JAVA_TOOL_OPTIONS,OTEL_SERVICE_NAME,OTEL_METRICS_EXPORTER,OTEL_TRACES_EXPORTER,OTEL_LOGS_EXPORTER,OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID,OTEL_METRIC_EXPORT_INTERVAL",
+        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET,WORK_ITEM_CONSUMPTION_ENABLED,JAVA_TOOL_OPTIONS,OTEL_SERVICE_NAME,OTEL_METRICS_EXPORTER,OTEL_TRACES_EXPORTER,OTEL_LOGS_EXPORTER,OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID,OTEL_METRIC_EXPORT_INTERVAL,WORK_ITEM_ATTEMPT_MAX_RUNTIME_SECONDS,TEE_STACK_DUMP_INTERVAL_SECONDS",
         "tee.launch_policy.log_redirect": "always",
     },
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",

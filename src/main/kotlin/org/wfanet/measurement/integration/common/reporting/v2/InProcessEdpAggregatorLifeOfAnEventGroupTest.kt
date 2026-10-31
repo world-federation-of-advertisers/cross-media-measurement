@@ -72,8 +72,8 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
    * Builds a valid EDPA-side source [EdpaEventGroup] for driving [EventGroupSync] directly in these
    * migration tests. Sets whichever of `event_group_reference_id` / `entity_key` is provided
    * (mirroring how an EDP evolves a row across the #4175 migration), plus the fields
-   * `EventGroupSync.validateEventGroup` requires: media type, data-availability interval, and
-   * metadata. `campaign` names the campaign metadata so a mutation is observable across syncs.
+   * `EventGroupValidator.validate` requires: media type, data-availability interval, and metadata.
+   * `campaign` names the campaign metadata so a mutation is observable across syncs.
    */
   private fun buildMigrationSourceEventGroup(
     referenceId: String?,
@@ -117,18 +117,19 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
           is EventGroupConfig.LegacySpec -> continue
           is EventGroupConfig.MultiEntityKey -> {
             for (entityKeySpec in config.entityKeySpecs) {
-              val derivedRefId =
-                "${entityKeySpec.entityKey.entityType}/${entityKeySpec.entityKey.entityId}"
-              val eventGroup = byRefId.getValue(derivedRefId)
-              assertWithMessage("entity_key.entity_type for $derivedRefId")
-                .that(eventGroup.entityKey.entityType)
-                .isEqualTo(entityKeySpec.entityKey.entityType)
-              assertWithMessage("entity_key.entity_id for $derivedRefId")
-                .that(eventGroup.entityKey.entityId)
-                .isEqualTo(entityKeySpec.entityKey.entityId)
-              assertWithMessage("entity_metadata for $derivedRefId")
-                .that(eventGroup.eventGroupMetadata.entityMetadata)
-                .isEqualTo(entityKeySpec.entityMetadata)
+              for (entityKey in entityKeySpec.entityKeys) {
+                val derivedRefId = "${entityKey.entityType}/${entityKey.entityId}"
+                val eventGroup = byRefId.getValue(derivedRefId)
+                assertWithMessage("entity_key.entity_type for $derivedRefId")
+                  .that(eventGroup.entityKey.entityType)
+                  .isEqualTo(entityKey.entityType)
+                assertWithMessage("entity_key.entity_id for $derivedRefId")
+                  .that(eventGroup.entityKey.entityId)
+                  .isEqualTo(entityKey.entityId)
+                assertWithMessage("entity_metadata for $derivedRefId")
+                  .that(eventGroup.eventGroupMetadata.entityMetadata)
+                  .isEqualTo(entityKeySpec.entityMetadata)
+              }
             }
           }
         }
@@ -153,9 +154,9 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
     val byRefId: Map<String, EventGroup> =
       listReportingEventGroups().associateBy { it.eventGroupReferenceId }
 
-    val adGroupEventGroup = byRefId.getValue("ad_group/$AD_GROUP_EDP_EVENT_GROUP_REF_ID")
+    val adGroupEventGroup = byRefId.getValue(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
     assertThat(adGroupEventGroup.entityKey.entityType).isEqualTo("ad_group")
-    assertThat(adGroupEventGroup.entityKey.entityId).isEqualTo(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
+    assertThat(adGroupEventGroup.entityKey.entityId).isEqualTo(AD_GROUP_EDP_ENTITY_ID)
     assertThat(adGroupEventGroup.eventGroupMetadata.entityMetadata).isEqualTo(ENTITY_METADATA)
   }
 

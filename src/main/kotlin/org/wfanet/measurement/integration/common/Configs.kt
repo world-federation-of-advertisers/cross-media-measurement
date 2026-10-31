@@ -285,6 +285,9 @@ fun getResultsFulfillerParams(
   labeledImpressionBlobUriPrefix: String,
   noiseType: ResultsFulfillerParams.NoiseParams.NoiseType,
   supportedMultiPartyNoiseTypes: List<ResultsFulfillerParams.NoiseParams.NoiseType>,
+  eventGroupReferenceIdEntityKeyMapping:
+    ResultsFulfillerParams.EventGroupReferenceIdEntityKeyMapping?,
+  wholeBlobEntityTypes: Set<String>,
   resultMinimumThresholds: ResultsFulfillerParams.KAnonymityParams? = null,
 ): ResultsFulfillerParams {
   return resultsFulfillerParams {
@@ -318,6 +321,10 @@ fun getResultsFulfillerParams(
           this.supportedNoiseTypes += supportedMultiPartyNoiseTypes
         }
     }
+    if (eventGroupReferenceIdEntityKeyMapping != null) {
+      this.eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping
+    }
+    this.wholeBlobEntityTypes += wholeBlobEntityTypes
   }
 }
 

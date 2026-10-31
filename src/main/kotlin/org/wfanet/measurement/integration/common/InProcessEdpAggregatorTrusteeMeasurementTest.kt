@@ -35,7 +35,12 @@ abstract class InProcessEdpAggregatorTrusteeMeasurementTest(
     secureComputationDatabaseAdmin,
     hmssEnabled = false,
     trusTeeEnabled = true,
+    resultMinimumThresholdsByEdp = SUPPRESSING_RESULT_MINIMUM_THRESHOLDS_BY_EDP,
   ) {
+
+  // The inherited success tests use thresholds that would erase every EDP contribution unless
+  // the multi-party suppression opt-out is propagated through ResultsFulfillerApp. Their exact
+  // reach and frequency assertions prove that TrusTee receives the unsuppressed vectors.
 
   @Test
   fun `create a TrusTee reach-only measurement and check the result is equal to the expected result`() =

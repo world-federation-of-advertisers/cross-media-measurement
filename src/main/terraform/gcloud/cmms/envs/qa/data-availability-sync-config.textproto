@@ -19,6 +19,16 @@ configs {
     private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
     cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
   }
+  event_group_activity_publishing {
+    market_time_zone { id: "UTC" }
+    event_group_map_blob_uri: "gs://secure-computation-storage-qa-bucket/edp7/event-groups-map/edp7-event-group.binpb"
+    event_group_map_storage {
+      gcs {
+        project_id: "halo-cmm-qa"
+        bucket_name: "secure-computation-storage-qa-bucket"
+      }
+    }
+  }
 }
 configs {
   data_provider: "dataProviders/WLb7yRONEO4"

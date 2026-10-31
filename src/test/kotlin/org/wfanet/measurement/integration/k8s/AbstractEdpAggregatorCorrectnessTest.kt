@@ -19,6 +19,7 @@ package org.wfanet.measurement.integration.k8s
 import com.google.common.truth.Truth.assertThat
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -91,6 +92,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       // result.
       mcSimulator.testImpression(
         "1236",
+        resultPollingTimeout = IMPRESSION_RESULT_POLLING_TIMEOUT,
         eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS,
       )
     }
@@ -191,6 +193,9 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
   }
 
   companion object {
+    // Allow cloud fulfillment to cold-start while still surfacing a stalled pipeline promptly.
+    private val IMPRESSION_RESULT_POLLING_TIMEOUT = Duration.ofMinutes(15)
+
     private const val MC_ENCRYPTION_PRIVATE_KEY_NAME = "mc_enc_private.tink"
     private const val MC_CS_CERT_DER_NAME = "mc_cs_cert.der"
     private const val MC_CS_PRIVATE_KEY_DER_NAME = "mc_cs_private.der"

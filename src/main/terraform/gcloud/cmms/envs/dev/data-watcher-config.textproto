@@ -41,68 +41,12 @@ watched_paths {
     endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-sync"
     app_params {
       fields {
+        key: "@type"
+        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams" }
+      }
+      fields {
         key: "dataProvider"
         value { string_value: "dataProviders/T5RryPMNong" }
-      }
-      fields {
-        key: "dataAvailabilityStorage"
-        value {
-          struct_value {
-            fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      fields {
-        key: "cmmsConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert/edp7_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key/edp7_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/kingdom_root.pem" }
-            }
-          }
-        }
-      }
-      fields {
-        key: "impressionMetadataStorageConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert/data_availability/data_availability_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key/data_availability/data_availability_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/metadata_storage/edp_aggregator_root.pem" }
-            }
-          }
-        }
       }
     }
   }
@@ -114,68 +58,12 @@ watched_paths {
     endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-sync"
     app_params {
       fields {
+        key: "@type"
+        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams" }
+      }
+      fields {
         key: "dataProvider"
         value { string_value: "dataProviders/J3-pzhqS9Lo" }
-      }
-      fields {
-        key: "dataAvailabilityStorage"
-        value {
-          struct_value {
-            fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      fields {
-        key: "cmmsConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert_edpa_meta/edpa_meta_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key_edpa_meta/edpa_meta_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/kingdom_root.pem" }
-            }
-          }
-        }
-      }
-      fields {
-        key: "impressionMetadataStorageConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert/data_availability/data_availability_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key/data_availability/data_availability_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/metadata_storage/edp_aggregator_root.pem" }
-            }
-          }
-        }
       }
     }
   }
@@ -313,68 +201,12 @@ watched_paths {
     endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-sync"
     app_params {
       fields {
+        key: "@type"
+        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams" }
+      }
+      fields {
         key: "dataProvider"
         value { string_value: "dataProviders/KYq_ciWaP94" }
-      }
-      fields {
-        key: "dataAvailabilityStorage"
-        value {
-          struct_value {
-            fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      fields {
-        key: "cmmsConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert-video/edpa_video_pub_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key-video/edpa_video_pub_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/kingdom_root.pem" }
-            }
-          }
-        }
-      }
-      fields {
-        key: "impressionMetadataStorageConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert/data_availability/data_availability_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key/data_availability/data_availability_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/metadata_storage/edp_aggregator_root.pem" }
-            }
-          }
-        }
       }
     }
   }
@@ -441,68 +273,12 @@ watched_paths {
     endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-sync"
     app_params {
       fields {
+        key: "@type"
+        value { string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams" }
+      }
+      fields {
         key: "dataProvider"
         value { string_value: "dataProviders/bvIQ5SrPwhk" }
-      }
-      fields {
-        key: "dataAvailabilityStorage"
-        value {
-          struct_value {
-            fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      fields {
-        key: "cmmsConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert-retail/edpa_retail_pub_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key-retail/edpa_retail_pub_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/kingdom_root.pem" }
-            }
-          }
-        }
-      }
-      fields {
-        key: "impressionMetadataStorageConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert/data_availability/data_availability_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key/data_availability/data_availability_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/metadata_storage/edp_aggregator_root.pem" }
-            }
-          }
-        }
       }
     }
   }
