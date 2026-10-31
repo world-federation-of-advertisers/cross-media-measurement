@@ -2061,6 +2061,42 @@ class RequisitionFetcherTest {
     }
 
   @Test
+  fun `secure computation dispatcher propagates lookup failure after completion during ensure`() =
+    runBlocking<Unit> {
+      val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
+      whenever(workItemsServiceMock.ensureWorkItem(any()))
+        .thenThrow(
+          Status.ALREADY_EXISTS.asRuntimeException(),
+          invalidWorkItemStateException(WorkItem.State.SUCCEEDED),
+        )
+      whenever(workItemsServiceMock.getWorkItem(any()))
+        .thenReturn(
+          completedDispatchWorkItem(params).toBuilder().setState(WorkItem.State.RUNNING).build()
+        )
+        .thenThrow(
+          Status.UNAVAILABLE.withDescription("completion lookup unavailable").asRuntimeException()
+        )
+        .thenReturn(completedDispatchWorkItem(params))
+      val dispatcher =
+        SecureComputationRequisitionWorkItemDispatcher(
+          workItemsStub,
+          "results-fulfiller-queue",
+          params,
+          throttler,
+        )
+
+      val exception =
+        assertFailsWith<StatusException> {
+          dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+      assertThat(exception.status.description).isEqualTo("completion lookup unavailable")
+      verify(workItemsServiceMock, times(2)).getWorkItem(any())
+      verify(workItemsServiceMock, times(2)).ensureWorkItem(any())
+    }
+
+  @Test
   fun `secure computation dispatcher rejects completed WorkItem with different application parameters`() =
     runBlocking<Unit> {
       val params = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
