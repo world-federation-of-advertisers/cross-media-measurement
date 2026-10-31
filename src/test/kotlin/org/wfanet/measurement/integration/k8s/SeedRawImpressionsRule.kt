@@ -85,10 +85,8 @@ import org.wfanet.measurement.storage.parquetValue
  * @property eventGroupConfigs edp7's event-group configs keyed by the flattened id (legacy groups
  *   by `event_group_reference_id`; entity-key groups split so each entity key spec is its own
  *   entry, keyed `"${entityType}-${entityId}"`), edpa_meta excluded. One PME Parquet file is
- *   written per (entry, date). Each entry contributes exactly one entity key, matching the real
- *   entity key of the event group as written by the out-of-band days-15-20 data
- *   ([WriteReusedLabeledImpressionsRule]), so the pipelined day's output matches the fulfiller's
- *   per-event-group query.
+ *   written per (entry, date). All keys in an entry's synthetic stream are attached to each
+ *   impression, alongside the per-person key used by the VID model.
  */
 class SeedRawImpressionsRule(
   private val populationSpec: PopulationSpec,
@@ -184,43 +182,20 @@ class SeedRawImpressionsRule(
       is EventGroupConfig.MultiEntityKey -> config.entityKeySpecs.single().spec
     }
 
-  /**
-   * The entity-key columns the writer emits per impression for this event group entry
-   * (`entity_type` -> Parquet column). Every file carries the `person` -> `person_id` column:
-   * `person_id` doubles as the model identity (`profile_info...user_id`, a required labeler-input
-   * column present on every file) and a `person` entity key. Entity-key groups additionally carry
-   * the `creative-id` -> `creative_id` column so the results-fulfiller can match those impressions
-   * to the event group by its `{creative-id, entity_id}` key. The legacy group carries only the
-   * `person` key, which the fulfiller ignores (it matches legacy groups by
-   * `event_group_reference_id`) but which satisfies the reader's requirement that every impression
-   * carry >=1 entity key. Entity-key entries must have exactly one key because this cloud fixture
-   * reserves only one additional Parquet column for the creative ID.
-   */
-  private fun entityKeyColumnsFor(config: EventGroupConfig): Map<String, String> =
-    when (config) {
-      is EventGroupConfig.LegacySpec ->
-        mapOf(RawImpressionColumns.ENTITY_TYPE_PERSON to RawImpressionColumns.PERSON_ID)
-      is EventGroupConfig.MultiEntityKey ->
-        mapOf(
-          RawImpressionColumns.ENTITY_TYPE_PERSON to RawImpressionColumns.PERSON_ID,
-          config.entityKeySpecs.single().entityKeys.single().entityType to
-            RawImpressionColumns.CREATIVE_ID,
+  /** Maps all keys in this entry's stream to columns, including the model's person identity. */
+  private fun entityKeyColumnsFor(config: EventGroupConfig): Map<String, String> = buildMap {
+    put(RawImpressionColumns.ENTITY_TYPE_PERSON, RawImpressionColumns.PERSON_ID)
+    if (config is EventGroupConfig.MultiEntityKey) {
+      for (entityKey in config.entityKeySpecs.single().entityKeys) {
+        put(
+          entityKey.entityType,
+          RawImpressionColumns.ENTITY_KEY_COLUMNS.getValue(entityKey.entityType),
         )
+      }
     }
+  }
 
-  /**
-   * Keys each impression with this event group entry's entity keys, matching the out-of-band
-   * days-15-20 data ([WriteReusedLabeledImpressionsRule]) for the fulfiller-relevant keys:
-   * * entity-key group -> the group's own `{entity_type, entity_id}` (e.g. `{creative-id,
-   *   edpa-eg-creative-id-1}`), so the fulfiller matches the pipelined impressions to the event
-   *   group by that key, PLUS a per-person `{person, person-<vid>}` key that carries the model
-   *   identity column and never matches any event group (harmless).
-   * * legacy group -> only the per-person `{person, person-<vid>}` key; the fulfiller matches
-   *   legacy groups by `event_group_reference_id`, so its value is ignored downstream.
-   *
-   * The pipeline re-assigns the VID from the model; the direct-path expected VID and this one match
-   * only when the model reproduces the synthetic assignment (validated by an end-to-end run).
-   */
+  /** Preserves every configured key on each impression before the pipeline assigns its VID. */
   private fun LabeledEventDateShard<TestEvent>.toEntityKeyed(
     config: EventGroupConfig
   ): EntityKeyedLabeledEventDateShard<TestEvent> =
@@ -241,7 +216,7 @@ class SeedRawImpressionsRule(
     return when (config) {
       is EventGroupConfig.LegacySpec -> listOf(personKey)
       is EventGroupConfig.MultiEntityKey ->
-        listOf(personKey, config.entityKeySpecs.single().entityKeys.single())
+        listOf(personKey) + config.entityKeySpecs.single().entityKeys
     }
   }
 

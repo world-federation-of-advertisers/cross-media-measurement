@@ -238,22 +238,9 @@ class VidLabelerModelResourcesRule(
         // names one. The declared values still reach the model via labeler_input_field_mapping
         // above.
         populationSpecBlobUri = POPULATION_SPEC_BLOB_URI
-        // Entity keys read per row from the raw-impression columns SeedRawImpressionsRule emits
-        // (see SeedRawImpressionsRule.entityKeyColumnsFor). Every file carries the person id
-        // (person_id, also the model identity column); entity-key event groups additionally carry
-        // the creative id (creative_id), which the fulfiller matches those groups by. Both are
-        // OPTIONAL because the legacy group's files have no creative_id column; EntityKeyMapper
-        // still requires >=1 key per impression, which every file supplies via person_id. The
-        // person key is ignored for legacy groups (matched by event_group_reference_id) and is a
-        // harmless non-matching extra on entity-key groups.
-        putOptionalEntityKeyFieldMapping(
-          RawImpressionColumns.ENTITY_TYPE_PERSON,
-          RawImpressionColumns.PERSON_ID,
-        )
-        putOptionalEntityKeyFieldMapping(
-          RawImpressionColumns.ENTITY_TYPE_CREATIVE_ID,
-          RawImpressionColumns.CREATIVE_ID,
-        )
+        // Optional mappings preserve every available hierarchy key without requiring older files
+        // to contain new columns. Every reference file carries at least the person key.
+        putAllOptionalEntityKeyFieldMapping(RawImpressionColumns.ENTITY_KEY_COLUMNS)
         eventTemplateDescriptorBlobUri = EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI
         eventTemplateType = EVENT_TEMPLATE_TYPE
       }
