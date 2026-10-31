@@ -601,6 +601,7 @@ module "edp_aggregator" {
   data_watcher_delete_service_account_name         = "edpa-data-watcher-delete"
   data_watcher_delete_trigger_service_account_name = "edpa-data-delete-trigger"
   terraform_service_account                        = var.terraform_service_account
+  meta_impression_query_uber_jar_path              = var.meta_impression_query_uber_jar_path
   requisition_fetcher_service_account_name         = "edpa-requisition-fetcher"
   data_availability_sync_service_account_name      = "edpa-data-availability-sync"
   data_availability_cleanup_service_account_name   = "edpa-data-availability-cleanup"

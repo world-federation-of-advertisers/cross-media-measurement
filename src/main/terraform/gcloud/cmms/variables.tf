@@ -507,3 +507,17 @@ variable "dashboard_alert_notification_channels" {
   type        = list(string)
   default     = []
 }
+
+variable "meta_impression_query_artifact_version" {
+  description = "Maven version of edp-components' meta-impression-query function jar. terraform-cmms-v2.yml reads it to download the jar; unset means the function is not deployed."
+  type        = string
+  nullable    = true
+  default     = null
+}
+
+variable "meta_impression_query_uber_jar_path" {
+  description = "Path to the downloaded Meta impression-query Cloud Function uber jar. When unset, the function is not deployed."
+  type        = string
+  nullable    = true
+  default     = null
+}

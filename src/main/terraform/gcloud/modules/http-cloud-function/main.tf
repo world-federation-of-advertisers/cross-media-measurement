@@ -111,3 +111,54 @@ resource "terraform_data" "deploy_http_cloud_function" {
     EOT
   }
 }
+
+# deploy_http_cloud_function replaces whenever a deployment input changes, so a destroy provisioner
+# on it would delete the live function before every redeploy. This resource is keyed only on the
+# function's identity, so it is created once and destroyed once: when the module is removed through
+# `count`, it deletes the function that `gcloud functions deploy` created outside Terraform's state.
+resource "terraform_data" "cloud_function_lifecycle" {
+  depends_on = [terraform_data.deploy_http_cloud_function]
+
+  # A destroy provisioner can read only its own state, not var.* or data sources.
+  input = {
+    project       = data.google_client_config.default.project
+    region        = data.google_client_config.default.region
+    function_name = var.function_name
+  }
+
+  triggers_replace = [
+    data.google_client_config.default.project,
+    data.google_client_config.default.region,
+    var.function_name,
+  ]
+
+  provisioner "local-exec" {
+    when        = destroy
+    interpreter = ["/bin/bash", "-c"]
+    environment = {
+      PROJECT       = self.input.project
+      CLOUD_REGION  = self.input.region
+      FUNCTION_NAME = self.input.function_name
+    }
+    # Only an already-absent function is tolerated. Permission and network failures fail the
+    # destroy rather than reporting success while the function is still deployed.
+    command = <<-EOT
+      #!/bin/bash
+      set -uo pipefail
+
+      stderr="$(gcloud functions delete "$FUNCTION_NAME" \
+        --gen2 --project="$PROJECT" --region="$CLOUD_REGION" --quiet 2>&1 >/dev/null)"
+      status=$?
+
+      if [[ $status -eq 0 ]]; then
+        exit 0
+      fi
+      if grep -qiE 'NOT_FOUND|does not exist|could not be found' <<<"$stderr"; then
+        echo "Function already absent; nothing to delete."
+        exit 0
+      fi
+      echo "$stderr" >&2
+      exit "$status"
+    EOT
+  }
+}
