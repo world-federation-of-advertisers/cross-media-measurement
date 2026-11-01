@@ -173,6 +173,7 @@ class EvictUploader(
       evictionOperationId,
       noReplacementUploads,
       includeSupersedingRevisions = false,
+      requirePipelineIdle = true,
     )
 
   /**
@@ -190,6 +191,7 @@ class EvictUploader(
       evictionOperationId,
       noReplacementOwners,
       includeSupersedingRevisions = true,
+      requirePipelineIdle = false,
     )
 
   private suspend fun plan(
@@ -198,6 +200,7 @@ class EvictUploader(
     evictionOperationId: String,
     noReplacementUploads: Set<String>,
     includeSupersedingRevisions: Boolean,
+    requirePipelineIdle: Boolean,
   ): EvictionPlan {
     require(badUploads.isNotEmpty()) { "at least one bad upload is required" }
     require(runCatching { UUID.fromString(evictionOperationId) }.isSuccess) {
@@ -227,10 +230,12 @@ class EvictUploader(
     }
 
     val queuedOrRunningRows = listQueuedOrRunningModelLines(dataProvider)
-    require(queuedOrRunningRows.isEmpty()) {
-      "The VID-labeling pipeline is currently processing data for $dataProvider, so eviction " +
-        "cannot run. Retry after all VID-labeling processing for this data provider has " +
-        "finished. Active upload/model-line resources: ${queuedOrRunningRows.map { it.name }}"
+    if (requirePipelineIdle) {
+      require(queuedOrRunningRows.isEmpty()) {
+        "The VID-labeling pipeline is currently processing data for $dataProvider, so eviction " +
+          "cannot run. Retry after all VID-labeling processing for this data provider has " +
+          "finished. Active upload/model-line resources: ${queuedOrRunningRows.map { it.name }}"
+      }
     }
 
     val candidateSupersedingUploads =
@@ -309,13 +314,32 @@ class EvictUploader(
     }
     val memoizedModelLines = memoizedRequestedRows.mapTo(mutableSetOf()) { it.cmmsModelLine }
     val nonMemoizedModelLines = nonMemoizedRequestedRows.mapTo(mutableSetOf()) { it.cmmsModelLine }
-
-    val entries = mutableListOf<Pair<Instant, CascadeEntry>>()
-    for (cmmsModelLine in memoizedModelLines) {
-      val earliestBadTime =
+    val earliestMemoizedBadTimeByModelLine =
+      memoizedModelLines.associateWith { cmmsModelLine ->
         memoizedRequestedRows
           .filter { it.cmmsModelLine == cmmsModelLine }
           .minOf { createTimeByUpload.getValue(uploadNameOf(it.name)) }
+      }
+    if (!requirePipelineIdle) {
+      val planAffectingActiveRows =
+        queuedOrRunningRows.filter { row ->
+          val uploadName = uploadNameOf(row.name)
+          uploadName in plannedBadUploads ||
+            badUploads.any { owner -> replacesUpload(uploadName, owner, uploadsByName) } ||
+            earliestMemoizedBadTimeByModelLine[row.cmmsModelLine]?.let { earliestBadTime ->
+              createTimeByUpload.getValue(uploadName) >= earliestBadTime
+            } == true
+        }
+      require(planAffectingActiveRows.isEmpty()) {
+        "Automatic correction planning cannot freeze a safe eviction plan while affected " +
+          "model-line work is still active. Retry after these resources finish: " +
+          planAffectingActiveRows.map { it.name }
+      }
+    }
+
+    val entries = mutableListOf<Pair<Instant, CascadeEntry>>()
+    for (cmmsModelLine in memoizedModelLines) {
+      val earliestBadTime = earliestMemoizedBadTimeByModelLine.getValue(cmmsModelLine)
       for (row in rowsByCmmsModelLine.getValue(cmmsModelLine)) {
         val uploadName = uploadNameOf(row.name)
         val uploadTime = createTimeByUpload[uploadName] ?: continue
@@ -439,6 +463,23 @@ class EvictUploader(
       cascade.map { entry ->
         entry.copy(labeledOutputManifest = resolveLabeledOutputManifest(entry))
       }
+    if (!requirePipelineIdle) {
+      val approvedOutputUris =
+        cascadeWithOutputManifests
+          .flatMap { it.labeledOutputManifest.blobsList }
+          .mapTo(mutableSetOf()) { it.blobUri }
+      val overlappingActiveRows = buildList {
+        for (row in queuedOrRunningRows) {
+          val activeOutputUris = resolveLabeledOutputUris(uploadNameOf(row.name), row.cmmsModelLine)
+          if (activeOutputUris.any { it in approvedOutputUris }) add(row)
+        }
+      }
+      require(overlappingActiveRows.isEmpty()) {
+        "Automatic correction planning cannot freeze a safe output manifest while active " +
+          "model-line work can publish the same output. Retry after these resources finish: " +
+          overlappingActiveRows.map { it.name }
+      }
+    }
     val extraUploads =
       cascadeWithOutputManifests.map { it.uploadName }.filter { it !in requestedNames }.distinct()
     val recoveryTargets =
@@ -741,21 +782,7 @@ class EvictUploader(
   private data class OutputCleanupResult(val deletedMetadata: Int, val deletedBlobs: Int)
 
   private suspend fun resolveLabeledOutputManifest(entry: CascadeEntry): LabeledOutputManifest {
-    val outputUris =
-      listRawImpressionUploadFiles(entry.uploadName)
-        .map { file ->
-          LabeledImpressionsBlobKeys.forInputUri(
-            labeledImpressionsBlobPrefix,
-            file.blobUri,
-            entry.cmmsModelLine,
-            file.eventDate.toLocalDate(),
-          )
-        }
-        .distinct()
-        .sorted()
-        .flatMap { impressionsBlobUri ->
-          listOf(impressionsBlobUri + LABELED_OUTPUT_METADATA_SUFFIX, impressionsBlobUri)
-        }
+    val outputUris = resolveLabeledOutputUris(entry.uploadName, entry.cmmsModelLine)
     val semaphore = Semaphore(OUTPUT_DELETE_PARALLELISM)
     val versions = coroutineScope {
       outputUris
@@ -772,6 +799,28 @@ class EvictUploader(
         .awaitAll()
     }
     return labeledOutputManifest { blobs += versions }
+  }
+
+  private suspend fun resolveLabeledOutputUris(
+    uploadName: String,
+    cmmsModelLine: String,
+  ): List<String> {
+    val outputUris =
+      listRawImpressionUploadFiles(uploadName)
+        .map { file ->
+          LabeledImpressionsBlobKeys.forInputUri(
+            labeledImpressionsBlobPrefix,
+            file.blobUri,
+            cmmsModelLine,
+            file.eventDate.toLocalDate(),
+          )
+        }
+        .distinct()
+        .sorted()
+        .flatMap { impressionsBlobUri ->
+          listOf(impressionsBlobUri + LABELED_OUTPUT_METADATA_SUFFIX, impressionsBlobUri)
+        }
+    return outputUris
   }
 
   private suspend fun verifyLabeledOutputManifests(plan: EvictionPlan) {
