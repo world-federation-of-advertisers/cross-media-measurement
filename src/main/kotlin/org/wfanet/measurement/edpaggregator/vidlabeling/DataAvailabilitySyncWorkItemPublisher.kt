@@ -25,8 +25,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 
 /** Durably ensures deterministic Data Availability WorkItems for VID-labeling output. */
 class DataAvailabilitySyncWorkItemPublisher(
-  private val createWorkItem: suspend (CreateWorkItemRequest) -> WorkItem,
-  private val getWorkItem: suspend (String) -> WorkItem,
+  private val createWorkItem: suspend (String, CreateWorkItemRequest) -> WorkItem,
+  private val getWorkItem: suspend (String, String) -> WorkItem,
 ) {
   data class Result(val workItemName: String, val outcome: String)
 
@@ -57,7 +57,7 @@ class DataAvailabilitySyncWorkItemPublisher(
     while (true) {
       val workItemName = "workItems/${request.workItemId}"
       try {
-        createWorkItem(request)
+        createWorkItem(dataProvider, request)
         return Result(workItemName, "created")
       } catch (e: CancellationException) {
         throw e
@@ -68,7 +68,7 @@ class DataAvailabilitySyncWorkItemPublisher(
         }
         val existing =
           try {
-            getWorkItem(workItemName)
+            getWorkItem(dataProvider, workItemName)
           } catch (validationError: CancellationException) {
             throw validationError
           } catch (validationError: Exception) {
