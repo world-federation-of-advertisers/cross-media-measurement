@@ -409,7 +409,7 @@ abstract class VidLabelingPipelineTestHarness(
   protected lateinit var externalOutputPrefix: String
   protected lateinit var modelBlobUri: String
   protected lateinit var kekUri: String
-  protected lateinit var fileStorage: ConditionalOperationStorageClient
+  protected lateinit var fileStorage: GenerationEnforcingStorageClient
   protected lateinit var mapStorage: UriNormalizingStorageClient
   protected lateinit var rawEventStorage: DataWatcherSubscribingStorageClient
   protected lateinit var outputEventStorage: DataWatcherSubscribingStorageClient
@@ -901,9 +901,7 @@ abstract class VidLabelingPipelineTestHarness(
         setOf("$rootKey/output", "$rootKey/rank", "$rootKey/models", "$rootKey/tmp"),
       rawImpressionsStorageClientProvider = { fileStorage },
       rawImpressionUploadFileStub = filesStub,
-      vidLabeledImpressionsStorageClientProvider = {
-        PrefixingStorageClient(fileStorage, SelectedStorageClient.parseBlobUri(outputPrefix).key)
-      },
+      vidLabeledImpressionsStorageClientProvider = { fileStorage },
       poolAssignmentJobStub =
         PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
           edpaPublicServer.channel
@@ -914,7 +912,7 @@ abstract class VidLabelingPipelineTestHarness(
         VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(edpaPublicServer.channel),
       workItemsStub = workItemsStub,
       uploadHealingOperationStub = operationsStub,
-      vidLabeledImpressionsBlobPrefix = SelectedStorageClient.parseBlobUri(outputPrefix).key,
+      vidLabeledImpressionsBlobPrefix = outputPrefix,
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
 
@@ -2173,27 +2171,16 @@ abstract class VidLabelingPipelineTestHarness(
       )
   }
 
-  private class PrefixingStorageClient(
-    private val delegate: StorageClient,
-    private val prefix: String,
-  ) : StorageClient {
-    override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob =
-      delegate.writeBlob("${prefix.trimEnd('/')}/$blobKey", content)
-
-    override suspend fun getBlob(blobKey: String): StorageClient.Blob? =
-      delegate.getBlob("${prefix.trimEnd('/')}/$blobKey")
-
-    override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> =
-      delegate.listBlobs(
-        if (prefix.isNullOrEmpty()) "${this.prefix.trimEnd('/')}/"
-        else "${this.prefix.trimEnd('/')}/$prefix"
-      )
-  }
-
   /** Adds generation-precondition semantics to the single-process filesystem test backend. */
   protected class GenerationEnforcingStorageClient(
     private val delegate: ConditionalOperationStorageClient
   ) : ConditionalOperationStorageClient {
+    private val failNextDeletes = ConcurrentHashMap.newKeySet<String>()
+
+    fun failNextDelete(blobKey: String) {
+      check(failNextDeletes.add(blobKey)) { "Delete failure already armed for $blobKey" }
+    }
+
     override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob =
       wrap(delegate.writeBlob(blobKey, content))
 
@@ -2248,6 +2235,9 @@ abstract class VidLabelingPipelineTestHarness(
 
         override suspend fun delete() {
           verifyGeneration()
+          if (failNextDeletes.remove(blobKey)) {
+            throw IOException("injected storage deletion failure")
+          }
           blob.delete()
         }
 
