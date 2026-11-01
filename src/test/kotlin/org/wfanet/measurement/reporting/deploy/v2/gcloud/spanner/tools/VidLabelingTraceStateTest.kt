@@ -15,6 +15,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
 import com.google.protobuf.Timestamp
 import com.google.type.Interval
 import java.util.concurrent.atomic.AtomicInteger
@@ -43,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.modelLine as kingdomModelLine
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
@@ -170,10 +172,11 @@ class VidLabelingTraceStateTest {
     val resolver = GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { _, _ -> null }
     val upload = RawImpressionUpload.newBuilder().setName(UPLOAD).setDoneBlobGeneration(7).build()
 
-    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE))).nodes
+    val nodes =
+      resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)), emptyList()).nodes
 
     assertThat(nodes.filter { it.authoritativeState == "MISSING" }.map { it.stage })
-      .containsAtLeast("data_watcher", "data_availability_metadata", "data_availability_publish")
+      .containsAtLeast("upload_registration", "data_availability_publish")
     Unit
   }
 
@@ -237,22 +240,16 @@ class VidLabelingTraceStateTest {
         .build()
     val modelLine = modelLine("direct", DIRECT_MODEL_LINE)
 
-    val resolution = resolver.resolve(upload, listOf(modelLine))
+    val resolution = resolver.resolve(upload, listOf(modelLine), emptyList())
     val nodes = resolution.nodes
 
     assertThat(nodes.map { it.stage })
-      .containsAtLeast(
-        "label",
-        "data_watcher",
-        "data_availability_metadata",
-        "data_availability_publish",
-      )
+      .containsAtLeast("label", "data_availability_metadata", "data_availability_publish")
     assertThat(nodes.count { it.stage == VidLabelingTraceLogging.LABEL_OUTPUT_STAGE }).isEqualTo(2)
     assertThat(nodes.none { it.authoritativeState == "MISSING" }).isTrue()
-    assertThat(resolution.counts["gcs_reads"]).isEqualTo(4)
+    assertThat(resolution.counts["gcs_reads"]).isEqualTo(3)
     assertThat(objectReads).contains("gs://raw/input/done" to 7L)
     assertThat(objectReads).doesNotContain("gs://raw/input/done" to null)
-    assertThat(objectReads).contains(doneUri to 9L)
   }
 
   @Test
@@ -295,7 +292,8 @@ class VidLabelingTraceStateTest {
         .setDoneBlobGeneration(7)
         .build()
 
-    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE))).nodes
+    val nodes =
+      resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)), emptyList()).nodes
 
     assertThat(nodes.single { it.stage == "data_availability_publish" }.authoritativeState)
       .isEqualTo("MISSING")
@@ -474,7 +472,8 @@ class VidLabelingTraceStateTest {
       workItemResolver.resolve(UPLOAD, initialGraph.expectedWorkItems, pageLimit = 10)
     val routeResolution =
       routeResolver.resolve("dataProviders/123", initialGraph.modelLines.map { it.cmmsModelLine })
-    val finalState = finalStateResolver.resolve(initialGraph.upload, initialGraph.modelLines)
+    val finalState =
+      finalStateResolver.resolve(initialGraph.upload, initialGraph.modelLines, emptyList())
     val graph =
       initialGraph
         .copy(nodes = initialGraph.nodes + workItemResolution.nodes + finalState.nodes)
@@ -621,6 +620,44 @@ class VidLabelingTraceStateTest {
     verifyBlocking(attempts, times(37)) { listWorkItemAttempts(any(), any()) }
   }
 
+  @Test
+  fun `WorkItem resolver retains availability tasks in the shared inventory scan`() = runBlocking {
+    val workItems = mock<WorkItemsCoroutineStub>()
+    val attempts = mock<WorkItemAttemptsCoroutineStub>()
+    val availabilityWorkItems =
+      List(3) { index -> availabilityWorkItemProto("workItems/availability-$index") }
+    whenever(workItems.listWorkItems(any(), any()))
+      .thenReturn(
+        ListWorkItemsResponse.newBuilder()
+          .addAllWorkItems(
+            availabilityWorkItems + WorkItem.newBuilder().setName("workItems/other").build()
+          )
+          .build()
+      )
+    whenever(attempts.listWorkItemAttempts(any(), any()))
+      .thenReturn(ListWorkItemAttemptsResponse.getDefaultInstance())
+    val resolver =
+      GrpcVidLabelingWorkItemResolver(
+        workItems,
+        attempts,
+        RelevantWorkItemSelector { rawImpressionUpload, workItem ->
+          workItem.isAvailabilityWorkItemFor(rawImpressionUpload)
+        },
+        availabilityLookupEnabled = true,
+      )
+
+    val result = resolver.resolve(UPLOAD, emptyList(), pageLimit = 10)
+    val parsed = result.workItems.mapNotNull { it.toAvailabilityWorkItem(UPLOAD) }
+
+    assertThat(result.availabilityLookupEnabled).isTrue()
+    assertThat(result.counts["pages_fetched"]).isEqualTo(1)
+    assertThat(result.counts["rows_retained"]).isEqualTo(3)
+    assertThat(parsed).hasSize(3)
+    assertThat(parsed.map { it.doneBlobGeneration }.distinct()).containsExactly(9L)
+    verifyBlocking(workItems, times(1)) { listWorkItems(any(), any()) }
+    verifyBlocking(attempts, times(3)) { listWorkItemAttempts(any(), any()) }
+  }
+
   @OptIn(ExperimentalCoroutinesApi::class)
   @Test
   fun `WorkItem resolver bounds parallel attempt reads`() = runTest {
@@ -725,14 +762,14 @@ class VidLabelingTraceStateTest {
         modelLine("line-$index", "modelProviders/456/modelSuites/suite/modelLines/line-$index")
       }
 
-    val result = async { resolver.resolve(upload, modelLines.reversed()) }
+    val result = async { resolver.resolve(upload, modelLines.reversed(), emptyList()) }
     runCurrent()
 
     assertThat(peakInFlight.get()).isEqualTo(8)
     assertThat(result.isCompleted).isFalse()
     release.complete(Unit)
     val resolution = result.await()
-    assertThat(resolution.counts["gcs_reads"]).isEqualTo(13)
+    assertThat(resolution.counts["gcs_reads"]).isEqualTo(9)
     assertThat(resolution.nodes.mapNotNull { it.modelLine }.distinct())
       .isEqualTo(modelLines.map { it.cmmsModelLine }.sorted())
   }
@@ -774,6 +811,36 @@ class VidLabelingTraceStateTest {
         "workItems/$id-recovery-3",
       ),
     )
+  }
+
+  private fun availabilityWorkItemProto(name: String): WorkItem {
+    val appParams =
+      DataAvailabilitySyncParams.newBuilder()
+        .setDataProvider("dataProviders/123")
+        .setTriggeringRawImpressionUpload(UPLOAD)
+        .setRawImpressionUploadModelLine(UPLOAD + "/rawImpressionUploadModelLines/direct")
+        .setModelLine(DIRECT_MODEL_LINE)
+        .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
+        .build()
+    val dataPath =
+      WorkItem.WorkItemParams.DataPathParams.newBuilder()
+        .setDataPath("gs://bucket/model-line/direct/2026-09-01/done")
+        .setGeneration(9)
+        .setEventType(WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED)
+        .build()
+    val params =
+      WorkItem.WorkItemParams.newBuilder()
+        .setAppParams(Any.pack(appParams))
+        .setDataPathParams(dataPath)
+        .build()
+    return WorkItem.newBuilder()
+      .setName(name)
+      .setQueue("data-availability-sync-queue")
+      .setWorkItemParams(Any.pack(params))
+      .setState(WorkItem.State.SUCCEEDED)
+      .setGeneration(1)
+      .setCreateTime(Timestamp.newBuilder().setSeconds(123))
+      .build()
   }
 
   private fun modelLine(id: String, cmmsModelLine: String): RawImpressionUploadModelLine =
