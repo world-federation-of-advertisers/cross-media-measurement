@@ -1263,7 +1263,7 @@ class VidLabelingTraceTest {
           logReaderFactory = { FakeCloudLogReader(emptyList()) },
           spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
           stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
-          finalStateResolver = VidLabelingFinalStateResolver { _, _ -> awaitCancellation() },
+          finalStateResolver = VidLabelingFinalStateResolver { _, _, _ -> awaitCancellation() },
           sourceTimeout = Duration.ofSeconds(1),
         ),
       )
