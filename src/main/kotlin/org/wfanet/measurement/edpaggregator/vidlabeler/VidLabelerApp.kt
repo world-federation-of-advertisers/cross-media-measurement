@@ -58,11 +58,16 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.R
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
@@ -77,6 +82,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
@@ -148,6 +154,8 @@ class VidLabelerApp(
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
+  private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
+  private val uploadHealingOperationsStub: UploadHealingOperationServiceCoroutineStub,
   private val buildParquetStorageClient: (StorageConfig, KmsClient) -> ParquetStorageClient,
   private val buildVidRankMapStorageClient: (StorageConfig) -> ConditionalOperationStorageClient,
   private val loadAssigner:
@@ -930,6 +938,7 @@ class VidLabelerApp(
     }
     var doneObjectsWritten = 0
     var parentsTransitioned = 0
+    var availabilityDeferredForHealing: Boolean? = null
     for (completedModelLine in completedModelLines) {
       val parent = parentsByModelLine[completedModelLine]
       if (parent == null) {
@@ -959,6 +968,8 @@ class VidLabelerApp(
             params.vidLabeledImpressionsStorageParams,
             completedModelLine,
             eventDate,
+            allowMissingWorkItem =
+              parent.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
           )
             ?: writeDoneBlob(
               params.vidLabeledImpressionsStorageParams,
@@ -1015,6 +1026,16 @@ class VidLabelerApp(
         VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME_STRING to parent.name,
         VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to completedModelLine,
       )
+      val availabilityDeferred =
+        availabilityDeferredForHealing
+          ?: isAvailabilityDeferredForHealing(upload).also { availabilityDeferredForHealing = it }
+      if (availabilityDeferred) {
+        logger.info(
+          "Deferring Data Availability WorkItems for $upload model line $completedModelLine " +
+            "until its upload-healing operation completes"
+        )
+        continue
+      }
       // Publish the durable handoffs only after DataAvailabilitySync can acknowledge their dates.
       for ((eventDate, doneObject) in doneObjects) {
         ensureDataAvailabilitySyncWorkItem(
@@ -1065,6 +1086,25 @@ class VidLabelerApp(
       }
       .collect { page -> eventDates.addAll(page.map { it.eventDate.toLocalDate() }) }
     return eventDates
+  }
+
+  /** Returns whether [uploadName]'s healing fence still defers availability publication. */
+  private suspend fun isAvailabilityDeferredForHealing(uploadName: String): Boolean {
+    val upload =
+      rpcThrottlers.metadataRead.onReady {
+        rawImpressionUploadsStub.getRawImpressionUpload(
+          getRawImpressionUploadRequest { name = uploadName }
+        )
+      }
+    val operationName = upload.uploadHealingOperation
+    if (operationName.isEmpty()) return false
+    val operation =
+      rpcThrottlers.metadataRead.onReady {
+        uploadHealingOperationsStub.getUploadHealingOperation(
+          getUploadHealingOperationRequest { name = operationName }
+        )
+      }
+    return operation.state != UploadHealingOperation.State.COMPLETE
   }
 
   /**
@@ -1308,7 +1348,10 @@ class VidLabelerApp(
     return doneObject
   }
 
-  /** Returns the live done object only when its WorkItem belongs to this exact handoff. */
+  /**
+   * Returns the live done object when its WorkItem belongs to this exact handoff, or when the
+   * parent already durably records that availability publication is pending.
+   */
   private suspend fun findReusableDoneObject(
     dataProvider: String,
     rawImpressionUpload: String,
@@ -1316,6 +1359,7 @@ class VidLabelerApp(
     outputStorageParams: VidLabelerParams.StorageParams,
     modelLine: String,
     eventDate: LocalDate,
+    allowMissingWorkItem: Boolean,
   ): DoneObject? {
     val storageConfig = getStorageConfig(outputStorageParams)
     val doneUri =
@@ -1354,7 +1398,7 @@ class VidLabelerApp(
         }
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.NOT_FOUND) {
-          return null
+          return if (allowMissingWorkItem) doneObject else null
         }
         throw e
       }
@@ -1379,7 +1423,7 @@ class VidLabelerApp(
     val generation = doneObject.generation
     val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneObject.uri)
     val traceContext = Tracing.currentW3CTraceContext()
-    val request =
+    var request =
       DataAvailabilitySyncWorkItems.createRequest(
         dataProvider,
         rawImpressionUpload,
@@ -1391,11 +1435,13 @@ class VidLabelerApp(
         doneObject.createTime,
         traceContext,
       )
-    val workItemName = "workItems/${request.workItemId}"
-    val outcome =
+    var workItemName = "workItems/${request.workItemId}"
+    var outcome = ""
+    createLoop@ while (true) {
       try {
         rpcThrottlers.controlPlane.onReady { workItemsClient.createWorkItem(request) }
-        "created"
+        outcome = "created"
+        break@createLoop
       } catch (e: CancellationException) {
         throw e
       } catch (e: StatusException) {
@@ -1435,7 +1481,40 @@ class VidLabelerApp(
             )
             throw validationError
           }
-          "already_exists"
+          when (existing.state) {
+            WorkItem.State.QUEUED,
+            WorkItem.State.RUNNING,
+            WorkItem.State.SUCCEEDED -> {
+              outcome = "already_exists"
+              break@createLoop
+            }
+            WorkItem.State.FAILED -> {
+              val failureVersion = "${existing.updateTime.seconds}:${existing.updateTime.nanos}"
+              request =
+                request.copy {
+                  workItemId = RequestIds.forRetriedWorkItem(request.workItemId, failureVersion)
+                }
+              workItemName = "workItems/${request.workItemId}"
+            }
+            WorkItem.State.STATE_UNSPECIFIED,
+            WorkItem.State.UNRECOGNIZED -> {
+              val validationError =
+                IllegalStateException(
+                  "Existing WorkItem $workItemName has invalid state ${existing.state}"
+                )
+              logAvailabilityWorkItemFailure(
+                params,
+                dataProvider,
+                rawImpressionUpload,
+                modelLine,
+                pathHash,
+                generation,
+                workItemName,
+                validationError,
+              )
+              throw validationError
+            }
+          }
         } else {
           logAvailabilityWorkItemFailure(
             params,
@@ -1462,6 +1541,7 @@ class VidLabelerApp(
         )
         throw e
       }
+    }
     Span.current()
       .addEvent(
         "edpa.data_availability_sync_work_item.create",
