@@ -126,6 +126,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 /**
@@ -941,6 +942,17 @@ class VidLabelingMonitorTest {
     }
   }
 
+  private fun labeledDoneKey(rawImpressionUpload: String, eventDate: LocalDate): String =
+    SelectedStorageClient.parseBlobUri(
+        LabeledImpressionsBlobKeys.forDoneUri(
+          VID_LABELED_IMPRESSIONS_PREFIX,
+          rawImpressionUpload,
+          MODEL_LINE,
+          eventDate,
+        )
+      )
+      .key
+
   private suspend fun stubFiles(vararg files: RawImpressionUploadFile) {
     whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
       .thenReturn(
@@ -1404,6 +1416,32 @@ class VidLabelingMonitorTest {
         }
       }
     )
+    seedLabeled(labeledDoneKey(completedUpload.name, LocalDate.of(2026, 6, 1)))
+
+    createMonitor().runHealth()
+
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
+      .isEqualTo(0)
+  }
+
+  @Test
+  fun `reports missing labeled output when done blob exists only at bucket root`() = runBlocking {
+    val completedUpload = upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW)
+    stubUploads(completed = listOf(completedUpload))
+    stubModelLines(
+      modelLine(completedUpload.name, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED)
+    )
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${completedUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      }
+    )
     seedLabeled(
       LabeledImpressionsBlobKeys.forDone(completedUpload.name, MODEL_LINE, LocalDate.of(2026, 6, 1))
     )
@@ -1411,7 +1449,7 @@ class VidLabelingMonitorTest {
     createMonitor().runHealth()
 
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
-      .isEqualTo(0)
+      .isEqualTo(1)
   }
 
   @Test
@@ -1456,9 +1494,7 @@ class VidLabelingMonitorTest {
         }
       },
     )
-    seedLabeled(
-      LabeledImpressionsBlobKeys.forDone(mainUpload.name, MODEL_LINE, LocalDate.of(2026, 6, 1))
-    )
+    seedLabeled(labeledDoneKey(mainUpload.name, LocalDate.of(2026, 6, 1)))
 
     createMonitor().runHealth()
 
