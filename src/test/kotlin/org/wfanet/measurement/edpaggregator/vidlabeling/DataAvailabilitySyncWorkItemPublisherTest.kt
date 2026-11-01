@@ -88,8 +88,8 @@ class DataAvailabilitySyncWorkItemPublisherTest {
   fun `ensure propagates cancellation`() = runBlocking {
     val publisher =
       DataAvailabilitySyncWorkItemPublisher(
-        createWorkItem = { throw CancellationException("cancelled") },
-        getWorkItem = { error("unexpected") },
+        createWorkItem = { _, _ -> throw CancellationException("cancelled") },
+        getWorkItem = { _, _ -> error("unexpected") },
       )
 
     assertFailsWith<CancellationException> { publisher.ensure() }
@@ -116,7 +116,11 @@ class DataAvailabilitySyncWorkItemPublisherTest {
   private class FakeClient {
     val items = linkedMapOf<String, WorkItem>()
 
-    fun publisher() = DataAvailabilitySyncWorkItemPublisher(::create, ::get)
+    fun publisher() =
+      DataAvailabilitySyncWorkItemPublisher(
+        createWorkItem = { _, request -> create(request) },
+        getWorkItem = { _, name -> get(name) },
+      )
 
     private suspend fun create(request: CreateWorkItemRequest): WorkItem {
       val name = "workItems/${request.workItemId}"
