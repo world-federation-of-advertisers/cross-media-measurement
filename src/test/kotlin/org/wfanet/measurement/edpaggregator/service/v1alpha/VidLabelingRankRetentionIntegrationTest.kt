@@ -18,6 +18,8 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import java.io.IOException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -25,9 +27,11 @@ import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.EVENT_DATE
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.MEMOIZED_MODEL_LINE
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
+import org.wfanet.measurement.edpaggregator.vidrankbuilder.SubpoolRetention
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 
 internal class VidLabelingRankRetentionIntegrationTest :
@@ -120,6 +124,42 @@ internal class VidLabelingRankRetentionIntegrationTest :
     assertThat(output.any { Math.floorMod(it.vid, 100L) >= 90L }).isTrue()
     assertThat(listAvailabilityTasks(upload.name).single().state)
       .isEqualTo(WorkItem.State.SUCCEEDED)
+  }
+
+  @Test
+  fun `retention retries object deletion before soft deleting metadata`() = runBlocking {
+    setToday(EVENT_DATE)
+    val upload =
+      processSingleEventUpload("retention-retry", EVENT_DATE, "retained-event", "retained")
+    val candidate =
+      listRankIndexBlobs(upload.name).single { it.blobType == RankIndexBlob.BlobType.DAY_ONLY }
+    val candidateKey = candidate.blobUri
+    val retentionDate = EVENT_DATE.plusDays(pipelineConfig.retentionDays.toLong() + 1L)
+    val retention =
+      SubpoolRetention(
+        rankIndexBlobsStub,
+        RankIndexStore(mapStorage, kmsClient),
+        "dataProviders/dp1",
+        MEMOIZED_MODEL_LINE,
+        pipelineConfig.retentionDays,
+        retentionDate,
+        VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+      )
+    fileStorage.failNextDelete(candidateKey)
+
+    assertFailsWith<IOException> { retention.deleteAgedBlobs(candidate.poolOffset) }
+
+    val afterFailure =
+      listRankIndexBlobs(upload.name, showDeleted = true).single { it.name == candidate.name }
+    assertThat(afterFailure.hasDeleteTime()).isFalse()
+    assertThat(fileStorage.getBlob(candidateKey)).isNotNull()
+
+    retention.deleteAgedBlobs(candidate.poolOffset)
+
+    val afterRetry =
+      listRankIndexBlobs(upload.name, showDeleted = true).single { it.name == candidate.name }
+    assertThat(afterRetry.hasDeleteTime()).isTrue()
+    assertThat(fileStorage.getBlob(candidateKey)).isNull()
   }
 
   @Test
