@@ -1262,6 +1262,160 @@ class EvictUploaderTest {
   }
 
   @Test
+  fun `planCorrection accepts unrelated processing work and leaves draining to execution`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up1")
+              createTime = T1.toProtoTime()
+            }
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("active")
+              createTime = T2.toProtoTime()
+            }
+          }
+        )
+      whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name =
+              if (request.filter.stateInList.isNotEmpty()) {
+                modelLineName("active")
+              } else {
+                modelLineName("up1")
+              }
+            cmmsModelLine =
+              if (request.filter.stateInList.isNotEmpty()) {
+                "modelProviders/mp1/modelSuites/ms1/modelLines/unrelated"
+              } else {
+                MODEL_LINE
+              }
+            state =
+              if (request.filter.stateInList.isNotEmpty()) {
+                RawImpressionUploadModelLine.State.LABELING
+              } else {
+                RawImpressionUploadModelLine.State.COMPLETED
+              }
+            etag = "etag-1"
+          }
+        }
+      }
+      stubSnapshotRows()
+
+      val plan = evictUploader.planCorrection(listOf(uploadName("up1")), cutoffTime = T0)
+
+      assertThat(plan.badUploads).containsExactly(uploadName("up1"))
+      val requests = argumentCaptor<ListRawImpressionUploadModelLinesRequest>()
+      verifyBlocking(modelLineService, times(3)) {
+        listRawImpressionUploadModelLines(requests.capture())
+      }
+      assertThat(requests.allValues.count { it.filter.stateInList.isNotEmpty() }).isEqualTo(1)
+    }
+
+  @Test
+  fun `planCorrection rejects active work that can change the approved plan`(): Unit = runBlocking {
+    whenever(uploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += rawImpressionUpload {
+            name = uploadName("up1")
+            createTime = T1.toProtoTime()
+          }
+        }
+      )
+    whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+      listRawImpressionUploadModelLinesResponse {
+        rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+          name = modelLineName("up1")
+          cmmsModelLine = MODEL_LINE
+          state =
+            if (request.filter.stateInList.isNotEmpty()) {
+              RawImpressionUploadModelLine.State.LABELING
+            } else {
+              RawImpressionUploadModelLine.State.COMPLETED
+            }
+          etag = "etag-1"
+        }
+      }
+    }
+    stubSnapshotRows()
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        evictUploader.planCorrection(listOf(uploadName("up1")), cutoffTime = T0)
+      }
+
+    assertThat(error).hasMessageThat().contains("cannot freeze a safe eviction plan")
+    assertThat(error).hasMessageThat().contains(modelLineName("up1"))
+  }
+
+  @Test
+  fun `planCorrection rejects active non-memoized work with overlapping output`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up1")
+              createTime = T1.toProtoTime()
+            }
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("active")
+              createTime = T2.toProtoTime()
+            }
+          }
+        )
+      whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name =
+              if (request.filter.stateInList.isNotEmpty()) {
+                modelLineName("active")
+              } else {
+                modelLineName("up1")
+              }
+            cmmsModelLine = MODEL_LINE
+            state =
+              if (request.filter.stateInList.isNotEmpty()) {
+                RawImpressionUploadModelLine.State.LABELING
+              } else {
+                RawImpressionUploadModelLine.State.COMPLETED
+              }
+            etag = "etag-1"
+          }
+        }
+      }
+      stubSnapshotRows()
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = "${uploadName("up1")}/files/shared"
+              blobUri = "gs://raw/shared.parquet"
+              eventDate = date {
+                year = 2026
+                month = 7
+                day = 1
+              }
+            }
+          }
+        )
+
+      val error =
+        assertFailsWith<IllegalArgumentException> {
+          evictUploader.planCorrection(listOf(uploadName("up1")), cutoffTime = T0)
+        }
+
+      assertThat(error).hasMessageThat().contains("can publish the same output")
+      assertThat(error).hasMessageThat().contains(modelLineName("active"))
+    }
+
+  @Test
   fun `plan accepts output waiting for availability synchronization`(): Unit = runBlocking {
     whenever(uploadService.listRawImpressionUploads(any()))
       .thenReturn(
