@@ -736,6 +736,19 @@ resource "google_pubsub_subscription_iam_member" "data_availability_sync_work_it
   member       = var.pubsub_iam_service_account_member
 }
 
+# Allow operator workloads using the EDPA internal identity to redeliver failed availability work.
+resource "google_pubsub_topic_iam_member" "data_availability_sync_work_item_operator_publisher" {
+  topic  = module.data_availability_sync_work_item_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_pubsub_subscription_iam_member" "data_availability_sync_work_item_operator_dead_letter_subscriber" {
+  subscription = module.data_availability_sync_work_item_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = module.edp_aggregator_internal.iam_service_account.member
+}
+
 resource "google_service_account_iam_member" "data_availability_sync_work_item_token_creator" {
   service_account_id = module.data_availability_sync_cloud_function.cloud_function_service_account.name
   role               = "roles/iam.serviceAccountTokenCreator"
@@ -893,6 +906,23 @@ resource "google_pubsub_subscription_iam_member" "vid_labeling_dead_letter_subsc
   subscription = module.vid_labeling_queue[each.key].dead_letter_subscription.name
   role         = "roles/pubsub.subscriber"
   member       = var.pubsub_iam_service_account_member
+}
+
+# Allow operator workloads using the EDPA internal identity to redeliver failed phase work.
+resource "google_pubsub_topic_iam_member" "vid_labeling_operator_publisher" {
+  for_each = var.vid_labeling_workers
+
+  topic  = module.vid_labeling_queue[each.key].pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_pubsub_subscription_iam_member" "vid_labeling_operator_dead_letter_subscriber" {
+  for_each = var.vid_labeling_workers
+
+  subscription = module.vid_labeling_queue[each.key].dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = module.edp_aggregator_internal.iam_service_account.member
 }
 
 module "vid_labeling_tee_app" {
