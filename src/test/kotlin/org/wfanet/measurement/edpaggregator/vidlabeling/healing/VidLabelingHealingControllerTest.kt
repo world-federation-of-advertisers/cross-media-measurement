@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
+import com.google.type.date
 import io.grpc.Status
 import java.security.MessageDigest
 import java.time.Clock
@@ -36,6 +37,8 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadCorrectionCandidatesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
@@ -62,7 +65,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadCorrectio
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItemPublisher
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 
 @RunWith(JUnit4::class)
 class VidLabelingHealingControllerTest {
@@ -245,6 +252,61 @@ class VidLabelingHealingControllerTest {
 
     assertThat(operation.state).isEqualTo(UploadHealingOperation.State.DRAINING)
     verify(evictionExecutor, never()).evict(any(), any(), any())
+    Unit
+  }
+
+  @Test
+  fun `later healing waits before fencing a scheduled availability handoff`() = runBlocking {
+    val operation = APPROVED_OPERATION.copy { state = UploadHealingOperation.State.DRAINING }
+    val completedStep =
+      EVICTING_OPERATION.stepsList.single().copy {
+        state = UploadHealingStep.State.COMPLETE
+        replacementRawImpressionUpload = CANDIDATE_UPLOAD_NAME
+      }
+    val completedOperation =
+      EVICTING_OPERATION.copy {
+        name = "$DATA_PROVIDER/uploadHealingOperations/completed"
+        state = UploadHealingOperation.State.COMPLETE
+        steps[0] = completedStep
+      }
+    whenever(candidatesService.listRawImpressionUploadCorrectionCandidates(any()))
+      .thenReturn(ListRawImpressionUploadCorrectionCandidatesResponse.getDefaultInstance())
+    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+      .thenReturn(CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED })
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val requestedStates =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+          .filter
+          .stateInList
+      listUploadHealingOperationsResponse {
+        if (operation.state in requestedStates) uploadHealingOperations += operation
+        if (completedOperation.state in requestedStates) {
+          uploadHealingOperations += completedOperation
+        }
+      }
+    }
+    whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+            pendingAvailabilityDates += date {
+              year = 2026
+              month = 11
+              day = 1
+            }
+          }
+        }
+      )
+
+    newController().run()
+
+    verify(uploadsService, never()).acquireRawImpressionUploadEvictionFence(any())
     Unit
   }
 
@@ -864,21 +926,523 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
-  fun `availability-syncing replacement completes healing to release the fence`() = runBlocking {
-    val recoveryStep =
+  fun `availability-syncing replacement schedules handoff before healing completes`() =
+    runBlocking {
+      val recoveryStep =
+        EVICTING_OPERATION.stepsList.single().copy {
+          state = UploadHealingStep.State.RECOVERY_STARTED
+          recoveryDoneBlobGeneration = CANDIDATE_UPLOAD.doneBlobGeneration
+        }
+      var operation =
+        EVICTING_OPERATION.copy {
+          state = UploadHealingOperation.State.REPLAYING
+          steps[0] = recoveryStep
+        }
+      val replacement =
+        CANDIDATE_UPLOAD.copy {
+          registrationComplete = true
+          state = RawImpressionUpload.State.ACTIVE
+          uploadHealingOperation = OPERATION_NAME
+        }
+      val createRequests = mutableListOf<CreateWorkItemRequest>()
+      val publisher =
+        DataAvailabilitySyncWorkItemPublisher(
+          createWorkItem = { request ->
+            createRequests += request
+            request.workItem
+              .toBuilder()
+              .setName("workItems/${request.workItemId}")
+              .setState(WorkItem.State.QUEUED)
+              .setGeneration(1)
+              .build()
+          },
+          getWorkItem = { error("unexpected get") },
+        )
+      whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+        val states =
+          invocation
+            .getArgument<
+              org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+            >(
+              0
+            )
+            .filter
+            .stateInList
+        listUploadHealingOperationsResponse {
+          if (operation.state in states) uploadHealingOperations += operation
+        }
+      }
+      whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+      whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+        val request =
+          invocation.getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+          >(
+            0
+          )
+        check(
+          request.action ==
+            org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest.Action
+              .CONFIRM_REPLACEMENT
+        )
+        val completed =
+          operation.stepsList.single().copy {
+            state = UploadHealingStep.State.COMPLETE
+            replacementRawImpressionUpload = request.replacementRawImpressionUpload
+          }
+        operation =
+          operation.copy {
+            state = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+            steps[0] = completed
+            etag = "handoff-pending"
+          }
+        completed
+      }
+      whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
+        val request =
+          invocation.getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
+          >(
+            0
+          )
+        check(request.state == UploadHealingOperation.State.COMPLETE)
+        operation = operation.copy { state = UploadHealingOperation.State.COMPLETE }
+        operation
+      }
+      whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+        .thenReturn(
+          CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED }
+        )
+      whenever(uploadsService.getRawImpressionUpload(any())).thenAnswer { invocation ->
+        when (
+          invocation
+            .getArgument<
+              org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
+            >(
+              0
+            )
+            .name
+        ) {
+          SOURCE_UPLOAD_NAME -> SOURCE_UPLOAD
+          CANDIDATE_UPLOAD_NAME -> replacement
+          else -> error("unexpected upload")
+        }
+      }
+      whenever(uploadsService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += listOf(SOURCE_UPLOAD, replacement)
+          }
+        )
+      whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = "$CANDIDATE_UPLOAD_NAME/rawImpressionUploadModelLines/ml"
+              cmmsModelLine = CMMS_MODEL_LINE
+              state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+              pendingAvailabilityDates += date {
+                year = 2026
+                month = 11
+                day = 1
+              }
+            }
+          }
+        )
+
+      newController(
+          dataAvailabilitySyncWorkItemPublisher = publisher,
+          doneObjectMetadataReader =
+            DoneObjectMetadataReader {
+              DoneObjectMetadata(123L, Instant.parse("2026-11-01T00:00:00Z"))
+            },
+        )
+        .run()
+
+      assertThat(operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+      assertThat(operation.stepsList.single().state).isEqualTo(UploadHealingStep.State.COMPLETE)
+      assertThat(operation.stepsList.single().replacementRawImpressionUpload)
+        .isEqualTo(CANDIDATE_UPLOAD_NAME)
+      assertThat(createRequests).hasSize(1)
+      assertThat(createRequests.single().workItem.workItemParams.value).isNotEmpty()
+      Unit
+    }
+
+  @Test
+  fun `pending handoff publishes every replacement model line with exact object identity`() =
+    runBlocking {
+      val modelLineNames =
+        listOf(
+          "modelProviders/mp/modelSuites/ms/modelLines/a",
+          "modelProviders/mp/modelSuites/ms/modelLines/b",
+          "modelProviders/mp/modelSuites/ms/modelLines/c",
+        )
+      val baseStep = EVICTING_OPERATION.stepsList.single()
+      val completedSteps =
+        modelLineNames.mapIndexed { index, modelLineName ->
+          baseStep.copy {
+            name = "$OPERATION_NAME/uploadHealingSteps/${index + 1}"
+            cmmsModelLine = modelLineName
+            state = UploadHealingStep.State.COMPLETE
+            replacementRawImpressionUpload = CANDIDATE_UPLOAD_NAME
+          }
+        }
+      var operation =
+        EVICTING_OPERATION.copy {
+          state = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+          steps.clear()
+          steps += completedSteps
+        }
+      val replacement =
+        CANDIDATE_UPLOAD.copy {
+          registrationComplete = true
+          state = RawImpressionUpload.State.ACTIVE
+          uploadHealingOperation = OPERATION_NAME
+        }
+      val createRequests = mutableListOf<CreateWorkItemRequest>()
+      val publisher =
+        DataAvailabilitySyncWorkItemPublisher(
+          createWorkItem = { request ->
+            createRequests += request
+            request.workItem
+              .toBuilder()
+              .setName("workItems/${request.workItemId}")
+              .setState(WorkItem.State.QUEUED)
+              .setGeneration(1)
+              .build()
+          },
+          getWorkItem = { error("unexpected get") },
+        )
+      whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+        val states =
+          invocation
+            .getArgument<
+              org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+            >(
+              0
+            )
+            .filter
+            .stateInList
+        listUploadHealingOperationsResponse {
+          if (operation.state in states) uploadHealingOperations += operation
+        }
+      }
+      whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+      whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer {
+        operation = operation.copy { state = UploadHealingOperation.State.COMPLETE }
+        operation
+      }
+      whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+        .thenReturn(
+          CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED }
+        )
+      whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(replacement)
+      whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              modelLineNames.mapIndexed { index, modelLineName ->
+                rawImpressionUploadModelLine {
+                  name = "$CANDIDATE_UPLOAD_NAME/rawImpressionUploadModelLines/line-$index"
+                  cmmsModelLine = modelLineName
+                  state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+                  pendingAvailabilityDates += date {
+                    year = 2026
+                    month = 11
+                    day = 1
+                  }
+                }
+              }
+          }
+        )
+      val generations =
+        modelLineNames
+          .mapIndexed { index, modelLineName -> modelLineName to (101L + index) }
+          .toMap()
+      val createTime = Instant.parse("2026-11-01T00:00:00Z")
+      newController(
+          dataAvailabilitySyncWorkItemPublisher = publisher,
+          doneObjectMetadataReader =
+            DoneObjectMetadataReader { uri ->
+              val modelLineId = uri.substringAfter("/model-line/").substringBefore('/')
+              val modelLineName = modelLineNames.single { it.endsWith("/$modelLineId") }
+              DoneObjectMetadata(generations.getValue(modelLineName), createTime)
+            },
+        )
+        .run()
+
+      assertThat(operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+      assertThat(createRequests).hasSize(3)
+      val requestsByModelLine =
+        createRequests.associateBy { request ->
+          request.workItem.workItemParams
+            .unpack(WorkItem.WorkItemParams::class.java)
+            .appParams
+            .unpack(DataAvailabilitySyncParams::class.java)
+            .modelLine
+        }
+      assertThat(requestsByModelLine.keys).containsExactlyElementsIn(modelLineNames)
+      for ((index, modelLineName) in modelLineNames.withIndex()) {
+        val request = requestsByModelLine.getValue(modelLineName)
+        val params = request.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+        val appParams = params.appParams.unpack(DataAvailabilitySyncParams::class.java)
+        val eventDate = java.time.LocalDate.of(2026, 11, 1)
+        assertThat(appParams.triggeringRawImpressionUpload).isEqualTo(CANDIDATE_UPLOAD_NAME)
+        assertThat(appParams.rawImpressionUploadModelLine)
+          .isEqualTo("$CANDIDATE_UPLOAD_NAME/rawImpressionUploadModelLines/line-$index")
+        assertThat(params.dataPathParams.dataPath)
+          .isEqualTo(
+            LabeledImpressionsBlobKeys.forDoneUri(
+              operation.labeledImpressionsBlobPrefix,
+              CANDIDATE_UPLOAD_NAME,
+              modelLineName,
+              eventDate,
+            )
+          )
+        assertThat(params.dataPathParams.generation).isEqualTo(generations.getValue(modelLineName))
+        assertThat(params.dataPathParams.createTime.toInstant()).isEqualTo(createTime)
+      }
+    }
+
+  @Test
+  fun `pending handoff retries after transient publication failure`() = runBlocking {
+    val completedStep =
       EVICTING_OPERATION.stepsList.single().copy {
-        state = UploadHealingStep.State.RECOVERY_STARTED
-        recoveryDoneBlobGeneration = CANDIDATE_UPLOAD.doneBlobGeneration
+        state = UploadHealingStep.State.COMPLETE
+        replacementRawImpressionUpload = CANDIDATE_UPLOAD_NAME
       }
     var operation =
       EVICTING_OPERATION.copy {
-        state = UploadHealingOperation.State.REPLAYING
-        steps[0] = recoveryStep
+        state = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+        steps[0] = completedStep
       }
     val replacement =
       CANDIDATE_UPLOAD.copy {
         registrationComplete = true
         state = RawImpressionUpload.State.ACTIVE
+        uploadHealingOperation = OPERATION_NAME
+      }
+    val workItems = linkedMapOf<String, WorkItem>()
+    var createAttempts = 0
+    val publisher =
+      DataAvailabilitySyncWorkItemPublisher(
+        createWorkItem = { request ->
+          createAttempts++
+          if (createAttempts == 1) throw Status.UNAVAILABLE.asException()
+          val name = "workItems/${request.workItemId}"
+          if (workItems.containsKey(name)) throw Status.ALREADY_EXISTS.asException()
+          val workItem =
+            request.workItem
+              .toBuilder()
+              .setName(name)
+              .setState(WorkItem.State.QUEUED)
+              .setGeneration(1)
+              .build()
+          workItems[name] = workItem
+          workItem
+        },
+        getWorkItem = { name -> workItems.getValue(name) },
+      )
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val states =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+          .filter
+          .stateInList
+      listUploadHealingOperationsResponse {
+        if (operation.state in states) uploadHealingOperations += operation
+      }
+    }
+    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+    var completionAttempts = 0
+    whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer {
+      completionAttempts++
+      if (completionAttempts == 1) throw Status.UNAVAILABLE.asException()
+      operation = operation.copy { state = UploadHealingOperation.State.COMPLETE }
+      operation
+    }
+    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+      .thenReturn(CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED })
+    whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(replacement)
+    whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$CANDIDATE_UPLOAD_NAME/rawImpressionUploadModelLines/ml"
+            cmmsModelLine = CMMS_MODEL_LINE
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+            pendingAvailabilityDates += date {
+              year = 2026
+              month = 11
+              day = 1
+            }
+          }
+        }
+      )
+    var metadataAttempts = 0
+    val controller =
+      newController(
+        dataAvailabilitySyncWorkItemPublisher = publisher,
+        doneObjectMetadataReader =
+          DoneObjectMetadataReader {
+            metadataAttempts++
+            if (metadataAttempts == 1) throw Status.UNAVAILABLE.asException()
+            DoneObjectMetadata(123L, Instant.parse("2026-11-01T00:00:00Z"))
+          },
+      )
+
+    controller.run()
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING)
+    assertThat(workItems).isEmpty()
+    assertThat(createAttempts).isEqualTo(0)
+
+    controller.run()
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING)
+    assertThat(workItems).isEmpty()
+
+    controller.run()
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING)
+    assertThat(workItems).hasSize(1)
+
+    controller.run()
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertThat(workItems).hasSize(1)
+    assertThat(createAttempts).isEqualTo(3)
+    assertThat(completionAttempts).isEqualTo(2)
+    assertThat(metadataAttempts).isEqualTo(4)
+  }
+
+  @Test
+  fun `pending handoff resumes after only the first date was published`() = runBlocking {
+    val completedStep =
+      EVICTING_OPERATION.stepsList.single().copy {
+        state = UploadHealingStep.State.COMPLETE
+        replacementRawImpressionUpload = CANDIDATE_UPLOAD_NAME
+      }
+    var operation =
+      EVICTING_OPERATION.copy {
+        state = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+        steps[0] = completedStep
+      }
+    val replacement =
+      CANDIDATE_UPLOAD.copy {
+        registrationComplete = true
+        state = RawImpressionUpload.State.ACTIVE
+        uploadHealingOperation = OPERATION_NAME
+      }
+    val workItems = linkedMapOf<String, WorkItem>()
+    var failSecondDate = true
+    var createAttempts = 0
+    val publisher =
+      DataAvailabilitySyncWorkItemPublisher(
+        createWorkItem = { request ->
+          createAttempts++
+          val name = "workItems/${request.workItemId}"
+          if (workItems.containsKey(name)) throw Status.ALREADY_EXISTS.asException()
+          if (workItems.size == 1 && failSecondDate) {
+            failSecondDate = false
+            throw Status.UNAVAILABLE.asException()
+          }
+          val workItem =
+            request.workItem
+              .toBuilder()
+              .setName(name)
+              .setState(WorkItem.State.QUEUED)
+              .setGeneration(1)
+              .build()
+          workItems[name] = workItem
+          workItem
+        },
+        getWorkItem = { name -> workItems.getValue(name) },
+      )
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val states =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+          .filter
+          .stateInList
+      listUploadHealingOperationsResponse {
+        if (operation.state in states) uploadHealingOperations += operation
+      }
+    }
+    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer {
+      operation = operation.copy { state = UploadHealingOperation.State.COMPLETE }
+      operation
+    }
+    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+      .thenReturn(CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED })
+    whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(replacement)
+    whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$CANDIDATE_UPLOAD_NAME/rawImpressionUploadModelLines/ml"
+            cmmsModelLine = CMMS_MODEL_LINE
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+            pendingAvailabilityDates +=
+              listOf(
+                date {
+                  year = 2026
+                  month = 11
+                  day = 1
+                },
+                date {
+                  year = 2026
+                  month = 11
+                  day = 2
+                },
+              )
+          }
+        }
+      )
+    val controller =
+      newController(
+        dataAvailabilitySyncWorkItemPublisher = publisher,
+        doneObjectMetadataReader =
+          DoneObjectMetadataReader { uri ->
+            DoneObjectMetadata(
+              if ("2026-11-01" in uri) 101L else 102L,
+              Instant.parse("2026-11-01T00:00:00Z"),
+            )
+          },
+      )
+
+    controller.run()
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING)
+    assertThat(workItems).hasSize(1)
+
+    controller.run()
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertThat(workItems).hasSize(2)
+    assertThat(createAttempts).isEqualTo(4)
+  }
+
+  @Test
+  fun `availability-syncing replacement without pending dates needs attention`() = runBlocking {
+    val completedStep =
+      EVICTING_OPERATION.stepsList.single().copy {
+        state = UploadHealingStep.State.COMPLETE
+        replacementRawImpressionUpload = CANDIDATE_UPLOAD_NAME
+      }
+    var operation =
+      EVICTING_OPERATION.copy {
+        state = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+        steps[0] = completedStep
+      }
+    val replacement =
+      CANDIDATE_UPLOAD.copy {
+        registrationComplete = true
+        state = RawImpressionUpload.State.ACTIVE
+        uploadHealingOperation = OPERATION_NAME
       }
     whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =
@@ -895,55 +1459,29 @@ class VidLabelingHealingControllerTest {
       }
     }
     whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
-    whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+    whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
       val request =
         invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
         >(
           0
         )
-      check(
-        request.action ==
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest.Action
-            .CONFIRM_REPLACEMENT
-      )
-      val completed =
-        operation.stepsList.single().copy {
-          state = UploadHealingStep.State.COMPLETE
-          replacementRawImpressionUpload = request.replacementRawImpressionUpload
-        }
+      check(request.state == UploadHealingOperation.State.NEEDS_ATTENTION)
       operation =
         operation.copy {
-          state = UploadHealingOperation.State.COMPLETE
-          steps[0] = completed
+          state = UploadHealingOperation.State.NEEDS_ATTENTION
+          resumeState = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
         }
-      completed
+      operation
     }
     whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
       .thenReturn(CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED })
-    whenever(uploadsService.getRawImpressionUpload(any())).thenAnswer { invocation ->
-      when (
-        invocation
-          .getArgument<org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest>(
-            0
-          )
-          .name
-      ) {
-        SOURCE_UPLOAD_NAME -> SOURCE_UPLOAD
-        CANDIDATE_UPLOAD_NAME -> replacement
-        else -> error("unexpected upload")
-      }
-    }
-    whenever(uploadsService.listRawImpressionUploads(any()))
-      .thenReturn(
-        listRawImpressionUploadsResponse {
-          rawImpressionUploads += listOf(SOURCE_UPLOAD, replacement)
-        }
-      )
+    whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(replacement)
     whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
       .thenReturn(
         listRawImpressionUploadModelLinesResponse {
           rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$CANDIDATE_UPLOAD_NAME/rawImpressionUploadModelLines/ml"
             cmmsModelLine = CMMS_MODEL_LINE
             state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
           }
@@ -952,10 +1490,9 @@ class VidLabelingHealingControllerTest {
 
     newController().run()
 
-    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
-    assertThat(operation.stepsList.single().state).isEqualTo(UploadHealingStep.State.COMPLETE)
-    assertThat(operation.stepsList.single().replacementRawImpressionUpload)
-      .isEqualTo(CANDIDATE_UPLOAD_NAME)
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.NEEDS_ATTENTION)
+    assertThat(operation.resumeState)
+      .isEqualTo(UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING)
   }
 
   @Test
@@ -1028,6 +1565,12 @@ class VidLabelingHealingControllerTest {
     manifestReader: CorrectionManifestReader = CorrectionManifestReader { _, _ -> emptyList() },
     doneBlobReplayer: DoneBlobReplayer = DoneBlobReplayer { _ -> },
     recoveryExecutor: RecoveryExecutor = RecoveryExecutor { _, _ -> error("unexpected recovery") },
+    dataAvailabilitySyncWorkItemPublisher: DataAvailabilitySyncWorkItemPublisher =
+      DataAvailabilitySyncWorkItemPublisher(
+        createWorkItem = { error("unexpected availability handoff") },
+        getWorkItem = { error("unexpected availability lookup") },
+      ),
+    doneObjectMetadataReader: DoneObjectMetadataReader = DoneObjectMetadataReader { null },
     eventSink: VidLabelingHealingControllerEventSink = VidLabelingHealingControllerEventSink {},
     stallTimeout: Duration = Duration.ofHours(1),
   ): VidLabelingHealingController {
@@ -1089,6 +1632,8 @@ class VidLabelingHealingControllerTest {
       manifestReader = manifestReader,
       doneBlobReplayerFactory = { doneBlobReplayer },
       recoveryExecutorFactory = { recoveryExecutor },
+      dataAvailabilitySyncWorkItemPublisher = dataAvailabilitySyncWorkItemPublisher,
+      doneObjectMetadataReader = doneObjectMetadataReader,
       eventSink = eventSink,
       clock = Clock.fixed(Instant.ofEpochSecond(1_000L), ZoneOffset.UTC),
     )
@@ -1144,6 +1689,7 @@ class VidLabelingHealingControllerTest {
       state = UploadHealingOperation.State.APPROVED
       etag = "approved-etag"
       reason = "correction"
+      labeledImpressionsBlobPrefix = "gs://output/vid"
       badRawImpressionUploads += SOURCE_UPLOAD_NAME
       rawImpressionUploadCorrectionCandidates += CANDIDATE_NAME
       cutoffTime = timestamp { seconds = 1L }

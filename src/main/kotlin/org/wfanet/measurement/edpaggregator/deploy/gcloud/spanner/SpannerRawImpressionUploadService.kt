@@ -30,6 +30,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectIndexed
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
@@ -46,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabel
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasActiveDataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasActiveRawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasIncompleteRawImpressionUploadRegistration
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasVidLabelingHealingDispatchGate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertVidLabelingEvictionFenceMutation
@@ -53,6 +55,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasEvictionOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasModelLines
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readProcessingDeferredRawImpressionUploadIds
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadCorrectionCandidates
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadRegistrationComplete
@@ -70,12 +73,14 @@ import org.wfanet.measurement.internal.edpaggregator.AdvanceRawImpressionUploadE
 import org.wfanet.measurement.internal.edpaggregator.AdvanceRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.GetRawImpressionUploadRequest
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsResponse
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.ReleaseRawImpressionUploadEvictionFenceRequest
@@ -213,6 +218,9 @@ class SpannerRawImpressionUploadService(
           }
           val replacesResourceId = previous?.rawImpressionUpload?.rawImpressionUploadResourceId
           val activeEvictionFence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
+          val availabilityHandoffGateActive =
+            activeEvictionFence == null &&
+              txn.hasAvailabilityHandoffOrCandidateGate(request.dataProviderResourceId)
           val processingDeferred =
             if (activeEvictionFence == null) {
               if (request.evictionOperationId.isNotEmpty()) {
@@ -222,7 +230,7 @@ class SpannerRawImpressionUploadService(
                   )
                   .asRuntimeException()
               }
-              false
+              availabilityHandoffGateActive
             } else if (request.evictionOperationId.isEmpty()) {
               true
             } else {
@@ -897,6 +905,22 @@ class SpannerRawImpressionUploadService(
         }
       }
     }
+  }
+
+  private suspend fun AsyncDatabaseClient.TransactionContext.hasAvailabilityHandoffOrCandidateGate(
+    dataProviderResourceId: String
+  ): Boolean {
+    if (hasVidLabelingHealingDispatchGate(dataProviderResourceId)) return true
+    val candidateFilter =
+      ListRawImpressionUploadCorrectionCandidatesRequest.Filter.newBuilder()
+        .addStateIn(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING)
+        .build()
+    return readRawImpressionUploadCorrectionCandidates(
+        dataProviderResourceId,
+        candidateFilter,
+        limit = 1,
+      )
+      .firstOrNull() != null
   }
 
   companion object {

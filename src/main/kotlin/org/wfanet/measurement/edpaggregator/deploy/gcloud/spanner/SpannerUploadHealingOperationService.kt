@@ -51,7 +51,6 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.recordUploa
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.reopenRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.replaceUploadHealingOperationPlan
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.touchUploadHealingOperation
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.transferVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.unassignRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingOperationState
@@ -371,6 +370,52 @@ class SpannerUploadHealingOperationService(
       requireNoSupersededPlanCandidates(txn, operation)
       precondition(request.state in allowedOperationStates(operation.state)) {
         "cannot advance upload-healing operation from ${operation.state} to ${request.state}"
+      }
+      if (
+        operation.state ==
+          UploadHealingOperation.State
+            .UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING &&
+          request.state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
+      ) {
+        precondition(txn.getVidLabelingEvictionFence(request.dataProviderResourceId) == null) {
+          "availability handoff cannot complete while the DataProvider is fenced"
+        }
+        txn.completeUploadHealingOperation(
+          request.dataProviderResourceId,
+          request.uploadHealingOperationId,
+          result.mutationRequestIds + request.requestId,
+          result.mutationRequestFingerprints + listOf(requestFingerprint),
+        )
+        completePlanCandidates(txn, operation)
+        val hasPendingCandidate =
+          txn
+            .readRawImpressionUploadCorrectionCandidates(
+              operation.dataProviderResourceId,
+              ListRawImpressionUploadCorrectionCandidatesRequestKt.filter {
+                stateIn += RawImpressionUploadCorrectionCandidate.State.STATE_PENDING
+              },
+              limit = 1,
+            )
+            .firstOrNull() != null
+        val otherOperationFilter =
+          ListUploadHealingOperationsRequest.Filter.newBuilder()
+            .addAllStateIn(HEALING_DISPATCH_GATE_STATES)
+            .build()
+        val hasOtherOperation =
+          txn
+            .readUploadHealingOperations(
+              operation.dataProviderResourceId,
+              otherOperationFilter,
+              limit = 2,
+            )
+            .firstOrNull {
+              it.uploadHealingOperation.uploadHealingOperationId !=
+                operation.uploadHealingOperationId
+            } != null
+        if (!hasPendingCandidate && !hasOtherOperation) {
+          clearProcessingDeferrals(txn, operation.dataProviderResourceId)
+        }
+        return@run
       }
       val resumeState =
         if (
@@ -698,12 +743,12 @@ class SpannerUploadHealingOperationService(
               it.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE
           }
       ) {
-        txn.completeUploadHealingOperation(
+        txn.updateUploadHealingOperationState(
           request.dataProviderResourceId,
           request.uploadHealingOperationId,
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING,
         )
-        completePlanCandidates(txn, operation)
-        releasePlanFence(txn, operation)
+        releasePlanFenceForAvailabilityHandoff(txn, operation)
       } else {
         txn.touchUploadHealingOperation(
           request.dataProviderResourceId,
@@ -1037,7 +1082,7 @@ class SpannerUploadHealingOperationService(
     }
   }
 
-  private suspend fun releasePlanFence(
+  private suspend fun releasePlanFenceForAvailabilityHandoff(
     txn: AsyncDatabaseClient.TransactionContext,
     operation: UploadHealingOperation,
   ) {
@@ -1045,33 +1090,21 @@ class SpannerUploadHealingOperationService(
     precondition(fence.evictionOperationId == operation.uploadHealingOperationId) {
       "another healing operation owns the DataProvider fence"
     }
-    val nextCandidate =
-      txn
-        .readRawImpressionUploadCorrectionCandidates(
-          operation.dataProviderResourceId,
-          ListRawImpressionUploadCorrectionCandidatesRequestKt.filter {
-            stateIn += RawImpressionUploadCorrectionCandidate.State.STATE_PENDING
-          },
-          limit = 1,
-        )
-        .firstOrNull()
-        ?.rawImpressionUploadCorrectionCandidate
-    if (nextCandidate != null) {
-      txn.transferVidLabelingEvictionFence(
-        operation.dataProviderResourceId,
-        nextCandidate.rawImpressionUploadCorrectionCandidateId,
-      )
-      return
-    }
-    txn.readProcessingDeferredRawImpressionUploadIds(operation.dataProviderResourceId).collect {
+    txn.deleteVidLabelingEvictionFence(operation.dataProviderResourceId)
+  }
+
+  private suspend fun clearProcessingDeferrals(
+    txn: AsyncDatabaseClient.TransactionContext,
+    dataProviderResourceId: String,
+  ) {
+    txn.readProcessingDeferredRawImpressionUploadIds(dataProviderResourceId).collect {
       rawImpressionUploadId ->
       txn.updateRawImpressionUploadProcessingDeferred(
-        operation.dataProviderResourceId,
+        dataProviderResourceId,
         rawImpressionUploadId,
         false,
       )
     }
-    txn.deleteVidLabelingEvictionFence(operation.dataProviderResourceId)
   }
 
   private suspend fun restorePlanCandidateState(
@@ -1085,7 +1118,8 @@ class SpannerUploadHealingOperationService(
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING,
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
-      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING -> {}
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING -> {}
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED,
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE,
@@ -1260,6 +1294,11 @@ class SpannerUploadHealingOperationService(
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING ->
         setOf(
           UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+        )
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING ->
+        setOf(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE,
           UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
         )
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION -> emptySet()
@@ -1567,6 +1606,17 @@ class SpannerUploadHealingOperationService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
+    private val HEALING_DISPATCH_GATE_STATES =
+      listOf(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING,
+      )
     private val SUPERSEDED_PLAN_REOPEN_STATES =
       setOf(
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED,
@@ -1574,6 +1624,7 @@ class SpannerUploadHealingOperationService(
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING,
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
       )
   }
