@@ -685,6 +685,8 @@ provided; override as needed:
 * `spanner_database_name` — defaults to `edp-aggregator`.
 * `edp_aggregator_service_account_name` — internal API server SA (bound to the GKE
   service account `internal-edp-aggregator-server` via Workload Identity).
+  This identity can consume the VID-labeling and Data Availability dead-letter
+  subscriptions and publish to their origin topics for `vid-labeling-heal redeliver-dlq`.
 * `edp_aggregator_api_server_ip_address` — optional static IP for the API server.
 
 ### Service accounts
