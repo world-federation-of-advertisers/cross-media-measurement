@@ -597,6 +597,8 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
       .isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
     assertThat(listModelLines(rebuiltDay4.name).single().state)
       .isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+    republishQueuedAvailability()
+    awaitPipelineIdle()
 
     checkNotNull(fileStorage.getBlob(blobKey(rawUrisByDate.getValue(day4)))).delete()
     finalizeRawUpload("chained-healing/chain-day-4")
@@ -619,8 +621,6 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
       .isNotEqualTo(originalsByDate.getValue(day3).name)
 
     advanceHealingUntilComplete(controller, secondDraft.name)
-    workItemTransport.republishWorkItem(listAvailabilityTasks(rebuiltDay3.name).single().name)
-    awaitPipelineIdle()
 
     assertThat(listHealingOperations().single { it.name == secondDraft.name }.state)
       .isEqualTo(UploadHealingOperation.State.COMPLETE)
@@ -1126,15 +1126,7 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
       throw AssertionError("Corrected revision replay failed", it)
     }
     val replacement = listUploads().single { it.replacesRawImpressionUpload == original.name }
-    val replacementTasks = listAvailabilityTasks(replacement.name)
-    assertThat(replacementTasks.map { it.state }.toSet()).containsExactly(WorkItem.State.QUEUED)
-    assertThat(listMetadata()).isEmpty()
-
-    val fencedTask = replacementTasks.first()
-    assertThat(runCatching { processAvailabilityTask(fencedTask) }.isFailure).isTrue()
-    val blockedTask = listAvailabilityTasks(replacement.name).single { it.name == fencedTask.name }
-    assertThat(blockedTask.state).isEqualTo(WorkItem.State.RUNNING)
-    assertThat(blockedTask.attemptCount).isEqualTo(1)
+    assertThat(listAvailabilityTasks(replacement.name)).isEmpty()
     assertThat(listMetadata()).isEmpty()
 
     for (task in originalTasks) {
@@ -1148,7 +1140,9 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
     assertThat(controller.run().failedDataProviders).isEqualTo(0)
     assertThat(listHealingOperations().single().state)
       .isEqualTo(UploadHealingOperation.State.COMPLETE)
-    workItemTransport.redeliverWorkItem(fencedTask.name)
+    val replacementTasks = listAvailabilityTasks(replacement.name)
+    assertThat(replacementTasks.map { it.state }.toSet()).containsExactly(WorkItem.State.QUEUED)
+    assertThat(listMetadata()).isEmpty()
     workItemTransport.republishQueuedWorkItems(DataAvailabilitySyncWorkItems.QUEUE)
     awaitPipelineIdle()
 
