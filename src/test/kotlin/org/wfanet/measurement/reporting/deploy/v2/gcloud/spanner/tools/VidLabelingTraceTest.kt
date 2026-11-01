@@ -18,13 +18,20 @@ import com.google.common.truth.Truth.assertThat
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.logging.Handler
 import java.util.logging.Level
 import java.util.logging.LogRecord
 import java.util.logging.Logger
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.wfanet.measurement.common.telemetry.CloudLogEntry
 import org.wfanet.measurement.common.telemetry.CloudLogReader
@@ -798,6 +805,151 @@ class VidLabelingTraceTest {
     assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.FAILED)
     assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.UNKNOWN)
     assertThat(collection.sourceStatuses.map { it.status }).contains("failed")
+  }
+
+  @Test
+  fun `collect returns partial evidence when Cloud Logging times out`() = runTest {
+    val traceEvidence =
+      CloudTraceSpan(
+        "observability-project",
+        ROOT_TRACE,
+        "span-$ROOT_TRACE",
+        null,
+        "edpa.vid_labeling.upload_registration",
+        "worker",
+        Instant.parse("2026-09-01T00:00:01Z"),
+        Instant.parse("2026-09-01T00:00:02Z"),
+        mapOf(
+          "xmm.lifecycle.stage" to "upload_registration",
+          "xmm.outcome" to "succeeded",
+          "xmm.edpa.raw_impression_upload.name" to RAW_UPLOAD,
+        ),
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { CloudLogReader { _, _, _, _ -> awaitCancellation() } },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> listOf(traceEvidence) },
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+        sourceTimeout = Duration.ofSeconds(1),
+      )
+
+    val collection = collector.collect(request(expansionRounds = 1))
+
+    assertThat(
+        collection.sourceStatuses.any { it.source == "Cloud Logging" && it.status == "timed_out" }
+      )
+      .isTrue()
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
+    assertThat(collection.evidence).hasSize(1)
+  }
+
+  @Test
+  fun `collect returns partial evidence when Cloud Trace times out`() = runTest {
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = {
+          FakeCloudLogReader(
+            listOf(
+              entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE)
+            )
+          )
+        },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> awaitCancellation() },
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+        sourceTimeout = Duration.ofSeconds(1),
+      )
+
+    val collection = collector.collect(request(expansionRounds = 1))
+
+    assertThat(
+        collection.sourceStatuses.any { it.source == "Cloud Trace" && it.status == "timed_out" }
+      )
+      .isTrue()
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
+    assertThat(collection.evidence).isNotEmpty()
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun `batch treats each authoritative state timeout as an upload failure`() = runTest {
+    val collectors =
+      listOf(
+        VidLabelingTraceCollector(
+          logReaderFactory = { FakeCloudLogReader(emptyList()) },
+          spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+          stateResolver = VidLabelingStateResolver { awaitCancellation() },
+          finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+          sourceTimeout = Duration.ofSeconds(1),
+        ),
+        VidLabelingTraceCollector(
+          logReaderFactory = { FakeCloudLogReader(emptyList()) },
+          spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+          stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+          finalStateResolver = VidLabelingFinalStateResolver { _, _ -> awaitCancellation() },
+          sourceTimeout = Duration.ofSeconds(1),
+        ),
+      )
+
+    for (collector in collectors) {
+      val artifacts = mutableListOf<String>()
+      val startedAt = currentTime
+      val failed =
+        collectVidLabelingTraceBatch(
+          listOf(RAW_UPLOAD),
+          allowPartial = true,
+          uploadTimeout = Duration.ofSeconds(10),
+          collect = { collector.collect(request()) },
+          write = { _, contents -> artifacts += contents },
+        )
+
+      assertThat(failed).isTrue()
+      assertThat(currentTime - startedAt).isEqualTo(Duration.ofSeconds(1).toMillis())
+      assertThat(artifacts.single()).contains("Failure type: `TimeoutCancellationException`")
+    }
+  }
+
+  @Test
+  fun `batch times out one upload and continues with the next`() = runTest {
+    val writtenFiles = mutableListOf<String>()
+
+    val failed =
+      collectVidLabelingTraceBatch(
+        listOf(RAW_UPLOAD, OTHER_RAW_UPLOAD),
+        allowPartial = true,
+        uploadTimeout = Duration.ofSeconds(1),
+        collect = { rawImpressionUpload ->
+          if (rawImpressionUpload == RAW_UPLOAD) awaitCancellation()
+          VidLabelingTraceCollection(
+            rawImpressionUpload,
+            VidLabelingTraceStatus.COMPLETE,
+            VidLabelingExecutionStatus.SUCCEEDED,
+            emptyList(),
+            emptyList(),
+            emptyList(),
+            emptyList(),
+          )
+        },
+        write = { fileName, _ -> writtenFiles += fileName },
+      )
+
+    assertThat(failed).isTrue()
+    assertThat(writtenFiles).hasSize(2)
+    assertThat(writtenFiles[1]).isEqualTo(VidLabelingTraceOutput.artifactFileName(OTHER_RAW_UPLOAD))
+  }
+
+  @Test
+  fun `batch preserves external cancellation`() = runTest {
+    assertFailsWith<CancellationException> {
+      collectVidLabelingTraceBatch(
+        listOf(RAW_UPLOAD),
+        allowPartial = true,
+        uploadTimeout = Duration.ofSeconds(1),
+        collect = { throw CancellationException("cancelled externally") },
+        write = { _, _ -> },
+      )
+    }
   }
 
   @Test

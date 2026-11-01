@@ -27,7 +27,12 @@ import java.time.format.DateTimeParseException
 import java.util.concurrent.Callable
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
@@ -61,6 +66,9 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
+
+private val SOURCE_TIMEOUT = Duration.ofSeconds(30)
+private val UPLOAD_TIMEOUT = Duration.ofMinutes(3)
 
 internal enum class VidLabelingRoute {
   MEMOIZED,
@@ -141,6 +149,7 @@ internal class VidLabelingTraceCollector(
   private val spanReader: CloudTraceReader,
   private val stateResolver: VidLabelingStateResolver,
   private val finalStateResolver: VidLabelingFinalStateResolver,
+  private val sourceTimeout: Duration = SOURCE_TIMEOUT,
 ) {
   suspend fun collect(request: VidLabelingTraceRequest): VidLabelingTraceCollection {
     require(RAW_UPLOAD_PATTERN.matches(request.rawImpressionUpload)) {
@@ -153,12 +162,15 @@ internal class VidLabelingTraceCollector(
     require(request.correlationValueLimit > 0) { "correlationValueLimit must be positive" }
     require(request.traceIdLimit > 0) { "traceIdLimit must be positive" }
 
-    val initialGraph = stateResolver.resolve(request.rawImpressionUpload)
+    val initialGraph =
+      withTimeout(sourceTimeout.toMillis()) { stateResolver.resolve(request.rawImpressionUpload) }
     val authoritativeGraph =
       initialGraph.copy(
         nodes =
           initialGraph.nodes +
-            finalStateResolver.resolve(initialGraph.upload, initialGraph.modelLines)
+            withTimeout(sourceTimeout.toMillis()) {
+              finalStateResolver.resolve(initialGraph.upload, initialGraph.modelLines)
+            }
       )
     val evidence = linkedSetOf<VidLabelingEvidence>()
     val sourceStatuses = mutableListOf<CloudTelemetrySourceStatus>()
@@ -296,8 +308,15 @@ internal class VidLabelingTraceCollector(
   ): List<CloudLogEntry> {
     return try {
       val entries =
-        logReaderFactory(project)
-          .read(correlationValues, request.startTime, request.endTime, request.entryLimit)
+        withTimeoutOrNull(sourceTimeout.toMillis()) {
+          logReaderFactory(project)
+            .read(correlationValues, request.startTime, request.endTime, request.entryLimit)
+        }
+      if (entries == null) {
+        statuses += CloudTelemetrySourceStatus(project, "Cloud Logging", "timed_out", 0, 0)
+        warnings += "Cloud Logging collection timed out for project " + project + "."
+        return emptyList()
+      }
       statuses +=
         CloudTelemetrySourceStatus(project, "Cloud Logging", "complete", entries.size, entries.size)
       entries
@@ -340,8 +359,16 @@ internal class VidLabelingTraceCollector(
     if (traceIds.isEmpty()) return emptyList()
     return try {
       val entries =
-        logReaderFactory(project)
-          .readTraceIds(traceIds, request.startTime, request.endTime, request.entryLimit)
+        withTimeoutOrNull(sourceTimeout.toMillis()) {
+          logReaderFactory(project)
+            .readTraceIds(traceIds, request.startTime, request.endTime, request.entryLimit)
+        }
+      if (entries == null) {
+        statuses +=
+          CloudTelemetrySourceStatus(project, "Cloud Logging by trace ID", "timed_out", 0, 0)
+        warnings += "Trace-ID log collection timed out for project " + project + "."
+        return emptyList()
+      }
       statuses +=
         CloudTelemetrySourceStatus(
           project,
@@ -390,14 +417,21 @@ internal class VidLabelingTraceCollector(
   ): List<CloudTraceSpan> {
     return try {
       val spans =
-        spanReader.read(
-          project,
-          correlationValues,
-          traceIds,
-          request.startTime,
-          request.endTime,
-          request.entryLimit,
-        )
+        withTimeoutOrNull(sourceTimeout.toMillis()) {
+          spanReader.read(
+            project,
+            correlationValues,
+            traceIds,
+            request.startTime,
+            request.endTime,
+            request.entryLimit,
+          )
+        }
+      if (spans == null) {
+        statuses += CloudTelemetrySourceStatus(project, "Cloud Trace", "timed_out", 0, 0)
+        warnings += "Cloud Trace collection timed out for project " + project + "."
+        return emptyList()
+      }
       val truncated = spans.size > request.entryLimit
       val retained = spans.take(request.entryLimit)
       statuses +=
@@ -948,18 +982,25 @@ internal object VidLabelingTraceOutput {
 internal suspend fun collectVidLabelingTraceBatch(
   rawImpressionUploads: Collection<String>,
   allowPartial: Boolean,
+  uploadTimeout: Duration = UPLOAD_TIMEOUT,
   collect: suspend (String) -> VidLabelingTraceCollection,
   write: (String, String) -> Unit,
 ): Boolean {
   var failed = false
   for (rawImpressionUpload in rawImpressionUploads.distinct()) {
     try {
-      val collection = collect(rawImpressionUpload)
+      val collection = withTimeout(uploadTimeout.toMillis()) { collect(rawImpressionUpload) }
       write(
         VidLabelingTraceOutput.artifactFileName(rawImpressionUpload),
         VidLabelingTraceOutput.render(collection),
       )
       if (!allowPartial && collection.traceStatus != VidLabelingTraceStatus.COMPLETE) failed = true
+    } catch (e: TimeoutCancellationException) {
+      failed = true
+      write(
+        VidLabelingTraceOutput.artifactFileName(rawImpressionUpload),
+        VidLabelingTraceOutput.renderFailure(rawImpressionUpload, e),
+      )
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
@@ -1204,7 +1245,11 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
             } else {
               BlobId.of(parsed.bucket, parsed.key, generation)
             }
-          storage.get(blobId)?.let { blob -> StoredObjectMetadata(blob.generation) }
+          withTimeout(SOURCE_TIMEOUT.toMillis()) {
+            runInterruptible(Dispatchers.IO) {
+              storage.get(blobId)?.let { blob -> StoredObjectMetadata(blob.generation) }
+            }
+          }
         },
       )
     val collector =
