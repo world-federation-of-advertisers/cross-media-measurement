@@ -28,10 +28,11 @@ import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.Test
 import org.wfanet.measurement.common.telemetry.CloudLogEntry
 import org.wfanet.measurement.common.telemetry.CloudLogReader
@@ -89,27 +90,30 @@ class VidLabelingTraceTest {
       )
     val logReader = FakeCloudLogReader(entries)
     val finalStateResolver = VidLabelingFinalStateResolver { _, _ ->
-      listOf(
-        ExpectedTraceNode(
-          "watcher",
-          NON_MEMOIZED_MODEL_LINE,
-          "data_watcher",
-          "SUCCEEDED",
-          mapOf(
-            "xmm.gcs.object.path_hash" to identity.pathHash,
-            "xmm.gcs.object.generation" to identity.generation.toString(),
+      VidLabelingFinalStateResolution(
+        listOf(
+          ExpectedTraceNode(
+            "watcher",
+            NON_MEMOIZED_MODEL_LINE,
+            "data_watcher",
+            "SUCCEEDED",
+            mapOf(
+              "xmm.gcs.object.path_hash" to identity.pathHash,
+              "xmm.gcs.object.generation" to identity.generation.toString(),
+            ),
+          ),
+          ExpectedTraceNode(
+            "availability",
+            NON_MEMOIZED_MODEL_LINE,
+            "data_availability_publish",
+            "PUBLISHED",
+            mapOf(
+              "xmm.gcs.object.path_hash" to identity.pathHash,
+              "xmm.gcs.object.generation" to identity.generation.toString(),
+            ),
           ),
         ),
-        ExpectedTraceNode(
-          "availability",
-          NON_MEMOIZED_MODEL_LINE,
-          "data_availability_publish",
-          "PUBLISHED",
-          mapOf(
-            "xmm.gcs.object.path_hash" to identity.pathHash,
-            "xmm.gcs.object.generation" to identity.generation.toString(),
-          ),
-        ),
+        emptyMap(),
       )
     }
     val collector =
@@ -287,6 +291,47 @@ class VidLabelingTraceTest {
   }
 
   @Test
+  fun `render distinguishes unresolved from not applicable`() {
+    val collection =
+      VidLabelingTraceCollection(
+        RAW_UPLOAD,
+        VidLabelingTraceStatus.PARTIAL,
+        VidLabelingExecutionStatus.UNKNOWN,
+        listOf(
+          VidLabelingModelLineGraph(
+            NON_MEMOIZED_MODEL_LINE,
+            VidLabelingRoute.NON_MEMOIZED,
+            listOf(
+              VidLabelingStageCoverage(
+                "label",
+                present = false,
+                evidenceCount = 0,
+                resource = "workItems/expected",
+                authoritativeState = "UNRESOLVED",
+                unresolved = true,
+              )
+            ),
+          )
+        ),
+        emptyList(),
+        listOf(
+          VidLabelingSourceStatus(
+            "secure_computation_work_items",
+            "truncated",
+            12,
+            mapOf("pages_fetched" to 1L),
+          )
+        ),
+        emptyList(),
+      )
+
+    val output = VidLabelingTraceOutput.render(collection)
+
+    assertThat(output).contains("[?] label `workItems/expected` state=UNRESOLVED (unresolved)")
+    assertThat(output).doesNotContain("state=UNRESOLVED (not applicable)")
+  }
+
+  @Test
   fun `collect and render retain safe error classification from logs and spans`() = runBlocking {
     val logEntry =
       entry(
@@ -346,6 +391,75 @@ class VidLabelingTraceTest {
     assertThat(output).doesNotContain("sensitive-log-message")
     assertThat(output).doesNotContain("sensitive-span-message")
     assertThat(output).doesNotContain("email_address")
+  }
+
+  @Test
+  fun `collect retains WorkItem generation for exact evidence matching`() = runBlocking {
+    val workItemName = "workItems/exact-generation"
+    val expectedNode =
+      ExpectedTraceNode(
+        "$workItemName:generation:2",
+        NON_MEMOIZED_MODEL_LINE,
+        "label",
+        "SUCCEEDED",
+        mapOf(
+          "xmm.model_line.name" to NON_MEMOIZED_MODEL_LINE,
+          "xmm.work_item.name" to workItemName,
+          "xmm.work_item.generation" to "2",
+        ),
+      )
+    val graph =
+      testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
+        .copy(nodes = testGraph(listOf(NON_MEMOIZED_MODEL_LINE)).nodes + expectedNode)
+    val span =
+      CloudTraceSpan(
+        "observability-project",
+        ROOT_TRACE,
+        "span-generation",
+        null,
+        "edpa.vid_labeling.label",
+        "worker",
+        Instant.parse("2026-09-01T00:00:01Z"),
+        Instant.parse("2026-09-01T00:00:02Z"),
+        mapOf(
+          "xmm.lifecycle.stage" to "label",
+          "xmm.outcome" to "succeeded",
+          "xmm.edpa.raw_impression_upload.name" to RAW_UPLOAD,
+          "xmm.model_line.name" to NON_MEMOIZED_MODEL_LINE,
+          "xmm.work_item.name" to workItemName,
+          "xmm.work_item.generation" to "2",
+        ),
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = {
+          FakeCloudLogReader(
+            listOf(
+              entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE)
+            )
+          )
+        },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> listOf(span) },
+        stateResolver = VidLabelingStateResolver { graph },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val collection = collector.collect(request(expansionRounds = 1))
+
+    assertThat(
+        collection.evidence.any { evidence ->
+          evidence.identifiers["xmm.work_item.generation"] == "2"
+        }
+      )
+      .isTrue()
+    assertThat(
+        collection.modelLines
+          .single()
+          .stages
+          .single { it.resource == expectedNode.id }
+          .evidenceCount
+      )
+      .isEqualTo(1)
   }
 
   @Test
@@ -703,12 +817,18 @@ class VidLabelingTraceTest {
         )
       )
     }
+    var workItemPageLimit = 0
     val collector =
       VidLabelingTraceCollector(
         logReaderFactory = { FakeCloudLogReader(entries) },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { testGraph(listOf(NON_MEMOIZED_MODEL_LINE)) },
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+        workItemResolver =
+          VidLabelingWorkItemResolver { _, _, pageLimit ->
+            workItemPageLimit = pageLimit
+            VidLabelingWorkItemResolution(emptyList(), emptyList(), false, emptyMap())
+          },
       )
     val output = StringWriter()
 
@@ -720,6 +840,11 @@ class VidLabelingTraceTest {
           "--start-time=2026-08-31T00:00:00Z",
           "--end-time=2026-09-02T00:00:00Z",
           "--allow-partial",
+          "--authoritative-source-timeout=PT3M",
+          "--logging-source-timeout=PT4M",
+          "--trace-source-timeout=PT5M",
+          "--upload-timeout=PT12M",
+          "--work-item-page-limit=7",
           "--edpa-public-api-target=unused",
           "--control-plane-api-target=unused",
           "--kingdom-public-api-target=unused",
@@ -741,6 +866,7 @@ class VidLabelingTraceTest {
       )
 
     assertThat(exitCode).isEqualTo(0)
+    assertThat(workItemPageLimit).isEqualTo(7)
     assertThat(output.toString()).contains("# VID labeling trace")
   }
 
@@ -802,7 +928,7 @@ class VidLabelingTraceTest {
 
     val collection = collector.collect(request())
 
-    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.FAILED)
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
     assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.UNKNOWN)
     assertThat(collection.sourceStatuses.map { it.status }).contains("failed")
   }
@@ -831,13 +957,13 @@ class VidLabelingTraceTest {
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> listOf(traceEvidence) },
         stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
-        sourceTimeout = Duration.ofSeconds(1),
       )
 
-    val collection = collector.collect(request(expansionRounds = 1))
+    val collection =
+      collector.collect(request(expansionRounds = 1, loggingSourceTimeout = Duration.ofSeconds(1)))
 
     assertThat(
-        collection.sourceStatuses.any { it.source == "Cloud Logging" && it.status == "timed_out" }
+        collection.sourceStatuses.any { it.source == "cloud_logging" && it.status == "timed_out" }
       )
       .isTrue()
     assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
@@ -858,13 +984,13 @@ class VidLabelingTraceTest {
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> awaitCancellation() },
         stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
-        sourceTimeout = Duration.ofSeconds(1),
       )
 
-    val collection = collector.collect(request(expansionRounds = 1))
+    val collection =
+      collector.collect(request(expansionRounds = 1, traceSourceTimeout = Duration.ofSeconds(1)))
 
     assertThat(
-        collection.sourceStatuses.any { it.source == "Cloud Trace" && it.status == "timed_out" }
+        collection.sourceStatuses.any { it.source == "cloud_trace" && it.status == "timed_out" }
       )
       .isTrue()
     assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
@@ -873,41 +999,169 @@ class VidLabelingTraceTest {
 
   @OptIn(ExperimentalCoroutinesApi::class)
   @Test
-  fun `batch treats each authoritative state timeout as an upload failure`() = runTest {
+  fun `collect names each later authoritative source timeout`() = runTest {
     val collectors =
       listOf(
-        VidLabelingTraceCollector(
-          logReaderFactory = { FakeCloudLogReader(emptyList()) },
-          spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
-          stateResolver = VidLabelingStateResolver { awaitCancellation() },
-          finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
-          sourceTimeout = Duration.ofSeconds(1),
-        ),
-        VidLabelingTraceCollector(
-          logReaderFactory = { FakeCloudLogReader(emptyList()) },
-          spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
-          stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
-          finalStateResolver = VidLabelingFinalStateResolver { _, _ -> awaitCancellation() },
-          sourceTimeout = Duration.ofSeconds(1),
-        ),
+        "secure_computation_work_items" to
+          VidLabelingTraceCollector(
+            logReaderFactory = { FakeCloudLogReader(emptyList()) },
+            spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+            stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+            finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+            workItemResolver = VidLabelingWorkItemResolver { _, _, _ -> awaitCancellation() },
+          ),
+        "kingdom_route_state" to
+          VidLabelingTraceCollector(
+            logReaderFactory = { FakeCloudLogReader(emptyList()) },
+            spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+            stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+            finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+            routeResolver = VidLabelingRouteResolver { _, _ -> awaitCancellation() },
+          ),
+        "gcs_and_availability_state" to
+          VidLabelingTraceCollector(
+            logReaderFactory = { FakeCloudLogReader(emptyList()) },
+            spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+            stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+            finalStateResolver = VidLabelingFinalStateResolver { _, _ -> awaitCancellation() },
+          ),
       )
 
-    for (collector in collectors) {
-      val artifacts = mutableListOf<String>()
-      val startedAt = currentTime
-      val failed =
-        collectVidLabelingTraceBatch(
-          listOf(RAW_UPLOAD),
-          allowPartial = true,
-          uploadTimeout = Duration.ofSeconds(10),
-          collect = { collector.collect(request()) },
-          write = { _, contents -> artifacts += contents },
-        )
+    for ((source, collector) in collectors) {
+      val collection =
+        collector.collect(request(authoritativeSourceTimeout = Duration.ofSeconds(1)))
 
-      assertThat(failed).isTrue()
-      assertThat(currentTime - startedAt).isEqualTo(Duration.ofSeconds(1).toMillis())
-      assertThat(artifacts.single()).contains("Failure type: `TimeoutCancellationException`")
+      assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
+      assertThat(collection.sourceStatuses.single { it.source == source }.status)
+        .isEqualTo("timed_out")
     }
+  }
+
+  @Test
+  fun `collect resolves final state once`() = runBlocking {
+    var invocations = 0
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = {
+          FakeCloudLogReader(
+            listOf(entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = null))
+          )
+        },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        finalStateResolver =
+          VidLabelingFinalStateResolver { _, _ ->
+            invocations++
+            VidLabelingFinalStateResolution(emptyList(), mapOf("gcs_reads" to 0L))
+          },
+      )
+
+    collector.collect(request())
+
+    assertThat(invocations).isEqualTo(1)
+  }
+
+  @Test
+  fun `Logging deadline is shared across projects and expansion rounds`() = runBlocking {
+    var nowNanos = 0L
+    var queries = 0
+    val reader =
+      object : CloudLogReader {
+        override suspend fun read(
+          correlationValues: Collection<String>,
+          startTime: Instant,
+          endTime: Instant,
+          limit: Int,
+        ): List<CloudLogEntry> {
+          queries++
+          nowNanos += Duration.ofMillis(600).toNanos()
+          return listOf(
+            entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = null)
+          )
+        }
+      }
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { reader },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+        nanoTime = { nowNanos },
+      )
+
+    val collection =
+      collector.collect(
+        request(
+          projects = listOf("project-1", "project-2", "project-3"),
+          loggingSourceTimeout = Duration.ofSeconds(1),
+        )
+      )
+
+    val status = collection.sourceStatuses.single { it.source == "cloud_logging" }
+    assertThat(status.status).isEqualTo("timed_out")
+    assertThat(status.durationMillis).isEqualTo(1_000)
+    assertThat(status.counts["logging_queries"]).isEqualTo(2)
+    assertThat(queries).isEqualTo(2)
+  }
+
+  @Test
+  fun `batch accepts only partial status when partial is allowed`() = runBlocking {
+    val partial =
+      VidLabelingTraceCollection(
+        RAW_UPLOAD,
+        VidLabelingTraceStatus.PARTIAL,
+        VidLabelingExecutionStatus.UNKNOWN,
+        emptyList(),
+        emptyList(),
+        emptyList(),
+        emptyList(),
+      )
+
+    val strictFailed =
+      collectVidLabelingTraceBatch(
+        listOf(RAW_UPLOAD),
+        allowPartial = false,
+        collect = { partial },
+        write = { _, _ -> },
+      )
+    val partialFailed =
+      collectVidLabelingTraceBatch(
+        listOf(RAW_UPLOAD),
+        allowPartial = true,
+        collect = { partial },
+        write = { _, _ -> },
+      )
+
+    assertThat(strictFailed).isTrue()
+    assertThat(partialFailed).isFalse()
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun `batch rejects failed EDPA state even when partial is allowed`() = runTest {
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(emptyList()) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { awaitCancellation() },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+    val artifacts = mutableListOf<String>()
+
+    val failed =
+      collectVidLabelingTraceBatch(
+        listOf(RAW_UPLOAD),
+        allowPartial = true,
+        uploadTimeout = Duration.ofSeconds(10),
+        collect = {
+          collector.collect(request(authoritativeSourceTimeout = Duration.ofSeconds(1)))
+        },
+        write = { _, contents -> artifacts += contents },
+      )
+
+    assertThat(failed).isTrue()
+    assertThat(artifacts.single()).contains("edpa_pipeline_state")
+    assertThat(artifacts.single()).contains("timed_out")
   }
 
   @Test
@@ -937,6 +1191,55 @@ class VidLabelingTraceTest {
     assertThat(failed).isTrue()
     assertThat(writtenFiles).hasSize(2)
     assertThat(writtenFiles[1]).isEqualTo(VidLabelingTraceOutput.artifactFileName(OTHER_RAW_UPLOAD))
+  }
+
+  @Test
+  fun `overall upload timeout is not swallowed by a longer source timeout`() = runTest {
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(emptyList()) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { awaitCancellation() },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+    val artifacts = mutableListOf<String>()
+
+    val failed =
+      collectVidLabelingTraceBatch(
+        listOf(RAW_UPLOAD),
+        allowPartial = true,
+        uploadTimeout = Duration.ofSeconds(1),
+        collect = {
+          collector.collect(request(authoritativeSourceTimeout = Duration.ofSeconds(10)))
+        },
+        write = { _, contents -> artifacts += contents },
+      )
+
+    assertThat(failed).isTrue()
+    assertThat(artifacts.single()).contains("Failed source: `overall_upload`")
+    assertThat(artifacts.single()).contains("Source status: `timed_out`")
+  }
+
+  @Test
+  fun `batch preserves an external timeout cancellation`() = runTest {
+    var attemptedUploads = 0
+    var writtenArtifacts = 0
+    assertFailsWith<TimeoutCancellationException> {
+      withTimeout(Duration.ofSeconds(1).toMillis()) {
+        collectVidLabelingTraceBatch(
+          listOf(RAW_UPLOAD, OTHER_RAW_UPLOAD),
+          allowPartial = true,
+          uploadTimeout = Duration.ofSeconds(10),
+          collect = {
+            attemptedUploads++
+            awaitCancellation()
+          },
+          write = { _, _ -> writtenArtifacts++ },
+        )
+      }
+    }
+    assertThat(attemptedUploads).isEqualTo(1)
+    assertThat(writtenArtifacts).isEqualTo(0)
   }
 
   @Test
@@ -982,18 +1285,25 @@ class VidLabelingTraceTest {
   }
 
   private fun request(
+    projects: List<String> = listOf("observability-project"),
     correlationValueLimit: Int = 500,
     traceIdLimit: Int = 500,
     expansionRounds: Int = 4,
+    authoritativeSourceTimeout: Duration = Duration.ofMinutes(2),
+    loggingSourceTimeout: Duration = Duration.ofMinutes(2),
+    traceSourceTimeout: Duration = Duration.ofMinutes(2),
   ) =
     VidLabelingTraceRequest(
       RAW_UPLOAD,
-      listOf("observability-project"),
+      projects,
       Instant.parse("2026-08-31T00:00:00Z"),
       Instant.parse("2026-09-02T00:00:00Z"),
       correlationValueLimit = correlationValueLimit,
       traceIdLimit = traceIdLimit,
       expansionRounds = expansionRounds,
+      authoritativeSourceTimeout = authoritativeSourceTimeout,
+      loggingSourceTimeout = loggingSourceTimeout,
+      traceSourceTimeout = traceSourceTimeout,
     )
 
   private fun testGraph(
@@ -1139,7 +1449,7 @@ class VidLabelingTraceTest {
     seconds: Long = 0,
     rawImpressionUpload: String? = null,
     outcome: String = "succeeded",
-    traceId: String,
+    traceId: String? = null,
   ): CloudLogEntry {
     val uploadField =
       rawImpressionUpload?.let { " xmm.edpa.raw_impression_upload.name=" + it }.orEmpty()
@@ -1148,7 +1458,7 @@ class VidLabelingTraceTest {
       Instant.parse("2026-09-01T00:00:00Z").plusSeconds(seconds),
       "edpa",
       "INFO",
-      "projects/observability-project/traces/" + traceId,
+      traceId?.let { "projects/observability-project/traces/" + it },
       "event=edpa.vid_labeling." +
         stage +
         " xmm.lifecycle.stage=" +
@@ -1192,7 +1502,9 @@ class VidLabelingTraceTest {
   }
 
   companion object {
-    private val NOOP_FINAL_STATE_RESOLVER = VidLabelingFinalStateResolver { _, _ -> emptyList() }
+    private val NOOP_FINAL_STATE_RESOLVER = VidLabelingFinalStateResolver { _, _ ->
+      VidLabelingFinalStateResolution(emptyList(), emptyMap())
+    }
     private const val RAW_UPLOAD = "dataProviders/123/rawImpressionUploads/upload-1"
     private const val OTHER_RAW_UPLOAD = "dataProviders/123/rawImpressionUploads/upload-2"
     private const val MEMOIZED_MODEL_LINE =
