@@ -20,7 +20,6 @@ import com.google.common.truth.Truth.assertThat
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -64,7 +63,6 @@ class UploadHealingWorkflowTest {
   private val uploadsByName = mutableMapOf<String, RawImpressionUpload>()
   private val modelLinesByUpload = mutableMapOf<String, List<RawImpressionUploadModelLine>>()
   private val releasedFenceOperationIds = mutableListOf<String>()
-  private var releaseFailuresRemaining = 0
   private val uploadsService =
     object : RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase() {
       override suspend fun getRawImpressionUpload(
@@ -90,10 +88,6 @@ class UploadHealingWorkflowTest {
         request: ReleaseRawImpressionUploadEvictionFenceRequest
       ): ReleaseRawImpressionUploadEvictionFenceResponse {
         releasedFenceOperationIds += request.evictionOperationId
-        if (releaseFailuresRemaining > 0) {
-          releaseFailuresRemaining--
-          throw io.grpc.Status.UNAVAILABLE.asException()
-        }
         return ReleaseRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
       }
     }
@@ -162,7 +156,6 @@ class UploadHealingWorkflowTest {
     activeSnapshots.clear()
     recoveredUploads.clear()
     releasedFenceOperationIds.clear()
-    releaseFailuresRemaining = 0
   }
 
   @Test
@@ -332,16 +325,12 @@ class UploadHealingWorkflowTest {
     assertThat(releasedFenceOperationIds).isEmpty()
 
     addCompletedReplacement(D5, D5_REPLACEMENT)
-    releaseFailuresRemaining = 1
-    assertThrows(io.grpc.StatusException::class.java) {
-      runBlocking { workflow.resume(started.operation.name) }
-    }
     val completed = workflow.resume(started.operation.name)
 
-    assertThat(completed.operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
-    assertThat(releasedFenceOperationIds)
-      .containsExactly(plan.evictionOperationId, plan.evictionOperationId)
-      .inOrder()
+    assertThat(completed.operation.state)
+      .isEqualTo(UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING)
+    assertThat(completed.nextAction).contains("scheduled controller")
+    assertThat(releasedFenceOperationIds).isEmpty()
     Unit
   }
 
@@ -415,8 +404,10 @@ class UploadHealingWorkflowTest {
       addCompletedReplacement(D5, D5_REPLACEMENT)
       val completed = workflow.resume(started.operation.name)
 
-      assertThat(completed.operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
-      assertThat(releasedFenceOperationIds).containsExactly(plan.evictionOperationId)
+      assertThat(completed.operation.state)
+        .isEqualTo(UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING)
+      assertThat(completed.nextAction).contains("scheduled controller")
+      assertThat(releasedFenceOperationIds).isEmpty()
       Unit
     }
 
@@ -529,7 +520,7 @@ class UploadHealingWorkflowTest {
           steps.clear()
           steps += updatedSteps
           if (updatedSteps.all { it.state == UploadHealingStep.State.COMPLETE }) {
-            state = UploadHealingOperation.State.COMPLETE
+            state = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
           }
         }
       return operation!!.stepsList.single { it.name == request.name }
