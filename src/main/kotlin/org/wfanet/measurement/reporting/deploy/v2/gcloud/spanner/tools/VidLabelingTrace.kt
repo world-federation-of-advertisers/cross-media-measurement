@@ -137,6 +137,7 @@ internal data class VidLabelingTraceCollection(
   val evidence: List<VidLabelingEvidence>,
   val sourceStatuses: List<VidLabelingSourceStatus>,
   val warnings: List<String>,
+  val availabilityWorkItems: List<VidLabelingAvailabilityWorkItem> = emptyList(),
 )
 
 internal data class VidLabelingSourceStatus(
@@ -341,12 +342,7 @@ internal class VidLabelingTraceCollector(
           )
         }
       }
-      val finalState = async {
-        readSource(request.authoritativeSourceTimeout) {
-          finalStateResolver.resolve(baseGraph.upload, baseGraph.modelLines)
-        }
-      }
-      Triple(workItems.await(), routes.await(), finalState.await())
+      workItems.await() to routes.await()
     }
     val workItemAttempt = authoritativeAttempts.first
     val workItemResolution = workItemAttempt.value
@@ -377,10 +373,28 @@ internal class VidLabelingTraceCollector(
       warnings += "Kingdom route collection ${routeAttempt.status.replace('_', ' ')}."
     }
 
+    val availabilityWorkItems =
+      workItemResolution?.workItems.orEmpty().mapNotNull {
+        it.toAvailabilityWorkItem(request.rawImpressionUpload)
+      }
     var authoritativeGraph =
       baseGraph.copy(nodes = baseGraph.nodes + workItemResolution?.nodes.orEmpty())
+    if (workItemResolution?.availabilityLookupEnabled == true) {
+      authoritativeGraph =
+        authoritativeGraph.withAvailabilityWorkItems(
+          availabilityWorkItems,
+          lookupComplete = !workItemResolution.truncated,
+        )
+    }
     if (routeResolution != null) authoritativeGraph = authoritativeGraph.withRoutes(routeResolution)
-    val finalStateAttempt = authoritativeAttempts.third
+    val finalStateAttempt =
+      readSource(request.authoritativeSourceTimeout) {
+        finalStateResolver.resolve(
+          authoritativeGraph.upload,
+          authoritativeGraph.modelLines,
+          availabilityWorkItems,
+        )
+      }
     val finalState = finalStateAttempt.value
     sourceStatuses.record(
       "gcs_and_availability_state",
@@ -532,6 +546,7 @@ internal class VidLabelingTraceCollector(
       orderedEvidence,
       finalSourceStatuses,
       warnings.distinct(),
+      availabilityWorkItems,
     )
   }
 
@@ -1621,6 +1636,10 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
       GrpcVidLabelingWorkItemResolver(
         WorkItemsCoroutineStub(controlPlaneChannel),
         WorkItemAttemptsCoroutineStub(controlPlaneChannel),
+        RelevantWorkItemSelector { rawImpressionUpload, workItem ->
+          workItem.isAvailabilityWorkItemFor(rawImpressionUpload)
+        },
+        availabilityLookupEnabled = true,
       )
     val routeResolver =
       KingdomVidLabelingRouteResolver(
