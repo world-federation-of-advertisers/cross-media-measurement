@@ -61,6 +61,8 @@ kt_jvm_library(
         ":healing",
         ":raw_impression_upload_correction_planner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:data_availability_sync_work_items",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:raw_impression_upload_manifest_classifier",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
