@@ -25,6 +25,7 @@ import com.google.cloud.spanner.Value
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.api.ETags
@@ -51,6 +52,40 @@ data class UploadHealingOperationResult(
   val mutationRequestIds: List<String>,
   val mutationRequestFingerprints: List<ByteString>,
 )
+
+/** Returns whether a nonterminal healing operation must defer ordinary VID-labeling dispatch. */
+suspend fun AsyncDatabaseClient.ReadContext.hasVidLabelingHealingDispatchGate(
+  dataProviderResourceId: String
+): Boolean {
+  val gateStates =
+    listOf(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING,
+      )
+      .map { it.number.toLong() }
+  val query =
+    statement(
+      """
+      SELECT UploadHealingOperationId
+      FROM UploadHealingOperation
+      WHERE DataProviderResourceId = @dataProviderResourceId
+        AND State IN UNNEST(@gateStates)
+      LIMIT 1
+      """
+        .trimIndent()
+    ) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("gateStates").toInt64Array(gateStates)
+    }
+  return executeQuery(query, Options.tag("action=hasVidLabelingHealingDispatchGate"))
+    .firstOrNull() != null
+}
 
 /** Reads an upload-healing operation and all of its ordered steps. */
 suspend fun AsyncDatabaseClient.ReadContext.findUploadHealingOperation(
@@ -454,6 +489,8 @@ fun AsyncDatabaseClient.TransactionContext.updateUploadHealingStep(
 fun AsyncDatabaseClient.TransactionContext.completeUploadHealingOperation(
   dataProviderResourceId: String,
   uploadHealingOperationId: String,
+  mutationRequestIds: List<String>? = null,
+  mutationRequestFingerprints: List<ByteString>? = null,
 ) {
   bufferUpdateMutation("UploadHealingOperation") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -463,6 +500,13 @@ fun AsyncDatabaseClient.TransactionContext.completeUploadHealingOperation(
     set("ResumeState").to(null as Long?)
     set("CompleteTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+    if (mutationRequestIds != null) {
+      set("MutationRequestIds").toStringArray(mutationRequestIds)
+    }
+    if (mutationRequestFingerprints != null) {
+      set("MutationRequestFingerprints")
+        .toBytesArray(mutationRequestFingerprints.map { it.toGcloudByteArray() })
+    }
   }
 }
 
