@@ -26,12 +26,14 @@ import java.time.Instant
 import java.time.format.DateTimeParseException
 import java.util.concurrent.Callable
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
@@ -43,7 +45,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.telemetry.CloudLogCollectionTruncatedException
 import org.wfanet.measurement.common.telemetry.CloudLogEntry
 import org.wfanet.measurement.common.telemetry.CloudLogReader
-import org.wfanet.measurement.common.telemetry.CloudTelemetrySourceStatus
 import org.wfanet.measurement.common.telemetry.CloudTraceReader
 import org.wfanet.measurement.common.telemetry.CloudTraceSpan
 import org.wfanet.measurement.common.telemetry.GoogleCloudLogReader
@@ -67,8 +68,11 @@ import picocli.CommandLine
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 
-private val SOURCE_TIMEOUT = Duration.ofSeconds(30)
-private val UPLOAD_TIMEOUT = Duration.ofMinutes(3)
+private val DEFAULT_AUTHORITATIVE_SOURCE_TIMEOUT = Duration.ofMinutes(2)
+private val DEFAULT_LOGGING_SOURCE_TIMEOUT = Duration.ofMinutes(2)
+private val DEFAULT_TRACE_SOURCE_TIMEOUT = Duration.ofMinutes(2)
+private val DEFAULT_UPLOAD_TIMEOUT = Duration.ofMinutes(10)
+private const val DEFAULT_WORK_ITEM_PAGE_LIMIT = 100
 
 internal enum class VidLabelingRoute {
   MEMOIZED,
@@ -99,6 +103,7 @@ internal data class VidLabelingStageCoverage(
   val authoritativeState: String = "",
   val notApplicable: Boolean = false,
   val authoritativeOnly: Boolean = false,
+  val unresolved: Boolean = false,
 )
 
 internal data class VidLabelingModelLineGraph(
@@ -108,7 +113,9 @@ internal data class VidLabelingModelLineGraph(
 ) {
   val missingStages: List<String>
     get() =
-      stages.filter { !it.present && !it.notApplicable }.map { it.resource.ifEmpty { it.name } }
+      stages
+        .filter { !it.present && !it.notApplicable && !it.unresolved }
+        .map { it.resource.ifEmpty { it.name } }
 }
 
 internal data class VidLabelingEvidence(
@@ -128,8 +135,16 @@ internal data class VidLabelingTraceCollection(
   val executionStatus: VidLabelingExecutionStatus,
   val modelLines: List<VidLabelingModelLineGraph>,
   val evidence: List<VidLabelingEvidence>,
-  val sourceStatuses: List<CloudTelemetrySourceStatus>,
+  val sourceStatuses: List<VidLabelingSourceStatus>,
   val warnings: List<String>,
+)
+
+internal data class VidLabelingSourceStatus(
+  val source: String,
+  val status: String,
+  val durationMillis: Long,
+  val counts: Map<String, Long> = emptyMap(),
+  val note: String = "",
 )
 
 internal data class VidLabelingTraceRequest(
@@ -141,7 +156,120 @@ internal data class VidLabelingTraceRequest(
   val expansionRounds: Int = 4,
   val correlationValueLimit: Int = 500,
   val traceIdLimit: Int = 500,
+  val authoritativeSourceTimeout: Duration = DEFAULT_AUTHORITATIVE_SOURCE_TIMEOUT,
+  val loggingSourceTimeout: Duration = DEFAULT_LOGGING_SOURCE_TIMEOUT,
+  val traceSourceTimeout: Duration = DEFAULT_TRACE_SOURCE_TIMEOUT,
+  val workItemPageLimit: Int = DEFAULT_WORK_ITEM_PAGE_LIMIT,
 )
+
+private data class SourceAttempt<T>(
+  val value: T?,
+  val status: String,
+  val durationNanos: Long,
+  val note: String = "",
+)
+
+private class SourceStatusRecorder {
+  private data class MutableStatus(
+    var status: String = "complete",
+    var durationNanos: Long = 0L,
+    val counts: MutableMap<String, Long> = linkedMapOf(),
+    val notes: LinkedHashSet<String> = linkedSetOf(),
+  )
+
+  private val statuses = linkedMapOf<String, MutableStatus>()
+
+  fun record(
+    source: String,
+    status: String,
+    durationNanos: Long = 0L,
+    counts: Map<String, Long> = emptyMap(),
+    note: String = "",
+  ) {
+    val current = statuses.getOrPut(source) { MutableStatus() }
+    if (STATUS_PRIORITY.getValue(status) > STATUS_PRIORITY.getValue(current.status)) {
+      current.status = status
+    }
+    current.durationNanos += durationNanos.coerceAtLeast(0L)
+    for ((name, value) in counts) {
+      current.counts[name] = current.counts.getOrDefault(name, 0L) + value
+    }
+    if (note.isNotEmpty()) current.notes += note
+  }
+
+  fun snapshot(): List<VidLabelingSourceStatus> {
+    return statuses.entries
+      .sortedWith(
+        compareBy<Map.Entry<String, MutableStatus>> {
+            SOURCE_ORDER.indexOf(it.key).let { index -> if (index < 0) Int.MAX_VALUE else index }
+          }
+          .thenBy { it.key }
+      )
+      .map { (source, status) ->
+        VidLabelingSourceStatus(
+          source,
+          status.status,
+          (status.durationNanos + NANOS_PER_MILLISECOND - 1L) / NANOS_PER_MILLISECOND,
+          status.counts.toSortedMap(),
+          status.notes.joinToString(" "),
+        )
+      }
+  }
+
+  companion object {
+    private val STATUS_PRIORITY =
+      mapOf("complete" to 0, "truncated" to 1, "failed" to 2, "timed_out" to 3)
+    private val SOURCE_ORDER =
+      listOf(
+        "edpa_pipeline_state",
+        "secure_computation_work_items",
+        "kingdom_route_state",
+        "gcs_and_availability_state",
+        "cloud_logging",
+        "cloud_trace",
+        "correlation_discovery",
+      )
+    private const val NANOS_PER_MILLISECOND = 1_000_000L
+  }
+}
+
+private class SourceBudget(timeout: Duration, private val nanoTime: () -> Long) {
+  private val timeoutNanos = timeout.toNanos()
+  private var consumedNanos = 0L
+
+  fun remainingMillis(): Long {
+    val remainingNanos = (timeoutNanos - consumedNanos).coerceAtLeast(0L)
+    if (remainingNanos == 0L) return 0L
+    return ((remainingNanos + NANOS_PER_MILLISECOND - 1L) / NANOS_PER_MILLISECOND).coerceAtLeast(1L)
+  }
+
+  fun start(): Long = nanoTime()
+
+  fun finish(startNanos: Long, timedOutAfterMillis: Long? = null): Long {
+    val remainingNanos = (timeoutNanos - consumedNanos).coerceAtLeast(0L)
+    val measured = (nanoTime() - startNanos).coerceAtLeast(0L)
+    val observed =
+      if (timedOutAfterMillis == null) {
+        measured
+      } else {
+        maxOf(measured, timedOutAfterMillis * NANOS_PER_MILLISECOND)
+      }
+    val charged = observed.coerceAtMost(remainingNanos)
+    consumedNanos += charged
+    return charged
+  }
+
+  companion object {
+    private const val NANOS_PER_MILLISECOND = 1_000_000L
+  }
+}
+
+private val EMPTY_WORK_ITEM_RESOLVER = VidLabelingWorkItemResolver { _, _, _ ->
+  VidLabelingWorkItemResolution(emptyList(), emptyList(), false, emptyMap())
+}
+private val EMPTY_ROUTE_RESOLVER = VidLabelingRouteResolver { _, _ ->
+  VidLabelingRouteResolution(emptyMap(), emptyMap())
+}
 
 /** Collects a bounded, metadata-only view of one VID-labeling workflow. */
 internal class VidLabelingTraceCollector(
@@ -149,7 +277,9 @@ internal class VidLabelingTraceCollector(
   private val spanReader: CloudTraceReader,
   private val stateResolver: VidLabelingStateResolver,
   private val finalStateResolver: VidLabelingFinalStateResolver,
-  private val sourceTimeout: Duration = SOURCE_TIMEOUT,
+  private val workItemResolver: VidLabelingWorkItemResolver = EMPTY_WORK_ITEM_RESOLVER,
+  private val routeResolver: VidLabelingRouteResolver = EMPTY_ROUTE_RESOLVER,
+  private val nanoTime: () -> Long = System::nanoTime,
 ) {
   suspend fun collect(request: VidLabelingTraceRequest): VidLabelingTraceCollection {
     require(RAW_UPLOAD_PATTERN.matches(request.rawImpressionUpload)) {
@@ -161,22 +291,116 @@ internal class VidLabelingTraceCollector(
     require(request.expansionRounds > 0) { "expansionRounds must be positive" }
     require(request.correlationValueLimit > 0) { "correlationValueLimit must be positive" }
     require(request.traceIdLimit > 0) { "traceIdLimit must be positive" }
+    requirePositive(request.authoritativeSourceTimeout, "authoritativeSourceTimeout")
+    requirePositive(request.loggingSourceTimeout, "loggingSourceTimeout")
+    requirePositive(request.traceSourceTimeout, "traceSourceTimeout")
+    require(request.workItemPageLimit > 0) { "workItemPageLimit must be positive" }
 
-    val initialGraph =
-      withTimeout(sourceTimeout.toMillis()) { stateResolver.resolve(request.rawImpressionUpload) }
-    val authoritativeGraph =
-      initialGraph.copy(
-        nodes =
-          initialGraph.nodes +
-            withTimeout(sourceTimeout.toMillis()) {
-              finalStateResolver.resolve(initialGraph.upload, initialGraph.modelLines)
-            }
+    val sourceStatuses = SourceStatusRecorder()
+    val warnings = mutableListOf<String>()
+    val baseAttempt =
+      readSource(request.authoritativeSourceTimeout) {
+        stateResolver.resolve(request.rawImpressionUpload)
+      }
+    val baseGraph = baseAttempt.value
+    sourceStatuses.record(
+      "edpa_pipeline_state",
+      baseAttempt.status,
+      baseAttempt.durationNanos,
+      baseGraph?.counts.orEmpty(),
+      baseAttempt.note,
+    )
+    if (baseGraph == null) {
+      warnings += "EDPA pipeline state collection ${baseAttempt.status.replace('_', ' ')}."
+      return VidLabelingTraceCollection(
+        request.rawImpressionUpload,
+        VidLabelingTraceStatus.FAILED,
+        VidLabelingExecutionStatus.UNKNOWN,
+        emptyList(),
+        emptyList(),
+        sourceStatuses.snapshot(),
+        warnings,
       )
+    }
+
+    val authoritativeAttempts = coroutineScope {
+      val workItems = async {
+        readSource(request.authoritativeSourceTimeout) {
+          workItemResolver.resolve(
+            request.rawImpressionUpload,
+            baseGraph.expectedWorkItems,
+            request.workItemPageLimit,
+          )
+        }
+      }
+      val routes = async {
+        readSource(request.authoritativeSourceTimeout) {
+          routeResolver.resolve(
+            baseGraph.upload.name.substringBefore("/rawImpressionUploads/"),
+            baseGraph.modelLines.map { it.cmmsModelLine },
+          )
+        }
+      }
+      val finalState = async {
+        readSource(request.authoritativeSourceTimeout) {
+          finalStateResolver.resolve(baseGraph.upload, baseGraph.modelLines)
+        }
+      }
+      Triple(workItems.await(), routes.await(), finalState.await())
+    }
+    val workItemAttempt = authoritativeAttempts.first
+    val workItemResolution = workItemAttempt.value
+    sourceStatuses.record(
+      "secure_computation_work_items",
+      if (workItemResolution?.truncated == true) "truncated" else workItemAttempt.status,
+      workItemAttempt.durationNanos,
+      workItemResolution?.counts.orEmpty(),
+      workItemAttempt.note,
+    )
+    if (workItemResolution == null) {
+      warnings +=
+        "Secure Computation WorkItem collection ${workItemAttempt.status.replace('_', ' ')}."
+    } else if (workItemResolution.truncated) {
+      warnings += "Secure Computation WorkItem inventory reached the configured page limit."
+    }
+
+    val routeAttempt = authoritativeAttempts.second
+    val routeResolution = routeAttempt.value
+    sourceStatuses.record(
+      "kingdom_route_state",
+      routeAttempt.status,
+      routeAttempt.durationNanos,
+      routeResolution?.counts.orEmpty(),
+      routeAttempt.note,
+    )
+    if (routeResolution == null) {
+      warnings += "Kingdom route collection ${routeAttempt.status.replace('_', ' ')}."
+    }
+
+    var authoritativeGraph =
+      baseGraph.copy(nodes = baseGraph.nodes + workItemResolution?.nodes.orEmpty())
+    if (routeResolution != null) authoritativeGraph = authoritativeGraph.withRoutes(routeResolution)
+    val finalStateAttempt = authoritativeAttempts.third
+    val finalState = finalStateAttempt.value
+    sourceStatuses.record(
+      "gcs_and_availability_state",
+      finalStateAttempt.status,
+      finalStateAttempt.durationNanos,
+      finalState?.counts.orEmpty(),
+      finalStateAttempt.note,
+    )
+    if (finalState == null) {
+      warnings +=
+        "GCS and availability state collection ${finalStateAttempt.status.replace('_', ' ')}."
+    } else {
+      authoritativeGraph =
+        authoritativeGraph.copy(nodes = authoritativeGraph.nodes + finalState.nodes)
+    }
     val evidence = linkedSetOf<VidLabelingEvidence>()
-    val sourceStatuses = mutableListOf<CloudTelemetrySourceStatus>()
     val correlationValues = linkedSetOf(request.rawImpressionUpload)
     val traceIds = linkedSetOf<String>()
-    val warnings = mutableListOf<String>()
+    val loggingBudget = SourceBudget(request.loggingSourceTimeout, nanoTime)
+    val traceBudget = SourceBudget(request.traceSourceTimeout, nanoTime)
     var correlationValuesCapped =
       addBounded(
         correlationValues,
@@ -190,7 +414,8 @@ internal class VidLabelingTraceCollector(
       val originalCorrelationCount = correlationValues.size
       val originalTraceCount = traceIds.size
       for (project in request.projects.distinct()) {
-        val logResult = readLogs(project, correlationValues, request, sourceStatuses, warnings)
+        val logResult =
+          readLogs(project, correlationValues, request, loggingBudget, sourceStatuses, warnings)
         evidence += logResult.map { it.toEvidence() }
         traceIdsCapped =
           addBounded(
@@ -199,7 +424,8 @@ internal class VidLabelingTraceCollector(
             request.traceIdLimit,
           ) || traceIdsCapped
 
-        val traceLogResult = readTraceLogs(project, traceIds, request, sourceStatuses, warnings)
+        val traceLogResult =
+          readTraceLogs(project, traceIds, request, loggingBudget, sourceStatuses, warnings)
         evidence += traceLogResult.map { it.toEvidence() }
         traceIdsCapped =
           addBounded(
@@ -209,7 +435,15 @@ internal class VidLabelingTraceCollector(
           ) || traceIdsCapped
 
         val spans =
-          readSpans(project, correlationValues, traceIds, request, sourceStatuses, warnings)
+          readSpans(
+            project,
+            correlationValues,
+            traceIds,
+            request,
+            traceBudget,
+            sourceStatuses,
+            warnings,
+          )
         evidence += spans.map { it.toEvidence() }
         traceIdsCapped =
           addBounded(traceIds, spans.map { it.traceId }, request.traceIdLimit) || traceIdsCapped
@@ -243,20 +477,22 @@ internal class VidLabelingTraceCollector(
         if (expansionRoundsExhausted) add("expansion rounds")
       }
       warnings += "Discovery limit reached for " + capped.joinToString(" and ") + "."
-      sourceStatuses +=
-        CloudTelemetrySourceStatus(
-          "collector",
-          "correlation discovery",
-          "truncated",
-          correlationValues.size + traceIds.size,
-          correlationValues.size + traceIds.size,
-          "Configured " + capped.joinToString(" and ") + " cap reached.",
-        )
+      sourceStatuses.record(
+        "correlation_discovery",
+        "truncated",
+        counts =
+          mapOf(
+            "correlation_values" to correlationValues.size.toLong(),
+            "trace_ids" to traceIds.size.toLong(),
+          ),
+        note = "Configured " + capped.joinToString(" and ") + " cap reached.",
+      )
     }
 
     val orderedEvidence = evidence.sortedBy { it.timestamp }
     val modelLines = buildModelLineGraphs(authoritativeGraph, orderedEvidence)
-    val sourceFailures = sourceStatuses.any { it.status != "complete" }
+    val finalSourceStatuses = sourceStatuses.snapshot()
+    val sourceFailures = finalSourceStatuses.any { it.status != "complete" }
     val noWork =
       authoritativeGraph.upload.registrationComplete && authoritativeGraph.modelLines.isEmpty()
     val executionStatus = inferExecutionStatus(orderedEvidence, modelLines, authoritativeGraph)
@@ -268,8 +504,8 @@ internal class VidLabelingTraceCollector(
     }
     val traceStatus =
       when {
-        orderedEvidence.isEmpty() -> VidLabelingTraceStatus.FAILED
         sourceFailures ||
+          orderedEvidence.isEmpty() ||
           (!noWork && modelLines.isEmpty()) ||
           modelLines.any { it.missingStages.isNotEmpty() } -> VidLabelingTraceStatus.PARTIAL
         else -> VidLabelingTraceStatus.COMPLETE
@@ -294,56 +530,104 @@ internal class VidLabelingTraceCollector(
       executionStatus,
       modelLines,
       orderedEvidence,
-      sourceStatuses.distinct(),
+      finalSourceStatuses,
       warnings.distinct(),
     )
+  }
+
+  private suspend fun <T> readSource(timeout: Duration, block: suspend () -> T): SourceAttempt<T> {
+    val started = nanoTime()
+    return try {
+      val value = withTimeoutOrNull(timeout.toMillis().coerceAtLeast(1L)) { block() }
+      val elapsed = (nanoTime() - started).coerceAtLeast(0L)
+      if (value == null) {
+        SourceAttempt(null, "timed_out", maxOf(elapsed, timeout.toNanos()))
+      } else {
+        SourceAttempt(value, "complete", elapsed)
+      }
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      SourceAttempt(
+        null,
+        "failed",
+        (nanoTime() - started).coerceAtLeast(0L),
+        e::class.simpleName.orEmpty(),
+      )
+    }
+  }
+
+  private fun requirePositive(duration: Duration, name: String) {
+    require(!duration.isZero && !duration.isNegative) { "$name must be positive" }
   }
 
   private suspend fun readLogs(
     project: String,
     correlationValues: Set<String>,
     request: VidLabelingTraceRequest,
-    statuses: MutableList<CloudTelemetrySourceStatus>,
+    budget: SourceBudget,
+    statuses: SourceStatusRecorder,
     warnings: MutableList<String>,
   ): List<CloudLogEntry> {
+    val remainingMillis = budget.remainingMillis()
+    if (remainingMillis == 0L) {
+      statuses.record("cloud_logging", "timed_out", note = "Source deadline exhausted.")
+      warnings += "Cloud Logging collection timed out before querying project $project."
+      return emptyList()
+    }
+    val started = budget.start()
     return try {
       val entries =
-        withTimeoutOrNull(sourceTimeout.toMillis()) {
+        withTimeoutOrNull(remainingMillis) {
           logReaderFactory(project)
             .read(correlationValues, request.startTime, request.endTime, request.entryLimit)
         }
       if (entries == null) {
-        statuses += CloudTelemetrySourceStatus(project, "Cloud Logging", "timed_out", 0, 0)
+        statuses.record(
+          "cloud_logging",
+          "timed_out",
+          budget.finish(started, remainingMillis),
+          mapOf("logging_queries" to 1L),
+          "Source deadline exhausted while querying $project.",
+        )
         warnings += "Cloud Logging collection timed out for project " + project + "."
         return emptyList()
       }
-      statuses +=
-        CloudTelemetrySourceStatus(project, "Cloud Logging", "complete", entries.size, entries.size)
+      statuses.record(
+        "cloud_logging",
+        "complete",
+        budget.finish(started),
+        mapOf(
+          "logging_queries" to 1L,
+          "rows_examined" to entries.size.toLong(),
+          "rows_retained" to entries.size.toLong(),
+        ),
+      )
       entries
     } catch (e: CloudLogCollectionTruncatedException) {
-      statuses +=
-        CloudTelemetrySourceStatus(
-          project,
-          "Cloud Logging",
-          "truncated",
-          e.rawEntriesExamined,
-          e.partialEntries.size,
-          "The configured read bound was reached.",
-        )
+      statuses.record(
+        "cloud_logging",
+        "truncated",
+        budget.finish(started),
+        mapOf(
+          "logging_queries" to 1L,
+          "rows_examined" to e.rawEntriesExamined.toLong(),
+          "rows_retained" to e.partialEntries.size.toLong(),
+        ),
+        "The configured read bound was reached in $project.",
+      )
       warnings += "Cloud Logging results were truncated for project " + project + "."
       e.partialEntries
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      statuses +=
-        CloudTelemetrySourceStatus(
-          project,
-          "Cloud Logging",
-          "failed",
-          0,
-          0,
-          e::class.simpleName.orEmpty(),
-        )
+      statuses.record(
+        "cloud_logging",
+        "failed",
+        budget.finish(started),
+        mapOf("logging_queries" to 1L),
+        e::class.simpleName.orEmpty() + " in " + project,
+      )
       warnings += "Cloud Logging collection failed for project " + project + "."
       emptyList()
     }
@@ -353,55 +637,70 @@ internal class VidLabelingTraceCollector(
     project: String,
     traceIds: Set<String>,
     request: VidLabelingTraceRequest,
-    statuses: MutableList<CloudTelemetrySourceStatus>,
+    budget: SourceBudget,
+    statuses: SourceStatusRecorder,
     warnings: MutableList<String>,
   ): List<CloudLogEntry> {
     if (traceIds.isEmpty()) return emptyList()
+    val remainingMillis = budget.remainingMillis()
+    if (remainingMillis == 0L) {
+      statuses.record("cloud_logging", "timed_out", note = "Source deadline exhausted.")
+      warnings += "Trace-ID log collection timed out before querying project $project."
+      return emptyList()
+    }
+    val started = budget.start()
     return try {
       val entries =
-        withTimeoutOrNull(sourceTimeout.toMillis()) {
+        withTimeoutOrNull(remainingMillis) {
           logReaderFactory(project)
             .readTraceIds(traceIds, request.startTime, request.endTime, request.entryLimit)
         }
       if (entries == null) {
-        statuses +=
-          CloudTelemetrySourceStatus(project, "Cloud Logging by trace ID", "timed_out", 0, 0)
+        statuses.record(
+          "cloud_logging",
+          "timed_out",
+          budget.finish(started, remainingMillis),
+          mapOf("logging_queries" to 1L),
+          "Source deadline exhausted while querying trace IDs in $project.",
+        )
         warnings += "Trace-ID log collection timed out for project " + project + "."
         return emptyList()
       }
-      statuses +=
-        CloudTelemetrySourceStatus(
-          project,
-          "Cloud Logging by trace ID",
-          "complete",
-          entries.size,
-          entries.size,
-        )
+      statuses.record(
+        "cloud_logging",
+        "complete",
+        budget.finish(started),
+        mapOf(
+          "logging_queries" to 1L,
+          "rows_examined" to entries.size.toLong(),
+          "rows_retained" to entries.size.toLong(),
+        ),
+      )
       entries
     } catch (e: CloudLogCollectionTruncatedException) {
-      statuses +=
-        CloudTelemetrySourceStatus(
-          project,
-          "Cloud Logging by trace ID",
-          "truncated",
-          e.rawEntriesExamined,
-          e.partialEntries.size,
-          "The configured read bound was reached.",
-        )
+      statuses.record(
+        "cloud_logging",
+        "truncated",
+        budget.finish(started),
+        mapOf(
+          "logging_queries" to 1L,
+          "rows_examined" to e.rawEntriesExamined.toLong(),
+          "rows_retained" to e.partialEntries.size.toLong(),
+        ),
+        "The configured trace-ID read bound was reached in $project.",
+      )
       warnings += "Trace-ID log results were truncated for project " + project + "."
       e.partialEntries
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      statuses +=
-        CloudTelemetrySourceStatus(
-          project,
-          "Cloud Logging by trace ID",
-          "failed",
-          0,
-          0,
-          e::class.simpleName.orEmpty(),
-        )
+      statuses.record(
+        "cloud_logging",
+        "failed",
+        budget.finish(started),
+        mapOf("logging_queries" to 1L),
+        e::class.simpleName.orEmpty() + " in " + project,
+      )
       warnings += "Trace-ID log collection failed for project " + project + "."
       emptyList()
     }
@@ -412,12 +711,20 @@ internal class VidLabelingTraceCollector(
     correlationValues: Set<String>,
     traceIds: Set<String>,
     request: VidLabelingTraceRequest,
-    statuses: MutableList<CloudTelemetrySourceStatus>,
+    budget: SourceBudget,
+    statuses: SourceStatusRecorder,
     warnings: MutableList<String>,
   ): List<CloudTraceSpan> {
+    val remainingMillis = budget.remainingMillis()
+    if (remainingMillis == 0L) {
+      statuses.record("cloud_trace", "timed_out", note = "Source deadline exhausted.")
+      warnings += "Cloud Trace collection timed out before querying project $project."
+      return emptyList()
+    }
+    val started = budget.start()
     return try {
       val spans =
-        withTimeoutOrNull(sourceTimeout.toMillis()) {
+        withTimeoutOrNull(remainingMillis) {
           spanReader.read(
             project,
             correlationValues,
@@ -428,35 +735,41 @@ internal class VidLabelingTraceCollector(
           )
         }
       if (spans == null) {
-        statuses += CloudTelemetrySourceStatus(project, "Cloud Trace", "timed_out", 0, 0)
+        statuses.record(
+          "cloud_trace",
+          "timed_out",
+          budget.finish(started, remainingMillis),
+          mapOf("trace_queries" to 1L),
+          "Source deadline exhausted while querying $project.",
+        )
         warnings += "Cloud Trace collection timed out for project " + project + "."
         return emptyList()
       }
       val truncated = spans.size > request.entryLimit
       val retained = spans.take(request.entryLimit)
-      statuses +=
-        CloudTelemetrySourceStatus(
-          project,
-          "Cloud Trace",
-          if (truncated) "truncated" else "complete",
-          spans.size,
-          retained.size,
-          if (truncated) "The configured read bound was reached." else "",
-        )
+      statuses.record(
+        "cloud_trace",
+        if (truncated) "truncated" else "complete",
+        budget.finish(started),
+        mapOf(
+          "trace_queries" to 1L,
+          "rows_examined" to spans.size.toLong(),
+          "rows_retained" to retained.size.toLong(),
+        ),
+        if (truncated) "The configured read bound was reached in $project." else "",
+      )
       if (truncated) warnings += "Cloud Trace results were truncated for project " + project + "."
       retained
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      statuses +=
-        CloudTelemetrySourceStatus(
-          project,
-          "Cloud Trace",
-          "failed",
-          0,
-          0,
-          e::class.simpleName.orEmpty(),
-        )
+      statuses.record(
+        "cloud_trace",
+        "failed",
+        budget.finish(started),
+        mapOf("trace_queries" to 1L),
+        e::class.simpleName.orEmpty() + " in " + project,
+      )
       warnings += "Cloud Trace collection failed for project " + project + "."
       emptyList()
     }
@@ -497,6 +810,7 @@ internal class VidLabelingTraceCollector(
             node.authoritativeState,
             node.disposition == ExpectedNodeDisposition.NOT_APPLICABLE,
             node.disposition == ExpectedNodeDisposition.AUTHORITATIVE_ONLY,
+            node.disposition == ExpectedNodeDisposition.UNRESOLVED,
           )
         },
       )
@@ -761,6 +1075,7 @@ internal class VidLabelingTraceCollector(
         "xmm.edpa.recovery_predecessor_raw_impression_upload.name",
         "xmm.work_item.name",
         "xmm.work_item_attempt.name",
+        "xmm.work_item.generation",
         "xmm.edpa.pipeline.phase",
         "xmm.gcs.object.generation",
         "xmm.gcs.object.path_hash",
@@ -850,18 +1165,20 @@ internal object VidLabelingTraceOutput {
     appendLine()
     appendLine("## Sources")
     appendLine()
-    appendLine("| Project | Source | Status | Retained | Note |")
-    appendLine("|---|---|---:|---:|---|")
+    appendLine("| Source | Status | Duration | Counts | Note |")
+    appendLine("|---|---:|---:|---|---|")
     for (status in collection.sourceStatuses) {
+      val counts =
+        status.counts.entries.joinToString("<br>") { (name, value) -> safe(name) + "=" + value }
       appendLine(
         "| " +
-          safe(status.project) +
-          " | " +
           safe(status.source) +
           " | " +
           safe(status.status) +
           " | " +
-          status.retained +
+          status.durationMillis +
+          " ms | " +
+          counts +
           " | " +
           safe(status.note) +
           " |"
@@ -875,7 +1192,8 @@ internal object VidLabelingTraceOutput {
       for (stage in graph.stages) {
         appendLine(
           "- [" +
-            (if (stage.present || stage.notApplicable) "x" else " ") +
+            (if (stage.unresolved) "?"
+            else if (stage.present || stage.notApplicable) "x" else " ") +
             "] " +
             safe(stage.name) +
             (if (stage.resource.isEmpty()) "" else " `" + safe(stage.resource) + "`") +
@@ -883,6 +1201,7 @@ internal object VidLabelingTraceOutput {
             else " state=" + safe(stage.authoritativeState)) +
             (if (stage.notApplicable) " (not applicable)" else "") +
             (if (stage.authoritativeOnly) " (authoritative state)" else "") +
+            (if (stage.unresolved) " (unresolved)" else "") +
             " (" +
             stage.evidenceCount +
             ")"
@@ -951,11 +1270,18 @@ internal object VidLabelingTraceOutput {
     }
   }
 
-  fun renderFailure(rawImpressionUpload: String, throwable: Throwable): String = buildString {
+  fun renderFailure(
+    rawImpressionUpload: String,
+    source: String,
+    status: String,
+    throwable: Throwable,
+  ): String = buildString {
     appendLine("# VID labeling trace")
     appendLine()
     appendLine("- Raw impression upload: `" + safe(rawImpressionUpload) + "`")
     appendLine("- Evidence status: **failed**")
+    appendLine("- Failed source: `" + safe(source) + "`")
+    appendLine("- Source status: `" + safe(status) + "`")
     appendLine("- Failure type: `" + safe(throwable::class.simpleName.orEmpty()) + "`")
   }
 
@@ -982,32 +1308,52 @@ internal object VidLabelingTraceOutput {
 internal suspend fun collectVidLabelingTraceBatch(
   rawImpressionUploads: Collection<String>,
   allowPartial: Boolean,
-  uploadTimeout: Duration = UPLOAD_TIMEOUT,
+  uploadTimeout: Duration = DEFAULT_UPLOAD_TIMEOUT,
   collect: suspend (String) -> VidLabelingTraceCollection,
   write: (String, String) -> Unit,
 ): Boolean {
+  require(!uploadTimeout.isZero && !uploadTimeout.isNegative) { "uploadTimeout must be positive" }
   var failed = false
   for (rawImpressionUpload in rawImpressionUploads.distinct()) {
     try {
-      val collection = withTimeout(uploadTimeout.toMillis()) { collect(rawImpressionUpload) }
+      val collection = withTimeoutOrNull(uploadTimeout.toMillis()) { collect(rawImpressionUpload) }
+      if (collection == null) {
+        failed = true
+        write(
+          VidLabelingTraceOutput.artifactFileName(rawImpressionUpload),
+          VidLabelingTraceOutput.renderFailure(
+            rawImpressionUpload,
+            "overall_upload",
+            "timed_out",
+            TimeoutException("Upload collection deadline exceeded"),
+          ),
+        )
+        continue
+      }
       write(
         VidLabelingTraceOutput.artifactFileName(rawImpressionUpload),
         VidLabelingTraceOutput.render(collection),
       )
-      if (!allowPartial && collection.traceStatus != VidLabelingTraceStatus.COMPLETE) failed = true
+      if (
+        collection.traceStatus == VidLabelingTraceStatus.FAILED ||
+          collection.traceStatus == VidLabelingTraceStatus.PARTIAL && !allowPartial
+      ) {
+        failed = true
+      }
     } catch (e: TimeoutCancellationException) {
-      failed = true
-      write(
-        VidLabelingTraceOutput.artifactFileName(rawImpressionUpload),
-        VidLabelingTraceOutput.renderFailure(rawImpressionUpload, e),
-      )
+      throw e
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
       failed = true
       write(
         VidLabelingTraceOutput.artifactFileName(rawImpressionUpload),
-        VidLabelingTraceOutput.renderFailure(rawImpressionUpload, e),
+        VidLabelingTraceOutput.renderFailure(
+          rawImpressionUpload,
+          "input_or_collection",
+          "failed",
+          e,
+        ),
       )
     }
   }
@@ -1161,10 +1507,50 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
   @Option(names = ["--allow-partial"], defaultValue = "false")
   private var allowPartial: Boolean = false
 
+  @Option(
+    names = ["--authoritative-source-timeout"],
+    defaultValue = "PT2M",
+    description = ["Total ISO-8601 deadline for each authoritative source."],
+  )
+  private lateinit var authoritativeSourceTimeout: Duration
+
+  @Option(
+    names = ["--logging-source-timeout"],
+    defaultValue = "PT2M",
+    description = ["Total ISO-8601 deadline for Cloud Logging collection."],
+  )
+  private lateinit var loggingSourceTimeout: Duration
+
+  @Option(
+    names = ["--trace-source-timeout"],
+    defaultValue = "PT2M",
+    description = ["Total ISO-8601 deadline for Cloud Trace collection."],
+  )
+  private lateinit var traceSourceTimeout: Duration
+
+  @Option(
+    names = ["--upload-timeout"],
+    defaultValue = "PT10M",
+    description = ["Overall ISO-8601 deadline for one upload."],
+  )
+  private lateinit var uploadTimeout: Duration
+
+  @Option(
+    names = ["--work-item-page-limit"],
+    defaultValue = "100",
+    description = ["Maximum global Secure Computation WorkItem pages per upload."],
+  )
+  private var workItemPageLimit: Int = DEFAULT_WORK_ITEM_PAGE_LIMIT
+
   override fun call(): Int = runBlocking {
     require(rawImpressionUploads.size == 1 || outputDirectory != null) {
       "--output-dir is required when collecting more than one upload"
     }
+    requirePositive(authoritativeSourceTimeout, "--authoritative-source-timeout")
+    requirePositive(loggingSourceTimeout, "--logging-source-timeout")
+    requirePositive(traceSourceTimeout, "--trace-source-timeout")
+    requirePositive(uploadTimeout, "--upload-timeout")
+    require(workItemPageLimit > 0) { "--work-item-page-limit must be positive" }
     val now = dependencies?.clock?.instant() ?: Clock.systemUTC().instant()
     val resolvedEndTime = parseInstant(endTime) ?: now
     val resolvedStartTime =
@@ -1177,6 +1563,7 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
         collectVidLabelingTraceBatch(
           rawImpressionUploads,
           allowPartial,
+          uploadTimeout,
           collect = { rawImpressionUpload ->
             injectedCollector.collect(
               VidLabelingTraceRequest(
@@ -1188,6 +1575,10 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
                 expansionRounds,
                 correlationValueLimit,
                 traceIdLimit,
+                authoritativeSourceTimeout,
+                loggingSourceTimeout,
+                traceSourceTimeout,
+                workItemPageLimit,
               )
             )
           },
@@ -1225,13 +1616,17 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
         RankerJobServiceCoroutineStub(edpaChannel),
         VidLabelingJobServiceCoroutineStub(edpaChannel),
         RankIndexBlobServiceCoroutineStub(edpaChannel),
+      )
+    val workItemResolver =
+      GrpcVidLabelingWorkItemResolver(
         WorkItemsCoroutineStub(controlPlaneChannel),
         WorkItemAttemptsCoroutineStub(controlPlaneChannel),
-        KingdomVidLabelingRouteResolver(
-          ModelLinesCoroutineStub(kingdomChannel),
-          ModelRolloutsCoroutineStub(kingdomChannel),
-          ModelShardsCoroutineStub(kingdomChannel),
-        ),
+      )
+    val routeResolver =
+      KingdomVidLabelingRouteResolver(
+        ModelLinesCoroutineStub(kingdomChannel),
+        ModelRolloutsCoroutineStub(kingdomChannel),
+        ModelShardsCoroutineStub(kingdomChannel),
       )
     val finalStateResolver =
       GcsKingdomFinalStateResolver(
@@ -1245,10 +1640,8 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
             } else {
               BlobId.of(parsed.bucket, parsed.key, generation)
             }
-          withTimeout(SOURCE_TIMEOUT.toMillis()) {
-            runInterruptible(Dispatchers.IO) {
-              storage.get(blobId)?.let { blob -> StoredObjectMetadata(blob.generation) }
-            }
+          runInterruptible(Dispatchers.IO) {
+            storage.get(blobId)?.let { blob -> StoredObjectMetadata(blob.generation) }
           }
         },
       )
@@ -1267,12 +1660,15 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
         spanReader = spanReader,
         stateResolver = stateResolver,
         finalStateResolver = finalStateResolver,
+        workItemResolver = workItemResolver,
+        routeResolver = routeResolver,
       )
     try {
       val failed =
         collectVidLabelingTraceBatch(
           rawImpressionUploads,
           allowPartial,
+          uploadTimeout,
           collect = { rawImpressionUpload ->
             collector.collect(
               VidLabelingTraceRequest(
@@ -1284,6 +1680,10 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
                 expansionRounds,
                 correlationValueLimit,
                 traceIdLimit,
+                authoritativeSourceTimeout,
+                loggingSourceTimeout,
+                traceSourceTimeout,
+                workItemPageLimit,
               )
             )
           },
@@ -1317,6 +1717,10 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
     } catch (e: DateTimeParseException) {
       throw IllegalArgumentException("Invalid ISO-8601 instant", e)
     }
+  }
+
+  private fun requirePositive(duration: Duration, optionName: String) {
+    require(!duration.isZero && !duration.isNegative) { "$optionName must be positive" }
   }
 }
 

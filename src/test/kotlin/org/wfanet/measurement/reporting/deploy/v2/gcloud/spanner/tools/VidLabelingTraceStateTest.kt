@@ -17,12 +17,18 @@ package org.wfanet.measurement.edpaggregator.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.type.Interval
-import io.grpc.Status
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -61,6 +67,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemAttemptsResponse
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemsResponse
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
@@ -92,7 +99,64 @@ class VidLabelingTraceStateTest {
       )
     val resolver = KingdomVidLabelingRouteResolver(modelLines, modelRollouts, modelShards)
 
-    assertThat(resolver.isMemoized("dataProviders/123", MEMOIZED_MODEL_LINE)).isTrue()
+    val resolution = resolver.resolve("dataProviders/123", listOf(MEMOIZED_MODEL_LINE))
+
+    assertThat(resolution.routes).containsEntry(MEMOIZED_MODEL_LINE, true)
+    assertThat(resolution.counts["model_shard_pages"]).isEqualTo(1)
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun `route resolver bounds parallel model line reads`() = runTest {
+    val modelLineNames =
+      List(8) { index -> "modelProviders/456/modelSuites/suite/modelLines/line-$index" }
+    val releases =
+      modelLineNames.associateWith { modelLineName ->
+        "modelProviders/456/modelSuites/suite/modelReleases/" +
+          modelLineName.substringAfterLast('/')
+      }
+    val release = CompletableDeferred<Unit>()
+    val inFlight = AtomicInteger()
+    val peakInFlight = AtomicInteger()
+    val resolver =
+      KingdomVidLabelingRouteResolver.fromFunctions(
+        maxConcurrency = 4,
+        getModelLine = { request ->
+          val current = inFlight.incrementAndGet()
+          peakInFlight.updateAndGet { previous -> maxOf(previous, current) }
+          try {
+            release.await()
+            kingdomModelLine { name = request.name }
+          } finally {
+            inFlight.decrementAndGet()
+          }
+        },
+        listModelRollouts = { request ->
+          listModelRolloutsResponse {
+            modelRollouts += modelRollout { modelRelease = releases.getValue(request.parent) }
+          }
+        },
+        listModelShards = {
+          listModelShardsResponse {
+            modelShards +=
+              releases.values.map { modelReleaseName ->
+                modelShard {
+                  modelRelease = modelReleaseName
+                  modelBlob = modelBlob { modelBlobPath = "gs://models/model.bin" }
+                  memoizedVidAssignmentEnabled = true
+                }
+              }
+          }
+        },
+      )
+
+    val result = async { resolver.resolve("dataProviders/123", modelLineNames.reversed()) }
+    runCurrent()
+
+    assertThat(peakInFlight.get()).isEqualTo(4)
+    assertThat(result.isCompleted).isFalse()
+    release.complete(Unit)
+    assertThat(result.await().routes.keys.toList()).isEqualTo(modelLineNames.sorted())
   }
 
   @Test
@@ -106,7 +170,7 @@ class VidLabelingTraceStateTest {
     val resolver = GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { _, _ -> null }
     val upload = RawImpressionUpload.newBuilder().setName(UPLOAD).setDoneBlobGeneration(7).build()
 
-    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)))
+    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE))).nodes
 
     assertThat(nodes.filter { it.authoritativeState == "MISSING" }.map { it.stage })
       .containsAtLeast("data_watcher", "data_availability_metadata", "data_availability_publish")
@@ -173,7 +237,8 @@ class VidLabelingTraceStateTest {
         .build()
     val modelLine = modelLine("direct", DIRECT_MODEL_LINE)
 
-    val nodes = resolver.resolve(upload, listOf(modelLine))
+    val resolution = resolver.resolve(upload, listOf(modelLine))
+    val nodes = resolution.nodes
 
     assertThat(nodes.map { it.stage })
       .containsAtLeast(
@@ -184,6 +249,7 @@ class VidLabelingTraceStateTest {
       )
     assertThat(nodes.count { it.stage == VidLabelingTraceLogging.LABEL_OUTPUT_STAGE }).isEqualTo(2)
     assertThat(nodes.none { it.authoritativeState == "MISSING" }).isTrue()
+    assertThat(resolution.counts["gcs_reads"]).isEqualTo(4)
     assertThat(objectReads).contains("gs://raw/input/done" to 7L)
     assertThat(objectReads).doesNotContain("gs://raw/input/done" to null)
     assertThat(objectReads).contains(doneUri to 9L)
@@ -229,7 +295,7 @@ class VidLabelingTraceStateTest {
         .setDoneBlobGeneration(7)
         .build()
 
-    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)))
+    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE))).nodes
 
     assertThat(nodes.single { it.stage == "data_availability_publish" }.authoritativeState)
       .isEqualTo("MISSING")
@@ -315,26 +381,23 @@ class VidLabelingTraceStateTest {
     val originalWorkItemName = "workItems/" + originalWorkItemId
     val retryWorkItemName =
       "workItems/" + RequestIds.forRetriedWorkItem(originalWorkItemId, "failure-1")
-    whenever(workItems.getWorkItem(any(), any())).thenAnswer { invocation ->
-      val request =
-        invocation.arguments[0]
-          as org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
-      when (request.name) {
-        originalWorkItemName ->
-          WorkItem.newBuilder()
-            .setName(originalWorkItemName)
-            .setState(WorkItem.State.SUCCEEDED)
-            .setGeneration(2)
-            .build()
-        retryWorkItemName ->
-          WorkItem.newBuilder()
-            .setName(retryWorkItemName)
-            .setState(WorkItem.State.RUNNING)
-            .setGeneration(1)
-            .build()
-        else -> throw Status.NOT_FOUND.asException()
-      }
-    }
+    whenever(workItems.listWorkItems(any(), any()))
+      .thenReturn(
+        ListWorkItemsResponse.newBuilder()
+          .addWorkItems(
+            WorkItem.newBuilder()
+              .setName(originalWorkItemName)
+              .setState(WorkItem.State.SUCCEEDED)
+              .setGeneration(2)
+          )
+          .addWorkItems(
+            WorkItem.newBuilder()
+              .setName(retryWorkItemName)
+              .setState(WorkItem.State.RUNNING)
+              .setGeneration(1)
+          )
+          .build()
+      )
     whenever(attempts.listWorkItemAttempts(any(), any())).thenAnswer { invocation ->
       val request =
         invocation.arguments[0]
@@ -397,18 +460,25 @@ class VidLabelingTraceStateTest {
         rankerJobs,
         labelingJobs,
         rankBlobs,
-        workItems,
-        attempts,
-        VidLabelingRouteResolver { _, modelLineName -> modelLineName == MEMOIZED_MODEL_LINE },
       )
+    val workItemResolver = GrpcVidLabelingWorkItemResolver(workItems, attempts)
+    val routeResolver = VidLabelingRouteResolver { _, modelLineNames ->
+      VidLabelingRouteResolution(
+        modelLineNames.associateWith { it == MEMOIZED_MODEL_LINE },
+        emptyMap(),
+      )
+    }
 
     val initialGraph = resolver.resolve(UPLOAD)
+    val workItemResolution =
+      workItemResolver.resolve(UPLOAD, initialGraph.expectedWorkItems, pageLimit = 10)
+    val routeResolution =
+      routeResolver.resolve("dataProviders/123", initialGraph.modelLines.map { it.cmmsModelLine })
+    val finalState = finalStateResolver.resolve(initialGraph.upload, initialGraph.modelLines)
     val graph =
-      initialGraph.copy(
-        nodes =
-          initialGraph.nodes +
-            finalStateResolver.resolve(initialGraph.upload, initialGraph.modelLines)
-      )
+      initialGraph
+        .copy(nodes = initialGraph.nodes + workItemResolution.nodes + finalState.nodes)
+        .withRoutes(routeResolution)
 
     assertThat(graph.modelLines.map { it.cmmsModelLine })
       .containsExactly(MEMOIZED_MODEL_LINE, DIRECT_MODEL_LINE)
@@ -423,7 +493,10 @@ class VidLabelingTraceStateTest {
     assertThat(graph.nodes.flatMap { it.identifiers.values }.any { "/workItemAttempts/" in it })
       .isTrue()
     assertThat(graph.nodes.filter { it.stage == "data_availability_publish" }).hasSize(2)
-    verifyBlocking(workItems, never()) { listWorkItems(any(), any()) }
+    assertThat(workItemResolution.counts["pages_fetched"]).isEqualTo(1)
+    assertThat(workItemResolution.counts["work_items_matched"]).isEqualTo(2)
+    verifyBlocking(workItems, times(1)) { listWorkItems(any(), any()) }
+    verifyBlocking(workItems, never()) { getWorkItem(any(), any()) }
     Unit
   }
 
@@ -436,8 +509,6 @@ class VidLabelingTraceStateTest {
     val rankerJobs = mock<RankerJobServiceCoroutineStub>()
     val labelingJobs = mock<VidLabelingJobServiceCoroutineStub>()
     val rankBlobs = mock<RankIndexBlobServiceCoroutineStub>()
-    val workItems = mock<WorkItemsCoroutineStub>()
-    val attempts = mock<WorkItemAttemptsCoroutineStub>()
     whenever(uploads.getRawImpressionUpload(any(), any()))
       .thenReturn(RawImpressionUpload.newBuilder().setName(UPLOAD).build())
     whenever(rawFiles.listRawImpressionUploadFiles(any(), any()))
@@ -470,12 +541,12 @@ class VidLabelingTraceStateTest {
         rankerJobs,
         labelingJobs,
         rankBlobs,
-        workItems,
-        attempts,
-        VidLabelingRouteResolver { _, _ -> true },
       )
 
-    val graph = resolver.resolve(UPLOAD)
+    val graph =
+      resolver
+        .resolve(UPLOAD)
+        .withRoutes(VidLabelingRouteResolution(mapOf(MEMOIZED_MODEL_LINE to true), emptyMap()))
 
     assertThat(
         graph.nodes
@@ -483,6 +554,226 @@ class VidLabelingTraceStateTest {
           .identifiers["xmm.edpa.label.route"]
       )
       .isEqualTo("memoized")
+  }
+
+  @Test
+  fun `WorkItem resolver scans once for 32 pool 3 ranker and 2 labeling jobs`() = runBlocking {
+    val workItems = mock<WorkItemsCoroutineStub>()
+    val attempts = mock<WorkItemAttemptsCoroutineStub>()
+    val expectedGroups = buildList {
+      repeat(32) { add(expectedWorkItemGroup("pool-$it", "pool_assignment")) }
+      repeat(3) { add(expectedWorkItemGroup("rank-$it", "rank")) }
+      repeat(2) { add(expectedWorkItemGroup("label-$it", "label")) }
+    }
+    whenever(workItems.listWorkItems(any(), any()))
+      .thenReturn(
+        ListWorkItemsResponse.newBuilder()
+          .addAllWorkItems(
+            expectedGroups.reversed().map { group ->
+              WorkItem.newBuilder()
+                .setName(group.originalName)
+                .setState(WorkItem.State.SUCCEEDED)
+                .setGeneration(1)
+                .build()
+            }
+          )
+          .addWorkItems(WorkItem.newBuilder().setName("workItems/unrelated"))
+          .build()
+      )
+    whenever(attempts.listWorkItemAttempts(any(), any())).thenAnswer { invocation ->
+      val request =
+        invocation.arguments[0]
+          as
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemAttemptsRequest
+      ListWorkItemAttemptsResponse.newBuilder()
+        .addWorkItemAttempts(
+          WorkItemAttempt.newBuilder()
+            .setName(request.parent + "/workItemAttempts/2")
+            .setAttemptNumber(2)
+            .setState(WorkItemAttempt.State.SUCCEEDED)
+        )
+        .addWorkItemAttempts(
+          WorkItemAttempt.newBuilder()
+            .setName(request.parent + "/workItemAttempts/1")
+            .setAttemptNumber(1)
+            .setState(WorkItemAttempt.State.FAILED)
+        )
+        .build()
+    }
+    val resolver = GrpcVidLabelingWorkItemResolver(workItems, attempts)
+
+    val result = resolver.resolve(UPLOAD, expectedGroups, pageLimit = 10)
+
+    assertThat(result.truncated).isFalse()
+    assertThat(result.counts["pages_fetched"]).isEqualTo(1)
+    assertThat(result.counts["rows_retained"]).isEqualTo(37)
+    assertThat(result.counts["expected_work_item_names"]).isEqualTo(148)
+    assertThat(result.counts["work_items_matched"]).isEqualTo(37)
+    assertThat(result.nodes.count { it.stage == "pool_assignment" }).isEqualTo(32 * 3)
+    assertThat(result.nodes.count { it.stage == "rank" }).isEqualTo(3 * 3)
+    assertThat(result.nodes.count { it.stage == "label" }).isEqualTo(2 * 3)
+    assertThat(result.workItems.map { it.workItem.name })
+      .isEqualTo(result.workItems.map { it.workItem.name }.sorted())
+    assertThat(result.workItems.flatMap { it.attempts }.map { it.attemptNumber }.toSet())
+      .containsExactly(1, 2)
+    verifyBlocking(workItems, times(1)) { listWorkItems(any(), any()) }
+    verifyBlocking(workItems, never()) { getWorkItem(any(), any()) }
+    verifyBlocking(attempts, times(37)) { listWorkItemAttempts(any(), any()) }
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun `WorkItem resolver bounds parallel attempt reads`() = runTest {
+    val expectedGroups = List(16) { expectedWorkItemGroup("work-$it", "label") }
+    val inventory =
+      ListWorkItemsResponse.newBuilder()
+        .addAllWorkItems(
+          expectedGroups.reversed().map { group ->
+            WorkItem.newBuilder()
+              .setName(group.originalName)
+              .setState(WorkItem.State.SUCCEEDED)
+              .setGeneration(1)
+              .build()
+          }
+        )
+        .build()
+    val release = CompletableDeferred<Unit>()
+    val inFlight = AtomicInteger()
+    val peakInFlight = AtomicInteger()
+    val resolver =
+      GrpcVidLabelingWorkItemResolver.fromFunctions(
+        maxAttemptConcurrency = 8,
+        listWorkItems = { inventory },
+        listWorkItemAttempts = {
+          val current = inFlight.incrementAndGet()
+          peakInFlight.updateAndGet { previous -> maxOf(previous, current) }
+          try {
+            release.await()
+            ListWorkItemAttemptsResponse.getDefaultInstance()
+          } finally {
+            inFlight.decrementAndGet()
+          }
+        },
+      )
+
+    val result = async { resolver.resolve(UPLOAD, expectedGroups, pageLimit = 1) }
+    runCurrent()
+
+    assertThat(peakInFlight.get()).isEqualTo(8)
+    assertThat(result.isCompleted).isFalse()
+    release.complete(Unit)
+    assertThat(result.await().workItems.map { it.workItem.name })
+      .isEqualTo(expectedGroups.map { it.originalName }.sorted())
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun `final state resolver bounds parallel GCS reads`() = runTest {
+    val metadata = mock<ImpressionMetadataServiceCoroutineStub>()
+    val dataProviders = mock<DataProvidersCoroutineStub>()
+    whenever(metadata.listImpressionMetadata(any(), any())).thenAnswer { invocation ->
+      val request =
+        invocation.arguments[0]
+          as org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+      val id = request.filter.modelLine.substringAfterLast('/')
+      ListImpressionMetadataResponse.newBuilder()
+        .addImpressionMetadata(
+          ImpressionMetadata.newBuilder()
+            .setName("dataProviders/123/impressionMetadata/$id")
+            .setModelLine(request.filter.modelLine)
+            .setRawImpressionUpload(UPLOAD)
+            .setBlobUri("gs://bucket/model-line/$id/date/output.metadata.binpb")
+            .setOutputDoneBlobGeneration(9)
+            .setInterval(
+              Interval.newBuilder()
+                .setStartTime(Timestamp.newBuilder().setSeconds(1))
+                .setEndTime(Timestamp.newBuilder().setSeconds(2))
+            )
+            .setState(ImpressionMetadata.State.ACTIVE)
+        )
+        .build()
+    }
+    whenever(dataProviders.getDataProvider(any(), any()))
+      .thenReturn(DataProvider.newBuilder().setName("dataProviders/123").build())
+    val release = CompletableDeferred<Unit>()
+    val inFlight = AtomicInteger()
+    val peakInFlight = AtomicInteger()
+    val resolver =
+      GcsKingdomFinalStateResolver(
+        metadata,
+        dataProviders,
+        modelLineConcurrency = 4,
+        gcsConcurrency = 8,
+      ) { _, generation ->
+        val current = inFlight.incrementAndGet()
+        peakInFlight.updateAndGet { previous -> maxOf(previous, current) }
+        try {
+          release.await()
+          StoredObjectMetadata(generation ?: 1)
+        } finally {
+          inFlight.decrementAndGet()
+        }
+      }
+    val upload =
+      RawImpressionUpload.newBuilder()
+        .setName(UPLOAD)
+        .setDoneBlobUri("gs://raw/done")
+        .setDoneBlobGeneration(7)
+        .build()
+    val modelLines =
+      List(4) { index ->
+        modelLine("line-$index", "modelProviders/456/modelSuites/suite/modelLines/line-$index")
+      }
+
+    val result = async { resolver.resolve(upload, modelLines.reversed()) }
+    runCurrent()
+
+    assertThat(peakInFlight.get()).isEqualTo(8)
+    assertThat(result.isCompleted).isFalse()
+    release.complete(Unit)
+    val resolution = result.await()
+    assertThat(resolution.counts["gcs_reads"]).isEqualTo(13)
+    assertThat(resolution.nodes.mapNotNull { it.modelLine }.distinct())
+      .isEqualTo(modelLines.map { it.cmmsModelLine }.sorted())
+  }
+
+  @Test
+  fun `WorkItem resolver reports unseen names unresolved when page limit is reached`() =
+    runBlocking {
+      val workItems = mock<WorkItemsCoroutineStub>()
+      val attempts = mock<WorkItemAttemptsCoroutineStub>()
+      whenever(workItems.listWorkItems(any(), any()))
+        .thenReturn(
+          ListWorkItemsResponse.newBuilder()
+            .addWorkItems(WorkItem.newBuilder().setName("workItems/unrelated"))
+            .setNextPageToken("next")
+            .build()
+        )
+      val expected = expectedWorkItemGroup("expected", "label")
+      val resolver = GrpcVidLabelingWorkItemResolver(workItems, attempts)
+
+      val result = resolver.resolve(UPLOAD, listOf(expected), pageLimit = 1)
+
+      assertThat(result.truncated).isTrue()
+      assertThat(result.nodes.single().authoritativeState).isEqualTo("UNRESOLVED")
+      assertThat(result.nodes.single().disposition).isEqualTo(ExpectedNodeDisposition.UNRESOLVED)
+      verifyBlocking(workItems, times(1)) { listWorkItems(any(), any()) }
+      verifyBlocking(attempts, never()) { listWorkItemAttempts(any(), any()) }
+    }
+
+  private fun expectedWorkItemGroup(id: String, stage: String): ExpectedWorkItemGroup {
+    val originalName = "workItems/$id"
+    return ExpectedWorkItemGroup(
+      originalName,
+      MEMOIZED_MODEL_LINE,
+      stage,
+      listOf(
+        originalName,
+        "workItems/$id-recovery-1",
+        "workItems/$id-recovery-2",
+        "workItems/$id-recovery-3",
+      ),
+    )
   }
 
   private fun modelLine(id: String, cmmsModelLine: String): RawImpressionUploadModelLine =

@@ -497,8 +497,8 @@ impersonate the dedicated VID-labeling trace operator, and list any additional
 telemetry projects in `VID_LABELING_TRACE_OBSERVABILITY_PROJECTS`. The identity
 has Logging Viewer, Cloud Trace Viewer, Service Usage Consumer, and object-viewer
 access to the VID-labeling storage bucket. It has no direct database, write, or
-KMS-decrypt role. The command uses the DataProvider's mutual-TLS identity for
-the read-only EDPA, control-plane, and Kingdom APIs. After applying Terraform,
+KMS-decrypt role. The command uses distinct mutual-TLS identities for the EDPA,
+Secure Computation control-plane, and Kingdom APIs. After applying Terraform,
 create impersonated Application Default Credentials and run:
 
 ```bash
@@ -517,8 +517,19 @@ bazel run \
   --tls-cert-file=<DATA_PROVIDER_TLS_CERT_FILE> \
   --tls-key-file=<DATA_PROVIDER_TLS_KEY_FILE> \
   --cert-collection-file=<ROOT_CERT_COLLECTION_FILE> \
+  --control-plane-tls-cert-file=<CONTROL_PLANE_TLS_CERT_FILE> \
+  --control-plane-tls-key-file=<CONTROL_PLANE_TLS_KEY_FILE> \
+  --control-plane-cert-collection-file=<ROOT_CERT_COLLECTION_FILE> \
+  --kingdom-tls-cert-file=<KINGDOM_TLS_CERT_FILE> \
+  --kingdom-tls-key-file=<KINGDOM_TLS_KEY_FILE> \
+  --kingdom-cert-collection-file=<ROOT_CERT_COLLECTION_FILE> \
   --gcs-project=<EDPA_PROJECT_ID> \
   --raw-impression-upload=dataProviders/<DATA_PROVIDER_ID>/rawImpressionUploads/<UPLOAD_ID> \
+  --authoritative-source-timeout=PT2M \
+  --logging-source-timeout=PT2M \
+  --trace-source-timeout=PT2M \
+  --upload-timeout=PT10M \
+  --work-item-page-limit=100 \
   --output-dir=/tmp/vid-labeling-traces
 ```
 
@@ -527,6 +538,10 @@ path-safe Markdown artifact, and one malformed or failed upload does not stop
 the remaining batch. The command exits nonzero for incomplete evidence unless
 `--allow-partial` is set. Output is restricted to allowlisted operational
 metadata; raw log payloads, object URIs, and payload contents are not rendered.
+The source table reports separate EDPA, Secure Computation, Kingdom-route,
+GCS/availability, Cloud Logging, and Cloud Trace status, duration, and counts.
+Reaching the WorkItem page limit is reported as `truncated`; unseen WorkItems
+remain unresolved rather than being reported as missing.
 
 ## Lifecycle overview
 
