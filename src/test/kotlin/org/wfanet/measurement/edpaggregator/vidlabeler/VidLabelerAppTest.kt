@@ -86,7 +86,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
@@ -98,11 +101,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
@@ -133,6 +139,12 @@ class VidLabelerAppTest {
   private val rawImpressionUploadFilesService:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase =
     mockService()
+  private val rawImpressionUploadsService:
+    RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase =
+    mockService()
+  private val uploadHealingOperationsService:
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase =
+    mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -142,6 +154,8 @@ class VidLabelerAppTest {
     addService(rawImpressionUploadModelLinesService)
     addService(rankIndexBlobsService)
     addService(rawImpressionUploadFilesService)
+    addService(rawImpressionUploadsService)
+    addService(uploadHealingOperationsService)
   }
 
   @get:Rule val tempFolder = TemporaryFolder()
@@ -165,6 +179,16 @@ class VidLabelerAppTest {
   }
   private val rawImpressionUploadFilesStub by lazy {
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
+  private val rawImpressionUploadsStub by lazy {
+    RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
+  private val uploadHealingOperationsStub by lazy {
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
       grpcTestServerRule.channel
     )
   }
@@ -210,6 +234,9 @@ class VidLabelerAppTest {
         .buildAndRegisterGlobal()
     logRecords.clear()
     rootLogger.addHandler(logHandler)
+    rawImpressionUploadsService.stub {
+      onBlocking { getRawImpressionUpload(any()) } doReturn rawImpressionUpload { name = UPLOAD }
+    }
     AeadConfig.register()
     kmsClient =
       FakeKmsClient().apply {
@@ -293,6 +320,8 @@ class VidLabelerAppTest {
       rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
       rankIndexBlobsStub = rankIndexBlobsStub,
       rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+      rawImpressionUploadsStub = rawImpressionUploadsStub,
+      uploadHealingOperationsStub = uploadHealingOperationsStub,
       buildParquetStorageClient = { _, _ -> mockParquetStorageClient },
       buildVidRankMapStorageClient = { vidRankMapStorageClient },
       // The model is loaded up-front by VidLabeler.label(); the converter never runs because the
@@ -600,7 +629,7 @@ class VidLabelerAppTest {
       markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(4)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(5)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
   }
@@ -960,6 +989,151 @@ class VidLabelerAppTest {
   }
 
   @Test
+  fun `runWork defers availability WorkItem while upload healing is active`() = runBlocking {
+    stubLastOutWithEventDate()
+    val doneObjectWritten = AtomicBoolean(false)
+    rawImpressionUploadsService.stub {
+      onBlocking { getRawImpressionUpload(any()) } doReturn
+        rawImpressionUpload {
+          name = UPLOAD
+          uploadHealingOperation = HEALING_OPERATION
+        }
+    }
+    uploadHealingOperationsService.stub {
+      onBlocking { getUploadHealingOperation(any()) } doReturn
+        uploadHealingOperation {
+          name = HEALING_OPERATION
+          state = UploadHealingOperation.State.DRAINING
+        }
+    }
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
+        rawImpressionUploadModelLine {
+          name = PARENT_NAME
+          cmmsModelLine = MODEL_LINE
+          state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        }
+    }
+
+    createApp(
+        writeGcsObject = { _, _, _ ->
+          doneObjectWritten.set(true)
+          321L
+        }
+      )
+      .runWork(buildMessage(taskParams()))
+
+    assertThat(doneObjectWritten.get()).isTrue()
+    verifyBlocking(rawImpressionUploadModelLinesService) {
+      markRawImpressionUploadModelLineAvailabilitySyncing(any())
+    }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `runWork reuses deferred done object after upload healing completes`() = runBlocking {
+    stubLastOutWithEventDate()
+    stubModelLineList(
+      preMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING),
+      postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING),
+    )
+    rawImpressionUploadsService.stub {
+      onBlocking { getRawImpressionUpload(any()) } doReturn
+        rawImpressionUpload {
+          name = UPLOAD
+          uploadHealingOperation = HEALING_OPERATION
+        }
+    }
+    uploadHealingOperationsService.stub {
+      onBlocking { getUploadHealingOperation(any()) } doReturn
+        uploadHealingOperation {
+          name = HEALING_OPERATION
+          state = UploadHealingOperation.State.COMPLETE
+        }
+    }
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
+        rawImpressionUploadModelLine {
+          name = PARENT_NAME
+          cmmsModelLine = MODEL_LINE
+          state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        }
+    }
+    workItemsService.stub {
+      onBlocking { getWorkItem(any()) } doThrow Status.NOT_FOUND.asRuntimeException()
+      onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+        { invocation ->
+          invocation.getArgument<CreateWorkItemRequest>(0).workItem
+        }
+    }
+
+    createApp(
+        getGcsObjectGeneration = { _, _, _ -> 321L },
+        writeGcsObject = { _, _, _ -> error("existing done object must be reused") },
+      )
+      .runWork(buildMessage(taskParams()))
+
+    val request = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(request.capture()) }
+    assertThat(request.firstValue.workItemId)
+      .isEqualTo(
+        WorkItemIds.forDataAvailabilitySync(
+          VidLabelingTraceAttributes.gcsObjectPathHash(
+            LabeledImpressionsBlobKeys.forDoneUri(
+              "gs://output-bucket/labeled",
+              UPLOAD,
+              MODEL_LINE,
+              LocalDate.of(2026, 6, 30),
+            )
+          ),
+          321L,
+        )
+      )
+  }
+
+  @Test
+  fun `runWork creates deterministic successor for failed availability WorkItem`() = runBlocking {
+    stubLastOutWithEventDate()
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
+        rawImpressionUploadModelLine {
+          name = PARENT_NAME
+          cmmsModelLine = MODEL_LINE
+          state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        }
+    }
+    val failedWorkItem =
+      availabilityWorkItem(UPLOAD, 321L)
+        .toBuilder()
+        .setState(WorkItem.State.FAILED)
+        .setUpdateTime(
+          timestamp {
+            seconds = 7L
+            nanos = 8
+          }
+        )
+        .build()
+    val requests = mutableListOf<CreateWorkItemRequest>()
+    workItemsService.stub {
+      onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+        { invocation ->
+          val request = invocation.getArgument<CreateWorkItemRequest>(0)
+          requests += request
+          if (requests.size == 1) throw Status.ALREADY_EXISTS.asException()
+          request.workItem
+        }
+      onBlocking { getWorkItem(any()) } doReturn failedWorkItem
+    }
+
+    createApp(writeGcsObject = { _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
+
+    val originalId = requests.first().workItemId
+    assertThat(requests.map { it.workItemId })
+      .containsExactly(originalId, RequestIds.forRetriedWorkItem(originalId, "7:8"))
+      .inOrder()
+  }
+
+  @Test
   fun `runWork recovers the missing handoff when another upload date is already durable`() =
     runBlocking {
       val existingDate = LocalDate.of(2026, 6, 29)
@@ -1268,7 +1442,11 @@ class VidLabelerAppTest {
         DONE_OBJECT_CREATE_TIME,
         emptyMap(),
       )
-    return request.workItem.toBuilder().setName("workItems/${request.workItemId}").build()
+    return request.workItem
+      .toBuilder()
+      .setName("workItems/${request.workItemId}")
+      .setState(WorkItem.State.QUEUED)
+      .build()
   }
 
   @Test
@@ -1877,6 +2055,7 @@ class VidLabelerAppTest {
     private const val SIBLING_MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml2"
     private const val PARENT_NAME =
       "dataProviders/edp123/rawImpressionUploads/up1/rawImpressionUploadModelLines/rl1"
+    private const val HEALING_OPERATION = "dataProviders/edp123/uploadHealingOperations/healing-1"
     private const val RANK_BLOB_KEY = "rank-index/snapshot/pool0"
     private val DONE_OBJECT_CREATE_TIME: Instant = Instant.parse("2026-06-30T00:00:00Z")
   }
