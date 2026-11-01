@@ -177,6 +177,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:data_availability_sync_work_items",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:raw_impression_upload_manifest_classifier",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:raw_impression_upload_correction_planner",
