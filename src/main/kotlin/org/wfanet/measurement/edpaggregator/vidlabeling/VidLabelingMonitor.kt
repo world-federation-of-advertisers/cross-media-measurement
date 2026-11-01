@@ -52,8 +52,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
@@ -116,6 +119,8 @@ class VidLabelingMonitor(
   private val rankerJobStub: RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+  private val uploadHealingOperationStub:
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub,
   private val vidLabeledImpressionsBlobPrefix: String,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val clock: Clock = Clock.systemUTC(),
@@ -292,10 +297,15 @@ class VidLabelingMonitor(
     val nowNanos: Long = Timestamps.toNanos(Timestamps.fromMillis(clock.millis()))
     val thresholdNanos: Long = stalenessThreshold.toNanos()
 
-    val stuckUploads: List<String> =
-      (createdUploads + activeUploads)
-        .filter { nowNanos - Timestamps.toNanos(it.createTime) > thresholdNanos }
-        .map { it.name }
+    val staleUploads: List<RawImpressionUpload> =
+      (createdUploads + activeUploads).filter {
+        nowNanos - Timestamps.toNanos(it.createTime) > thresholdNanos
+      }
+    val stuckUploads = buildList {
+      for (upload in staleUploads) {
+        if (!isExpectedHealingDeferral(upload, snapshot)) add(upload.name)
+      }
+    }
     // uploadsStuckGauge is the alerting signal (alert on > 0 over a duration window, which dedupes
     // naturally). Set unconditionally (including 0) so a recovered DataProvider reads back to 0. No
     // per-tick SEVERE log, which would re-page on every Cloud Scheduler tick until manual recovery.
@@ -324,6 +334,39 @@ class VidLabelingMonitor(
     metrics.failedUploadsGauge.set(failedLinesByUpload.size.toLong(), dataProviderAttributes())
 
     return stuckUploads to failedModelLines
+  }
+
+  /** Returns whether [upload] is intentionally parked at the fenced availability handoff. */
+  private suspend fun isExpectedHealingDeferral(
+    upload: RawImpressionUpload,
+    snapshot: RunSnapshot,
+  ): Boolean {
+    val operationName = upload.uploadHealingOperation
+    if (operationName.isEmpty()) return false
+    val nonterminalModelLines =
+      snapshot.modelLines(upload.name).filter {
+        it.state != RawImpressionUploadModelLine.State.COMPLETED &&
+          it.state != RawImpressionUploadModelLine.State.FAILED
+      }
+    if (
+      nonterminalModelLines.isEmpty() ||
+        nonterminalModelLines.any {
+          it.state != RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        }
+    ) {
+      return false
+    }
+    return isUploadHealingActive(operationName)
+  }
+
+  private suspend fun isUploadHealingActive(operationName: String): Boolean {
+    val operation =
+      rpcThrottlers.metadataRead.onReady {
+        uploadHealingOperationStub.getUploadHealingOperation(
+          getUploadHealingOperationRequest { name = operationName }
+        )
+      }
+    return operation.state != UploadHealingOperation.State.COMPLETE
   }
 
   /**
@@ -647,7 +690,7 @@ class VidLabelingMonitor(
             RawImpressionUploadModelLine.State.LABELING ->
               recoverIfAllVidLabelingJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING ->
-              recoverIfAllVidLabelingJobsSucceeded(upload.name, modelLine.cmmsModelLine)
+              recoverAvailabilitySyncing(upload, modelLine.cmmsModelLine)
             else -> RecoveryOutcome.NOOP
           }
         when (outcome) {
@@ -682,6 +725,18 @@ class VidLabelingMonitor(
       exhausted = exhausted,
       unrecoverable = unrecoverable,
     )
+  }
+
+  /** Defers a healing replacement's availability replay until its fence is released. */
+  private suspend fun recoverAvailabilitySyncing(
+    upload: RawImpressionUpload,
+    modelLine: String,
+  ): RecoveryOutcome {
+    val operationName = upload.uploadHealingOperation
+    if (operationName.isNotEmpty() && isUploadHealingActive(operationName)) {
+      return RecoveryOutcome.NOOP
+    }
+    return recoverIfAllVidLabelingJobsSucceeded(upload.name, modelLine)
   }
 
   /** Re-publishes a successful Phase-0 shard when every shard job has succeeded. */
