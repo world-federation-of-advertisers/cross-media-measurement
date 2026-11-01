@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadEvictionFenceRequest
@@ -61,6 +62,48 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
       dataProviderResourceId,
       RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
     )
+  }
+
+  @Test
+  fun `pending availability handoff defers an ordinary upload without a fence`() = runBlocking {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        insertMutation("UploadHealingOperation") {
+          set("DataProviderResourceId").to(TEST_DATA_PROVIDER_ID)
+          set("UploadHealingOperationId").to(EVICTION_OPERATION_ID)
+          set("CreateRequestId").to(UUID.randomUUID().toString())
+          set("Reason").to("test")
+          set("LabeledImpressionsBlobPrefix").to("gs://output/vid")
+          set("BadRawImpressionUploadResourceIds").toStringArray(listOf("bad-upload"))
+          set("CutoffTime").to(com.google.cloud.Timestamp.ofTimeSecondsAndNanos(1L, 0))
+          set("State")
+            .to(
+              UploadHealingOperation.State
+                .UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+                .number
+                .toLong()
+            )
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        }
+      )
+    )
+    val service = SpannerRawImpressionUploadService(spannerDatabase.databaseClient)
+
+    val upload =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = TEST_DATA_PROVIDER_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = "gs://bucket/new/done"
+            doneBlobGeneration = 1L
+            doneBlobCreateTime = com.google.protobuf.timestamp { seconds = 2L }
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    assertThat(upload.processingDeferred).isTrue()
   }
 
   private suspend fun insertAvailabilitySyncingModelLine() {
