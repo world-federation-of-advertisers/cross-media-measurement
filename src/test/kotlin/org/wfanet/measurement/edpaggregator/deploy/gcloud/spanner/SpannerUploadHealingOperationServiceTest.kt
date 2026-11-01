@@ -64,87 +64,126 @@ class SpannerUploadHealingOperationServiceTest {
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
 
   @Test
-  fun `availability-syncing replacement completes the operation and checkpoints are retry safe`() =
-    runBlocking {
-      val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
-      insertUploadGraph(
-        replacementUploadState = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
-        replacementModelLineState =
-          RawImpressionUploadModelLineState
-            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
-      )
-      val createRequest = createRequest(memoized = false)
+  fun `availability-syncing replacement enters pending handoff before completion`() = runBlocking {
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    insertUploadGraph(
+      replacementUploadState = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
+      replacementModelLineState =
+        RawImpressionUploadModelLineState
+          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
+    )
+    val createRequest = createRequest(memoized = false)
 
-      val created = service.createUploadHealingOperation(createRequest)
-      val replayed = service.createUploadHealingOperation(createRequest)
+    val created = service.createUploadHealingOperation(createRequest)
+    val replayed = service.createUploadHealingOperation(createRequest)
 
-      assertThat(created.stepsList.single().state)
-        .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION)
-      assertThat(replayed).isEqualTo(created)
+    assertThat(created.stepsList.single().state)
+      .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION)
+    assertThat(replayed).isEqualTo(created)
 
-      val waitingRequest = advanceUploadHealingStepRequest {
-        dataProviderResourceId = DATA_PROVIDER_ID
-        uploadHealingOperationId = OPERATION_ID
-        uploadHealingStepId = 1L
-        etag = created.stepsList.single().etag
-        action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
-        requestId = WAITING_REQUEST_ID
-      }
-      val waiting = service.advanceUploadHealingStep(waitingRequest)
-      val waitingReplay = service.advanceUploadHealingStep(waitingRequest)
-
-      assertThat(waiting.state)
-        .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT)
-      assertThat(waitingReplay).isEqualTo(waiting)
-      assertThat(waiting.hasEvictionCompleteTime()).isTrue()
-
-      val started =
-        service.advanceUploadHealingStep(
-          advanceUploadHealingStepRequest {
-            dataProviderResourceId = DATA_PROVIDER_ID
-            uploadHealingOperationId = OPERATION_ID
-            uploadHealingStepId = 1L
-            etag = waiting.etag
-            action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
-            recoveryDoneBlobGeneration = RECOVERY_GENERATION
-            requestId = STARTED_REQUEST_ID
-          }
-        )
-
-      assertThat(started.recoveryDoneBlobGeneration).isEqualTo(RECOVERY_GENERATION)
-      assertThat(started.evictionCompleteTime).isEqualTo(waiting.evictionCompleteTime)
-
-      val completeRequest = advanceUploadHealingStepRequest {
-        dataProviderResourceId = DATA_PROVIDER_ID
-        uploadHealingOperationId = OPERATION_ID
-        uploadHealingStepId = 1L
-        etag = started.etag
-        action = AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
-        replacementRawImpressionUploadResourceId = REPLACEMENT_UPLOAD_ID
-        requestId = COMPLETE_REQUEST_ID
-      }
-      val completed = service.advanceUploadHealingStep(completeRequest)
-
-      assertThat(completed.state)
-        .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE)
-      assertThat(completed.replacementRawImpressionUploadResourceId)
-        .isEqualTo(REPLACEMENT_UPLOAD_ID)
-      assertThat(completed.evictionCompleteTime).isEqualTo(waiting.evictionCompleteTime)
-      val completedOperation =
-        service.getUploadHealingOperation(
-          getUploadHealingOperationRequest {
-            dataProviderResourceId = DATA_PROVIDER_ID
-            uploadHealingOperationId = OPERATION_ID
-          }
-        )
-      assertThat(completedOperation.state)
-        .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
-      assertThat(service.advanceUploadHealingStep(completeRequest)).isEqualTo(completed)
-      Unit
+    val waitingRequest = advanceUploadHealingStepRequest {
+      dataProviderResourceId = DATA_PROVIDER_ID
+      uploadHealingOperationId = OPERATION_ID
+      uploadHealingStepId = 1L
+      etag = created.stepsList.single().etag
+      action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+      requestId = WAITING_REQUEST_ID
     }
+    val waiting = service.advanceUploadHealingStep(waitingRequest)
+    val waitingReplay = service.advanceUploadHealingStep(waitingRequest)
+
+    assertThat(waiting.state)
+      .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT)
+    assertThat(waitingReplay).isEqualTo(waiting)
+    assertThat(waiting.hasEvictionCompleteTime()).isTrue()
+
+    val started =
+      service.advanceUploadHealingStep(
+        advanceUploadHealingStepRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          uploadHealingStepId = 1L
+          etag = waiting.etag
+          action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
+          recoveryDoneBlobGeneration = RECOVERY_GENERATION
+          requestId = STARTED_REQUEST_ID
+        }
+      )
+
+    assertThat(started.recoveryDoneBlobGeneration).isEqualTo(RECOVERY_GENERATION)
+    assertThat(started.evictionCompleteTime).isEqualTo(waiting.evictionCompleteTime)
+
+    val completeRequest = advanceUploadHealingStepRequest {
+      dataProviderResourceId = DATA_PROVIDER_ID
+      uploadHealingOperationId = OPERATION_ID
+      uploadHealingStepId = 1L
+      etag = started.etag
+      action = AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
+      replacementRawImpressionUploadResourceId = REPLACEMENT_UPLOAD_ID
+      requestId = COMPLETE_REQUEST_ID
+    }
+    val completed = service.advanceUploadHealingStep(completeRequest)
+
+    assertThat(completed.state)
+      .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE)
+    assertThat(completed.replacementRawImpressionUploadResourceId).isEqualTo(REPLACEMENT_UPLOAD_ID)
+    assertThat(completed.evictionCompleteTime).isEqualTo(waiting.evictionCompleteTime)
+    val pendingOperation =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+    assertThat(pendingOperation.state)
+      .isEqualTo(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+      )
+    assertThat(service.advanceUploadHealingStep(completeRequest)).isEqualTo(completed)
+    val attentionOperation =
+      service.advanceUploadHealingOperation(
+        advanceUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = pendingOperation.etag
+          state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+          requestId = HANDOFF_ATTENTION_REQUEST_ID
+        }
+      )
+    assertThat(attentionOperation.resumeState)
+      .isEqualTo(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+      )
+    val resumedOperation =
+      service.retryUploadHealingOperation(
+        retryUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = attentionOperation.etag
+          requestId = HANDOFF_RETRY_REQUEST_ID
+        }
+      )
+    assertThat(resumedOperation.state)
+      .isEqualTo(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+      )
+    val completeOperationRequest = advanceUploadHealingOperationRequest {
+      dataProviderResourceId = DATA_PROVIDER_ID
+      uploadHealingOperationId = OPERATION_ID
+      etag = resumedOperation.etag
+      state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
+      requestId = HANDOFF_COMPLETE_REQUEST_ID
+    }
+    val completedOperation = service.advanceUploadHealingOperation(completeOperationRequest)
+    assertThat(completedOperation.state)
+      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
+    assertThat(service.advanceUploadHealingOperation(completeOperationRequest))
+      .isEqualTo(completedOperation)
+    Unit
+  }
 
   @Test
-  fun `completion transfers the fence to a pending candidate`() = runBlocking {
+  fun `pending handoff releases rather than transfers the fence`() = runBlocking {
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     insertUploadGraph()
     val operation =
@@ -187,12 +226,20 @@ class SpannerUploadHealingOperationServiceTest {
       spannerDatabase.databaseClient.singleUse().use {
         it.getVidLabelingEvictionFence(DATA_PROVIDER_ID)
       }
-    assertThat(fence!!.evictionOperationId).isEqualTo(CANDIDATE_IDS[1])
-    assertThat(fence.state)
-      .isEqualTo(
-        org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
-          .VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+    assertThat(fence).isNull()
+    val pendingOperation =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
       )
+    assertThat(pendingOperation.state)
+      .isEqualTo(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+      )
+    assertThat(readCorrectionCandidate(CANDIDATE_IDS[1]).state)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING)
   }
 
   @Test
@@ -1745,7 +1792,111 @@ class SpannerUploadHealingOperationServiceTest {
         }
       )
     assertThat(operation.state)
+      .isEqualTo(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+      )
+    val completedOperation =
+      service.advanceUploadHealingOperation(
+        advanceUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = operation.etag
+          state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
+          requestId = HANDOFF_COMPLETE_REQUEST_ID
+        }
+      )
+    assertThat(completedOperation.state)
       .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
+  }
+
+  @Test
+  fun `candidate completes only after pending availability handoff completes`() = runBlocking {
+    insertUploadGraph()
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    var operation =
+      service.createUploadHealingOperation(
+        draftRequest(
+          listOf(CANDIDATE_IDS[0]),
+          listOf(
+            planStep(
+                1L,
+                SOURCE_UPLOAD_ID,
+                action =
+                  RawImpressionUploadModelLineRecoveryAction
+                    .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT,
+                recoveryTarget = false,
+              )
+              .copy { rawImpressionUploadModelLineResourceId = MODEL_LINE_ROW_ID }
+          ),
+        )
+      )
+    operation =
+      service.approveUploadHealingOperation(
+        approveUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = operation.etag
+          candidateDecisions +=
+            approvalDecision(
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
+            )
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    for (state in
+      listOf(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
+      )) {
+      operation =
+        service.advanceUploadHealingOperation(
+          advanceUploadHealingOperationRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            etag = operation.etag
+            this.state = state
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+    }
+    service.advanceUploadHealingStep(
+      advanceUploadHealingStepRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        uploadHealingStepId = 1L
+        etag = operation.stepsList.single().etag
+        action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+    operation =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+
+    assertThat(operation.state)
+      .isEqualTo(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+      )
+    assertThat(readCorrectionCandidate(CANDIDATE_IDS[0]).state)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED)
+
+    service.advanceUploadHealingOperation(
+      advanceUploadHealingOperationRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        etag = operation.etag
+        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+
+    assertThat(readCorrectionCandidate(CANDIDATE_IDS[0]).state)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE)
   }
 
   @Test
@@ -2241,6 +2392,9 @@ class SpannerUploadHealingOperationServiceTest {
     private const val WAITING_REQUEST_ID = "33333333-3333-4333-8333-333333333333"
     private const val COMPLETE_REQUEST_ID = "44444444-4444-4444-8444-444444444444"
     private const val STARTED_REQUEST_ID = "55555555-5555-4555-8555-555555555555"
+    private const val HANDOFF_COMPLETE_REQUEST_ID = "66666666-6666-4666-8666-666666666666"
+    private const val HANDOFF_ATTENTION_REQUEST_ID = "77777777-7777-4777-8777-777777777777"
+    private const val HANDOFF_RETRY_REQUEST_ID = "88888888-8888-4888-8888-888888888888"
     private const val APPROVE_REQUEST_ID = "66666666-6666-4666-8666-666666666666"
     private const val RETRY_REQUEST_ID = "77777777-7777-4777-8777-777777777777"
     private const val RECONCILE_REQUEST_ID = "14141414-1414-4414-8414-141414141414"

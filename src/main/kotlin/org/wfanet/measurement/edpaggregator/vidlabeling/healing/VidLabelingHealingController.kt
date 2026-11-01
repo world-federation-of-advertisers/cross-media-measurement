@@ -24,6 +24,8 @@ import io.grpc.StatusRuntimeException
 import java.io.IOException
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -32,6 +34,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadCorrectionCandidateKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
@@ -68,6 +71,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsR
 import org.wfanet.measurement.edpaggregator.v1alpha.reconcileUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItemPublisher
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifest as InternalLabeledOutputManifest
@@ -93,6 +98,13 @@ fun interface DoneBlobReplayer {
     val cmmsModelLines: List<String>,
     val uploadHealingOperation: String,
   )
+}
+
+data class DoneObjectMetadata(val generation: Long, val createTime: Instant)
+
+/** Reads the immutable identity of one VID-labeling done object. */
+fun interface DoneObjectMetadataReader {
+  suspend fun read(uri: String): DoneObjectMetadata?
 }
 
 /** Receives healing-controller lifecycle events. */
@@ -128,6 +140,15 @@ class VidLabelingHealingController(
   private val manifestReader: CorrectionManifestReader,
   private val doneBlobReplayerFactory: (DataProviderConfig) -> DoneBlobReplayer,
   private val recoveryExecutorFactory: (DataProviderConfig) -> RecoveryExecutor,
+  private val dataAvailabilitySyncWorkItemPublisher: DataAvailabilitySyncWorkItemPublisher =
+    DataAvailabilitySyncWorkItemPublisher(
+      createWorkItem = { error("Data Availability WorkItem publisher is not configured") },
+      getWorkItem = { error("Data Availability WorkItem publisher is not configured") },
+    ),
+  private val doneObjectMetadataReader: DoneObjectMetadataReader = DoneObjectMetadataReader {
+    null
+  },
+  private val traceContextProvider: () -> Map<String, String> = { emptyMap() },
   private val eventSink: VidLabelingHealingControllerEventSink =
     VidLabelingHealingControllerEventSink {},
   private val clock: Clock = Clock.systemUTC(),
@@ -380,6 +401,8 @@ class VidLabelingHealingController(
         UploadHealingOperation.State.EVICTING -> evict(config, active)
         UploadHealingOperation.State.REPLAYING,
         UploadHealingOperation.State.RECOVERING -> advanceRecovery(config, active)
+        UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING ->
+          finalizeAvailabilityHandoff(config, active)
         UploadHealingOperation.State.STATE_UNSPECIFIED,
         UploadHealingOperation.State.APPROVAL_REQUIRED,
         UploadHealingOperation.State.NEEDS_ATTENTION,
@@ -401,6 +424,7 @@ class VidLabelingHealingController(
 
   private suspend fun drain(operation: UploadHealingOperation) {
     val key = requireNotNull(UploadHealingOperationKey.fromName(operation.name))
+    if (hasUnfinishedAvailabilityHandoffs(key.parentKey.toName())) return
     val acquireState =
       VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
     val acquiredFence =
@@ -459,6 +483,29 @@ class VidLabelingHealingController(
       )
     }
     advanceOperation(operation, UploadHealingOperation.State.EVICTING)
+  }
+
+  private suspend fun hasUnfinishedAvailabilityHandoffs(dataProvider: String): Boolean {
+    val completedOperations =
+      listOperations(dataProvider, listOf(UploadHealingOperation.State.COMPLETE))
+    for (completedOperation in completedOperations) {
+      val replacementNames =
+        completedOperation.stepsList
+          .map { it.replacementRawImpressionUpload }
+          .filter { it.isNotEmpty() }
+          .distinct()
+      for (replacementName in replacementNames) {
+        if (
+          listModelLines(replacementName).any {
+            it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING &&
+              it.pendingAvailabilityDatesCount > 0
+          }
+        ) {
+          return true
+        }
+      }
+    }
+    return false
   }
 
   private suspend fun evict(config: DataProviderConfig, initial: UploadHealingOperation) {
@@ -573,6 +620,97 @@ class VidLabelingHealingController(
       operation = getOperation(operation.name)
       group = operation.stepsList.filter { it.name in stepNames }
     }
+  }
+
+  private suspend fun finalizeAvailabilityHandoff(
+    config: DataProviderConfig,
+    operation: UploadHealingOperation,
+  ) {
+    val operationKey = requireNotNull(UploadHealingOperationKey.fromName(operation.name))
+    check(config.labeledImpressionsBlobPrefix == operation.labeledImpressionsBlobPrefix) {
+      "Configured labeled-output prefix does not match the persisted healing operation"
+    }
+    val replacementSteps =
+      operation.stepsList
+        .filter {
+          it.recoveryAction !=
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+        }
+        .filter { it.replacementRawImpressionUpload.isNotEmpty() }
+        .groupBy { it.replacementRawImpressionUpload }
+    val traceContext = traceContextProvider()
+    for ((replacementName, steps) in replacementSteps.toSortedMap()) {
+      val replacement = getUpload(replacementName)
+      check(replacement.uploadHealingOperation == operation.name) {
+        "Replacement $replacementName does not belong to ${operation.name}"
+      }
+      val modelLines = listModelLines(replacementName).associateBy { it.cmmsModelLine }
+      for (step in steps.distinctBy { it.cmmsModelLine }.sortedBy { it.cmmsModelLine }) {
+        val modelLine =
+          checkNotNull(modelLines[step.cmmsModelLine]) {
+            "Replacement $replacementName has no model line ${step.cmmsModelLine}"
+          }
+        when (modelLine.state) {
+          RawImpressionUploadModelLine.State.COMPLETED -> continue
+          RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING -> {
+            check(modelLine.pendingAvailabilityDatesCount > 0) {
+              "${modelLine.name} is AVAILABILITY_SYNCING without pending dates"
+            }
+          }
+          RawImpressionUploadModelLine.State.STATE_UNSPECIFIED,
+          RawImpressionUploadModelLine.State.CREATED,
+          RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+          RawImpressionUploadModelLine.State.RANKING,
+          RawImpressionUploadModelLine.State.LABELING,
+          RawImpressionUploadModelLine.State.FAILED,
+          RawImpressionUploadModelLine.State.UNRECOGNIZED ->
+            error("${modelLine.name} cannot finalize availability from ${modelLine.state}")
+        }
+        val eventDates =
+          modelLine.pendingAvailabilityDatesList
+            .map { date -> LocalDate.of(date.year, date.month, date.day) }
+            .distinct()
+            .sorted()
+        for (eventDate in eventDates) {
+          val doneUri =
+            LabeledImpressionsBlobKeys.forDoneUri(
+              operation.labeledImpressionsBlobPrefix,
+              replacementName,
+              modelLine.cmmsModelLine,
+              eventDate,
+            )
+          val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneUri)
+          val metadata =
+            try {
+              doneObjectMetadataReader.read(doneUri)
+            } catch (e: CancellationException) {
+              throw e
+            } catch (e: Exception) {
+              if (e.isTransient()) throw e
+              error(
+                "Done object metadata read failed for path hash $pathHash: " +
+                  e::class.simpleName.orEmpty()
+              )
+            }
+          checkNotNull(metadata) { "Done object metadata is missing for path hash $pathHash" }
+          check(metadata.generation > 0L) {
+            "Done object path hash $pathHash has no positive generation"
+          }
+          dataAvailabilitySyncWorkItemPublisher.ensure(
+            operationKey.parentKey.toName(),
+            replacementName,
+            modelLine.name,
+            modelLine.cmmsModelLine,
+            eventDate,
+            doneUri,
+            metadata.generation,
+            metadata.createTime,
+            traceContext,
+          )
+        }
+      }
+    }
+    advanceOperation(operation, UploadHealingOperation.State.COMPLETE)
   }
 
   private suspend fun correctionReplay(
@@ -1151,6 +1289,7 @@ class VidLabelingHealingController(
         UploadHealingOperation.State.EVICTING,
         UploadHealingOperation.State.REPLAYING,
         UploadHealingOperation.State.RECOVERING,
+        UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING,
       )
     private val NONTERMINAL_STATES =
       ACTIVE_STATES +
