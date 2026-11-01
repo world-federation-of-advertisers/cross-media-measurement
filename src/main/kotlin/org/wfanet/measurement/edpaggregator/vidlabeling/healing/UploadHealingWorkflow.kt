@@ -233,6 +233,14 @@ class UploadHealingWorkflow(
     }
 
     operation = getOperation(operationName)
+    if (operation.state == UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING) {
+      return Progress(
+        operation,
+        "Healing output is durable. The scheduled controller will publish deferred availability " +
+          "handoffs for ${operation.name}.",
+        evictionResult,
+      )
+    }
     check(operation.state == UploadHealingOperation.State.COMPLETE) {
       "All healing steps are complete but ${operation.name} is still ${operation.state}"
     }
