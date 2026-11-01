@@ -28,6 +28,36 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKey
 
 internal class VidLabelingMonitorIntegrationTest : VidLabelingPipelineTestHarness() {
   @Test
+  fun `health resolves internal done objects beneath the configured output path`() = runBlocking {
+    writeRawFile("nested-health", "input.parquet", listOf("internal-person"))
+    finalizeRawUpload("nested-health")
+    awaitPipelineIdle()
+    val upload = listUploads().single()
+    val internalDoneKey =
+      blobKey(
+        LabeledImpressionsBlobKeys.forDoneUri(
+          outputPrefix,
+          upload.name,
+          DIRECT_MODEL_LINE,
+          EVENT_DATE,
+        )
+      )
+    val externalDoneKey = blobKey("$externalOutputPrefix/model-line/direct/$EVENT_DATE/done")
+    fileStorage.writeBlob(externalDoneKey, flowOf(ByteString.EMPTY))
+
+    val complete = buildVidLabelingMonitor().runHealth()
+
+    assertThat(internalDoneKey).startsWith("$rootKey/output/")
+    assertThat(fileStorage.getBlob(externalDoneKey)).isNotNull()
+    assertThat(complete.missingLabeledOutputs).isEqualTo(0L)
+
+    checkNotNull(fileStorage.getBlob(internalDoneKey)).delete()
+    val missingInternal = buildVidLabelingMonitor().runHealth()
+
+    assertThat(missingInternal.missingLabeledOutputs).isEqualTo(1L)
+  }
+
+  @Test
   fun `raw input monitor classifies findings and resolves a later valid done marker`() =
     runBlocking {
       val registeredInput =
