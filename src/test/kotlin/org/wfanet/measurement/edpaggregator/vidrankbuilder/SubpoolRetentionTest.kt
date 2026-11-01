@@ -24,6 +24,8 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.type.Date
 import com.google.type.date
+import io.grpc.Status
+import io.grpc.StatusException
 import java.io.IOException
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
@@ -166,7 +168,7 @@ class SubpoolRetentionTest {
     retention.deleteAgedBlobs(POOL)
 
     verifyBlocking(stub) { deleteRankIndexBlob(any(), any()) }
-    assertThat(rankStore.readBlob("day/old", candidate.encryptedDek).toList()).isEmpty()
+    assertThat(storageClient.getBlob("day/old")).isNull()
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
     assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(1)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
@@ -197,10 +199,7 @@ class SubpoolRetentionTest {
   }
 
   @Test
-  fun `deleteAgedBlobs deletes the row then surfaces a failed bytes delete`() = runBlocking {
-    // The row soft-delete succeeds, but deleting the bytes throws (transient GCS error). Per the
-    // "row first, then bytes" ordering this leaks bytes (no corruption); assert the failure
-    // propagates rather than being silently swallowed, and that the row was deleted first.
+  fun `deleteAgedBlobs leaves metadata eligible when bytes deletion fails`() = runBlocking {
     val throwingBlob: StorageClient.Blob = mock {
       onBlocking { delete() } doAnswer { throw IOException("transient GCS error") }
     }
@@ -232,9 +231,47 @@ class SubpoolRetentionTest {
       )
 
     assertFailsWith<IOException> { retention.deleteAgedBlobs(POOL) }
-    verifyBlocking(stub) {
-      deleteRankIndexBlob(any(), any())
-    } // row removed before the bytes failed
+    verifyBlocking(stub, never()) { deleteRankIndexBlob(any(), any()) }
+  }
+
+  @Test
+  fun `deleteAgedBlobs retries metadata deletion after bytes were removed`() = runBlocking {
+    val candidate = writeBlob("day/metadata-retry")
+    var rowDeleted = false
+    var deleteAttempts = 0
+    val stub: RankIndexBlobServiceCoroutineStub = mock {
+      onBlocking { listRankIndexBlobs(any(), any()) } doAnswer
+        {
+          listRankIndexBlobsResponse { if (!rowDeleted) rankIndexBlobs += candidate }
+        }
+      onBlocking { deleteRankIndexBlob(any(), any()) } doAnswer
+        {
+          deleteAttempts++
+          if (deleteAttempts == 1) throw Status.UNAVAILABLE.asException()
+          rowDeleted = true
+          candidate
+        }
+    }
+    val retention =
+      SubpoolRetention(
+        stub,
+        rankStore,
+        DP,
+        MODEL_LINE,
+        retentionDays = 30,
+        today = TODAY,
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+      )
+
+    assertFailsWith<StatusException> { retention.deleteAgedBlobs(POOL) }
+
+    assertThat(rowDeleted).isFalse()
+    assertThat(storageClient.getBlob("day/metadata-retry")).isNull()
+
+    retention.deleteAgedBlobs(POOL)
+
+    assertThat(rowDeleted).isTrue()
+    assertThat(deleteAttempts).isEqualTo(2)
   }
 
   @Test
@@ -257,7 +294,7 @@ class SubpoolRetentionTest {
     retention.deleteAgedBlobs(POOL)
 
     verifyBlocking(stub) { deleteRankIndexBlob(any(), any()) }
-    assertThat(rankStore.readBlob("day/boundary-delete", candidate.encryptedDek).toList()).isEmpty()
+    assertThat(storageClient.getBlob("day/boundary-delete")).isNull()
   }
 
   @Test
