@@ -197,6 +197,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.ParquetImpressionConverte
 import org.wfanet.measurement.edpaggregator.vidlabeler.PopulationAttributeWriter
 import org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelerApp
 import org.wfanet.measurement.edpaggregator.vidlabeler.VirtualPeopleVidAssigner
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItemPublisher
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
@@ -206,6 +207,8 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitor
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadata
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadataReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcCorrectionCandidateCleaner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcHealingOperationStore
@@ -859,6 +862,20 @@ abstract class VidLabelingPipelineTestHarness(
         }
       },
       recoveryExecutorFactory = { recoverUploader },
+      dataAvailabilitySyncWorkItemPublisher =
+        DataAvailabilitySyncWorkItemPublisher(
+          createWorkItem = { _, request -> workItemsStub.createWorkItem(request) },
+          getWorkItem = { _, name ->
+            workItemsStub.getWorkItem(GetWorkItemRequest.newBuilder().setName(name).build())
+          },
+        ),
+      doneObjectMetadataReader =
+        DoneObjectMetadataReader { uri ->
+          val blob = fileStorage.getBlob(blobKey(uri)) ?: return@DoneObjectMetadataReader null
+          val generation =
+            checkNotNull((blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken).toLong()
+          DoneObjectMetadata(generation, blob.updateTime)
+        },
     )
   }
 
@@ -896,6 +913,7 @@ abstract class VidLabelingPipelineTestHarness(
       vidLabelingJobStub =
         VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(edpaPublicServer.channel),
       workItemsStub = workItemsStub,
+      uploadHealingOperationStub = operationsStub,
       vidLabeledImpressionsBlobPrefix = SelectedStorageClient.parseBlobUri(outputPrefix).key,
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
@@ -1264,6 +1282,8 @@ abstract class VidLabelingPipelineTestHarness(
           rawImpressionUploadModelLinesStub = modelLineRowsStub,
           rankIndexBlobsStub = rankIndexBlobsStub,
           rawImpressionUploadFilesStub = filesStub,
+          rawImpressionUploadsStub = uploadsStub,
+          uploadHealingOperationsStub = operationsStub,
           buildParquetStorageClient = rawParquetClient,
           buildVidRankMapStorageClient = { mapStorage },
           loadAssigner = { _, uri ->
