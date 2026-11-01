@@ -947,7 +947,7 @@ class VidLabelingHealingControllerTest {
       val createRequests = mutableListOf<CreateWorkItemRequest>()
       val publisher =
         DataAvailabilitySyncWorkItemPublisher(
-          createWorkItem = { request ->
+          createWorkItem = { _, request ->
             createRequests += request
             request.workItem
               .toBuilder()
@@ -956,7 +956,7 @@ class VidLabelingHealingControllerTest {
               .setGeneration(1)
               .build()
           },
-          getWorkItem = { error("unexpected get") },
+          getWorkItem = { _, _ -> error("unexpected get") },
         )
       whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
         val states =
@@ -1102,7 +1102,7 @@ class VidLabelingHealingControllerTest {
       val createRequests = mutableListOf<CreateWorkItemRequest>()
       val publisher =
         DataAvailabilitySyncWorkItemPublisher(
-          createWorkItem = { request ->
+          createWorkItem = { _, request ->
             createRequests += request
             request.workItem
               .toBuilder()
@@ -1111,7 +1111,7 @@ class VidLabelingHealingControllerTest {
               .setGeneration(1)
               .build()
           },
-          getWorkItem = { error("unexpected get") },
+          getWorkItem = { _, _ -> error("unexpected get") },
         )
       whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
         val states =
@@ -1226,7 +1226,7 @@ class VidLabelingHealingControllerTest {
     var createAttempts = 0
     val publisher =
       DataAvailabilitySyncWorkItemPublisher(
-        createWorkItem = { request ->
+        createWorkItem = { _, request ->
           createAttempts++
           if (createAttempts == 1) throw Status.UNAVAILABLE.asException()
           val name = "workItems/${request.workItemId}"
@@ -1241,7 +1241,7 @@ class VidLabelingHealingControllerTest {
           workItems[name] = workItem
           workItem
         },
-        getWorkItem = { name -> workItems.getValue(name) },
+        getWorkItem = { _, name -> workItems.getValue(name) },
       )
     whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =
@@ -1339,7 +1339,7 @@ class VidLabelingHealingControllerTest {
     var createAttempts = 0
     val publisher =
       DataAvailabilitySyncWorkItemPublisher(
-        createWorkItem = { request ->
+        createWorkItem = { _, request ->
           createAttempts++
           val name = "workItems/${request.workItemId}"
           if (workItems.containsKey(name)) throw Status.ALREADY_EXISTS.asException()
@@ -1357,7 +1357,7 @@ class VidLabelingHealingControllerTest {
           workItems[name] = workItem
           workItem
         },
-        getWorkItem = { name -> workItems.getValue(name) },
+        getWorkItem = { _, name -> workItems.getValue(name) },
       )
     whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =
@@ -1567,8 +1567,8 @@ class VidLabelingHealingControllerTest {
     recoveryExecutor: RecoveryExecutor = RecoveryExecutor { _, _ -> error("unexpected recovery") },
     dataAvailabilitySyncWorkItemPublisher: DataAvailabilitySyncWorkItemPublisher =
       DataAvailabilitySyncWorkItemPublisher(
-        createWorkItem = { error("unexpected availability handoff") },
-        getWorkItem = { error("unexpected availability lookup") },
+        createWorkItem = { _, _ -> error("unexpected availability handoff") },
+        getWorkItem = { _, _ -> error("unexpected availability lookup") },
       ),
     doneObjectMetadataReader: DoneObjectMetadataReader = DoneObjectMetadataReader { null },
     eventSink: VidLabelingHealingControllerEventSink = VidLabelingHealingControllerEventSink {},
