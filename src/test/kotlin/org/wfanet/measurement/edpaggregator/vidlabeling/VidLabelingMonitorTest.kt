@@ -42,6 +42,7 @@ import java.time.ZoneId
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -84,6 +85,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRankerJobFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
@@ -937,6 +942,379 @@ class VidLabelingMonitorTest {
     assertThat(result.recoveredTransitions).isEqualTo(0)
     assertThat(result.unrecoverableRecoveries).isEqualTo(1)
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `health reconciles terminal WorkItem failures for all VID phases`() = runBlocking {
+    val poolUpload = upload("pool-failed", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val rankUpload = upload("rank-failed", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val labelUpload = upload("label-failed", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val secondModelLine = "$MODEL_SUITE/modelLines/ml2"
+    val poolModelLine =
+      modelLine(poolUpload.name, MODEL_LINE, RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+    val rankModelLine =
+      modelLine(rankUpload.name, MODEL_LINE, RawImpressionUploadModelLine.State.RANKING)
+    val labelModelLine =
+      modelLine(labelUpload.name, MODEL_LINE, RawImpressionUploadModelLine.State.LABELING)
+    val secondLabelModelLine =
+      modelLine(labelUpload.name, secondModelLine, RawImpressionUploadModelLine.State.LABELING)
+    stubUploads(active = listOf(poolUpload, rankUpload, labelUpload))
+    stubModelLinesByParent(
+      mapOf(
+        poolUpload.name to listOf(poolModelLine),
+        rankUpload.name to listOf(rankModelLine),
+        labelUpload.name to listOf(labelModelLine, secondLabelModelLine),
+      )
+    )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+
+    val poolJobName = "${poolUpload.name}/poolAssignmentJobs/pj1"
+    whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+      .thenReturn(
+        listPoolAssignmentJobsResponse {
+          poolAssignmentJobs += poolAssignmentJob {
+            name = poolJobName
+            cmmsModelLine = MODEL_LINE
+            shardIndex = 0
+            state = PoolAssignmentJob.State.CREATED
+            etag = "pool-etag"
+          }
+        }
+      )
+    whenever(poolAssignmentJobService.markPoolAssignmentJobFailed(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<MarkPoolAssignmentJobFailedRequest>(0)
+      poolAssignmentJob {
+        name = request.name
+        cmmsModelLine = MODEL_LINE
+        state = PoolAssignmentJob.State.FAILED
+      }
+    }
+
+    val rankJobName = "${rankUpload.name}/rankerJobs/rj1"
+    whenever(rankerJobService.listRankerJobs(any()))
+      .thenReturn(
+        listRankerJobsResponse {
+          rankerJobs += rankerJob {
+            name = rankJobName
+            cmmsModelLine = MODEL_LINE
+            state = RankerJob.State.CREATED
+            etag = "rank-etag"
+          }
+        }
+      )
+    whenever(rankerJobService.markRankerJobFailed(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<MarkRankerJobFailedRequest>(0)
+      rankerJob {
+        name = request.name
+        cmmsModelLine = MODEL_LINE
+        state = RankerJob.State.FAILED
+      }
+    }
+
+    val labelJobName = "${labelUpload.name}/vidLabelingJobs/vj1"
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(
+        listVidLabelingJobsResponse {
+          vidLabelingJobs += vidLabelingJob {
+            name = labelJobName
+            cmmsModelLines += listOf(MODEL_LINE, secondModelLine)
+            state = VidLabelingJob.State.CREATED
+            etag = "label-etag"
+          }
+        }
+      )
+    whenever(vidLabelingJobService.markVidLabelingJobFailed(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<MarkVidLabelingJobFailedRequest>(0)
+      vidLabelingJob {
+        name = request.name
+        cmmsModelLines += listOf(MODEL_LINE, secondModelLine)
+        state = VidLabelingJob.State.FAILED
+      }
+    }
+
+    val failedWorkItemNames =
+      setOf(
+        "workItems/${WorkItemIds.forSubpoolAssigner(poolUpload.name, MODEL_LINE, 0)}",
+        "workItems/${WorkItemIds.forVidRankBuilder(rankJobName)}",
+        "workItems/${WorkItemIds.forVidLabeler(labelJobName)}",
+      )
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      check(request.name in failedWorkItemNames)
+      workItem {
+        name = request.name
+        state = WorkItem.State.FAILED
+        generation = 1L
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineFailed(any()))
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<MarkRawImpressionUploadModelLineFailedRequest>(0)
+        rawImpressionUploadModelLine {
+          name = request.name
+          state = RawImpressionUploadModelLine.State.FAILED
+          failureReason = request.failureReason
+        }
+      }
+
+    val result = createMonitor().runHealth()
+
+    verifyBlocking(poolAssignmentJobService) { markPoolAssignmentJobFailed(any()) }
+    verifyBlocking(rankerJobService) { markRankerJobFailed(any()) }
+    verifyBlocking(vidLabelingJobService) { markVidLabelingJobFailed(any()) }
+    val failedModelLines = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
+    verifyBlocking(rawImpressionUploadModelLineService, times(4)) {
+      markRawImpressionUploadModelLineFailed(failedModelLines.capture())
+    }
+    assertThat(failedModelLines.allValues.map { it.name })
+      .containsExactly(
+        poolModelLine.name,
+        rankModelLine.name,
+        labelModelLine.name,
+        secondLabelModelLine.name,
+      )
+    assertThat(failedModelLines.allValues.map { it.failureReason }.distinct())
+      .containsExactly(RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE)
+    assertThat(result.failedModelLines)
+      .containsAtLeast(
+        poolModelLine.name,
+        rankModelLine.name,
+        labelModelLine.name,
+        secondLabelModelLine.name,
+      )
+    Unit
+  }
+
+  @Test
+  fun `health resumes Phase 2 failure reconciliation after a partial write`() = runBlocking {
+    val uploadName = "$DATA_PROVIDER/rawImpressionUploads/label-partial"
+    val secondModelLine = "$MODEL_SUITE/modelLines/ml2"
+    val firstModelLineName = "$uploadName/modelLines/ml1"
+    val secondModelLineName = "$uploadName/modelLines/ml2"
+    var uploadState = RawImpressionUpload.State.ACTIVE
+    val modelLineStates =
+      mutableMapOf(
+        MODEL_LINE to RawImpressionUploadModelLine.State.LABELING,
+        secondModelLine to RawImpressionUploadModelLine.State.LABELING,
+      )
+    var jobState = VidLabelingJob.State.CREATED
+    var failSecondModelLine = true
+    var workItemReads = 0
+
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer {
+      listRawImpressionUploadsResponse {
+        rawImpressionUploads += rawImpressionUpload {
+          name = uploadName
+          state = uploadState
+          createTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli())
+        }
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenAnswer {
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = firstModelLineName
+            cmmsModelLine = MODEL_LINE
+            state = modelLineStates.getValue(MODEL_LINE)
+            etag = "line-1-etag"
+          }
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = secondModelLineName
+            cmmsModelLine = secondModelLine
+            state = modelLineStates.getValue(secondModelLine)
+            etag = "line-2-etag"
+          }
+        }
+      }
+    whenever(vidLabelingJobService.listVidLabelingJobs(any())).thenAnswer {
+      listVidLabelingJobsResponse {
+        vidLabelingJobs += vidLabelingJob {
+          name = "$uploadName/vidLabelingJobs/vj1"
+          cmmsModelLines += listOf(MODEL_LINE, secondModelLine)
+          state = jobState
+          etag = "job-etag"
+          if (jobState == VidLabelingJob.State.FAILED) {
+            errorMessage = "terminal WorkItem failure"
+          }
+        }
+      }
+    }
+    whenever(vidLabelingJobService.markVidLabelingJobFailed(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<MarkVidLabelingJobFailedRequest>(0)
+      jobState = VidLabelingJob.State.FAILED
+      vidLabelingJob {
+        name = request.name
+        cmmsModelLines += listOf(MODEL_LINE, secondModelLine)
+        state = jobState
+        errorMessage = request.errorMessage
+      }
+    }
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      workItemReads++
+      workItem {
+        name = request.name
+        state = WorkItem.State.FAILED
+        generation = 1L
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineFailed(any()))
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<MarkRawImpressionUploadModelLineFailedRequest>(0)
+        if (request.name == secondModelLineName && failSecondModelLine) {
+          failSecondModelLine = false
+          throw Status.UNAVAILABLE.asRuntimeException()
+        }
+        val cmmsModelLine = if (request.name == firstModelLineName) MODEL_LINE else secondModelLine
+        modelLineStates[cmmsModelLine] = RawImpressionUploadModelLine.State.FAILED
+        uploadState = RawImpressionUpload.State.FAILED
+        rawImpressionUploadModelLine {
+          name = request.name
+          this.cmmsModelLine = cmmsModelLine
+          state = RawImpressionUploadModelLine.State.FAILED
+          failureReason = request.failureReason
+        }
+      }
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+
+    assertFailsWith<IllegalStateException> { createMonitor().runHealth() }
+
+    assertThat(jobState).isEqualTo(VidLabelingJob.State.FAILED)
+    assertThat(modelLineStates.getValue(MODEL_LINE))
+      .isEqualTo(RawImpressionUploadModelLine.State.FAILED)
+    assertThat(modelLineStates.getValue(secondModelLine))
+      .isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+
+    val result = createMonitor().runHealth()
+
+    assertThat(modelLineStates.getValue(secondModelLine))
+      .isEqualTo(RawImpressionUploadModelLine.State.FAILED)
+    assertThat(result.failedModelLines).containsAtLeast(firstModelLineName, secondModelLineName)
+    assertThat(workItemReads).isEqualTo(1)
+    verifyBlocking(vidLabelingJobService, times(1)) { markVidLabelingJobFailed(any()) }
+  }
+
+  @Test
+  fun `health preserves an active operator retry for a failed phase job`() = runBlocking {
+    val uploadName = "$DATA_PROVIDER/rawImpressionUploads/rank-retry"
+    val failureAttemptId = "work-item-attempt-1"
+    val rankJobName = "$uploadName/rankerJobs/rj1"
+    val originalWorkItemId = WorkItemIds.forVidRankBuilder(rankJobName)
+    val retryWorkItemId = RequestIds.forRetriedWorkItem(originalWorkItemId, failureAttemptId)
+    stubUploads(active = listOf(upload("rank-retry", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "$uploadName/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.RANKING
+        this.failureAttemptId = failureAttemptId
+        etag = "line-etag"
+      }
+    )
+    whenever(rankerJobService.listRankerJobs(any()))
+      .thenReturn(
+        listRankerJobsResponse {
+          rankerJobs += rankerJob {
+            name = rankJobName
+            cmmsModelLine = MODEL_LINE
+            state = RankerJob.State.FAILED
+            errorMessage = "original failure"
+          }
+          totalSize = 1
+        }
+      )
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      check(request.name == "workItems/$retryWorkItemId")
+      workItem {
+        name = request.name
+        state = WorkItem.State.QUEUED
+        generation = 1L
+      }
+    }
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+
+    val result = createMonitor().runHealth()
+
+    verifyBlocking(rankerJobService, never()) { markRankerJobFailed(any()) }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLineFailed(any())
+    }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    assertThat(result.failedModelLines).isEmpty()
+  }
+
+  @Test
+  fun `health does not apply an earlier phase retry id to a new terminal failure`() = runBlocking {
+    val uploadName = "$DATA_PROVIDER/rawImpressionUploads/rank-new-failure"
+    val rankJobName = "$uploadName/rankerJobs/rj1"
+    val originalWorkItemId = WorkItemIds.forVidRankBuilder(rankJobName)
+    val modelLineName = "$uploadName/modelLines/ml1"
+    stubUploads(
+      active = listOf(upload("rank-new-failure", RawImpressionUpload.State.ACTIVE, FIXED_NOW))
+    )
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = modelLineName
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.RANKING
+        failureAttemptId = "earlier-phase-attempt"
+        etag = "line-etag"
+      }
+    )
+    whenever(rankerJobService.listRankerJobs(any()))
+      .thenReturn(
+        listRankerJobsResponse {
+          rankerJobs += rankerJob {
+            name = rankJobName
+            cmmsModelLine = MODEL_LINE
+            state = RankerJob.State.CREATED
+            etag = "rank-etag"
+          }
+          totalSize = 1
+        }
+      )
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      check(request.name == "workItems/$originalWorkItemId")
+      workItem {
+        name = request.name
+        state = WorkItem.State.FAILED
+        generation = 1L
+      }
+    }
+    whenever(rankerJobService.markRankerJobFailed(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<MarkRankerJobFailedRequest>(0)
+      rankerJob {
+        name = request.name
+        cmmsModelLine = MODEL_LINE
+        state = RankerJob.State.FAILED
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineFailed(any()))
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<MarkRawImpressionUploadModelLineFailedRequest>(0)
+        rawImpressionUploadModelLine {
+          name = request.name
+          cmmsModelLine = MODEL_LINE
+          state = RawImpressionUploadModelLine.State.FAILED
+          failureReason = request.failureReason
+        }
+      }
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+
+    val result = createMonitor().runHealth()
+
+    verifyBlocking(rankerJobService) { markRankerJobFailed(any()) }
+    verifyBlocking(rawImpressionUploadModelLineService) {
+      markRawImpressionUploadModelLineFailed(any())
+    }
+    assertThat(result.failedModelLines).contains(modelLineName)
   }
 
   @Test
@@ -1817,7 +2195,7 @@ class VidLabelingMonitorTest {
       assertThat(recoverySpan.attributes.get(VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME))
         .isEqualTo("workItems/$originalWorkItem-monitor-recovery-1")
       assertThat(recoverySpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("recovered")
-      verifyBlocking(poolAssignmentJobService, times(2)) { listPoolAssignmentJobs(any()) }
+      verifyBlocking(poolAssignmentJobService, times(4)) { listPoolAssignmentJobs(any()) }
     }
 
   @Test
@@ -1854,7 +2232,7 @@ class VidLabelingMonitorTest {
     val result = createMonitor().runHealth()
 
     assertThat(result.recoveredTransitions).isEqualTo(0)
-    verifyBlocking(workItemsService, never()) { getWorkItem(any()) }
+    verifyBlocking(workItemsService) { getWorkItem(any()) }
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
@@ -1902,7 +2280,7 @@ class VidLabelingMonitorTest {
     // C3: a successful recovery is not an issue; only exhausted recovery is.
     assertThat(result.hasIssues).isFalse()
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(7)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(8)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(0)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
   }
