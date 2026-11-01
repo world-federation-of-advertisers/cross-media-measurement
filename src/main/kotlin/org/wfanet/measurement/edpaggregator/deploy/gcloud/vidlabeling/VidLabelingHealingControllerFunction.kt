@@ -28,7 +28,9 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.time.Duration
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
@@ -37,6 +39,7 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
@@ -44,15 +47,19 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItemPublisher
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManifestReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadata
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadataReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUploadCorrectionPlanner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingControllerEventSink
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 
@@ -131,7 +138,7 @@ class VidLabelingHealingControllerFunction(
       val candidates = RawImpressionUploadCorrectionCandidateServiceCoroutineStub(rawChannel)
       val operations = UploadHealingOperationServiceCoroutineStub(rawChannel)
       val labeledOutputStore = GcsLabeledOutputStore(storage)
-      val watchers =
+      val workItemsClients =
         vidLabelingConfigs.associate { config ->
           val controlPlaneChannel =
             VidLabelingFunctionHelpers.createInstrumentedChannel(
@@ -140,11 +147,11 @@ class VidLabelingHealingControllerFunction(
               controlPlaneCertHost,
               grpcTelemetry,
             )
-          config.dataProvider to
-            DataWatcher(
-              WorkItemsCoroutineStub(controlPlaneChannel),
-              dataWatcherConfig.watchedPathsList,
-            )
+          config.dataProvider to WorkItemsCoroutineStub(controlPlaneChannel)
+        }
+      val watchers =
+        workItemsClients.mapValues { (_, workItemsClient) ->
+          DataWatcher(workItemsClient, dataWatcherConfig.watchedPathsList)
         }
       val evictors =
         vidLabelingConfigs.associate { config ->
@@ -190,6 +197,19 @@ class VidLabelingHealingControllerFunction(
           DataWatcherDoneBlobReplayer(watchers.getValue(config.name))
         },
         recoveryExecutorFactory = { recoverUploader },
+        dataAvailabilitySyncWorkItemPublisher =
+          DataAvailabilitySyncWorkItemPublisher(
+            createWorkItem = { dataProvider, request ->
+              workItemsClients.getValue(dataProvider).createWorkItem(request)
+            },
+            getWorkItem = { dataProvider, name ->
+              workItemsClients
+                .getValue(dataProvider)
+                .getWorkItem(getWorkItemRequest { this.name = name })
+            },
+          ),
+        doneObjectMetadataReader = GcsDoneObjectMetadataReader(storage),
+        traceContextProvider = Tracing::currentW3CTraceContext,
         eventSink = HealingMetrics(),
       )
     }
@@ -198,6 +218,22 @@ class VidLabelingHealingControllerFunction(
       require(config.vidLabeledImpressionsStorageParams.hasGcs())
       return "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}/" +
         config.edpImpressionPath.trim('/')
+    }
+  }
+}
+
+internal class GcsDoneObjectMetadataReader(private val storage: Storage) :
+  DoneObjectMetadataReader {
+  override suspend fun read(uri: String): DoneObjectMetadata? {
+    val parsed = GcsUri.parse(uri)
+    return withContext(Dispatchers.IO) {
+      storage.get(BlobId.of(parsed.bucket, parsed.key))?.let { blob ->
+        DoneObjectMetadata(
+          blob.generation,
+          checkNotNull(blob.createTimeOffsetDateTime) { "Done object metadata has no create time" }
+            .toInstant(),
+        )
+      }
     }
   }
 }
