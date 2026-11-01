@@ -58,6 +58,9 @@ message UploadHealingOperation {
     RECOVERING = 8;
     // The plan cannot progress without operator intervention.
     NEEDS_ATTENTION = 9;
+    // Replacement labeling is durable and deferred Data Availability WorkItems
+    // still need to be scheduled after the eviction fence is released.
+    AVAILABILITY_HANDOFF_PENDING = 10;
   }
 
   // Resource name.

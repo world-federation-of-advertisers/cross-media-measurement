@@ -74,6 +74,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItemPublisher
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.gcs.GcsStorageRetryConfig
@@ -82,7 +83,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
@@ -205,6 +205,17 @@ class VidLabelerApp(
   // shared instance.
   private val memoizedRankIndexCache: MemoizedRankIndexCache = MemoizedRankIndexCache(),
   private val metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
+  private val dataAvailabilitySyncWorkItemPublisher: DataAvailabilitySyncWorkItemPublisher =
+    DataAvailabilitySyncWorkItemPublisher(
+      createWorkItem = { request ->
+        rpcThrottlers.controlPlane.onReady { workItemsClient.createWorkItem(request) }
+      },
+      getWorkItem = { name ->
+        rpcThrottlers.controlPlane.onReady {
+          workItemsClient.getWorkItem(getWorkItemRequest { this.name = name })
+        }
+      },
+    ),
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -1426,9 +1437,8 @@ class VidLabelerApp(
   ) {
     val generation = doneObject.generation
     val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneObject.uri)
-    val traceContext = Tracing.currentW3CTraceContext()
-    var request =
-      DataAvailabilitySyncWorkItems.createRequest(
+    val result =
+      dataAvailabilitySyncWorkItemPublisher.ensure(
         dataProvider,
         rawImpressionUpload,
         rawImpressionUploadModelLine,
@@ -1437,102 +1447,8 @@ class VidLabelerApp(
         doneObject.uri,
         generation,
         doneObject.createTime,
-        traceContext,
-      )
-    var workItemName = "workItems/${request.workItemId}"
-    var outcome = ""
-    createLoop@ while (true) {
-      try {
-        rpcThrottlers.controlPlane.onReady { workItemsClient.createWorkItem(request) }
-        outcome = "created"
-        break@createLoop
-      } catch (e: CancellationException) {
-        throw e
-      } catch (e: StatusException) {
-        if (e.status.code == Status.Code.ALREADY_EXISTS) {
-          val existing =
-            try {
-              rpcThrottlers.controlPlane.onReady {
-                workItemsClient.getWorkItem(getWorkItemRequest { name = workItemName })
-              }
-            } catch (validationError: Exception) {
-              logAvailabilityWorkItemFailure(
-                params,
-                dataProvider,
-                rawImpressionUpload,
-                modelLine,
-                pathHash,
-                generation,
-                workItemName,
-                validationError,
-              )
-              throw validationError
-            }
-          if (!DataAvailabilitySyncWorkItems.hasSameIdentity(existing, request)) {
-            val validationError =
-              IllegalStateException(
-                "Existing WorkItem $workItemName does not match the current availability handoff"
-              )
-            logAvailabilityWorkItemFailure(
-              params,
-              dataProvider,
-              rawImpressionUpload,
-              modelLine,
-              pathHash,
-              generation,
-              workItemName,
-              validationError,
-            )
-            throw validationError
-          }
-          when (existing.state) {
-            WorkItem.State.QUEUED,
-            WorkItem.State.RUNNING,
-            WorkItem.State.SUCCEEDED -> {
-              outcome = "already_exists"
-              break@createLoop
-            }
-            WorkItem.State.FAILED -> {
-              val failureVersion = "${existing.updateTime.seconds}:${existing.updateTime.nanos}"
-              request =
-                request.copy {
-                  workItemId = RequestIds.forRetriedWorkItem(request.workItemId, failureVersion)
-                }
-              workItemName = "workItems/${request.workItemId}"
-            }
-            WorkItem.State.STATE_UNSPECIFIED,
-            WorkItem.State.UNRECOGNIZED -> {
-              val validationError =
-                IllegalStateException(
-                  "Existing WorkItem $workItemName has invalid state ${existing.state}"
-                )
-              logAvailabilityWorkItemFailure(
-                params,
-                dataProvider,
-                rawImpressionUpload,
-                modelLine,
-                pathHash,
-                generation,
-                workItemName,
-                validationError,
-              )
-              throw validationError
-            }
-          }
-        } else {
-          logAvailabilityWorkItemFailure(
-            params,
-            dataProvider,
-            rawImpressionUpload,
-            modelLine,
-            pathHash,
-            generation,
-            workItemName,
-            e,
-          )
-          throw e
-        }
-      } catch (e: Exception) {
+        Tracing.currentW3CTraceContext(),
+      ) { workItemName, error ->
         logAvailabilityWorkItemFailure(
           params,
           dataProvider,
@@ -1541,11 +1457,11 @@ class VidLabelerApp(
           pathHash,
           generation,
           workItemName,
-          e,
+          error,
         )
-        throw e
       }
-    }
+    val workItemName = result.workItemName
+    val outcome = result.outcome
     Span.current()
       .addEvent(
         "edpa.data_availability_sync_work_item.create",
