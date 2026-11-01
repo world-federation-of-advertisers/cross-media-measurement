@@ -92,6 +92,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
@@ -109,6 +111,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
@@ -153,6 +156,9 @@ class VidLabelingMonitorTest {
     mockService()
   private val rankerJobService: RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase =
     mockService()
+  private val uploadHealingOperationService:
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase =
+    mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -166,6 +172,7 @@ class VidLabelingMonitorTest {
     addService(rawImpressionUploadFileService)
     addService(vidLabelingJobService)
     addService(rankerJobService)
+    addService(uploadHealingOperationService)
   }
 
   private val rawImpressionUploadStub by lazy {
@@ -203,6 +210,11 @@ class VidLabelingMonitorTest {
   }
   private val rankerJobStub by lazy {
     RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val uploadHealingOperationStub by lazy {
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
   }
   private val rawImpressionsStorageClient = InMemoryStorageClient()
   private val vidLabeledImpressionsStorageClient = InMemoryStorageClient()
@@ -309,6 +321,7 @@ class VidLabelingMonitorTest {
       rankerJobStub = rankerJobStub,
       vidLabelingJobStub = vidLabelingJobStub,
       workItemsStub = workItemsStub,
+      uploadHealingOperationStub = uploadHealingOperationStub,
       vidLabeledImpressionsBlobPrefix = VID_LABELED_IMPRESSIONS_PREFIX,
       rpcThrottlers = rpcThrottlers,
       clock = fixedClock,
@@ -646,6 +659,91 @@ class VidLabelingMonitorTest {
       assertThat(createCaptor.firstValue.workItemId)
         .isEqualTo("$VID_LABELER_WORK_ITEM-monitor-recovery-1")
       assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/labeler")
+    }
+
+  @Test
+  fun `health defers stale healing availability handoff while operation is active`() = runBlocking {
+    val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing-1"
+    val upload =
+      upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(25)))
+        .copy { uploadHealingOperation = operationName }
+    val modelLine = rawImpressionUploadModelLine {
+      name = "${upload.name}/modelLines/ml1"
+      cmmsModelLine = MODEL_LINE
+      state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      updateTime = Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(25)).toEpochMilli())
+      etag = "etag-1"
+    }
+    stubUploads(active = listOf(upload))
+    stubModelLines(modelLine)
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+    whenever(uploadHealingOperationService.getUploadHealingOperation(any()))
+      .thenReturn(
+        uploadHealingOperation {
+          name = operationName
+          state = UploadHealingOperation.State.DRAINING
+        }
+      )
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.stuckUploads).isEmpty()
+    assertThat(result.hasIssues).isFalse()
+    assertThat(collectMetrics().gaugeValue(UPLOADS_STUCK_METRIC)).isEqualTo(0)
+    verifyBlocking(vidLabelingJobService, never()) { listVidLabelingJobs(any()) }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `health replays stale healing availability handoff after operation completes`() =
+    runBlocking {
+      val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing-1"
+      val upload =
+        upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(25)))
+          .copy { uploadHealingOperation = operationName }
+      val modelLine = rawImpressionUploadModelLine {
+        name = "${upload.name}/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        updateTime = Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(25)).toEpochMilli())
+        etag = "etag-1"
+      }
+      stubUploads(active = listOf(upload))
+      stubModelLines(modelLine)
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+      whenever(uploadHealingOperationService.getUploadHealingOperation(any()))
+        .thenReturn(
+          uploadHealingOperation {
+            name = operationName
+            state = UploadHealingOperation.State.COMPLETE
+          }
+        )
+      whenever(vidLabelingJobService.listVidLabelingJobs(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<ListVidLabelingJobsRequest>(0)
+        listVidLabelingJobsResponse {
+          if (request.filter.state == VidLabelingJob.State.SUCCEEDED) {
+            vidLabelingJobs += vidLabelingJob {
+              name = VID_LABELING_JOB_NAME
+              cmmsModelLines += MODEL_LINE
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+          }
+        }
+      }
+      whenever(workItemsService.getWorkItem(any()))
+        .thenReturn(workItem { queue = "queues/labeler" })
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+
+      val result = createMonitor().runHealth()
+
+      assertThat(result.recoveredTransitions).isEqualTo(1)
+      val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
+      assertThat(createCaptor.firstValue.workItemId)
+        .isEqualTo("$VID_LABELER_WORK_ITEM-monitor-recovery-1")
     }
 
   @Test
