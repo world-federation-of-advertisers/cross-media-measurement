@@ -844,7 +844,15 @@ class VidLabelingMonitor(
       for (modelLine in completedModelLines) {
         for (eventDate in eventDates) {
           val doneKey =
-            LabeledImpressionsBlobKeys.forDone(upload.name, modelLine.cmmsModelLine, eventDate)
+            SelectedStorageClient.parseBlobUri(
+                LabeledImpressionsBlobKeys.forDoneUri(
+                  vidLabeledImpressionsBlobPrefix,
+                  upload.name,
+                  modelLine.cmmsModelLine,
+                  eventDate,
+                )
+              )
+              .key
           if (vidLabeledImpressionsStorageClient.getBlob(doneKey) == null) {
             missing++
           }
