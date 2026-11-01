@@ -63,7 +63,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.getPoolAssignmentJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRankerJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadCorrectionCandidatesRequest
@@ -71,6 +75,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobFailedRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -298,6 +306,7 @@ class VidLabelingMonitor(
 
   private suspend fun runHealthInternal(): HealthResult {
     val snapshot = RunSnapshot(listAllUploads().groupBy { it.state })
+    reconcileTerminalWorkItemFailures(snapshot)
     val (stuckUploads, failedModelLines) = checkFailuresAndStaleness(snapshot)
     val recovery = recoverStuckPhases(snapshot)
     val dataQuality = checkDataQuality(snapshot)
@@ -443,6 +452,12 @@ class VidLabelingMonitor(
     /** [uploadName]'s model lines, listed once per tick and memoized. */
     suspend fun modelLines(uploadName: String): List<RawImpressionUploadModelLine> =
       modelLinesByUpload.getOrPut(uploadName) { listUploadModelLines(uploadName) }
+
+    fun replaceModelLine(uploadName: String, modelLine: RawImpressionUploadModelLine) {
+      val current = checkNotNull(modelLinesByUpload[uploadName])
+      modelLinesByUpload[uploadName] =
+        current.map { if (it.name == modelLine.name) modelLine else it }
+    }
   }
 
   /**
@@ -865,6 +880,335 @@ class VidLabelingMonitor(
     }
     return missing
   }
+
+  /** Reconciles terminal WorkItem failures into their workload-owned pipeline resources. */
+  private suspend fun reconcileTerminalWorkItemFailures(snapshot: RunSnapshot) {
+    val uploads =
+      snapshot.uploads(RawImpressionUpload.State.ACTIVE) +
+        snapshot.uploads(RawImpressionUpload.State.FAILED)
+    for (upload in uploads) {
+      val modelLines = snapshot.modelLines(upload.name)
+      for (modelLine in modelLines) {
+        val errorMessage =
+          when (modelLine.state) {
+            RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+              reconcilePoolAssignmentFailures(upload.name, modelLine)
+            RawImpressionUploadModelLine.State.RANKING ->
+              reconcileRankerFailures(upload.name, modelLine)
+            else -> null
+          }
+        if (errorMessage != null) {
+          markModelLineFailed(modelLine, errorMessage)?.let {
+            snapshot.replaceModelLine(upload.name, it)
+          }
+        }
+      }
+      reconcileVidLabelingFailures(upload.name, modelLines, snapshot)
+    }
+  }
+
+  private suspend fun reconcilePoolAssignmentFailures(
+    uploadName: String,
+    modelLine: RawImpressionUploadModelLine,
+  ): String? {
+    var errorMessage: String? = null
+    for (job in listPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)) {
+      val workItemId =
+        WorkItemIds.forSubpoolAssigner(uploadName, modelLine.cmmsModelLine, job.shardIndex)
+      when (job.state) {
+        PoolAssignmentJob.State.FAILED -> {
+          if (hasRunnableRetry(workItemId, modelLine.failureAttemptId)) continue
+          errorMessage = job.errorMessage.ifEmpty { "PoolAssignmentJob ${job.name} failed" }
+        }
+        PoolAssignmentJob.State.CREATED -> {
+          if (isWorkItemFailed(workItemId) && markPoolAssignmentJobFailed(job, workItemId)) {
+            errorMessage = terminalWorkItemError(workItemId)
+          }
+        }
+        PoolAssignmentJob.State.SUCCEEDED,
+        PoolAssignmentJob.State.STATE_UNSPECIFIED,
+        PoolAssignmentJob.State.UNRECOGNIZED -> {}
+      }
+    }
+    return errorMessage
+  }
+
+  private suspend fun reconcileRankerFailures(
+    uploadName: String,
+    modelLine: RawImpressionUploadModelLine,
+  ): String? {
+    var errorMessage: String? = null
+    for (job in listRankerJobs(uploadName, modelLine.cmmsModelLine)) {
+      val workItemId = WorkItemIds.forVidRankBuilder(job.name)
+      when (job.state) {
+        RankerJob.State.FAILED -> {
+          if (hasRunnableRetry(workItemId, modelLine.failureAttemptId)) continue
+          errorMessage = job.errorMessage.ifEmpty { "RankerJob ${job.name} failed" }
+        }
+        RankerJob.State.CREATED -> {
+          if (isWorkItemFailed(workItemId) && markRankerJobFailed(job, workItemId)) {
+            errorMessage = terminalWorkItemError(workItemId)
+          }
+        }
+        RankerJob.State.SUCCEEDED,
+        RankerJob.State.STATE_UNSPECIFIED,
+        RankerJob.State.UNRECOGNIZED -> {}
+      }
+    }
+    return errorMessage
+  }
+
+  private suspend fun reconcileVidLabelingFailures(
+    uploadName: String,
+    modelLines: List<RawImpressionUploadModelLine>,
+    snapshot: RunSnapshot,
+  ) {
+    val labelingModelLines =
+      modelLines
+        .filter { it.state == RawImpressionUploadModelLine.State.LABELING }
+        .associateBy { it.cmmsModelLine }
+    if (labelingModelLines.isEmpty()) return
+    for (job in listVidLabelingJobs(uploadName)) {
+      val workItemId = WorkItemIds.forVidLabeler(job.name)
+      val jobModelLines = job.cmmsModelLinesList.mapNotNull(labelingModelLines::get)
+      val errorMessage =
+        when (job.state) {
+          VidLabelingJob.State.FAILED -> {
+            if (jobModelLines.any { hasRunnableRetry(workItemId, it.failureAttemptId) }) continue
+            job.errorMessage.ifEmpty { "VidLabelingJob ${job.name} failed" }
+          }
+          VidLabelingJob.State.CREATED -> {
+            if (!isWorkItemFailed(workItemId) || !markVidLabelingJobFailed(job, workItemId))
+              continue
+            terminalWorkItemError(workItemId)
+          }
+          VidLabelingJob.State.SUCCEEDED,
+          VidLabelingJob.State.STATE_UNSPECIFIED,
+          VidLabelingJob.State.UNRECOGNIZED -> continue
+        }
+      for (modelLine in jobModelLines) {
+        markModelLineFailed(modelLine, errorMessage)?.let {
+          snapshot.replaceModelLine(uploadName, it)
+        }
+      }
+    }
+  }
+
+  private suspend fun isWorkItemFailed(workItemId: String): Boolean {
+    val workItem =
+      try {
+        rpcThrottlers.controlPlane.onReady {
+          workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+        }
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.NOT_FOUND) return false
+        throw IllegalStateException("Unable to read WorkItem workItems/$workItemId", e)
+      }
+    return workItem.state == WorkItem.State.FAILED
+  }
+
+  /** Returns whether an operator retry has runnable or successful WorkItem state. */
+  private suspend fun hasRunnableRetry(
+    originalWorkItemId: String,
+    failureAttemptId: String,
+  ): Boolean {
+    if (failureAttemptId.isEmpty()) return false
+    var retryWorkItemId = RequestIds.forRetriedWorkItem(originalWorkItemId, failureAttemptId)
+    while (true) {
+      val retryWorkItem =
+        try {
+          rpcThrottlers.controlPlane.onReady {
+            workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$retryWorkItemId" })
+          }
+        } catch (e: StatusException) {
+          if (e.status.code == Status.Code.NOT_FOUND) return false
+          throw IllegalStateException("Unable to read retry WorkItem workItems/$retryWorkItemId", e)
+        }
+      when (retryWorkItem.state) {
+        WorkItem.State.QUEUED,
+        WorkItem.State.RUNNING,
+        WorkItem.State.SUCCEEDED -> return true
+        WorkItem.State.FAILED -> {
+          val failureVersion =
+            "${retryWorkItem.updateTime.seconds}:${retryWorkItem.updateTime.nanos}"
+          retryWorkItemId = RequestIds.forRetriedWorkItem(retryWorkItemId, failureVersion)
+        }
+        WorkItem.State.STATE_UNSPECIFIED,
+        WorkItem.State.UNRECOGNIZED ->
+          error("Retry WorkItem workItems/$retryWorkItemId has invalid state")
+      }
+    }
+  }
+
+  private suspend fun markPoolAssignmentJobFailed(
+    job: PoolAssignmentJob,
+    workItemId: String,
+  ): Boolean {
+    try {
+      rpcThrottlers.metadataWrite.onReady {
+        poolAssignmentJobStub.markPoolAssignmentJobFailed(
+          markPoolAssignmentJobFailedRequest {
+            name = job.name
+            etag = job.etag
+            errorMessage = terminalWorkItemError(workItemId)
+            requestId = RequestIds.forMarkPoolAssignmentJobFailed(job.name)
+          }
+        )
+      }
+      return true
+    } catch (e: StatusException) {
+      if (!e.isConcurrentUpdate()) throw IllegalStateException("Unable to fail ${job.name}", e)
+      val current =
+        rpcThrottlers.metadataRead.onReady {
+          poolAssignmentJobStub.getPoolAssignmentJob(
+            getPoolAssignmentJobRequest { name = job.name }
+          )
+        }
+      return when (current.state) {
+        PoolAssignmentJob.State.FAILED -> true
+        PoolAssignmentJob.State.SUCCEEDED -> false
+        PoolAssignmentJob.State.CREATED,
+        PoolAssignmentJob.State.STATE_UNSPECIFIED,
+        PoolAssignmentJob.State.UNRECOGNIZED -> throw e
+      }
+    }
+  }
+
+  private suspend fun markRankerJobFailed(job: RankerJob, workItemId: String): Boolean {
+    try {
+      rpcThrottlers.metadataWrite.onReady {
+        rankerJobStub.markRankerJobFailed(
+          markRankerJobFailedRequest {
+            name = job.name
+            etag = job.etag
+            errorMessage = terminalWorkItemError(workItemId)
+            requestId = RequestIds.forMarkRankerJobFailed(job.name)
+          }
+        )
+      }
+      return true
+    } catch (e: StatusException) {
+      if (!e.isConcurrentUpdate()) throw IllegalStateException("Unable to fail ${job.name}", e)
+      val current =
+        rpcThrottlers.metadataRead.onReady {
+          rankerJobStub.getRankerJob(getRankerJobRequest { name = job.name })
+        }
+      return when (current.state) {
+        RankerJob.State.FAILED -> true
+        RankerJob.State.SUCCEEDED -> false
+        RankerJob.State.CREATED,
+        RankerJob.State.STATE_UNSPECIFIED,
+        RankerJob.State.UNRECOGNIZED -> throw e
+      }
+    }
+  }
+
+  private suspend fun markVidLabelingJobFailed(job: VidLabelingJob, workItemId: String): Boolean {
+    try {
+      rpcThrottlers.metadataWrite.onReady {
+        vidLabelingJobStub.markVidLabelingJobFailed(
+          markVidLabelingJobFailedRequest {
+            name = job.name
+            etag = job.etag
+            errorMessage = terminalWorkItemError(workItemId)
+            requestId = RequestIds.forMarkVidLabelingJobFailed(job.name)
+          }
+        )
+      }
+      return true
+    } catch (e: StatusException) {
+      if (!e.isConcurrentUpdate()) throw IllegalStateException("Unable to fail ${job.name}", e)
+      val current =
+        rpcThrottlers.metadataRead.onReady {
+          vidLabelingJobStub.getVidLabelingJob(getVidLabelingJobRequest { name = job.name })
+        }
+      return when (current.state) {
+        VidLabelingJob.State.FAILED -> true
+        VidLabelingJob.State.SUCCEEDED -> false
+        VidLabelingJob.State.CREATED,
+        VidLabelingJob.State.STATE_UNSPECIFIED,
+        VidLabelingJob.State.UNRECOGNIZED -> throw e
+      }
+    }
+  }
+
+  private suspend fun markModelLineFailed(
+    modelLine: RawImpressionUploadModelLine,
+    errorMessage: String,
+  ): RawImpressionUploadModelLine? {
+    try {
+      return rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLineStub.markRawImpressionUploadModelLineFailed(
+          markRawImpressionUploadModelLineFailedRequest {
+            name = modelLine.name
+            etag = modelLine.etag
+            this.errorMessage = errorMessage
+            failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+            requestId =
+              RequestIds.forMarkRawImpressionUploadModelLineFailed(modelLine.name, modelLine.etag)
+          }
+        )
+      }
+    } catch (e: StatusException) {
+      if (!e.isConcurrentUpdate()) {
+        throw IllegalStateException("Unable to fail ${modelLine.name}", e)
+      }
+      val current =
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionUploadModelLineStub.getRawImpressionUploadModelLine(
+            getRawImpressionUploadModelLineRequest { name = modelLine.name }
+          )
+        }
+      return when {
+        current.state == RawImpressionUploadModelLine.State.FAILED -> current
+        current.state != modelLine.state -> null
+        else -> throw e
+      }
+    }
+  }
+
+  private fun StatusException.isConcurrentUpdate(): Boolean =
+    status.code == Status.Code.ABORTED || status.code == Status.Code.FAILED_PRECONDITION
+
+  private fun terminalWorkItemError(workItemId: String): String =
+    "WorkItem workItems/$workItemId failed terminally"
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private suspend fun listRankerJobs(uploadName: String, modelLine: String): List<RankerJob> =
+    rankerJobStub
+      .listResources { pageToken: String ->
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            rankerJobStub.listRankerJobs(
+              listRankerJobsRequest {
+                parent = uploadName
+                filter = ListRankerJobsRequestKt.filter { cmmsModelLine = modelLine }
+                this.pageToken = pageToken
+              }
+            )
+          }
+        ResourceList(response.rankerJobsList, response.nextPageToken)
+      }
+      .flattenConcat()
+      .toList()
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private suspend fun listVidLabelingJobs(uploadName: String): List<VidLabelingJob> =
+    vidLabelingJobStub
+      .listResources { pageToken: String ->
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            vidLabelingJobStub.listVidLabelingJobs(
+              listVidLabelingJobsRequest {
+                parent = uploadName
+                this.pageToken = pageToken
+              }
+            )
+          }
+        ResourceList(response.vidLabelingJobsList, response.nextPageToken)
+      }
+      .flattenConcat()
+      .toList()
 
   /** Outcome of a single stuck-transition recovery attempt. */
   private enum class RecoveryOutcome {
