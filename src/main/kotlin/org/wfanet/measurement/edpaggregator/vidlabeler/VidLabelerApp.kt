@@ -206,10 +206,10 @@ class VidLabelerApp(
   private val metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
   private val dataAvailabilitySyncWorkItemPublisher: DataAvailabilitySyncWorkItemPublisher =
     DataAvailabilitySyncWorkItemPublisher(
-      createWorkItem = { request ->
+      createWorkItem = { _, request ->
         rpcThrottlers.controlPlane.onReady { workItemsClient.createWorkItem(request) }
       },
-      getWorkItem = { name ->
+      getWorkItem = { _, name ->
         rpcThrottlers.controlPlane.onReady {
           workItemsClient.getWorkItem(getWorkItemRequest { this.name = name })
         }
