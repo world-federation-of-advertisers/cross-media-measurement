@@ -22,6 +22,8 @@ import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.common.truth.Truth.assertThat
+import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -123,6 +125,21 @@ class VidLabelingHealingControllerFunctionTest {
 
     verify(storage).delete(qualified)
     verify(storage, never()).delete(unqualified)
+  }
+
+  @Test
+  fun `done object metadata reader returns exact generation and create time`() = runBlocking {
+    val storage = mock<Storage>()
+    val done = blob("model-line/ml/2026-11-01/done", 42L)
+    val createTime = Instant.parse("2026-11-01T00:00:00Z")
+    whenever(done.createTimeOffsetDateTime).thenReturn(createTime.atOffset(ZoneOffset.UTC))
+    whenever(storage.get(BlobId.of("output", done.name))).thenReturn(done)
+
+    val metadata =
+      GcsDoneObjectMetadataReader(storage).read("gs://output/model-line/ml/2026-11-01/done")
+
+    assertThat(metadata!!.generation).isEqualTo(42L)
+    assertThat(metadata.createTime).isEqualTo(createTime)
   }
 
   @Test
