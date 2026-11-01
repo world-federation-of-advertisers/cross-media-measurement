@@ -53,6 +53,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest

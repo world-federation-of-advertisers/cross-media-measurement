@@ -1020,17 +1020,8 @@ class VidLabelingHealingControllerTest {
       }
       whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
       whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
-        val request =
-          invocation.getArgument<
-            org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
-          >(
-            0
-          )
-        check(
-          request.action ==
-            org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest.Action
-              .CONFIRM_REPLACEMENT
-        )
+        val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
+        check(request.action == UploadHealingStepAction.CONFIRM_REPLACEMENT)
         val completed =
           operation.stepsList.single().copy {
             state = UploadHealingStep.State.COMPLETE
@@ -1045,12 +1036,7 @@ class VidLabelingHealingControllerTest {
         completed
       }
       whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
-        val request =
-          invocation.getArgument<
-            org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-          >(
-            0
-          )
+        val request = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0)
         check(request.state == UploadHealingOperation.State.COMPLETE)
         operation = operation.copy { state = UploadHealingOperation.State.COMPLETE }
         operation
@@ -1506,12 +1492,7 @@ class VidLabelingHealingControllerTest {
     }
     whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
     whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-        >(
-          0
-        )
+      val request = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0)
       check(request.state == UploadHealingOperation.State.NEEDS_ATTENTION)
       operation =
         operation.copy {

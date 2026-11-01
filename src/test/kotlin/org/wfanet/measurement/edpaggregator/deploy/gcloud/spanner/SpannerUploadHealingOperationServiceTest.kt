@@ -1544,14 +1544,14 @@ class SpannerUploadHealingOperationServiceTest {
       }
 
     assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    val operation =
+    val pendingOperation =
       service.getUploadHealingOperation(
         getUploadHealingOperationRequest {
           dataProviderResourceId = DATA_PROVIDER_ID
           uploadHealingOperationId = OPERATION_ID
         }
       )
-    assertThat(operation.stepsList.single().state)
+    assertThat(pendingOperation.stepsList.single().state)
       .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED)
     Unit
   }
@@ -1588,15 +1588,17 @@ class SpannerUploadHealingOperationServiceTest {
     assertThat(completed.state)
       .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE)
     assertThat(completed.replacementRawImpressionUploadResourceId).isEmpty()
-    val operation =
+    val pendingOperation =
       service.getUploadHealingOperation(
         getUploadHealingOperationRequest {
           dataProviderResourceId = DATA_PROVIDER_ID
           uploadHealingOperationId = OPERATION_ID
         }
       )
-    assertThat(operation.state)
-      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
+    assertThat(pendingOperation.state)
+      .isEqualTo(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+      )
   }
 
   @Test
@@ -1662,6 +1664,29 @@ class SpannerUploadHealingOperationServiceTest {
       }
     )
 
+    operation =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+    assertThat(operation.state)
+      .isEqualTo(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+      )
+    assertThat(readCorrectionCandidate(candidateId).state)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED)
+
+    service.advanceUploadHealingOperation(
+      advanceUploadHealingOperationRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        etag = operation.etag
+        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
+        requestId = UUID.randomUUID().toString()
+      }
+    )
     val candidateUpload =
       spannerDatabase.databaseClient.singleUse().use {
         it.getRawImpressionUploadByResourceId(DATA_PROVIDER_ID, "upload-$candidateId")
@@ -1714,11 +1739,25 @@ class SpannerUploadHealingOperationServiceTest {
       }
     )
 
-    val operation =
+    val pendingOperation =
       service.getUploadHealingOperation(
         getUploadHealingOperationRequest {
           dataProviderResourceId = DATA_PROVIDER_ID
           uploadHealingOperationId = OPERATION_ID
+        }
+      )
+    assertThat(pendingOperation.state)
+      .isEqualTo(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+      )
+    val operation =
+      service.advanceUploadHealingOperation(
+        advanceUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = pendingOperation.etag
+          state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
+          requestId = UUID.randomUUID().toString()
         }
       )
     assertThat(operation.state)
@@ -1806,6 +1845,7 @@ class SpannerUploadHealingOperationServiceTest {
           uploadHealingOperation = uploadHealingOperation {
             state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
             reason = "bad source data"
+            labeledImpressionsBlobPrefix = "gs://output/vid"
             rawImpressionUploadCorrectionCandidateIds += CANDIDATE_IDS[0]
             steps += uploadHealingStep {
               uploadHealingStepId = 1L
@@ -1892,6 +1932,7 @@ class SpannerUploadHealingOperationServiceTest {
     uploadHealingOperation = uploadHealingOperation {
       state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
       reason = "bad source data"
+      labeledImpressionsBlobPrefix = "gs://output/vid"
       rawImpressionUploadCorrectionCandidateIds += CANDIDATE_IDS[0]
       steps += uploadHealingStep {
         uploadHealingStepId = 1L
@@ -1970,6 +2011,7 @@ class SpannerUploadHealingOperationServiceTest {
     uploadHealingOperation = uploadHealingOperation {
       state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
       reason = "raw-impression correction"
+      labeledImpressionsBlobPrefix = "gs://output/vid"
       rawImpressionUploadCorrectionCandidateIds += candidateIds
       this.steps += steps
     }
