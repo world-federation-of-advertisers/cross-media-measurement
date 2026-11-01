@@ -764,6 +764,8 @@ private fun UploadHealingOperation.State.toInternal(): InternalOperation.State =
       InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING
     UploadHealingOperation.State.NEEDS_ATTENTION ->
       InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+    UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING ->
+      InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
     UploadHealingOperation.State.COMPLETE ->
       InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
     UploadHealingOperation.State.STATE_UNSPECIFIED,
@@ -838,6 +840,8 @@ private fun InternalOperation.State.toPublic(): UploadHealingOperation.State =
       UploadHealingOperation.State.RECOVERING
     InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION ->
       UploadHealingOperation.State.NEEDS_ATTENTION
+    InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING ->
+      UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
     InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE ->
       UploadHealingOperation.State.COMPLETE
     InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED,
