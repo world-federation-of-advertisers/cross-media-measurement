@@ -66,6 +66,7 @@ class SpannerUploadHealingOperationServiceTest {
 
   @Test
   fun `availability-syncing replacement enters pending handoff before completion`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     insertUploadGraph(
       replacementUploadState = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
@@ -75,8 +76,14 @@ class SpannerUploadHealingOperationServiceTest {
     )
     val createRequest = createRequest(memoized = false)
 
-    val created = service.reconcileUploadHealingOperation(createRequest)
-    val replayed = service.reconcileUploadHealingOperation(createRequest)
+    val created = activateOperation(service, createRequest)
+    val replayed =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
 
     assertThat(created.stepsList.single().state)
       .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION)
@@ -185,33 +192,20 @@ class SpannerUploadHealingOperationServiceTest {
 
   @Test
   fun `pending handoff releases rather than transfers the fence`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     insertUploadGraph()
     val operation =
-      service.reconcileUploadHealingOperation(
-        createRequest(memoized = false, recoveryTarget = false)
+      activateOperation(
+        service,
+        createRequest(
+          memoized = false,
+          recoveryAction =
+            RawImpressionUploadModelLineRecoveryAction
+              .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT,
+          recoveryTarget = false,
+        ),
       )
-    spannerDatabase.databaseClient.write(
-      listOf(
-        Mutation.newInsertBuilder("VidLabelingEvictionFence")
-          .set("DataProviderResourceId")
-          .to(DATA_PROVIDER_ID)
-          .set("EvictionOperationId")
-          .to(OPERATION_ID)
-          .set("Etag")
-          .to("fence-etag")
-          .set("State")
-          .to(
-            Value.protoEnum(
-              org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
-                .VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-            )
-          )
-          .set("CreateTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .build()
-      )
-    )
     insertCorrectionCandidate(CANDIDATE_IDS[1])
 
     service.advanceUploadHealingStep(
@@ -277,6 +271,7 @@ class SpannerUploadHealingOperationServiceTest {
 
   @Test
   fun `legacy null plan format reads as finalized version one`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     service.reconcileUploadHealingOperation(createRequest(memoized = false))
     spannerDatabase.databaseClient.write(
@@ -2103,7 +2098,9 @@ class SpannerUploadHealingOperationServiceTest {
         }
       )
     assertThat(operation.state)
-      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
+      .isEqualTo(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+      )
   }
 
   @Test
@@ -2169,6 +2166,23 @@ class SpannerUploadHealingOperationServiceTest {
       }
     )
 
+    val pendingOperation =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+    service.advanceUploadHealingOperation(
+      advanceUploadHealingOperationRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        etag = pendingOperation.etag
+        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
+        requestId = HANDOFF_COMPLETE_REQUEST_ID
+      }
+    )
+
     val candidateUpload =
       spannerDatabase.databaseClient.singleUse().use {
         it.getRawImpressionUploadByResourceId(DATA_PROVIDER_ID, "upload-$candidateId")
@@ -2229,7 +2243,9 @@ class SpannerUploadHealingOperationServiceTest {
         }
       )
     assertThat(operation.state)
-      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
+      .isEqualTo(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+      )
   }
 
   @Test
@@ -2313,6 +2329,7 @@ class SpannerUploadHealingOperationServiceTest {
           uploadHealingOperation = uploadHealingOperation {
             state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
             reason = "bad source data"
+            labeledImpressionsBlobPrefix = "gs://output/vid"
             rawImpressionUploadCorrectionCandidateIds += CANDIDATE_IDS[0]
             steps += uploadHealingStep {
               uploadHealingStepId = 1L
@@ -2399,6 +2416,7 @@ class SpannerUploadHealingOperationServiceTest {
     uploadHealingOperation = uploadHealingOperation {
       state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
       reason = "bad source data"
+      labeledImpressionsBlobPrefix = "gs://output/vid"
       rawImpressionUploadCorrectionCandidateIds += CANDIDATE_IDS[0]
       steps += uploadHealingStep {
         uploadHealingStepId = 1L
@@ -2477,6 +2495,7 @@ class SpannerUploadHealingOperationServiceTest {
     uploadHealingOperation = uploadHealingOperation {
       state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
       reason = "raw-impression correction"
+      labeledImpressionsBlobPrefix = "gs://output/vid"
       rawImpressionUploadCorrectionCandidateIds += candidateIds
       this.steps += steps
     }
