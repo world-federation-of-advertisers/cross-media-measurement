@@ -155,6 +155,37 @@ class CmmsEventGroupActivityPublisherTest {
   }
 
   @Test
+  fun `publish includes the market date for a legacy interval with equal bounds`() = runBlocking {
+    seedMap(mapping("campaign", "123", "$DATA_PROVIDER/eventGroups/eg1"))
+    val metadata = impressionMetadata {
+      interval = interval {
+        startTime = Timestamps.parse("2026-01-02T08:00:00Z")
+        endTime = startTime
+      }
+      entityKeys += entityKey {
+        entityType = "campaign"
+        entityId = "123"
+      }
+    }
+
+    val published =
+      newPublisher(
+          ZoneId.of("America/Los_Angeles"),
+          EventGroupActivityPublisherMetrics(Instrumentation.meter),
+        )
+        .publish(listOf(metadata))
+
+    assertThat(published).isEqualTo(1)
+    val updateRequest = argumentCaptor<BatchUpdateEventGroupActivitiesRequest>()
+    verifyBlocking(eventGroupActivitiesServiceMock) {
+      batchUpdateEventGroupActivities(updateRequest.capture())
+    }
+    assertThat(updateRequest.firstValue.requestsList.map { it.eventGroupActivity.name })
+      .containsExactly("$DATA_PROVIDER/eventGroups/eg1/eventGroupActivities/2026-01-02")
+    Unit
+  }
+
+  @Test
   fun `publish deduplicates activity across metadata and entity keys`() = runBlocking {
     seedMap(
       mapping("campaign", "123", "$DATA_PROVIDER/eventGroups/eg1"),

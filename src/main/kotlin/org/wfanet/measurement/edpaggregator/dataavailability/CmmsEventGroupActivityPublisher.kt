@@ -39,11 +39,11 @@ import org.wfanet.measurement.storage.StorageClient
 /**
  * Publishes EventGroup activity through the CMMS Public API.
  *
- * Each metadata interval is expanded to the local calendar dates containing either endpoint or any
- * time between them in [marketTimeZone]. Including both endpoint dates intentionally favors
- * over-reporting activity over omitting a potentially active date. All metadata entity keys are
- * joined to EventGroup resource names in the Mesos RecordIO map exposed by
- * [eventGroupMapStorageClient]. Existing historical activity is never deleted.
+ * Each half-open metadata interval is expanded to the local calendar dates containing at least one
+ * included instant in [marketTimeZone]. Legacy intervals with equal bounds identify the date of
+ * that instant. All metadata entity keys are joined to EventGroup resource names in the Mesos
+ * RecordIO map exposed by [eventGroupMapStorageClient]. Existing historical activity is never
+ * deleted.
  */
 class CmmsEventGroupActivityPublisher(
   private val eventGroupActivitiesClient: EventGroupActivitiesCoroutineStub,
@@ -234,12 +234,13 @@ class CmmsEventGroupActivityPublisher(
   private fun ImpressionMetadata.activityDates(): Set<LocalDate> {
     val start: Instant = interval.startTime.toInstant()
     val end: Instant = interval.endTime.toInstant()
-    require(end.isAfter(start)) {
-      "ImpressionMetadata interval end_time must be after start_time"
+    require(!end.isBefore(start)) {
+      "ImpressionMetadata interval end_time must not precede start_time"
     }
 
+    val lastIncludedTime = if (end == start) end else end.minusNanos(1L)
     val startDate = start.atZone(marketTimeZone).toLocalDate()
-    val endDate = end.minusNanos(1L).atZone(marketTimeZone).toLocalDate()
+    val endDate = lastIncludedTime.atZone(marketTimeZone).toLocalDate()
     return generateSequence(startDate) { date -> date.plusDays(1).takeIf { it <= endDate } }.toSet()
   }
 
