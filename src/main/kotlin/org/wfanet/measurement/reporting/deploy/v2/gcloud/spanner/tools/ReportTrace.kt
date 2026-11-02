@@ -222,7 +222,8 @@ internal data class ReportTraceLifecycleStage(
 internal typealias ReportTraceSourceStatus = CloudTelemetrySourceStatus
 
 // TODO(world-federation-of-advertisers/cross-media-measurement#4554): Remove these compatibility
-// aliases after downstream operator tools import the workflow-neutral telemetry contracts directly.
+// aliases after the `report-trace` CLI and `ReportTraceTest` use the workflow-neutral telemetry
+// contracts directly.
 internal typealias ReportTraceLogReader = CloudLogReader
 
 internal typealias ReportTraceSpanReader = CloudTraceReader

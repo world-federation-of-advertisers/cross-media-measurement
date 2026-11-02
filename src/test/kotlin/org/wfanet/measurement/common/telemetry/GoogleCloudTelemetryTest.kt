@@ -50,6 +50,121 @@ class GoogleCloudTelemetryTest {
   }
 
   @Test
+  fun `default trace reader accepts a returned required trace resource`() = runBlocking {
+    val requestedTraceIds = mutableListOf<Set<String>>()
+    val reader = CloudTraceReader { project, _, traceIds, _, _, _ ->
+      requestedTraceIds += traceIds.toSet()
+      if (traceIds.any { it.substringAfterLast('/') == "required-trace" }) {
+        listOf(
+          CloudTraceSpan(
+            project,
+            "required-trace",
+            "span-1",
+            null,
+            "span",
+            "service",
+            NOW,
+            null,
+            emptyMap(),
+          )
+        )
+      } else {
+        emptyList()
+      }
+    }
+
+    val result =
+      reader.readBatch(
+        "trace-project",
+        emptyList(),
+        emptyList(),
+        NOW.minusSeconds(1),
+        NOW.plusSeconds(1),
+        10,
+        10,
+        setOf("projects/trace-project/traces/required-trace"),
+      )
+
+    assertThat(result.complete).isTrue()
+    assertThat(requestedTraceIds.single()).contains("projects/trace-project/traces/required-trace")
+  }
+
+  @Test
+  fun `default trace reader is incomplete when a required trace is missing`() = runBlocking {
+    val reader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() }
+
+    val result =
+      reader.readBatch(
+        "trace-project",
+        emptyList(),
+        emptyList(),
+        NOW.minusSeconds(1),
+        NOW.plusSeconds(1),
+        10,
+        10,
+        setOf("required-trace"),
+      )
+
+    assertThat(result.complete).isFalse()
+  }
+
+  @Test
+  fun `default required trace check preserves an incomplete base result`() = runBlocking {
+    val requiredSpan =
+      CloudTraceSpan(
+        "trace-project",
+        "required-trace",
+        "span-1",
+        null,
+        "span",
+        "service",
+        NOW,
+        null,
+        emptyMap(),
+      )
+    val reader =
+      object : CloudTraceReader {
+        override suspend fun read(
+          project: String,
+          correlationValues: Collection<String>,
+          traceIds: Collection<String>,
+          startTime: Instant,
+          endTime: Instant,
+          limit: Int,
+        ): List<CloudTraceSpan> = listOf(requiredSpan)
+
+        override suspend fun readBatch(
+          project: String,
+          correlationValues: Collection<String>,
+          traceIds: Collection<String>,
+          startTime: Instant,
+          endTime: Instant,
+          spanLimit: Int,
+          traceIdLimit: Int,
+        ): CloudTelemetryReadResult<CloudTraceSpan> =
+          CloudTelemetryReadResult(
+            listOf(requiredSpan),
+            complete = false,
+            CloudTelemetryReadCounts(physicalRequests = 1, rowsExamined = 1),
+          )
+      }
+
+    val result =
+      reader.readBatch(
+        "trace-project",
+        emptyList(),
+        emptyList(),
+        NOW.minusSeconds(1),
+        NOW.plusSeconds(1),
+        10,
+        10,
+        setOf("required-trace"),
+      )
+
+    assertThat(result.complete).isFalse()
+  }
+
+  @Test
   fun `log reader reports rendered output truncation`() = runBlocking {
     val logging = mock<Logging>()
     val page = mock<Page<LogEntry>>()

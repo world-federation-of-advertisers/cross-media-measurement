@@ -483,10 +483,17 @@ class DataAvailabilitySync(
           if (existing.state == ImpressionMetadata.State.DELETED) {
             toRestore.add(existing)
           }
-          if (hasContentChanged(item.impressionMetadata, existing)) {
+          val scanned =
+            item.impressionMetadata.copy {
+              name = existing.name
+              if (item.impressionMetadata.rawImpressionUpload.isEmpty()) {
+                rawImpressionUpload = existing.rawImpressionUpload
+              }
+            }
+          if (hasContentChanged(scanned, existing)) {
             toUpdate.add(
               ImpressionMetadataWithBlobKey(
-                impressionMetadata = item.impressionMetadata.copy { name = existing.name },
+                impressionMetadata = scanned,
                 impressionsBlobKey = item.impressionsBlobKey,
               )
             )

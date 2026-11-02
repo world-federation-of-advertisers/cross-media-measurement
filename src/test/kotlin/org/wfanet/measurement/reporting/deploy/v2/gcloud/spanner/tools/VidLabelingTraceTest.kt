@@ -126,7 +126,7 @@ class VidLabelingTraceTest {
     val collector =
       VidLabelingTraceCollector(
         logReaderFactory = { logReader },
-        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        spanReader = completeTraceReader(),
         stateResolver = VidLabelingStateResolver { graph },
         finalStateResolver = finalStateResolver,
       )
@@ -253,7 +253,7 @@ class VidLabelingTraceTest {
       val collector =
         VidLabelingTraceCollector(
           logReaderFactory = { FakeCloudLogReader(listOf(emittedEntry)) },
-          spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+          spanReader = completeTraceReader(),
           stateResolver = VidLabelingStateResolver { graph },
           finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
         )
@@ -261,8 +261,8 @@ class VidLabelingTraceTest {
       val collection = collector.collect(request())
 
       assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.COMPLETE)
-      assertThat(collection.evidence.single().stage)
-        .isEqualTo(VidLabelingTraceLogging.LABEL_OUTPUT_STAGE)
+      assertThat(collection.evidence.map { it.stage })
+        .contains(VidLabelingTraceLogging.LABEL_OUTPUT_STAGE)
       Unit
     }
 
@@ -519,33 +519,35 @@ class VidLabelingTraceTest {
     val logReader = FakeCloudLogReader(entries)
     val workItem = "workItems/memoized-ranker-retry"
     val spanQueries = mutableListOf<Pair<Set<String>, Set<String>>>()
-    val spanReader = CloudTraceReader { project, correlationValues, traceIds, _, _, _ ->
-      spanQueries += correlationValues.toSet() to traceIds.toSet()
-      if (RAW_UPLOAD !in correlationValues && ROOT_TRACE !in traceIds) {
-        emptyList()
-      } else {
-        listOf(
-          CloudTraceSpan(
-            project,
-            ROOT_TRACE,
-            "span-1",
-            null,
-            "edpa.vid_labeling.rank",
-            "vid-rank-builder",
-            Instant.parse("2026-09-01T00:00:01Z"),
-            Instant.parse("2026-09-01T00:00:02Z"),
-            mapOf(
-              "xmm.lifecycle.stage" to "rank",
-              "xmm.outcome" to "succeeded",
-              "xmm.edpa.raw_impression_upload.name" to RAW_UPLOAD,
-              "xmm.model_line.name" to MEMOIZED_MODEL_LINE,
-              "xmm.work_item.name" to workItem,
-              "xmm.work_item.generation" to "2",
-            ),
-          )
-        )
+    val spanReader =
+      CloudTraceReader { project, correlationValues, traceIds, startTime, endTime, _ ->
+        spanQueries += correlationValues.toSet() to traceIds.toSet()
+        val requiredSpans = requiredTraceSpans(project, traceIds, startTime, endTime)
+        if (RAW_UPLOAD !in correlationValues && ROOT_TRACE !in traceIds) {
+          requiredSpans
+        } else {
+          listOf(
+            CloudTraceSpan(
+              project,
+              ROOT_TRACE,
+              "span-1",
+              null,
+              "edpa.vid_labeling.rank",
+              "vid-rank-builder",
+              Instant.parse("2026-09-01T00:00:01Z"),
+              Instant.parse("2026-09-01T00:00:02Z"),
+              mapOf(
+                "xmm.lifecycle.stage" to "rank",
+                "xmm.outcome" to "succeeded",
+                "xmm.edpa.raw_impression_upload.name" to RAW_UPLOAD,
+                "xmm.model_line.name" to MEMOIZED_MODEL_LINE,
+                "xmm.work_item.name" to workItem,
+                "xmm.work_item.generation" to "2",
+              ),
+            )
+          ) + requiredSpans.filterNot { it.traceId == ROOT_TRACE }
+        }
       }
-    }
     val collector =
       VidLabelingTraceCollector(
         logReaderFactory = { logReader },
@@ -609,7 +611,7 @@ class VidLabelingTraceTest {
     val collector =
       VidLabelingTraceCollector(
         logReaderFactory = { FakeCloudLogReader(listOf(entry)) },
-        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        spanReader = completeTraceReader(),
         stateResolver = VidLabelingStateResolver { graph },
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
@@ -645,7 +647,7 @@ class VidLabelingTraceTest {
     val collector =
       VidLabelingTraceCollector(
         logReaderFactory = { FakeCloudLogReader(entries) },
-        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        spanReader = completeTraceReader(),
         stateResolver = VidLabelingStateResolver { testGraph() },
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
@@ -695,7 +697,7 @@ class VidLabelingTraceTest {
     val collector =
       VidLabelingTraceCollector(
         logReaderFactory = { FakeCloudLogReader(entries) },
-        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        spanReader = completeTraceReader(),
         stateResolver = VidLabelingStateResolver { graph },
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
@@ -800,7 +802,7 @@ class VidLabelingTraceTest {
     val collector =
       VidLabelingTraceCollector(
         logReaderFactory = { FakeCloudLogReader(entries) },
-        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        spanReader = completeTraceReader(),
         stateResolver = VidLabelingStateResolver { graph },
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
@@ -1745,6 +1747,34 @@ class VidLabelingTraceTest {
         " unsafe_uri=gs://private-bucket/raw-input",
     )
   }
+
+  private fun completeTraceReader(): CloudTraceReader =
+    CloudTraceReader { project, _, traceIds, startTime, endTime, _ ->
+      requiredTraceSpans(project, traceIds, startTime, endTime)
+    }
+
+  private fun requiredTraceSpans(
+    project: String,
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+  ): List<CloudTraceSpan> =
+    traceIds
+      .map { it.substringAfterLast('/') }
+      .distinct()
+      .mapIndexed { index, traceId ->
+        CloudTraceSpan(
+          project,
+          traceId,
+          "required-$index",
+          null,
+          "required-trace",
+          "test",
+          startTime,
+          endTime,
+          emptyMap(),
+        )
+      }
 
   private class FakeCloudLogReader(private val entries: List<CloudLogEntry>) : CloudLogReader {
     val correlationQueries = mutableListOf<Set<String>>()

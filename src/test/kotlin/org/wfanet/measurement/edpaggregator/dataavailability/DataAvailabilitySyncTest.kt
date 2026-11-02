@@ -122,6 +122,8 @@ class DataAvailabilitySyncTest {
 
   private val bucket = "file:///my-bucket"
   private val folderPrefix = "edp/edpa_edp/timestamp/"
+  private val existingRawImpressionUpload =
+    "dataProviders/dataProvider123/rawImpressionUploads/upload-1"
   private val dataProviderKeyAttributeKey =
     AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")
   private val syncStatusAttributeKey =
@@ -1087,55 +1089,63 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `sync with unchanged content skips create and update`() = runBlocking {
-    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+  fun `sync with unchanged legacy sidecar preserves existing raw upload and skips update`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
-    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
-    val dataAvailabilitySync =
-      DataAvailabilitySync(
-        "edp/edpa_edp",
-        storageClient,
-        dataProvidersStub,
-        impressionMetadataStub,
-        "dataProviders/dataProvider123",
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
-        modelLineMap = emptyMap(),
-        errorIfGapsExist = true,
-        publishEventGroupActivities = null,
-      )
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+          publishEventGroupActivities = null,
+        )
 
-    // First sync — List returns empty, all entries are new -> batchCreate.
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+      // First sync — List returns empty, all entries are new -> batchCreate.
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
-    val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
-    verifyBlocking(impressionMetadataServiceMock, times(1)) {
-      batchCreateImpressionMetadata(createCaptor.capture())
-    }
-    val createdMetadata = createCaptor.firstValue.requestsList.single().impressionMetadata
-
-    // Override listImpressionMetadata to return the entries created in the first sync.
-    wheneverBlocking {
-        impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
+      val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(createCaptor.capture())
       }
-      .thenAnswer { invocation ->
-        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
-        listImpressionMetadataResponse {
-          impressionMetadata +=
-            createdMetadata.copy { name = "${request.parent}/impressionMetadata/im-0" }
+      val createdMetadata = createCaptor.firstValue.requestsList.single().impressionMetadata
+
+      // Override listImpressionMetadata to return the entries created in the first sync.
+      wheneverBlocking {
+          impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
         }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+          listImpressionMetadataResponse {
+            impressionMetadata +=
+              createdMetadata.copy {
+                name = "${request.parent}/impressionMetadata/im-0"
+                rawImpressionUpload = existingRawImpressionUpload
+              }
+          }
+        }
+
+      // Second sync — same content, List returns existing entries -> no create or update.
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+      // batchCreate should still have been called exactly once (from the first sync only).
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(any())
       }
-
-    // Second sync — same content, List returns existing entries -> no create or update.
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
-
-    // batchCreate should still have been called exactly once (from the first sync only).
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-    // batchUpdate should never have been called (content unchanged).
-    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchUpdateImpressionMetadata(any()) }
-  }
+      // batchUpdate should never have been called (content unchanged).
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchUpdateImpressionMetadata(any())
+      }
+    }
 
   @Test
   fun `sync with unchanged content restamps synced-by marker on metadata blobs`() = runBlocking {
@@ -2628,6 +2638,7 @@ class DataAvailabilitySyncTest {
                 endTime = timestamp { seconds = 300 }
               }
               // No entity_keys — differs from scan
+              rawImpressionUpload = existingRawImpressionUpload
               outputDoneBlobGeneration = DONE_BLOB_GENERATION
             },
             // 300-400: not in list → will be created
@@ -2676,6 +2687,7 @@ class DataAvailabilitySyncTest {
     assertThat(updated.single().name)
       .isEqualTo("dataProviders/dataProvider123/impressionMetadata/im-1")
     assertThat(updated.single().entityKeysList).isNotEmpty()
+    assertThat(updated.single().rawImpressionUpload).isEqualTo(existingRawImpressionUpload)
   }
 
   @Test
