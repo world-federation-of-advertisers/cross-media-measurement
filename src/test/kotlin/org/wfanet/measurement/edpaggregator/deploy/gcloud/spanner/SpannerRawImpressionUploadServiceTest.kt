@@ -116,6 +116,8 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
   private suspend fun insertModelLine(
     dataProviderResourceId: String,
     state: RawImpressionUploadModelLineState,
+    uploadState: RawImpressionUploadState =
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
   ) {
     val databaseClient = spannerDatabase.databaseClient
     databaseClient.write(
@@ -126,8 +128,7 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
           set("RawImpressionUploadResourceId").to("upload-active")
           set("DoneBlobUri").to("gs://bucket/active/done")
           set("RegistrationComplete").to(true)
-          set("State")
-            .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE))
+          set("State").to(Value.protoEnum(uploadState))
           set("CreateTime").to(Value.COMMIT_TIMESTAMP)
           set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
         }
@@ -210,6 +211,67 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
     assertThat(response.state)
       .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING)
     assertThat(response.etag).isNotEmpty()
+  }
+
+  @Test
+  fun `evicting fence ignores queued model line on deferred active upload`() = runBlocking {
+    val dataProviderResourceId = "data-provider-with-deferred-queue"
+    insertModelLine(
+      dataProviderResourceId,
+      RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
+    )
+    spannerDatabase.databaseClient.write(
+      listOf(
+        com.google.cloud.spanner.Mutation.newUpdateBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(dataProviderResourceId)
+          .set("RawImpressionUploadId")
+          .to(1L)
+          .set("ProcessingDeferred")
+          .to(true)
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
+
+    val response =
+      newService()
+        .acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            this.dataProviderResourceId = dataProviderResourceId
+            evictionOperationId = UUID.randomUUID().toString()
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+    assertThat(response.state)
+      .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING)
+  }
+
+  @Test
+  fun `evicting fence ignores created sibling on failed upload`() = runBlocking {
+    val dataProviderResourceId = "data-provider-with-failed-upload"
+    insertModelLine(
+      dataProviderResourceId,
+      RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+    )
+
+    val response =
+      newService()
+        .acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            this.dataProviderResourceId = dataProviderResourceId
+            evictionOperationId = UUID.randomUUID().toString()
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+    assertThat(response.state)
+      .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING)
   }
 
   @Test

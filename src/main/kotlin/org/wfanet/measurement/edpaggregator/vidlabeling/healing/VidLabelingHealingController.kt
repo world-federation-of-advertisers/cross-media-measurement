@@ -36,6 +36,7 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.FinalizeUploadHealingOperationRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadCorrectionCandidatesRequestKt
@@ -58,6 +59,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEv
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.finalizeUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
@@ -252,13 +254,19 @@ class VidLabelingHealingController(
       val candidates =
         operation.rawImpressionUploadCorrectionCandidatesList.map { getCandidate(it) }
       if (candidates.any { it.state == RawImpressionUploadCorrectionCandidate.State.SUPERSEDED }) {
-        advanceOperation(operation, UploadHealingOperation.State.APPROVAL_REQUIRED)
-        return
+        if (
+          operation.resumeState in
+            setOf(UploadHealingOperation.State.APPROVED, UploadHealingOperation.State.DRAINING)
+        ) {
+          advanceOperation(operation, UploadHealingOperation.State.APPROVAL_REQUIRED)
+          return
+        }
       }
       blocking += operation
     }
     check(blocking.size <= 1) { "${config.name} has multiple active healing operations" }
     if (blocking.isNotEmpty()) return
+    if (hasUnfinishedAvailabilityHandoffs(config.name)) return
 
     val drafts =
       operations.filter {
@@ -350,6 +358,9 @@ class VidLabelingHealingController(
         if (e is CancellationException || e is InterruptedException || e.isTransient()) throw e
         planningFailed = true
         uploadHealingOperation {
+          planFormatVersion = RawImpressionUploadCorrectionPlanner.PLAN_FORMAT_VERSION
+          outputManifestState =
+            UploadHealingOperation.OutputManifestState.OUTPUT_MANIFEST_STATE_PROVISIONAL
           reason = "Correction plan could not be computed: ${e.message.orEmpty()}"
           labeledImpressionsBlobPrefix = config.labeledImpressionsBlobPrefix
           badRawImpressionUploads += summaries.map { it.rawImpressionUpload }
@@ -387,10 +398,14 @@ class VidLabelingHealingController(
     active: UploadHealingOperation,
   ) {
     try {
-      if (
+      val hasSupersededCandidate =
         active.rawImpressionUploadCorrectionCandidatesList
           .map { getCandidate(it) }
           .any { it.state == RawImpressionUploadCorrectionCandidate.State.SUPERSEDED }
+      if (
+        hasSupersededCandidate &&
+          active.state in
+            setOf(UploadHealingOperation.State.APPROVED, UploadHealingOperation.State.DRAINING)
       ) {
         advanceOperation(active, UploadHealingOperation.State.APPROVAL_REQUIRED)
         return
@@ -482,7 +497,33 @@ class VidLabelingHealingController(
         }
       )
     }
-    advanceOperation(operation, UploadHealingOperation.State.EVICTING)
+    val evictionExecutor =
+      evictionExecutorFactory(dataProviderConfigs.getValue(key.parentKey.toName()))
+    val finalizedPlan = evictionExecutor.finalizeOutputManifests(operation.toEvictionPlan())
+    check(finalizedPlan.outputManifestsFinalized) {
+      "Eviction executor returned provisional labeled-output manifests"
+    }
+    val manifestBytes =
+      finalizedPlan.cascade
+        .flatMap { it.labeledOutputManifest.blobsList }
+        .flatMap { it.toByteArray().asIterable() }
+    operationsStub.finalizeUploadHealingOperation(
+      finalizeUploadHealingOperationRequest {
+        name = operation.name
+        etag = operation.etag
+        stepManifests +=
+          operation.stepsList.map { step ->
+            val entry =
+              finalizedPlan.cascade.single { it.modelLineName == step.rawImpressionUploadModelLine }
+            FinalizeUploadHealingOperationRequestKt.stepManifest {
+              uploadHealingStep = step.name
+              labeledOutputManifest = entry.labeledOutputManifest
+            }
+          }
+        requestId =
+          RequestIds.forFinalizeUploadHealingOperation(operation.name, manifestBytes.toByteArray())
+      }
+    )
   }
 
   private suspend fun hasUnfinishedAvailabilityHandoffs(dataProvider: String): Boolean {
@@ -1138,6 +1179,11 @@ class VidLabelingHealingController(
 
   private fun InternalOperation.toPublicPlan(): UploadHealingOperation {
     return uploadHealingOperation {
+      planFormatVersion = this@toPublicPlan.planFormatVersion
+      outputManifestState =
+        UploadHealingOperation.OutputManifestState.forNumber(
+          this@toPublicPlan.outputManifestState.number
+        )
       reason = this@toPublicPlan.reason
       labeledImpressionsBlobPrefix = this@toPublicPlan.labeledImpressionsBlobPrefix
       badRawImpressionUploads +=
@@ -1245,6 +1291,9 @@ class VidLabelingHealingController(
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
       ),
       recoveryTargets(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION),
+      outputManifestsFinalized =
+        outputManifestState ==
+          UploadHealingOperation.OutputManifestState.OUTPUT_MANIFEST_STATE_FINALIZED,
     )
   }
 
@@ -1261,7 +1310,9 @@ class VidLabelingHealingController(
 
   private fun Throwable.isDrainInProgress(): Boolean =
     statusCode() == Status.Code.FAILED_PRECONDITION &&
-      message.orEmpty().contains("lease", ignoreCase = true)
+      (message.orEmpty().contains("lease", ignoreCase = true) ||
+        message.orEmpty().contains("pipeline is not idle", ignoreCase = true) ||
+        message.orEmpty().contains("drain", ignoreCase = true))
 
   private fun Throwable.isTransient(): Boolean =
     this is IOException ||

@@ -189,6 +189,12 @@ class RequestIdsTest {
       .isNotEqualTo(
         RequestIds.forReconcileUploadHealingOperation(EVICTION_OPERATION_ID, byteArrayOf(2))
       )
+    assertThat(
+        RequestIds.forFinalizeUploadHealingOperation(UPLOAD_HEALING_OPERATION, byteArrayOf(1))
+      )
+      .isNotEqualTo(
+        RequestIds.forFinalizeUploadHealingOperation(UPLOAD_HEALING_OPERATION, byteArrayOf(2))
+      )
   }
 
   @Test

@@ -27,12 +27,14 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.UploadHealingOperationResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.approveRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.assignRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.completeRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.completeUploadHealingOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.deleteVidLabelingEvictionFence
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.finalizeUploadHealingOperationManifests
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findLatestUploadByDoneBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadHealingOperation
@@ -41,7 +43,9 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpre
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertUploadHealingOperation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.markRawImpressionUploadCorrectionCandidateManualInterventionRequired
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readDispatchableRawImpressionUploadIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readProcessingDeferredRawImpressionUploadIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRankIndexBlobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadCorrectionCandidates
@@ -51,6 +55,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.recordUploa
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.reopenRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.replaceUploadHealingOperationPlan
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.touchUploadHealingOperation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.transferVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.unassignRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingOperationState
@@ -62,6 +67,7 @@ import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepReq
 import org.wfanet.measurement.internal.edpaggregator.ApproveUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.BlobType
 import org.wfanet.measurement.internal.edpaggregator.CreateUploadHealingOperationRequest
+import org.wfanet.measurement.internal.edpaggregator.FinalizeUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.GetUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequestKt
@@ -80,6 +86,7 @@ import org.wfanet.measurement.internal.edpaggregator.UpdateUploadHealingOperatio
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsPageToken
 import org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsResponse
@@ -368,8 +375,35 @@ class SpannerUploadHealingOperationService(
         return@run
       }
       requireNoSupersededPlanCandidates(txn, operation)
-      precondition(request.state in allowedOperationStates(operation.state)) {
+      precondition(request.state in allowedOperationStates(operation)) {
         "cannot advance upload-healing operation from ${operation.state} to ${request.state}"
+      }
+      if (
+        operation.state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED &&
+          request.state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+      ) {
+        val fence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
+        precondition(
+          fence?.state ==
+            VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING &&
+            (fence.evictionOperationId == operation.uploadHealingOperationId ||
+              fence.evictionOperationId in operation.rawImpressionUploadCorrectionCandidateIdsList)
+        ) {
+          "the approval-pending fence is not owned by this legacy correction plan"
+        }
+        txn.readDispatchableRawImpressionUploadIds(request.dataProviderResourceId).collect {
+          rawImpressionUploadId ->
+          txn.updateRawImpressionUploadProcessingDeferred(
+            request.dataProviderResourceId,
+            rawImpressionUploadId,
+            true,
+          )
+        }
+        txn.transferVidLabelingEvictionFence(
+          request.dataProviderResourceId,
+          operation.uploadHealingOperationId,
+          VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING,
+        )
       }
       if (
         operation.state ==
@@ -539,8 +573,118 @@ class SpannerUploadHealingOperationService(
           decisions.getValue(candidate.rawImpressionUploadCorrectionCandidateId),
         )
       }
+      val dispatchableUploadIds =
+        txn.readDispatchableRawImpressionUploadIds(request.dataProviderResourceId).toList()
+      for (rawImpressionUploadId in dispatchableUploadIds) {
+        txn.updateRawImpressionUploadProcessingDeferred(
+          request.dataProviderResourceId,
+          rawImpressionUploadId,
+          true,
+        )
+      }
+      val fence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
+      if (fence == null) {
+        precondition(dispatchableUploadIds.isEmpty()) {
+          "the correction fence is missing while dispatchable work exists"
+        }
+        txn.insertVidLabelingEvictionFence(
+          request.dataProviderResourceId,
+          operation.uploadHealingOperationId,
+          UUID.randomUUID().toString(),
+          VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING,
+        )
+      } else {
+        precondition(
+          fence.state ==
+            VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING &&
+            (fence.evictionOperationId == operation.uploadHealingOperationId ||
+              fence.evictionOperationId in operation.rawImpressionUploadCorrectionCandidateIdsList)
+        ) {
+          "the approval-pending fence is not owned by this correction plan"
+        }
+        txn.transferVidLabelingEvictionFence(
+          request.dataProviderResourceId,
+          operation.uploadHealingOperationId,
+          VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING,
+        )
+      }
       txn.replaceUploadHealingOperationPlan(
         approvedPlan,
+        result.mutationRequestIds + request.requestId,
+        result.mutationRequestFingerprints + listOf(requestFingerprint),
+      )
+    }
+    return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
+  }
+
+  override suspend fun finalizeUploadHealingOperation(
+    request: FinalizeUploadHealingOperationRequest
+  ): UploadHealingOperation {
+    requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
+    requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
+    requireNotBlank(request.etag, "etag")
+    requireUuid(request.requestId, "request_id")
+    require(request.stepManifestsCount > 0) { "step_manifests is required" }
+    val manifestsByStepId =
+      request.stepManifestsList.associate { stepManifest ->
+        require(stepManifest.uploadHealingStepId > 0L) {
+          "step_manifests.upload_healing_step_id must be positive"
+        }
+        require(stepManifest.hasLabeledOutputManifest()) {
+          "step_manifests.labeled_output_manifest is required"
+        }
+        stepManifest.uploadHealingStepId to stepManifest.labeledOutputManifest
+      }
+    require(manifestsByStepId.size == request.stepManifestsCount) {
+      "step_manifests must identify unique steps"
+    }
+    val requestFingerprint = request.fingerprint()
+    databaseClient.readWriteTransaction(Options.tag("action=finalizeUploadHealingOperation")).run {
+      txn ->
+      val existingByRequestId =
+        txn.findUploadHealingOperationByMutationRequestId(
+          request.dataProviderResourceId,
+          request.requestId,
+        )
+      if (existingByRequestId != null) {
+        if (
+          isIdempotentMutation(
+            existingByRequestId,
+            request.uploadHealingOperationId,
+            request.requestId,
+            requestFingerprint,
+          )
+        ) {
+          return@run
+        }
+        throw requestIdAlreadyUsed()
+      }
+      val result =
+        txn.findUploadHealingOperation(
+          request.dataProviderResourceId,
+          request.uploadHealingOperationId,
+        ) ?: throw notFound(request.uploadHealingOperationId)
+      val operation = result.uploadHealingOperation
+      precondition(
+        operation.state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+      ) {
+        "only a draining operation can finalize output manifests"
+      }
+      if (operation.etag != request.etag) {
+        throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
+          .asRuntimeException()
+      }
+      val fence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
+      precondition(
+        fence?.evictionOperationId == request.uploadHealingOperationId &&
+          fence.state == VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+      ) {
+        "the operation does not own an EVICTING fence"
+      }
+      validateFinalizedManifests(operation, manifestsByStepId)
+      txn.finalizeUploadHealingOperationManifests(
+        operation.copy { planFormatVersion = CURRENT_PLAN_FORMAT_VERSION },
+        manifestsByStepId,
         result.mutationRequestIds + request.requestId,
         result.mutationRequestFingerprints + listOf(requestFingerprint),
       )
@@ -683,6 +827,12 @@ class SpannerUploadHealingOperationService(
       ) {
         "upload-healing steps cannot advance while the operation is ${operation.state}"
       }
+      precondition(
+        operation.outputManifestState ==
+          UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
+      ) {
+        "upload-healing steps cannot advance with provisional output manifests"
+      }
       if (current.etag != request.etag) {
         throw Status.ABORTED.withDescription("upload_healing_step etag mismatch")
           .asRuntimeException()
@@ -781,6 +931,11 @@ class SpannerUploadHealingOperationService(
     return request.uploadHealingOperation.copy {
       dataProviderResourceId = request.dataProviderResourceId
       uploadHealingOperationId = request.uploadHealingOperationId
+      if (planFormatVersion == 0) {
+        planFormatVersion = LEGACY_PLAN_FORMAT_VERSION
+        outputManifestState =
+          UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
+      }
       if (state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED) {
         state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
       }
@@ -797,6 +952,11 @@ class SpannerUploadHealingOperationService(
     return request.uploadHealingOperation.copy {
       dataProviderResourceId = request.dataProviderResourceId
       uploadHealingOperationId = request.uploadHealingOperationId
+      if (planFormatVersion == 0) {
+        planFormatVersion = LEGACY_PLAN_FORMAT_VERSION
+        outputManifestState =
+          UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
+      }
     }
   }
 
@@ -811,6 +971,25 @@ class SpannerUploadHealingOperationService(
       "upload_healing_operation.state is not valid for a new plan"
     }
     require(operation.reason.isNotBlank()) { "upload_healing_operation.reason is required" }
+    require(operation.planFormatVersion in SUPPORTED_PLAN_FORMAT_VERSIONS) {
+      "upload_healing_operation.plan_format_version is unsupported"
+    }
+    if (operation.planFormatVersion == CURRENT_PLAN_FORMAT_VERSION) {
+      require(
+        operation.outputManifestState ==
+          UploadHealingOperation.OutputManifestState
+            .UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_PROVISIONAL
+      ) {
+        "a new correction plan must have provisional output manifests"
+      }
+    } else {
+      require(
+        operation.outputManifestState ==
+          UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
+      ) {
+        "a legacy plan must have finalized output manifests"
+      }
+    }
     require(operation.labeledImpressionsBlobPrefix.isNotBlank()) {
       "upload_healing_operation.labeled_impressions_blob_prefix is required"
     }
@@ -887,6 +1066,9 @@ class SpannerUploadHealingOperationService(
         "step correction candidate must belong to the operation"
       }
       require(step.hasLabeledOutputManifest()) { "step labeled_output_manifest is required" }
+      require(step.labeledOutputManifest.blobsCount > 0) {
+        "step labeled_output_manifest.blobs is required"
+      }
       require(
         step.labeledOutputManifest.blobsList.map { it.blobUri }.distinct().size ==
           step.labeledOutputManifest.blobsCount
@@ -900,6 +1082,72 @@ class SpannerUploadHealingOperationService(
         require(!blob.hasGeneration() || blob.generation > 0L) {
           "step labeled_output_manifest.blobs.generation must be positive"
         }
+        if (operation.planFormatVersion == CURRENT_PLAN_FORMAT_VERSION) {
+          require(!blob.hasGeneration()) {
+            "a provisional manifest cannot contain output generations"
+          }
+        }
+      }
+    }
+    validateSharedOutputVersions(
+      operation.stepsList.associate { it.uploadHealingStepId to it.labeledOutputManifest }
+    )
+  }
+
+  private fun validateFinalizedManifests(
+    operation: UploadHealingOperation,
+    manifestsByStepId:
+      Map<Long, org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifest>,
+  ) {
+    precondition(
+      manifestsByStepId.keys == operation.stepsList.map { it.uploadHealingStepId }.toSet()
+    ) {
+      "step_manifests must contain every approved step exactly once"
+    }
+    if (operation.planFormatVersion == CURRENT_PLAN_FORMAT_VERSION) {
+      precondition(
+        operation.outputManifestState ==
+          UploadHealingOperation.OutputManifestState
+            .UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_PROVISIONAL
+      ) {
+        "the operation does not have provisional output manifests"
+      }
+    }
+    for (step in operation.stepsList) {
+      val finalized = manifestsByStepId.getValue(step.uploadHealingStepId)
+      val approvedUris = step.labeledOutputManifest.blobsList.map { it.blobUri }
+      val finalizedUris = finalized.blobsList.map { it.blobUri }
+      precondition(finalizedUris.isNotEmpty() && finalizedUris == approvedUris) {
+        "finalized output URIs do not match the approved scope for step ${step.uploadHealingStepId}"
+      }
+      precondition(finalizedUris.distinct().size == finalizedUris.size) {
+        "finalized output URIs must be unique within each step"
+      }
+      for (blob in finalized.blobsList) {
+        precondition(blob.blobUri.isNotBlank() && (!blob.hasGeneration() || blob.generation > 0L)) {
+          "finalized output versions must have valid URIs and generations"
+        }
+      }
+    }
+    try {
+      validateSharedOutputVersions(manifestsByStepId)
+    } catch (e: IllegalArgumentException) {
+      throw Status.FAILED_PRECONDITION.withDescription(e.message).withCause(e).asRuntimeException()
+    }
+  }
+
+  private fun validateSharedOutputVersions(
+    manifestsByStepId:
+      Map<Long, org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifest>
+  ) {
+    val versionsByUri = mutableMapOf<String, Pair<Boolean, Long>>()
+    for (manifest in manifestsByStepId.values) {
+      for (blob in manifest.blobsList) {
+        val version = blob.hasGeneration() to blob.generation
+        val previous = versionsByUri.putIfAbsent(blob.blobUri, version)
+        require(previous == null || previous == version) {
+          "shared labeled output ${blob.blobUri} has mixed versions"
+        }
       }
     }
   }
@@ -910,6 +1158,8 @@ class SpannerUploadHealingOperationService(
   ): Boolean {
     if (
       existing.reason != requested.reason ||
+        existing.planFormatVersion != requested.planFormatVersion ||
+        existing.outputManifestState != requested.outputManifestState ||
         existing.state != requested.state ||
         existing.resumeState != requested.resumeState ||
         existing.labeledImpressionsBlobPrefix != requested.labeledImpressionsBlobPrefix ||
@@ -1033,6 +1283,7 @@ class SpannerUploadHealingOperationService(
     operation: UploadHealingOperation,
   ) {
     if (operation.rawImpressionUploadCorrectionCandidateIdsCount == 0) return
+    if (operation.state in POST_FINALIZATION_STATES) return
     precondition(
       readPlanCandidates(txn, operation).none {
         it.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED
@@ -1054,6 +1305,9 @@ class SpannerUploadHealingOperationService(
       precondition(candidate.uploadHealingOperationId == operation.uploadHealingOperationId) {
         "correction candidate $candidateId no longer belongs to this plan"
       }
+      if (candidate.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED) {
+        continue
+      }
       txn.markRawImpressionUploadCorrectionCandidateManualInterventionRequired(
         candidate,
         operation.uploadHealingOperationId,
@@ -1070,6 +1324,9 @@ class SpannerUploadHealingOperationService(
         txn
           .findRawImpressionUploadCorrectionCandidate(operation.dataProviderResourceId, candidateId)
           ?.rawImpressionUploadCorrectionCandidate ?: throw candidateNotFound(candidateId)
+      if (candidate.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED) {
+        continue
+      }
       check(
         candidate.decision ==
           RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE ||
@@ -1130,6 +1387,9 @@ class SpannerUploadHealingOperationService(
         txn
           .findRawImpressionUploadCorrectionCandidate(operation.dataProviderResourceId, candidateId)
           ?.rawImpressionUploadCorrectionCandidate ?: throw candidateNotFound(candidateId)
+      if (candidate.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED) {
+        continue
+      }
       precondition(
         candidate.uploadHealingOperationId == operation.uploadHealingOperationId &&
           candidate.state ==
@@ -1148,7 +1408,12 @@ class SpannerUploadHealingOperationService(
     txn: AsyncDatabaseClient.TransactionContext,
     operation: UploadHealingOperation,
   ) {
-    precondition(operation.state in SUPERSEDED_PLAN_REOPEN_STATES) {
+    precondition(
+      operation.state in SUPERSEDED_PLAN_REOPEN_STATES ||
+        (operation.state ==
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION &&
+          operation.resumeState in SUPERSEDED_PLAN_REOPEN_STATES)
+    ) {
       "only an approved or active plan can be reopened"
     }
     val candidates = readPlanCandidates(txn, operation)
@@ -1188,7 +1453,7 @@ class SpannerUploadHealingOperationService(
         .keys
     if (noReplacementCandidateIds.isEmpty()) {
       return operation.copy {
-        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED
+        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
       }
     }
     val rewiredSteps = mutableMapOf<Long, UploadHealingStep>()
@@ -1214,7 +1479,7 @@ class SpannerUploadHealingOperationService(
       }
     }
     return operation.copy {
-      state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED
+      state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
       steps.clear()
       steps +=
         operation.stepsList.map { step ->
@@ -1265,9 +1530,9 @@ class SpannerUploadHealingOperationService(
   }
 
   private fun allowedOperationStates(
-    state: UploadHealingOperation.State
+    operation: UploadHealingOperation
   ): Set<UploadHealingOperation.State> =
-    when (state) {
+    when (operation.state) {
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED ->
         setOf(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION)
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED ->
@@ -1276,10 +1541,17 @@ class SpannerUploadHealingOperationService(
           UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
         )
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING ->
-        setOf(
-          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
-          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
-        )
+        buildSet {
+          add(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION)
+          if (
+            operation.planFormatVersion == LEGACY_PLAN_FORMAT_VERSION &&
+              operation.outputManifestState ==
+                UploadHealingOperation.OutputManifestState
+                  .UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
+          ) {
+            add(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING)
+          }
+        }
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING ->
         setOf(
           UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
@@ -1575,6 +1847,9 @@ class SpannerUploadHealingOperationService(
       .digest(toBuilder().clearEtag().build().toByteArray())
       .toByteString()
 
+  private fun FinalizeUploadHealingOperationRequest.fingerprint(): ByteString =
+    MessageDigest.getInstance("SHA-256").digest(toByteArray()).toByteString()
+
   private fun isIdempotentMutation(
     result: UploadHealingOperationResult,
     uploadHealingOperationId: String,
@@ -1604,6 +1879,10 @@ class SpannerUploadHealingOperationService(
       .asRuntimeException()
 
   companion object {
+    private const val LEGACY_PLAN_FORMAT_VERSION = 1
+    private const val CURRENT_PLAN_FORMAT_VERSION = 2
+    private val SUPPORTED_PLAN_FORMAT_VERSIONS =
+      setOf(LEGACY_PLAN_FORMAT_VERSION, CURRENT_PLAN_FORMAT_VERSION)
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
     private val HEALING_DISPATCH_GATE_STATES =
@@ -1621,11 +1900,13 @@ class SpannerUploadHealingOperationService(
       setOf(
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED,
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING,
+      )
+    private val POST_FINALIZATION_STATES =
+      setOf(
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING,
-        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
       )
   }
 }
