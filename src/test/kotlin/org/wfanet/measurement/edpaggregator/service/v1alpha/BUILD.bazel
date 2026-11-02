@@ -427,10 +427,12 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingRevisionHealingIntegrationTest",
     deps = [
         ":vid_labeling_pipeline_test_harness",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:vid_labeling_healing_controller",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_correction_candidate_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:subpool_assigner_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
