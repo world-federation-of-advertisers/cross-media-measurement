@@ -39,6 +39,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadCorrectionCandidatesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
@@ -55,6 +56,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServic
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadCorrectionCandidatesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
@@ -251,6 +253,66 @@ class VidLabelingHealingControllerTest {
     newController(evictionExecutor = evictionExecutor).run()
 
     assertThat(operation.state).isEqualTo(UploadHealingOperation.State.DRAINING)
+    verify(evictionExecutor, never()).evict(any(), any(), any())
+    Unit
+  }
+
+  @Test
+  fun `run resumes after fence reaches evicting before manifest checkpoint`() = runBlocking {
+    val operation = APPROVED_OPERATION.copy { state = UploadHealingOperation.State.DRAINING }
+    whenever(candidatesService.listRawImpressionUploadCorrectionCandidates(any()))
+      .thenReturn(ListRawImpressionUploadCorrectionCandidatesResponse.getDefaultInstance())
+    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+      .thenReturn(CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED })
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val states =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+          .filter
+          .stateInList
+      listUploadHealingOperationsResponse {
+        if (operation.state in states) uploadHealingOperations += operation
+      }
+    }
+    whenever(uploadsService.acquireRawImpressionUploadEvictionFence(any()))
+      .thenReturn(
+        acquireRawImpressionUploadEvictionFenceResponse {
+          state =
+            org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
+              .VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          etag = "evicting-fence-etag"
+        }
+      )
+    val evictionExecutor = org.mockito.kotlin.mock<EvictionExecutor>()
+    whenever(evictionExecutor.finalizeOutputManifests(any())).thenAnswer { invocation ->
+      val plan = invocation.getArgument<EvictUploader.EvictionPlan>(0)
+      plan.copy(
+        cascade =
+          plan.cascade.map { entry ->
+            entry.copy(
+              labeledOutputManifest =
+                labeledOutputManifest {
+                  blobs +=
+                    LabeledOutputManifestKt.blobVersion {
+                      blobUri = entry.labeledOutputManifest.blobsList.single().blobUri
+                      generation = 7L
+                    }
+                }
+            )
+          },
+        outputManifestsFinalized = true,
+      )
+    }
+    whenever(operationsService.finalizeUploadHealingOperation(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    newController(evictionExecutor = evictionExecutor).run()
+
+    verify(operationsService).finalizeUploadHealingOperation(any())
     verify(evictionExecutor, never()).evict(any(), any(), any())
     Unit
   }
@@ -455,7 +517,7 @@ class VidLabelingHealingControllerTest {
       .thenReturn(listRawImpressionUploadFilesResponse {})
     whenever(uploadsService.listRawImpressionUploads(any()))
       .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += SOURCE_UPLOAD })
-    val evictionExecutor = EvictionExecutor { plan, _, checkpoint ->
+    val evictionExecutor = testEvictionExecutor { plan, _, checkpoint ->
       plan.cascade.forEach { checkpoint(it) }
       EvictUploader.EvictionResult(emptyList(), 0, 0, 0)
     }
@@ -524,7 +586,7 @@ class VidLabelingHealingControllerTest {
         }
       completedStep
     }
-    val evictionExecutor = EvictionExecutor { plan, _, checkpoint ->
+    val evictionExecutor = testEvictionExecutor { plan, _, checkpoint ->
       plan.cascade.forEach { checkpoint(it) }
       EvictUploader.EvictionResult(emptyList(), 0, 0, 0)
     }
@@ -538,8 +600,8 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
-  fun `run reopens an active plan whose candidate was superseded`() = runBlocking {
-    var operation = EVICTING_OPERATION
+  fun `run reopens a draining plan whose candidate was superseded`() = runBlocking {
+    var operation = APPROVED_OPERATION.copy { state = UploadHealingOperation.State.DRAINING }
     whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =
         invocation
@@ -1558,8 +1620,29 @@ class VidLabelingHealingControllerTest {
     assertThat(operation.state).isEqualTo(UploadHealingOperation.State.NEEDS_ATTENTION)
   }
 
+  private fun testEvictionExecutor(
+    finalize: suspend (EvictUploader.EvictionPlan) -> EvictUploader.EvictionPlan = {
+      it.copy(outputManifestsFinalized = true)
+    },
+    evict:
+      suspend (
+        EvictUploader.EvictionPlan, String, suspend (EvictUploader.CascadeEntry) -> Unit,
+      ) -> EvictUploader.EvictionResult,
+  ): EvictionExecutor =
+    object : EvictionExecutor {
+      override suspend fun finalizeOutputManifests(
+        plan: EvictUploader.EvictionPlan
+      ): EvictUploader.EvictionPlan = finalize(plan)
+
+      override suspend fun evict(
+        plan: EvictUploader.EvictionPlan,
+        reason: String,
+        onEntryEvicted: suspend (EvictUploader.CascadeEntry) -> Unit,
+      ): EvictUploader.EvictionResult = evict(plan, reason, onEntryEvicted)
+    }
+
   private fun newController(
-    evictionExecutor: EvictionExecutor = EvictionExecutor { _, _, _ ->
+    evictionExecutor: EvictionExecutor = testEvictionExecutor { _, _, _ ->
       EvictUploader.EvictionResult(emptyList(), 0, 0, 0)
     },
     manifestReader: CorrectionManifestReader = CorrectionManifestReader { _, _ -> emptyList() },
@@ -1687,6 +1770,9 @@ class VidLabelingHealingControllerTest {
     private val APPROVED_OPERATION = uploadHealingOperation {
       name = OPERATION_NAME
       state = UploadHealingOperation.State.APPROVED
+      planFormatVersion = RawImpressionUploadCorrectionPlanner.PLAN_FORMAT_VERSION
+      outputManifestState =
+        UploadHealingOperation.OutputManifestState.OUTPUT_MANIFEST_STATE_PROVISIONAL
       etag = "approved-etag"
       reason = "correction"
       labeledImpressionsBlobPrefix = "gs://output/vid"
@@ -1700,6 +1786,9 @@ class VidLabelingHealingControllerTest {
         cmmsModelLine = CMMS_MODEL_LINE
         recoveryAction = RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
         rawImpressionUploadCorrectionCandidate = CANDIDATE_NAME
+        labeledOutputManifest = labeledOutputManifest {
+          blobs += LabeledOutputManifestKt.blobVersion { blobUri = "gs://output/vid/file" }
+        }
         recoveryTarget = true
         state =
           org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.PENDING_EVICTION
@@ -1709,6 +1798,18 @@ class VidLabelingHealingControllerTest {
     private val EVICTING_OPERATION =
       APPROVED_OPERATION.copy {
         state = UploadHealingOperation.State.EVICTING
+        outputManifestState =
+          UploadHealingOperation.OutputManifestState.OUTPUT_MANIFEST_STATE_FINALIZED
+        steps[0] =
+          steps[0].copy {
+            labeledOutputManifest = labeledOutputManifest {
+              blobs +=
+                LabeledOutputManifestKt.blobVersion {
+                  blobUri = "gs://output/vid/file"
+                  generation = 1L
+                }
+            }
+          }
         etag = "evicting-etag"
       }
   }

@@ -25,6 +25,12 @@ option java_outer_classname = "UploadHealingOperationProto";
 
 // Internal representation of a durable upload-healing workflow.
 message UploadHealingOperation {
+  enum OutputManifestState {
+    UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_UNSPECIFIED = 0;
+    UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_PROVISIONAL = 1;
+    UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED = 2;
+  }
+
   enum State {
     reserved 1;
     reserved "UPLOAD_HEALING_OPERATION_STATE_IN_PROGRESS";
@@ -54,6 +60,8 @@ message UploadHealingOperation {
   string etag = 11;
   repeated string raw_impression_upload_correction_candidate_ids = 12;
   State resume_state = 13;
+  int32 plan_format_version = 14;
+  OutputManifestState output_manifest_state = 15;
 }
 
 // Approved generations of labeled-output objects for one healing step.
