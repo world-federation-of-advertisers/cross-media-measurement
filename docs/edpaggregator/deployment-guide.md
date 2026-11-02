@@ -1069,14 +1069,21 @@ configs {
 
 * reads the Mesos RecordIO `MappedEventGroup` output produced by `EventGroupSync`;
 * joins every entity key in finalized impression metadata to all EventGroups mapped to that key;
-* converts each metadata interval to every inclusive calendar date that it touches in
-  `market_time_zone`; and
+* converts each half-open metadata interval to every calendar date containing an included instant
+  in `market_time_zone`; and
 * appends the resulting `EventGroupActivity` resources without deleting historical activity.
 
 Set `market_time_zone.id` to an IANA Time Zone Database identifier. `UTC` is valid, as are regional
 identifiers such as `America/New_York`. Use the market's calendar time zone so intervals that cross
-a UTC date boundary are attributed to the market dates they touch. Both endpoint dates are included
-intentionally, favoring over-reporting over omitting a potentially active date.
+a UTC date boundary are attributed to the market dates they touch. The interval start is inclusive
+and its end is exclusive. Legacy intervals with equal bounds are attributed to that instant's date.
+
+Legacy sidecars may instead encode the final included impression timestamp in `end_time`. Replay
+and backfill interpret all persisted intervals using the half-open contract. If a legacy end falls
+exactly at local midnight, the date starting at that midnight is therefore not recreated. Existing
+`EventGroupActivity` resources are append-only and are not deleted. Before replaying legacy metadata
+into a target without its historical activities, migrate those intervals to an exclusive end when
+the former conservative endpoint-date inclusion must be preserved.
 
 The map join uses entity keys only. A key may map to multiple EventGroups, and keys at any entity
 hierarchy level are eligible. Legacy EventGroup reference-ID-only map records are ignored. Keep the
