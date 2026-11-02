@@ -760,12 +760,7 @@ class VidLabelingHealingControllerTest {
     whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
     whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
       val previousState = operation.state
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-        >(
-          0
-        )
+      val request = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0)
       operation =
         operation.copy {
           state = request.state
