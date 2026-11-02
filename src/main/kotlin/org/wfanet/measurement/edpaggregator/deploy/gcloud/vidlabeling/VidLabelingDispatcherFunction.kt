@@ -60,6 +60,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
@@ -231,6 +232,10 @@ class VidLabelingDispatcherFunction : HttpFunction {
         )
       val rankIndexBlobStub =
         RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(rawImpressionUploadChannel)
+      val uploadHealingOperationStub =
+        UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+          rawImpressionUploadChannel
+        )
       // PoolAssignmentJobService is served by the same RawImpressionMetadata storage deployment.
       val poolAssignmentJobStub =
         PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
@@ -263,6 +268,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
         VidLabelingDispatchSequencer(
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+          rankIndexBlobStub = rankIndexBlobStub,
+          uploadHealingOperationStub = uploadHealingOperationStub,
           workItemsStub = workItemsStub,
           poolAssignmentJobStub = poolAssignmentJobStub,
           modelRolloutsStub = modelRolloutsStub,
