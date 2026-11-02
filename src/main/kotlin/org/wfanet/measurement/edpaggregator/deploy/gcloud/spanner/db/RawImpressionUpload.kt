@@ -456,6 +456,34 @@ fun AsyncDatabaseClient.ReadContext.readProcessingDeferredRawImpressionUploadIds
     .map { it.getLong("RawImpressionUploadId") }
 }
 
+/** Reads queued uploads that must be held before an approved correction starts draining. */
+fun AsyncDatabaseClient.ReadContext.readDispatchableRawImpressionUploadIds(
+  dataProviderResourceId: String
+): Flow<Long> {
+  val dispatchableStates =
+    listOf(
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
+    )
+  val sql =
+    """
+    SELECT RawImpressionUploadId
+    FROM RawImpressionUpload
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND ProcessingDeferred = FALSE
+      AND CAST(State AS INT64) IN UNNEST(@dispatchableStates)
+    """
+      .trimIndent()
+  return executeQuery(
+      statement(sql) {
+        bind("dataProviderResourceId").to(dataProviderResourceId)
+        bind("dispatchableStates").toInt64Array(dispatchableStates.map { it.number.toLong() })
+      },
+      Options.tag("action=readDispatchableRawImpressionUploadIds"),
+    )
+    .map { it.getLong("RawImpressionUploadId") }
+}
+
 /** Makes a previously deferred upload eligible for ordered dispatch. */
 fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadProcessingDeferred(
   dataProviderResourceId: String,
