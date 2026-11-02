@@ -54,9 +54,15 @@ class BasicReportHttpClient(
             } else {
               val retryable = response.code in TRANSIENT_HTTP_CODES
               if (!retryable || attempt >= maxAttempts) {
+                val statusMessage =
+                  "Error retrieving BasicReport: ${response.code} ${response.message}"
                 val message =
-                  "Error retrieving BasicReport: ${response.code} ${response.message} " +
-                    response.body?.string().orEmpty()
+                  try {
+                    "$statusMessage ${response.body?.string().orEmpty()}"
+                  } catch (e: IOException) {
+                    if (!retryable) throw IllegalStateException(statusMessage, e)
+                    throw IOException(statusMessage, e)
+                  }
                 if (!retryable) throw IllegalStateException(message)
                 throw IOException(message)
               }

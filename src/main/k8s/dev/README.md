@@ -24,4 +24,5 @@ polling delay and are capped by the maximum polling delay. Connection recovery
 uses OkHttp's built-in policy; any final I/O failure propagates immediately.
 Successful responses resume normal report polling; malformed responses and other
 HTTP errors fail immediately. Final HTTP failures include the status and response
-body for diagnosis. Report creation is not retried by this read policy.
+body when readable. An unreadable error body preserves the HTTP status and keeps
+the read failure as the cause. Report creation is not retried by this read policy.
