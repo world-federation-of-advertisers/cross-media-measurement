@@ -14,12 +14,19 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "retry_policy",
+    srcs = ["DataWatcherRetryPolicy.kt"],
+    visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
     name = "data_watcher",
     srcs = [
         "DataWatcher.kt",
         "DataWatcherMetrics.kt",
     ],
     deps = [
+        ":retry_policy",
         ":watched_blobs",
         "//imports/java/com/google/auth:credentials",
         "//imports/java/com/google/auth:oauth_http2",
