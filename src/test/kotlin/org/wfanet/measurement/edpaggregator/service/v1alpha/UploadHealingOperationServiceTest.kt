@@ -28,6 +28,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.FinalizeUploadHealingOperationRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -37,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.approveUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy as copyPublic
 import org.wfanet.measurement.edpaggregator.v1alpha.createUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.finalizeUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.reconcileUploadHealingOperationRequest
@@ -46,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest as InternalAdvanceRequest
 import org.wfanet.measurement.internal.edpaggregator.ApproveUploadHealingOperationRequest as InternalApproveRequest
 import org.wfanet.measurement.internal.edpaggregator.CreateUploadHealingOperationRequest as InternalCreateRequest
+import org.wfanet.measurement.internal.edpaggregator.FinalizeUploadHealingOperationRequest as InternalFinalizeRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.ReconcileUploadHealingOperationRequest as InternalReconcileRequest
 import org.wfanet.measurement.internal.edpaggregator.RetryUploadHealingOperationRequest as InternalRetryRequest
@@ -361,7 +364,7 @@ class UploadHealingOperationServiceTest {
       .thenAnswer { invocation ->
         captured = invocation.getArgument(0)
         INTERNAL_OPERATION.copy {
-          state = InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED
+          state = InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
         }
       }
 
@@ -389,7 +392,56 @@ class UploadHealingOperationServiceTest {
       )
     assertThat(captured!!.etag).isEqualTo("etag")
     assertThat(captured!!.requestId).isEqualTo(REQUEST_ID)
-    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.APPROVED)
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.DRAINING)
+  }
+
+  @Test
+  fun `finalize converts step identities and exact manifests`() = runBlocking {
+    var captured: InternalFinalizeRequest? = null
+    org.mockito.kotlin
+      .whenever(internalService.finalizeUploadHealingOperation(org.mockito.kotlin.any()))
+      .thenAnswer { invocation ->
+        captured = invocation.getArgument(0)
+        INTERNAL_OPERATION.copy {
+          planFormatVersion = 2
+          outputManifestState =
+            InternalOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
+        }
+      }
+    val manifest =
+      org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest {
+        blobs +=
+          org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt.blobVersion {
+            blobUri = "gs://output/vid/file"
+            generation = 101L
+          }
+      }
+
+    val result =
+      newService()
+        .finalizeUploadHealingOperation(
+          finalizeUploadHealingOperationRequest {
+            name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+            stepManifests +=
+              FinalizeUploadHealingOperationRequestKt.stepManifest {
+                uploadHealingStep =
+                  "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/uploadHealingSteps/1"
+                labeledOutputManifest = manifest
+              }
+            etag = "etag"
+            requestId = REQUEST_ID
+          }
+        )
+
+    assertThat(captured!!.uploadHealingOperationId).isEqualTo(OPERATION_ID)
+    assertThat(captured!!.stepManifestsList.single().uploadHealingStepId).isEqualTo(1L)
+    assertThat(
+        captured!!.stepManifestsList.single().labeledOutputManifest.blobsList.single().generation
+      )
+      .isEqualTo(101L)
+    assertThat(result.planFormatVersion).isEqualTo(2)
+    assertThat(result.outputManifestState)
+      .isEqualTo(UploadHealingOperation.OutputManifestState.OUTPUT_MANIFEST_STATE_FINALIZED)
   }
 
   @Test
