@@ -94,6 +94,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
@@ -168,6 +169,9 @@ class VidLabelingDispatcherTest {
   private val rankIndexBlobService:
     RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase =
     mockService()
+  private val uploadHealingOperationService:
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase =
+    mockService()
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
   private val poolAssignmentJobService:
     PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
@@ -187,6 +191,7 @@ class VidLabelingDispatcherTest {
     addService(correctionCandidateService)
     addService(rawImpressionUploadModelLineService)
     addService(rankIndexBlobService)
+    addService(uploadHealingOperationService)
     addService(workItemsService)
     addService(poolAssignmentJobService)
     addService(vidLabelingJobService)
@@ -236,6 +241,12 @@ class VidLabelingDispatcherTest {
     RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private val uploadHealingOperationStub by lazy {
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
+
   private val workItemsStub by lazy {
     WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServerRule.channel)
   }
@@ -283,6 +294,8 @@ class VidLabelingDispatcherTest {
     return VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+      rankIndexBlobStub = rankIndexBlobStub,
+      uploadHealingOperationStub = uploadHealingOperationStub,
       workItemsStub = workItemsStub,
       poolAssignmentJobStub = poolAssignmentJobStub,
       modelRolloutsStub = modelRolloutsStub,

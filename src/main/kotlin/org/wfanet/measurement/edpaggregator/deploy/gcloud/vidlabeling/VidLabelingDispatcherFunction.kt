@@ -235,7 +235,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
         )
       val rankIndexBlobStub =
         RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(rawImpressionUploadChannel)
-      val healingOperationsStub =
+      val uploadHealingOperationStub =
         UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
           rawImpressionUploadChannel
         )
@@ -271,6 +271,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
         VidLabelingDispatchSequencer(
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+          rankIndexBlobStub = rankIndexBlobStub,
+          uploadHealingOperationStub = uploadHealingOperationStub,
           workItemsStub = workItemsStub,
           poolAssignmentJobStub = poolAssignmentJobStub,
           modelRolloutsStub = modelRolloutsStub,
@@ -320,7 +322,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           rpcThrottlers = rpcThrottlers,
           getHealingOperation = { name ->
             try {
-              healingOperationsStub.getUploadHealingOperation(
+              uploadHealingOperationStub.getUploadHealingOperation(
                 getUploadHealingOperationRequest { this.name = name }
               )
             } catch (e: StatusException) {
