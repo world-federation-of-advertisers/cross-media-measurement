@@ -56,6 +56,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -73,6 +74,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationReq
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
@@ -1111,6 +1113,10 @@ class VidLabelerApp(
           getRawImpressionUploadRequest { name = uploadName }
         )
       }
+    val uploadKey =
+      requireNotNull(RawImpressionUploadKey.fromName(uploadName)) {
+        "Invalid RawImpressionUpload name: $uploadName"
+      }
     val operationName =
       upload.uploadHealingOperation.ifEmpty {
         val modelLine =
@@ -1119,20 +1125,39 @@ class VidLabelerApp(
               getRawImpressionUploadModelLineRequest { name = modelLineName }
             )
           }
-        if (modelLine.evictionOperationId.isEmpty()) return false
-        val uploadKey =
-          requireNotNull(RawImpressionUploadKey.fromName(uploadName)) {
-            "Invalid RawImpressionUpload name: $uploadName"
-          }
-        UploadHealingOperationKey(uploadKey.dataProviderId, modelLine.evictionOperationId).toName()
+        if (modelLine.evictionOperationId.isEmpty()) ""
+        else
+          UploadHealingOperationKey(uploadKey.dataProviderId, modelLine.evictionOperationId)
+            .toName()
       }
-    val operation =
+    if (operationName.isNotEmpty()) {
+      val operation =
+        rpcThrottlers.metadataRead.onReady {
+          uploadHealingOperationsStub.getUploadHealingOperation(
+            getUploadHealingOperationRequest { name = operationName }
+          )
+        }
+      return operation.state != UploadHealingOperation.State.COMPLETE
+    }
+
+    val response =
       rpcThrottlers.metadataRead.onReady {
-        uploadHealingOperationsStub.getUploadHealingOperation(
-          getUploadHealingOperationRequest { name = operationName }
+        uploadHealingOperationsStub.listUploadHealingOperations(
+          listUploadHealingOperationsRequest {
+            parent = uploadKey.parentKey.toName()
+            pageSize = MAX_FENCE_OPERATION_SCAN_SIZE
+            filter =
+              ListUploadHealingOperationsRequestKt.filter {
+                stateIn += FENCE_RELEVANT_HEALING_STATES
+              }
+          }
         )
       }
-    return operation.state != UploadHealingOperation.State.COMPLETE
+    return response.nextPageToken.isNotEmpty() ||
+      response.uploadHealingOperationsList.any { operation ->
+        operation.state != UploadHealingOperation.State.NEEDS_ATTENTION ||
+          operation.resumeState in FENCE_OWNING_HEALING_STATES
+      }
   }
 
   /**
@@ -1660,6 +1685,17 @@ class VidLabelerApp(
   }
 
   companion object {
+    private const val MAX_FENCE_OPERATION_SCAN_SIZE = 100
+    private val FENCE_OWNING_HEALING_STATES =
+      setOf(
+        UploadHealingOperation.State.APPROVED,
+        UploadHealingOperation.State.DRAINING,
+        UploadHealingOperation.State.EVICTING,
+        UploadHealingOperation.State.REPLAYING,
+        UploadHealingOperation.State.RECOVERING,
+      )
+    private val FENCE_RELEVANT_HEALING_STATES =
+      FENCE_OWNING_HEALING_STATES + UploadHealingOperation.State.NEEDS_ATTENTION
     private val logger = Logger.getLogger(VidLabelerApp::class.java.name)
 
     /** LabelerInput field path whose mapped raw column carries the event id used for the digest. */

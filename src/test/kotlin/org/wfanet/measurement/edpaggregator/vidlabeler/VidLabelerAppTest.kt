@@ -98,6 +98,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
@@ -629,7 +630,7 @@ class VidLabelerAppTest {
       markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(6)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(7)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
   }
@@ -1036,6 +1037,42 @@ class VidLabelerAppTest {
     createApp(writeGcsObject = { _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
 
     verifyBlocking(uploadHealingOperationsService) { getUploadHealingOperation(any()) }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `runWork defers availability WorkItem while provider fence is active`() = runBlocking {
+    stubLastOutWithEventDate()
+    rawImpressionUploadsService.stub {
+      onBlocking { getRawImpressionUpload(any()) } doReturn rawImpressionUpload { name = UPLOAD }
+    }
+    uploadHealingOperationsService.stub {
+      onBlocking { listUploadHealingOperations(any()) } doReturn
+        listUploadHealingOperationsResponse {
+          uploadHealingOperations += uploadHealingOperation {
+            name = HEALING_OPERATION
+            state = UploadHealingOperation.State.DRAINING
+          }
+        }
+    }
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
+        rawImpressionUploadModelLine {
+          name = PARENT_NAME
+          cmmsModelLine = MODEL_LINE
+          state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        }
+      onBlocking { getRawImpressionUploadModelLine(any()) } doReturn
+        rawImpressionUploadModelLine {
+          name = PARENT_NAME
+          cmmsModelLine = MODEL_LINE
+          state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        }
+    }
+
+    createApp(writeGcsObject = { _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
+
+    verifyBlocking(uploadHealingOperationsService) { listUploadHealingOperations(any()) }
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
