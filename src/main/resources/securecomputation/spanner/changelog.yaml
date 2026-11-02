@@ -26,6 +26,9 @@ databaseChangeLog:
       file: add-work-item-generation.sql
       relativeToChangeLogFile: true
   - include:
+      file: add-work-item-attempt-generation.sql
+      relativeToChangeLogFile: true
+  - include:
       file: add-work-item-attempt-leases.sql
       relativeToChangeLogFile: true
   - include:

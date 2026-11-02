@@ -493,6 +493,9 @@ class VidLabelingTraceStateTest {
       .containsAtLeast(originalWorkItemName, retryWorkItemName)
     assertThat(graph.nodes.flatMap { it.identifiers.values }.any { "/workItemAttempts/" in it })
       .isTrue()
+    val workItemNodes = graph.nodes.filter { "xmm.work_item.name" in it.identifiers }
+    assertThat(workItemNodes).isNotEmpty()
+    assertThat(workItemNodes.all { "xmm.model_line.name" !in it.identifiers }).isTrue()
     assertThat(graph.nodes.filter { it.stage == "data_availability_publish" }).hasSize(2)
     assertThat(workItemResolution.counts["pages_fetched"]).isEqualTo(1)
     assertThat(workItemResolution.counts["work_items_matched"]).isEqualTo(2)
@@ -574,7 +577,7 @@ class VidLabelingTraceStateTest {
               WorkItem.newBuilder()
                 .setName(group.originalName)
                 .setState(WorkItem.State.SUCCEEDED)
-                .setGeneration(1)
+                .setGeneration(2)
                 .build()
             }
           )
@@ -592,12 +595,14 @@ class VidLabelingTraceStateTest {
             .setName(request.parent + "/workItemAttempts/2")
             .setAttemptNumber(2)
             .setState(WorkItemAttempt.State.SUCCEEDED)
+            .setWorkItemGeneration(2)
         )
         .addWorkItemAttempts(
           WorkItemAttempt.newBuilder()
             .setName(request.parent + "/workItemAttempts/1")
             .setAttemptNumber(1)
             .setState(WorkItemAttempt.State.FAILED)
+            .setWorkItemGeneration(1)
         )
         .build()
     }
@@ -617,6 +622,19 @@ class VidLabelingTraceStateTest {
       .isEqualTo(result.workItems.map { it.workItem.name }.sorted())
     assertThat(result.workItems.flatMap { it.attempts }.map { it.attemptNumber }.toSet())
       .containsExactly(1, 2)
+    val attemptNodes = result.nodes.filter { "xmm.work_item_attempt.name" in it.identifiers }
+    assertThat(
+        attemptNodes
+          .filter { it.id.endsWith("/workItemAttempts/1") }
+          .all { it.identifiers["xmm.work_item.generation"] == "1" }
+      )
+      .isTrue()
+    assertThat(
+        attemptNodes
+          .filter { it.id.endsWith("/workItemAttempts/2") }
+          .all { it.identifiers["xmm.work_item.generation"] == "2" }
+      )
+      .isTrue()
     verifyBlocking(workItems, times(1)) { listWorkItems(any(), any()) }
     verifyBlocking(workItems, never()) { getWorkItem(any(), any()) }
     verifyBlocking(attempts, times(37)) { listWorkItemAttempts(any(), any()) }

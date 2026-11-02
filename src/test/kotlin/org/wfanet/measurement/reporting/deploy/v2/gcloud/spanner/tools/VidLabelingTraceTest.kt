@@ -417,11 +417,7 @@ class VidLabelingTraceTest {
         NON_MEMOIZED_MODEL_LINE,
         "label",
         "SUCCEEDED",
-        mapOf(
-          "xmm.model_line.name" to NON_MEMOIZED_MODEL_LINE,
-          "xmm.work_item.name" to workItemName,
-          "xmm.work_item.generation" to "2",
-        ),
+        mapOf("xmm.work_item.name" to workItemName, "xmm.work_item.generation" to "2"),
       )
     val graph =
       testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
@@ -429,18 +425,16 @@ class VidLabelingTraceTest {
     val span =
       CloudTraceSpan(
         "observability-project",
-        ROOT_TRACE,
+        WORK_ITEM_TRACE,
         "span-generation",
         null,
-        "edpa.vid_labeling.label",
+        "secure_computation.work_item.process",
         "worker",
         Instant.parse("2026-09-01T00:00:01Z"),
         Instant.parse("2026-09-01T00:00:02Z"),
         mapOf(
-          "xmm.lifecycle.stage" to "label",
+          "xmm.lifecycle.stage" to "work_item_processing",
           "xmm.outcome" to "succeeded",
-          "xmm.edpa.raw_impression_upload.name" to RAW_UPLOAD,
-          "xmm.model_line.name" to NON_MEMOIZED_MODEL_LINE,
           "xmm.work_item.name" to workItemName,
           "xmm.work_item.generation" to "2",
         ),
@@ -459,7 +453,7 @@ class VidLabelingTraceTest {
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
 
-    val collection = collector.collect(request(expansionRounds = 1))
+    val collection = collector.collect(request())
 
     assertThat(
         collection.evidence.any { evidence ->
@@ -476,6 +470,174 @@ class VidLabelingTraceTest {
       )
       .isEqualTo(1)
   }
+
+  @Test
+  fun `collect shares WorkItem attempt evidence across model lines`() = runBlocking {
+    val workItemName = "workItems/shared-labeling"
+    val generation = 2L
+    val attemptName = "$workItemName/workItemAttempts/attempt-1"
+    val modelLines = listOf(MEMOIZED_MODEL_LINE, NON_MEMOIZED_MODEL_LINE)
+    val nodes =
+      modelLines.map { modelLine ->
+        ExpectedTraceNode(
+          attemptName,
+          modelLine,
+          "label",
+          "SUCCEEDED",
+          mapOf(
+            "xmm.work_item.name" to workItemName,
+            "xmm.work_item.generation" to generation.toString(),
+            "xmm.work_item_attempt.name" to attemptName,
+          ),
+        )
+      }
+    val logReader =
+      FakeCloudLogReader(
+        listOf(
+          entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE),
+          entry(
+            "work_item_processing",
+            "xmm.work_item.name=$workItemName",
+            traceId = WORK_ITEM_TRACE,
+          ),
+        )
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { logReader },
+        spanReader =
+          CloudTraceReader { project, _, traceIds, startTime, endTime, _ ->
+            requiredTraceSpans(project, traceIds, startTime, endTime) +
+              if (traceIds.any { it.substringAfterLast('/') == WORK_ITEM_TRACE }) {
+                listOf(workItemSpan("shared-attempt", workItemName, generation, attemptName))
+              } else {
+                emptyList()
+              }
+          },
+        stateResolver = VidLabelingStateResolver { testGraph(modelLines).copy(nodes = nodes) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val collection = collector.collect(request())
+
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.COMPLETE)
+    for (modelLine in modelLines) {
+      assertThat(
+          collection.modelLines
+            .single { it.modelLine == modelLine }
+            .stages
+            .single { it.resource == attemptName }
+            .evidenceCount
+        )
+        .isEqualTo(1)
+    }
+    assertThat(
+        collection.evidence.count {
+          it.identifiers["xmm.work_item.name"] == workItemName &&
+            it.identifiers["xmm.work_item_attempt.name"] == attemptName
+        }
+      )
+      .isEqualTo(1)
+    assertThat(logReader.correlationQueries.flatten()).contains(workItemName)
+  }
+
+  @Test
+  fun `collect rejects incorrect WorkItem composite identifiers`() = runBlocking {
+    val workItemName = "workItems/expected"
+    val generation = 2L
+    val attemptName = "$workItemName/workItemAttempts/expected"
+    val node =
+      ExpectedTraceNode(
+        attemptName,
+        NON_MEMOIZED_MODEL_LINE,
+        "label",
+        "SUCCEEDED",
+        mapOf(
+          "xmm.work_item.name" to workItemName,
+          "xmm.work_item.generation" to generation.toString(),
+          "xmm.work_item_attempt.name" to attemptName,
+        ),
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = {
+          FakeCloudLogReader(
+            listOf(
+              entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE)
+            )
+          )
+        },
+        spanReader =
+          CloudTraceReader { _, _, _, _, _, _ ->
+            listOf(
+              workItemSpan("wrong-name", "workItems/wrong", generation, attemptName),
+              workItemSpan("wrong-generation", workItemName, generation + 1L, attemptName),
+              workItemSpan(
+                "wrong-attempt",
+                workItemName,
+                generation,
+                "$workItemName/workItemAttempts/wrong",
+              ),
+            )
+          },
+        stateResolver =
+          VidLabelingStateResolver {
+            testGraph(listOf(NON_MEMOIZED_MODEL_LINE)).copy(nodes = listOf(node))
+          },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val collection = collector.collect(request())
+
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
+    assertThat(collection.modelLines.single().stages.single().evidenceCount).isEqualTo(0)
+  }
+
+  @Test
+  fun `collect queries trace-only WorkItem evidence when authoritative sources fail`() =
+    runBlocking {
+      val workItemName = "workItems/unresolved-labeling"
+      val baseGraph =
+        testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
+          .copy(
+            expectedWorkItems =
+              listOf(
+                ExpectedWorkItemGroup(
+                  workItemName,
+                  NON_MEMOIZED_MODEL_LINE,
+                  "label",
+                  listOf(workItemName),
+                )
+              )
+          )
+      val collector =
+        VidLabelingTraceCollector(
+          logReaderFactory = { CloudLogReader { _, _, _, _ -> error("logging unavailable") } },
+          spanReader =
+            CloudTraceReader { _, correlationValues, _, _, _, _ ->
+              if (workItemName in correlationValues) {
+                listOf(workItemSpan("unresolved-attempt", workItemName, 1L, null))
+              } else {
+                emptyList()
+              }
+            },
+          stateResolver = VidLabelingStateResolver { baseGraph },
+          finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+          workItemResolver = VidLabelingWorkItemResolver { _, _, _ -> error("inventory failed") },
+        )
+
+      val collection = collector.collect(request())
+
+      assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
+      assertThat(
+          collection.sourceStatuses.single { it.source == "secure_computation_work_items" }.status
+        )
+        .isEqualTo("failed")
+      assertThat(collection.sourceStatuses.single { it.source == "cloud_logging" }.status)
+        .isEqualTo("failed")
+      assertThat(collection.evidence.any { it.identifiers["xmm.work_item.name"] == workItemName })
+        .isTrue()
+    }
 
   @Test
   fun `collect traverses mixed routes and excludes another upload`() = runBlocking {
@@ -815,8 +977,38 @@ class VidLabelingTraceTest {
 
   @Test
   fun `runVidLabelingTrace exercises CLI contract`() {
+    val workItemName = "workItems/cli-labeling"
+    val generation = 3L
+    val attemptName = "$workItemName/workItemAttempts/attempt-1"
+    val workItemNodes =
+      listOf(
+        ExpectedTraceNode(
+          "$workItemName:generation:$generation",
+          NON_MEMOIZED_MODEL_LINE,
+          "label",
+          "SUCCEEDED",
+          mapOf(
+            "xmm.work_item.name" to workItemName,
+            "xmm.work_item.generation" to generation.toString(),
+          ),
+        ),
+        ExpectedTraceNode(
+          attemptName,
+          NON_MEMOIZED_MODEL_LINE,
+          "label",
+          "SUCCEEDED",
+          mapOf(
+            "xmm.work_item.name" to workItemName,
+            "xmm.work_item.generation" to generation.toString(),
+            "xmm.work_item_attempt.name" to attemptName,
+          ),
+        ),
+      )
     val entries = buildList {
       add(entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE))
+      add(
+        entry("work_item_processing", "xmm.work_item.name=$workItemName", traceId = WORK_ITEM_TRACE)
+      )
       addAll(
         routeEntries(
           NON_MEMOIZED_MODEL_LINE,
@@ -838,13 +1030,21 @@ class VidLabelingTraceTest {
     val collector =
       VidLabelingTraceCollector(
         logReaderFactory = { FakeCloudLogReader(entries) },
-        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        spanReader =
+          CloudTraceReader { project, _, traceIds, startTime, endTime, _ ->
+            requiredTraceSpans(project, traceIds, startTime, endTime) +
+              if (traceIds.any { it.substringAfterLast('/') == WORK_ITEM_TRACE }) {
+                listOf(workItemSpan("cli-attempt", workItemName, generation, attemptName))
+              } else {
+                emptyList()
+              }
+          },
         stateResolver = VidLabelingStateResolver { testGraph(listOf(NON_MEMOIZED_MODEL_LINE)) },
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
         workItemResolver =
           VidLabelingWorkItemResolver { _, _, pageLimit ->
             workItemPageLimit = pageLimit
-            VidLabelingWorkItemResolution(emptyList(), emptyList(), false, emptyMap())
+            VidLabelingWorkItemResolution(workItemNodes, emptyList(), false, emptyMap())
           },
       )
     val output = StringWriter()
@@ -853,10 +1053,9 @@ class VidLabelingTraceTest {
       main(
         arrayOf(
           "--raw-impression-upload=$RAW_UPLOAD",
-          "--observability-project=project",
+          "--observability-project=observability-project",
           "--start-time=2026-08-31T00:00:00Z",
           "--end-time=2026-09-02T00:00:00Z",
-          "--allow-partial",
           "--authoritative-source-timeout=PT3M",
           "--logging-source-timeout=PT4M",
           "--trace-source-timeout=PT5M",
@@ -884,6 +1083,7 @@ class VidLabelingTraceTest {
 
     assertThat(exitCode).isEqualTo(0)
     assertThat(workItemPageLimit).isEqualTo(7)
+    assertThat(output.toString()).contains("Evidence status: **complete**")
     assertThat(output.toString()).contains("# VID labeling trace")
   }
 
@@ -1713,6 +1913,31 @@ class VidLabelingTraceTest {
       ),
     )
 
+  private fun workItemSpan(
+    spanId: String,
+    workItemName: String,
+    generation: Long,
+    attemptName: String?,
+    traceId: String = WORK_ITEM_TRACE,
+  ) =
+    CloudTraceSpan(
+      "observability-project",
+      traceId,
+      spanId,
+      null,
+      "secure_computation.work_item.process",
+      "worker",
+      Instant.parse("2026-09-01T00:00:01Z"),
+      Instant.parse("2026-09-01T00:00:02Z"),
+      buildMap {
+        put("xmm.lifecycle.stage", "work_item_processing")
+        put("xmm.outcome", "succeeded")
+        put("xmm.work_item.name", workItemName)
+        put("xmm.work_item.generation", generation.toString())
+        if (attemptName != null) put("xmm.work_item_attempt.name", attemptName)
+      },
+    )
+
   private fun objectIdentityFields(identity: VidLabelingTraceAttributes.GcsObjectIdentity): String =
     "xmm.gcs.object.path_hash=" +
       identity.pathHash +
@@ -1823,6 +2048,7 @@ class VidLabelingTraceTest {
     private const val DIRECT_TRACE = "33333333333333333333333333333333"
     private const val MEMO_AVAILABILITY_TRACE = "44444444444444444444444444444444"
     private const val DIRECT_AVAILABILITY_TRACE = "55555555555555555555555555555555"
+    private const val WORK_ITEM_TRACE = "66666666666666666666666666666666"
     private const val OTHER_TRACE = "99999999999999999999999999999999"
     private val MEMOIZED_STAGES =
       listOf(
