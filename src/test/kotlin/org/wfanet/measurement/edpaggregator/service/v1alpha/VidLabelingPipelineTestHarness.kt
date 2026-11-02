@@ -521,6 +521,8 @@ abstract class VidLabelingPipelineTestHarness(
       VidLabelingDispatchSequencer(
         rawImpressionUploadStub = uploadsStub,
         rawImpressionUploadModelLineStub = modelLineRowsStub,
+        rankIndexBlobStub = rankIndexBlobsStub,
+        uploadHealingOperationStub = operationsStub,
         workItemsStub = workItemsStub,
         poolAssignmentJobStub =
           PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
