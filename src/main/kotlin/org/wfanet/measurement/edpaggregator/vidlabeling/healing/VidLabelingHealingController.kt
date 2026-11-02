@@ -80,6 +80,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifest as InternalLabeledOutputManifest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcherRetryPolicy
 
 /** Reads the live raw-object manifest for one exact done-object generation. */
 fun interface CorrectionManifestReader {
@@ -1316,6 +1317,7 @@ class VidLabelingHealingController(
 
   private fun Throwable.isTransient(): Boolean =
     this is IOException ||
+      DataWatcherRetryPolicy.isRetryableHttpFailure(this) ||
       statusCode() in
         setOf(
           Status.Code.ABORTED,
