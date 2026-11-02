@@ -29,11 +29,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest
+import org.wfanet.measurement.internal.edpaggregator.FinalizeUploadHealingOperationRequestKt
 import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifestKt
 import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsRequestKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
@@ -48,6 +50,7 @@ import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingStepReq
 import org.wfanet.measurement.internal.edpaggregator.approveUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createUploadHealingOperationRequest
+import org.wfanet.measurement.internal.edpaggregator.finalizeUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.getUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.labeledOutputManifest
 import org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsRequest
@@ -273,6 +276,40 @@ class SpannerUploadHealingOperationServiceTest {
   }
 
   @Test
+  fun `legacy null plan format reads as finalized version one`() = runBlocking {
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    service.createUploadHealingOperation(createRequest(memoized = false))
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("UploadHealingOperation")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("UploadHealingOperationId")
+          .to(OPERATION_ID)
+          .set("PlanFormatVersion")
+          .to(null as Long?)
+          .set("OutputManifestState")
+          .to(null as Long?)
+          .build()
+      )
+    )
+
+    val operation =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+
+    assertThat(operation.planFormatVersion).isEqualTo(1)
+    assertThat(operation.outputManifestState)
+      .isEqualTo(
+        UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
+      )
+  }
+
+  @Test
   fun `reconcile creates and refreshes one draft idempotently`() = runBlocking {
     CANDIDATE_IDS.take(2).forEach { insertCorrectionCandidate(it) }
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
@@ -442,7 +479,7 @@ class SpannerUploadHealingOperationServiceTest {
         dataProviderResourceId = DATA_PROVIDER_ID
         uploadHealingOperationId = OPERATION_ID
         etag = approved.etag
-        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
         requestId = UUID.randomUUID().toString()
       }
     )
@@ -454,7 +491,7 @@ class SpannerUploadHealingOperationServiceTest {
             dataProviderResourceId = DATA_PROVIDER_ID
             uploadHealingOperationId = OPERATION_ID
             etag = approved.etag
-            state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+            state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
             requestId = UUID.randomUUID().toString()
           }
         )
@@ -838,10 +875,10 @@ class SpannerUploadHealingOperationServiceTest {
       requestId = APPROVE_REQUEST_ID
     }
     operation = service.approveUploadHealingOperation(approveRequest)
+    assertThat(service.approveUploadHealingOperation(approveRequest)).isEqualTo(operation)
 
     for (state in
       listOf(
-        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING,
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
@@ -861,9 +898,6 @@ class SpannerUploadHealingOperationServiceTest {
 
       assertThat(operation.state).isEqualTo(state)
       assertThat(operation.etag).isNotEqualTo(previousEtag)
-      if (state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING) {
-        assertThat(service.approveUploadHealingOperation(approveRequest)).isEqualTo(operation)
-      }
     }
     assertThat(readCorrectionCandidate(CANDIDATE_IDS[0]).state)
       .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED)
@@ -1344,7 +1378,7 @@ class SpannerUploadHealingOperationServiceTest {
       )
 
     assertThat(approved.state)
-      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED)
+      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING)
     for (candidateId in CANDIDATE_IDS.take(2)) {
       val candidate = readCorrectionCandidate(candidateId)
       assertThat(candidate.state)
@@ -1360,6 +1394,225 @@ class SpannerUploadHealingOperationServiceTest {
           .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
       )
     assertThat(approved.stepsList.all { !it.recoveryTarget }).isTrue()
+  }
+
+  @Test
+  fun `finalization closes provisional scope idempotently under evicting fence`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    insertQueuedUpload()
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val provisionalManifest = labeledOutputManifest {
+      blobs += LabeledOutputManifestKt.blobVersion { blobUri = "gs://output/source/data" }
+      blobs += LabeledOutputManifestKt.blobVersion { blobUri = "gs://output/source/sidecar" }
+    }
+    val created =
+      service.createUploadHealingOperation(
+        draftRequest(
+            listOf(CANDIDATE_IDS[0]),
+            listOf(
+              planStep(1L, SOURCE_UPLOAD_ID).copy { labeledOutputManifest = provisionalManifest },
+              planStep(2L, SOURCE_UPLOAD_ID).copy { labeledOutputManifest = provisionalManifest },
+            ),
+          )
+          .copy {
+            uploadHealingOperation =
+              uploadHealingOperation.copy {
+                planFormatVersion = 2
+                outputManifestState =
+                  UploadHealingOperation.OutputManifestState
+                    .UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_PROVISIONAL
+              }
+          }
+      )
+    val draining =
+      service.approveUploadHealingOperation(
+        approveUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = created.etag
+          candidateDecisions +=
+            approvalDecision(
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+            )
+          requestId = APPROVE_REQUEST_ID
+        }
+      )
+    assertThat(draining.state)
+      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING)
+    assertThat(
+        spannerDatabase.databaseClient.singleUse().use {
+          it
+            .getRawImpressionUploadByResourceId(DATA_PROVIDER_ID, "queued-upload")
+            .rawImpressionUpload
+            .processingDeferred
+        }
+      )
+      .isTrue()
+    val drainingFence =
+      checkNotNull(
+        spannerDatabase.databaseClient.singleUse().use {
+          it.getVidLabelingEvictionFence(DATA_PROVIDER_ID)
+        }
+      )
+    assertThat(drainingFence.evictionOperationId).isEqualTo(OPERATION_ID)
+    assertThat(drainingFence.state)
+      .isEqualTo(
+        org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+          .VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+      )
+
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("VidLabelingEvictionFence")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("State")
+          .to(
+            Value.protoEnum(
+              org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+                .VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            )
+          )
+          .set("Etag")
+          .to("evicting-etag")
+          .build()
+      )
+    )
+    val finalizedManifest =
+      provisionalManifest.copy {
+        blobs.clear()
+        blobs +=
+          LabeledOutputManifestKt.blobVersion {
+            blobUri = "gs://output/source/data"
+            generation = 101L
+          }
+        blobs +=
+          LabeledOutputManifestKt.blobVersion {
+            blobUri = "gs://output/source/sidecar"
+            generation = 102L
+          }
+      }
+    val request = finalizeUploadHealingOperationRequest {
+      dataProviderResourceId = DATA_PROVIDER_ID
+      uploadHealingOperationId = OPERATION_ID
+      stepManifests +=
+        FinalizeUploadHealingOperationRequestKt.stepManifest {
+          uploadHealingStepId = 1L
+          labeledOutputManifest = finalizedManifest
+        }
+      stepManifests +=
+        FinalizeUploadHealingOperationRequestKt.stepManifest {
+          uploadHealingStepId = 2L
+          labeledOutputManifest = finalizedManifest
+        }
+      etag = draining.etag
+      requestId = "99999999-1111-4111-8111-111111111111"
+    }
+
+    val changedScopeError =
+      assertFailsWith<StatusRuntimeException> {
+        service.finalizeUploadHealingOperation(
+          request.copy {
+            stepManifests[0] =
+              stepManifests[0].copy {
+                labeledOutputManifest = labeledOutputManifest {
+                  blobs +=
+                    LabeledOutputManifestKt.blobVersion {
+                      blobUri = "gs://output/changed"
+                      generation = 101L
+                    }
+                }
+              }
+            requestId = "99999999-2222-4222-8222-222222222222"
+          }
+        )
+      }
+    assertThat(changedScopeError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+    val mixedVersionError =
+      assertFailsWith<StatusRuntimeException> {
+        service.finalizeUploadHealingOperation(
+          request.copy {
+            stepManifests[1] =
+              stepManifests[1].copy {
+                labeledOutputManifest = labeledOutputManifest {
+                  blobs +=
+                    LabeledOutputManifestKt.blobVersion {
+                      blobUri = "gs://output/source/data"
+                      generation = 999L
+                    }
+                  blobs +=
+                    LabeledOutputManifestKt.blobVersion {
+                      blobUri = "gs://output/source/sidecar"
+                      generation = 102L
+                    }
+                }
+              }
+            requestId = "99999999-3333-4333-8333-333333333333"
+          }
+        )
+      }
+    assertThat(mixedVersionError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+    val finalized = service.finalizeUploadHealingOperation(request)
+    val replayed = service.finalizeUploadHealingOperation(request)
+
+    assertThat(finalized.state)
+      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING)
+    assertThat(finalized.outputManifestState)
+      .isEqualTo(
+        UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
+      )
+    assertThat(finalized.stepsList.map { it.labeledOutputManifest })
+      .containsExactly(finalizedManifest, finalizedManifest)
+    assertThat(replayed).isEqualTo(finalized)
+  }
+
+  @Test
+  fun `approval reacquires draining fence for a deferred follow-up plan`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.delete(
+          "VidLabelingEvictionFence",
+          com.google.cloud.spanner.Key.of(DATA_PROVIDER_ID),
+        )
+      )
+    )
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val created =
+      service.createUploadHealingOperation(
+        draftRequest(listOf(CANDIDATE_IDS[0]), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+      )
+
+    val draining =
+      service.approveUploadHealingOperation(
+        approveUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = created.etag
+          candidateDecisions +=
+            approvalDecision(
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+            )
+          requestId = APPROVE_REQUEST_ID
+        }
+      )
+
+    assertThat(draining.state)
+      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING)
+    val fence =
+      checkNotNull(
+        spannerDatabase.databaseClient.singleUse().use {
+          it.getVidLabelingEvictionFence(DATA_PROVIDER_ID)
+        }
+      )
+    assertThat(fence.evictionOperationId).isEqualTo(OPERATION_ID)
+    assertThat(fence.state)
+      .isEqualTo(
+        org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+          .VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+      )
   }
 
   @Test
@@ -1414,7 +1667,7 @@ class SpannerUploadHealingOperationServiceTest {
   }
 
   @Test
-  fun `superseded active plan requeues unaffected candidates for replanning`() = runBlocking {
+  fun `superseded draining plan requeues unaffected candidates for replanning`() = runBlocking {
     CANDIDATE_IDS.take(2).forEach { insertCorrectionCandidate(it) }
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     var operation =
@@ -1443,27 +1696,6 @@ class SpannerUploadHealingOperationServiceTest {
           requestId = APPROVE_REQUEST_ID
         }
       )
-    spannerDatabase.databaseClient.write(
-      listOf(
-        Mutation.newInsertBuilder("VidLabelingEvictionFence")
-          .set("DataProviderResourceId")
-          .to(DATA_PROVIDER_ID)
-          .set("EvictionOperationId")
-          .to(OPERATION_ID)
-          .set("Etag")
-          .to("fence-etag")
-          .set("State")
-          .to(
-            Value.protoEnum(
-              org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
-                .VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-            )
-          )
-          .set("CreateTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .build()
-      )
-    )
     spannerDatabase.databaseClient.write(
       listOf(
         Mutation.newUpdateBuilder("RawImpressionUploadCorrectionCandidate")
@@ -1510,6 +1742,71 @@ class SpannerUploadHealingOperationServiceTest {
         org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
           .VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
       )
+  }
+
+  @Test
+  fun `superseded candidate does not rewind a finalized operation`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    var operation =
+      service.createUploadHealingOperation(
+        draftRequest(listOf(CANDIDATE_IDS[0]), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+      )
+    operation =
+      service.approveUploadHealingOperation(
+        approveUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = operation.etag
+          candidateDecisions +=
+            approvalDecision(
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+            )
+          requestId = APPROVE_REQUEST_ID
+        }
+      )
+    operation =
+      service.advanceUploadHealingOperation(
+        advanceUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = operation.etag
+          state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUploadCorrectionCandidate")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadCorrectionCandidateId")
+          .to(CANDIDATE_IDS[0])
+          .set("State")
+          .to(Value.protoEnum(RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED))
+          .set("SupersedingRawImpressionUploadCorrectionCandidateId")
+          .to(CANDIDATE_IDS[1])
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
+
+    val replaying =
+      service.advanceUploadHealingOperation(
+        advanceUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = operation.etag
+          state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    assertThat(replaying.state)
+      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING)
+    assertThat(readCorrectionCandidate(CANDIDATE_IDS[0]).state)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED)
   }
 
   @Test
@@ -2147,8 +2444,8 @@ class SpannerUploadHealingOperationServiceTest {
     }
 
   private suspend fun insertCorrectionCandidate(candidateId: String) {
-    spannerDatabase.databaseClient.write(
-      listOf(
+    val mutations =
+      mutableListOf(
         Mutation.newInsertBuilder("RawImpressionUploadCorrectionCandidate")
           .set("DataProviderResourceId")
           .to(DATA_PROVIDER_ID)
@@ -2185,6 +2482,59 @@ class SpannerUploadHealingOperationServiceTest {
           .toStringArray(emptyList())
           .set("AdvanceRequestFingerprints")
           .toBytesArray(emptyList())
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    val fence =
+      spannerDatabase.databaseClient.singleUse().use {
+        it.getVidLabelingEvictionFence(DATA_PROVIDER_ID)
+      }
+    if (fence == null) {
+      mutations +=
+        Mutation.newInsertOrUpdateBuilder("VidLabelingEvictionFence")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("EvictionOperationId")
+          .to(candidateId)
+          .set("State")
+          .to(
+            Value.protoEnum(
+              org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+                .VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+            )
+          )
+          .set("Etag")
+          .to(UUID.randomUUID().toString())
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+    }
+    spannerDatabase.databaseClient.write(mutations)
+  }
+
+  private suspend fun insertQueuedUpload() {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newInsertBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadId")
+          .to(900L)
+          .set("RawImpressionUploadResourceId")
+          .to("queued-upload")
+          .set("DoneBlobUri")
+          .to("gs://input/queued/done")
+          .set("DoneBlobGeneration")
+          .to(1L)
+          .set("RegistrationComplete")
+          .to(true)
+          .set("ProcessingDeferred")
+          .to(false)
+          .set("State")
+          .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED))
           .set("CreateTime")
           .to(Value.COMMIT_TIMESTAMP)
           .set("UpdateTime")
