@@ -57,6 +57,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.replaceUplo
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.touchUploadHealingOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.transferVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.unassignRawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadModelLineState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingOperationState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingStep
@@ -573,6 +574,7 @@ class SpannerUploadHealingOperationService(
           decisions.getValue(candidate.rawImpressionUploadCorrectionCandidateId),
         )
       }
+      assignPlanModelLinesToOperation(txn, approvedPlan)
       val dispatchableUploadIds =
         txn.readDispatchableRawImpressionUploadIds(request.dataProviderResourceId).toList()
       for (rawImpressionUploadId in dispatchableUploadIds) {
@@ -615,6 +617,33 @@ class SpannerUploadHealingOperationService(
       )
     }
     return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
+  }
+
+  /** Atomically makes every planned source row aware of the fence installed by approval. */
+  private suspend fun assignPlanModelLinesToOperation(
+    txn: AsyncDatabaseClient.TransactionContext,
+    operation: UploadHealingOperation,
+  ) {
+    val sourceRows =
+      operation.stepsList
+        .map { it.sourceRawImpressionUploadResourceId to it.rawImpressionUploadModelLineResourceId }
+        .distinct()
+    for ((uploadId, modelLineId) in sourceRows) {
+      val result =
+        txn.getRawImpressionUploadModelLineByResourceIds(
+          operation.dataProviderResourceId,
+          uploadId,
+          modelLineId,
+        ) ?: continue
+      txn.updateRawImpressionUploadModelLineState(
+        operation.dataProviderResourceId,
+        result.rawImpressionUploadId,
+        result.rawImpressionUploadModelLineId,
+        result.rawImpressionUploadModelLine.state,
+      ) {
+        set("EvictionOperationId").to(operation.uploadHealingOperationId)
+      }
+    }
   }
 
   override suspend fun finalizeUploadHealingOperation(
