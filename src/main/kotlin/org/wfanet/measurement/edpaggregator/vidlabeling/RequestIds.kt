@@ -160,6 +160,12 @@ object RequestIds {
   fun forAdvanceUploadHealingOperation(operationName: String, state: String, etag: String): String =
     fromKey("advanceUploadHealingOperation:$operationName:$state:$etag")
 
+  /** `request_id` for atomically storing exact output versions after draining. */
+  fun forFinalizeUploadHealingOperation(
+    operationName: String,
+    canonicalManifests: ByteArray,
+  ): String = fromBytes("finalizeUploadHealingOperation:$operationName", canonicalManifests)
+
   /** `request_id` for acquiring an upload-eviction fence. */
   fun forAcquireUploadEvictionFence(operationId: String, state: String): String =
     fromKey("acquireUploadEvictionFence:$operationId:$state")

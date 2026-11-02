@@ -1034,27 +1034,70 @@ class EvictUploaderTest {
     }
 
   @Test
-  fun `memoized cascade excludes later non-memoized row for same model line`(): Unit = runBlocking {
-    whenever(uploadService.listRawImpressionUploads(any()))
-      .thenReturn(
-        listRawImpressionUploadsResponse {
-          rawImpressionUploads += rawImpressionUpload {
-            name = uploadName("up1")
-            createTime = T1.toProtoTime()
+  fun `memoized cascade includes every later row for the affected model line`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up1")
+              createTime = T1.toProtoTime()
+            }
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up2")
+              createTime = T2.toProtoTime()
+            }
           }
-          rawImpressionUploads += rawImpressionUpload {
-            name = uploadName("up2")
-            createTime = T2.toProtoTime()
+        )
+      stubModelLineRows("up1", "up2")
+      stubSnapshotRows("up1")
+
+      val plan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
+
+      assertThat(plan.cascade.map { it.uploadName })
+        .containsExactly(uploadName("up1"), uploadName("up2"))
+        .inOrder()
+    }
+
+  @Test
+  fun `correction scope excludes queued created rows from a memoized cascade`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up1")
+              createTime = T1.toProtoTime()
+            }
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up2")
+              createTime = T2.toProtoTime()
+            }
+          }
+        )
+      whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = modelLineName("up1")
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+          if (request.parent.endsWith("/rawImpressionUploads/-")) {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = modelLineName("up2")
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.CREATED
+            }
           }
         }
-      )
-    stubModelLineRows("up1", "up2")
-    stubSnapshotRows("up1")
+      }
+      stubSnapshotRows("up1")
 
-    val plan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
+      val plan = evictUploader.planCorrection(listOf(uploadName("up1")), cutoffTime = T0)
 
-    assertThat(plan.cascade.map { it.uploadName }).containsExactly(uploadName("up1"))
-  }
+      assertThat(plan.cascade.map { it.uploadName }).containsExactly(uploadName("up1"))
+    }
 
   @Test
   fun `plan discovers snapshots with one paginated wildcard lookup per model line`(): Unit =
@@ -1103,7 +1146,7 @@ class EvictUploaderTest {
       val plan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
 
       assertThat(plan.cascade.map { it.uploadName })
-        .containsExactly(uploadName("up1"), uploadName("up2"))
+        .containsExactly(uploadName("up1"), uploadName("up2"), uploadName("up3"))
         .inOrder()
       val requests = argumentCaptor<ListRankIndexBlobsRequest>()
       verifyBlocking(rankIndexBlobService, times(2)) { listRankIndexBlobs(requests.capture()) }
@@ -1316,7 +1359,7 @@ class EvictUploaderTest {
     }
 
   @Test
-  fun `planCorrection rejects active work that can change the approved plan`(): Unit = runBlocking {
+  fun `planCorrection includes active work with provisional exact URI scope`(): Unit = runBlocking {
     whenever(uploadService.listRawImpressionUploads(any()))
       .thenReturn(
         listRawImpressionUploadsResponse {
@@ -1343,14 +1386,56 @@ class EvictUploaderTest {
       }
     }
     stubSnapshotRows()
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "${uploadName("up1")}/files/input"
+            blobUri = "gs://raw/input.parquet"
+            eventDate = date {
+              year = 2026
+              month = 7
+              day = 1
+            }
+          }
+        }
+      )
 
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        evictUploader.planCorrection(listOf(uploadName("up1")), cutoffTime = T0)
+    val plan = evictUploader.planCorrection(listOf(uploadName("up1")), cutoffTime = T0)
+
+    assertThat(plan.cascade.map { it.modelLineName }).containsExactly(modelLineName("up1"))
+    assertThat(plan.outputManifestsFinalized).isFalse()
+    assertThat(plan.cascade.single().labeledOutputManifest.blobsList).hasSize(2)
+    assertThat(plan.cascade.single().labeledOutputManifest.blobsList.all { !it.hasGeneration() })
+      .isTrue()
+    val provisionalError =
+      assertFailsWith<IllegalArgumentException> { evictUploader.evict(plan, REASON) {} }
+    assertThat(provisionalError).hasMessageThat().contains("provisional")
+
+    whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+      if (request.filter.stateInList.isNotEmpty()) {
+        listRawImpressionUploadModelLinesResponse {}
+      } else {
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = modelLineName("up1")
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.COMPLETED
+            etag = "etag-2"
+          }
+        }
       }
+    }
+    for (blob in plan.cascade.single().labeledOutputManifest.blobsList) {
+      blobGenerations[blob.blobUri] = 7L
+    }
 
-    assertThat(error).hasMessageThat().contains("cannot freeze a safe eviction plan")
-    assertThat(error).hasMessageThat().contains(modelLineName("up1"))
+    val finalized = evictUploader.finalizeOutputManifests(plan)
+
+    assertThat(finalized.outputManifestsFinalized).isTrue()
+    assertThat(finalized.cascade.single().labeledOutputManifest.blobsList.map { it.generation })
+      .containsExactly(7L, 7L)
   }
 
   @Test
@@ -1411,7 +1496,7 @@ class EvictUploaderTest {
           evictUploader.planCorrection(listOf(uploadName("up1")), cutoffTime = T0)
         }
 
-      assertThat(error).hasMessageThat().contains("can publish the same output")
+      assertThat(error).hasMessageThat().contains("omits active model-line work")
       assertThat(error).hasMessageThat().contains(modelLineName("active"))
     }
 
