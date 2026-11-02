@@ -1382,6 +1382,39 @@ existing WorkItems RPCs, queues, topics, subscriptions, and DLQs. The Secure Com
 workload-agnostic: it stores and republishes opaque WorkItem parameters and does not call the
 Requisition Metadata or Impression Metadata APIs.
 
+#### Secure Computation API memory
+
+The development Secure Computation internal API requests and limits 1 GiB of
+container memory, with a 64M Java heap and an explicit 128M Java direct-buffer
+limit. Size the container for the complete instrumented JVM: heap, class metadata,
+compiled code, buffers, thread stacks, and other native allocations. A direct-buffer
+limit does not bound total process memory.
+
+An `OOMKilled` termination with exit code 137 indicates a container memory kill.
+It can occur with free Java heap and without a Java `OutOfMemoryError` or heap dump.
+Identify the affected container and its termination time before changing memory
+settings; internal and public API containers have separate budgets.
+
+Compare `kubernetes.io/container/memory/used_bytes` and
+`kubernetes.io/container/memory/limit_bytes` with `workload.googleapis.com/jvm.memory.used`
+by memory pool and `workload.googleapis.com/jvm.thread.count`. Container measurements
+include memory outside those JVM pools. Observe startup, warm idle operation, and
+sustained creation/publication across the configured queues when choosing a budget.
+Check the memory trend and restart count after the workload finishes.
+
+For a deeper JVM allocation breakdown, start a diagnostic JVM with
+`-XX:NativeMemoryTracking=summary`. Using JDK diagnostic tools with access to attach
+to that process, take a baseline after warmup and compare it after the workload:
+
+```bash
+jcmd JVM_PID VM.native_memory baseline
+jcmd JVM_PID VM.native_memory summary.diff scale=MB
+```
+
+Native Memory Tracking requires startup configuration and has overhead; enable it
+for a profiling session. Its totals do not include every allocation made by
+third-party native libraries, so compare them with container memory as well.
+
 #### Recovering after correcting a queue mapping
 
 When the publisher cannot resolve a WorkItem's queue, it deprioritizes that pending publication so
