@@ -99,6 +99,10 @@ The reference writer calls the video completion column
 `video_completed_fraction`. An EDP may use another name if the operator's
 mapping points the event field to that column.
 
+Columns referenced by `labeler_input_field_mapping` must exist with the
+agreed types. EDPA checks the first input file's schema before labeling;
+a renamed, missing, or incompatibly retyped column fails validation.
+
 Each impression should carry all applicable entity keys. Account, campaign,
 ad-set, ad, and creative are examples of entity types, not a required taxonomy.
 Map each entity type to its own STRING column so every applicable key is preserved
