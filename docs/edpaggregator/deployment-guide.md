@@ -1563,6 +1563,11 @@ data-availability → ResultsFulfiller → result returned to the CMMS.
    `--create-done-blobs` writes the `done` marker in each date directory so the
    pipeline picks up the data.
 
+   Labeled synthetic-data uploads use generation preconditions so the GCS SDK can
+   retry transient upload errors. A concurrent change to the same blob fails the
+   upload instead of overwriting that change. Run only one generator for a given
+   output path at a time.
+
 ### Cloud test steps
 
 The test walks through: (1) event-group creation, (2) upload of the event group to
