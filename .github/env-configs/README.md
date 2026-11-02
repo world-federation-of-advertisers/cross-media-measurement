@@ -1,9 +1,14 @@
 # Environment configuration
 
-Non-secret configuration for the Halo `dev`, `head`, and `qa` environments is committed here. Each `cmms.json` file is the source of truth for values shared by deployment and test workflows. Workflows load the selected file with `.github/actions/load-cmms-environment`, which exports each key to subsequent steps and also provides the complete JSON for expression-only consumers such as action inputs.
+Non-secret configuration for the Halo `dev`, `head`, and `qa` environments is committed in several files according to how it is consumed:
 
-Terraform-only settings remain in `src/main/terraform/gcloud/cmms/envs/<environment>.tfvars`. Structured application configuration remains alongside those files as textproto, JSON, or PEM files.
+- `.github/env-configs/<environment>/cmms.json` contains values shared by deployment and test workflows. Workflows load the selected file with `.github/actions/load-cmms-environment`, which exports each key to subsequent steps and also provides the complete JSON for expression-only consumers such as action inputs.
+- `src/main/terraform/gcloud/cmms/envs/<environment>.tfvars` contains Terraform inputs, including Cloud Function runtime environment-variable strings and Secret Manager mount mappings.
+- `src/main/terraform/gcloud/cmms/envs/<environment>.backend.hcl` selects the Terraform state bucket.
+- `src/main/terraform/gcloud/cmms/envs/<environment>/` contains structured application configuration as textproto, JSON, or PEM files.
 
-GitHub environments continue to hold secrets, such as API keys and credentials. GitHub Actions variables are reserved for repository-wide CI and release integrations that are not configuration of a specific Halo environment, such as artifact-publishing, image-signing, and notification settings. Workflow-dispatch overrides remain inputs. Halo resource names, endpoints, identities, and test key-resource identifiers belong in the selected `cmms.json` file so they are reviewed and versioned together.
+This layout keeps the configuration reviewed and versioned in the repository, but it is not a single-file source of truth. Some Terraform runtime environment-variable strings embed project IDs, endpoints, or bucket names that are also represented in `cmms.json` or another tfvars value. Changes to those shared values must update every applicable committed representation.
 
-When changing a shared resource name or endpoint, update only the corresponding `cmms.json` file. Secret mapping values name Secret Manager resources and mount paths; secret contents must remain in GitHub or Google Secret Manager.
+Halo workflows no longer read non-secret configuration from GitHub environment variables. This migration does not delete variables already stored in GitHub environments, so legacy values and values under active testing may remain there temporarily. GitHub environments continue to hold secrets such as API keys and credentials. GitHub Actions variables are reserved for repository-wide CI and release integrations, such as artifact publishing, image signing, and notifications. Workflow-dispatch overrides remain inputs.
+
+Secret mapping values committed in tfvars name Secret Manager resources and filesystem mount paths; secret contents must remain in GitHub or Google Secret Manager.
