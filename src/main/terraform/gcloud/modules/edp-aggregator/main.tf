@@ -397,6 +397,11 @@ module "data_availability_sync_cloud_function" {
   secret_mappings                          = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_sync.uber_jar_path
   secrets_to_access                        = [for key in local.data_availability_sync_secrets_access : local.all_secrets[key].secret_id]
+
+  # The RPC throttler is process-local. Bound service-wide concurrency to protect the shared
+  # ImpressionMetadata service from completion-marker bursts.
+  max_instances = 5
+  concurrency   = 1
 }
 
 module "data_availability_cleanup_cloud_function" {
@@ -460,6 +465,8 @@ module "result_fulfiller_tee_app" {
   max_replicas                  = var.requisition_fulfiller_config.worker.max_replicas
   machine_type                  = var.requisition_fulfiller_config.worker.machine_type
   java_tool_options             = var.requisition_fulfiller_config.worker.java_tool_options
+  max_attempt_runtime_seconds   = var.requisition_fulfiller_config.worker.max_attempt_runtime_seconds
+  stack_dump_interval_seconds   = var.requisition_fulfiller_config.worker.stack_dump_interval_seconds
   docker_image                  = var.requisition_fulfiller_config.worker.docker_image
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
@@ -834,6 +841,8 @@ module "vid_labeling_tee_app" {
   machine_type                  = each.value.worker.machine_type
   disk_type                     = each.value.worker.disk_type
   java_tool_options             = each.value.worker.java_tool_options
+  max_attempt_runtime_seconds   = each.value.worker.max_attempt_runtime_seconds
+  stack_dump_interval_seconds   = each.value.worker.stack_dump_interval_seconds
   docker_image                  = each.value.worker.docker_image
   mig_distribution_policy_zones = each.value.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account

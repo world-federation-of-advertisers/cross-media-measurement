@@ -19,7 +19,10 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 import com.google.protobuf.util.Timestamps
 import io.opentelemetry.api.common.Attributes
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
 import kotlin.time.TimeSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -146,9 +149,17 @@ private constructor(
     private val logger = Logger.getLogger(MemoizedRankIndex::class.java.name)
 
     /** Default number of subpool blobs decrypted/built concurrently. */
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4741): Make reader parallelism a
+    //  VID-labeler deployment setting instead of always using this default.
     const val DEFAULT_READER_PARALLELISM: Int = 16
 
     private const val FINGERPRINT_BYTES = Bytes12IntMap.FINGERPRINT_BYTE_WIDTH
+
+    /**
+     * Records between per-subpool progress logs. VidRankBuilder writes ~1M entries per record, so
+     * this logs roughly every 8M entries — a few lines per subpool, enough to locate a stall.
+     */
+    private const val PROGRESS_LOG_RECORD_INTERVAL = 8L
 
     /**
      * Builds an index directly from prebuilt per-subpool `fingerprint -> rank` maps. Visible for
@@ -274,6 +285,13 @@ private constructor(
      * Memory: the entire cumulative index is held in heap for the WorkItem's lifetime (~6 GiB
      * steady-state on the 128 GB VID-labeler VM). Size the VM for the model line's fingerprint
      * count.
+     *
+     * Subpools load in [loadContext] (default [Dispatchers.Default]) so up to [readerParallelism]
+     * decrypt/decode/insert pipelines actually run on separate cores, rather than sharing the
+     * caller's thread — which, under a dispatcher-less `runBlocking`, serializes the whole build.
+     * Each subpool owns its own [Bytes12IntMap], so concurrent loads never share mutable state.
+     * [loadContext] must not contain a [Job]: that would replace the build scope as the loads'
+     * parent, letting them outlive a cancelled attempt or a sibling load's failure.
      */
     suspend fun buildFrom(
       rankIndexStore: RankIndexStore,
@@ -282,13 +300,19 @@ private constructor(
       blobs: List<RankIndexBlob>,
       readerParallelism: Int = DEFAULT_READER_PARALLELISM,
       metrics: MemoizedRankIndexMetrics = MemoizedRankIndexMetrics(),
+      loadContext: CoroutineContext = Dispatchers.Default,
     ): MemoizedRankIndex {
+      require(loadContext[Job] == null) { "loadContext must not contain a Job" }
       val startMark = TimeSource.Monotonic.markNow()
+      logger.info(
+        "Building memoized rank index for $modelLine: ${blobs.size} subpool blob(s), " +
+          "readerParallelism=$readerParallelism"
+      )
       val semaphore = Semaphore(readerParallelism.coerceAtLeast(1))
       val loaded: Map<Long, LoadedSubpool> = coroutineScope {
         blobs
           .map { blob ->
-            async {
+            async(loadContext) {
               semaphore.withPermit { blob.poolOffset to readSubpoolMap(rankIndexStore, blob) }
             }
           }
@@ -324,7 +348,10 @@ private constructor(
       // (resolveLatestBlobs) already guarantees there is at least one blob to resolve it from.
       val kekUri = resolveKekUri(blobs, modelLine)
 
-      logger.info("Loaded memoized rank index for $modelLine: ${poolOffsets.size} subpool(s)")
+      logger.info(
+        "Loaded memoized rank index for $modelLine: ${poolOffsets.size} subpool(s) in " +
+          "${startMark.elapsedNow().inWholeMilliseconds} ms"
+      )
       return MemoizedRankIndex(poolOffsets, subpoolMaps, kekUri)
     }
 
@@ -352,13 +379,26 @@ private constructor(
       // pre-sizing) and the record flow (for content), instead of a getBlob for blobSize plus a
       // second getBlob inside readBlob. An absent blob (null) is handled exactly as before: no
       // records are read, so the ranked_size check below fails with the same error.
+      val startMark = TimeSource.Monotonic.markNow()
+      logger.info("Loading rank index subpool ${blob.poolOffset} from ${blob.blobUri}")
       val opened = rankIndexStore.openBlob(blob.blobUri, blob.encryptedDek, blob.blobChecksum)
       val estimatedEntries = (opened?.first ?: 0L) / RankIndexStore.ON_DISK_BYTES_PER_ENTRY
       // Size the map to hold estimatedEntries WITHOUT resizing: capacity = entries / load-factor
       // (0.75) == entries * 4 / 3, floored at the minimum. The map is lookup-only (never iterated),
       // so a different capacity cannot change any observable result — only avoids resizes at load.
       val map = Bytes12IntMap((estimatedEntries * 4 / 3).coerceAtLeast(Bytes12IntMap.MIN_CAPACITY))
+      // Setup (key unwrap, blob open, map allocation) is logged separately from reading and
+      // inserting records, so a stall in either is attributable.
+      val setupMs = startMark.elapsedNow().inWholeMilliseconds
+      logger.info(
+        "Rank index subpool ${blob.poolOffset} setup complete after $setupMs ms: " +
+          "${opened?.first ?: 0L} bytes on disk, ~$estimatedEntries estimated entries, " +
+          "map capacity ${map.capacity()}"
+      )
       var rankedSize = -1
+      var records = 0L
+      var entries = 0L
+      var plaintextBytes = 0L
       opened?.second?.collect { record ->
         if (rankedSize == -1) {
           rankedSize = record.rankedSize
@@ -389,8 +429,22 @@ private constructor(
           )
           offset += FINGERPRINT_BYTES
         }
+        records++
+        entries += record.ranksCount
+        plaintextBytes += record.serializedSize
+        if (records % PROGRESS_LOG_RECORD_INTERVAL == 0L) {
+          val elapsedMs = startMark.elapsedNow().inWholeMilliseconds
+          logger.info(
+            "Rank index subpool ${blob.poolOffset}: $records record(s), $entries entries, " +
+              "$plaintextBytes plaintext bytes after $elapsedMs ms"
+          )
+        }
       }
       check(rankedSize >= 0) { "Empty rank index blob ${blob.blobUri} has no ranked_size" }
+      logger.info(
+        "Loaded rank index subpool ${blob.poolOffset}: $records record(s), $entries entries, " +
+          "$plaintextBytes plaintext bytes in ${startMark.elapsedNow().inWholeMilliseconds} ms"
+      )
       return LoadedSubpool(map, rankedSize)
     }
 
