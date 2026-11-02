@@ -10,6 +10,15 @@ lines.
 Do not pause `DataAvailabilitySync` manually. Synchronization leases block eviction until in-flight
 work drains and prevent new synchronization attempts after a correction fence is acquired.
 
+Automatically detected correction candidates use a versioned provisional plan. The plan fixes
+every affected upload/model-line row and labeled-output URI, including in-flight rows in a
+memoized model-line cascade, but does not claim that the current object generations are final.
+Operator approval atomically records every candidate decision, transfers the candidate fence to
+the operation, defers queued uploads, and enters `DRAINING`. Once existing labeling work,
+incomplete registrations, and synchronization leases finish, the fence enters `EVICTING`; only
+then does the controller capture and persist the exact output generations before deleting
+anything. An interrupted controller safely resumes either the drain or exact-version finalization.
+
 The command checks every upload/model-line under the DataProvider and refuses to run while any VID
 labeling pipeline is queued or running. If this happens, retry later after processing for that
 DataProvider has finished.
