@@ -49,6 +49,8 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMeta
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.UndigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
@@ -950,7 +952,6 @@ class VidLabelerApp(
     }
     var doneObjectsWritten = 0
     var parentsTransitioned = 0
-    var availabilityDeferredForHealing: Boolean? = null
     for (completedModelLine in completedModelLines) {
       val parent = parentsByModelLine[completedModelLine]
       if (parent == null) {
@@ -1038,9 +1039,7 @@ class VidLabelerApp(
         VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME_STRING to parent.name,
         VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to completedModelLine,
       )
-      val availabilityDeferred =
-        availabilityDeferredForHealing
-          ?: isAvailabilityDeferredForHealing(upload).also { availabilityDeferredForHealing = it }
+      val availabilityDeferred = isAvailabilityDeferredForHealing(upload, parent.name)
       if (availabilityDeferred) {
         logger.info(
           "Deferring Data Availability WorkItems for $upload model line $completedModelLine " +
@@ -1100,16 +1099,34 @@ class VidLabelerApp(
     return eventDates
   }
 
-  /** Returns whether [uploadName]'s healing fence still defers availability publication. */
-  private suspend fun isAvailabilityDeferredForHealing(uploadName: String): Boolean {
+  /**
+   * Returns whether healing ownership still defers availability publication for [modelLineName].
+   */
+  private suspend fun isAvailabilityDeferredForHealing(
+    uploadName: String,
+    modelLineName: String,
+  ): Boolean {
     val upload =
       rpcThrottlers.metadataRead.onReady {
         rawImpressionUploadsStub.getRawImpressionUpload(
           getRawImpressionUploadRequest { name = uploadName }
         )
       }
-    val operationName = upload.uploadHealingOperation
-    if (operationName.isEmpty()) return false
+    val operationName =
+      upload.uploadHealingOperation.ifEmpty {
+        val modelLine =
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
+              getRawImpressionUploadModelLineRequest { name = modelLineName }
+            )
+          }
+        if (modelLine.evictionOperationId.isEmpty()) return false
+        val uploadKey =
+          requireNotNull(RawImpressionUploadKey.fromName(uploadName)) {
+            "Invalid RawImpressionUpload name: $uploadName"
+          }
+        UploadHealingOperationKey(uploadKey.dataProviderId, modelLine.evictionOperationId).toName()
+      }
     val operation =
       rpcThrottlers.metadataRead.onReady {
         uploadHealingOperationsStub.getUploadHealingOperation(
