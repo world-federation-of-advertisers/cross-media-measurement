@@ -228,8 +228,26 @@ fun interface CloudTraceReader {
     spanLimit: Int,
     traceIdLimit: Int,
     requiredTraceIds: Set<String>,
-  ): CloudTelemetryReadResult<CloudTraceSpan> =
-    readBatch(project, correlationValues, traceIds, startTime, endTime, spanLimit, traceIdLimit)
+  ): CloudTelemetryReadResult<CloudTraceSpan> {
+    val requestedTraceIds = (traceIds + requiredTraceIds).distinct()
+    val result =
+      readBatch(
+        project,
+        correlationValues,
+        requestedTraceIds,
+        startTime,
+        endTime,
+        spanLimit,
+        traceIdLimit,
+      )
+    val returnedTraceIds =
+      result.entries.mapTo(mutableSetOf()) { it.traceId.substringAfterLast('/') }
+    val normalizedRequiredTraceIds =
+      requiredTraceIds.mapTo(mutableSetOf()) { it.substringAfterLast('/') }
+    return result.copy(
+      complete = result.complete && returnedTraceIds.containsAll(normalizedRequiredTraceIds)
+    )
+  }
 
   suspend fun readBatch(
     project: String,
