@@ -234,10 +234,12 @@ class CmmsEventGroupActivityPublisher(
   private fun ImpressionMetadata.activityDates(): Set<LocalDate> {
     val start: Instant = interval.startTime.toInstant()
     val end: Instant = interval.endTime.toInstant()
-    require(!end.isBefore(start)) { "ImpressionMetadata interval end_time precedes start_time" }
+    require(end.isAfter(start)) {
+      "ImpressionMetadata interval end_time must be after start_time"
+    }
 
     val startDate = start.atZone(marketTimeZone).toLocalDate()
-    val endDate = end.atZone(marketTimeZone).toLocalDate()
+    val endDate = end.minusNanos(1L).atZone(marketTimeZone).toLocalDate()
     return generateSequence(startDate) { date -> date.plusDays(1).takeIf { it <= endDate } }.toSet()
   }
 

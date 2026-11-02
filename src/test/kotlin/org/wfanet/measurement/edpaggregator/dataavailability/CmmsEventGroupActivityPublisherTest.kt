@@ -124,6 +124,37 @@ class CmmsEventGroupActivityPublisherTest {
   }
 
   @Test
+  fun `publish excludes the market date at an exact exclusive midnight end`() = runBlocking {
+    seedMap(mapping("campaign", "123", "$DATA_PROVIDER/eventGroups/eg1"))
+    val metadata = impressionMetadata {
+      interval = interval {
+        startTime = Timestamps.parse("2026-01-02T07:59:59.999999Z")
+        endTime = Timestamps.parse("2026-01-02T08:00:00Z")
+      }
+      entityKeys += entityKey {
+        entityType = "campaign"
+        entityId = "123"
+      }
+    }
+
+    val published =
+      newPublisher(
+          ZoneId.of("America/Los_Angeles"),
+          EventGroupActivityPublisherMetrics(Instrumentation.meter),
+        )
+        .publish(listOf(metadata))
+
+    assertThat(published).isEqualTo(1)
+    val updateRequest = argumentCaptor<BatchUpdateEventGroupActivitiesRequest>()
+    verifyBlocking(eventGroupActivitiesServiceMock) {
+      batchUpdateEventGroupActivities(updateRequest.capture())
+    }
+    assertThat(updateRequest.firstValue.requestsList.map { it.eventGroupActivity.name })
+      .containsExactly("$DATA_PROVIDER/eventGroups/eg1/eventGroupActivities/2026-01-01")
+    Unit
+  }
+
+  @Test
   fun `publish deduplicates activity across metadata and entity keys`() = runBlocking {
     seedMap(
       mapping("campaign", "123", "$DATA_PROVIDER/eventGroups/eg1"),
