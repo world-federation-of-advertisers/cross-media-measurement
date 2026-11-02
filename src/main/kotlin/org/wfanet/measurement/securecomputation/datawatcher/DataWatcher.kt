@@ -52,9 +52,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
-private class HttpEndpointResponseException(val statusCode: Int, message: String) :
-  IllegalStateException(message)
-
 /*
  * Watcher to observe blob creation events and take the appropriate action for each.
  * @param workItemsStub - the Google Pub Sub Sink to call
@@ -130,7 +127,7 @@ class DataWatcher(
       val isRetryable =
         e is IOException ||
           e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES ||
-          (e is HttpEndpointResponseException && isRetryableHttpStatusCode(e.statusCode))
+          DataWatcherRetryPolicy.isRetryableHttpFailure(e)
       onProcessingFailed(config, path, elapsedSeconds, e, shouldLog = !isRetryable)
       val isRecoveryOperation =
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
@@ -321,7 +318,7 @@ class DataWatcher(
     val response = client.send(request, BodyHandlers.ofString())
     val statusCode = response.statusCode()
     if (statusCode != 200) {
-      throw HttpEndpointResponseException(
+      throw DataWatcherHttpException(
         statusCode,
         "${config.identifier}: HTTP endpoint ${httpEndpointConfig.endpointUri} returned $statusCode",
       )
@@ -432,11 +429,6 @@ class DataWatcher(
         Status.Code.UNKNOWN,
         Status.Code.UNAVAILABLE,
       )
-
-    private fun isRetryableHttpStatusCode(statusCode: Int): Boolean =
-      statusCode in RETRYABLE_HTTP_STATUS_CODES
-
-    private val RETRYABLE_HTTP_STATUS_CODES = setOf(408, 429, 502, 503, 504)
 
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"

@@ -72,6 +72,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWork
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcherHttpException
 
 @RunWith(JUnit4::class)
 class VidLabelingHealingControllerTest {
@@ -673,6 +674,48 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
+  fun `run moves a permanent HTTP failure to needs attention`() = runBlocking {
+    var operation = EVICTING_OPERATION
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val states =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+          .filter
+          .stateInList
+      listUploadHealingOperationsResponse {
+        if (operation.state in states) uploadHealingOperations += operation
+      }
+    }
+    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+      .thenThrow(DataWatcherHttpException(400, "bad dispatcher request"))
+    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
+      val previousState = operation.state
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
+        >(
+          0
+        )
+      operation =
+        operation.copy {
+          state = request.state
+          resumeState = previousState
+        }
+      operation
+    }
+
+    newController().run()
+
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.NEEDS_ATTENTION)
+    assertThat(operation.resumeState).isEqualTo(UploadHealingOperation.State.EVICTING)
+  }
+
+  @Test
   fun `run reports a stalled operation only after its timeout`() = runBlocking {
     val operation =
       APPROVED_OPERATION.copy {
@@ -798,7 +841,7 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
-  fun `operator recovery reuses its generation after replay fails before checkpoint`() =
+  fun `operator recovery retries HTTP 429 and reuses its generation before checkpoint`() =
     runBlocking {
       val recoveryStep =
         APPROVED_OPERATION.stepsList.single().copy {
@@ -866,13 +909,14 @@ class VidLabelingHealingControllerTest {
       var replayAttempts = 0
       val replayer = DoneBlobReplayer {
         replayAttempts++
-        if (replayAttempts == 1) throw Status.UNAVAILABLE.asRuntimeException()
+        if (replayAttempts == 1) throw DataWatcherHttpException(429, "dispatcher throttled")
       }
       val controller =
         newController(doneBlobReplayer = replayer, recoveryExecutor = recoveryExecutor)
 
       controller.run()
 
+      assertThat(operation.state).isEqualTo(UploadHealingOperation.State.RECOVERING)
       assertThat(operation.stepsList.single().state)
         .isEqualTo(UploadHealingStep.State.WAITING_FOR_REPLACEMENT)
       assertThat(checkpoints).isEqualTo(0)
