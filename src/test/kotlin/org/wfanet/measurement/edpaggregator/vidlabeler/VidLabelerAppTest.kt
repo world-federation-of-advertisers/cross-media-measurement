@@ -629,7 +629,7 @@ class VidLabelerAppTest {
       markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(6)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(5)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
   }
@@ -1018,13 +1018,6 @@ class VidLabelerAppTest {
     }
     rawImpressionUploadModelLinesService.stub {
       onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
-        rawImpressionUploadModelLine {
-          name = PARENT_NAME
-          cmmsModelLine = MODEL_LINE
-          state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
-          evictionOperationId = HEALING_OPERATION_ID
-        }
-      onBlocking { getRawImpressionUploadModelLine(any()) } doReturn
         rawImpressionUploadModelLine {
           name = PARENT_NAME
           cmmsModelLine = MODEL_LINE
