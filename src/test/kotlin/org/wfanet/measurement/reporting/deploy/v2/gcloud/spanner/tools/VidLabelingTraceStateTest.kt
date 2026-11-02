@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.type.Interval
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -760,6 +761,27 @@ class VidLabelingTraceStateTest {
       verifyBlocking(workItems, times(1)) { listWorkItems(any(), any()) }
       verifyBlocking(attempts, never()) { listWorkItemAttempts(any(), any()) }
     }
+
+  @Test
+  fun `WorkItem resolver fails immediately when a page token repeats`() = runBlocking {
+    val requests = AtomicInteger()
+    val resolver =
+      GrpcVidLabelingWorkItemResolver.fromFunctions(
+        listWorkItems = {
+          requests.incrementAndGet()
+          ListWorkItemsResponse.newBuilder().setNextPageToken("repeated-token").build()
+        },
+        listWorkItemAttempts = { error("attempts must not be listed") },
+      )
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        resolver.resolve(UPLOAD, emptyList(), pageLimit = 100)
+      }
+
+    assertThat(exception).hasMessageThat().contains("repeated page token")
+    assertThat(requests.get()).isEqualTo(2)
+  }
 
   private fun expectedWorkItemGroup(id: String, stage: String): ExpectedWorkItemGroup {
     val originalName = "workItems/$id"

@@ -968,6 +968,7 @@ private constructor(
     var pagesFetched = 0
     var rowsExamined = 0
     var pageToken = ""
+    val requestedPageTokens = mutableSetOf(pageToken)
     var truncated = false
     do {
       val response =
@@ -988,6 +989,9 @@ private constructor(
         }
       }
       pageToken = response.nextPageToken
+      check(pageToken.isEmpty() || requestedPageTokens.add(pageToken)) {
+        "ListWorkItems returned a repeated page token"
+      }
       if (pageToken.isNotEmpty() && pagesFetched == pageLimit) {
         truncated = true
         break
