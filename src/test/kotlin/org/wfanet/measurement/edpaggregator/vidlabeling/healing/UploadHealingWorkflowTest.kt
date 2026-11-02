@@ -194,6 +194,10 @@ class UploadHealingWorkflowTest {
         ),
         RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel),
         object : EvictionExecutor {
+          override suspend fun finalizeOutputManifests(
+            plan: EvictUploader.EvictionPlan
+          ): EvictUploader.EvictionPlan = plan
+
           override suspend fun prepare(
             plan: EvictUploader.EvictionPlan
           ): EvictUploader.EvictionPlan {
@@ -268,7 +272,7 @@ class UploadHealingWorkflowTest {
           grpcTestServerRule.channel
         ),
         RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(grpcTestServerRule.channel),
-        EvictionExecutor { plan, _, checkpoint ->
+        testEvictionExecutor { plan, _, checkpoint ->
           for (entry in plan.cascade) {
             evictedEntries += entry.modelLineName
             checkpoint(entry)
@@ -372,7 +376,7 @@ class UploadHealingWorkflowTest {
           RawImpressionUploadModelLineServiceGrpcKt
             .RawImpressionUploadModelLineServiceCoroutineStub(channel),
           RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel),
-          EvictionExecutor { evictionPlan, _, checkpoint ->
+          testEvictionExecutor { evictionPlan, _, checkpoint ->
             for (entry in evictionPlan.cascade) checkpoint(entry)
             EvictUploader.EvictionResult(evictionPlan.cascade.map { it.modelLineName }, 4, 4, 8)
           },
@@ -442,6 +446,24 @@ class UploadHealingWorkflowTest {
     createTime = Instant.ofEpochSecond(index.toLong() + 1L).toProtoTime()
     registrationComplete = true
   }
+
+  private fun testEvictionExecutor(
+    evict:
+      suspend (
+        EvictUploader.EvictionPlan, String, suspend (EvictUploader.CascadeEntry) -> Unit,
+      ) -> EvictUploader.EvictionResult
+  ): EvictionExecutor =
+    object : EvictionExecutor {
+      override suspend fun finalizeOutputManifests(
+        plan: EvictUploader.EvictionPlan
+      ): EvictUploader.EvictionPlan = plan
+
+      override suspend fun evict(
+        plan: EvictUploader.EvictionPlan,
+        reason: String,
+        onEntryEvicted: suspend (EvictUploader.CascadeEntry) -> Unit,
+      ): EvictUploader.EvictionResult = evict(plan, reason, onEntryEvicted)
+    }
 
   private class InMemoryOperationsService :
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase() {
