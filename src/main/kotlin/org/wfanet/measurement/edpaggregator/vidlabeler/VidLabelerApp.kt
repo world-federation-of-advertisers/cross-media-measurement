@@ -998,7 +998,7 @@ class VidLabelerApp(
       if (doneObjects.isEmpty()) {
         continue
       }
-      val transitioned =
+      val parentTransition =
         try {
           markParentAvailabilitySyncing(parent, eventDates, dataProvider)
         } catch (e: CancellationException) {
@@ -1019,7 +1019,8 @@ class VidLabelerApp(
         }
       parentsTransitioned++
       val transitionOutcome =
-        if (transitioned) "availability_syncing" else "already_availability_syncing"
+        if (parentTransition.transitioned) "availability_syncing"
+        else "already_availability_syncing"
       Span.current()
         .addEvent(
           "edpa.vid_labeling.label.parent_transition",
@@ -1039,7 +1040,8 @@ class VidLabelerApp(
         VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME_STRING to parent.name,
         VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to completedModelLine,
       )
-      val availabilityDeferred = isAvailabilityDeferredForHealing(upload, parent.name)
+      val availabilityDeferred =
+        isAvailabilityDeferredForHealing(upload, parentTransition.modelLine)
       if (availabilityDeferred) {
         logger.info(
           "Deferring Data Availability WorkItems for $upload model line $completedModelLine " +
@@ -1099,12 +1101,10 @@ class VidLabelerApp(
     return eventDates
   }
 
-  /**
-   * Returns whether healing ownership still defers availability publication for [modelLineName].
-   */
+  /** Returns whether healing ownership still defers publication for [modelLine]. */
   private suspend fun isAvailabilityDeferredForHealing(
     uploadName: String,
-    modelLineName: String,
+    modelLine: RawImpressionUploadModelLine,
   ): Boolean {
     val upload =
       rpcThrottlers.metadataRead.onReady {
@@ -1114,12 +1114,6 @@ class VidLabelerApp(
       }
     val operationName =
       upload.uploadHealingOperation.ifEmpty {
-        val modelLine =
-          rpcThrottlers.metadataRead.onReady {
-            rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
-              getRawImpressionUploadModelLineRequest { name = modelLineName }
-            )
-          }
         if (modelLine.evictionOperationId.isEmpty()) return false
         val uploadKey =
           requireNotNull(RawImpressionUploadKey.fromName(uploadName)) {
@@ -1141,31 +1135,37 @@ class VidLabelerApp(
    * acknowledge. An optimistic-lock failure is successful only when the parent has already reached
    * this phase or completed it.
    */
+  private data class ParentTransitionResult(
+    val modelLine: RawImpressionUploadModelLine,
+    val transitioned: Boolean,
+  )
+
   private suspend fun markParentAvailabilitySyncing(
     parent: RawImpressionUploadModelLine,
     eventDates: Set<LocalDate>,
     dataProvider: String,
-  ): Boolean {
+  ): ParentTransitionResult {
     try {
-      rpcThrottlers.metadataWrite.onReady {
-        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineAvailabilitySyncing(
-          markRawImpressionUploadModelLineAvailabilitySyncingRequest {
-            name = parent.name
-            etag = parent.etag
-            pendingAvailabilityDates +=
-              eventDates.sorted().map { eventDate ->
-                date {
-                  year = eventDate.year
-                  month = eventDate.monthValue
-                  day = eventDate.dayOfMonth
+      val modelLine =
+        rpcThrottlers.metadataWrite.onReady {
+          rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineAvailabilitySyncing(
+            markRawImpressionUploadModelLineAvailabilitySyncingRequest {
+              name = parent.name
+              etag = parent.etag
+              pendingAvailabilityDates +=
+                eventDates.sorted().map { eventDate ->
+                  date {
+                    year = eventDate.year
+                    month = eventDate.monthValue
+                    day = eventDate.dayOfMonth
+                  }
                 }
-              }
-            requestId =
-              RequestIds.forMarkRawImpressionUploadModelLineAvailabilitySyncing(parent.name)
-          }
-        )
-      }
-      return true
+              requestId =
+                RequestIds.forMarkRawImpressionUploadModelLineAvailabilitySyncing(parent.name)
+            }
+          )
+        }
+      return ParentTransitionResult(modelLine, transitioned = true)
     } catch (e: StatusException) {
       if (
         e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
@@ -1195,7 +1195,32 @@ class VidLabelerApp(
           "markRawImpressionUploadModelLineAvailabilitySyncing(${parent.name}) observed " +
             "${current.state} after ${e.status.code}; treating as done"
         )
-        return false
+        return ParentTransitionResult(current, transitioned = false)
+      }
+      if (
+        e.status.code == Status.Code.ABORTED &&
+          current.state == RawImpressionUploadModelLine.State.LABELING
+      ) {
+        val retried =
+          rpcThrottlers.metadataWrite.onReady {
+            rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineAvailabilitySyncing(
+              markRawImpressionUploadModelLineAvailabilitySyncingRequest {
+                name = current.name
+                etag = current.etag
+                pendingAvailabilityDates +=
+                  eventDates.sorted().map { eventDate ->
+                    date {
+                      year = eventDate.year
+                      month = eventDate.monthValue
+                      day = eventDate.dayOfMonth
+                    }
+                  }
+                requestId =
+                  RequestIds.forMarkRawImpressionUploadModelLineAvailabilitySyncing(current.name)
+              }
+            )
+          }
+        return ParentTransitionResult(retried, transitioned = true)
       }
       metrics.markCompletedFailuresCounter.add(
         1,
