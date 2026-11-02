@@ -138,6 +138,8 @@ class EvictUploader(
     val recoveryTargets: List<RecoveryTarget>,
     /** Latest invalid revisions that an EDP correction replaces. */
     val replacementTargets: List<RecoveryTarget> = emptyList(),
+    /** Whether every manifest carries the exact version captured under the eviction fence. */
+    val outputManifestsFinalized: Boolean = true,
   )
 
   /** Outcome of an [evict] run. */
@@ -174,6 +176,7 @@ class EvictUploader(
       noReplacementUploads,
       includeSupersedingRevisions = false,
       requirePipelineIdle = true,
+      captureOutputGenerations = true,
     )
 
   /**
@@ -192,6 +195,7 @@ class EvictUploader(
       noReplacementOwners,
       includeSupersedingRevisions = true,
       requirePipelineIdle = false,
+      captureOutputGenerations = false,
     )
 
   private suspend fun plan(
@@ -201,6 +205,7 @@ class EvictUploader(
     noReplacementUploads: Set<String>,
     includeSupersedingRevisions: Boolean,
     requirePipelineIdle: Boolean,
+    captureOutputGenerations: Boolean,
   ): EvictionPlan {
     require(badUploads.isNotEmpty()) { "at least one bad upload is required" }
     require(runCatching { UUID.fromString(evictionOperationId) }.isSuccess) {
@@ -250,7 +255,9 @@ class EvictUploader(
     val candidateSupersedingRows = candidateSupersedingUploads.associateWith { listModelLines(it) }
     val supersedingUploads =
       candidateSupersedingRows
-        .filterValues { rows -> rows.any { hasDurableLabeledOutput(it.state) } }
+        .filterValues { rows ->
+          rows.any { it.state != RawImpressionUploadModelLine.State.CREATED }
+        }
         .keys
     val plannedBadUploads =
       (badUploads + supersedingUploads)
@@ -265,7 +272,10 @@ class EvictUploader(
       "requested upload(s) have no model-line rows (nothing to evict): $requestedMissing"
     }
 
-    val requestedRows = rowsByUpload.values.flatten()
+    val requestedRows =
+      rowsByUpload.values.flatten().filter {
+        it.state != RawImpressionUploadModelLine.State.CREATED
+      }
     val rowsByCmmsModelLine =
       requestedRows
         .map { it.cmmsModelLine }
@@ -320,31 +330,14 @@ class EvictUploader(
           .filter { it.cmmsModelLine == cmmsModelLine }
           .minOf { createTimeByUpload.getValue(uploadNameOf(it.name)) }
       }
-    if (!requirePipelineIdle) {
-      val planAffectingActiveRows =
-        queuedOrRunningRows.filter { row ->
-          val uploadName = uploadNameOf(row.name)
-          uploadName in plannedBadUploads ||
-            badUploads.any { owner -> replacesUpload(uploadName, owner, uploadsByName) } ||
-            earliestMemoizedBadTimeByModelLine[row.cmmsModelLine]?.let { earliestBadTime ->
-              createTimeByUpload.getValue(uploadName) >= earliestBadTime
-            } == true
-        }
-      require(planAffectingActiveRows.isEmpty()) {
-        "Automatic correction planning cannot freeze a safe eviction plan while affected " +
-          "model-line work is still active. Retry after these resources finish: " +
-          planAffectingActiveRows.map { it.name }
-      }
-    }
-
     val entries = mutableListOf<Pair<Instant, CascadeEntry>>()
     for (cmmsModelLine in memoizedModelLines) {
       val earliestBadTime = earliestMemoizedBadTimeByModelLine.getValue(cmmsModelLine)
       for (row in rowsByCmmsModelLine.getValue(cmmsModelLine)) {
+        if (row.state == RawImpressionUploadModelLine.State.CREATED) continue
         val uploadName = uploadNameOf(row.name)
         val uploadTime = createTimeByUpload[uploadName] ?: continue
         if (uploadTime < earliestBadTime) continue
-        if (!isMemoized(row, snapshotRows)) continue
         if (wasEvictedByAnotherOperation(row, evictionOperationId)) continue
         entries +=
           uploadTime to
@@ -401,7 +394,7 @@ class EvictUploader(
         .flatMap { (cmmsModelLine, rows) ->
           val orderedMemoizedRows =
             rows
-              .filter { isMemoized(it, snapshotRows) }
+              .filter { it.state != RawImpressionUploadModelLine.State.CREATED }
               .sortedWith(
                 compareBy<RawImpressionUploadModelLine> {
                     createTimeByUpload.getValue(uploadNameOf(it.name))
@@ -461,22 +454,28 @@ class EvictUploader(
       }
     val cascadeWithOutputManifests =
       cascade.map { entry ->
-        entry.copy(labeledOutputManifest = resolveLabeledOutputManifest(entry))
+        entry.copy(
+          labeledOutputManifest =
+            resolveLabeledOutputManifest(entry, captureGeneration = captureOutputGenerations)
+        )
       }
     if (!requirePipelineIdle) {
       val approvedOutputUris =
         cascadeWithOutputManifests
           .flatMap { it.labeledOutputManifest.blobsList }
           .mapTo(mutableSetOf()) { it.blobUri }
+      val scopedModelLines = cascadeWithOutputManifests.mapTo(mutableSetOf()) { it.modelLineName }
       val overlappingActiveRows = buildList {
         for (row in queuedOrRunningRows) {
+          if (row.state == RawImpressionUploadModelLine.State.CREATED) continue
           val activeOutputUris = resolveLabeledOutputUris(uploadNameOf(row.name), row.cmmsModelLine)
-          if (activeOutputUris.any { it in approvedOutputUris }) add(row)
+          if (row.name !in scopedModelLines && activeOutputUris.any { it in approvedOutputUris }) {
+            add(row)
+          }
         }
       }
       require(overlappingActiveRows.isEmpty()) {
-        "Automatic correction planning cannot freeze a safe output manifest while active " +
-          "model-line work can publish the same output. Retry after these resources finish: " +
+        "Correction scope omits active model-line work that can publish approved output: " +
           overlappingActiveRows.map { it.name }
       }
     }
@@ -525,7 +524,36 @@ class EvictUploader(
       evictionOperationId,
       recoveryTargets,
       replacementTargets,
+      outputManifestsFinalized = captureOutputGenerations,
     )
+  }
+
+  /** Captures exact output versions after the DataProvider fence has drained all writers. */
+  override suspend fun finalizeOutputManifests(plan: EvictionPlan): EvictionPlan {
+    require(
+      listQueuedOrRunningModelLines(dataProviderOf(plan.badUploads.first())).none {
+        it.state != RawImpressionUploadModelLine.State.CREATED
+      }
+    ) {
+      "Cannot finalize labeled output while model-line work is active"
+    }
+    val versionsByUri = mutableMapOf<String, LabeledOutputManifest.BlobVersion>()
+    val cascade =
+      plan.cascade.map { entry ->
+        val expectedUris = resolveLabeledOutputUris(entry.uploadName, entry.cmmsModelLine)
+        require(entry.labeledOutputManifest.blobsList.map { it.blobUri } == expectedUris) {
+          "Labeled-output URI scope changed for ${entry.modelLineName}"
+        }
+        val finalized = resolveLabeledOutputManifest(entry, captureGeneration = true)
+        for (blob in finalized.blobsList) {
+          val previous = versionsByUri.putIfAbsent(blob.blobUri, blob)
+          require(previous == null || previous == blob) {
+            "Labeled output ${blob.blobUri} resolved to mixed generations"
+          }
+        }
+        entry.copy(labeledOutputManifest = finalized)
+      }
+    return plan.copy(cascade = cascade, outputManifestsFinalized = true)
   }
 
   /**
@@ -623,6 +651,9 @@ class EvictUploader(
     reason: String,
     onEntryEvicted: suspend (CascadeEntry) -> Unit,
   ): EvictionResult {
+    require(plan.outputManifestsFinalized) {
+      "Cannot evict with provisional labeled-output manifests"
+    }
     verifyLabeledOutputManifests(plan)
     val failed = mutableListOf<String>()
     var deleted = 0
@@ -734,7 +765,11 @@ class EvictUploader(
     row: RawImpressionUploadModelLine,
     snapshotRows: Set<Pair<String, String>>,
   ): Boolean {
-    return uploadNameOf(row.name) to row.cmmsModelLine in snapshotRows
+    return row.state in
+      setOf(
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+        RawImpressionUploadModelLine.State.RANKING,
+      ) || uploadNameOf(row.name) to row.cmmsModelLine in snapshotRows
   }
 
   private fun isEligibleRecoveryPredecessor(
@@ -781,7 +816,10 @@ class EvictUploader(
 
   private data class OutputCleanupResult(val deletedMetadata: Int, val deletedBlobs: Int)
 
-  private suspend fun resolveLabeledOutputManifest(entry: CascadeEntry): LabeledOutputManifest {
+  private suspend fun resolveLabeledOutputManifest(
+    entry: CascadeEntry,
+    captureGeneration: Boolean,
+  ): LabeledOutputManifest {
     val outputUris = resolveLabeledOutputUris(entry.uploadName, entry.cmmsModelLine)
     val semaphore = Semaphore(OUTPUT_DELETE_PARALLELISM)
     val versions = coroutineScope {
@@ -791,7 +829,9 @@ class EvictUploader(
             semaphore.withPermit {
               LabeledOutputManifestKt.blobVersion {
                 this.blobUri = blobUri
-                getBlobGeneration(blobUri)?.let { generation = it }
+                if (captureGeneration) {
+                  getBlobGeneration(blobUri)?.let { generation = it }
+                }
               }
             }
           }
