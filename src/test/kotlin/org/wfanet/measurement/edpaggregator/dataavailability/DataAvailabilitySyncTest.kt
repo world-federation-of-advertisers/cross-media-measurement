@@ -495,6 +495,72 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `VID Labeler discovery replaces an existing upload lineage with a newer upload`() =
+    runBlocking {
+      val storageClient =
+        FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+      val eventDate = LocalDate.of(2026, 3, 15)
+      val rawBlobUri = "gs://raw-bucket/upload/input.parquet"
+      val outputKey = vidLabelerOutputKey(rawBlobUri, eventDate)
+      val outputUri = "$bucket/$outputKey"
+      val metadataKey = outputKey + ".metadata.binpb"
+      val oldRawImpressionUpload = "dataProviders/dataProvider123/rawImpressionUploads/upload-old"
+      storageClient.writeBlob(outputKey, ByteString.copyFromUtf8("labeled"))
+      writeVidLabelerMetadata(storageClient, metadataKey, outputUri, eventDate)
+      writeVidLabelerDone(storageClient, eventDate)
+      val dataAvailabilitySync = newDataAvailabilitySync(storageClient)
+
+      dataAvailabilitySync.sync(
+        "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+        TestDataAvailabilitySyncLease.NAME,
+        doneBlobGeneration = 76L,
+        discoveryMode =
+          DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+            rawImpressionUpload = oldRawImpressionUpload,
+            rawImpressionBlobUris = listOf(rawBlobUri),
+            modelLine = MODEL_LINE,
+            eventDate = eventDate,
+          ),
+        ensureLeaseActive = {},
+      )
+      val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchCreateImpressionMetadata(createCaptor.capture())
+      }
+      val existing =
+        createCaptor.firstValue.requestsList.single().impressionMetadata.copy {
+          name = "dataProviders/dataProvider123/impressionMetadata/im-existing"
+        }
+      wheneverBlocking {
+          impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
+        }
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += existing })
+
+      dataAvailabilitySync.sync(
+        "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+        TestDataAvailabilitySyncLease.NAME,
+        doneBlobGeneration = 77L,
+        discoveryMode =
+          DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+            rawImpressionUpload = RAW_IMPRESSION_UPLOAD,
+            rawImpressionBlobUris = listOf(rawBlobUri),
+            modelLine = MODEL_LINE,
+            eventDate = eventDate,
+          ),
+        ensureLeaseActive = {},
+      )
+
+      val updateCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchUpdateImpressionMetadata(updateCaptor.capture())
+      }
+      val updated = updateCaptor.firstValue.requestsList.single().impressionMetadata
+      assertThat(updated.name).isEqualTo(existing.name)
+      assertThat(updated.rawImpressionUpload).isEqualTo(RAW_IMPRESSION_UPLOAD)
+      assertThat(updated.outputDoneBlobGeneration).isEqualTo(77L)
+    }
+
+  @Test
   fun `VID Labeler discovery succeeds with no work when every output pair is absent`() =
     runBlocking {
       val storageClient =
