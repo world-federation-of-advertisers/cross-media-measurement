@@ -23,6 +23,7 @@ import com.google.cloud.logging.Logging
 import com.google.cloud.logging.Logging.EntryListOption
 import com.google.cloud.logging.Logging.SortingField
 import com.google.cloud.logging.Logging.SortingOrder
+import com.google.cloud.logging.LoggingException
 import com.google.cloud.logging.LoggingOptions
 import com.google.cloud.logging.Payload
 import com.google.cloud.sql.core.GcpConnectionFactoryProvider
@@ -190,6 +191,7 @@ internal fun Throwable.isQuotaExhaustion(): Boolean {
   while (current != null) {
     when (current) {
       is ReportTraceQuotaExhaustedException -> return true
+      is LoggingException -> if (current.code == 8) return true
       is StatusException -> if (current.status.code == Status.Code.RESOURCE_EXHAUSTED) return true
       is StatusRuntimeException ->
         if (current.status.code == Status.Code.RESOURCE_EXHAUSTED) return true
@@ -4506,7 +4508,7 @@ internal class ReportTrace(
       queryDescription: String,
       exception: ReportTraceLogCollectionTruncatedException,
     ) {
-      if (exception.rawQueriesTruncated > 0) {
+      if (exception.rawQueriesTruncated > 0 || exception.outputTruncated) {
         logTruncatedProjects += project
       }
       logFetchedCounts[project] =
@@ -4530,6 +4532,11 @@ internal class ReportTrace(
           "$queryDescription raw scan reached its ${exception.rawEntryLimit}-entry limit for " +
             "${exception.rawQueriesTruncated} $queryLabel in project $project; additional " +
             "entries were not read"
+      }
+      if (exception.outputTruncated) {
+        warnings +=
+          "$queryDescription rendered output reached its $entryLimit-entry limit for project " +
+            "$project; additional safe entries were omitted"
       }
     }
     val projects = observabilityProjects.distinct()

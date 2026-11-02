@@ -36,6 +36,8 @@ import kotlinx.coroutines.withTimeout
 import org.junit.Test
 import org.wfanet.measurement.common.telemetry.CloudLogEntry
 import org.wfanet.measurement.common.telemetry.CloudLogReader
+import org.wfanet.measurement.common.telemetry.CloudTelemetryReadCounts
+import org.wfanet.measurement.common.telemetry.CloudTelemetryReadResult
 import org.wfanet.measurement.common.telemetry.CloudTraceReader
 import org.wfanet.measurement.common.telemetry.CloudTraceSpan
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
@@ -81,7 +83,12 @@ class VidLabelingTraceTest {
           rawImpressionUpload = RAW_UPLOAD,
           traceId = ROOT_TRACE,
         ),
-        entry("data_watcher", objectIdentityFields(identity), traceId = MEMO_TRACE),
+        entry(
+          "data_watcher",
+          objectIdentityFields(identity),
+          rawImpressionUpload = RAW_UPLOAD,
+          traceId = MEMO_TRACE,
+        ),
         entry(
           "data_availability_publish",
           objectIdentityFields(identity) + " xmm.model_line.name=" + NON_MEMOIZED_MODEL_LINE,
@@ -146,10 +153,17 @@ class VidLabelingTraceTest {
         rawImpressionUpload = RAW_UPLOAD,
         traceId = ROOT_TRACE,
       )
-    val traceQueries = mutableListOf<Set<String>>()
-    val spanReader = CloudTraceReader { project, correlationValues, _, _, _, _ ->
-      traceQueries += correlationValues.toSet()
-      if (identity.pathHash !in correlationValues) {
+    val downstreamEntry =
+      entry(
+        "data_watcher",
+        objectIdentityFields(identity),
+        rawImpressionUpload = RAW_UPLOAD,
+        traceId = MEMO_AVAILABILITY_TRACE,
+      )
+    val traceQueries = mutableListOf<Pair<Set<String>, Set<String>>>()
+    val spanReader = CloudTraceReader { project, correlationValues, traceIds, _, _, _ ->
+      traceQueries += correlationValues.toSet() to traceIds.toSet()
+      if (MEMO_AVAILABILITY_TRACE !in traceIds) {
         emptyList()
       } else {
         listOf(
@@ -160,7 +174,7 @@ class VidLabelingTraceTest {
     }
     val collector =
       VidLabelingTraceCollector(
-        logReaderFactory = { FakeCloudLogReader(listOf(producerEntry)) },
+        logReaderFactory = { FakeCloudLogReader(listOf(producerEntry, downstreamEntry)) },
         spanReader = spanReader,
         stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
@@ -169,7 +183,8 @@ class VidLabelingTraceTest {
     val collection = collector.collect(request())
 
     assertThat(vidTraceAttributesFor(identity.pathHash)).containsExactly("xmm.gcs.object.path_hash")
-    assertThat(traceQueries.any { identity.pathHash in it }).isTrue()
+    assertThat(traceQueries.any { identity.pathHash in it.first }).isTrue()
+    assertThat(traceQueries.any { MEMO_AVAILABILITY_TRACE in it.second }).isTrue()
     assertThat(collection.evidence.mapNotNull { it.traceId }).contains(MEMO_AVAILABILITY_TRACE)
     assertThat(collection.evidence.mapNotNull { it.traceId }).doesNotContain(OTHER_TRACE)
     Unit
@@ -871,6 +886,261 @@ class VidLabelingTraceTest {
   }
 
   @Test
+  fun `runVidLabelingTrace rejects rates above project quotas`() {
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(emptyList()) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--raw-impression-upload=$RAW_UPLOAD",
+          "--observability-project=project",
+          "--trace-quota-units-per-second=5.1",
+          "--edpa-public-api-target=unused",
+          "--control-plane-api-target=unused",
+          "--kingdom-public-api-target=unused",
+          "--tls-cert-file=unused",
+          "--tls-key-file=unused",
+          "--cert-collection-file=unused",
+          "--control-plane-tls-cert-file=unused-control-plane",
+          "--control-plane-tls-key-file=unused-control-plane",
+          "--control-plane-cert-collection-file=unused-control-plane",
+          "--kingdom-tls-cert-file=unused-kingdom",
+          "--kingdom-tls-key-file=unused-kingdom",
+          "--kingdom-cert-collection-file=unused-kingdom",
+        ),
+        VidLabelingTraceDependencies(collector),
+      )
+
+    assertThat(exitCode).isNotEqualTo(0)
+  }
+
+  @Test
+  fun `collect queries a 32 shard graph without per-resource trace discovery`() = runBlocking {
+    val shardJobs = (0 until 32).map { index -> "$RAW_UPLOAD/poolAssignmentJobs/shard-$index" }
+    val shardTraceIds = (0 until 32).map { index -> index.toString(16).padStart(32, '0') }
+    val graph =
+      testGraph(listOf(MEMOIZED_MODEL_LINE))
+        .copy(
+          nodes =
+            testGraph(listOf(MEMOIZED_MODEL_LINE)).nodes +
+              shardJobs.mapIndexed { index, name ->
+                ExpectedTraceNode(
+                  name,
+                  MEMOIZED_MODEL_LINE,
+                  "pool_assignment",
+                  "SUCCEEDED",
+                  mapOf(
+                    "xmm.edpa.raw_impression_upload.name" to RAW_UPLOAD,
+                    "xmm.model_line.name" to MEMOIZED_MODEL_LINE,
+                    "xmm.edpa.pool_assignment_job.name" to name,
+                    "xmm.edpa.shard_index" to index.toString(),
+                  ),
+                )
+              }
+        )
+    val logReader = FakeCloudLogReader(emptyList())
+    val traceQueries = mutableListOf<Pair<Set<String>, Set<String>>>()
+    var logReaderCreations = 0
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = {
+          logReaderCreations++
+          logReader
+        },
+        spanReader =
+          CloudTraceReader { _, correlationValues, traceIds, _, _, _ ->
+            traceQueries += correlationValues.toSet() to traceIds.toSet()
+            if (RAW_UPLOAD !in correlationValues) {
+              emptyList()
+            } else {
+              shardTraceIds.mapIndexed { index, traceId ->
+                CloudTraceSpan(
+                  "observability-project",
+                  traceId,
+                  "span-$index",
+                  null,
+                  "edpa.vid_labeling.pool_assignment",
+                  "subpool-assigner",
+                  Instant.parse("2026-09-01T00:00:01Z"),
+                  Instant.parse("2026-09-01T00:00:02Z"),
+                  mapOf(
+                    "xmm.lifecycle.stage" to "pool_assignment",
+                    "xmm.outcome" to "succeeded",
+                    "xmm.edpa.raw_impression_upload.name" to RAW_UPLOAD,
+                    "xmm.edpa.pool_assignment_job.name" to shardJobs[index],
+                  ),
+                )
+              }
+            }
+          },
+        stateResolver = VidLabelingStateResolver { graph },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    collector.collect(request(expansionRounds = 2))
+    collector.collect(request(expansionRounds = 2))
+
+    assertThat(logReaderCreations).isEqualTo(1)
+    assertThat(logReader.correlationQueries).hasSize(4)
+    assertThat(logReader.correlationQueries[0]).containsExactly(RAW_UPLOAD)
+    assertThat(logReader.correlationQueries[1]).containsAtLeastElementsIn(shardJobs)
+    assertThat(logReader.correlationQueries[2]).containsExactly(RAW_UPLOAD)
+    assertThat(logReader.correlationQueries[3]).containsAtLeastElementsIn(shardJobs)
+    assertThat(traceQueries).hasSize(2)
+    assertThat(traceQueries.map { it.first }).containsExactly(setOf(RAW_UPLOAD), setOf(RAW_UPLOAD))
+    assertThat(traceQueries.all { it.second.isEmpty() }).isTrue()
+  }
+
+  @Test
+  fun `collect expands a stable identifier discovered only in a span`() = runBlocking {
+    val recoveryWorkItem = "workItems/span-discovered-recovery"
+    val entries =
+      listOf(
+        entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE),
+        entry(
+          "monitor_recover",
+          "xmm.edpa.recovery_work_item.name=$recoveryWorkItem",
+          traceId = MEMO_TRACE,
+        ),
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(entries) },
+        spanReader =
+          CloudTraceReader { project, correlationValues, _, _, _, _ ->
+            if (RAW_UPLOAD !in correlationValues) {
+              emptyList()
+            } else {
+              listOf(
+                CloudTraceSpan(
+                  project,
+                  ROOT_TRACE,
+                  "span-root",
+                  null,
+                  "edpa.vid_labeling.dispatch",
+                  "dispatcher",
+                  Instant.parse("2026-09-01T00:00:01Z"),
+                  Instant.parse("2026-09-01T00:00:02Z"),
+                  mapOf(
+                    "xmm.lifecycle.stage" to "dispatch",
+                    "xmm.outcome" to "succeeded",
+                    "xmm.edpa.raw_impression_upload.name" to RAW_UPLOAD,
+                    "xmm.edpa.recovery_work_item.name" to recoveryWorkItem,
+                  ),
+                )
+              )
+            }
+          },
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val collection = collector.collect(request(expansionRounds = 3))
+
+    assertThat(collection.evidence.mapNotNull { it.traceId }).contains(MEMO_TRACE)
+    assertThat(collection.evidence.flatMap { it.identifiers.values }).contains(recoveryWorkItem)
+  }
+
+  @Test
+  fun `collect keeps per-project source failure separate and strict`() = runBlocking {
+    val entry = entry("upload_registration", rawImpressionUpload = RAW_UPLOAD)
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { project ->
+          object : CloudLogReader {
+            override suspend fun read(
+              correlationValues: Collection<String>,
+              startTime: Instant,
+              endTime: Instant,
+              limit: Int,
+            ): List<CloudLogEntry> = listOf(entry)
+
+            override suspend fun readBatch(
+              correlationValues: Collection<String>,
+              traceIds: Collection<String>,
+              startTime: Instant,
+              endTime: Instant,
+              limit: Int,
+            ): CloudTelemetryReadResult<CloudLogEntry> =
+              CloudTelemetryReadResult(
+                listOf(entry),
+                complete = project == "project-1",
+                CloudTelemetryReadCounts(physicalRequests = 1, rowsExamined = 1),
+                if (project == "project-1") "" else "retry exhausted",
+                failed = project != "project-1",
+              )
+          }
+        },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val collection = collector.collect(request(projects = listOf("project-1", "project-2")))
+
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
+    assertThat(
+        collection.sourceStatuses
+          .single { it.project == "project-1" && it.source == "cloud_logging" }
+          .status
+      )
+      .isEqualTo("complete")
+    assertThat(
+        collection.sourceStatuses
+          .single { it.project == "project-2" && it.source == "cloud_logging" }
+          .status
+      )
+      .isEqualTo("failed")
+  }
+
+  @Test
+  fun `collect fetches log-linked trace only from its owning project`() = runBlocking {
+    val queries = mutableListOf<Triple<String, Set<String>, Set<String>>>()
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { project ->
+          FakeCloudLogReader(
+            if (project == "project-1") {
+              listOf(
+                CloudLogEntry(
+                  "project-1",
+                  Instant.parse("2026-09-01T00:00:00Z"),
+                  "edpa",
+                  "INFO",
+                  "projects/project-2/traces/$ROOT_TRACE",
+                  "event=registered xmm.lifecycle.stage=upload_registration " +
+                    "xmm.edpa.raw_impression_upload.name=$RAW_UPLOAD",
+                )
+              )
+            } else {
+              emptyList()
+            }
+          )
+        },
+        spanReader =
+          CloudTraceReader { project, correlationValues, traceIds, _, _, _ ->
+            queries += Triple(project, correlationValues.toSet(), traceIds.toSet())
+            emptyList()
+          },
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    collector.collect(request(projects = listOf("project-1", "project-2")))
+
+    assertThat(queries.none { (project, _, ids) -> project == "project-1" && ROOT_TRACE in ids })
+      .isTrue()
+    assertThat(queries.any { (project, _, ids) -> project == "project-2" && ROOT_TRACE in ids })
+      .isTrue()
+  }
+
+  @Test
   fun `latest successful terminal evidence wins over earlier failed attempt`() = runBlocking {
     val entries = buildList {
       add(entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE))
@@ -1097,10 +1367,13 @@ class VidLabelingTraceTest {
         )
       )
 
-    val status = collection.sourceStatuses.single { it.source == "cloud_logging" }
-    assertThat(status.status).isEqualTo("timed_out")
-    assertThat(status.durationMillis).isEqualTo(1_000)
-    assertThat(status.counts["logging_queries"]).isEqualTo(2)
+    val statuses = collection.sourceStatuses.filter { it.source == "cloud_logging" }
+    assertThat(statuses).hasSize(3)
+    assertThat(statuses.single { it.project == "project-1" }.status).isEqualTo("complete")
+    assertThat(statuses.single { it.project == "project-1" }.durationMillis).isEqualTo(600)
+    assertThat(statuses.single { it.project == "project-2" }.status).isEqualTo("complete")
+    assertThat(statuses.single { it.project == "project-2" }.durationMillis).isEqualTo(400)
+    assertThat(statuses.single { it.project == "project-3" }.status).isEqualTo("timed_out")
     assertThat(queries).isEqualTo(2)
   }
 
@@ -1388,6 +1661,7 @@ class VidLabelingTraceTest {
             " xmm.edpa.label.route=" +
             route,
           index + 1L,
+          rawImpressionUpload = rawImpressionUpload,
           traceId = traceId,
         )
       }
@@ -1473,6 +1747,7 @@ class VidLabelingTraceTest {
   }
 
   private class FakeCloudLogReader(private val entries: List<CloudLogEntry>) : CloudLogReader {
+    val correlationQueries = mutableListOf<Set<String>>()
     val traceQueries = mutableListOf<Set<String>>()
 
     override suspend fun read(
@@ -1480,14 +1755,16 @@ class VidLabelingTraceTest {
       startTime: Instant,
       endTime: Instant,
       limit: Int,
-    ): List<CloudLogEntry> =
-      entries.filter { entry ->
+    ): List<CloudLogEntry> {
+      correlationQueries += correlationValues.toSet()
+      return entries.filter { entry ->
         val fieldValues =
           entry.message.split(' ').mapNotNull { token ->
             token.substringAfter('=', "").takeIf { it.isNotEmpty() }
           }
         correlationValues.any { it in fieldValues }
       }
+    }
 
     override suspend fun readTraceIds(
       traceIds: Collection<String>,

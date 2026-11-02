@@ -528,6 +528,8 @@ bazel run \
   --authoritative-source-timeout=PT2M \
   --logging-source-timeout=PT2M \
   --trace-source-timeout=PT2M \
+  --trace-quota-units-per-second=4.0 \
+  --logging-requests-per-second=0.5 \
   --upload-timeout=PT10M \
   --work-item-page-limit=100 \
   --output-dir=/tmp/vid-labeling-traces
@@ -540,6 +542,15 @@ the remaining batch. The command exits nonzero for incomplete evidence unless
 metadata; raw log payloads, object URIs, and payload contents are not rendered.
 The source table reports separate EDPA, Secure Computation, Kingdom-route,
 GCS/availability, Cloud Logging, and Cloud Trace status, duration, and counts.
+Telemetry rows are split by observability project. Their counts include physical
+Logging filter/page calls, Trace List/Get calls, retries, and Trace quota units.
+The Logging client transport is configured with retries disabled so every retry
+passes through the collector's shared limiter and physical counters.
+The Trace rate cannot exceed the service limit of 5 quota units per second per
+project, and the Logging rate cannot exceed 1 request per second per project.
+These limits are enforced within one CLI process. Concurrent CLI processes do
+not coordinate their quota budgets, so do not run overlapping collectors
+against the same observability project.
 Reaching the WorkItem page limit is reported as `truncated`; unseen WorkItems
 remain unresolved rather than being reported as missing.
 
