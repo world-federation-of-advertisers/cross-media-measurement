@@ -18,10 +18,13 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import java.nio.file.Files
 import java.nio.file.attribute.FileTime
 import java.time.Duration
+import java.time.LocalDate
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -35,12 +38,52 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 
 internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTestHarness() {
+  private suspend fun seedFiveDayCascade(prefix: String): Map<LocalDate, RawImpressionUpload> {
+    val originals = linkedMapOf<LocalDate, RawImpressionUpload>()
+    for (offset in 0L..4L) {
+      val date = EVENT_DATE.plusDays(offset)
+      val day = offset + 1L
+      setToday(date)
+      writeRawFile("$prefix/day-$day", "input.parquet", listOf("stable-person", "day-$day"), date)
+      val generation = finalizeRawUpload("$prefix/day-$day")
+      awaitPipelineIdle()
+      originals[date] = listUploads().single { it.doneBlobGeneration == generation }
+    }
+    return originals
+  }
+
+  private suspend fun advanceUntilReplacement(
+    controller: VidLabelingHealingController,
+    operationName: String,
+    sourceUpload: String,
+    forbiddenWorkUpload: String,
+  ): UploadHealingOperation {
+    repeat(20) {
+      val operation = listHealingOperations().single { it.name == operationName }
+      val step = operation.stepsList.single { it.sourceRawImpressionUpload == sourceUpload }
+      if (step.replacementRawImpressionUpload.isNotEmpty()) return operation
+      assertThat(poolAssignmentParamsFor(forbiddenWorkUpload)).isEmpty()
+      assertThat(controller.run().failedDataProviders).isEqualTo(0)
+      workItemTransport.awaitIdle()
+      endpointFailure.getAndSet(null)?.let { throw AssertionError("Healing replay failed", it) }
+    }
+    error("Replacement for $sourceUpload did not complete")
+  }
+
+  private fun poolAssignmentParamsFor(uploadName: String): List<SubpoolAssignerParams> =
+    poolAssignmentWorkItems()
+      .map { it.workItemParams.unpack<WorkItemParams>().appParams.unpack<SubpoolAssignerParams>() }
+      .filter { it.rawImpressionUpload == uploadName }
+
   @Test
   fun `unchanged done rewrite is a no-op`() = runBlocking {
     writeRawFile("day-1", "input.parquet", listOf("person-1"))
@@ -797,6 +840,263 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
   }
 
   @Test
+  fun `inverse correction creation order follows persisted D2 through D5 dependencies`() =
+    runBlocking {
+      setVisibleModelLines(MEMOIZED_MODEL_LINE)
+      val originals = seedFiveDayCascade("inverse-apply")
+      val d4Date = EVENT_DATE.plusDays(3)
+      val d2Date = EVENT_DATE.plusDays(1)
+
+      writeRawFile(
+        "inverse-apply/day-4",
+        "input.parquet",
+        listOf("stable-person", "corrected-day-4"),
+        d4Date,
+      )
+      val d4CandidateGeneration = finalizeRawUpload("inverse-apply/day-4")
+      workItemTransport.awaitIdle()
+      val d4Candidate = listUploads().single { it.doneBlobGeneration == d4CandidateGeneration }
+
+      writeRawFile(
+        "inverse-apply/day-2",
+        "input.parquet",
+        listOf("stable-person", "corrected-day-2"),
+        d2Date,
+      )
+      val d2CandidateGeneration = finalizeRawUpload("inverse-apply/day-2")
+      workItemTransport.awaitIdle()
+      val d2Candidate = listUploads().single { it.doneBlobGeneration == d2CandidateGeneration }
+      assertThat(Timestamps.compare(d4Candidate.createTime, d2Candidate.createTime)).isLessThan(0)
+
+      val candidates = listCorrectionCandidates().associateBy { it.rawImpressionUpload }
+      val controller = buildHealingController()
+      assertThat(controller.run().failedDataProviders).isEqualTo(0)
+      val draft = listHealingOperations().single()
+      val approved =
+        approveHealingOperation(
+          draft,
+          mapOf(
+            candidates.getValue(d2Candidate.name).name to
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE,
+            candidates.getValue(d4Candidate.name).name to
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE,
+          ),
+        )
+      val orderedSteps = approved.stepsList.sortedBy { it.sequenceNumber }
+      assertThat(orderedSteps.map { it.sourceRawImpressionUpload })
+        .containsExactly(
+          originals.getValue(d2Date).name,
+          originals.getValue(EVENT_DATE.plusDays(2)).name,
+          originals.getValue(d4Date).name,
+          originals.getValue(EVENT_DATE.plusDays(4)).name,
+        )
+        .inOrder()
+      assertThat(orderedSteps.map { it.recoveryPredecessorRawImpressionUpload })
+        .containsExactly(
+          originals.getValue(EVENT_DATE).name,
+          originals.getValue(d2Date).name,
+          originals.getValue(EVENT_DATE.plusDays(2)).name,
+          originals.getValue(d4Date).name,
+        )
+        .inOrder()
+      assertThat(orderedSteps.map { it.recoveryAction })
+        .containsExactly(
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
+        )
+        .inOrder()
+
+      withholdNextAvailabilityPublications(count = 4)
+      val afterD3 =
+        advanceUntilReplacement(
+          controller,
+          draft.name,
+          originals.getValue(EVENT_DATE.plusDays(2)).name,
+          forbiddenWorkUpload = d4Candidate.name,
+        )
+
+      assertThat(controller.run().failedDataProviders).isEqualTo(0)
+      workItemTransport.awaitIdle()
+      endpointFailure.getAndSet(null)?.let {
+        throw AssertionError("D4 correction replay failed", it)
+      }
+      val d2Replacement =
+        afterD3.stepsList
+          .single { it.sourceRawImpressionUpload == originals.getValue(d2Date).name }
+          .replacementRawImpressionUpload
+      val d3Replacement =
+        afterD3.stepsList
+          .single {
+            it.sourceRawImpressionUpload == originals.getValue(EVENT_DATE.plusDays(2)).name
+          }
+          .replacementRawImpressionUpload
+      val d4Params = poolAssignmentParamsFor(d4Candidate.name)
+      assertThat(d4Params).isNotEmpty()
+      for (params in d4Params) {
+        assertThat(params.allowedPriorSnapshotRawImpressionUploadsList)
+          .containsExactly(d2Replacement, d3Replacement)
+          .inOrder()
+      }
+
+      advanceHealingUntilComplete(controller, draft.name)
+      republishQueuedAvailability()
+      awaitPipelineIdle()
+
+      val completed = listHealingOperations().single()
+      val d5Replacement =
+        completed.stepsList
+          .single {
+            it.sourceRawImpressionUpload == originals.getValue(EVENT_DATE.plusDays(4)).name
+          }
+          .replacementRawImpressionUpload
+      val d5Upload = listUploads().single { it.name == d5Replacement }
+      val d5Digests = rankEntries(d5Upload, RankIndexBlob.BlobType.SNAPSHOT).map { it.digest }
+      assertThat(d5Digests)
+        .containsAtLeast(digest("corrected-day-2-1"), digest("corrected-day-4-1"))
+      assertThat(d5Digests).containsNoneOf(digest("day-2-1"), digest("day-4-1"))
+      assertThat(listMetadata()).hasSize(5)
+      val labeledPeople = readLabeledPeople(MEMOIZED_MODEL_LINE)
+      assertThat(labeledPeople.filter { it.eventDate == EVENT_DATE }.map { it.personId })
+        .containsExactly("stable-person", "day-1")
+      assertThat(labeledPeople.filter { it.eventDate == d2Date }.map { it.personId })
+        .containsExactly("stable-person", "corrected-day-2")
+      assertThat(
+          labeledPeople.filter { it.eventDate == EVENT_DATE.plusDays(2) }.map { it.personId }
+        )
+        .containsExactly("stable-person", "day-3")
+      assertThat(labeledPeople.filter { it.eventDate == d4Date }.map { it.personId })
+        .containsExactly("stable-person", "corrected-day-4")
+      assertThat(
+          labeledPeople.filter { it.eventDate == EVENT_DATE.plusDays(4) }.map { it.personId }
+        )
+        .containsExactly("stable-person", "day-5")
+      assertThat(labeledPeople.filter { it.personId == "stable-person" }.map { it.vid }.toSet())
+        .hasSize(1)
+      assertAvailabilityPublished(
+        setOf(MEMOIZED_MODEL_LINE),
+        (0L..4L).mapTo(mutableSetOf()) { EVENT_DATE.plusDays(it) },
+      )
+    }
+
+  @Test
+  fun `inverse mixed removal rewires D3 to D1 and omits D2`() = runBlocking {
+    setVisibleModelLines(MEMOIZED_MODEL_LINE)
+    val originals = seedFiveDayCascade("inverse-remove")
+    val d4Date = EVENT_DATE.plusDays(3)
+    val d2Date = EVENT_DATE.plusDays(1)
+
+    writeRawFile(
+      "inverse-remove/day-4",
+      "input.parquet",
+      listOf("stable-person", "corrected-day-4"),
+      d4Date,
+    )
+    val d4CandidateGeneration = finalizeRawUpload("inverse-remove/day-4")
+    workItemTransport.awaitIdle()
+    val d4Candidate = listUploads().single { it.doneBlobGeneration == d4CandidateGeneration }
+    writeRawFile(
+      "inverse-remove/day-2",
+      "input.parquet",
+      listOf("stable-person", "removed-day-2"),
+      d2Date,
+    )
+    val d2CandidateGeneration = finalizeRawUpload("inverse-remove/day-2")
+    workItemTransport.awaitIdle()
+    val d2Candidate = listUploads().single { it.doneBlobGeneration == d2CandidateGeneration }
+    assertThat(Timestamps.compare(d4Candidate.createTime, d2Candidate.createTime)).isLessThan(0)
+
+    val candidates = listCorrectionCandidates().associateBy { it.rawImpressionUpload }
+    val controller = buildHealingController()
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    val draft = listHealingOperations().single()
+    val approved =
+      approveHealingOperation(
+        draft,
+        mapOf(
+          candidates.getValue(d2Candidate.name).name to
+            RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT,
+          candidates.getValue(d4Candidate.name).name to
+            RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE,
+        ),
+      )
+    val orderedSteps = approved.stepsList.sortedBy { it.sequenceNumber }
+    assertThat(orderedSteps.map { it.sourceRawImpressionUpload })
+      .containsExactly(
+        originals.getValue(d2Date).name,
+        originals.getValue(EVENT_DATE.plusDays(2)).name,
+        originals.getValue(d4Date).name,
+        originals.getValue(EVENT_DATE.plusDays(4)).name,
+      )
+      .inOrder()
+    assertThat(orderedSteps.map { it.recoveryPredecessorRawImpressionUpload })
+      .containsExactly(
+        originals.getValue(EVENT_DATE).name,
+        originals.getValue(EVENT_DATE).name,
+        originals.getValue(EVENT_DATE.plusDays(2)).name,
+        originals.getValue(d4Date).name,
+      )
+      .inOrder()
+    val removedD2 = orderedSteps.first()
+    assertThat(removedD2.recoveryAction)
+      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT)
+    assertThat(removedD2.recoveryTarget).isFalse()
+
+    withholdNextAvailabilityPublications(count = 3)
+    advanceHealingUntilComplete(controller, draft.name)
+    republishQueuedAvailability()
+    awaitPipelineIdle()
+
+    val completed = listHealingOperations().single()
+    assertThat(
+        completed.stepsList
+          .single { it.sourceRawImpressionUpload == originals.getValue(d2Date).name }
+          .replacementRawImpressionUpload
+      )
+      .isEmpty()
+    assertThat(
+        listUploads().none {
+          it.replacesRawImpressionUpload == originals.getValue(d2Date).name &&
+            it.uploadHealingOperation == completed.name
+        }
+      )
+      .isTrue()
+    val d5Replacement =
+      completed.stepsList
+        .single { it.sourceRawImpressionUpload == originals.getValue(EVENT_DATE.plusDays(4)).name }
+        .replacementRawImpressionUpload
+    val d5Digests =
+      rankEntries(
+          listUploads().single { it.name == d5Replacement },
+          RankIndexBlob.BlobType.SNAPSHOT,
+        )
+        .map { it.digest }
+    assertThat(d5Digests)
+      .containsAtLeast(
+        digest("day-1-1"),
+        digest("day-3-1"),
+        digest("corrected-day-4-1"),
+        digest("day-5-1"),
+      )
+    assertThat(d5Digests).containsNoneOf(digest("day-2-1"), digest("removed-day-2-1"))
+    assertThat(listMetadata()).hasSize(4)
+    val labeledPeople = readLabeledPeople(MEMOIZED_MODEL_LINE)
+    assertThat(labeledPeople.filter { it.eventDate == EVENT_DATE }.map { it.personId })
+      .containsExactly("stable-person", "day-1")
+    assertThat(labeledPeople.filter { it.eventDate == d2Date }.map { it.personId }).isEmpty()
+    assertThat(labeledPeople.filter { it.eventDate == EVENT_DATE.plusDays(2) }.map { it.personId })
+      .containsExactly("stable-person", "day-3")
+    assertThat(labeledPeople.filter { it.eventDate == d4Date }.map { it.personId })
+      .containsExactly("stable-person", "corrected-day-4")
+    assertThat(labeledPeople.filter { it.eventDate == EVENT_DATE.plusDays(4) }.map { it.personId })
+      .containsExactly("stable-person", "day-5")
+    assertThat(labeledPeople.map { it.personId }).containsNoneOf("day-2", "removed-day-2")
+    assertThat(labeledPeople.filter { it.personId == "stable-person" }.map { it.vid }.toSet())
+      .hasSize(1)
+  }
+
+  @Test
   fun `main and advertiser corrections on one date share one deduplicated plan`() = runBlocking {
     writeRawFile("shared-day/main", "main.parquet", listOf("main-original"))
     finalizeRawUpload("shared-day/main")
@@ -977,7 +1277,7 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
     val approved = approveHealingOperation(draft, decisions, requestId)
     val retried = approveHealingOperation(draft, decisions, requestId)
     assertThat(retried).isEqualTo(approved)
-    assertThat(retried.state).isEqualTo(UploadHealingOperation.State.APPROVED)
+    assertThat(retried.state).isEqualTo(UploadHealingOperation.State.DRAINING)
   }
 
   @Test
