@@ -37,6 +37,8 @@ service UploadHealingOperationService {
       returns (UploadHealingOperation);
   rpc ApproveUploadHealingOperation(ApproveUploadHealingOperationRequest)
       returns (UploadHealingOperation);
+  rpc FinalizeUploadHealingOperation(FinalizeUploadHealingOperationRequest)
+      returns (UploadHealingOperation);
   rpc RetryUploadHealingOperation(RetryUploadHealingOperationRequest)
       returns (UploadHealingOperation);
   rpc AdvanceUploadHealingOperation(AdvanceUploadHealingOperationRequest)
@@ -109,6 +111,19 @@ message ApproveUploadHealingOperationRequest {
   string upload_healing_operation_id = 2;
   string etag = 3;
   repeated CandidateDecision candidate_decisions = 4;
+  string request_id = 5;
+}
+
+message FinalizeUploadHealingOperationRequest {
+  message StepManifest {
+    int64 upload_healing_step_id = 1;
+    LabeledOutputManifest labeled_output_manifest = 2;
+  }
+
+  string data_provider_resource_id = 1;
+  string upload_healing_operation_id = 2;
+  repeated StepManifest step_manifests = 3;
+  string etag = 4;
   string request_id = 5;
 }
 

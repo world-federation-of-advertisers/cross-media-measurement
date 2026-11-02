@@ -48,6 +48,10 @@ service UploadHealingOperationService {
   rpc ApproveUploadHealingOperation(ApproveUploadHealingOperationRequest)
       returns (UploadHealingOperation) {}
 
+  // Finalizes exact labeled-output versions after all fenced work drains.
+  rpc FinalizeUploadHealingOperation(FinalizeUploadHealingOperationRequest)
+      returns (UploadHealingOperation) {}
+
   // Retries a healing operation that needs operator attention.
   rpc RetryUploadHealingOperation(RetryUploadHealingOperationRequest)
       returns (UploadHealingOperation) {}
@@ -239,6 +243,48 @@ message ApproveUploadHealingOperationRequest {
   // (-- api-linter: core::0136::request-required-fields=disabled
   //     aip.dev/not-precedent: request_id is required for retry-safe approval.
   //     --)
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `FinalizeUploadHealingOperation`.
+message FinalizeUploadHealingOperationRequest {
+  // Exact output manifest for one approved healing step.
+  message StepManifest {
+    // Resource name of the step.
+    string upload_healing_step = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/UploadHealingStep"
+      }
+    ];
+
+    // Exact output versions captured under the EVICTING fence.
+    LabeledOutputManifest labeled_output_manifest = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // Resource name of the operation to finalize.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+
+  // One exact manifest for every approved step.
+  repeated StepManifest step_manifests = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Entity tag returned with the draining operation.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // UUID4 that makes finalization safe to retry.
+  // (-- api-linter: core::0136::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is required for retry-safe
+  //     finalization. --)
   string request_id = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
