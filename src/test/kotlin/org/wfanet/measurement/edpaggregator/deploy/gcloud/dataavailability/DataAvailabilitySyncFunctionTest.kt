@@ -28,6 +28,7 @@ import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
 import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
+import io.grpc.Status
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
 import java.net.URI
@@ -50,6 +51,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -90,6 +92,7 @@ class DataAvailabilitySyncFunctionTest {
   private lateinit var grpcServer: CommonServer
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
 
+  @Volatile private var batchCreateStatus: Status? = null
   private val capturedTraceparentHeaders = Collections.synchronizedList(mutableListOf<String>())
   private val capturedGrpcTraceBinHeaders = Collections.synchronizedList(mutableListOf<ByteArray>())
   private val traceparentKey = Metadata.Key.of("traceparent", Metadata.ASCII_STRING_MARSHALLER)
@@ -118,6 +121,7 @@ class DataAvailabilitySyncFunctionTest {
         .thenAnswer { listImpressionMetadataResponse {} }
       onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
+          batchCreateStatus?.let { throw it.asException() }
           val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
           batchCreateImpressionMetadataResponse {
             impressionMetadata += request.requestsList.map { it.impressionMetadata }
@@ -149,6 +153,7 @@ class DataAvailabilitySyncFunctionTest {
 
   @Before
   fun startInfra() {
+    batchCreateStatus = null
     capturedTraceparentHeaders.clear()
     capturedGrpcTraceBinHeaders.clear()
     /** Start gRPC server with mock EventGroups service */
@@ -181,7 +186,15 @@ class DataAvailabilitySyncFunctionTest {
 
   @After
   fun cleanUp() {
-    grpcServer.shutdown()
+    try {
+      if (::functionProcess.isInitialized) {
+        functionProcess.close()
+      }
+    } finally {
+      if (::grpcServer.isInitialized) {
+        grpcServer.shutdown()
+      }
+    }
   }
 
   @Test
@@ -268,6 +281,41 @@ class DataAvailabilitySyncFunctionTest {
       .contains("some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+  }
+
+  @Test
+  fun `service returns service unavailable for DEADLINE_EXCEEDED metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.DEADLINE_EXCEEDED)).isEqualTo(503)
+  }
+
+  @Test
+  fun `service returns service unavailable for UNAVAILABLE metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.UNAVAILABLE)).isEqualTo(503)
+  }
+
+  @Test
+  fun `service returns service unavailable for ABORTED metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.ABORTED)).isEqualTo(503)
+  }
+
+  @Test
+  fun `service returns service unavailable for RESOURCE_EXHAUSTED metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.RESOURCE_EXHAUSTED)).isEqualTo(503)
+  }
+
+  @Test
+  fun `service returns internal server error for PERMISSION_DENIED metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.PERMISSION_DENIED)).isEqualTo(500)
+  }
+
+  @Test
+  fun `service returns internal server error for INTERNAL metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.INTERNAL)).isEqualTo(500)
+  }
+
+  @Test
+  fun `service returns internal server error for UNKNOWN metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.UNKNOWN)).isEqualTo(500)
   }
 
   @Test
@@ -654,6 +702,73 @@ class DataAvailabilitySyncFunctionTest {
 
     assertThat(response.statusCode()).isEqualTo(200)
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  private fun syncWithMetadataFailure(status: Status): Int {
+    batchCreateStatus = status
+    val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
+    val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"
+    val localMetadataBlobKey = "edp/edp_name/timestamp/metadata.binpb"
+    val localDoneBlobUri = "file:////edp/edp_name/timestamp/done"
+    val blobDetails = blobDetails {
+      blobUri = localImpressionBlobUri
+      eventGroupReferenceId = "reference-id"
+      modelLine = "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"
+      interval = interval {
+        startTime = timestamp { seconds = 1735689600 }
+        endTime = timestamp { seconds = 1736467200 }
+      }
+    }
+    val dataAvailabilitySyncConfig = fileSystemDataAvailabilitySyncConfig()
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = dataAvailabilitySyncConfigs { configs += dataAvailabilitySyncConfig }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+    File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+    val modelLineDatePath = "edp/edp_name/model-line/some-model-line/2025-01-05"
+    File(tempFolder.root, "$modelLineDatePath/").mkdirs()
+    runBlocking {
+      val fsClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      fsClient.writeBlob("$modelLineDatePath/done", emptyFlow())
+      fsClient.writeBlob("$modelLineDatePath/data_file", emptyFlow())
+    }
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
+      storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
+    }
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("X-DataWatcher-Path", localDoneBlobUri)
+        .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
+        .build()
+
+    val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+
+    verifyBlocking(impressionMetadataServiceMock, atLeastOnce()) {
+      batchCreateImpressionMetadata(any())
+    }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    return response.statusCode()
   }
 
   private fun fileSystemDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
