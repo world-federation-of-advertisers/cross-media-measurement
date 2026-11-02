@@ -420,6 +420,16 @@ internal class VidLabelingTraceCollector(
       authoritativeGraph =
         authoritativeGraph.copy(nodes = authoritativeGraph.nodes + finalState.nodes)
     }
+    val unresolvedExpectedWorkItemNames =
+      if (workItemResolution == null || workItemResolution.truncated) {
+        baseGraph.expectedWorkItems.flatMap { it.candidateNames }
+      } else {
+        emptyList()
+      }
+    val expectedWorkItemNames =
+      (unresolvedExpectedWorkItemNames +
+          authoritativeGraph.nodes.mapNotNull { it.identifiers[WORK_ITEM] })
+        .toSet()
     val evidence = linkedSetOf<VidLabelingEvidence>()
     val correlationValues = linkedSetOf(request.rawImpressionUpload)
     val traceIds = linkedSetOf<String>()
@@ -492,9 +502,9 @@ internal class VidLabelingTraceCollector(
         val pendingTraceCorrelationValues = buildSet {
           if (rootTraceDiscovery) add(request.rawImpressionUpload)
           addAll(
-            (correlationValues - projectTraceCorrelationValues).filter(
-              GCS_PATH_HASH_PATTERN::matches
-            )
+            (correlationValues - projectTraceCorrelationValues).filter { value ->
+              GCS_PATH_HASH_PATTERN.matches(value) || value in unresolvedExpectedWorkItemNames
+            }
           )
         }
         projectTraceCorrelationValues += pendingTraceCorrelationValues
@@ -517,13 +527,15 @@ internal class VidLabelingTraceCollector(
             addBounded(traceIds, spans.map { it.traceId }, request.traceIdLimit) || traceIdsCapped
         }
       }
-      val relatedEvidence = retainRelatedEvidence(request.rawImpressionUpload, evidence)
+      val relatedEvidence =
+        retainRelatedEvidence(request.rawImpressionUpload, expectedWorkItemNames, evidence)
       evidence.clear()
       evidence += relatedEvidence
       correlationValuesCapped =
         addBounded(
           correlationValues,
           authoritativeGraph.correlationValues +
+            expectedWorkItemNames +
             evidence
               .asSequence()
               .flatMap { item ->
@@ -797,8 +809,7 @@ internal class VidLabelingTraceCollector(
         modelLine,
         route,
         expectedNodes.map { node ->
-          val nodeEvidence =
-            evidence.filter { item -> item.stage == node.stage && nodeMatches(node, item) }
+          val nodeEvidence = evidence.filter { item -> nodeMatches(node, item) }
           VidLabelingStageCoverage(
             node.stage,
             (nodeEvidence.isNotEmpty() ||
@@ -817,16 +828,27 @@ internal class VidLabelingTraceCollector(
   }
 
   private fun nodeMatches(node: ExpectedTraceNode, evidence: VidLabelingEvidence): Boolean {
+    val workItemName = node.identifiers[WORK_ITEM]
+    if (workItemName != null) {
+      if (evidence.stage != node.stage && evidence.stage != WORK_ITEM_PROCESSING_STAGE) {
+        return false
+      }
+      if (evidence.identifiers[WORK_ITEM] != workItemName) return false
+
+      val generation = node.identifiers[WORK_ITEM_GENERATION]
+      if (generation != null && evidence.identifiers[WORK_ITEM_GENERATION] != generation) {
+        return false
+      }
+
+      val attempt = node.identifiers[WORK_ITEM_ATTEMPT]
+      return attempt == null || evidence.identifiers[WORK_ITEM_ATTEMPT] == attempt
+    }
+
+    if (evidence.stage != node.stage) return false
+
     val primaryKey = NODE_MATCH_KEY_PRIORITY.firstOrNull(node.identifiers::containsKey)
     if (primaryKey != null) {
       if (evidence.identifiers[primaryKey] != node.identifiers[primaryKey]) return false
-      if (
-        primaryKey == "xmm.work_item.name" &&
-          node.identifiers.containsKey("xmm.work_item.generation")
-      ) {
-        return evidence.identifiers["xmm.work_item.generation"] ==
-          node.identifiers["xmm.work_item.generation"]
-      }
       if (primaryKey == GCS_PATH_HASH && node.identifiers.containsKey(GCS_GENERATION)) {
         return evidence.identifiers[GCS_GENERATION] == node.identifiers[GCS_GENERATION]
       }
@@ -930,6 +952,7 @@ internal class VidLabelingTraceCollector(
 
   private fun retainRelatedEvidence(
     rawImpressionUpload: String,
+    expectedWorkItemNames: Set<String>,
     candidates: Collection<VidLabelingEvidence>,
   ): List<VidLabelingEvidence> {
     val retained = linkedSetOf<VidLabelingEvidence>()
@@ -946,7 +969,10 @@ internal class VidLabelingTraceCollector(
         val uniqueValues =
           candidate.identifiers.filterKeys { it in UNIQUE_CORRELATION_FIELDS }.values
         val directlyRelated =
-          uniqueValues.any { it == rawImpressionUpload || it.startsWith(rawImpressionUpload + "/") }
+          candidate.identifiers[WORK_ITEM] in expectedWorkItemNames ||
+            uniqueValues.any {
+              it == rawImpressionUpload || it.startsWith(rawImpressionUpload + "/")
+            }
         val objectIdentity = candidate.gcsObjectIdentity()
         if (
           directlyRelated ||
@@ -1048,6 +1074,10 @@ internal class VidLabelingTraceCollector(
     private const val OUTCOME = "xmm.outcome"
     private const val ROUTE = "xmm.edpa.label.route"
     private const val MODEL_LINE = "xmm.model_line.name"
+    private const val WORK_ITEM = "xmm.work_item.name"
+    private const val WORK_ITEM_ATTEMPT = "xmm.work_item_attempt.name"
+    private const val WORK_ITEM_GENERATION = "xmm.work_item.generation"
+    private const val WORK_ITEM_PROCESSING_STAGE = "work_item_processing"
     private const val RAW_UPLOAD = "xmm.edpa.raw_impression_upload.name"
     private const val RAW_UPLOAD_MODEL_LINE = "xmm.edpa.raw_impression_upload_model_line.name"
     private const val IMPRESSION_METADATA = "xmm.edpa.impression_metadata.name"
@@ -1136,8 +1166,6 @@ internal class VidLabelingTraceCollector(
     private val ACTIVE_MODEL_LINE_STATES = setOf("CREATED", "POOL_ASSIGNING", "RANKING", "LABELING")
     private val NODE_MATCH_KEY_PRIORITY =
       listOf(
-        "xmm.work_item_attempt.name",
-        "xmm.work_item.name",
         "xmm.edpa.impression_metadata.name",
         "xmm.edpa.pool_assignment_job.name",
         "xmm.edpa.ranker_job.name",

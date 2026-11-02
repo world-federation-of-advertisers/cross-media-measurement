@@ -1056,7 +1056,7 @@ private constructor(
           group.modelLine,
           group.stage,
           if (truncated) "UNRESOLVED" else "MISSING",
-          mapOf(MODEL_LINE to group.modelLine, WORK_ITEM to group.originalName),
+          mapOf(WORK_ITEM to group.originalName),
           if (truncated) {
             ExpectedNodeDisposition.UNRESOLVED
           } else {
@@ -1075,7 +1075,6 @@ private constructor(
             group.stage,
             workItem.state.name,
             mapOf(
-              MODEL_LINE to group.modelLine,
               WORK_ITEM to workItem.name,
               WORK_ITEM_GENERATION to workItem.generation.toString(),
             ),
@@ -1089,7 +1088,6 @@ private constructor(
               group.stage,
               "MISSING",
               mapOf(
-                MODEL_LINE to group.modelLine,
                 WORK_ITEM to workItem.name,
                 WORK_ITEM_GENERATION to workItem.generation.toString(),
               ),
@@ -1103,12 +1101,13 @@ private constructor(
               group.modelLine,
               group.stage,
               attempt.state.name,
-              mapOf(
-                MODEL_LINE to group.modelLine,
-                WORK_ITEM to workItem.name,
-                WORK_ITEM_ATTEMPT to attempt.name,
-                WORK_ITEM_GENERATION to workItem.generation.toString(),
-              ),
+              buildMap {
+                put(WORK_ITEM, workItem.name)
+                put(WORK_ITEM_ATTEMPT, attempt.name)
+                if (attempt.workItemGeneration > 0L) {
+                  put(WORK_ITEM_GENERATION, attempt.workItemGeneration.toString())
+                }
+              },
             )
           )
         }
@@ -1129,7 +1128,6 @@ private constructor(
   }
 
   companion object {
-    private const val MODEL_LINE = "xmm.model_line.name"
     private const val WORK_ITEM = "xmm.work_item.name"
     private const val WORK_ITEM_ATTEMPT = "xmm.work_item_attempt.name"
     private const val WORK_ITEM_GENERATION = "xmm.work_item.generation"
