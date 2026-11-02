@@ -88,6 +88,14 @@ data class ResolvedEventGroups(
       details: GroupedRequisitions.EventGroupDetails,
       mapping: EventGroupReferenceIdEntityKeyMapping?,
     ): ResolvedEventGroup {
+      if (
+        mapping != null &&
+          details.hasEntityKey() &&
+          details.entityKey.entityType == mapping.entityType &&
+          details.entityKey.entityId.isNotEmpty()
+      ) {
+        mapping.validateEntityId(details.entityKey.entityType, details.entityKey.entityId)
+      }
       if (detailsHasEntityKey(details)) {
         val detailsEntityKey: GroupedRequisitions.EventGroupDetails.EntityKey = details.entityKey
         val entityKey: LabeledImpression.EntityKey =
@@ -102,7 +110,7 @@ data class ResolvedEventGroups(
             null
           }
         if (mappedReferenceId != null) {
-          val nativeReferenceId: String? = details.eventGroupReferenceId.takeIf { it.isNotBlank() }
+          val nativeReferenceId: String? = details.eventGroupReferenceId.takeIf { it.isNotEmpty() }
           require(nativeReferenceId == null || nativeReferenceId == mappedReferenceId) {
             "Event-group reference ID $nativeReferenceId and entity ID ${entityKey.entityId} " +
               "are not equivalent under event_group_reference_id_entity_key_mapping"
@@ -115,7 +123,7 @@ data class ResolvedEventGroups(
         )
       }
 
-      val referenceId: String? = details.eventGroupReferenceId.takeIf { it.isNotBlank() }
+      val referenceId: String? = details.eventGroupReferenceId.takeIf { it.isNotEmpty() }
       val entityKey: LabeledImpression.EntityKey? =
         if (mapping == null || referenceId == null) {
           null

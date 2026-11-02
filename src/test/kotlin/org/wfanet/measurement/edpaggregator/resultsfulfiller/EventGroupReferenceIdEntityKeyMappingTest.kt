@@ -321,6 +321,27 @@ class EventGroupReferenceIdEntityKeyMappingTest {
     }
   }
 
+  @Test
+  fun `areEquivalent compares complete suffixes with every prefix combination`() {
+    for (referencePrefix in listOf("", "ref/")) {
+      for (entityPrefix in listOf("", "entity/")) {
+        val mapping =
+          EventGroupReferenceIdEntityKeyMapping(ENTITY_TYPE, referencePrefix, entityPrefix)
+        for (suffix in listOf("123", "Abc", "\u00e9")) {
+          val referenceId = referencePrefix + suffix
+          val entityId = entityPrefix + suffix
+          mapping.validateEventGroupReferenceId(referenceId)
+          mapping.validateEntityId(ENTITY_TYPE, entityId)
+          assertThat(mapping.areEquivalent(referenceId, entityId)).isTrue()
+          assertThat(mapping.areEquivalent(referenceId, entityId + "4")).isFalse()
+          assertThat(mapping.areEquivalent(referenceId + "4", entityId)).isFalse()
+          assertThat(mapping.areEquivalent(referenceId, entityPrefix + "456")).isFalse()
+        }
+        assertThat(mapping.areEquivalent(referencePrefix + "Abc", entityPrefix + "abc")).isFalse()
+      }
+    }
+  }
+
   companion object {
     private const val ENTITY_TYPE = "campaign"
   }

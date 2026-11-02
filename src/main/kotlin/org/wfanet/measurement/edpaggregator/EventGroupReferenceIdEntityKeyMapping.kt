@@ -100,6 +100,18 @@ data class EventGroupReferenceIdEntityKeyMapping(
     }
   }
 
+  /** Returns whether validated IDs have identical suffixes after their configured prefixes. */
+  fun areEquivalent(eventGroupReferenceId: String, entityId: String): Boolean {
+    val suffixLength: Int = eventGroupReferenceId.length - eventGroupReferenceIdPrefix.length
+    return suffixLength == entityId.length - entityIdPrefix.length &&
+      eventGroupReferenceId.regionMatches(
+        eventGroupReferenceIdPrefix.length,
+        entityId,
+        entityIdPrefix.length,
+        suffixLength,
+      )
+  }
+
   private fun canReplacePrefix(value: String, sourcePrefix: String, targetPrefix: String): Boolean {
     if (sourcePrefix.isEmpty()) {
       // Removing an empty prefix cannot make an already non-blank ID blank.

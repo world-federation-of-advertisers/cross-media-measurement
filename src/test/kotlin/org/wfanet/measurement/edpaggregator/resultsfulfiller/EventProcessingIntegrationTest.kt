@@ -1817,6 +1817,30 @@ class EventProcessingIntegrationTest {
   }
 
   @Test
+  fun `fromEventGroupMapEntries rejects whitespace identifiers when the other identifier is valid`() {
+    for (referencePrefix in listOf("", "ref/")) {
+      for (entityPrefix in listOf("", "entity/")) {
+        val mapping =
+          EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+        for (blankId in listOf(" \t", "\u00a0")) {
+          for ((referenceId, entityId) in
+            listOf(blankId to entityPrefix + "123", referencePrefix + "123" to blankId)) {
+            assertFailsWith<IllegalArgumentException> {
+              ResolvedEventGroups.fromEventGroupMapEntries(
+                listOf(
+                  mapEntryWithEntityKey("eventGroups/campaign", "campaign", entityId, referenceId)
+                ),
+                mapping,
+                wholeBlobEntityTypes = emptySet(),
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
   fun `fromEventGroupMapEntries accepts equivalent identifiers with all prefix combinations`() {
     for (referenceIdPrefix in listOf("", "ref/")) {
       for (entityIdPrefix in listOf("", "campaign/cp_")) {

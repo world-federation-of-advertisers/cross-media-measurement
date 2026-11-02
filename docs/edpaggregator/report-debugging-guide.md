@@ -1296,8 +1296,10 @@ ID cannot convert to a non-blank entity ID, or a mapped-type entity ID cannot
 convert to a non-blank reference ID. A mapped-type requisition EventGroup's
 dual identifiers must agree exactly. Retrieved `BlobDetails` and impression
 records are also checked for failed conversions in either direction, before
-whole-blob acceptance or event filtering. Records without identifiers remain
-valid for legacy blobs; other entity types are outside the mapping. Inspect the
+whole-blob acceptance or event filtering. When both forms are present, the
+reference ID must be equivalent to at least one mapped entity ID. Nonempty
+whitespace IDs also fail validation. Records without identifiers remain valid
+for legacy blobs; other entity types are outside the mapping. Inspect the
 exception mentioning `event_group_reference_id_entity_key_mapping` in the
 `edp_aggregator.results_fulfiller.group_failed` log. Correct the entity type and
 prefixes, or the invalid EventGroup, blob, or impression identifiers, before

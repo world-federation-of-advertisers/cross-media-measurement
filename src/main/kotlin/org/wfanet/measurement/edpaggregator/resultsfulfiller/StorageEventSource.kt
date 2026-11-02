@@ -246,15 +246,26 @@ class StorageEventSource(
 
   private fun validateBlobDetailsMapping(blobDetails: BlobDetails) {
     val mapping: EventGroupReferenceIdEntityKeyMapping = resolvedEventGroups.mapping ?: return
-    if (blobDetails.eventGroupReferenceId.isNotBlank()) {
-      mapping.validateEventGroupReferenceId(blobDetails.eventGroupReferenceId)
+    val referenceId: String = blobDetails.eventGroupReferenceId
+    if (referenceId.isNotEmpty()) {
+      mapping.validateEventGroupReferenceId(referenceId)
     }
+    var hasMappedEntityId = false
+    var hasEquivalentEntityId = false
     for (group in blobDetails.entityKeysList) {
       if (group.entityType == mapping.entityType) {
         for (entityId in group.entityIdsList) {
           mapping.validateEntityId(group.entityType, entityId)
+          hasMappedEntityId = true
+          if (referenceId.isNotEmpty() && mapping.areEquivalent(referenceId, entityId)) {
+            hasEquivalentEntityId = true
+          }
         }
       }
+    }
+    require(referenceId.isEmpty() || !hasMappedEntityId || hasEquivalentEntityId) {
+      "BlobDetails for ${blobDetails.blobUri} has a reference ID that is not equivalent to " +
+        "any mapped entity ID under event_group_reference_id_entity_key_mapping"
     }
   }
 

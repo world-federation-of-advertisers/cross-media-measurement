@@ -1022,8 +1022,10 @@ non-blank entity ID, and entity IDs of the mapped type that cannot convert to a
 non-blank reference ID. For that type, a requisition EventGroup's dual
 identifiers must be exactly equivalent. It also validates present reference
 IDs and mapped-type entity IDs in retrieved `BlobDetails` and impressions
-before whole-blob acceptance or event filtering. Legacy impressions may omit
-both identifiers; keys of other entity types are not subject to the mapping.
+before whole-blob acceptance or event filtering. When both forms are present,
+the reference ID must be equivalent to at least one mapped entity ID. Nonempty
+whitespace IDs are rejected. Legacy impressions may omit both identifiers;
+keys of other entity types are not subject to the mapping.
 These checks do not audit history omitted by a metadata query. When only one
 identifier is available, successful conversion cannot prove that the
 destination prefix matches stored history. Correct the mapping or invalid
