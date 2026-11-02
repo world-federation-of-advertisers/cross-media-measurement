@@ -25,6 +25,7 @@ import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -112,6 +113,19 @@ class FixtureStorageClientTest {
   }
 
   @Test
+  fun `writeBlob retries an empty GCS done marker upload`() = runBlocking {
+    GcsEndpoint(existingGeneration = null, firstUploadStatus = 503).use { endpoint ->
+      val blob =
+        FixtureStorageClient(GcsStorageClient(endpoint.storage, BUCKET)).writeBlob(KEY, emptyFlow())
+      assertThat(endpoint.uploadAttempts.get()).isEqualTo(2)
+      assertThat(endpoint.preconditions.get())
+        .containsExactly("ifGenerationMatch=0", "ifGenerationMatch=0")
+      assertThat(endpoint.uploaded.get()).isEmpty()
+      assertThat(blob.size).isEqualTo(0L)
+    }
+  }
+
+  @Test
   fun `writeBlob preserves permanent GCS errors`() = runBlocking {
     GcsEndpoint(existingGeneration = null, firstUploadStatus = 403).use { endpoint ->
       val error =
@@ -157,8 +171,9 @@ class FixtureStorageClientTest {
           val generation =
             if (method == "PUT" || uploaded.get() != null) (existingGeneration ?: 0L) + 1L
             else existingGeneration
+          val size = if (method == "PUT") bytes.size else uploaded.get()?.size ?: 7
           val metadata =
-            """{"bucket":"$BUCKET","name":"$KEY","generation":"$generation","size":"7","timeCreated":"2026-01-01T00:00:00.000Z","updated":"2026-01-01T00:00:00.000Z"}"""
+            """{"bucket":"$BUCKET","name":"$KEY","generation":"$generation","size":"$size","timeCreated":"2026-01-01T00:00:00.000Z","updated":"2026-01-01T00:00:00.000Z"}"""
           val status: Int
           val body: String
           when (method) {
