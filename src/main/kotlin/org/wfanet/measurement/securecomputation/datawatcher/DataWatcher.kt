@@ -422,7 +422,7 @@ class DataWatcher(
 
   private fun errorCodeOf(throwable: Throwable): String? =
     when (throwable) {
-      is HttpEndpointResponseException -> throwable.statusCode.toString()
+      is DataWatcherHttpException -> throwable.statusCode.toString()
       else -> throwable.grpcStatusCode()?.name
     }
 
