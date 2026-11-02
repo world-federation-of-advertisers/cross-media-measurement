@@ -26,6 +26,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.nio.ByteBuffer
 import java.security.MessageDigest
+import java.time.Instant
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -128,6 +129,7 @@ class DataAvailabilitySync(
   private val errorIfGapsExist: Boolean,
   private val publishEventGroupActivities: (suspend (Collection<ImpressionMetadata>) -> Int)?,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
+  private val clock: () -> Instant = { Instant.now() },
 ) {
   enum class Outcome {
     NO_WORK,
@@ -197,13 +199,29 @@ class DataAvailabilitySync(
       // Count total records
       val totalRecords = impressionMetadataMap.values.sumOf { it.size }
       val syncId = UUID.randomUUID().toString()
+      val doneBlob = storageClient.getBlob(doneBlobUri.key)
+      val publicationPendingSince =
+        if (
+          doneBlob != null &&
+            doneBlob.metadata.containsKey(DataAvailabilityBlobs.SYNC_ID_KEY) &&
+            !DataAvailabilityBlobs.isDataAvailabilityPublished(doneBlob)
+        ) {
+          DataAvailabilityBlobs.publicationPendingSince(doneBlob)
+        } else {
+          clock()
+        }
 
       // 2. Announce this attempt before mutating ImpressionMetadata. This invalidates any
       // publication marker left by an earlier attempt, so a failure during persistence remains
       // visible and retryable.
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
-        metadata = mapOf(DataAvailabilityBlobs.SYNC_ID_KEY to syncId),
+        metadata =
+          mapOf(
+            DataAvailabilityBlobs.SYNC_ID_KEY to syncId,
+            DataAvailabilityBlobs.PUBLICATION_PENDING_SINCE_KEY to
+              publicationPendingSince.toString(),
+          ),
       )
 
       // 3. Persist ImpressionMetadata (create new, update changed)
@@ -392,6 +410,8 @@ class DataAvailabilitySync(
       // This marker is the durable completion signal for both phases of synchronization. Only
       // update the publication ID here. If another attempt has written a newer sync ID while this
       // attempt was publishing, the resulting mismatch must remain visible and retryable.
+      // Leave the pending start untouched: an older completion must not clear a newer episode.
+      // Matching IDs end the episode; the next attempt then chooses a fresh start.
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
         metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),

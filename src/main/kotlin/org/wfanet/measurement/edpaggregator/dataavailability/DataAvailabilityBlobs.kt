@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.dataavailability
 
+import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import java.util.logging.Logger
@@ -55,6 +56,9 @@ object DataAvailabilityBlobs {
   /** GCS custom metadata key identifying the sync attempt published to the Kingdom. */
   const val PUBLISHED_SYNC_ID_KEY = "data-availability-published-sync-id"
 
+  /** Start of the continuous pending publication episode, as an ISO-8601 instant. */
+  const val PUBLICATION_PENDING_SINCE_KEY = "data-availability-publication-pending-since"
+
   /** Filename suffix on the per-date "done" marker. */
   private const val DONE_SUFFIX = "/done"
 
@@ -83,6 +87,20 @@ object DataAvailabilityBlobs {
     if (!isSynced(blob)) return false
     val syncId = blob.metadata[SYNC_ID_KEY] ?: return false
     return blob.metadata[PUBLISHED_SYNC_ID_KEY] == syncId
+  }
+
+  /**
+   * Returns the durable pending start, falling back to the last update for legacy or malformed
+   * markers. Sync persists that fallback on the next retry so subsequent updates cannot reset it.
+   * Only meaningful while the sync-attempt and publication markers do not match.
+   */
+  fun publicationPendingSince(blob: StorageClient.Blob): Instant {
+    val value = blob.metadata[PUBLICATION_PENDING_SINCE_KEY] ?: return blob.updateTime
+    return try {
+      Instant.parse(value)
+    } catch (_: DateTimeParseException) {
+      blob.updateTime
+    }
   }
 
   /**

@@ -265,7 +265,11 @@ data-availability health per model line. Per its config it flags:
 * **Unprocessed `done` blobs** — a `done` blob older than
   `unprocessed_done_threshold` (default 24h) that DataAvailabilitySync never stamped.
 * **Unpublished availability** — a `done` blob with a sync-attempt ID whose Kingdom-publication ID
-  does not match after `unprocessed_done_threshold`. Markerless legacy folders are not flagged.
+  does not match after `unprocessed_done_threshold`. The delay starts with the first pending
+  attempt and survives retries and restarts. Successful publication ends that episode; a later
+  replay starts a new delay. For older markers without a pending-start timestamp, the monitor
+  uses the last object update and Sync preserves that time on its next retry. Markerless legacy
+  folders are not flagged.
 * **Spurious deletions** — `ImpressionMetadata` marked deleted while its blob still
   exists on the bucket (enabled when `spurious_deletion_lookback_days > 0`).
 

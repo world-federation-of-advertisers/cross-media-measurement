@@ -33,12 +33,17 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlin.test.fail
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -55,6 +60,7 @@ import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -86,6 +92,7 @@ import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 enum class BlobEncoding {
   PROTO,
@@ -961,17 +968,168 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `publication retries and restarts preserve alert age for both model lines`(): Unit =
+    runBlocking {
+      val fixture = PublicationFixture(listOf("modelLine1", "modelLine2"))
+      fixture.seed()
+      wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+        .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
+
+      for (minutes in 0L..35L step 5) {
+        fixture.now = fixture.start.plus(Duration.ofMinutes(minutes))
+        for (doneKey in fixture.doneKeys) {
+          assertFailsWith<Exception> { fixture.newSync().sync("$bucket/$doneKey") }
+          assertThat(fixture.storage.getBlob(doneKey)!!.updateTime).isEqualTo(fixture.now)
+        }
+        val statuses = fixture.statuses()
+        assertThat(statuses.map { it.modelLineKey }).containsExactlyElementsIn(fixture.modelLines)
+        for (status in statuses) {
+          assertThat(status.gapDates).isEmpty()
+          assertThat(status.unprocessedDoneDates).isEmpty()
+          if (minutes < 30) {
+            assertThat(status.unpublishedAvailabilityDates).isEmpty()
+          } else {
+            assertThat(status.unpublishedAvailabilityDates).containsExactly(fixture.dataDate)
+          }
+        }
+      }
+    }
+
+  @Test
+  fun `successful publication clears alert and replay of old upload starts a new episode`(): Unit =
+    runBlocking {
+      val fixture = PublicationFixture()
+      fixture.seed()
+      val doneKey = fixture.doneKeys.single()
+      wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+        .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
+      assertFailsWith<Exception> { fixture.newSync().sync("$bucket/$doneKey") }
+      fixture.now = fixture.start.plus(Duration.ofMinutes(30))
+      assertThat(fixture.statuses().single().unpublishedAvailabilityDates)
+        .containsExactly(fixture.dataDate)
+
+      wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+        .thenReturn(DataProvider.getDefaultInstance())
+      assertThat(fixture.newSync().sync("$bucket/$doneKey"))
+        .isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      assertThat(fixture.statuses().single().unpublishedAvailabilityDates).isEmpty()
+
+      fixture.now = fixture.start.plus(Duration.ofDays(2))
+      wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+        .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
+      assertFailsWith<Exception> { fixture.newSync().sync("$bucket/$doneKey") }
+      assertThat(fixture.statuses().single().unpublishedAvailabilityDates).isEmpty()
+      fixture.now = fixture.now.plus(Duration.ofMinutes(30))
+      assertFailsWith<Exception> { fixture.newSync().sync("$bucket/$doneKey") }
+      assertThat(fixture.statuses().single().unpublishedAvailabilityDates)
+        .containsExactly(fixture.dataDate)
+    }
+
+  @Test
+  fun `replacement done upload starts a new pending episode`(): Unit = runBlocking {
+    val fixture = PublicationFixture()
+    fixture.seed()
+    val doneKey = fixture.doneKeys.single()
+    wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+      .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
+    assertFailsWith<Exception> { fixture.newSync().sync("$bucket/$doneKey") }
+    fixture.now = fixture.start.plus(Duration.ofDays(2))
+    assertThat(fixture.statuses().single().unpublishedAvailabilityDates)
+      .containsExactly(fixture.dataDate)
+
+    fixture.storage.writeBlob(doneKey, ByteString.EMPTY)
+    assertFailsWith<Exception> { fixture.newSync().sync("$bucket/$doneKey") }
+    assertThat(fixture.statuses().single().unpublishedAvailabilityDates).isEmpty()
+    fixture.now = fixture.now.plus(Duration.ofMinutes(30))
+    assertFailsWith<Exception> { fixture.newSync().sync("$bucket/$doneKey") }
+    assertThat(fixture.statuses().single().unpublishedAvailabilityDates)
+      .containsExactly(fixture.dataDate)
+  }
+
+  @Test
+  fun `retry preserves unpublished age when pending time is absent or malformed`(): Unit =
+    runBlocking {
+      wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+        .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
+      for (pendingTime in listOf(null, "invalid-timestamp")) {
+        val fixture = PublicationFixture()
+        fixture.seed()
+        val doneKey = fixture.doneKeys.single()
+        fixture.storage.updateBlobMetadata(
+          doneKey,
+          metadata =
+            buildMap {
+              put(DataAvailabilityBlobs.SYNC_ID_KEY, "legacy-attempt")
+              put(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
+              if (pendingTime != null) {
+                put(DataAvailabilityBlobs.PUBLICATION_PENDING_SINCE_KEY, pendingTime)
+              }
+            },
+        )
+        fixture.now = fixture.start.plus(Duration.ofHours(1))
+        assertThat(fixture.statuses().single().unpublishedAvailabilityDates)
+          .containsExactly(fixture.dataDate)
+
+        assertFailsWith<Exception> { fixture.newSync().sync("$bucket/$doneKey") }
+
+        assertThat(fixture.storage.getBlob(doneKey)!!.updateTime).isEqualTo(fixture.now)
+        assertThat(fixture.statuses().single().unpublishedAvailabilityDates)
+          .containsExactly(fixture.dataDate)
+        fixture.now = fixture.now.plus(Duration.ofMinutes(5))
+        assertFailsWith<Exception> { fixture.newSync().sync("$bucket/$doneKey") }
+        assertThat(fixture.statuses().single().unpublishedAvailabilityDates)
+          .containsExactly(fixture.dataDate)
+      }
+    }
+
+  @Test
+  fun `retry retains pending start when first attempt failed during metadata persistence`(): Unit =
+    runBlocking {
+      val fixture = PublicationFixture()
+      fixture.seed()
+      val doneKey = fixture.doneKeys.single()
+      wheneverBlocking { impressionMetadataServiceMock.batchCreateImpressionMetadata(any()) }
+        .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
+      assertFailsWith<Exception> { fixture.newSync().sync("$bucket/$doneKey") }
+      fixture.now = fixture.start.plus(Duration.ofMinutes(30))
+      wheneverBlocking { impressionMetadataServiceMock.batchCreateImpressionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
+          batchCreateImpressionMetadataResponse {
+            impressionMetadata +=
+              request.requestsList.map { createRequest ->
+                createRequest.impressionMetadata.copy {
+                  name = "${request.parent}/impressionMetadata/im-0"
+                }
+              }
+          }
+        }
+      wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+        .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
+
+      assertFailsWith<Exception> { fixture.newSync().sync("$bucket/$doneKey") }
+
+      assertThat(fixture.statuses().single().unprocessedDoneDates).isEmpty()
+      assertThat(fixture.statuses().single().unpublishedAvailabilityDates)
+        .containsExactly(fixture.dataDate)
+    }
+
+  @Test
   fun `sync does not let older completion mask newer attempt`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
     val doneBlobKey = "${folderPrefix}done"
     val newerSyncId = "newer-sync-id"
+    val newerPendingSince = "2026-03-16T12:00:00Z"
     wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
       .thenAnswer {
         storageClient.mergeBlobMetadata(
           doneBlobKey,
-          mapOf(DataAvailabilityBlobs.SYNC_ID_KEY to newerSyncId),
+          mapOf(
+            DataAvailabilityBlobs.SYNC_ID_KEY to newerSyncId,
+            DataAvailabilityBlobs.PUBLICATION_PENDING_SINCE_KEY to newerPendingSince,
+          ),
         )
         DataProvider.getDefaultInstance()
       }
@@ -994,6 +1152,8 @@ class DataAvailabilitySyncTest {
     val doneMetadata = storageClient.blobMetadata.getValue(doneBlobKey)
     assertThat(doneMetadata[DataAvailabilityBlobs.SYNC_ID_KEY]).isEqualTo(newerSyncId)
     assertThat(doneMetadata[DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY]).isNotEqualTo(newerSyncId)
+    assertThat(doneMetadata[DataAvailabilityBlobs.PUBLICATION_PENDING_SINCE_KEY])
+      .isEqualTo(newerPendingSince)
   }
 
   @Test
@@ -3036,6 +3196,97 @@ class DataAvailabilitySyncTest {
       onReadyCalls++
       return block()
     }
+  }
+
+  /** Creates a fresh Sync and Monitor for each invocation, retaining only the storage backend. */
+  private inner class PublicationFixture(modelLineIds: List<String> = listOf("modelLine1")) {
+    val start: Instant = Instant.parse("2026-03-16T12:00:00Z")
+    var now: Instant = start
+    val dataDate: LocalDate = LocalDate.of(2026, 3, 15)
+    val modelLines = modelLineIds.map { ModelLineKey("provider1", "suite1", it) }
+    val doneKeys = modelLines.map { "edp/edpa_edp/model-line/${it.modelLineId}/$dataDate/done" }
+    val storage = ClockedStorageClient { now }
+
+    suspend fun seed() {
+      for ((modelLine, doneKey) in modelLines.zip(doneKeys)) {
+        seedBlobDetailsWithModelLine(
+          storage,
+          doneKey.substringBeforeLast("/") + "/",
+          listOf(300L to 400L),
+          modelLine.toName(),
+        )
+      }
+    }
+
+    fun newSync() =
+      DataAvailabilitySync(
+        edpImpressionPath = "edp/edpa_edp",
+        storageClient = storage,
+        dataProvidersStub = dataProvidersStub,
+        impressionMetadataServiceStub = impressionMetadataStub,
+        dataProviderName = "dataProviders/dataProvider123",
+        throttler =
+          object : Throttler {
+            override suspend fun <T> onReady(block: suspend () -> T): T = block()
+          },
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        publishEventGroupActivities = null,
+        clock = { now },
+      )
+
+    suspend fun statuses(): List<DataAvailabilityMonitor.ModelLineStatus> =
+      DataAvailabilityMonitor(
+          storageClient = storage,
+          edpImpressionPath = "edp/edpa_edp",
+          activeModelLines = modelLines.toSet(),
+          impressionMetadataStub = null,
+          dataProviderName = null,
+          clock = { now },
+        )
+        .checkGaps(Duration.ofMinutes(30))
+        .statuses
+  }
+
+  /** Storage timestamps advance only when a write occurs, using the test's clock. */
+  private class ClockedStorageClient(
+    private val delegate: InMemoryStorageClient = InMemoryStorageClient(),
+    private val clock: () -> Instant,
+  ) : BlobMetadataStorageClient, StorageClient by delegate {
+    private val createTimes = mutableMapOf<String, Instant>()
+    private val updateTimes = mutableMapOf<String, Instant>()
+
+    override suspend fun writeBlob(blobKey: String, content: ByteString): StorageClient.Blob =
+      writeBlob(blobKey, flowOf(content))
+
+    override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
+      val blob = delegate.writeBlob(blobKey, content)
+      createTimes[blobKey] = clock()
+      updateTimes[blobKey] = clock()
+      return withTimestamps(blob)
+    }
+
+    override suspend fun updateBlobMetadata(
+      blobKey: String,
+      customCreateTime: Instant?,
+      metadata: Map<String, String>,
+    ) {
+      delegate.updateBlobMetadata(blobKey, customCreateTime, metadata)
+      updateTimes[blobKey] = clock()
+    }
+
+    override suspend fun getBlob(blobKey: String): StorageClient.Blob? =
+      delegate.getBlob(blobKey)?.let(::withTimestamps)
+
+    override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> =
+      delegate.listBlobs(prefix).map(::withTimestamps)
+
+    private fun withTimestamps(blob: StorageClient.Blob): StorageClient.Blob =
+      object : StorageClient.Blob by blob {
+        override val createTime: Instant = createTimes.getValue(blob.blobKey)
+        override val updateTime: Instant = updateTimes.getValue(blob.blobKey)
+      }
   }
 
   /**
