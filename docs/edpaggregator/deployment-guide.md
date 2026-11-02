@@ -1078,6 +1078,13 @@ identifiers such as `America/New_York`. Use the market's calendar time zone so i
 a UTC date boundary are attributed to the market dates they touch. The interval start is inclusive
 and its end is exclusive. Legacy intervals with equal bounds are attributed to that instant's date.
 
+Legacy sidecars may instead encode the final included impression timestamp in `end_time`. Replay
+and backfill interpret all persisted intervals using the half-open contract. If a legacy end falls
+exactly at local midnight, the date starting at that midnight is therefore not recreated. Existing
+`EventGroupActivity` resources are append-only and are not deleted. Before replaying legacy metadata
+into a target without its historical activities, migrate those intervals to an exclusive end when
+the former conservative endpoint-date inclusion must be preserved.
+
 The map join uses entity keys only. A key may map to multiple EventGroups, and keys at any entity
 hierarchy level are eligible. Legacy EventGroup reference-ID-only map records are ignored. Keep the
 map current: missing map keys and stale EventGroup resources are skipped, logged, and counted by
