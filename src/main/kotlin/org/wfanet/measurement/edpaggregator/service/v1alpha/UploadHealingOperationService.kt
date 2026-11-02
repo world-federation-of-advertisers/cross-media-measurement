@@ -38,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperatio
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.FinalizeUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
@@ -68,6 +69,7 @@ import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingOperati
 import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingStepRequest as internalAdvanceStepRequest
 import org.wfanet.measurement.internal.edpaggregator.approveUploadHealingOperationRequest as internalApproveOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.createUploadHealingOperationRequest as internalCreateOperationRequest
+import org.wfanet.measurement.internal.edpaggregator.finalizeUploadHealingOperationRequest as internalFinalizeOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.getUploadHealingOperationRequest as internalGetOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.labeledOutputManifest as internalLabeledOutputManifest
 import org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsRequest as internalListOperationsRequest
@@ -356,6 +358,53 @@ class UploadHealingOperationService(
     }
   }
 
+  override suspend fun finalizeUploadHealingOperation(
+    request: FinalizeUploadHealingOperationRequest
+  ): UploadHealingOperation {
+    val key = parseOperation(request.name)
+    if (request.etag.isBlank()) required("etag")
+    validateUuid(request.requestId, "request_id")
+    if (request.stepManifestsList.isEmpty()) required("step_manifests")
+    val stepManifests =
+      request.stepManifestsList.map { stepManifest ->
+        val stepKey =
+          UploadHealingStepKey.fromName(stepManifest.uploadHealingStep)
+            ?: invalid("step_manifests.upload_healing_step")
+        if (stepKey.parentKey != key) invalid("step_manifests.upload_healing_step")
+        if (!stepManifest.hasLabeledOutputManifest()) {
+          required("step_manifests.labeled_output_manifest")
+        }
+        org.wfanet.measurement.internal.edpaggregator.FinalizeUploadHealingOperationRequestKt
+          .stepManifest {
+            uploadHealingStepId =
+              stepKey.uploadHealingStepId.toLongOrNull()
+                ?: invalid("step_manifests.upload_healing_step")
+            labeledOutputManifest = stepManifest.labeledOutputManifest.toInternal()
+          }
+      }
+    if (stepManifests.map { it.uploadHealingStepId }.distinct().size != stepManifests.size) {
+      invalid("step_manifests")
+    }
+    return try {
+      internalOperationStub
+        .finalizeUploadHealingOperation(
+          internalFinalizeOperationRequest {
+            dataProviderResourceId = key.dataProviderId
+            uploadHealingOperationId = key.uploadHealingOperationId
+            this.stepManifests += stepManifests
+            etag = request.etag
+            requestId = request.requestId
+          }
+        )
+        .toPublic()
+    } catch (e: StatusException) {
+      throw translateInternalError(
+        e,
+        "UploadHealingOperation ${request.name} could not be finalized",
+      )
+    }
+  }
+
   override suspend fun retryUploadHealingOperation(
     request: RetryUploadHealingOperationRequest
   ): UploadHealingOperation {
@@ -477,6 +526,11 @@ class UploadHealingOperationService(
     return uploadHealingOperation {
       name = operationKey.toName()
       state = this@toPublic.state.toPublic()
+      planFormatVersion = this@toPublic.planFormatVersion
+      outputManifestState =
+        UploadHealingOperation.OutputManifestState.forNumber(
+          this@toPublic.outputManifestState.number
+        )
       if (
         this@toPublic.resumeState !=
           InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED
@@ -658,6 +712,7 @@ class UploadHealingOperationService(
           recoveryAction = step.recoveryAction.toInternal()
           recoveryPredecessorRawImpressionUploadResourceId = predecessorId
           recoveryTarget = step.recoveryTarget
+          labeledOutputManifest = step.labeledOutputManifest.toInternal()
           if (step.rawImpressionUploadCorrectionCandidate.isNotEmpty()) {
             val candidateKey =
               RawImpressionUploadCorrectionCandidateKey.fromName(
@@ -676,6 +731,11 @@ class UploadHealingOperationService(
       }
     return internalOperation {
       this.state = state
+      planFormatVersion = this@toInternalPlan.planFormatVersion
+      outputManifestState =
+        InternalOperation.OutputManifestState.forNumber(
+          this@toInternalPlan.outputManifestState.number
+        )
       reason = this@toInternalPlan.reason
       labeledImpressionsBlobPrefix = this@toInternalPlan.labeledImpressionsBlobPrefix
       badRawImpressionUploadResourceIds += badUploadIds
