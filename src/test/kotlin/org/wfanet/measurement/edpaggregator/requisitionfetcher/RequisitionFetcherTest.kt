@@ -3000,7 +3000,7 @@ class RequisitionFetcherTest {
           throw Status.RESOURCE_EXHAUSTED.withDescription(
               "Decompressed gRPC message exceeds maximum size 4194304"
             )
-            .asRuntimeException()
+            .asException()
         }
         listRequisitionsResponse {}
       }
