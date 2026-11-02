@@ -42,7 +42,6 @@ import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutine
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.telemetry.CloudLogCollectionTruncatedException
 import org.wfanet.measurement.common.telemetry.CloudLogEntry
 import org.wfanet.measurement.common.telemetry.CloudLogReader
 import org.wfanet.measurement.common.telemetry.CloudTraceReader
@@ -145,6 +144,7 @@ internal data class VidLabelingSourceStatus(
   val durationMillis: Long,
   val counts: Map<String, Long> = emptyMap(),
   val note: String = "",
+  val project: String = "collector",
 )
 
 internal data class VidLabelingTraceRequest(
@@ -169,7 +169,21 @@ private data class SourceAttempt<T>(
   val note: String = "",
 )
 
+private data class TraceReference(val project: String, val traceId: String)
+
+private fun parseTraceReference(value: String?, fallbackProject: String): TraceReference? {
+  if (value.isNullOrEmpty()) return null
+  val match = Regex("^projects/([^/]+)/traces/([^/]+)$").matchEntire(value)
+  return if (match == null) {
+    TraceReference(fallbackProject, value.substringAfterLast('/'))
+  } else {
+    TraceReference(match.groupValues[1], match.groupValues[2])
+  }
+}
+
 private class SourceStatusRecorder {
+  private data class SourceKey(val project: String, val source: String)
+
   private data class MutableStatus(
     var status: String = "complete",
     var durationNanos: Long = 0L,
@@ -177,7 +191,7 @@ private class SourceStatusRecorder {
     val notes: LinkedHashSet<String> = linkedSetOf(),
   )
 
-  private val statuses = linkedMapOf<String, MutableStatus>()
+  private val statuses = linkedMapOf<SourceKey, MutableStatus>()
 
   fun record(
     source: String,
@@ -185,8 +199,9 @@ private class SourceStatusRecorder {
     durationNanos: Long = 0L,
     counts: Map<String, Long> = emptyMap(),
     note: String = "",
+    project: String = "collector",
   ) {
-    val current = statuses.getOrPut(source) { MutableStatus() }
+    val current = statuses.getOrPut(SourceKey(project, source)) { MutableStatus() }
     if (STATUS_PRIORITY.getValue(status) > STATUS_PRIORITY.getValue(current.status)) {
       current.status = status
     }
@@ -200,18 +215,22 @@ private class SourceStatusRecorder {
   fun snapshot(): List<VidLabelingSourceStatus> {
     return statuses.entries
       .sortedWith(
-        compareBy<Map.Entry<String, MutableStatus>> {
-            SOURCE_ORDER.indexOf(it.key).let { index -> if (index < 0) Int.MAX_VALUE else index }
+        compareBy<Map.Entry<SourceKey, MutableStatus>> {
+            SOURCE_ORDER.indexOf(it.key.source).let { index ->
+              if (index < 0) Int.MAX_VALUE else index
+            }
           }
-          .thenBy { it.key }
+          .thenBy { it.key.project }
+          .thenBy { it.key.source }
       )
-      .map { (source, status) ->
+      .map { (key, status) ->
         VidLabelingSourceStatus(
-          source,
+          key.source,
           status.status,
           (status.durationNanos + NANOS_PER_MILLISECOND - 1L) / NANOS_PER_MILLISECOND,
           status.counts.toSortedMap(),
           status.notes.joinToString(" "),
+          key.project,
         )
       }
   }
@@ -281,6 +300,11 @@ internal class VidLabelingTraceCollector(
   private val routeResolver: VidLabelingRouteResolver = EMPTY_ROUTE_RESOLVER,
   private val nanoTime: () -> Long = System::nanoTime,
 ) {
+  private val logReaders = mutableMapOf<String, CloudLogReader>()
+
+  private fun logReader(project: String): CloudLogReader =
+    logReaders.getOrPut(project) { logReaderFactory(project) }
+
   suspend fun collect(request: VidLabelingTraceRequest): VidLabelingTraceCollection {
     require(RAW_UPLOAD_PATTERN.matches(request.rawImpressionUpload)) {
       "Invalid RawImpressionUpload resource name"
@@ -399,54 +423,99 @@ internal class VidLabelingTraceCollector(
     val evidence = linkedSetOf<VidLabelingEvidence>()
     val correlationValues = linkedSetOf(request.rawImpressionUpload)
     val traceIds = linkedSetOf<String>()
+    val traceIdsByProject = mutableMapOf<String, MutableSet<String>>()
     val loggingBudget = SourceBudget(request.loggingSourceTimeout, nanoTime)
     val traceBudget = SourceBudget(request.traceSourceTimeout, nanoTime)
-    var correlationValuesCapped =
-      addBounded(
-        correlationValues,
-        authoritativeGraph.correlationValues,
-        request.correlationValueLimit,
-      )
+    var correlationValuesCapped = false
     var traceIdsCapped = false
     var expansionRoundsExhausted = false
     var remainingRounds = request.expansionRounds
+    val queriedLogCorrelationValues = mutableMapOf<String, MutableSet<String>>()
+    val queriedLogTraceIds = mutableMapOf<String, MutableSet<String>>()
+    val queriedTraceIds = mutableMapOf<String, MutableSet<String>>()
+    val queriedTraceCorrelationValues = mutableMapOf<String, MutableSet<String>>()
+    val rootLogDiscoveryProjects = mutableSetOf<String>()
+    val rootTraceDiscoveryProjects = mutableSetOf<String>()
     while (remainingRounds-- > 0) {
       val originalCorrelationCount = correlationValues.size
       val originalTraceCount = traceIds.size
       for (project in request.projects.distinct()) {
-        val logResult =
-          readLogs(project, correlationValues, request, loggingBudget, sourceStatuses, warnings)
-        evidence += logResult.map { it.toEvidence() }
-        traceIdsCapped =
-          addBounded(
-            traceIds,
-            logResult.mapNotNull { it.trace }.map { it.substringAfterLast('/') },
-            request.traceIdLimit,
-          ) || traceIdsCapped
+        val projectLogCorrelationValues =
+          queriedLogCorrelationValues.getOrPut(project) { mutableSetOf() }
+        val projectLogTraceIds = queriedLogTraceIds.getOrPut(project) { mutableSetOf() }
+        val pendingLogCorrelationValues =
+          if (rootLogDiscoveryProjects.add(project)) setOf(request.rawImpressionUpload)
+          else correlationValues - projectLogCorrelationValues
+        val pendingLogTraceIds = traceIds - projectLogTraceIds
+        projectLogCorrelationValues += pendingLogCorrelationValues
+        projectLogTraceIds += pendingLogTraceIds
+        if (pendingLogCorrelationValues.isNotEmpty() || pendingLogTraceIds.isNotEmpty()) {
+          val logResult =
+            readLogs(
+              project,
+              pendingLogCorrelationValues,
+              pendingLogTraceIds,
+              request,
+              loggingBudget,
+              sourceStatuses,
+              warnings,
+            )
+          evidence += logResult.map { it.toEvidence() }
+          val traceReferences = logResult.mapNotNull { parseTraceReference(it.trace, project) }
+          val discoveredLogTraceIds = traceReferences.map { it.traceId }
+          traceIdsCapped =
+            addBounded(traceIds, discoveredLogTraceIds, request.traceIdLimit) || traceIdsCapped
+          for (reference in traceReferences.filter { it.traceId in traceIds }) {
+            if (reference.project in request.projects) {
+              traceIdsByProject
+                .getOrPut(reference.project) { mutableSetOf() }
+                .add(reference.traceId)
+            } else {
+              sourceStatuses.record(
+                "cloud_trace",
+                "failed",
+                note = "Trace project was not configured for collection.",
+                project = reference.project,
+              )
+              warnings += "Cloud Trace project ${reference.project} was not configured."
+            }
+          }
+        }
 
-        val traceLogResult =
-          readTraceLogs(project, traceIds, request, loggingBudget, sourceStatuses, warnings)
-        evidence += traceLogResult.map { it.toEvidence() }
-        traceIdsCapped =
-          addBounded(
-            traceIds,
-            traceLogResult.mapNotNull { it.trace }.map { it.substringAfterLast('/') },
-            request.traceIdLimit,
-          ) || traceIdsCapped
-
-        val spans =
-          readSpans(
-            project,
-            correlationValues,
-            traceIds,
-            request,
-            traceBudget,
-            sourceStatuses,
-            warnings,
+        val projectTraceIds = queriedTraceIds.getOrPut(project) { mutableSetOf() }
+        val projectTraceCorrelationValues =
+          queriedTraceCorrelationValues.getOrPut(project) { mutableSetOf() }
+        val knownProjectTraceIds = traceIdsByProject.getOrPut(project) { mutableSetOf() }
+        val pendingTraceIds = knownProjectTraceIds - projectTraceIds
+        projectTraceIds += pendingTraceIds
+        val rootTraceDiscovery = rootTraceDiscoveryProjects.add(project)
+        val pendingTraceCorrelationValues = buildSet {
+          if (rootTraceDiscovery) add(request.rawImpressionUpload)
+          addAll(
+            (correlationValues - projectTraceCorrelationValues).filter(
+              GCS_PATH_HASH_PATTERN::matches
+            )
           )
-        evidence += spans.map { it.toEvidence() }
-        traceIdsCapped =
-          addBounded(traceIds, spans.map { it.traceId }, request.traceIdLimit) || traceIdsCapped
+        }
+        projectTraceCorrelationValues += pendingTraceCorrelationValues
+        if (pendingTraceCorrelationValues.isNotEmpty() || pendingTraceIds.isNotEmpty()) {
+          val spans =
+            readSpans(
+              project,
+              pendingTraceCorrelationValues,
+              pendingTraceIds,
+              knownProjectTraceIds,
+              request,
+              traceBudget,
+              sourceStatuses,
+              warnings,
+            )
+          evidence += spans.map { it.toEvidence() }
+          knownProjectTraceIds += spans.map { it.traceId }
+          projectTraceIds += spans.map { it.traceId }
+          traceIdsCapped =
+            addBounded(traceIds, spans.map { it.traceId }, request.traceIdLimit) || traceIdsCapped
+        }
       }
       val relatedEvidence = retainRelatedEvidence(request.rawImpressionUpload, evidence)
       evidence.clear()
@@ -456,10 +525,15 @@ internal class VidLabelingTraceCollector(
           correlationValues,
           authoritativeGraph.correlationValues +
             evidence
+              .asSequence()
               .flatMap { item ->
-                item.identifiers.filterKeys { it in DISCOVERY_CORRELATION_FIELDS }.values
+                item.identifiers
+                  .filterKeys { it in DISCOVERY_CORRELATION_FIELDS }
+                  .values
+                  .asSequence()
               }
-              .filter(::isCorrelationValue),
+              .filter(::isCorrelationValue)
+              .toList(),
           request.correlationValueLimit,
         ) || correlationValuesCapped
       if (
@@ -564,133 +638,55 @@ internal class VidLabelingTraceCollector(
   private suspend fun readLogs(
     project: String,
     correlationValues: Set<String>,
-    request: VidLabelingTraceRequest,
-    budget: SourceBudget,
-    statuses: SourceStatusRecorder,
-    warnings: MutableList<String>,
-  ): List<CloudLogEntry> {
-    val remainingMillis = budget.remainingMillis()
-    if (remainingMillis == 0L) {
-      statuses.record("cloud_logging", "timed_out", note = "Source deadline exhausted.")
-      warnings += "Cloud Logging collection timed out before querying project $project."
-      return emptyList()
-    }
-    val started = budget.start()
-    return try {
-      val entries =
-        withTimeoutOrNull(remainingMillis) {
-          logReaderFactory(project)
-            .read(correlationValues, request.startTime, request.endTime, request.entryLimit)
-        }
-      if (entries == null) {
-        statuses.record(
-          "cloud_logging",
-          "timed_out",
-          budget.finish(started, remainingMillis),
-          mapOf("logging_queries" to 1L),
-          "Source deadline exhausted while querying $project.",
-        )
-        warnings += "Cloud Logging collection timed out for project " + project + "."
-        return emptyList()
-      }
-      statuses.record(
-        "cloud_logging",
-        "complete",
-        budget.finish(started),
-        mapOf(
-          "logging_queries" to 1L,
-          "rows_examined" to entries.size.toLong(),
-          "rows_retained" to entries.size.toLong(),
-        ),
-      )
-      entries
-    } catch (e: CloudLogCollectionTruncatedException) {
-      statuses.record(
-        "cloud_logging",
-        "truncated",
-        budget.finish(started),
-        mapOf(
-          "logging_queries" to 1L,
-          "rows_examined" to e.rawEntriesExamined.toLong(),
-          "rows_retained" to e.partialEntries.size.toLong(),
-        ),
-        "The configured read bound was reached in $project.",
-      )
-      warnings += "Cloud Logging results were truncated for project " + project + "."
-      e.partialEntries
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: Exception) {
-      statuses.record(
-        "cloud_logging",
-        "failed",
-        budget.finish(started),
-        mapOf("logging_queries" to 1L),
-        e::class.simpleName.orEmpty() + " in " + project,
-      )
-      warnings += "Cloud Logging collection failed for project " + project + "."
-      emptyList()
-    }
-  }
-
-  private suspend fun readTraceLogs(
-    project: String,
     traceIds: Set<String>,
     request: VidLabelingTraceRequest,
     budget: SourceBudget,
     statuses: SourceStatusRecorder,
     warnings: MutableList<String>,
   ): List<CloudLogEntry> {
-    if (traceIds.isEmpty()) return emptyList()
     val remainingMillis = budget.remainingMillis()
     if (remainingMillis == 0L) {
-      statuses.record("cloud_logging", "timed_out", note = "Source deadline exhausted.")
-      warnings += "Trace-ID log collection timed out before querying project $project."
+      statuses.record(
+        "cloud_logging",
+        "timed_out",
+        note = "Source deadline exhausted.",
+        project = project,
+      )
+      warnings += "Cloud Logging collection timed out before querying project $project."
       return emptyList()
     }
     val started = budget.start()
     return try {
-      val entries =
-        withTimeoutOrNull(remainingMillis) {
-          logReaderFactory(project)
-            .readTraceIds(traceIds, request.startTime, request.endTime, request.entryLimit)
-        }
-      if (entries == null) {
-        statuses.record(
-          "cloud_logging",
-          "timed_out",
-          budget.finish(started, remainingMillis),
-          mapOf("logging_queries" to 1L),
-          "Source deadline exhausted while querying trace IDs in $project.",
-        )
-        warnings += "Trace-ID log collection timed out for project " + project + "."
-        return emptyList()
+      val result =
+        logReader(project)
+          .readBatch(
+            correlationValues,
+            traceIds,
+            request.startTime,
+            request.endTime,
+            request.entryLimit,
+            Duration.ofMillis(remainingMillis),
+          )
+      val entries = result.entries.take(request.entryLimit)
+      statuses.record(
+        "cloud_logging",
+        when {
+          result.complete -> "complete"
+          result.timedOut -> "timed_out"
+          result.failed -> "failed"
+          else -> "truncated"
+        },
+        budget.finish(started, if (result.timedOut) remainingMillis else null),
+        result.counts.toMap() + ("rows_retained" to entries.size.toLong()),
+        result.note,
+        project,
+      )
+      if (result.timedOut) {
+        warnings += "Cloud Logging collection timed out for project $project."
+      } else if (!result.complete) {
+        warnings += "Cloud Logging collection was incomplete for project $project."
       }
-      statuses.record(
-        "cloud_logging",
-        "complete",
-        budget.finish(started),
-        mapOf(
-          "logging_queries" to 1L,
-          "rows_examined" to entries.size.toLong(),
-          "rows_retained" to entries.size.toLong(),
-        ),
-      )
       entries
-    } catch (e: CloudLogCollectionTruncatedException) {
-      statuses.record(
-        "cloud_logging",
-        "truncated",
-        budget.finish(started),
-        mapOf(
-          "logging_queries" to 1L,
-          "rows_examined" to e.rawEntriesExamined.toLong(),
-          "rows_retained" to e.partialEntries.size.toLong(),
-        ),
-        "The configured trace-ID read bound was reached in $project.",
-      )
-      warnings += "Trace-ID log results were truncated for project " + project + "."
-      e.partialEntries
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
@@ -698,10 +694,11 @@ internal class VidLabelingTraceCollector(
         "cloud_logging",
         "failed",
         budget.finish(started),
-        mapOf("logging_queries" to 1L),
+        emptyMap(),
         e::class.simpleName.orEmpty() + " in " + project,
+        project,
       )
-      warnings += "Trace-ID log collection failed for project " + project + "."
+      warnings += "Cloud Logging collection failed for project " + project + "."
       emptyList()
     }
   }
@@ -710,6 +707,7 @@ internal class VidLabelingTraceCollector(
     project: String,
     correlationValues: Set<String>,
     traceIds: Set<String>,
+    requiredTraceIds: Set<String>,
     request: VidLabelingTraceRequest,
     budget: SourceBudget,
     statuses: SourceStatusRecorder,
@@ -717,48 +715,48 @@ internal class VidLabelingTraceCollector(
   ): List<CloudTraceSpan> {
     val remainingMillis = budget.remainingMillis()
     if (remainingMillis == 0L) {
-      statuses.record("cloud_trace", "timed_out", note = "Source deadline exhausted.")
+      statuses.record(
+        "cloud_trace",
+        "timed_out",
+        note = "Source deadline exhausted.",
+        project = project,
+      )
       warnings += "Cloud Trace collection timed out before querying project $project."
       return emptyList()
     }
     val started = budget.start()
     return try {
-      val spans =
-        withTimeoutOrNull(remainingMillis) {
-          spanReader.read(
-            project,
-            correlationValues,
-            traceIds,
-            request.startTime,
-            request.endTime,
-            request.entryLimit,
-          )
-        }
-      if (spans == null) {
-        statuses.record(
-          "cloud_trace",
-          "timed_out",
-          budget.finish(started, remainingMillis),
-          mapOf("trace_queries" to 1L),
-          "Source deadline exhausted while querying $project.",
+      val result =
+        spanReader.readBatch(
+          project,
+          correlationValues,
+          traceIds,
+          request.startTime,
+          request.endTime,
+          request.entryLimit,
+          request.traceIdLimit,
+          requiredTraceIds,
+          Duration.ofMillis(remainingMillis),
         )
-        warnings += "Cloud Trace collection timed out for project " + project + "."
-        return emptyList()
-      }
-      val truncated = spans.size > request.entryLimit
-      val retained = spans.take(request.entryLimit)
+      val retained = result.entries.take(request.entryLimit)
       statuses.record(
         "cloud_trace",
-        if (truncated) "truncated" else "complete",
-        budget.finish(started),
-        mapOf(
-          "trace_queries" to 1L,
-          "rows_examined" to spans.size.toLong(),
-          "rows_retained" to retained.size.toLong(),
-        ),
-        if (truncated) "The configured read bound was reached in $project." else "",
+        when {
+          result.complete -> "complete"
+          result.timedOut -> "timed_out"
+          result.failed -> "failed"
+          else -> "truncated"
+        },
+        budget.finish(started, if (result.timedOut) remainingMillis else null),
+        result.counts.toMap() + ("rows_retained" to retained.size.toLong()),
+        result.note,
+        project,
       )
-      if (truncated) warnings += "Cloud Trace results were truncated for project " + project + "."
+      if (result.timedOut) {
+        warnings += "Cloud Trace collection timed out for project $project."
+      } else if (!result.complete) {
+        warnings += "Cloud Trace collection was incomplete for project $project."
+      }
       retained
     } catch (e: CancellationException) {
       throw e
@@ -767,8 +765,9 @@ internal class VidLabelingTraceCollector(
         "cloud_trace",
         "failed",
         budget.finish(started),
-        mapOf("trace_queries" to 1L),
+        emptyMap(),
         e::class.simpleName.orEmpty() + " in " + project,
+        project,
       )
       warnings += "Cloud Trace collection failed for project " + project + "."
       emptyList()
@@ -1165,13 +1164,15 @@ internal object VidLabelingTraceOutput {
     appendLine()
     appendLine("## Sources")
     appendLine()
-    appendLine("| Source | Status | Duration | Counts | Note |")
-    appendLine("|---|---:|---:|---|---|")
+    appendLine("| Project | Source | Status | Duration | Counts | Note |")
+    appendLine("|---|---|---:|---:|---|---|")
     for (status in collection.sourceStatuses) {
       val counts =
         status.counts.entries.joinToString("<br>") { (name, value) -> safe(name) + "=" + value }
       appendLine(
         "| " +
+          safe(status.project) +
+          " | " +
           safe(status.source) +
           " | " +
           safe(status.status) +
@@ -1495,11 +1496,11 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
 
   @Option(names = ["--trace-concurrency"], defaultValue = "4") private var traceConcurrency: Int = 4
 
-  @Option(names = ["--trace-requests-per-second"], defaultValue = "8.0")
-  private var traceRequestsPerSecond: Double = 8.0
+  @Option(names = ["--trace-quota-units-per-second"], defaultValue = "4.0")
+  private var traceQuotaUnitsPerSecond: Double = 4.0
 
-  @Option(names = ["--logging-requests-per-second"], defaultValue = "4.0")
-  private var loggingRequestsPerSecond: Double = 4.0
+  @Option(names = ["--logging-requests-per-second"], defaultValue = "0.5")
+  private var loggingRequestsPerSecond: Double = 0.5
 
   @Option(names = ["--include-grpc-payloads"], defaultValue = "false")
   private var includeGrpcPayloads: Boolean = false
@@ -1551,6 +1552,13 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
     requirePositive(traceSourceTimeout, "--trace-source-timeout")
     requirePositive(uploadTimeout, "--upload-timeout")
     require(workItemPageLimit > 0) { "--work-item-page-limit must be positive" }
+    require(traceConcurrency > 0) { "--trace-concurrency must be positive" }
+    require(traceQuotaUnitsPerSecond > 0.0 && traceQuotaUnitsPerSecond <= 5.0) {
+      "--trace-quota-units-per-second must be in (0, 5]"
+    }
+    require(loggingRequestsPerSecond > 0.0 && loggingRequestsPerSecond <= 1.0) {
+      "--logging-requests-per-second must be in (0, 1]"
+    }
     val now = dependencies?.clock?.instant() ?: Clock.systemUTC().instant()
     val resolvedEndTime = parseInstant(endTime) ?: now
     val resolvedStartTime =
@@ -1589,7 +1597,7 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
     val spanReader =
       GoogleCloudTraceReader(::vidTraceAttributesFor)
         .withMaxConcurrency(traceConcurrency)
-        .withRequestThrottlerFactory { MaximumRateThrottler(traceRequestsPerSecond) }
+        .withRequestThrottlerFactory { MaximumRateThrottler(traceQuotaUnitsPerSecond) }
     val edpaChannel =
       buildMutualTlsChannel(edpaPublicApiTarget, tlsFlags.signingCerts, edpaPublicApiCertHost)
     val controlPlaneChannel =
@@ -1654,6 +1662,7 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
               VID_SAFE_LOG_FIELDS,
               VID_CORRELATION_FIELDS,
               includeGrpcPayloads,
+              correlationFieldsFor = ::vidLogCorrelationFieldsFor,
             )
             .withRequestThrottler(MaximumRateThrottler(loggingRequestsPerSecond))
         },
@@ -1802,18 +1811,26 @@ internal fun vidTraceAttributesFor(value: String): Collection<String> {
     "/rankerJobs/" in value -> listOf("xmm.edpa.ranker_job.name")
     "/vidLabelingJobs/" in value -> listOf("xmm.edpa.vid_labeling_job.name")
     "/rankIndexBlobs/" in value -> listOf("xmm.edpa.rank_index_blob.name")
-    "/rawImpressionUploads/" in value ->
-      listOf(
-        "xmm.edpa.raw_impression_upload.name",
-        "xmm.edpa.replaces_raw_impression_upload.name",
-        "xmm.edpa.recovery_predecessor_raw_impression_upload.name",
-      )
+    "/rawImpressionUploads/" in value -> listOf("xmm.edpa.raw_impression_upload.name")
     "/impressionMetadata/" in value -> listOf("xmm.edpa.impression_metadata.name")
     "/uploadHealingOperations/" in value -> listOf("xmm.edpa.upload_healing_operation.name")
     "/workItemAttempts/" in value -> listOf("xmm.work_item_attempt.name")
     value.startsWith("workItems/") ->
       listOf("xmm.work_item.name", "xmm.edpa.recovery_work_item.name")
     else -> emptyList()
+  }
+}
+
+private fun vidLogCorrelationFieldsFor(value: String): Collection<String> {
+  return when {
+    "/rawImpressionUploads/" in value ->
+      listOf(
+        "xmm.edpa.raw_impression_upload.name",
+        "xmm.edpa.replaces_raw_impression_upload.name",
+        "xmm.edpa.recovery_predecessor_raw_impression_upload.name",
+      )
+    "/modelLines/" in value -> listOf("xmm.model_line.name")
+    else -> vidTraceAttributesFor(value).ifEmpty { VID_CORRELATION_FIELDS }
   }
 }
 

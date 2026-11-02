@@ -20,11 +20,13 @@ import com.google.cloud.logging.Logging
 import com.google.cloud.logging.Logging.EntryListOption
 import com.google.cloud.logging.Logging.SortingField
 import com.google.cloud.logging.Logging.SortingOrder
+import com.google.cloud.logging.LoggingException
 import com.google.cloud.logging.LoggingOptions
 import com.google.cloud.logging.Payload
 import com.google.cloud.logging.Severity
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import java.io.IOException
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
@@ -34,15 +36,21 @@ import java.nio.charset.StandardCharsets
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 
@@ -56,6 +64,7 @@ fun buildCloudTelemetryLoggingOptions(
     .setProjectId(project)
     .setQuotaProjectId(project)
     .setCredentials(projectCredentials)
+    .setRetrySettings(LoggingOptions.getNoRetrySettings())
     .build()
 }
 
@@ -66,9 +75,12 @@ class GoogleCloudLogReader(
   private val safeFields: Set<String>,
   private val correlationFields: Set<String>,
   private val includeGrpcPayloads: Boolean = false,
+  private val correlationFieldsFor: (String) -> Collection<String> = { correlationFields },
   private var requestThrottler: Throttler =
     MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
   private val maxGrpcContextEntries: Int = 5_000,
+  private val retryDelay: suspend (Duration) -> Unit = { delay(it.toMillis()) },
+  private val blockingContext: CoroutineContext = Dispatchers.IO,
 ) : CloudLogReader {
   override fun withRequestThrottler(requestThrottler: Throttler): CloudLogReader {
     this.requestThrottler = requestThrottler
@@ -82,26 +94,7 @@ class GoogleCloudLogReader(
     limit: Int,
   ): List<CloudLogEntry> {
     require(correlationValues.isNotEmpty()) { "At least one correlation value is required" }
-    val predicates =
-      correlationValues.distinct().flatMap { value ->
-        val values = correlationSearchValues(value)
-        values.map { candidate ->
-          val escaped = escape(candidate)
-          (listOf(
-              "textPayload:\"$escaped\"",
-              "jsonPayload.message:\"$escaped\"",
-              "jsonPayload.MESSAGE:\"$escaped\"",
-            ) +
-              correlationFields.flatMap { field ->
-                listOf(
-                  "jsonPayload.\"$field\"=\"$escaped\"",
-                  "jsonPayload.attributes.\"$field\"=\"$escaped\"",
-                )
-              })
-            .joinToString(" OR ", "(", ")")
-        }
-      }
-    return readPredicates(predicates, startTime, endTime, limit)
+    return requireComplete(readBatch(correlationValues, emptyList(), startTime, endTime, limit))
   }
 
   override suspend fun readTraceIds(
@@ -110,87 +103,217 @@ class GoogleCloudLogReader(
     endTime: Instant,
     limit: Int,
   ): List<CloudLogEntry> {
-    val predicates =
+    return requireComplete(readBatch(emptyList(), traceIds, startTime, endTime, limit))
+  }
+
+  override suspend fun readBatch(
+    correlationValues: Collection<String>,
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+    limit: Int,
+  ): CloudTelemetryReadResult<CloudLogEntry> {
+    return readBatchInternal(correlationValues, traceIds, startTime, endTime, limit, null)
+  }
+
+  override suspend fun readBatch(
+    correlationValues: Collection<String>,
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+    limit: Int,
+    timeout: Duration,
+  ): CloudTelemetryReadResult<CloudLogEntry> {
+    require(!timeout.isNegative && !timeout.isZero) { "timeout must be positive" }
+    return readBatchInternal(correlationValues, traceIds, startTime, endTime, limit, timeout)
+  }
+
+  private suspend fun readBatchInternal(
+    correlationValues: Collection<String>,
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+    limit: Int,
+    timeout: Duration?,
+  ): CloudTelemetryReadResult<CloudLogEntry> {
+    val correlationPredicates =
+      correlationValues.distinct().flatMap { value ->
+        val fields = correlationFieldsFor(value).distinct()
+        correlationSearchValues(value).map { candidate ->
+          val escaped = escape(candidate)
+          (listOf(
+              "textPayload:\"$escaped\"",
+              "jsonPayload.message:\"$escaped\"",
+              "jsonPayload.MESSAGE:\"$escaped\"",
+            ) +
+              fields.flatMap { field ->
+                listOf(
+                  "jsonPayload.\"$field\"=\"$escaped\"",
+                  "jsonPayload.attributes.\"$field\"=\"$escaped\"",
+                )
+              })
+            .joinToString(" OR ", "(", ")")
+        }
+      }
+    val tracePredicates =
       traceIds.distinct().map { rawTraceId ->
         val traceId = rawTraceId.substringAfterLast('/')
         require(TRACE_ID_PATTERN.matches(traceId)) { "Invalid Cloud Trace trace ID" }
         "trace=\"projects/$project/traces/$traceId\""
       }
-    return readPredicates(predicates, startTime, endTime, limit)
+    val progress = LoggingReadProgress(limit, maxGrpcContextEntries)
+    if (timeout == null) {
+      readPredicates(correlationPredicates + tracePredicates, startTime, endTime, progress)
+      return logResult(progress, timedOut = false)
+    }
+    val completed =
+      withTimeoutOrNull(timeout.toMillis().coerceAtLeast(1L)) {
+        readPredicates(correlationPredicates + tracePredicates, startTime, endTime, progress)
+        true
+      }
+    return logResult(progress, timedOut = completed == null)
   }
 
   private suspend fun readPredicates(
     predicates: List<String>,
     startTime: Instant,
     endTime: Instant,
-    limit: Int,
-  ): List<CloudLogEntry> {
-    if (predicates.isEmpty()) return emptyList()
-    require(limit > 0) { "limit must be positive" }
+    progress: LoggingReadProgress,
+  ) {
+    if (predicates.isEmpty()) return
     val timeFilter = "timestamp>=\"$startTime\" AND timestamp<=\"$endTime\""
-    val entries = mutableListOf<LogEntry>()
-    var truncatedQueries = 0
-    val rawLimit =
-      if (limit == Int.MAX_VALUE) limit
-      else (limit.toLong() + maxGrpcContextEntries + 1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     val filters = chunkFilters(timeFilter, predicates)
     for ((filterIndex, filter) in filters.withIndex()) {
-      var page = listEntries(filter, rawLimit)
+      progress.counts.loggingFilterBatches++
+      var page =
+        try {
+          listEntries(filter, progress.rawLimit, progress.counts, context = false)
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          progress.incomplete = true
+          progress.failed = true
+          progress.failure = preferredFailure(progress.failure, e)
+          progress.notes += e::class.simpleName.orEmpty()
+          continue
+        }
+      var currentPageTruncated = false
       while (true) {
         for (entry in page.values) {
-          if (entries.size == rawLimit) break
-          entries += entry
+          if (progress.entries.size == progress.rawLimit) {
+            currentPageTruncated = true
+            break
+          }
+          progress.entries += entry
         }
-        if (entries.size == rawLimit || !page.hasNextPage()) break
+        if (progress.entries.size == progress.rawLimit || !page.hasNextPage()) break
         val currentPage = page
         page =
-          requestThrottler.onReady { runInterruptible(Dispatchers.IO) { currentPage.nextPage } }
+          try {
+            loggingCall(progress.counts, context = false) { currentPage.nextPage }
+          } catch (e: CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            progress.incomplete = true
+            progress.failed = true
+            progress.failure = preferredFailure(progress.failure, e)
+            progress.notes += e::class.simpleName.orEmpty()
+            break
+          }
       }
-      if (page.hasNextPage() || (entries.size == rawLimit && filterIndex < filters.lastIndex)) {
-        truncatedQueries++
+      if (
+        currentPageTruncated ||
+          page.hasNextPage() ||
+          (progress.entries.size == progress.rawLimit && filterIndex < filters.lastIndex)
+      ) {
+        progress.rawQueriesTruncated++
       }
-      if (entries.size == rawLimit) break
+      if (progress.entries.size == progress.rawLimit) break
     }
-    val filtered = filterVerboseGrpcEntries(entries.distinct(), startTime, endTime)
-    val renderedEntries =
-      filtered.entries.mapNotNull(::toCloudLogEntry).distinct().sortedByDescending { it.timestamp }
-    val outputTruncated = renderedEntries.size > limit
-    val rendered = renderedEntries.take(limit)
-    if (truncatedQueries > 0 || filtered.classificationIncomplete || outputTruncated) {
-      throw CloudLogCollectionTruncatedException(
-        rendered,
-        filtered.contextEntriesExamined,
-        maxGrpcContextEntries,
-        filtered.classificationIncomplete,
-        entries.size,
-        rawLimit,
-        truncatedQueries,
-      )
+    val filtered =
+      filterVerboseGrpcEntries(progress.entries.distinct(), startTime, endTime, progress)
+    progress.filteredEntries = filtered.entries
+    progress.contextEntriesExamined = filtered.contextEntriesExamined
+    progress.grpcClassificationIncomplete = filtered.classificationIncomplete
+    if (filtered.failure != null) {
+      progress.incomplete = true
+      progress.failed = true
+      progress.failure = preferredFailure(progress.failure, filtered.failure)
+      progress.notes += filtered.failure::class.simpleName.orEmpty()
     }
-    return rendered
   }
 
-  private suspend fun listEntries(filter: String, pageSize: Int) =
-    requestThrottler.onReady {
-      runInterruptible(Dispatchers.IO) {
-        logging.listLogEntries(
-          EntryListOption.filter(filter),
-          EntryListOption.pageSize(pageSize.coerceAtMost(MAX_PAGE_SIZE)),
-          EntryListOption.sortOrder(SortingField.TIMESTAMP, SortingOrder.DESCENDING),
-        )
-      }
+  private fun logResult(
+    progress: LoggingReadProgress,
+    timedOut: Boolean,
+  ): CloudTelemetryReadResult<CloudLogEntry> {
+    val safeEntries =
+      progress.filteredEntries
+        ?: progress.entries.distinct().filter { entry -> isLifecycleLog(entry.rawMessage()) }
+    val renderedEntries =
+      safeEntries.mapNotNull(::toCloudLogEntry).distinct().sortedByDescending { it.timestamp }
+    val outputTruncated = renderedEntries.size > progress.limit
+    val rendered = renderedEntries.take(progress.limit)
+    progress.counts.rowsExamined = progress.entries.size.toLong()
+    val complete =
+      !timedOut &&
+        !progress.incomplete &&
+        progress.rawQueriesTruncated == 0 &&
+        !progress.grpcClassificationIncomplete &&
+        !outputTruncated
+    if (timedOut) progress.notes += "source deadline exhausted"
+    if (progress.rawQueriesTruncated > 0 || outputTruncated) {
+      progress.notes += "configured read bound reached"
+    }
+    if (progress.grpcClassificationIncomplete) {
+      progress.notes += "gRPC classification incomplete"
+    }
+    return CloudTelemetryReadResult(
+      rendered,
+      complete,
+      progress.counts.snapshot(),
+      progress.notes.joinToString(),
+      progress.failed,
+      timedOut,
+      CloudLogReadMetadata(
+        progress.contextEntriesExamined,
+        maxGrpcContextEntries,
+        progress.grpcClassificationIncomplete || timedOut,
+        progress.entries.size,
+        progress.rawLimit,
+        progress.rawQueriesTruncated,
+        outputTruncated,
+      ),
+      progress.failure,
+    )
+  }
+
+  private suspend fun listEntries(
+    filter: String,
+    pageSize: Int,
+    counts: MutableReadCounts,
+    context: Boolean,
+  ) =
+    loggingCall(counts, context) {
+      logging.listLogEntries(
+        EntryListOption.filter(filter),
+        EntryListOption.pageSize(pageSize.coerceAtMost(MAX_PAGE_SIZE)),
+        EntryListOption.sortOrder(SortingField.TIMESTAMP, SortingOrder.DESCENDING),
+      )
     }
 
   private suspend fun filterVerboseGrpcEntries(
     entries: List<LogEntry>,
     startTime: Instant,
     endTime: Instant,
+    progress: LoggingReadProgress,
   ): GrpcFilterResult {
     if (includeGrpcPayloads) return GrpcFilterResult(entries, 0, false)
     val retained = mutableListOf<LogEntry>()
     val contextByOrigin = mutableMapOf<LogOrigin, GrpcOriginContext>()
-    var contextEntriesExamined = 0
+    var contextEntriesExamined = progress.contextEntriesExamined
     var classificationIncomplete = false
+    var failure: Throwable? = null
     for (entry in entries.sortedByDescending { it.instantTimestamp ?: Instant.EPOCH }) {
       val message = entry.rawMessage()
       if (verboseGrpcMarker(message) != null) continue
@@ -207,14 +330,23 @@ class GoogleCloudLogReader(
         var context = contextByOrigin[origin]
         if (context == null) {
           context =
-            runBlockingContextRead(
-              origin,
-              startTime.minus(GRPC_CONTEXT_LOOKBACK),
-              endTime,
-              maxGrpcContextEntries - contextEntriesExamined,
-            )
+            try {
+              runBlockingContextRead(
+                origin,
+                startTime.minus(GRPC_CONTEXT_LOOKBACK),
+                endTime,
+                maxGrpcContextEntries - progress.contextEntriesExamined,
+                progress,
+              )
+            } catch (e: CancellationException) {
+              throw e
+            } catch (e: Exception) {
+              classificationIncomplete = true
+              failure = preferredFailure(failure, e)
+              GrpcOriginContext(emptyList(), 0, true)
+            }
           contextByOrigin[origin] = context
-          contextEntriesExamined += context.entriesExamined
+          contextEntriesExamined = progress.contextEntriesExamined
         }
         when (classifyGrpcContinuation(entry.instantTimestamp, context)) {
           GrpcContinuationClassification.GRPC -> continue
@@ -227,7 +359,7 @@ class GoogleCloudLogReader(
       }
       retained += entry
     }
-    return GrpcFilterResult(retained, contextEntriesExamined, classificationIncomplete)
+    return GrpcFilterResult(retained, contextEntriesExamined, classificationIncomplete, failure)
   }
 
   private suspend fun runBlockingContextRead(
@@ -235,23 +367,79 @@ class GoogleCloudLogReader(
     startTime: Instant,
     endTime: Instant,
     limit: Int,
+    progress: LoggingReadProgress,
   ): GrpcOriginContext {
     if (limit <= 0) return GrpcOriginContext(emptyList(), 0, true)
     val filter = buildGrpcContextFilter(origin, startTime, endTime)
     val entries = mutableListOf<LogEntry>()
     var examined = 0
-    var page = listEntries(filter, limit)
+    var page = listEntries(filter, limit, progress.counts, context = true)
     while (true) {
       for (entry in page.values) {
         if (examined == limit) return GrpcOriginContext(entries, examined, true)
         examined++
+        progress.contextEntriesExamined++
         if (entry.logOrigin() == origin) entries += entry
       }
       if (!page.hasNextPage()) return GrpcOriginContext(entries, examined, false)
       if (examined == limit) return GrpcOriginContext(entries, examined, true)
       val currentPage = page
-      page = requestThrottler.onReady { runInterruptible(Dispatchers.IO) { currentPage.nextPage } }
+      page = loggingCall(progress.counts, context = true) { currentPage.nextPage }
     }
+  }
+
+  private suspend fun <T> loggingCall(
+    counts: MutableReadCounts,
+    context: Boolean,
+    block: () -> T,
+  ): T {
+    var backoff = INITIAL_RETRY_DELAY
+    repeat(MAX_RETRY_ATTEMPTS) { attempt ->
+      try {
+        return requestThrottler.onReady {
+          counts.physicalRequests++
+          if (context) counts.loggingContextRequests++
+          runInterruptible(blockingContext) { block() }
+        }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: LoggingException) {
+        if (
+          (!e.isRetryable && e.code != RESOURCE_EXHAUSTED_CODE) || attempt == MAX_RETRY_ATTEMPTS - 1
+        ) {
+          throw e
+        }
+        counts.retryAttempts++
+        retryDelay(backoff)
+        backoff = backoff.multipliedBy(2).coerceAtMost(MAX_RETRY_DELAY)
+      }
+    }
+    error("unreachable")
+  }
+
+  private fun requireComplete(
+    result: CloudTelemetryReadResult<CloudLogEntry>
+  ): List<CloudLogEntry> {
+    if (result.complete) return result.entries
+    result.failure?.let { throw it }
+    val metadata = checkNotNull(result.logMetadata)
+    throw CloudLogCollectionTruncatedException(
+      result.entries,
+      metadata.contextEntriesExamined,
+      metadata.contextEntryLimit,
+      metadata.grpcClassificationIncomplete,
+      metadata.rawEntriesExamined,
+      metadata.rawEntryLimit,
+      metadata.rawQueriesTruncated,
+      metadata.outputTruncated,
+    )
+  }
+
+  private fun preferredFailure(current: Throwable?, candidate: Throwable): Throwable {
+    if (candidate is LoggingException && candidate.code == RESOURCE_EXHAUSTED_CODE) {
+      return candidate
+    }
+    return current ?: candidate
   }
 
   private fun classifyGrpcContinuation(
@@ -476,6 +664,7 @@ class GoogleCloudLogReader(
     val entries: List<LogEntry>,
     val contextEntriesExamined: Int,
     val classificationIncomplete: Boolean,
+    val failure: Throwable? = null,
   )
 
   private data class GrpcOriginContext(
@@ -494,6 +683,43 @@ class GoogleCloudLogReader(
     UNKNOWN,
   }
 
+  private class MutableReadCounts {
+    var physicalRequests = 0L
+    var retryAttempts = 0L
+    var loggingFilterBatches = 0L
+    var loggingContextRequests = 0L
+    var rowsExamined = 0L
+
+    fun snapshot(): CloudTelemetryReadCounts =
+      CloudTelemetryReadCounts(
+        physicalRequests = physicalRequests,
+        retryAttempts = retryAttempts,
+        loggingFilterBatches = loggingFilterBatches,
+        loggingContextRequests = loggingContextRequests,
+        rowsExamined = rowsExamined,
+      )
+  }
+
+  private class LoggingReadProgress(val limit: Int, maxGrpcContextEntries: Int) {
+    init {
+      require(limit > 0) { "limit must be positive" }
+    }
+
+    val rawLimit =
+      if (limit == Int.MAX_VALUE) limit
+      else (limit.toLong() + maxGrpcContextEntries + 1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    val entries = mutableListOf<LogEntry>()
+    val counts = MutableReadCounts()
+    val notes = linkedSetOf<String>()
+    var filteredEntries: List<LogEntry>? = null
+    var contextEntriesExamined = 0
+    var rawQueriesTruncated = 0
+    var grpcClassificationIncomplete = false
+    var incomplete = false
+    var failed = false
+    var failure: Throwable? = null
+  }
+
   companion object {
     private const val MAX_PAGE_SIZE = 1_000
     private const val MAX_FILTER_LENGTH = 18_000
@@ -508,6 +734,10 @@ class GoogleCloudLogReader(
           "\\[[^]]*]|[A-Za-z0-9_.-]+\\s*=.*)\\s*$"
       )
     private val GRPC_CONTEXT_LOOKBACK: Duration = Duration.ofSeconds(10)
+    private val INITIAL_RETRY_DELAY: Duration = Duration.ofSeconds(1)
+    private val MAX_RETRY_DELAY: Duration = Duration.ofSeconds(8)
+    private const val MAX_RETRY_ATTEMPTS = 3
+    private const val RESOURCE_EXHAUSTED_CODE = 8
     private val LOGGER_LABEL_KEYS =
       listOf("logger", "logger_name", "loggerName", "logging.googleapis.com/logger")
 
@@ -527,6 +757,9 @@ class GoogleCloudTraceReader(
   private val credentials: GoogleCredentials =
     GoogleCredentials.getApplicationDefault().createScoped(TRACE_READ_SCOPE),
   private val httpClient: HttpClient = HttpClient.newHttpClient(),
+  private val clock: Clock = Clock.systemUTC(),
+  private val retryDelay: suspend (Duration) -> Unit = { delay(it.toMillis()) },
+  private val blockingContext: CoroutineContext = Dispatchers.IO,
   private var maxConcurrency: Int = DEFAULT_MAX_CONCURRENCY,
   private var requestThrottlerFactory: (String) -> Throttler = {
     MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO)
@@ -556,49 +789,241 @@ class GoogleCloudTraceReader(
     endTime: Instant,
     limit: Int,
   ): List<CloudTraceSpan> {
-    runInterruptible(Dispatchers.IO) { credentials.refreshIfExpired() }
-    val quota = requestQuotas.getOrPut(project) { RequestQuota(requestThrottlerFactory(project)) }
-    val queries =
-      buildList<suspend () -> List<CloudTraceSpan>> {
-        for (value in correlationValues.distinct()) {
-          for (attribute in traceAttributesFor(value).distinct()) {
-            add { listTraces(project, "+$attribute:\"$value\"", startTime, endTime, limit, quota) }
-          }
-        }
-        for (traceId in traceIds.map { it.substringAfterLast('/') }.distinct()) {
-          require(TRACE_ID_PATTERN.matches(traceId)) { "Invalid Cloud Trace trace ID" }
-          add { readTrace(project, traceId, quota).orEmpty() }
-        }
-      }
-    val spans = coroutineScope {
-      val semaphore = Semaphore(maxConcurrency)
-      queries.map { query -> async { semaphore.withPermit { query() } } }.awaitAll().flatten()
+    val result =
+      readBatch(
+        project,
+        correlationValues,
+        traceIds,
+        startTime,
+        endTime,
+        spanLimit = limit,
+        traceIdLimit = readLimit(limit),
+      )
+    if (result.failed || (!result.complete && result.entries.size <= limit)) {
+      throw IllegalStateException("Cloud Trace collection was incomplete: ${result.note}")
     }
-    return retainSpans(
-      spans
-        .filter {
-          !it.startTime.isAfter(endTime) && !(it.endTime ?: it.startTime).isBefore(startTime)
-        }
-        .distinct(),
-      readLimit(limit),
+    return result.entries
+  }
+
+  override suspend fun readBatch(
+    project: String,
+    correlationValues: Collection<String>,
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+    spanLimit: Int,
+    traceIdLimit: Int,
+  ): CloudTelemetryReadResult<CloudTraceSpan> {
+    return readBatchInternal(
+      project,
+      correlationValues,
+      traceIds,
+      startTime,
+      endTime,
+      spanLimit,
+      traceIdLimit,
+      emptySet(),
+      null,
     )
   }
 
-  private suspend fun listTraces(
+  override suspend fun readBatch(
+    project: String,
+    correlationValues: Collection<String>,
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+    spanLimit: Int,
+    traceIdLimit: Int,
+    requiredTraceIds: Set<String>,
+  ): CloudTelemetryReadResult<CloudTraceSpan> =
+    readBatchInternal(
+      project,
+      correlationValues,
+      traceIds,
+      startTime,
+      endTime,
+      spanLimit,
+      traceIdLimit,
+      requiredTraceIds,
+      null,
+    )
+
+  override suspend fun readBatch(
+    project: String,
+    correlationValues: Collection<String>,
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+    spanLimit: Int,
+    traceIdLimit: Int,
+    timeout: Duration,
+  ): CloudTelemetryReadResult<CloudTraceSpan> {
+    require(!timeout.isNegative && !timeout.isZero) { "timeout must be positive" }
+    return readBatchInternal(
+      project,
+      correlationValues,
+      traceIds,
+      startTime,
+      endTime,
+      spanLimit,
+      traceIdLimit,
+      emptySet(),
+      timeout,
+    )
+  }
+
+  override suspend fun readBatch(
+    project: String,
+    correlationValues: Collection<String>,
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+    spanLimit: Int,
+    traceIdLimit: Int,
+    requiredTraceIds: Set<String>,
+    timeout: Duration,
+  ): CloudTelemetryReadResult<CloudTraceSpan> {
+    require(!timeout.isNegative && !timeout.isZero) { "timeout must be positive" }
+    return readBatchInternal(
+      project,
+      correlationValues,
+      traceIds,
+      startTime,
+      endTime,
+      spanLimit,
+      traceIdLimit,
+      requiredTraceIds,
+      timeout,
+    )
+  }
+
+  private suspend fun readBatchInternal(
+    project: String,
+    correlationValues: Collection<String>,
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+    spanLimit: Int,
+    traceIdLimit: Int,
+    requiredTraceIds: Set<String>,
+    timeout: Duration?,
+  ): CloudTelemetryReadResult<CloudTraceSpan> {
+    require(spanLimit > 0) { "spanLimit must be positive" }
+    require(traceIdLimit > 0) { "traceIdLimit must be positive" }
+    val progress = TraceReadProgress(spanLimit, startTime, endTime)
+    if (timeout == null) {
+      collectTrace(
+        project,
+        correlationValues,
+        traceIds,
+        startTime,
+        endTime,
+        traceIdLimit,
+        requiredTraceIds,
+        progress,
+      )
+      return progress.result(timedOut = false)
+    }
+    val completed =
+      withTimeoutOrNull(timeout.toMillis().coerceAtLeast(1L)) {
+        collectTrace(
+          project,
+          correlationValues,
+          traceIds,
+          startTime,
+          endTime,
+          traceIdLimit,
+          requiredTraceIds,
+          progress,
+        )
+        true
+      }
+    return progress.result(timedOut = completed == null)
+  }
+
+  private suspend fun collectTrace(
+    project: String,
+    correlationValues: Collection<String>,
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+    traceIdLimit: Int,
+    requiredTraceIds: Set<String>,
+    progress: TraceReadProgress,
+  ) {
+    runInterruptible(blockingContext) { credentials.refreshIfExpired() }
+    val quota = requestQuotas.getOrPut(project) { RequestQuota(requestThrottlerFactory(project)) }
+    for (value in correlationValues.distinct()) {
+      for (attribute in traceAttributesFor(value).distinct()) {
+        val result =
+          listTraceIds(
+            project,
+            "+$attribute:\"$value\"",
+            startTime,
+            endTime,
+            traceIdLimit,
+            quota,
+            progress,
+          )
+        progress.record(result)
+      }
+    }
+
+    val requestedTraceIds =
+      traceIds
+        .map { it.substringAfterLast('/') }
+        .distinct()
+        .onEach { traceId ->
+          require(TRACE_ID_PATTERN.matches(traceId)) { "Invalid Cloud Trace trace ID" }
+        }
+    val lookupRequirements = linkedMapOf<String, Boolean>()
+    for (traceId in requestedTraceIds) lookupRequirements.putIfAbsent(traceId, false)
+    for (traceId in progress.discoveredTraceIds()) lookupRequirements[traceId] = true
+    for (traceId in requiredTraceIds.map { it.substringAfterLast('/') }) {
+      require(TRACE_ID_PATTERN.matches(traceId)) { "Invalid required Cloud Trace trace ID" }
+      lookupRequirements[traceId] = true
+    }
+    val admittedTraceIds = lookupRequirements.entries.take(traceIdLimit)
+    if (lookupRequirements.size > admittedTraceIds.size) {
+      progress.markIncomplete("trace ID limit reached")
+    }
+    supervisorScope {
+      val semaphore = Semaphore(maxConcurrency)
+      admittedTraceIds
+        .map { (traceId, required) ->
+          async {
+            val attempt =
+              semaphore.withPermit {
+                readTrace(project, traceId, required = required, quota = quota, progress = progress)
+              }
+            progress.record(attempt)
+          }
+        }
+        .awaitAll()
+    }
+  }
+
+  private suspend fun listTraceIds(
     project: String,
     filter: String,
     startTime: Instant,
     endTime: Instant,
-    limit: Int,
+    traceIdLimit: Int,
     quota: RequestQuota,
-  ): List<CloudTraceSpan> {
-    val spans = mutableListOf<CloudTraceSpan>()
+    progress: TraceReadProgress,
+  ): TraceIdDiscovery {
+    val traceIds = linkedSetOf<String>()
+    var counts = CloudTelemetryReadCounts()
+    val notes = linkedSetOf<String>()
+    var complete = true
+    var failed = false
     var pageToken: String? = null
     do {
       val parameters =
         mutableMapOf(
-          "view" to "COMPLETE",
-          "pageSize" to readLimit(limit).coerceAtMost(MAX_PAGE_SIZE).toString(),
+          "view" to "MINIMAL",
+          "pageSize" to readLimit(traceIdLimit).coerceAtMost(MAX_PAGE_SIZE).toString(),
           "startTime" to startTime.toString(),
           "endTime" to endTime.toString(),
           "filter" to filter,
@@ -607,28 +1032,95 @@ class GoogleCloudTraceReader(
       val query =
         parameters.entries.joinToString("&") { (key, value) -> "$key=${urlEncode(value)}" }
       val request = request(project, "traces?$query")
-      val response = send(request, LIST_QUOTA_UNITS, quota)
-      check(response.statusCode() in 200..299) {
-        "Cloud Trace API returned HTTP ${response.statusCode()}"
+      val sendResult =
+        send(request, LIST_QUOTA_UNITS, RequestKind.LIST_TRACE, quota, progress::addCounts)
+      counts += sendResult.counts
+      val response = sendResult.response
+      if (response == null || response.statusCode() !in 200..299) {
+        complete = false
+        failed = true
+        notes += sendResult.note.ifEmpty { "ListTraces failed" }
+        break
       }
       val root = JsonParser.parseString(response.body()).asJsonObject
-      spans += parseResponse(project, root, null)
+      val pageTraceIds =
+        root
+          .getAsJsonArray("traces")
+          ?.mapNotNull { element -> element.asJsonObject.optionalString("traceId") }
+          .orEmpty()
+      for (traceId in pageTraceIds) {
+        if (TRACE_ID_PATTERN.matches(traceId)) {
+          traceIds += traceId
+          progress.addDiscoveredTraceId(traceId)
+        } else {
+          complete = false
+          failed = true
+          notes += "ListTraces returned an invalid trace ID"
+        }
+      }
       pageToken = root.optionalString("nextPageToken")
-    } while (pageToken != null && spans.size < readLimit(limit))
-    return retainSpans(spans, readLimit(limit))
+    } while (pageToken != null && traceIds.size < readLimit(traceIdLimit))
+    if (pageToken != null || traceIds.size > traceIdLimit) {
+      complete = false
+      notes += "trace ID limit reached"
+    }
+    return TraceIdDiscovery(
+      traceIds.take(readLimit(traceIdLimit)),
+      complete,
+      counts,
+      notes.joinToString(),
+      failed,
+    )
   }
 
   private suspend fun readTrace(
     project: String,
     traceId: String,
+    required: Boolean,
     quota: RequestQuota,
-  ): List<CloudTraceSpan>? {
-    val response = send(request(project, "traces/$traceId"), GET_QUOTA_UNITS, quota)
-    if (response.statusCode() == 404) return null
-    check(response.statusCode() in 200..299) {
-      "Cloud Trace API returned HTTP ${response.statusCode()}"
+    progress: TraceReadProgress,
+  ): TraceReadAttempt {
+    val sendResult =
+      send(
+        request(project, "traces/$traceId"),
+        GET_QUOTA_UNITS,
+        RequestKind.GET_TRACE,
+        quota,
+        progress::addCounts,
+      )
+    val response = sendResult.response
+    if (response == null) {
+      return TraceReadAttempt(emptyList(), false, sendResult.counts, sendResult.note, true)
     }
-    return parseResponse(project, JsonParser.parseString(response.body()).asJsonObject, traceId)
+    if (response.statusCode() == 404) {
+      return TraceReadAttempt(
+        emptyList(),
+        !required,
+        sendResult.counts,
+        if (required) "GetTrace returned HTTP 404 for a discovered trace" else "",
+        required,
+      )
+    }
+    if (response.statusCode() !in 200..299) {
+      return TraceReadAttempt(
+        emptyList(),
+        false,
+        sendResult.counts,
+        sendResult.note.ifEmpty { "GetTrace returned HTTP ${response.statusCode()}" },
+        true,
+      )
+    }
+    return try {
+      TraceReadAttempt(
+        parseResponse(project, JsonParser.parseString(response.body()).asJsonObject, traceId),
+        true,
+        sendResult.counts,
+        "",
+        false,
+      )
+    } catch (e: Exception) {
+      TraceReadAttempt(emptyList(), false, sendResult.counts, e::class.simpleName.orEmpty(), true)
+    }
   }
 
   private fun request(project: String, path: String): HttpRequest {
@@ -644,12 +1136,69 @@ class GoogleCloudTraceReader(
   private suspend fun send(
     request: HttpRequest,
     quotaUnits: Int,
+    requestKind: RequestKind,
     quota: RequestQuota,
-  ): HttpResponse<String> {
-    quota.mutex.withLock { repeat(quotaUnits) { quota.throttler.onReady {} } }
-    return runInterruptible(Dispatchers.IO) {
-      httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+    count: (CloudTelemetryReadCounts) -> Unit = {},
+  ): HttpSendResult {
+    var counts = CloudTelemetryReadCounts()
+    var backoff = INITIAL_RETRY_DELAY
+    repeat(MAX_RETRY_ATTEMPTS) { attempt ->
+      quota.mutex.withLock { repeat(quotaUnits) { quota.throttler.onReady {} } }
+      val requestCounts =
+        CloudTelemetryReadCounts(
+          physicalRequests = 1,
+          listTraceRequests = if (requestKind == RequestKind.LIST_TRACE) 1 else 0,
+          getTraceRequests = if (requestKind == RequestKind.GET_TRACE) 1 else 0,
+          traceQuotaUnits = quotaUnits.toLong(),
+        )
+      counts += requestCounts
+      count(requestCounts)
+      val response =
+        try {
+          runInterruptible(blockingContext) {
+            httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+          }
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: IOException) {
+          if (attempt == MAX_RETRY_ATTEMPTS - 1) {
+            return HttpSendResult(null, counts, e::class.simpleName.orEmpty())
+          }
+          val retryCounts = CloudTelemetryReadCounts(retryAttempts = 1)
+          counts += retryCounts
+          count(retryCounts)
+          retryDelay(backoff)
+          backoff = backoff.multipliedBy(2).coerceAtMost(MAX_RETRY_DELAY)
+          return@repeat
+        } catch (e: Exception) {
+          return HttpSendResult(null, counts, e::class.simpleName.orEmpty())
+        }
+      if (!isRetryable(response.statusCode()) || attempt == MAX_RETRY_ATTEMPTS - 1) {
+        return HttpSendResult(
+          response,
+          counts,
+          if (response.statusCode() in 200..299 || response.statusCode() == 404) ""
+          else "Cloud Trace API returned HTTP ${response.statusCode()}",
+        )
+      }
+      val retryCounts = CloudTelemetryReadCounts(retryAttempts = 1)
+      counts += retryCounts
+      count(retryCounts)
+      retryDelay(retryAfter(response) ?: backoff)
+      backoff = backoff.multipliedBy(2).coerceAtMost(MAX_RETRY_DELAY)
     }
+    error("unreachable")
+  }
+
+  private fun retryAfter(response: HttpResponse<String>): Duration? {
+    val value = response.headers().firstValue("Retry-After").orElse(null) ?: return null
+    value.toLongOrNull()?.let {
+      return Duration.ofSeconds(it.coerceAtLeast(0L))
+    }
+    val retryAt =
+      runCatching { ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant() }
+        .getOrNull() ?: return null
+    return Duration.between(clock.instant(), retryAt).coerceAtLeast(Duration.ZERO)
   }
 
   private fun parseResponse(
@@ -691,14 +1240,124 @@ class GoogleCloudTraceReader(
     val mutex = Mutex()
   }
 
+  private data class TraceIdDiscovery(
+    val traceIds: List<String>,
+    val complete: Boolean,
+    val counts: CloudTelemetryReadCounts,
+    val note: String,
+    val failed: Boolean,
+  )
+
+  private data class TraceReadAttempt(
+    val spans: List<CloudTraceSpan>,
+    val complete: Boolean,
+    val counts: CloudTelemetryReadCounts,
+    val note: String,
+    val failed: Boolean,
+  )
+
+  private data class HttpSendResult(
+    val response: HttpResponse<String>?,
+    val counts: CloudTelemetryReadCounts,
+    val note: String,
+  )
+
+  private enum class RequestKind {
+    LIST_TRACE,
+    GET_TRACE,
+  }
+
+  private class TraceReadProgress(
+    private val spanLimit: Int,
+    private val startTime: Instant,
+    private val endTime: Instant,
+  ) {
+    private var counts = CloudTelemetryReadCounts()
+    private var complete = true
+    private var failed = false
+    private val notes = linkedSetOf<String>()
+    private val discoveredTraceIds = linkedSetOf<String>()
+    private val spans = mutableListOf<CloudTraceSpan>()
+
+    @Synchronized
+    fun addCounts(value: CloudTelemetryReadCounts) {
+      counts += value
+    }
+
+    @Synchronized
+    fun addDiscoveredTraceId(traceId: String) {
+      discoveredTraceIds += traceId
+    }
+
+    @Synchronized fun discoveredTraceIds(): Set<String> = discoveredTraceIds.toSet()
+
+    @Synchronized
+    fun record(result: TraceIdDiscovery) {
+      if (!result.complete) {
+        complete = false
+        failed = failed || result.failed
+        if (result.note.isNotEmpty()) notes += result.note
+      }
+    }
+
+    @Synchronized
+    fun record(attempt: TraceReadAttempt) {
+      spans += attempt.spans
+      if (!attempt.complete) {
+        complete = false
+        failed = failed || attempt.failed
+        if (attempt.note.isNotEmpty()) notes += attempt.note
+      }
+    }
+
+    @Synchronized
+    fun markIncomplete(note: String) {
+      complete = false
+      notes += note
+    }
+
+    @Synchronized
+    fun result(timedOut: Boolean): CloudTelemetryReadResult<CloudTraceSpan> {
+      val matchingSpans =
+        spans
+          .filter {
+            !it.startTime.isAfter(endTime) && !(it.endTime ?: it.startTime).isBefore(startTime)
+          }
+          .distinct()
+      if (matchingSpans.size > spanLimit) {
+        complete = false
+        notes += "span limit reached"
+      }
+      if (timedOut) {
+        complete = false
+        notes += "source deadline exhausted"
+      }
+      return CloudTelemetryReadResult(
+        retainSpans(matchingSpans, readLimit(spanLimit)),
+        complete,
+        counts.copy(rowsExamined = matchingSpans.size.toLong()),
+        notes.joinToString(),
+        failed,
+        timedOut,
+      )
+    }
+  }
+
   companion object {
     private const val TRACE_READ_SCOPE = "https://www.googleapis.com/auth/trace.readonly"
     private const val DEFAULT_MAX_CONCURRENCY = 8
     private const val MAX_PAGE_SIZE = 1_000
     private const val LIST_QUOTA_UNITS = 25
     private const val GET_QUOTA_UNITS = 1
+    private const val MAX_RETRY_ATTEMPTS = 3
     private val HTTP_TIMEOUT = Duration.ofSeconds(30)
+    private val INITIAL_RETRY_DELAY = Duration.ofSeconds(1)
+    private val MAX_RETRY_DELAY = Duration.ofSeconds(8)
     private val TRACE_ID_PATTERN = Regex("(?i)[0-9a-f]{32}")
+
+    private fun isRetryable(statusCode: Int): Boolean {
+      return statusCode == 408 || statusCode == 429 || statusCode in 500..599
+    }
 
     private fun urlEncode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8)
 
