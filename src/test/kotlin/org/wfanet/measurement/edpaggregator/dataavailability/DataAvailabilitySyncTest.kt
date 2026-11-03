@@ -667,7 +667,8 @@ class DataAvailabilitySyncTest {
   }
 
   private fun newDataAvailabilitySync(
-    storageClient: BlobMetadataStorageClient
+    storageClient: BlobMetadataStorageClient,
+    publishEventGroupActivities: (suspend (Collection<ImpressionMetadata>) -> Int)? = null,
   ): DataAvailabilitySync =
     DataAvailabilitySync(
       "edp/edpa_edp",
@@ -679,7 +680,7 @@ class DataAvailabilitySyncTest {
       impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
       modelLineMap = emptyMap(),
       errorIfGapsExist = true,
-      publishEventGroupActivities = null,
+      publishEventGroupActivities = publishEventGroupActivities,
     )
 
   private fun vidLabelerOutputKey(rawBlobUri: String, eventDate: LocalDate): String =
@@ -1130,7 +1131,7 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `metadata file is ignored if no associated impression file is found`() = runBlocking {
+  fun `sync fails if metadata references missing impression file`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
@@ -1150,10 +1151,214 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+      }
+
+    assertThat(exception).hasMessageThat().contains("some_blob_uri_0")
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchUpdateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) {
+      batchUndeleteImpressionMetadata(any())
+    }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineBounds(any()) }
+    assertThat(storageClient.updateBlobMetadataCalls).isEmpty()
+  }
+
+  @Test
+  fun `sync does not persist present metadata when another referenced file is missing`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L, 400L to 500L))
+      checkNotNull(storageClient.getBlob("${folderPrefix}some_blob_uri_1")).delete()
+      var activityPublicationCalls = 0
+      val dataAvailabilitySync =
+        newDataAvailabilitySync(storageClient) {
+          activityPublicationCalls++
+          1
+        }
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+        }
+
+      assertThat(exception).hasMessageThat().contains("some_blob_uri_1")
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchCreateImpressionMetadata(any())
+      }
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchUpdateImpressionMetadata(any())
+      }
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchUndeleteImpressionMetadata(any())
+      }
+      verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineBounds(any()) }
+      assertThat(storageClient.updateBlobMetadataCalls).isEmpty()
+      assertThat(activityPublicationCalls).isEqualTo(0)
+    }
+
+  @Test
+  fun `sync succeeds after referenced file is restored`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), createImpressionFile = false)
+    val dataAvailabilitySync = newDataAvailabilitySync(storageClient)
+
+    assertFailsWith<IllegalStateException> {
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+    }
+    storageClient.writeBlob("${folderPrefix}some_blob_uri_0", emptyFlow())
+
+    val outcome = dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync returns no work for legitimate empty input`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    storageClient.writeBlob("${folderPrefix}done", ByteString.EMPTY)
+
+    val outcome =
+      newDataAvailabilitySync(storageClient)
+        .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.NO_WORK)
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+  }
+
+  private suspend fun assertInvalidBlobUriRejected(blobUri: String) {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    val details = blobDetails {
+      this.blobUri = blobUri
+      eventGroupReferenceId = "some-event-group-reference-id"
+      modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+      interval = interval {
+        startTime = timestamp { seconds = 300L }
+        endTime = timestamp { seconds = 400L }
+      }
+    }
+    storageClient.writeBlob(
+      "${folderPrefix}metadata-invalid-uri.binpb",
+      ByteString.copyFrom(details.toByteArray()),
+    )
+
+    assertFailsWith<IllegalArgumentException> {
+      newDataAvailabilitySync(storageClient)
+        .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+    }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+  }
+
+  @Test
+  fun `sync rejects malformed blob URI`() = runBlocking {
+    assertInvalidBlobUriRejected("not a URI")
+  }
+
+  @Test
+  fun `sync rejects blob URI without object key`() = runBlocking {
+    assertInvalidBlobUriRejected("$bucket/")
+  }
+
+  @Test
+  fun `sync rejects empty blob URI`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    val details = blobDetails {
+      eventGroupReferenceId = "some-event-group-reference-id"
+      modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+      interval = interval {
+        startTime = timestamp { seconds = 300L }
+        endTime = timestamp { seconds = 400L }
+      }
+    }
+    storageClient.writeBlob(
+      "${folderPrefix}metadata-empty-uri.binpb",
+      ByteString.copyFrom(details.toByteArray()),
+    )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        newDataAvailabilitySync(storageClient)
+          .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+      }
+
+    assertThat(exception).hasMessageThat().contains("blob_uri")
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+  }
+
+  @Test
+  fun `sync rejects blob URI in another storage root`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    val impressionBlobKey = "${folderPrefix}some_blob_uri_0"
+    storageClient.writeBlob(impressionBlobKey, emptyFlow())
+    val details = blobDetails {
+      blobUri = "file:///other-bucket/$impressionBlobKey"
+      eventGroupReferenceId = "some-event-group-reference-id"
+      modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+      interval = interval {
+        startTime = timestamp { seconds = 300L }
+        endTime = timestamp { seconds = 400L }
+      }
+    }
+    storageClient.writeBlob(
+      "${folderPrefix}metadata-other-bucket.binpb",
+      ByteString.copyFrom(details.toByteArray()),
+    )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        newDataAvailabilitySync(storageClient)
+          .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+      }
+
+    assertThat(exception).hasMessageThat().contains("upload storage root")
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+  }
+
+  @Test
+  fun `sync rejects blob URI with another storage scheme`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    val impressionBlobKey = "${folderPrefix}some_blob_uri_0"
+    storageClient.writeBlob(impressionBlobKey, emptyFlow())
+    val details = blobDetails {
+      blobUri = "gs://my-bucket/$impressionBlobKey"
+      eventGroupReferenceId = "some-event-group-reference-id"
+      modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+      interval = interval {
+        startTime = timestamp { seconds = 300L }
+        endTime = timestamp { seconds = 400L }
+      }
+    }
+    storageClient.writeBlob(
+      "${folderPrefix}metadata-other-scheme.binpb",
+      ByteString.copyFrom(details.toByteArray()),
+    )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        newDataAvailabilitySync(storageClient)
+          .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+      }
+
+    assertThat(exception).hasMessageThat().contains("upload storage root")
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
   }
 
   @Test
