@@ -366,7 +366,8 @@ class VidLabelingTraceStateTest {
         .setDoneBlobGeneration(7)
         .build()
 
-    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE))).nodes
+    val nodes =
+      resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)), emptyList()).nodes
     val availabilityNodes = nodes.filter { it.stage == "data_availability_publish" }
 
     assertThat(availabilityNodes).hasSize(2)
