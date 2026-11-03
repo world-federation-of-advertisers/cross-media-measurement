@@ -134,9 +134,6 @@ jobs:
       - name: Set TCP keepalive
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
-      - name: Check Cloud Function deployment retry
-        run: python3 -m unittest discover -s src/test/terraform/gcloud/modules/http-cloud-function -p '*_test.py'
-
       - name: Check lockfile
         run: bazel mod deps
 
@@ -146,6 +143,9 @@ jobs:
           //...
           //src/main/k8s/local:cmms
           //src/main/k8s/dev:edp_simulators
+
+      - name: Run Cloud Function deployment retry test
+        run: python3 -m unittest discover -s src/test/terraform/gcloud/modules/http-cloud-function -p '*_test.py'
 
       - name: Run tests
         id: run-tests
