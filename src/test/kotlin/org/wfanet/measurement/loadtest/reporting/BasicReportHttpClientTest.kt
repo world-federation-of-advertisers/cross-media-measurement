@@ -23,11 +23,13 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import okhttp3.Interceptor
+import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Test
 import org.wfanet.measurement.common.ExponentialBackoff
@@ -83,8 +85,19 @@ class BasicReportHttpClientTest {
   @Test
   @OptIn(ExperimentalCoroutinesApi::class)
   fun `getBasicReport stops after bounded transient failures`() = runTest {
-    val interceptor = ScriptedInterceptor(List(3) { Result.success(response(503, "unavailable")) })
-    assertFailsWith<IOException> { createClient(interceptor).getBasicReport(REQUEST) }
+    val interceptor =
+      ScriptedInterceptor(
+        listOf(
+          Result.success(response(503, "first outage")),
+          Result.success(response(503, "second outage")),
+          Result.success(response(503, "final outage")),
+        )
+      )
+    val failure = assertFailsWith<IOException> { createClient(interceptor).getBasicReport(REQUEST) }
+    assertThat(failure.message).contains("503 test")
+    assertThat(failure.message).contains("final outage")
+    assertThat(failure.message).doesNotContain("first outage")
+    assertThat(failure.message).doesNotContain("second outage")
     assertThat(interceptor.calls).isEqualTo(3)
     assertThat(testScheduler.currentTime).isEqualTo(3000L)
   }
@@ -93,9 +106,53 @@ class BasicReportHttpClientTest {
   fun `getBasicReport rejects permanent HTTP errors without retry`() = runTest {
     for (code in listOf(400, 401, 403, 404)) {
       val interceptor = ScriptedInterceptor(listOf(Result.success(response(code, "permanent"))))
-      assertFailsWith<IllegalStateException> { createClient(interceptor).getBasicReport(REQUEST) }
+      val failure =
+        assertFailsWith<IllegalStateException> { createClient(interceptor).getBasicReport(REQUEST) }
+      assertThat(failure.message).contains("$code test")
+      assertThat(failure.message).contains("permanent")
       assertThat(interceptor.calls).isEqualTo(1)
     }
+  }
+
+  @Test
+  fun `getBasicReport preserves permanent HTTP error when body is unreadable`() = runTest {
+    val bodyReadFailure = IOException("truncated error body")
+    val interceptor =
+      ScriptedInterceptor(
+        listOf(Result.success(response(403, UnreadableResponseBody(bodyReadFailure))))
+      )
+
+    val failure =
+      assertFailsWith<IllegalStateException> { createClient(interceptor).getBasicReport(REQUEST) }
+
+    assertThat(failure.message).contains("403 test")
+    assertThat(generateSequence<Throwable>(failure) { it.cause }.last())
+      .isSameInstanceAs(bodyReadFailure)
+    assertThat(interceptor.calls).isEqualTo(1)
+  }
+
+  @Test
+  @OptIn(ExperimentalCoroutinesApi::class)
+  fun `getBasicReport preserves exhausted HTTP error when body is unreadable`() = runTest {
+    val bodyReadFailure = IOException("truncated error body")
+    val interceptor =
+      ScriptedInterceptor(
+        listOf(
+          Result.success(response(503, "first outage")),
+          Result.success(response(503, "second outage")),
+          Result.success(response(503, UnreadableResponseBody(bodyReadFailure))),
+        )
+      )
+
+    val failure = assertFailsWith<IOException> { createClient(interceptor).getBasicReport(REQUEST) }
+
+    assertThat(failure.message).contains("503 test")
+    assertThat(failure.message).doesNotContain("first outage")
+    assertThat(failure.message).doesNotContain("second outage")
+    assertThat(generateSequence<Throwable>(failure) { it.cause }.last())
+      .isSameInstanceAs(bodyReadFailure)
+    assertThat(interceptor.calls).isEqualTo(3)
+    assertThat(testScheduler.currentTime).isEqualTo(3000L)
   }
 
   @Test
@@ -137,14 +194,26 @@ class BasicReportHttpClientTest {
       maxAttempts = 3,
     )
 
-  private fun response(code: Int, body: String): Response =
+  private fun response(code: Int, body: String): Response = response(code, body.toResponseBody())
+
+  private fun response(code: Int, body: ResponseBody): Response =
     Response.Builder()
       .request(REQUEST)
       .protocol(Protocol.HTTP_1_1)
       .code(code)
       .message("test")
-      .body(body.toResponseBody())
+      .body(body)
       .build()
+
+  private class UnreadableResponseBody(private val failure: IOException) : ResponseBody() {
+    override fun contentType(): MediaType? = null
+
+    override fun contentLength(): Long = -1L
+
+    override fun source(): Nothing = throw failure
+
+    override fun close() {}
+  }
 
   private class ScriptedInterceptor(private val responses: List<Result<Response>>) : Interceptor {
     var calls = 0
