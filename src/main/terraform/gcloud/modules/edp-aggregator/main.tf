@@ -1008,6 +1008,14 @@ locals {
     var.meta_impression_query_uber_jar_path != ""
   )
   meta_impression_query_function_name = "meta-impression-query"
+
+  # To attribute an entity Meta hides to its ad account, the function looks up the entity's
+  # EventGroup in the Kingdom as Meta's DataProvider over mutual TLS. Each secret mounted as a file
+  # needs its own directory.
+  meta_impression_query_edp_certs            = var.edps_certs[var.meta_impression_query_edp_display_name]
+  meta_impression_query_tls_cert_file        = "/secrets/tls-cert/tls.pem"
+  meta_impression_query_tls_key_file         = "/secrets/tls-key/tls.key"
+  meta_impression_query_cert_collection_file = "/secrets/ca/trusted_root_ca.pem"
 }
 
 module "meta_impression_query_cloud_function" {
@@ -1018,10 +1026,31 @@ module "meta_impression_query_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = local.meta_impression_query_function_name
   entry_point                              = "org.wfanet.measurement.edpcomponents.meta.MetaImpressionQueryFunction"
-  extra_env_vars                           = "OTEL_METRICS_EXPORTER=google_cloud_monitoring,OTEL_SERVICE_NAME=meta.impression_query"
-  secret_mappings                          = "META_ACCESS_TOKEN=meta-access-token:latest,META_APP_SECRET=meta-app-secret:latest"
-  uber_jar_path                            = var.meta_impression_query_uber_jar_path
-  secrets_to_access                        = ["meta-access-token", "meta-app-secret"]
+  extra_env_vars = join(",", [
+    "OTEL_METRICS_EXPORTER=google_cloud_monitoring",
+    "OTEL_SERVICE_NAME=meta.impression_query",
+    "KINGDOM_TARGET=${var.kingdom_public_api_target}",
+    "TLS_CERT_FILE=${local.meta_impression_query_tls_cert_file}",
+    "TLS_KEY_FILE=${local.meta_impression_query_tls_key_file}",
+    "CERT_COLLECTION_FILE=${local.meta_impression_query_cert_collection_file}",
+    # Key in Meta's EventGroup entity_metadata that holds the entity's ad account.
+    "ENTITY_METADATA_AD_ACCOUNT_ID_KEY=ad_account_id",
+  ])
+  secret_mappings = join(",", [
+    "META_ACCESS_TOKEN=meta-access-token:latest",
+    "META_APP_SECRET=meta-app-secret:latest",
+    "${local.meta_impression_query_tls_cert_file}=${local.meta_impression_query_edp_certs.tls_pem.secret_id}:latest",
+    "${local.meta_impression_query_tls_key_file}=${local.meta_impression_query_edp_certs.tls_key.secret_id}:latest",
+    "${local.meta_impression_query_cert_collection_file}=${var.trusted_root_ca_collection.secret_id}:latest",
+  ])
+  uber_jar_path = var.meta_impression_query_uber_jar_path
+  secrets_to_access = [
+    "meta-access-token",
+    "meta-app-secret",
+    local.meta_impression_query_edp_certs.tls_pem.secret_id,
+    local.meta_impression_query_edp_certs.tls_key.secret_id,
+    var.trusted_root_ca_collection.secret_id,
+  ]
 
   # Below Results Fulfiller's 30-second deadline, so the function stops spending Meta quota once
   # the caller has stopped waiting.
