@@ -28,6 +28,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.approveUploadHealingOperatio
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.retryUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 import picocli.CommandLine.Parameters
@@ -134,9 +135,6 @@ class ApproveCorrectionPlanCommand(
   @Option(names = ["--etag"], description = ["Current plan etag."], required = true)
   private lateinit var etag: String
 
-  @Option(names = ["--request-id"], description = ["Idempotency UUID."], required = true)
-  private lateinit var requestId: String
-
   override fun run() {
     runWithClient { client ->
       output(
@@ -160,7 +158,6 @@ class ApproveCorrectionPlanCommand(
               }
             },
             etag,
-            requestId,
           )
         )
       )
@@ -184,13 +181,8 @@ class RetryCorrectionPlanCommand(
   @Option(names = ["--etag"], description = ["Current plan etag."], required = true)
   private lateinit var etag: String
 
-  @Option(names = ["--request-id"], description = ["Idempotency UUID."], required = true)
-  private lateinit var requestId: String
-
   override fun run() {
-    runWithClient { client ->
-      output(formatCorrectionPlanSummary(client.retry(name, etag, requestId)))
-    }
+    runWithClient { client -> output(formatCorrectionPlanSummary(client.retry(name, etag))) }
   }
 }
 
@@ -227,7 +219,6 @@ class CorrectionPlanClient(private val stub: UploadHealingOperationServiceCorout
     name: String,
     decisions: Map<String, RawImpressionUploadCorrectionCandidate.Decision>,
     etag: String,
-    requestId: String,
   ): UploadHealingOperation =
     stub.approveUploadHealingOperation(
       approveUploadHealingOperationRequest {
@@ -242,16 +233,21 @@ class CorrectionPlanClient(private val stub: UploadHealingOperationServiceCorout
               }
             }
         this.etag = etag
-        this.requestId = requestId
+        requestId =
+          RequestIds.forApproveUploadHealingOperation(
+            name,
+            etag,
+            decisions.mapValues { (_, decision) -> decision.number },
+          )
       }
     )
 
-  suspend fun retry(name: String, etag: String, requestId: String): UploadHealingOperation =
+  suspend fun retry(name: String, etag: String): UploadHealingOperation =
     stub.retryUploadHealingOperation(
       retryUploadHealingOperationRequest {
         this.name = name
         this.etag = etag
-        this.requestId = requestId
+        requestId = RequestIds.forRetryUploadHealingOperation(name, etag)
       }
     )
 

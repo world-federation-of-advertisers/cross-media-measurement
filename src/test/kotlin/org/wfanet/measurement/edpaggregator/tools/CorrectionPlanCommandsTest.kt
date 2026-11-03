@@ -35,6 +35,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServic
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import picocli.CommandLine
 
 @RunWith(JUnit4::class)
@@ -118,7 +119,6 @@ class CorrectionPlanCommandsTest {
             "--correct-candidate=$CANDIDATE",
             "--no-replacement-candidate=$SECOND_CANDIDATE",
             "--etag=etag",
-            "--request-id=$REQUEST_ID",
             *CONNECTION_ARGS,
           )
 
@@ -140,7 +140,20 @@ class CorrectionPlanCommandsTest {
           RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT,
         )
       assertThat(request.etag).isEqualTo("etag")
-      assertThat(request.requestId).isEqualTo(REQUEST_ID)
+      assertThat(request.requestId)
+        .isEqualTo(
+          RequestIds.forApproveUploadHealingOperation(
+            PLAN.name,
+            "etag",
+            mapOf(
+              CANDIDATE to
+                RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE.number,
+              SECOND_CANDIDATE to
+                RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
+                  .number,
+            ),
+          )
+        )
     }
 
   @Test
@@ -152,7 +165,7 @@ class CorrectionPlanCommandsTest {
 
       val exitCode =
         CommandLine(RetryCorrectionPlanCommand(client, output::add))
-          .execute(PLAN.name, "--etag=etag", "--request-id=$REQUEST_ID", *CONNECTION_ARGS)
+          .execute(PLAN.name, "--etag=etag", *CONNECTION_ARGS)
 
       assertThat(exitCode).isEqualTo(0)
       val request =
@@ -165,7 +178,8 @@ class CorrectionPlanCommandsTest {
           }
       assertThat(request.name).isEqualTo(PLAN.name)
       assertThat(request.etag).isEqualTo("etag")
-      assertThat(request.requestId).isEqualTo(REQUEST_ID)
+      assertThat(request.requestId)
+        .isEqualTo(RequestIds.forRetryUploadHealingOperation(PLAN.name, "etag"))
     }
 
   @Test
@@ -184,7 +198,6 @@ class CorrectionPlanCommandsTest {
     private const val CANDIDATE = "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/candidate"
     private const val SECOND_CANDIDATE =
       "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/second-candidate"
-    private const val REQUEST_ID = "11111111-1111-4111-8111-111111111111"
     private val PLAN = uploadHealingOperation {
       name = "$DATA_PROVIDER/uploadHealingOperations/operation"
       state = UploadHealingOperation.State.APPROVAL_REQUIRED

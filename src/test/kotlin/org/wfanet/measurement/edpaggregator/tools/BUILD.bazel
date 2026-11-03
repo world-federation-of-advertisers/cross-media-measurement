@@ -56,6 +56,7 @@ kt_jvm_test(
     associates = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:vid_labeling_heal"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.CorrectionPlanCommandsTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_correction_candidate_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
