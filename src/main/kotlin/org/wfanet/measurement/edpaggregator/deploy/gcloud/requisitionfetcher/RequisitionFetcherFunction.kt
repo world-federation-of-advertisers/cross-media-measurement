@@ -77,6 +77,9 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   certificate. Useful when the hostname in the certificate does not match the `KINGDOM_TARGET`.
  * - `GRPC_REQUEST_INTERVAL`: Optional. Minimum interval between Kingdom mutation RPCs (e.g.
  *   `refuseRequisition`). Default `1s`.
+ * - `KINGDOM_LIST_REQUEST_INTERVAL`: Optional. Process-scoped minimum interval between Kingdom
+ *   ListRequisitions calls across providers, including resized-page retries. Default `250ms`.
+ *   Transport retries follow the gRPC channel policy.
  * - `KINGDOM_EVENT_GROUP_REQUEST_INTERVAL`: Optional. Minimum interval between Kingdom
  *   `getEventGroup` RPCs. Default `50ms`.
  * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
@@ -301,6 +304,7 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionValidator = requisitionsValidator,
       requisitionGrouper = requisitionGrouper,
       metadataThrottler = metadataThrottler,
+      kingdomListThrottler = kingdomListThrottler,
       workItemDispatcher = workItemDispatcher,
       requisitionRefusalDuration = requisitionRefusalDuration,
       clock = Clock.systemUTC(),
@@ -398,6 +402,13 @@ class RequisitionFetcherFunction : HttpFunction {
       System.getenv("SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
 
+    private val kingdomListThrottler =
+      MinimumIntervalThrottler(
+        Clock.systemUTC(),
+        (System.getenv("KINGDOM_LIST_REQUEST_INTERVAL") ?: DEFAULT_KINGDOM_LIST_REQUEST_INTERVAL)
+          .toDuration(),
+      )
+    private const val DEFAULT_KINGDOM_LIST_REQUEST_INTERVAL = "250ms"
     private const val DEFAULT_GRPC_REQUEST_INTERVAL = "1s"
     private const val DEFAULT_KINGDOM_EVENT_GROUP_REQUEST_INTERVAL = "50ms"
     private const val DEFAULT_METADATA_REQUEST_INTERVAL = "100ms"
