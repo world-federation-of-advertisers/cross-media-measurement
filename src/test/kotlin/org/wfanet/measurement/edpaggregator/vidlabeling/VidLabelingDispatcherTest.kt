@@ -33,14 +33,19 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -329,6 +334,7 @@ class VidLabelingDispatcherTest {
     },
     metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    footerReadConcurrency: Int = VidLabelingDispatcher.DEFAULT_FOOTER_READ_CONCURRENCY,
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
       storageClient = storageClient,
@@ -354,6 +360,7 @@ class VidLabelingDispatcherTest {
         }
       },
       rpcThrottlers = rpcThrottlers,
+      footerReadConcurrency = footerReadConcurrency,
       clock = fixedClock,
       metrics = metrics,
     )
@@ -676,6 +683,78 @@ class VidLabelingDispatcherTest {
         SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH).key.substringBeforeLast("/") + "/"
       )
     Unit
+  }
+
+  @Test
+  fun `upload bounds one thousand footer reads at configured concurrency`() = runBlocking {
+    val blobs = List(1_000) { index -> createMockBlob("$FOLDER_PREFIX/file-$index.parquet") }
+    whenever(storageClient.listBlobs(any())).thenReturn(blobs.asFlow())
+    stubRawImpressionUploadCreation()
+    stubFullResolutionChain(MODEL_LINE_1)
+    val activeReads = AtomicInteger()
+    val peakReads = AtomicInteger()
+    val totalReads = AtomicInteger()
+    val expectedReadsStarted = CompletableDeferred<Unit>()
+    val releaseReads = CompletableDeferred<Unit>()
+    val concurrency = VidLabelingDispatcher.DEFAULT_FOOTER_READ_CONCURRENCY
+    assertThat(concurrency).isEqualTo(12)
+    val dispatcher =
+      createDispatcher(
+        readEventDate = {
+          val active = activeReads.incrementAndGet()
+          peakReads.updateAndGet { previous -> maxOf(previous, active) }
+          totalReads.incrementAndGet()
+          if (active == concurrency) expectedReadsStarted.complete(Unit)
+          try {
+            releaseReads.await()
+            EVENT_DATE
+          } finally {
+            activeReads.decrementAndGet()
+          }
+        }
+      )
+
+    val upload = async { dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION) }
+    expectedReadsStarted.await()
+    yield()
+
+    assertThat(activeReads.get()).isEqualTo(concurrency)
+    assertThat(peakReads.get()).isEqualTo(concurrency)
+
+    releaseReads.complete(Unit)
+    val outcome = upload.await()
+
+    assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.SUCCEEDED)
+    assertThat(totalReads.get()).isEqualTo(blobs.size)
+  }
+
+  @Test
+  fun `dispatcher rejects nonpositive footer concurrency`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> { createDispatcher(footerReadConcurrency = 0) }
+
+    assertThat(error).hasMessageThat().contains("footerReadConcurrency must be positive")
+  }
+
+  @Test
+  fun `footer read concurrency defaults to twelve and accepts an environment override`() {
+    assertThat(VidLabelingDispatcher.resolveFooterReadConcurrency(null)).isEqualTo(12)
+    assertThat(VidLabelingDispatcher.resolveFooterReadConcurrency("7")).isEqualTo(7)
+  }
+
+  @Test
+  fun `footer read concurrency rejects invalid environment overrides`() {
+    val zero =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingDispatcher.resolveFooterReadConcurrency("0")
+      }
+    val malformed =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingDispatcher.resolveFooterReadConcurrency("many")
+      }
+
+    assertThat(zero).hasMessageThat().contains("must be a positive integer")
+    assertThat(malformed).hasMessageThat().contains("must be a positive integer")
   }
 
   @Test
