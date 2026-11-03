@@ -35,6 +35,8 @@ import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineT
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.MEMOIZED_MODEL_LINE
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
@@ -81,6 +83,48 @@ internal class VidLabelingAvailabilityIntegrationTest : VidLabelingPipelineTestH
     assertFailsWith<BlobChangedException> { first.read().toList() }
     Unit
   }
+
+  @Test
+  fun `high-cardinality availability metadata is persisted in mutation-bounded batches`() =
+    runBlocking {
+      setVisibleModelLines(DIRECT_MODEL_LINE)
+      withholdNextAvailabilityPublications()
+      val inputFiles =
+        (0 until 25).map { fileIndex ->
+          writeRawFile(
+            "high-cardinality",
+            "input-$fileIndex.parquet",
+            (0 until 1_064).map { entityIndex -> "person-$fileIndex-$entityIndex" },
+          )
+        }
+      val generation = finalizeRawUpload("high-cardinality")
+      workItemTransport.awaitIdle()
+      val upload = listUploads().single { it.doneBlobGeneration == generation }
+
+      val sidecarEntityKeyCounts =
+        inputFiles.map { inputFile ->
+          val sidecarKey = blobKey(sidecarUri(inputFile, DIRECT_MODEL_LINE, EVENT_DATE))
+          BlobDetails.parseFrom(checkNotNull(fileStorage.getBlob(sidecarKey)).read().flatten())
+            .entityKeysList
+            .sumOf { it.entityIdsCount }
+        }
+      assertThat(sidecarEntityKeyCounts).containsExactlyElementsIn(List(25) { 1_064 })
+      assertThat(sidecarEntityKeyCounts.sum()).isEqualTo(26_600)
+      assertThat(listMetadata()).isEmpty()
+
+      republishQueuedAvailability()
+      awaitPipelineIdle()
+
+      assertThat(listAvailabilityTasks(upload.name).single().state)
+        .isEqualTo(WorkItem.State.SUCCEEDED)
+      val metadata = listMetadata().filter { it.rawImpressionUpload == upload.name }
+      assertThat(metadata).hasSize(25)
+      assertThat(metadata.sumOf { it.entityKeysCount }).isEqualTo(26_600)
+      assertThat(listModelLines(upload.name).single().state)
+        .isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+      assertThat(listUploads().single { it.name == upload.name }.state)
+        .isEqualTo(RawImpressionUpload.State.COMPLETED)
+    }
 
   @Test
   fun `missing WorkItem publication is retried without relabeling`() = runBlocking {
