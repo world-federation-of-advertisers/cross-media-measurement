@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorr
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadCorrectionCandidateRequest
@@ -362,6 +363,80 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     }
 
   @Test
+  fun `create persists an event-date change as one mixed difference`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      val priorDate = date {
+        year = 2026
+        month = 1
+        day = 1
+      }
+      val currentDate = date {
+        year = 2026
+        month = 1
+        day = 2
+      }
+      val comparison =
+        RawImpressionUploadCorrectionCandidateKt.manifestComparison {
+          val prior = manifestEntry("gs://raw/a", 1L, "prior", priorDate)
+          val current = manifestEntry("gs://raw/a", 1L, UPLOAD_ID, currentDate)
+          priorManifest += prior
+          currentManifest += current
+          differences +=
+            RawImpressionUploadCorrectionCandidateKt.manifestDifference {
+              type =
+                RawImpressionUploadCorrectionCandidate.ManifestDifference.Type
+                  .TYPE_EVENT_DATE_CHANGED
+              this.prior = prior
+              this.current = current
+            }
+        }
+      val request =
+        createRequest().copy {
+          rawImpressionUploadCorrectionCandidate =
+            rawImpressionUploadCorrectionCandidate.copy {
+              classification =
+                RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED
+              priorManifestDigest = manifestDigest(comparison.priorManifestList)
+              currentManifestDigest = manifestDigest(comparison.currentManifestList)
+              manifestComparison = comparison
+            }
+        }
+
+      val created = service.createRawImpressionUploadCorrectionCandidate(request)
+
+      assertThat(created.manifestComparison.differencesList.single().type)
+        .isEqualTo(
+          RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_EVENT_DATE_CHANGED
+        )
+    }
+
+  @Test
+  fun `create persists prior legacy manifest with unknown generation`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+
+      val created =
+        service.createRawImpressionUploadCorrectionCandidate(
+          createRequest(
+            classification =
+              RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED,
+            priorGeneration = 0L,
+          )
+        )
+
+      assertThat(created.manifestComparison.priorManifestList.single().blobGeneration).isEqualTo(0L)
+    }
+
+  @Test
   fun `create rejects second candidate for same upload`() =
     runBlocking<Unit> {
       insertRawUpload(
@@ -561,6 +636,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE)
       assertThat(complete.state)
         .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE)
+      assertThat(complete.manifestComparison).isEqualTo(mixedManifestComparison)
     }
 
   @Test
@@ -760,6 +836,32 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         UPLOAD_ID,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.advanceRawImpressionUploadCorrectionCandidate(
+            advanceRequest(
+              CANDIDATE_ID,
+              pending.etag,
+              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+              operationId = OPERATION_ID,
+            )
+          )
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `assign plan rejects operation without candidate membership`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      insertHealingOperation(candidateIds = emptyList())
       val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
 
       val error =
@@ -987,8 +1089,9 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     requestId: String = CREATE_REQUEST_ID,
     classification: RawImpressionUploadCorrectionCandidate.Classification =
       RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED,
+    priorGeneration: Long = 1L,
   ) = createRawImpressionUploadCorrectionCandidateRequest {
-    val comparison = manifestComparison(classification, uploadId)
+    val comparison = manifestComparison(classification, uploadId, priorGeneration)
     dataProviderResourceId = DATA_PROVIDER_ID
     rawImpressionUploadCorrectionCandidateId = candidateId
     rawImpressionUploadCorrectionCandidate = rawImpressionUploadCorrectionCandidate {
@@ -1021,9 +1124,10 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
   private fun manifestComparison(
     classification: RawImpressionUploadCorrectionCandidate.Classification,
     currentOwner: String,
+    priorGeneration: Long = 1L,
   ): RawImpressionUploadCorrectionCandidate.ManifestComparison =
     RawImpressionUploadCorrectionCandidateKt.manifestComparison {
-      val priorA = manifestEntry("gs://raw/a", 1L, "prior-a")
+      val priorA = manifestEntry("gs://raw/a", priorGeneration, "prior-a")
       priorManifest += priorA
       when (classification) {
         RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED -> {
@@ -1143,7 +1247,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     spannerDatabase.databaseClient.write(listOf(mutation.build()))
   }
 
-  private suspend fun insertHealingOperation() {
+  private suspend fun insertHealingOperation(candidateIds: List<String> = CANDIDATE_IDS) {
     spannerDatabase.databaseClient.write(
       listOf(
         Mutation.newInsertBuilder("UploadHealingOperation")
@@ -1153,12 +1257,23 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
           .to(OPERATION_ID)
           .set("CreateRequestId")
           .to(HEALING_CREATE_REQUEST_ID)
+          .set("State")
+          .to(
+            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED.number
+              .toLong()
+          )
           .set("Reason")
           .to("correction")
           .set("LabeledImpressionsBlobPrefix")
           .to("gs://bucket/labeled")
           .set("BadRawImpressionUploadResourceIds")
           .toStringArray(listOf(UPLOAD_ID))
+          .set("RawImpressionUploadCorrectionCandidateIds")
+          .toStringArray(candidateIds)
+          .set("MutationRequestIds")
+          .toStringArray(emptyList())
+          .set("MutationRequestFingerprints")
+          .toBytesArray(emptyList())
           .set("CutoffTime")
           .to(Timestamp.ofTimeSecondsAndNanos(1L, 0))
           .set("CreateTime")
@@ -1178,6 +1293,8 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
           .to(DATA_PROVIDER_ID)
           .set("UploadHealingOperationId")
           .to(OPERATION_ID)
+          .set("State")
+          .to(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE.number.toLong())
           .set("CompleteTime")
           .to(Value.COMMIT_TIMESTAMP)
           .set("UpdateTime")

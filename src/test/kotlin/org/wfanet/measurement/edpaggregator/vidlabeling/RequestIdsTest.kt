@@ -35,6 +35,10 @@ class RequestIdsTest {
       .isEqualTo(RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI))
     assertThat(RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE))
       .isEqualTo(RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE))
+    assertThat(RequestIds.forApproveUploadHealingOperation(OPERATION, ETAG, CANDIDATE_DECISIONS))
+      .isEqualTo(RequestIds.forApproveUploadHealingOperation(OPERATION, ETAG, CANDIDATE_DECISIONS))
+    assertThat(RequestIds.forRetryUploadHealingOperation(OPERATION, ETAG))
+      .isEqualTo(RequestIds.forRetryUploadHealingOperation(OPERATION, ETAG))
   }
 
   @Test
@@ -70,6 +74,37 @@ class RequestIdsTest {
   }
 
   @Test
+  fun `healing operation request ids include operation context`() {
+    assertThat(RequestIds.forApproveUploadHealingOperation(OPERATION, ETAG, CANDIDATE_DECISIONS))
+      .isNotEqualTo(
+        RequestIds.forApproveUploadHealingOperation(
+          "$DATA_PROVIDER/uploadHealingOperations/other",
+          ETAG,
+          CANDIDATE_DECISIONS,
+        )
+      )
+    assertThat(RequestIds.forRetryUploadHealingOperation(OPERATION, ETAG))
+      .isNotEqualTo(
+        RequestIds.forRetryUploadHealingOperation(
+          "$DATA_PROVIDER/uploadHealingOperations/other",
+          ETAG,
+        )
+      )
+  }
+
+  @Test
+  fun `approval request id is independent of candidate decision order`() {
+    assertThat(RequestIds.forApproveUploadHealingOperation(OPERATION, ETAG, CANDIDATE_DECISIONS))
+      .isEqualTo(
+        RequestIds.forApproveUploadHealingOperation(
+          OPERATION,
+          ETAG,
+          CANDIDATE_DECISIONS.entries.reversed().associate { it.toPair() },
+        )
+      )
+  }
+
+  @Test
   fun `request ids are formatted as UUID version 4`() {
     // Every request_id proto field declares (google.api.field_info).format = UUID4, so the
     // deterministic ids must render in the version-4 layout. Cover every helper family so no
@@ -93,6 +128,8 @@ class RequestIdsTest {
         RequestIds.forHealingRetryRanking(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
         RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
         RequestIds.forRetriedWorkItem(VID_LABELING_JOB, FAILURE_ATTEMPT_ID).removePrefix("rt-"),
+        RequestIds.forApproveUploadHealingOperation(OPERATION, ETAG, CANDIDATE_DECISIONS),
+        RequestIds.forRetryUploadHealingOperation(OPERATION, ETAG),
       )
     for (id in ids) {
       assertThat(UUID.fromString(id).version()).isEqualTo(4)
@@ -131,6 +168,12 @@ class RequestIdsTest {
     private const val MODEL_LINE_NAME = "$UPLOAD/rawImpressionUploadModelLines/riuml-1"
     private const val VID_LABELING_JOB = "$UPLOAD/vidLabelingJobs/vlj-1"
     private const val ETAG = "etag-1"
+    private const val OPERATION = "$DATA_PROVIDER/uploadHealingOperations/operation-1"
+    private val CANDIDATE_DECISIONS =
+      mapOf(
+        "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/candidate-1" to 1,
+        "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/candidate-2" to 2,
+      )
     private const val FAILURE_ATTEMPT_ID = "failure-attempt-1"
   }
 }

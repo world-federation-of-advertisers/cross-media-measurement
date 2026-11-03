@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.integration.k8s
 
-import com.google.common.hash.Hashing
 import io.grpc.ManagedChannel
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
@@ -36,21 +35,19 @@ import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
-import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
-import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.integration.common.PopulationSetup
 
 /**
  * JUnit [TestRule] that ensures the high overlap [Population] exists and that the high overlap
@@ -160,21 +157,12 @@ class HighOverlapModelResourcesRule(
    */
   @Blocking
   private fun ensurePopulation(pdpChannel: ManagedChannel): Population {
-    val spec = populationSpecProvider()
-    @OptIn(ExperimentalStdlibApi::class) // For `HexFormat`.
-    val requestId =
-      Hashing.murmur3_128().hashBytes(spec.toByteArray()).asBytes().toHexString(HexFormat.Default)
-    return PopulationsGrpc.newBlockingStub(pdpChannel)
-      .createPopulation(
-        createPopulationRequest {
-          parent = populationDataProvider
-          population = population {
-            populationSpec = spec
-            description = POPULATION_DESCRIPTION
-          }
-          this.requestId = requestId
-        }
-      )
+    return PopulationSetup.ensurePopulation(
+      pdpChannel,
+      populationDataProvider,
+      populationSpecProvider(),
+      description = POPULATION_DESCRIPTION,
+    )
   }
 
   /**
@@ -277,7 +265,12 @@ class HighOverlapModelResourcesRule(
         secretFiles.resolve(privateKeyFileName).toFile(),
         secretFiles.resolve(KINGDOM_TRUSTED_CERTS_FILE).toFile(),
       )
-    return buildMutualTlsChannel(kingdomPublicApiTarget, signingCerts, kingdomPublicApiCertHost)
+    return buildMutualTlsChannel(
+      kingdomPublicApiTarget,
+      signingCerts,
+      kingdomPublicApiCertHost,
+      defaultServiceConfig = PopulationSetup.SERVICE_CONFIG,
+    )
   }
 
   companion object {

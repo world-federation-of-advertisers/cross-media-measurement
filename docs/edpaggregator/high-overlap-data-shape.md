@@ -392,9 +392,10 @@ the PDP resolves the **most recent** rollout on a line.
 
 That accumulation is the intended design, not a workaround — a line collects
 rollouts over time and the newest is live. The same pattern already runs in
-`SyntheticGeneratorCorrectnessTest`, whose `ensurePopulation` and
-`ensureModelRelease` this rule mirrors. Those two are wired to the 2021 spec and
-the 2021 line, which is why the logic is repeated here rather than reused.
+`SyntheticGeneratorCorrectnessTest`. Population creation is shared through
+`PopulationSetup`, using each caller's spec. Model release and rollout setup
+remain separate because the two tests use different model lines and active
+windows.
 
 The Population only affects **population measurements** (`population_size`).
 Reach, frequency and impressions come from the impression data, so an
