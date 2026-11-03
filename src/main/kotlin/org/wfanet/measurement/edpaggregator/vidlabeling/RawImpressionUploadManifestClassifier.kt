@@ -176,6 +176,8 @@ class RawImpressionUploadManifestClassifier {
     ) {
       return current
     }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4804): Persist whether a
+    // revision is a full snapshot before reconstructing its effective manifest.
     return (reconstructPriorManifest(revision, revisionsByName, stopAtFailedPredecessor = false) +
         current)
       .toSortedMap()
