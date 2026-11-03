@@ -1572,9 +1572,8 @@ data-availability → ResultsFulfiller → result returned to the CMMS.
 
    Labeled impressions, metadata, and done marker uploads use generation
    preconditions so the GCS SDK can retry transient upload errors. A concurrent
-   change to the same blob fails the
-   upload instead of overwriting that change. Run only one generator for a given
-   output path at a time.
+   change to the same blob fails the upload instead of overwriting that change.
+   Run only one generator for a given output path at a time.
 
 ### Cloud test steps
 
