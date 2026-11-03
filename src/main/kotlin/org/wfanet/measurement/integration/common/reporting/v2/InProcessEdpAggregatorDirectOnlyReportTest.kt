@@ -261,8 +261,9 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
     assertThat(metadata).isNotEmpty()
     for (entry in metadata) {
       val (details, impressions) = readImpressionBlob(entry)
-      // This reference ID does not match any selector; campaign uses the configured shortcut.
+      // The reference ID and campaign key represent the same mapped parent.
       assertThat(details.eventGroupReferenceId).isEqualTo(HIERARCHY_BLOB_REFERENCE_ID)
+      assertThat(details.eventGroupReferenceId).isEqualTo("campaign/$HIERARCHY_CAMPAIGN_ENTITY_ID")
       val groupsByType = details.entityKeysList.associateBy { it.entityType }
       assertThat(groupsByType.keys)
         .containsExactlyElementsIn(HIERARCHY_LOWER_ENTITY_IDS.keys + "campaign")

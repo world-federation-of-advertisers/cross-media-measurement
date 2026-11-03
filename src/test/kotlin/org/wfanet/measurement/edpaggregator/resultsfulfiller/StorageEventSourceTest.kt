@@ -3046,6 +3046,96 @@ class StorageEventSourceTest {
       assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
     }
 
+  @Test
+  fun `mapped hierarchy blobs validate references and preserve whole-blob campaign selectors`() =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val collectionInterval = interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+      for (referencePrefix in listOf("", "campaign/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          val campaignKey =
+            labeledImpressionEntityKey("campaign", entityPrefix + "blob-hierarchy-campaign")
+          val referenceId = referencePrefix + "blob-hierarchy-campaign"
+          val keysByStream =
+            listOf("a", "b").map { suffix ->
+              listOf(
+                campaignKey,
+                labeledImpressionEntityKey("adset-id", "blob-hierarchy-adset-$suffix"),
+                labeledImpressionEntityKey("ad-id", "blob-hierarchy-ad-$suffix"),
+                labeledImpressionEntityKey("creative-id", "blob-hierarchy-creative-$suffix"),
+              )
+            }
+          val entityKeys = keysByStream.flatten().toSet()
+          val entityKeyGroups =
+            entityKeys
+              .groupBy { it.entityType }
+              .map { (type, keys) ->
+                entityKeyGroup {
+                  entityType = type
+                  entityIds += keys.map { it.entityId }
+                }
+              }
+          val campaignFilter =
+            FilterSpec(
+              celExpression = "",
+              collectionInterval = collectionInterval,
+              eventGroupReferenceIds = setOf(referenceId),
+              entityKeys = setOf(campaignKey),
+            )
+          for (blobReferenceId in listOf("", referenceId)) {
+            val impressions =
+              keysByStream.mapIndexed { index, keys ->
+                mappingValidationImpression(if (index == 0) "" else referenceId, keys)
+              }
+            val source =
+              createMappingValidationSource(blobReferenceId, entityKeyGroups, impressions, mapping)
+
+            assertThat(source.getKekUri()).isEqualTo(kekUri)
+            val batch = source.generateEventBatches().toList().single()
+            assertThat(batch.events).hasSize(impressions.size)
+            assertThat(batch.events.map { it.entityKeys })
+              .containsExactlyElementsIn(keysByStream)
+              .inOrder()
+            val identifier = batch.eventGroupIdentifier
+            assertThat(identifier.entityKeys).containsExactlyElementsIn(entityKeys)
+            assertThat(identifier.eventGroupReferenceId)
+              .isEqualTo(blobReferenceId.takeIf { it.isNotEmpty() })
+            assertThat(identifier.wholeBlobEntityKeyGroups)
+              .containsExactly(
+                entityKeyGroup {
+                  entityType = "campaign"
+                  entityIds += campaignKey.entityId
+                }
+              )
+            assertThat(campaignFilter.matchBatch(identifier))
+              .isEqualTo(BatchMatchResult.MatchedAllEvents)
+            for (entityType in listOf("adset-id", "ad-id", "creative-id")) {
+              val lowerKeys = entityKeys.filter { it.entityType == entityType }.toSet()
+              val lowerFilter =
+                campaignFilter.copy(eventGroupReferenceIds = emptySet(), entityKeys = lowerKeys)
+              assertThat(lowerFilter.matchBatch(identifier))
+                .isEqualTo(BatchMatchResult.MatchedByEntityKeys(lowerKeys))
+            }
+          }
+          for (invalidReferenceId in setOf("blob-hierarchy", referencePrefix + "blob-hierarchy")) {
+            val source =
+              createMappingValidationSource(
+                invalidReferenceId,
+                entityKeyGroups,
+                emptyList(),
+                mapping,
+              )
+            assertFailsWith<IllegalArgumentException> { source.getKekUri() }
+          }
+        }
+      }
+    }
+
   private suspend fun createMappingValidationSource(
     referenceId: String,
     entityKeyGroups: List<EntityKeyGroup>,
