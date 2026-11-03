@@ -63,6 +63,7 @@ fun InternalWorkItemAttempt.toWorkItemAttempt(): WorkItemAttempt {
     name = WorkItemAttemptKey(source.workItemResourceId, source.workItemAttemptResourceId).toName()
     state = source.state.toWorkItemAttemptState()
     attemptNumber = source.attemptNumber
+    workItemGeneration = source.workItemGeneration
     errorMessage = source.errorMessage
     createTime = source.createTime
     updateTime = source.updateTime

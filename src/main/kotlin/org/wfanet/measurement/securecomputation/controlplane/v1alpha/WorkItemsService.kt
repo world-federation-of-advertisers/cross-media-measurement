@@ -246,7 +246,7 @@ class WorkItemsService(
     return listWorkItemsResponse {
       workItems += internalResponse.workItemsList.map { it.toWorkItem() }
       if (internalResponse.hasNextPageToken()) {
-        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
+        nextPageToken = internalResponse.nextPageToken.toByteString().base64UrlEncode()
       }
     }
   }
