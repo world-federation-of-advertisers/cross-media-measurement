@@ -1201,7 +1201,7 @@ class MeasurementsServiceTest {
                 measurement =
                   MEASUREMENT.copy {
                     clearMeasurementSpec()
-                    clearDataProviders()
+                    dataProviders.clear()
                     unsignedMeasurementSpec = MEASUREMENT_SPEC
                   }
               }
