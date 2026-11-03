@@ -41,8 +41,8 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
  * Backfills `BasicReport.external_report_id` from the associated Postgres `Report`.
  *
  * Only `BasicReport`s in a terminal state (`SUCCEEDED`, `FAILED` or `INVALID`) are eligible for
- * updates; a `FAILED` or `INVALID` `BasicReport` can still have an associated `Report`. Other rows
- * participate in conflict detection so an existing or inferred link cannot be duplicated.
+ * updates. Other rows participate in conflict detection so an existing or inferred link cannot be
+ * duplicated.
  *
  * @param dryRun when true, no database write is issued
  * @param createTimeAfter when set, only BasicReports created after this time are eligible for
@@ -521,7 +521,6 @@ class BasicReportExternalReportIdBackfiller(
   companion object {
     private const val PAGE_SIZE = 20
 
-    /** States in which a [BasicReport] is eligible for an update. */
     private val TERMINAL_STATES =
       setOf(BasicReport.State.SUCCEEDED, BasicReport.State.FAILED, BasicReport.State.INVALID)
 
