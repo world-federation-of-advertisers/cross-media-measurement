@@ -35,6 +35,7 @@ import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.telemetry.XmmTracing
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
@@ -821,15 +822,14 @@ class VidLabelingMonitor(
   /**
    * Bounded re-publish of the WorkItem named `workItems/[workItemId]`: clones its queue + params
    * and creates a fresh WorkItem under `[workItemId]-monitor-recovery-<attempt>` (there is no
-   * re-enqueue RPC). Each attempt uses a distinct suffix, so a previously-published recovery no
-   * longer blocks the next one; the persisted WorkItem rows are the durable per-transition attempt
-   * record.
+   * re-enqueue RPC). A persisted recovery must be older than [stalenessThreshold] before the next
+   * suffix is attempted. These rows are the durable per-transition attempt record.
    *
    * Returns [RecoveryOutcome.RECOVERED] when it publishes a new recovery WorkItem this tick;
    * [RecoveryOutcome.EXHAUSTED] when all [MAX_RECOVERY_ATTEMPTS] already exist (the Monitor gives
    * up); [RecoveryOutcome.UNRECOVERABLE] when the original WorkItem is gone (NOT_FOUND), so it can
    * never be cloned and a human must intervene; [RecoveryOutcome.NOOP] when the original fetch or a
-   * create fails with a transient error (retried next tick — the attempt is not burned).
+   * create fails with a transient error, or an existing recovery is recent or has no creation time.
    */
   private suspend fun republishWorkItem(workItemId: String): RecoveryOutcome =
     Tracing.traceSuspending(
@@ -895,6 +895,18 @@ class VidLabelingMonitor(
             true
           } catch (e: StatusException) {
             if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+            val previousRecovery =
+              rpcThrottlers.controlPlane.onReady {
+                workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$recoveryId" })
+              }
+            // A lost response must not turn an in-flight recovery into another attempt.
+            if (
+              !previousRecovery.hasCreateTime() ||
+                Duration.between(previousRecovery.createTime.toInstant(), clock.instant()) <=
+                  stalenessThreshold
+            ) {
+              return RecoveryOutcome.NOOP
+            }
             Span.current()
               .addEvent(
                 "edpa.vid_labeling.monitor.recovery_attempt",
