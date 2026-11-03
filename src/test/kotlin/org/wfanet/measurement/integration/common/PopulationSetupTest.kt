@@ -106,6 +106,28 @@ class PopulationSetupTest {
     }
 
   @Test
+  fun `SERVICE_CONFIG changes only CreatePopulation`() {
+    val methodConfigs = PopulationSetup.SERVICE_CONFIG.message.methodConfigList
+    assertThat(methodConfigs).hasSize(2)
+    val defaultConfig =
+      methodConfigs.single { config ->
+        config.nameList.single().let { it.service.isEmpty() && it.method.isEmpty() }
+      }
+    val createPopulationConfig =
+      methodConfigs.single { config ->
+        config.nameList.single().let {
+          it.service == PopulationsGrpc.SERVICE_NAME && it.method == "CreatePopulation"
+        }
+      }
+
+    assertThat(defaultConfig.timeout).isEqualTo(Durations.fromSeconds(30))
+    assertThat(defaultConfig.waitForReady.value).isFalse()
+    assertThat(createPopulationConfig.timeout).isEqualTo(Durations.fromSeconds(120))
+    assertThat(createPopulationConfig.waitForReady.value).isTrue()
+    assertThat(createPopulationConfig.retryPolicy).isEqualTo(defaultConfig.retryPolicy)
+  }
+
+  @Test
   fun `ensurePopulation reuses the request ID for the same population`() {
     val spec = PopulationSpec.getDefaultInstance()
     val first = PopulationSetup.ensurePopulation(channel, PARENT, spec, description = "")
