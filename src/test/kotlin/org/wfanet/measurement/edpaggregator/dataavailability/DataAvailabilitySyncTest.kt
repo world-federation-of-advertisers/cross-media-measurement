@@ -49,6 +49,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.wheneverBlocking
@@ -121,6 +122,8 @@ class DataAvailabilitySyncTest {
 
   private val bucket = "file:///my-bucket"
   private val folderPrefix = "edp/edpa_edp/timestamp/"
+  private val existingRawImpressionUpload =
+    "dataProviders/dataProvider123/rawImpressionUploads/upload-1"
   private val dataProviderKeyAttributeKey =
     AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")
   private val syncStatusAttributeKey =
@@ -136,6 +139,7 @@ class DataAvailabilitySyncTest {
     private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
     private const val DATE_COUNT_METRIC = "edpa.data_availability.date_count"
     private const val DEFAULT_BATCH_SIZE = 100
+    private const val DONE_BLOB_GENERATION = 77L
   }
 
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
@@ -264,13 +268,19 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", 77L)
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       batchCreateImpressionMetadata(batchCaptor.capture())
     }
     assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
+    assertThat(batchCaptor.firstValue.requestsList.single().impressionMetadata.rawImpressionUpload)
+      .isEmpty()
+    assertThat(
+        batchCaptor.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+      )
+      .isEqualTo(77L)
     val boundsRequestCaptor = argumentCaptor<ComputeModelLineBoundsRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       computeModelLineBounds(boundsRequestCaptor.capture())
@@ -336,7 +346,7 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = publisher,
       )
 
-    val outcome = dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    val outcome = dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
     assertThat(publishedMetadata).hasSize(1)
@@ -380,7 +390,9 @@ class DataAvailabilitySyncTest {
       )
 
     val exception =
-      assertFailsWith<Exception> { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+      assertFailsWith<Exception> {
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+      }
 
     assertThat(exception).hasMessageThat().isEqualTo("activity publication failed")
     verifyBlocking(dataProvidersServiceMock) { replaceDataAvailabilityIntervals(any()) }
@@ -413,7 +425,7 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -421,6 +433,33 @@ class DataAvailabilitySyncTest {
     }
     assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+  }
+
+  @Test
+  fun `sync rejects a non-positive done generation`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        publishEventGroupActivities = null,
+      )
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done", 0L)
+      }
+
+    assertThat(error).hasMessageThat().contains("doneBlobGeneration must be positive")
+    verifyBlocking(impressionMetadataServiceMock, never()) { batchCreateImpressionMetadata(any()) }
   }
 
   @Test
@@ -452,7 +491,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
       verifyBlocking(dataProvidersServiceMock, times(1)) {
@@ -506,7 +545,7 @@ class DataAvailabilitySyncTest {
       )
 
     assertFailsWith<IllegalStateException> {
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
     }
 
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
@@ -563,7 +602,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
       verifyBlocking(dataProvidersServiceMock, times(1)) {
@@ -595,7 +634,7 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -627,7 +666,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
       verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
         batchCreateImpressionMetadata(any())
@@ -661,7 +700,7 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
@@ -694,7 +733,7 @@ class DataAvailabilitySyncTest {
       )
 
     try {
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
       fail("Expected IllegalArgumentException")
     } catch (e: IllegalArgumentException) {
       // Expected.
@@ -723,7 +762,7 @@ class DataAvailabilitySyncTest {
       )
 
     try {
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
       fail("Expected IllegalArgumentException")
     } catch (e: IllegalArgumentException) {
       // Expected.
@@ -752,7 +791,7 @@ class DataAvailabilitySyncTest {
       )
 
     try {
-      dataAvailabilitySync.sync("$bucket/some-wrong-path/done")
+      dataAvailabilitySync.sync("$bucket/some-wrong-path/done", DONE_BLOB_GENERATION)
       fail("Expected IllegalArgumentException")
     } catch (e: IllegalArgumentException) {
       // Expected.
@@ -780,7 +819,7 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineBounds(any()) }
@@ -810,7 +849,7 @@ class DataAvailabilitySyncTest {
           metrics = metricsEnv.metrics,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       metricsEnv.metricReader.forceFlush()
       val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
@@ -859,7 +898,7 @@ class DataAvailabilitySyncTest {
         .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
 
       try {
-        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
         fail("Expected Exception")
       } catch (e: Exception) {
         // Expected.
@@ -921,7 +960,9 @@ class DataAvailabilitySyncTest {
     wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
       .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
 
-    assertFailsWith<Exception> { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+    assertFailsWith<Exception> {
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+    }
 
     val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -938,7 +979,7 @@ class DataAvailabilitySyncTest {
     wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
       .thenReturn(DataProvider.getDefaultInstance())
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(dataProvidersServiceMock, times(2)) { replaceDataAvailabilityIntervals(any()) }
@@ -989,7 +1030,7 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/$doneBlobKey")
+    dataAvailabilitySync.sync("$bucket/$doneBlobKey", DONE_BLOB_GENERATION)
 
     val doneMetadata = storageClient.blobMetadata.getValue(doneBlobKey)
     assertThat(doneMetadata[DataAvailabilityBlobs.SYNC_ID_KEY]).isEqualTo(newerSyncId)
@@ -1021,7 +1062,9 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    assertFailsWith<Exception> { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+    assertFailsWith<Exception> {
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+    }
 
     val doneMetadata = storageClient.blobMetadata.getValue("${folderPrefix}done")
     assertThat(doneMetadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
@@ -1046,55 +1089,63 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `sync with unchanged content skips create and update`() = runBlocking {
-    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+  fun `sync with unchanged legacy sidecar preserves existing raw upload and skips update`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
-    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
-    val dataAvailabilitySync =
-      DataAvailabilitySync(
-        "edp/edpa_edp",
-        storageClient,
-        dataProvidersStub,
-        impressionMetadataStub,
-        "dataProviders/dataProvider123",
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
-        modelLineMap = emptyMap(),
-        errorIfGapsExist = true,
-        publishEventGroupActivities = null,
-      )
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+          publishEventGroupActivities = null,
+        )
 
-    // First sync — List returns empty, all entries are new -> batchCreate.
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      // First sync — List returns empty, all entries are new -> batchCreate.
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
-    val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
-    verifyBlocking(impressionMetadataServiceMock, times(1)) {
-      batchCreateImpressionMetadata(createCaptor.capture())
-    }
-    val createdMetadata = createCaptor.firstValue.requestsList.single().impressionMetadata
-
-    // Override listImpressionMetadata to return the entries created in the first sync.
-    wheneverBlocking {
-        impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
+      val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(createCaptor.capture())
       }
-      .thenAnswer { invocation ->
-        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
-        listImpressionMetadataResponse {
-          impressionMetadata +=
-            createdMetadata.copy { name = "${request.parent}/impressionMetadata/im-0" }
+      val createdMetadata = createCaptor.firstValue.requestsList.single().impressionMetadata
+
+      // Override listImpressionMetadata to return the entries created in the first sync.
+      wheneverBlocking {
+          impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
         }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+          listImpressionMetadataResponse {
+            impressionMetadata +=
+              createdMetadata.copy {
+                name = "${request.parent}/impressionMetadata/im-0"
+                rawImpressionUpload = existingRawImpressionUpload
+              }
+          }
+        }
+
+      // Second sync — same content, List returns existing entries -> no create or update.
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+      // batchCreate should still have been called exactly once (from the first sync only).
+      verifyBlocking(impressionMetadataServiceMock, times(1)) {
+        batchCreateImpressionMetadata(any())
       }
-
-    // Second sync — same content, List returns existing entries -> no create or update.
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
-
-    // batchCreate should still have been called exactly once (from the first sync only).
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-    // batchUpdate should never have been called (content unchanged).
-    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchUpdateImpressionMetadata(any()) }
-  }
+      // batchUpdate should never have been called (content unchanged).
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchUpdateImpressionMetadata(any())
+      }
+    }
 
   @Test
   fun `sync with unchanged content restamps synced-by marker on metadata blobs`() = runBlocking {
@@ -1118,7 +1169,7 @@ class DataAvailabilitySyncTest {
       )
 
     // First sync — creates entries and stamps the marker.
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -1146,7 +1197,7 @@ class DataAvailabilitySyncTest {
       }
 
     // Second sync — same content, no create or update, but marker must still be restamped.
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     val metadataStampCallsAfterSecondSync =
       storageClient.updateBlobMetadataCalls.count {
@@ -1187,7 +1238,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val captor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(2)) {
@@ -1229,7 +1280,7 @@ class DataAvailabilitySyncTest {
       )
 
     assertFailsWith<IllegalArgumentException> {
-      runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+      runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION) }
     }
   }
 
@@ -1259,7 +1310,10 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
+    dataAvailabilitySync.sync(
+      "$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done",
+      DONE_BLOB_GENERATION,
+    )
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     val impressionMetadataRequests =
       listOf(300L to 400L, 400L to 500L, 500L to 600L).mapIndexed { index, times ->
@@ -1270,6 +1324,7 @@ class DataAvailabilitySyncTest {
             "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
           eventGroupReferenceId = "some-event-group-reference-id"
           modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+          outputDoneBlobGeneration = DONE_BLOB_GENERATION
           this.interval = interval {
             startTime = timestamp { seconds = times.first }
             endTime = timestamp { seconds = times.second }
@@ -1307,7 +1362,7 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     // Five calls: metadata file, impressions file, attempt start on done, metadata-store completion
     // on done, and full availability-publication completion on done.
@@ -1383,7 +1438,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       // Verify that updateBlobMetadata was called with the correct impressions blob key
       // from BlobDetails, not inferred from the metadata URI
@@ -1442,7 +1497,10 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
+    dataAvailabilitySync.sync(
+      "$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done",
+      DONE_BLOB_GENERATION,
+    )
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     val impressionMetadataRequests =
       listOf(300L to 400L, 400L to 500L, 500L to 600L).mapIndexed { index, times ->
@@ -1453,6 +1511,7 @@ class DataAvailabilitySyncTest {
             "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
           eventGroupReferenceId = "some-event-group-reference-id"
           modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+          outputDoneBlobGeneration = DONE_BLOB_GENERATION
           this.interval = interval {
             startTime = timestamp { seconds = times.first }
             endTime = timestamp { seconds = times.second }
@@ -1502,7 +1561,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       // Impression metadata should still be saved
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -1564,7 +1623,7 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     // replaceDataAvailabilityIntervals should be called since no gaps
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
@@ -1632,7 +1691,8 @@ class DataAvailabilitySyncTest {
       writeModelLineDate(storageClient, edpPath, "2026-03-14", finalized = false)
       seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
-      newGapTestSync(storageClient, edpPath).sync("$bucket/${folderPrefix}done")
+      newGapTestSync(storageClient, edpPath)
+        .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       // No true gap exists, but the in-range unfinalized date blocks publishing.
       verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
@@ -1654,7 +1714,8 @@ class DataAvailabilitySyncTest {
 
     val metricsEnv = createMetricsEnvironment()
     try {
-      newGapTestSync(storageClient, edpPath, metricsEnv.metrics).sync("$bucket/${folderPrefix}done")
+      newGapTestSync(storageClient, edpPath, metricsEnv.metrics)
+        .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
 
@@ -1686,7 +1747,8 @@ class DataAvailabilitySyncTest {
 
     val metricsEnv = createMetricsEnvironment()
     try {
-      newGapTestSync(storageClient, edpPath, metricsEnv.metrics).sync("$bucket/${folderPrefix}done")
+      newGapTestSync(storageClient, edpPath, metricsEnv.metrics)
+        .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
 
@@ -1714,7 +1776,8 @@ class DataAvailabilitySyncTest {
       writeModelLineDate(storageClient, edpPath, "2026-03-13", finalized = true)
       seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
-      newGapTestSync(storageClient, edpPath).sync("$bucket/${folderPrefix}done")
+      newGapTestSync(storageClient, edpPath)
+        .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
     }
@@ -1732,7 +1795,7 @@ class DataAvailabilitySyncTest {
     writeModelLineDate(storageClient, edpPath, "2026-03-14", finalized = true)
     seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
-    newGapTestSync(storageClient, edpPath).sync("$bucket/${folderPrefix}done")
+    newGapTestSync(storageClient, edpPath).sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
   }
@@ -1772,7 +1835,7 @@ class DataAvailabilitySyncTest {
           metrics = metricsEnv.metrics,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       metricsEnv.metricReader.forceFlush()
       val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
@@ -1826,7 +1889,7 @@ class DataAvailabilitySyncTest {
           metrics = metricsEnv.metrics,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       metricsEnv.metricReader.forceFlush()
       val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
@@ -1881,7 +1944,7 @@ class DataAvailabilitySyncTest {
       )
 
     // Should NOT throw despite gaps
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     // Impression metadata should still be saved
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
@@ -1935,7 +1998,7 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     // replaceDataAvailabilityIntervals should be called since no gaps
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
@@ -1977,7 +2040,7 @@ class DataAvailabilitySyncTest {
             metrics = metricsEnv.metrics,
           )
 
-        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
         metricsEnv.metricReader.forceFlush()
         val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
@@ -2023,7 +2086,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -2077,7 +2140,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -2133,7 +2196,7 @@ class DataAvailabilitySyncTest {
         )
 
       assertFailsWith<IllegalArgumentException> {
-        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
       }
       // Neither metadata persistence nor data availability should happen on validation failure.
       verifyBlocking(impressionMetadataServiceMock, times(0)) {
@@ -2175,7 +2238,7 @@ class DataAvailabilitySyncTest {
       )
 
     assertFailsWith<IllegalArgumentException> {
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
     }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
@@ -2214,7 +2277,7 @@ class DataAvailabilitySyncTest {
       )
 
     assertFailsWith<IllegalArgumentException> {
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
     }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
@@ -2255,7 +2318,7 @@ class DataAvailabilitySyncTest {
       )
 
     assertFailsWith<IllegalArgumentException> {
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
     }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
@@ -2301,7 +2364,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -2370,7 +2433,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -2439,7 +2502,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -2494,7 +2557,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -2560,6 +2623,7 @@ class DataAvailabilitySyncTest {
                     }
                   }
                 }
+              outputDoneBlobGeneration = DONE_BLOB_GENERATION
             },
             // 200-300: differs from scan (no entity_keys) → will be updated
             impressionMetadata {
@@ -2574,6 +2638,8 @@ class DataAvailabilitySyncTest {
                 endTime = timestamp { seconds = 300 }
               }
               // No entity_keys — differs from scan
+              rawImpressionUpload = existingRawImpressionUpload
+              outputDoneBlobGeneration = DONE_BLOB_GENERATION
             },
             // 300-400: not in list → will be created
           )
@@ -2597,7 +2663,7 @@ class DataAvailabilitySyncTest {
         publishEventGroupActivities = null,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     // Verify batchCreate has only the NEW entry (300-400).
     val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
@@ -2607,6 +2673,7 @@ class DataAvailabilitySyncTest {
     val created = createCaptor.firstValue.requestsList.map { it.impressionMetadata }
     assertThat(created).hasSize(1)
     assertThat(created.single().interval.startTime.seconds).isEqualTo(300)
+    assertThat(created.single().outputDoneBlobGeneration).isEqualTo(DONE_BLOB_GENERATION)
 
     // Verify batchUpdate has only the CHANGED entry (200-300).
     val updateCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
@@ -2616,9 +2683,11 @@ class DataAvailabilitySyncTest {
     val updated = updateCaptor.firstValue.requestsList.map { it.impressionMetadata }
     assertThat(updated).hasSize(1)
     assertThat(updated.single().interval.startTime.seconds).isEqualTo(200)
+    assertThat(updated.single().outputDoneBlobGeneration).isEqualTo(DONE_BLOB_GENERATION)
     assertThat(updated.single().name)
       .isEqualTo("dataProviders/dataProvider123/impressionMetadata/im-1")
     assertThat(updated.single().entityKeysList).isNotEmpty()
+    assertThat(updated.single().rawImpressionUpload).isEqualTo(existingRawImpressionUpload)
   }
 
   @Test
@@ -2645,7 +2714,7 @@ class DataAvailabilitySyncTest {
         )
 
       // First sync — List returns empty, so all entries are new -> batchCreate is called.
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val firstCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -2695,7 +2764,7 @@ class DataAvailabilitySyncTest {
       )
 
       // Second sync — List returns existing entries, diff finds changed content -> batchUpdate.
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val secondCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -2797,7 +2866,7 @@ class DataAvailabilitySyncTest {
           publishEventGroupActivities = null,
         )
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
       val undeleteCaptor = argumentCaptor<BatchUndeleteImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock) {

@@ -1069,14 +1069,21 @@ configs {
 
 * reads the Mesos RecordIO `MappedEventGroup` output produced by `EventGroupSync`;
 * joins every entity key in finalized impression metadata to all EventGroups mapped to that key;
-* converts each metadata interval to every inclusive calendar date that it touches in
-  `market_time_zone`; and
+* converts each half-open metadata interval to every calendar date containing an included instant
+  in `market_time_zone`; and
 * appends the resulting `EventGroupActivity` resources without deleting historical activity.
 
 Set `market_time_zone.id` to an IANA Time Zone Database identifier. `UTC` is valid, as are regional
 identifiers such as `America/New_York`. Use the market's calendar time zone so intervals that cross
-a UTC date boundary are attributed to the market dates they touch. Both endpoint dates are included
-intentionally, favoring over-reporting over omitting a potentially active date.
+a UTC date boundary are attributed to the market dates they touch. The interval start is inclusive
+and its end is exclusive. Legacy intervals with equal bounds are attributed to that instant's date.
+
+Legacy sidecars may instead encode the final included impression timestamp in `end_time`. Replay
+and backfill interpret all persisted intervals using the half-open contract. If a legacy end falls
+exactly at local midnight, the date starting at that midnight is therefore not recreated. Existing
+`EventGroupActivity` resources are append-only and are not deleted. Before replaying legacy metadata
+into a target without its historical activities, migrate those intervals to an exclusive end when
+the former conservative endpoint-date inclusion must be preserved.
 
 The map join uses entity keys only. A key may map to multiple EventGroups, and keys at any entity
 hierarchy level are eligible. Legacy EventGroup reference-ID-only map records are ignored. Keep the
@@ -1381,6 +1388,39 @@ publisher deletes the outbox row only after Pub/Sub acknowledges the message. Th
 existing WorkItems RPCs, queues, topics, subscriptions, and DLQs. The Secure Computation API remains
 workload-agnostic: it stores and republishes opaque WorkItem parameters and does not call the
 Requisition Metadata or Impression Metadata APIs.
+
+#### Secure Computation API memory
+
+The development Secure Computation internal API requests and limits 1 GiB of
+container memory, with a 64M Java heap and an explicit 128M Java direct-buffer
+limit. Size the container for the complete instrumented JVM: heap, class metadata,
+compiled code, buffers, thread stacks, and other native allocations. A direct-buffer
+limit does not bound total process memory.
+
+An `OOMKilled` termination with exit code 137 indicates a container memory kill.
+It can occur with free Java heap and without a Java `OutOfMemoryError` or heap dump.
+Identify the affected container and its termination time before changing memory
+settings; internal and public API containers have separate budgets.
+
+Compare `kubernetes.io/container/memory/used_bytes` and
+`kubernetes.io/container/memory/limit_bytes` with `workload.googleapis.com/jvm.memory.used`
+by memory pool and `workload.googleapis.com/jvm.thread.count`. Container measurements
+include memory outside those JVM pools. Observe startup, warm idle operation, and
+sustained creation/publication across the configured queues when choosing a budget.
+Check the memory trend and restart count after the workload finishes.
+
+For a deeper JVM allocation breakdown, start a diagnostic JVM with
+`-XX:NativeMemoryTracking=summary`. Using JDK diagnostic tools with access to attach
+to that process, take a baseline after warmup and compare it after the workload:
+
+```bash
+jcmd JVM_PID VM.native_memory baseline
+jcmd JVM_PID VM.native_memory summary.diff scale=MB
+```
+
+Native Memory Tracking requires startup configuration and has overhead; enable it
+for a profiling session. Its totals do not include every allocation made by
+third-party native libraries, so compare them with container memory as well.
 
 #### Recovering after correcting a queue mapping
 
