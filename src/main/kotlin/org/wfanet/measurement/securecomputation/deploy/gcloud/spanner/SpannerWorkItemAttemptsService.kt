@@ -161,11 +161,13 @@ class SpannerWorkItemAttemptsService(
                   result.workItemId,
                   workItemAttemptId,
                   request.workItemAttempt.workItemAttemptResourceId,
+                  result.workItem.generation,
                   leaseExpirationTime,
                 )
               request.workItemAttempt.copy {
                 this.state = state
                 this.attemptNumber = attemptNumber
+                workItemGeneration = result.workItem.generation
                 if (leaseExpirationTime != null) {
                   this.leaseExpirationTime = leaseExpirationTime.toProtoTime()
                 }

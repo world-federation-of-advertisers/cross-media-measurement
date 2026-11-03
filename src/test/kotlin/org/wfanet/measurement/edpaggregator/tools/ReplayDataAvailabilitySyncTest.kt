@@ -153,12 +153,12 @@ class ReplayDataAvailabilitySyncTest {
   }
 
   @Test
-  fun `main prefix replay processes changes written after completion blob`() {
+  fun `main prefix replay processes changes with exact done generation`() {
     runDataAvailabilityOnlyReplay(arrayOf("--blob-prefix=$EDP_IMPRESSION_PATH"))
   }
 
   @Test
-  fun `main explicit completion blob replay processes changes written after completion blob`() {
+  fun `main explicit completion blob replay processes changes with exact done generation`() {
     runDataAvailabilityOnlyReplay(arrayOf("--done-blob-uri=gs://$BUCKET_NAME/$DONE_BLOB_KEY"))
   }
 
@@ -325,6 +325,7 @@ class ReplayDataAvailabilitySyncTest {
       val createdMetadata = createRequest.firstValue.requestsList.single().impressionMetadata
       assertThat(createdMetadata.blobUri).isEqualTo("gs://$BUCKET_NAME/$NEW_METADATA_BLOB_KEY")
       assertThat(createdMetadata.eventGroupReferenceId).isEqualTo(NEW_EVENT_GROUP_REFERENCE_ID)
+      assertThat(createdMetadata.outputDoneBlobGeneration).isEqualTo(doneGeneration)
 
       val updateRequest = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -336,6 +337,7 @@ class ReplayDataAvailabilitySyncTest {
       assertThat(updatedMetadata.eventGroupReferenceId).isEqualTo(UPDATED_EVENT_GROUP_REFERENCE_ID)
       assertThat(updatedMetadata.interval.startTime.seconds)
         .isEqualTo(UPDATED_INTERVAL_START_SECONDS)
+      assertThat(updatedMetadata.outputDoneBlobGeneration).isEqualTo(doneGeneration)
 
       verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
       verifyBlocking(activitiesServiceMock, never()) { batchUpdateEventGroupActivities(any()) }

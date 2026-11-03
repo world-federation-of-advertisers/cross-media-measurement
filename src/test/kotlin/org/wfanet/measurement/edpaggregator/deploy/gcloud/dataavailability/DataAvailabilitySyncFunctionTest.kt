@@ -39,6 +39,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.Collections
 import java.util.logging.Logger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -198,6 +199,15 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
+  fun `DataWatcher generation must be present and positive`() {
+    for (value in listOf<String?>(null, "invalid", "0", "-1")) {
+      assertFailsWith<IllegalArgumentException> { parseDataWatcherGeneration(value) }
+    }
+    assertThat(parseDataWatcherGeneration(DONE_BLOB_GENERATION.toString()))
+      .isEqualTo(DONE_BLOB_GENERATION)
+  }
+
+  @Test
   fun `sync registersUnregisteredImpressionMetadata with legacy config sent over the wire as params`() {
 
     val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
@@ -266,6 +276,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create(url))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
@@ -279,7 +290,14 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
       .contains("some-model-line-mapped")
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    val metadataRequest = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(metadataRequest.capture())
+    }
+    assertThat(
+        metadataRequest.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+      )
+      .isEqualTo(DONE_BLOB_GENERATION)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
@@ -386,6 +404,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .header("traceparent", traceParentHeader)
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
@@ -494,6 +513,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create(url))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(anyJson))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
@@ -694,6 +714,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
@@ -759,6 +780,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
 
@@ -814,6 +836,8 @@ class DataAvailabilitySyncFunctionTest {
   private fun ByteArray.toHexString(): String = joinToString(separator = "") { "%02x".format(it) }
 
   companion object {
+
+    private const val DONE_BLOB_GENERATION = 77L
 
     private val SECRETS_DIR: Path =
       getRuntimePath(
