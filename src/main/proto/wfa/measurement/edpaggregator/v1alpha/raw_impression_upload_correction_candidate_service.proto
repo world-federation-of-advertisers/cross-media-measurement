@@ -67,12 +67,25 @@ message ListRawImpressionUploadCorrectionCandidatesRequest {
   // Page token received from a previous list request.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 
+  // Structured filter for narrowing results.
+  // All fields are combined with `AND` logic.
   message Filter {
-    // Candidate lifecycle states to include.
+    // Filter to candidates whose state is in this set. Empty matches all
+    // states.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field, not a resource
+    //     state field. --)
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention for
+    //     set-membership filter fields. --)
     repeated RawImpressionUploadCorrectionCandidate.State state_in = 1
         [(google.api.field_behavior) = OPTIONAL];
 
-    // Candidate classifications to include.
+    // Filter to candidates whose classification is in this set. Empty matches
+    // all classifications.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention for
+    //     set-membership filter fields. --)
     repeated RawImpressionUploadCorrectionCandidate.Classification
         classification_in = 2 [(google.api.field_behavior) = OPTIONAL];
   }
