@@ -558,6 +558,30 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `constructor rejects metadata batch sizes above service limit`() {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = 101,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+          publishEventGroupActivities = null,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("must not exceed 100")
+  }
+
+  @Test
   fun `sync does not publish when no availability entries are computed`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
@@ -1283,6 +1307,143 @@ class DataAvailabilitySyncTest {
       // availability
       // interval update.
       assertThat(recordingThrottler.onReadyCalls).isEqualTo(5)
+    }
+
+  @Test
+  fun `saveImpressionMetadata batches by flattened entity-key count`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    val entityKeyGroups =
+      listOf(
+        entityKeyGroup {
+          entityType = "campaign"
+          entityIds += (0 until 532).map { "campaign-$it" }
+        },
+        entityKeyGroup {
+          entityType = "creative"
+          entityIds += (0 until 532).map { "creative-$it" }
+        },
+      )
+    seedBlobDetails(
+      storageClient,
+      folderPrefix,
+      (0 until 25).map { index -> (100L + index) to (200L + index) },
+      entityKeyGroups = entityKeyGroups,
+    )
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        RecordingThrottler(),
+        impressionMetadataBatchSize = 100,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        publishEventGroupActivities = null,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+    val captor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(9)) {
+      batchCreateImpressionMetadata(captor.capture())
+    }
+    assertThat(captor.allValues.map { it.requestsCount })
+      .containsExactly(3, 3, 3, 3, 3, 3, 3, 3, 1)
+      .inOrder()
+    assertThat(
+        captor.allValues.map { request ->
+          request.requestsList.sumOf { it.impressionMetadata.entityKeysCount }
+        }
+      )
+      .containsExactly(3192, 3192, 3192, 3192, 3192, 3192, 3192, 3192, 1064)
+      .inOrder()
+    assertThat(captor.allValues.sumOf { it.requestsCount }).isEqualTo(25)
+    assertThat(
+        captor.allValues.sumOf { request ->
+          request.requestsList.sumOf { it.impressionMetadata.entityKeysCount }
+        }
+      )
+      .isEqualTo(26_600)
+  }
+
+  @Test
+  fun `saveImpressionMetadata update batches include replaced and replacement entity keys`() =
+    runBlocking {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+      val replacementGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += (0 until 532).map { "new-campaign-$it" }
+          },
+          entityKeyGroup {
+            entityType = "creative"
+            entityIds += (0 until 532).map { "new-creative-$it" }
+          },
+        )
+      val intervals = listOf(100L to 200L, 200L to 300L)
+      seedBlobDetails(storageClient, folderPrefix, intervals, entityKeyGroups = replacementGroups)
+      wheneverBlocking {
+          impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+          listImpressionMetadataResponse {
+            impressionMetadata +=
+              intervals.mapIndexed { index, (startSeconds, endSeconds) ->
+                impressionMetadata {
+                  name = "${request.parent}/impressionMetadata/im-$index"
+                  blobUri = "$bucket/${folderPrefix}metadata-$index.binpb"
+                  blobTypeUrl =
+                    "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+                  eventGroupReferenceId = "some-event-group-reference-id"
+                  modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+                  interval = interval {
+                    startTime = timestamp { seconds = startSeconds }
+                    endTime = timestamp { seconds = endSeconds }
+                  }
+                  entityKeys +=
+                    (0 until 1_064).map { entityIndex ->
+                      entityKey {
+                        entityType = "legacy"
+                        entityId = "legacy-$entityIndex"
+                      }
+                    }
+                  outputDoneBlobGeneration = DONE_BLOB_GENERATION
+                }
+              }
+          }
+        }
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          RecordingThrottler(),
+          impressionMetadataBatchSize = 100,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+          publishEventGroupActivities = null,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+      val captor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(2)) {
+        batchUpdateImpressionMetadata(captor.capture())
+      }
+      assertThat(captor.allValues.map { it.requestsCount }).containsExactly(1, 1).inOrder()
+      assertThat(
+          captor.allValues.map { it.requestsList.single().impressionMetadata.entityKeysCount }
+        )
+        .containsExactly(1_064, 1_064)
+        .inOrder()
     }
 
   @Test
