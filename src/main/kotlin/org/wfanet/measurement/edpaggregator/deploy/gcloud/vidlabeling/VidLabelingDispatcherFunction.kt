@@ -115,6 +115,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   throttlers.
  * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
  *   of GCS. Used only in testing.
+ * - `VID_LABELING_DISPATCHER_FOOTER_READ_CONCURRENCY`: Optional. Maximum concurrent Parquet footer
+ *   reads (default: 12).
  *
  * ## Request Headers
  * - `X-DataWatcher-Path`: Required. Full storage URI of the "done" blob.
@@ -319,6 +321,10 @@ class VidLabelingDispatcherFunction : HttpFunction {
           recoverySourceUpload = recoverySourceUpload,
           recoveryOperationId = evictionOperationId,
           modelLineConfigs = modelLineConfigs,
+          footerReadConcurrency =
+            VidLabelingDispatcher.resolveFooterReadConcurrency(
+              System.getenv(VidLabelingDispatcher.FOOTER_READ_CONCURRENCY_ENV)
+            ),
           rpcThrottlers = rpcThrottlers,
           getHealingOperation = { name ->
             try {
