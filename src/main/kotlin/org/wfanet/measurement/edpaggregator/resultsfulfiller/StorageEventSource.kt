@@ -246,6 +246,12 @@ class StorageEventSource(
 
   private fun validateBlobDetailsMapping(blobDetails: BlobDetails) {
     val mapping: EventGroupReferenceIdEntityKeyMapping = resolvedEventGroups.mapping ?: return
+    if (
+      blobDetails.entityKeysCount > 0 &&
+        blobDetails.entityKeysList.none { it.entityType == mapping.entityType }
+    ) {
+      return
+    }
     val referenceId: String = blobDetails.eventGroupReferenceId
     if (referenceId.isNotEmpty()) {
       mapping.validateEventGroupReferenceId(referenceId)

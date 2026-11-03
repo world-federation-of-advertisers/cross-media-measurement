@@ -158,9 +158,6 @@ class StorageEventReader(
   private fun validateImpressionMapping(impression: LabeledImpression) {
     val mapping: EventGroupReferenceIdEntityKeyMapping = mapping ?: return
     val referenceId: String = impression.eventGroupReferenceId
-    if (referenceId.isNotEmpty()) {
-      mapping.validateEventGroupReferenceId(referenceId)
-    }
     var hasMappedEntityId = false
     var hasEquivalentEntityId = false
     for (key in impression.entityKeysList) {
@@ -171,6 +168,12 @@ class StorageEventReader(
           hasEquivalentEntityId = true
         }
       }
+    }
+    if (!hasMappedEntityId && impression.entityKeysCount > 0) {
+      return
+    }
+    if (referenceId.isNotEmpty()) {
+      mapping.validateEventGroupReferenceId(referenceId)
     }
     require(referenceId.isEmpty() || !hasMappedEntityId || hasEquivalentEntityId) {
       "LabeledImpression has a reference ID that is not equivalent to any mapped entity ID " +

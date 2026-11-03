@@ -2879,6 +2879,173 @@ class StorageEventSourceTest {
     }
   }
 
+  @Test
+  fun `generateEventBatches preserves other-type blob and impression identifiers with mapping`() =
+    runBlocking {
+      val otherEntityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "creative-id"
+            entityIds += listOf("creative-1", "creative-2")
+          },
+          entityKeyGroup {
+            entityType = "ad-id"
+            entityIds += "ad-1"
+          },
+        )
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          for (referenceId in listOf("", "other/123")) {
+            val impressions =
+              listOf("creative-1", "creative-2").map { creativeId ->
+                mappingValidationImpression(
+                  referenceId,
+                  listOf(
+                    labeledImpressionEntityKey("creative-id", creativeId),
+                    labeledImpressionEntityKey("ad-id", "ad-1"),
+                  ),
+                )
+              }
+            val source =
+              createMappingValidationSource(referenceId, otherEntityKeyGroups, impressions, mapping)
+
+            assertThat(source.getKekUri()).isEqualTo(kekUri)
+            val events = source.generateEventBatches().toList().flatMap { it.events }
+            assertThat(events).hasSize(impressions.size)
+            assertThat(events.map { it.entityKeys })
+              .containsExactlyElementsIn(impressions.map { it.entityKeysList })
+              .inOrder()
+          }
+        }
+      }
+    }
+
+  @Test
+  fun `generateEventBatches preserves other-type impression identifiers in mapped blobs`() =
+    runBlocking {
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          val impressions =
+            listOf("", "other/123").map { referenceId ->
+              mappingValidationImpression(
+                referenceId,
+                listOf(labeledImpressionEntityKey("creative-id", "creative-1")),
+              )
+            }
+          val source =
+            createMappingValidationSource(
+              referencePrefix + "123",
+              listOf(
+                entityKeyGroup {
+                  entityType = "campaign"
+                  entityIds += entityPrefix + "123"
+                }
+              ),
+              impressions,
+              mapping,
+            )
+
+          assertThat(source.getKekUri()).isEqualTo(kekUri)
+          val events = source.generateEventBatches().toList().flatMap { it.events }
+          assertThat(events).hasSize(impressions.size)
+          assertThat(events.map { it.entityKeys })
+            .containsExactlyElementsIn(impressions.map { it.entityKeysList })
+            .inOrder()
+        }
+      }
+    }
+
+  @Test
+  fun `getKekUri rejects non-equivalent blob identifiers with mapped and other entity types`() =
+    runBlocking {
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          val source =
+            createMappingValidationSource(
+              referencePrefix + "123",
+              listOf(
+                entityKeyGroup {
+                  entityType = "creative-id"
+                  entityIds += "creative-1"
+                },
+                entityKeyGroup {
+                  entityType = "campaign"
+                  entityIds += entityPrefix + "456"
+                },
+              ),
+              emptyList(),
+              mapping,
+            )
+
+          val exception = assertFailsWith<IllegalArgumentException> { source.getKekUri() }
+          assertThat(exception).hasMessageThat().contains("equivalent")
+          assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+        }
+      }
+    }
+
+  @Test
+  fun `generateEventBatches validates mapped impression identifiers in other-type blobs`() =
+    runBlocking {
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          val source =
+            createMappingValidationSource(
+              "other/123",
+              listOf(
+                entityKeyGroup {
+                  entityType = "creative-id"
+                  entityIds += "creative-1"
+                }
+              ),
+              listOf(
+                mappingValidationImpression(
+                  referencePrefix + "123",
+                  listOf(
+                    labeledImpressionEntityKey("creative-id", "creative-1"),
+                    labeledImpressionEntityKey("campaign", entityPrefix + "456"),
+                  ),
+                )
+              ),
+              mapping,
+            )
+
+          assertThat(source.getKekUri()).isEqualTo(kekUri)
+          val exception =
+            assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+          assertThat(exception).hasMessageThat().contains("equivalent")
+        }
+      }
+    }
+
+  @Test
+  fun `generateEventBatches validates reference-only impressions in other-type blobs`(): Unit =
+    runBlocking {
+      val source =
+        createMappingValidationSource(
+          "other/123",
+          listOf(
+            entityKeyGroup {
+              entityType = "creative-id"
+              entityIds += "creative-1"
+            }
+          ),
+          listOf(mappingValidationImpression("other/123", emptyList())),
+          CAMPAIGN_MAPPING,
+        )
+
+      assertThat(source.getKekUri()).isEqualTo(kekUri)
+      assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+    }
+
   private suspend fun createMappingValidationSource(
     referenceId: String,
     entityKeyGroups: List<EntityKeyGroup>,
