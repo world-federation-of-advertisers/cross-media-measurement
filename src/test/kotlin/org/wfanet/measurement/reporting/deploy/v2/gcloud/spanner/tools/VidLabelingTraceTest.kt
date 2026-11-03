@@ -1302,7 +1302,7 @@ class VidLabelingTraceTest {
           },
         stateResolver = VidLabelingStateResolver { testGraph(listOf(NON_MEMOIZED_MODEL_LINE)) },
         finalStateResolver =
-          VidLabelingFinalStateResolver { _, _ ->
+          VidLabelingFinalStateResolver { _, _, _ ->
             VidLabelingFinalStateResolution(
               listOf(
                 ExpectedTraceNode(
