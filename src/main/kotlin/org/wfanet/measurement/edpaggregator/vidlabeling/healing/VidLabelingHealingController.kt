@@ -595,6 +595,16 @@ class VidLabelingHealingController(
       val generation =
         group.firstOrNull { it.recoveryDoneBlobGeneration > 0L }?.recoveryDoneBlobGeneration
           ?: error("Recovery group has no recorded done-object generation")
+      val stepNames = group.mapTo(mutableSetOf()) { it.name }
+      for (step in group.filter { it.state == UploadHealingStep.State.WAITING_FOR_REPLACEMENT }) {
+        checkpoint(
+          step,
+          AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
+          recoveryDoneBlobGeneration = generation,
+        )
+        operation = getOperation(operation.name)
+        group = operation.stepsList.filter { it.name in stepNames }
+      }
       if (
         group.first().recoveryAction ==
           RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
@@ -611,13 +621,6 @@ class VidLabelingHealingController(
             )
           )
       }
-      for (step in group.filter { it.state == UploadHealingStep.State.WAITING_FOR_REPLACEMENT }) {
-        checkpoint(
-          step,
-          AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
-          recoveryDoneBlobGeneration = generation,
-        )
-      }
       return
     }
     val recoveryDoneBlobGeneration =
@@ -630,10 +633,24 @@ class VidLabelingHealingController(
         }
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY -> {
           val source = getUpload(group.first().sourceRawImpressionUpload)
-          verifyExactUploadManifest(source, completeSnapshot = false)
           val recovery =
             recoveryExecutorFactory(config)
               .recover(source.name, group.map { it.cmmsModelLine }.distinct())
+          verifyExactUploadManifest(
+            source,
+            completeSnapshot = false,
+            doneBlobGeneration = recovery.doneBlobGeneration,
+          )
+          val stepNames = group.mapTo(mutableSetOf()) { it.name }
+          for (step in group) {
+            checkpoint(
+              step,
+              AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
+              recoveryDoneBlobGeneration = recovery.doneBlobGeneration,
+            )
+            operation = getOperation(operation.name)
+            group = operation.stepsList.filter { it.name in stepNames }
+          }
           doneBlobReplayerFactory(config)
             .replay(
               DoneBlobReplayer.Request(
@@ -644,7 +661,7 @@ class VidLabelingHealingController(
                 operation.name,
               )
             )
-          recovery.doneBlobGeneration
+          return
         }
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT ->
           error("A no-replacement step cannot be a recovery target")
@@ -819,6 +836,7 @@ class VidLabelingHealingController(
   private suspend fun verifyExactUploadManifest(
     upload: RawImpressionUpload,
     completeSnapshot: Boolean,
+    doneBlobGeneration: Long = upload.doneBlobGeneration,
   ): ByteString {
     val persistedDigest =
       if (completeSnapshot) {
@@ -827,7 +845,7 @@ class VidLabelingHealingController(
         digestEffectivePersistedManifest(upload)
       }
     val liveDigest =
-      manifestClassifier.digest(manifestReader.read(upload.doneBlobUri, upload.doneBlobGeneration))
+      manifestClassifier.digest(manifestReader.read(upload.doneBlobUri, doneBlobGeneration))
     if (liveDigest != persistedDigest) {
       throw ManifestMismatchException("Live manifest no longer matches ${upload.name}")
     }
