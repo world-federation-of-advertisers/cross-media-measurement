@@ -927,7 +927,7 @@ class VidLabelingHealingControllerTest {
     }
     val replayer = DoneBlobReplayer { replayed += it }
     var verifiedGeneration = 0L
-    val manifestReader = CorrectionManifestReader { _, generation ->
+    val manifestReader = CorrectionManifestReader { _, generation, _ ->
       verifiedGeneration = generation
       emptyList()
     }
