@@ -2360,6 +2360,7 @@ class SpannerUploadHealingOperationServiceTest {
   fun `candidate completes only after pending availability handoff completes`() = runBlocking {
     insertUploadGraph()
     insertCorrectionCandidate(CANDIDATE_IDS[0])
+    insertQuarantinedCandidateUpload(CANDIDATE_IDS[0])
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     var operation =
       service.createUploadHealingOperation(
@@ -2513,7 +2514,7 @@ class SpannerUploadHealingOperationServiceTest {
       }
 
     assertThat(candidateUpload.rawImpressionUpload.state)
-      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT)
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED)
     assertThat(operation.state)
       .isEqualTo(
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
@@ -2533,6 +2534,12 @@ class SpannerUploadHealingOperationServiceTest {
 
     assertThat(readCorrectionCandidate(candidateId).state)
       .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE)
+    val removedCandidateUpload =
+      spannerDatabase.databaseClient.singleUse().use {
+        it.getRawImpressionUploadByResourceId(DATA_PROVIDER_ID, "upload-$candidateId")
+      }
+    assertThat(removedCandidateUpload.rawImpressionUpload.state)
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT)
   }
 
   @Test
@@ -2874,6 +2881,39 @@ class SpannerUploadHealingOperationServiceTest {
           .to(false)
           .set("State")
           .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED))
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
+  }
+
+  private suspend fun insertQuarantinedCandidateUpload(candidateId: String) {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newInsertBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadId")
+          .to(901L)
+          .set("RawImpressionUploadResourceId")
+          .to("upload-$candidateId")
+          .set("DoneBlobUri")
+          .to("gs://input/candidate/done")
+          .set("DoneBlobGeneration")
+          .to(1L)
+          .set("RegistrationComplete")
+          .to(true)
+          .set("ProcessingDeferred")
+          .to(false)
+          .set("State")
+          .to(
+            Value.protoEnum(
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
+            )
+          )
           .set("CreateTime")
           .to(Value.COMMIT_TIMESTAMP)
           .set("UpdateTime")

@@ -1645,6 +1645,122 @@ class VidLabelingHealingControllerTest {
     }
 
   @Test
+  fun `pending handoff publishes surviving source availability before completion`() = runBlocking {
+    val completedStep =
+      EVICTING_OPERATION.stepsList.single().copy {
+        state = UploadHealingStep.State.COMPLETE
+        replacementRawImpressionUpload = CANDIDATE_UPLOAD_NAME
+      }
+    var operation =
+      EVICTING_OPERATION.copy {
+        state = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+        steps[0] = completedStep
+      }
+    val replacement =
+      CANDIDATE_UPLOAD.copy {
+        registrationComplete = true
+        state = RawImpressionUpload.State.ACTIVE
+        uploadHealingOperation = OPERATION_NAME
+      }
+    val failedSource = SOURCE_UPLOAD.copy { state = RawImpressionUpload.State.FAILED }
+    val createRequests = mutableListOf<CreateWorkItemRequest>()
+    val publisher =
+      DataAvailabilitySyncWorkItemPublisher(
+        createWorkItem = { _, request ->
+          createRequests += request
+          request.workItem
+            .toBuilder()
+            .setName("workItems/${request.workItemId}")
+            .setState(WorkItem.State.QUEUED)
+            .setGeneration(1)
+            .build()
+        },
+        getWorkItem = { _, _ -> error("unexpected get") },
+      )
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val states =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+          .filter
+          .stateInList
+      listUploadHealingOperationsResponse {
+        if (operation.state in states) uploadHealingOperations += operation
+      }
+    }
+    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer {
+      operation = operation.copy { state = UploadHealingOperation.State.COMPLETE }
+      operation
+    }
+    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+      .thenReturn(CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED })
+    whenever(uploadsService.getRawImpressionUpload(any())).thenAnswer { invocation ->
+      when (
+        invocation
+          .getArgument<org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest>(
+            0
+          )
+          .name
+      ) {
+        SOURCE_UPLOAD_NAME -> failedSource
+        CANDIDATE_UPLOAD_NAME -> replacement
+        else -> error("unexpected upload")
+      }
+    }
+    val survivingModelLine = "modelProviders/mp/modelSuites/ms/modelLines/surviving"
+    whenever(modelLinesService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+      val parent =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+          >(
+            0
+          )
+          .parent
+      listRawImpressionUploadModelLinesResponse {
+        rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+          name = "$parent/rawImpressionUploadModelLines/availability"
+          cmmsModelLine = if (parent == SOURCE_UPLOAD_NAME) survivingModelLine else CMMS_MODEL_LINE
+          state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+          pendingAvailabilityDates += date {
+            year = 2026
+            month = 11
+            day = 1
+          }
+        }
+      }
+    }
+
+    newController(
+        dataAvailabilitySyncWorkItemPublisher = publisher,
+        doneObjectMetadataReader =
+          DoneObjectMetadataReader { uri ->
+            DoneObjectMetadata(
+              if (survivingModelLine.substringAfterLast('/') in uri) 101L else 102L,
+              Instant.parse("2026-11-01T00:00:00Z"),
+            )
+          },
+      )
+      .run()
+
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    val triggeringUploads =
+      createRequests.map {
+        it.workItem.workItemParams
+          .unpack(WorkItem.WorkItemParams::class.java)
+          .appParams
+          .unpack(DataAvailabilitySyncParams::class.java)
+          .triggeringRawImpressionUpload
+      }
+    assertThat(triggeringUploads).containsExactly(SOURCE_UPLOAD_NAME, CANDIDATE_UPLOAD_NAME)
+    Unit
+  }
+
+  @Test
   fun `pending handoff retries after transient publication failure`() = runBlocking {
     val completedStep =
       EVICTING_OPERATION.stepsList.single().copy {
