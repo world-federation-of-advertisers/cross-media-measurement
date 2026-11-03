@@ -351,6 +351,7 @@ internal class GcsKingdomFinalStateResolver(
         }
         for (row in result.rows) {
           val covered = availability?.let { contains(it, row.interval) } == true
+          val evidenceInterval = if (covered) checkNotNull(availability) else row.interval
           add(
             ExpectedTraceNode(
               row.name + ":kingdom_availability",
@@ -359,8 +360,8 @@ internal class GcsKingdomFinalStateResolver(
               if (covered) "PUBLISHED" else "MISSING",
               mapOf(
                 MODEL_LINE to result.modelLine.cmmsModelLine,
-                AVAILABILITY_INTERVAL_START to Timestamps.toString(row.interval.startTime),
-                AVAILABILITY_INTERVAL_END to Timestamps.toString(row.interval.endTime),
+                AVAILABILITY_INTERVAL_START to Timestamps.toString(evidenceInterval.startTime),
+                AVAILABILITY_INTERVAL_END to Timestamps.toString(evidenceInterval.endTime),
               ),
               if (result.modelLine.state == RawImpressionUploadModelLine.State.COMPLETED) {
                 ExpectedNodeDisposition.REQUIRED

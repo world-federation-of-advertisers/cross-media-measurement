@@ -16,6 +16,7 @@ package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
@@ -298,8 +299,90 @@ class VidLabelingTraceStateTest {
 
     val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE))).nodes
 
-    assertThat(nodes.single { it.stage == "data_availability_publish" }.authoritativeState)
-      .isEqualTo("MISSING")
+    val availabilityNode = nodes.single { it.stage == "data_availability_publish" }
+    assertThat(availabilityNode.authoritativeState).isEqualTo("MISSING")
+    assertThat(availabilityNode.identifiers["xmm.edpa.availability.interval_start"])
+      .isEqualTo(Timestamps.toString(Timestamp.newBuilder().setSeconds(10).build()))
+    assertThat(availabilityNode.identifiers["xmm.edpa.availability.interval_end"])
+      .isEqualTo(Timestamps.toString(Timestamp.newBuilder().setSeconds(20).build()))
+  }
+
+  @Test
+  fun `final state correlates covered rows with the broad Kingdom interval`() = runBlocking {
+    val metadataStub = mock<ImpressionMetadataServiceCoroutineStub>()
+    val dataProvidersStub = mock<DataProvidersCoroutineStub>()
+    val firstRow =
+      ImpressionMetadata.newBuilder()
+        .setName("dataProviders/123/impressionMetadata/healed-replacement")
+        .setModelLine(DIRECT_MODEL_LINE)
+        .setRawImpressionUpload(UPLOAD)
+        .setBlobUri("gs://bucket/model-line/direct/2026-09-02/output.metadata.binpb")
+        .setInterval(
+          Interval.newBuilder()
+            .setStartTime(Timestamp.newBuilder().setSeconds(10))
+            .setEndTime(Timestamp.newBuilder().setSeconds(20))
+        )
+        .setState(ImpressionMetadata.State.ACTIVE)
+        .build()
+    val secondRow =
+      firstRow
+        .toBuilder()
+        .setName("dataProviders/123/impressionMetadata/deferred-upload")
+        .setBlobUri("gs://bucket/model-line/direct/2026-09-03/output.metadata.binpb")
+        .setInterval(
+          Interval.newBuilder()
+            .setStartTime(Timestamp.newBuilder().setSeconds(20))
+            .setEndTime(Timestamp.newBuilder().setSeconds(30))
+        )
+        .build()
+    whenever(metadataStub.listImpressionMetadata(any(), any()))
+      .thenReturn(
+        ListImpressionMetadataResponse.newBuilder()
+          .addAllImpressionMetadata(listOf(firstRow, secondRow))
+          .build()
+      )
+    val broadInterval =
+      Interval.newBuilder()
+        .setStartTime(Timestamp.newBuilder().setSeconds(1))
+        .setEndTime(Timestamp.newBuilder().setSeconds(40))
+        .build()
+    whenever(dataProvidersStub.getDataProvider(any(), any()))
+      .thenReturn(
+        DataProvider.newBuilder()
+          .setName("dataProviders/123")
+          .addDataAvailabilityIntervals(
+            DataProvider.DataAvailabilityMapEntry.newBuilder()
+              .setKey(DIRECT_MODEL_LINE)
+              .setValue(broadInterval)
+          )
+          .build()
+      )
+    val resolver =
+      GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { _, generation ->
+        StoredObjectMetadata(generation ?: 9L)
+      }
+    val upload =
+      RawImpressionUpload.newBuilder()
+        .setName(UPLOAD)
+        .setDoneBlobUri("gs://raw/input/done")
+        .setDoneBlobGeneration(7)
+        .build()
+
+    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE))).nodes
+    val availabilityNodes = nodes.filter { it.stage == "data_availability_publish" }
+
+    assertThat(availabilityNodes).hasSize(2)
+    assertThat(availabilityNodes.map { it.authoritativeState })
+      .containsExactly("PUBLISHED", "PUBLISHED")
+    assertThat(
+        availabilityNodes.map { it.identifiers["xmm.edpa.availability.interval_start"] }.toSet()
+      )
+      .containsExactly(Timestamps.toString(broadInterval.startTime))
+    assertThat(
+        availabilityNodes.map { it.identifiers["xmm.edpa.availability.interval_end"] }.toSet()
+      )
+      .containsExactly(Timestamps.toString(broadInterval.endTime))
+    Unit
   }
 
   @Test
