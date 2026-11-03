@@ -31,18 +31,20 @@ seeding run.
 
 ## Workflow configuration
 
-Configure these GitHub environment variables before running Terraform or seeding
-in `dev`, `qa`, or `head`:
+Configure these values in `.github/env-configs/<environment>/cmms.json` for `dev`,
+`qa`, and `head`. The seeding workflow loads them with
+`.github/actions/load-cmms-environment`:
 
 | Variable | Value |
 | --- | --- |
-| `SECURE_COMPUTATION_STORAGE_BUCKET` | Existing Secure Computation bucket name; shared by Terraform, seeding and the integration tests. |
+| `SECURE_COMPUTATION_STORAGE_BUCKET` | Existing Secure Computation bucket name; must match `secure_computation_storage_bucket_name` in the environment's `.tfvars` file. |
 | `EDP7_KEK_URI` | Google Cloud KMS key URI shared by the Google Cloud EDPs. |
 | `EDPA_META_KEK_URI` | AWS KMS key URI for `edpa_meta`. |
 | `EDPA_META_AWS_ROLE_ARN` | AWS role used to access that key. |
 | `EDPA_META_AWS_REGION` | AWS region containing that key. |
 
-`SECURE_COMPUTATION_STORAGE_BUCKET` replaces `secure_computation_storage_bucket_name`
-in the environment's `.tfvars` file. Use the existing bucket name when configuring
-it. For local Terraform runs, pass `-var="secure_computation_storage_bucket_name=..."`.
-The workflows fail before deployment or seeding if required configuration is missing.
+Terraform continues to read `secure_computation_storage_bucket_name` from the
+environment's `.tfvars` file. The test workflows use the
+`secure-computation-storage-<environment>-bucket` naming pattern. Keep the JSON
+bucket value aligned with both. No GitHub environment variables are needed for
+these settings.

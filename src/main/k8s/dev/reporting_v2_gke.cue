@@ -110,8 +110,20 @@ objectSets: [
 	reporting.services,
 	reporting.cronJobs,
 	reporting.networkPolicies,
+	[_accessInternalApiDisruptionBudget],
 	if _mcpHost != "" && _oauthIssuer != "" {[_reportingMcpManagedCertificate, _reportingMcpIngress]},
 ]
+
+_accessInternalApiDisruptionBudget: #PodDisruptionBudget & {
+	metadata: {
+		_component: "reporting"
+		name:       "access-internal-api-server"
+	}
+	spec: {
+		minAvailable: 1
+		selector:     reporting.deployments["access-internal-api-server"].spec.selector
+	}
+}
 
 reporting: #Reporting & {
 	_populationDataProviderName:                 _pdpName
@@ -187,8 +199,18 @@ reporting: #Reporting & {
 			}
 		}
 		"access-internal-api-server": {
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalAccessServerServiceAccount
+			spec: {
+				replicas: 2
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalAccessServerServiceAccount
+					topologySpreadConstraints: [{
+						maxSkew:           1
+						minDomains:        2
+						topologyKey:       "kubernetes.io/hostname"
+						whenUnsatisfiable: "DoNotSchedule"
+						labelSelector: matchLabels: app: "access-internal-api-server-app"
+					}]
+				}
 			}
 		}
 	}
