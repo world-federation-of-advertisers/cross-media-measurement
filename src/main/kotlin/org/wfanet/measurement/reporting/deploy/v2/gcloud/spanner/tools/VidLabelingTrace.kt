@@ -430,6 +430,7 @@ internal class VidLabelingTraceCollector(
       (unresolvedExpectedWorkItemNames +
           authoritativeGraph.nodes.mapNotNull { it.identifiers[WORK_ITEM] })
         .toSet()
+    val retentionSeeds = evidenceRetentionSeeds(authoritativeGraph)
     val evidence = linkedSetOf<VidLabelingEvidence>()
     val correlationValues = linkedSetOf(request.rawImpressionUpload)
     val traceIds = linkedSetOf<String>()
@@ -528,7 +529,12 @@ internal class VidLabelingTraceCollector(
         }
       }
       val relatedEvidence =
-        retainRelatedEvidence(request.rawImpressionUpload, expectedWorkItemNames, evidence)
+        retainRelatedEvidence(
+          request.rawImpressionUpload,
+          expectedWorkItemNames,
+          retentionSeeds,
+          evidence,
+        )
       evidence.clear()
       evidence += relatedEvidence
       correlationValuesCapped =
@@ -850,7 +856,12 @@ internal class VidLabelingTraceCollector(
     if (primaryKey != null) {
       if (evidence.identifiers[primaryKey] != node.identifiers[primaryKey]) return false
       if (primaryKey == GCS_PATH_HASH && node.identifiers.containsKey(GCS_GENERATION)) {
-        return evidence.identifiers[GCS_GENERATION] == node.identifiers[GCS_GENERATION]
+        val expectedIdentity = node.identifiers.gcsObjectIdentity() ?: return false
+        return evidence.identifiers.gcsObjectIdentity() == expectedIdentity
+      }
+      if (primaryKey == IMPRESSION_METADATA) {
+        return evidence.identifiers[MODEL_LINE] == node.identifiers[MODEL_LINE] &&
+          evidence.identifiers[GCS_PATH_HASH] == node.identifiers[GCS_PATH_HASH]
       }
       if (
         primaryKey == AVAILABILITY_INTERVAL_START &&
@@ -950,15 +961,30 @@ internal class VidLabelingTraceCollector(
       .firstNotNullOfOrNull { item.identifiers[it] } ?: item.service
   }
 
+  private data class AvailabilityIdentity(
+    val modelLine: String,
+    val intervalStart: String,
+    val intervalEnd: String,
+  )
+
+  private data class EvidenceRetentionSeeds(
+    val uniqueIdentifierValues: Set<String>,
+    val gcsObjectIdentities: Set<VidLabelingTraceAttributes.GcsObjectIdentity>,
+    val availabilityIdentities: Set<AvailabilityIdentity>,
+  )
+
   private fun retainRelatedEvidence(
     rawImpressionUpload: String,
     expectedWorkItemNames: Set<String>,
+    retentionSeeds: EvidenceRetentionSeeds,
     candidates: Collection<VidLabelingEvidence>,
   ): List<VidLabelingEvidence> {
     val retained = linkedSetOf<VidLabelingEvidence>()
-    val identifiers = linkedSetOf(rawImpressionUpload)
+    val identifiers =
+      linkedSetOf(rawImpressionUpload).apply { addAll(retentionSeeds.uniqueIdentifierValues) }
     val traceIds = linkedSetOf<String>()
-    val objectIdentities = linkedSetOf<VidLabelingTraceAttributes.GcsObjectIdentity>()
+    val objectIdentities = retentionSeeds.gcsObjectIdentities.toMutableSet()
+    val availabilityIdentities = retentionSeeds.availabilityIdentities.toMutableSet()
     var changed: Boolean
     do {
       changed = false
@@ -974,16 +1000,19 @@ internal class VidLabelingTraceCollector(
               it == rawImpressionUpload || it.startsWith(rawImpressionUpload + "/")
             }
         val objectIdentity = candidate.gcsObjectIdentity()
+        val availabilityIdentity = candidate.availabilityIdentity()
         if (
           directlyRelated ||
             uniqueValues.any { it in identifiers } ||
             (candidate.traceId != null && candidate.traceId in traceIds) ||
-            (objectIdentity != null && objectIdentity in objectIdentities)
+            (objectIdentity != null && objectIdentity in objectIdentities) ||
+            (availabilityIdentity != null && availabilityIdentity in availabilityIdentities)
         ) {
           retained += candidate
           identifiers += uniqueValues
           candidate.traceId?.let { traceIds += it }
           objectIdentity?.let { objectIdentities += it }
+          availabilityIdentity?.let { availabilityIdentities += it }
           changed = true
         }
       }
@@ -992,10 +1021,33 @@ internal class VidLabelingTraceCollector(
   }
 
   private fun VidLabelingEvidence.gcsObjectIdentity():
+    VidLabelingTraceAttributes.GcsObjectIdentity? = identifiers.gcsObjectIdentity()
+
+  private fun Map<String, String>.gcsObjectIdentity():
     VidLabelingTraceAttributes.GcsObjectIdentity? {
-    val pathHash = identifiers[GCS_PATH_HASH] ?: return null
-    val generation = identifiers[GCS_GENERATION]?.toLongOrNull() ?: return null
+    val pathHash = this[GCS_PATH_HASH] ?: return null
+    val generation = this[GCS_GENERATION]?.toLongOrNull()?.takeIf { it > 0L } ?: return null
     return VidLabelingTraceAttributes.GcsObjectIdentity(pathHash, generation)
+  }
+
+  private fun VidLabelingEvidence.availabilityIdentity(): AvailabilityIdentity? =
+    identifiers.availabilityIdentity()
+
+  private fun Map<String, String>.availabilityIdentity(): AvailabilityIdentity? {
+    return AvailabilityIdentity(
+      this[MODEL_LINE] ?: return null,
+      this[AVAILABILITY_INTERVAL_START] ?: return null,
+      this[AVAILABILITY_INTERVAL_END] ?: return null,
+    )
+  }
+
+  private fun evidenceRetentionSeeds(graph: VidLabelingAuthoritativeGraph): EvidenceRetentionSeeds {
+    val identifiers = graph.nodes.flatMap { it.identifiers.entries }
+    return EvidenceRetentionSeeds(
+      identifiers.filter { it.key in UNIQUE_CORRELATION_FIELDS }.mapTo(mutableSetOf()) { it.value },
+      graph.nodes.mapNotNullTo(mutableSetOf()) { it.identifiers.gcsObjectIdentity() },
+      graph.nodes.mapNotNullTo(mutableSetOf()) { it.identifiers.availabilityIdentity() },
+    )
   }
 
   private fun CloudLogEntry.toEvidence(): VidLabelingEvidence {

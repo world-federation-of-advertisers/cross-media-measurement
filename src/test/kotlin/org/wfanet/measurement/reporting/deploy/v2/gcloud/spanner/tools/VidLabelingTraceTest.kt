@@ -767,7 +767,6 @@ class VidLabelingTraceTest {
         modelLineFields(MEMOIZED_MODEL_LINE) +
           " xmm.edpa.availability.interval_start=$intervalStart" +
           " xmm.edpa.availability.interval_end=$intervalEnd",
-        rawImpressionUpload = RAW_UPLOAD,
         traceId = ROOT_TRACE,
       )
     val collector =
@@ -786,6 +785,207 @@ class VidLabelingTraceTest {
         collection.modelLines.single { it.modelLine == NON_MEMOIZED_MODEL_LINE }.missingStages
       )
       .containsExactly("non-memoized-availability")
+    Unit
+  }
+
+  @Test
+  fun `ImpressionMetadata evidence matches authoritative identity without raw upload`() =
+    runBlocking {
+      val metadataName = "dataProviders/123/impressionMetadata/metadata-1"
+      val pathHash = "a".repeat(64)
+      val node =
+        ExpectedTraceNode(
+          metadataName,
+          NON_MEMOIZED_MODEL_LINE,
+          "data_availability_metadata",
+          "ACTIVE",
+          mapOf(
+            "xmm.model_line.name" to NON_MEMOIZED_MODEL_LINE,
+            "xmm.edpa.impression_metadata.name" to metadataName,
+            "xmm.gcs.object.path_hash" to pathHash,
+          ),
+        )
+      val metadataEntry =
+        entry(
+          "data_availability_metadata",
+          "xmm.model_line.name=$NON_MEMOIZED_MODEL_LINE " +
+            "xmm.edpa.impression_metadata.name=$metadataName " +
+            "xmm.gcs.object.path_hash=$pathHash",
+          traceId = DIRECT_TRACE,
+        )
+      val collector =
+        VidLabelingTraceCollector(
+          logReaderFactory = { FakeCloudLogReader(listOf(metadataEntry)) },
+          spanReader = completeTraceReader(),
+          stateResolver =
+            VidLabelingStateResolver {
+              testGraph(listOf(NON_MEMOIZED_MODEL_LINE)).copy(nodes = listOf(node))
+            },
+          finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+        )
+
+      val collection = collector.collect(request())
+
+      assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.COMPLETE)
+      assertThat(collection.modelLines.single().stages.single().evidenceCount).isEqualTo(1)
+    }
+
+  @Test
+  fun `GCS evidence matches authoritative positive object identity without raw upload`() =
+    runBlocking {
+      val pathHash = "d".repeat(64)
+      val generation = 17L
+      val node =
+        ExpectedTraceNode(
+          "gcs-object",
+          NON_MEMOIZED_MODEL_LINE,
+          "label",
+          "PUBLISHED",
+          mapOf(
+            "xmm.gcs.object.path_hash" to pathHash,
+            "xmm.gcs.object.generation" to generation.toString(),
+          ),
+        )
+      val gcsEntry =
+        entry(
+          "label",
+          "xmm.gcs.object.path_hash=$pathHash xmm.gcs.object.generation=$generation",
+          traceId = "77777777777777777777777777777777",
+        )
+      val collector =
+        VidLabelingTraceCollector(
+          logReaderFactory = { FakeCloudLogReader(listOf(gcsEntry)) },
+          spanReader = completeTraceReader(),
+          stateResolver =
+            VidLabelingStateResolver {
+              testGraph(listOf(NON_MEMOIZED_MODEL_LINE)).copy(nodes = listOf(node))
+            },
+          finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+        )
+
+      val collection = collector.collect(request())
+
+      assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.COMPLETE)
+      assertThat(collection.modelLines.single().stages.single().evidenceCount).isEqualTo(1)
+    }
+
+  @Test
+  fun `GCS evidence does not match an authoritative zero generation`() = runBlocking {
+    val pathHash = "e".repeat(64)
+    val node =
+      ExpectedTraceNode(
+        "missing-gcs-object",
+        NON_MEMOIZED_MODEL_LINE,
+        "label",
+        "PUBLISHED",
+        mapOf("xmm.gcs.object.path_hash" to pathHash, "xmm.gcs.object.generation" to "0"),
+      )
+    val gcsEntry =
+      entry(
+        "label",
+        "xmm.edpa.raw_impression_upload.name=$RAW_UPLOAD " +
+          "xmm.gcs.object.path_hash=$pathHash xmm.gcs.object.generation=0",
+        traceId = "77777777777777777777777777777778",
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { CloudLogReader { _, _, _, _ -> listOf(gcsEntry) } },
+        spanReader = completeTraceReader(),
+        stateResolver =
+          VidLabelingStateResolver {
+            testGraph(listOf(NON_MEMOIZED_MODEL_LINE)).copy(nodes = listOf(node))
+          },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val collection = collector.collect(request())
+
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
+    assertThat(collection.modelLines.single().stages.single().evidenceCount).isEqualTo(0)
+  }
+
+  @Test
+  fun `final-state evidence rejects unrelated composite identities`() = runBlocking {
+    val metadataName = "dataProviders/123/impressionMetadata/metadata-1"
+    val pathHash = "a".repeat(64)
+    val intervalStart = "2026-09-01T00:00:00Z"
+    val intervalEnd = "2026-09-02T00:00:00Z"
+    val graph =
+      testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
+        .copy(
+          nodes =
+            listOf(
+              ExpectedTraceNode(
+                metadataName,
+                NON_MEMOIZED_MODEL_LINE,
+                "data_availability_metadata",
+                "ACTIVE",
+                mapOf(
+                  "xmm.model_line.name" to NON_MEMOIZED_MODEL_LINE,
+                  "xmm.edpa.impression_metadata.name" to metadataName,
+                  "xmm.gcs.object.path_hash" to pathHash,
+                ),
+              ),
+              availabilityNode("availability", NON_MEMOIZED_MODEL_LINE, intervalStart, intervalEnd),
+            )
+        )
+    val unrelatedEntries =
+      listOf(
+        entry(
+          "data_availability_metadata",
+          "xmm.model_line.name=$NON_MEMOIZED_MODEL_LINE " +
+            "xmm.edpa.impression_metadata.name=dataProviders/123/impressionMetadata/other " +
+            "xmm.gcs.object.path_hash=$pathHash",
+          traceId = "77777777777777777777777777777771",
+        ),
+        entry(
+          "data_availability_metadata",
+          "xmm.model_line.name=$MEMOIZED_MODEL_LINE " +
+            "xmm.edpa.impression_metadata.name=$metadataName " +
+            "xmm.gcs.object.path_hash=$pathHash",
+          traceId = "77777777777777777777777777777772",
+        ),
+        entry(
+          "data_availability_metadata",
+          "xmm.model_line.name=$NON_MEMOIZED_MODEL_LINE " +
+            "xmm.edpa.impression_metadata.name=$metadataName " +
+            "xmm.gcs.object.path_hash=${"b".repeat(64)}",
+          traceId = "77777777777777777777777777777773",
+        ),
+        entry(
+          "data_availability_publish",
+          "xmm.model_line.name=$MEMOIZED_MODEL_LINE " +
+            "xmm.edpa.availability.interval_start=$intervalStart " +
+            "xmm.edpa.availability.interval_end=$intervalEnd",
+          traceId = "77777777777777777777777777777774",
+        ),
+        entry(
+          "data_availability_publish",
+          "xmm.model_line.name=$NON_MEMOIZED_MODEL_LINE " +
+            "xmm.edpa.availability.interval_start=2026-08-31T00:00:00Z " +
+            "xmm.edpa.availability.interval_end=$intervalEnd",
+          traceId = "77777777777777777777777777777775",
+        ),
+        entry(
+          "data_availability_publish",
+          "xmm.model_line.name=$NON_MEMOIZED_MODEL_LINE " +
+            "xmm.edpa.availability.interval_start=$intervalStart " +
+            "xmm.edpa.availability.interval_end=2026-09-03T00:00:00Z",
+          traceId = "77777777777777777777777777777776",
+        ),
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { CloudLogReader { _, _, _, _ -> unrelatedEntries } },
+        spanReader = completeTraceReader(),
+        stateResolver = VidLabelingStateResolver { graph },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val collection = collector.collect(request())
+
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
+    assertThat(collection.modelLines.single().stages.map { it.evidenceCount }).containsExactly(0, 0)
     Unit
   }
 
@@ -980,6 +1180,10 @@ class VidLabelingTraceTest {
     val workItemName = "workItems/cli-labeling"
     val generation = 3L
     val attemptName = "$workItemName/workItemAttempts/attempt-1"
+    val metadataName = "dataProviders/123/impressionMetadata/cli-metadata"
+    val pathHash = "c".repeat(64)
+    val intervalStart = "2026-09-01T00:00:00Z"
+    val intervalEnd = "2026-09-02T00:00:00Z"
     val workItemNodes =
       listOf(
         ExpectedTraceNode(
@@ -1021,7 +1225,18 @@ class VidLabelingTraceTest {
       add(
         entry(
           "data_availability_publish",
-          modelLineFields(NON_MEMOIZED_MODEL_LINE),
+          modelLineFields(NON_MEMOIZED_MODEL_LINE) +
+            " xmm.edpa.availability.interval_start=$intervalStart" +
+            " xmm.edpa.availability.interval_end=$intervalEnd",
+          traceId = DIRECT_AVAILABILITY_TRACE,
+        )
+      )
+      add(
+        entry(
+          "data_availability_metadata",
+          "xmm.model_line.name=$NON_MEMOIZED_MODEL_LINE " +
+            "xmm.edpa.impression_metadata.name=$metadataName " +
+            "xmm.gcs.object.path_hash=$pathHash",
           traceId = DIRECT_AVAILABILITY_TRACE,
         )
       )
@@ -1040,7 +1255,31 @@ class VidLabelingTraceTest {
               }
           },
         stateResolver = VidLabelingStateResolver { testGraph(listOf(NON_MEMOIZED_MODEL_LINE)) },
-        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+        finalStateResolver =
+          VidLabelingFinalStateResolver { _, _ ->
+            VidLabelingFinalStateResolution(
+              listOf(
+                ExpectedTraceNode(
+                  metadataName,
+                  NON_MEMOIZED_MODEL_LINE,
+                  "data_availability_metadata",
+                  "ACTIVE",
+                  mapOf(
+                    "xmm.model_line.name" to NON_MEMOIZED_MODEL_LINE,
+                    "xmm.edpa.impression_metadata.name" to metadataName,
+                    "xmm.gcs.object.path_hash" to pathHash,
+                  ),
+                ),
+                availabilityNode(
+                  "cli-availability",
+                  NON_MEMOIZED_MODEL_LINE,
+                  intervalStart,
+                  intervalEnd,
+                ),
+              ),
+              emptyMap(),
+            )
+          },
         workItemResolver =
           VidLabelingWorkItemResolver { _, _, pageLimit ->
             workItemPageLimit = pageLimit
