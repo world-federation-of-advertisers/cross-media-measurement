@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
+import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
@@ -32,6 +33,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.stub
@@ -41,6 +43,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt as InternalListWorkItemsPageTokenKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest as InternalListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
@@ -756,9 +759,71 @@ class WorkItemServiceTest {
         listWorkItemsResponse {
           workItems += internalWorkItemFirst.toWorkItem()
           nextPageToken =
-            internalListWorkItemsResponse.nextPageToken.after.toByteString().base64UrlEncode()
+            internalListWorkItemsResponse.nextPageToken.toByteString().base64UrlEncode()
         }
       )
+  }
+
+  @Test
+  fun `listWorkItems page token advances to the next page and terminates`() = runBlocking {
+    val firstWorkItem = internalWorkItem {
+      workItemResourceId = "work-item-1"
+      queueResourceId = "queue-id"
+      state = InternalWorkItem.State.QUEUED
+    }
+    val secondWorkItem = internalWorkItem {
+      workItemResourceId = "work-item-2"
+      queueResourceId = "queue-id"
+      state = InternalWorkItem.State.SUCCEEDED
+    }
+    val internalPageToken = internalListWorkItemsPageToken {
+      after =
+        InternalListWorkItemsPageTokenKt.after {
+          createdAfter = timestamp {
+            seconds = 123L
+            nanos = 456
+          }
+          workItemResourceId = firstWorkItem.workItemResourceId
+        }
+    }
+    var invocationCount = 0
+    internalServiceMock.stub {
+      onBlocking { listWorkItems(any()) } doAnswer
+        { invocation ->
+          val request = invocation.arguments.single() as InternalListWorkItemsRequest
+          when (invocationCount++) {
+            0 -> {
+              assertThat(request.hasPageToken()).isFalse()
+              internalListWorkItemsResponse {
+                workItems += firstWorkItem
+                nextPageToken = internalPageToken
+              }
+            }
+            1 -> {
+              assertThat(request.pageToken).isEqualTo(internalPageToken)
+              internalListWorkItemsResponse { workItems += secondWorkItem }
+            }
+            else -> error("Unexpected ListWorkItems request")
+          }
+        }
+    }
+
+    val firstResponse = service.listWorkItems(listWorkItemsRequest { pageSize = 1 })
+    val secondResponse =
+      service.listWorkItems(
+        listWorkItemsRequest {
+          pageSize = 1
+          pageToken = firstResponse.nextPageToken
+        }
+      )
+
+    assertThat(firstResponse.workItemsList.map { it.name }).containsExactly("workItems/work-item-1")
+    assertThat(firstResponse.nextPageToken)
+      .isEqualTo(internalPageToken.toByteString().base64UrlEncode())
+    assertThat(secondResponse.workItemsList.map { it.name })
+      .containsExactly("workItems/work-item-2")
+    assertThat(secondResponse.nextPageToken).isEmpty()
+    assertThat(invocationCount).isEqualTo(2)
   }
 
   @Test

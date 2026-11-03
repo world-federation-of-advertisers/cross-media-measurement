@@ -21,3 +21,8 @@ output "report_trace_operator_postgres_user" {
   description = "Cloud SQL IAM database username for the report-trace operator."
   value       = google_sql_user.report_trace_operator.name
 }
+
+output "vid_labeling_trace_operator_service_account_email" {
+  description = "Email of the logs-and-traces-only VID-labeling trace operator service account."
+  value       = google_service_account.vid_labeling_trace_operator.email
+}

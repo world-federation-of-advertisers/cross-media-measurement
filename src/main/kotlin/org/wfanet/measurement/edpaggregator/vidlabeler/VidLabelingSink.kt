@@ -20,6 +20,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import io.opentelemetry.api.common.Attributes
@@ -388,11 +389,11 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
     private fun updateAggregates(impression: LabeledImpression) {
       val eventTime = impression.eventTime
       val currentEarliest = earliest
-      if (currentEarliest == null || eventTime.epochNanos < currentEarliest.epochNanos) {
+      if (currentEarliest == null || Timestamps.compare(eventTime, currentEarliest) < 0) {
         earliest = eventTime
       }
       val currentLatest = latest
-      if (currentLatest == null || eventTime.epochNanos > currentLatest.epochNanos) {
+      if (currentLatest == null || Timestamps.compare(eventTime, currentLatest) > 0) {
         latest = eventTime
       }
       for (entityKey in impression.entityKeysList) {
@@ -404,13 +405,23 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
     suspend fun writeMetadata() {
       val metadataUri = "$outputBlobUri.metadata.binpb"
       try {
+        val latestEventTime = checkNotNull(latest) { "No impressions written for ${key.modelLine}" }
+        val exclusiveEndTime =
+          try {
+            Timestamps.add(latestEventTime, Durations.fromMicros(1L))
+          } catch (e: IllegalArgumentException) {
+            throw IllegalStateException(
+              "Cannot represent exclusive interval end after $latestEventTime for ${key.modelLine}",
+              e,
+            )
+          }
         val details = blobDetails {
           blobUri = outputBlobUri
           encryptedDek = outputEncryptedDek
           modelLine = key.modelLine
           interval = interval {
             startTime = checkNotNull(earliest) { "No impressions written for ${key.modelLine}" }
-            endTime = checkNotNull(latest) { "No impressions written for ${key.modelLine}" }
+            endTime = exclusiveEndTime
           }
           entityKeys +=
             entityIdsByType.map { (type, ids) ->
@@ -470,9 +481,6 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
       .put(VidLabelerMetrics.DROP_REASON_KEY, reason)
       .build()
 
-  private val Timestamp.epochNanos: Long
-    get() = seconds * NANOS_PER_SECOND + nanos
-
   companion object {
     init {
       // The DEK template is a StreamingAead key, so the streaming key managers must be registered
@@ -492,7 +500,6 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
      * `MemoizedRankIndex.DEFAULT_READER_PARALLELISM` on the read side.
      */
     const val DEFAULT_ENCRYPTION_KEY_PARALLELISM = 16
-    private const val NANOS_PER_SECOND = 1_000_000_000L
     private const val TINK_KEY_TEMPLATE = "AES128_GCM_HKDF_1MB"
     private const val TINK_KEYSET_TYPE_URL = "type.googleapis.com/google.crypto.tink.Keyset"
 
