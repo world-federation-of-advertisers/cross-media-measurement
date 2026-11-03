@@ -79,6 +79,12 @@ length.
 | `entity_keys` | Required for new writers | One or more EDP entity identifiers used to select and filter impressions |
 | `event_group_reference_id` | Legacy | Older campaign reference; new writers use `entity_keys` |
 
+Each impression should include all applicable entity keys, rather than only one
+hierarchy level. Account, campaign, ad-set, ad, and creative are examples of entity
+types, not a required taxonomy. Use the types and IDs agreed with the operator and
+registered on the corresponding EventGroups. Omitting an applicable type can
+prevent measurements at that level from selecting the impression.
+
 An entity key contains:
 
 * `entity_type`: a URL-safe type such as `campaign`, `creative`, or

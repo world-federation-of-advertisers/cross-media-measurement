@@ -17,16 +17,52 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 
-/**
- * Sealed class identifying how an [EventBatch] is associated with its event group.
- *
- * A batch is produced from a single blob whose metadata was queried by exactly one strategy. This
- * type encodes that strategy so downstream processors (e.g. [FilterProcessor]) can dispatch without
- * carrying two mutually-exclusive nullable fields.
- */
-sealed class EventGroupIdentifier {
-  data class ByReferenceId(val refId: String) : EventGroupIdentifier()
-
-  data class ByEntityKeys(val entityKeys: List<EntityKeyGroup>) : EventGroupIdentifier()
+/** Selectors from an [EventBatch]'s blob metadata, normalized across storage formats. */
+data class EventGroupIdentifier(
+  /** Reference ID that identifies the whole blob, or `null` when unavailable or ambiguous. */
+  val eventGroupReferenceId: String?,
+  /** Entity keys summarized by the blob metadata. */
+  val entityKeys: Set<LabeledImpression.EntityKey>,
+  /** Canonical groups for exhaustive entity types. A complete group identifies the whole blob. */
+  val wholeBlobEntityKeyGroups: Set<EntityKeyGroup>,
+) {
+  init {
+    require(wholeBlobEntityKeyGroups.all { it.entityType.isNotBlank() }) {
+      "Whole-blob entity types must not be blank"
+    }
+    require(
+      wholeBlobEntityKeyGroups.map { it.entityType }.toSet().size == wholeBlobEntityKeyGroups.size
+    ) {
+      "Whole-blob entity types must be unique"
+    }
+    require(wholeBlobEntityKeyGroups.all { it.entityIdsList.isNotEmpty() }) {
+      "Whole-blob entity-key groups must not be empty"
+    }
+    require(wholeBlobEntityKeyGroups.all { group -> group.entityIdsList.all { it.isNotBlank() } }) {
+      "Whole-blob entity IDs must not be blank"
+    }
+    require(
+      wholeBlobEntityKeyGroups.all { group ->
+        group.entityIdsList.toSet().size == group.entityIdsCount
+      }
+    ) {
+      "Whole-blob entity IDs must be unique within each entity type"
+    }
+    require(
+      wholeBlobEntityKeyGroups.all { group -> group.entityIdsList == group.entityIdsList.sorted() }
+    ) {
+      "Whole-blob entity IDs must be in canonical order"
+    }
+    val entityKeyPairs: Set<Pair<String, String>> =
+      entityKeys.map { Pair(it.entityType, it.entityId) }.toSet()
+    require(
+      wholeBlobEntityKeyGroups.all { group ->
+        group.entityIdsList.all { Pair(group.entityType, it) in entityKeyPairs }
+      }
+    ) {
+      "Whole-blob entity keys must be present in the blob's entity keys"
+    }
+  }
 }

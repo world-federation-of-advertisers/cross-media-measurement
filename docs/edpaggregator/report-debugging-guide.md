@@ -481,6 +481,79 @@ or correlate a failure that occurred before any BasicReport or creation-request
 identity existed. Missing evidence is therefore reported as `UNKNOWN` or
 `MISSING`, not as proof that the operation never ran.
 
+## Print a VID-labeling timeline with `vid-labeling-trace`
+
+The `VidLabelingTrace` operator CLI starts from one or more
+`RawImpressionUpload` resource names and follows only upload-scoped durable
+resources and trace identities. It renders separate memoized and non-memoized
+model-line routes through upload registration, dispatch, assignment and rank
+when applicable, labeling, DataWatcher, ImpressionMetadata, and availability
+publication. Evidence completeness and the latest execution outcome are
+reported independently so a truncated telemetry query is not mistaken for a
+pipeline failure.
+
+Configure `VID_LABELING_TRACE_OPERATORS` with the IAM members allowed to
+impersonate the dedicated VID-labeling trace operator, and list any additional
+telemetry projects in `VID_LABELING_TRACE_OBSERVABILITY_PROJECTS`. The identity
+has Logging Viewer, Cloud Trace Viewer, Service Usage Consumer, and object-viewer
+access to the VID-labeling storage bucket. It has no direct database, write, or
+KMS-decrypt role. The command uses distinct mutual-TLS identities for the EDPA,
+Secure Computation control-plane, and Kingdom APIs. After applying Terraform,
+create impersonated Application Default Credentials and run:
+
+```bash
+VID_LABELING_TRACE_SERVICE_ACCOUNT="$(terraform output -raw vid_labeling_trace_operator_service_account_email)"
+gcloud auth application-default login \
+  --impersonate-service-account="$VID_LABELING_TRACE_SERVICE_ACCOUNT" \
+  --billing-project=<CMMS_PROJECT_ID>
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:VidLabelingTrace \
+  -- \
+  --observability-project=<EDPA_PROJECT_ID> \
+  --observability-project=<SECURE_COMPUTATION_PROJECT_ID> \
+  --edpa-public-api-target=<EDPA_PUBLIC_API_TARGET> \
+  --control-plane-api-target=<CONTROL_PLANE_API_TARGET> \
+  --kingdom-public-api-target=<KINGDOM_PUBLIC_API_TARGET> \
+  --tls-cert-file=<DATA_PROVIDER_TLS_CERT_FILE> \
+  --tls-key-file=<DATA_PROVIDER_TLS_KEY_FILE> \
+  --cert-collection-file=<ROOT_CERT_COLLECTION_FILE> \
+  --control-plane-tls-cert-file=<CONTROL_PLANE_TLS_CERT_FILE> \
+  --control-plane-tls-key-file=<CONTROL_PLANE_TLS_KEY_FILE> \
+  --control-plane-cert-collection-file=<ROOT_CERT_COLLECTION_FILE> \
+  --kingdom-tls-cert-file=<KINGDOM_TLS_CERT_FILE> \
+  --kingdom-tls-key-file=<KINGDOM_TLS_KEY_FILE> \
+  --kingdom-cert-collection-file=<ROOT_CERT_COLLECTION_FILE> \
+  --gcs-project=<EDPA_PROJECT_ID> \
+  --raw-impression-upload=dataProviders/<DATA_PROVIDER_ID>/rawImpressionUploads/<UPLOAD_ID> \
+  --authoritative-source-timeout=PT2M \
+  --logging-source-timeout=PT2M \
+  --trace-source-timeout=PT2M \
+  --trace-quota-units-per-second=4.0 \
+  --logging-requests-per-second=0.5 \
+  --upload-timeout=PT10M \
+  --work-item-page-limit=100 \
+  --output-dir=/tmp/vid-labeling-traces
+```
+
+Repeat `--raw-impression-upload` for a batch. Each upload is isolated into a
+path-safe Markdown artifact, and one malformed or failed upload does not stop
+the remaining batch. The command exits nonzero for incomplete evidence unless
+`--allow-partial` is set. Output is restricted to allowlisted operational
+metadata; raw log payloads, object URIs, and payload contents are not rendered.
+The source table reports separate EDPA, Secure Computation, Kingdom-route,
+GCS/availability, Cloud Logging, and Cloud Trace status, duration, and counts.
+Telemetry rows are split by observability project. Their counts include physical
+Logging filter/page calls, Trace List/Get calls, retries, and Trace quota units.
+The Logging client transport is configured with retries disabled so every retry
+passes through the collector's shared limiter and physical counters.
+The Trace rate cannot exceed the service limit of 5 quota units per second per
+project, and the Logging rate cannot exceed 1 request per second per project.
+These limits are enforced within one CLI process. Concurrent CLI processes do
+not coordinate their quota budgets, so do not run overlapping collectors
+against the same observability project.
+Reaching the WorkItem page limit is reported as `truncated`; unseen WorkItems
+remain unresolved rather than being reported as missing.
+
 ## Lifecycle overview
 
 ```
@@ -694,7 +767,7 @@ Useful metric families (all under the `edpa.*` namespace unless noted):
 | Impression data availability | `edpa.data_availability.records_synced`, `edpa.data_availability.cmms_rpc_errors`, `edpa.data_availability.sync_duration`, `edpa.data_availability.date_count` | whether the EDP's impression metadata is being registered (a precondition for S4-A fulfillment), and Kingdom RPC errors during sync |
 | Fulfillment | `edpa.results_fulfiller.requisitions_processed` (dimensioned by `status`=`success`/`failure`), `edpa.results_fulfiller.requisition_fulfillment_latency`, `edpa.results_fulfiller.report_fulfillment_latency` | whether S4-A stage 4 is processing and succeeding (`status=failure` counts failures) |
 | Work dispatch | RequisitionFetcher logs and `RequisitionMetadata.WorkItem` | whether S4-A dispatched a WorkItem to the results-fulfiller queue; legacy deployments also expose `edpa.data_watcher.queue_writes` and `.processing_duration` |
-| Event-group sync | `edpa.event_group.sync_success`, `edpa.event_group.sync_failure`, `edpa.event_group.sync_latency` | S1 event-group registration health |
+| Event-group sync | `edpa.event_group.sync_success`, `edpa.event_group.sync_failure`, `edpa.event_group.invalid_event_group_failure`, `edpa.event_group.sync_deleted`, `edpa.event_group.sync_latency` | event-group registration health; invalid input is counted separately from operational sync failures |
 | Duchy computation | Duchy mill emits `stage_wall_clock_duration_ms`, `crypto_wall_clock_duration_ms`, `crypto_cpu_duration_ms` | S5 stage progress / where a computation spends time or stalls |
 
 The Kingdom also runs a synthetic end-to-end health prober
@@ -1241,6 +1314,15 @@ Once the Kingdom measurements SUCCEED:
   consistency solver, writes corrected values, and advances the BasicReport to
   `SUCCEEDED (4)`.
 
+  Categorical failure diagnostics, including solver status and issue enums, are
+  logged even when measurement-value logging is disabled. For solver residuals,
+  numerical constraint mismatches, report-result values after noise but before
+  correction, corrected values, and bounded exception tracebacks, enable
+  `--log-noise-correction-values` as described in
+  [Configure noise-correction diagnostic logging][noise-correction-logging].
+  These diagnostics do not add raw pre-noise inputs to application logs. Enable
+  them only where log access and retention policies permit the values.
+
   Check `report-result-post-processor-container` (cluster `reporting-v2`). Failure
   modes:
 
@@ -1265,9 +1347,53 @@ Once the Kingdom measurements SUCCEED:
   not running, erroring every tick (check its logs), or hitting a transient it
   keeps retrying.
 
+[noise-correction-logging]:
+  <../gke/reporting-v2-server-deployment.md#configure-noise-correction-diagnostic-logging>
+
 ## Common EDP Aggregator failure modes
 
 These apply to the S4-A fulfillment path.
+
+### Event-group identifier-format mismatch
+
+When impression history spans legacy event-group reference IDs and newer entity
+keys, ResultsFulfiller bridges the formats only when
+`ResultsFulfillerParams.event_group_reference_id_entity_key_mapping` is present.
+Check its entity type and both prefixes against the identifiers in the
+requisition, `ImpressionMetadata`, and `BlobDetails`. The prefixes are
+independent, and either may be blank. With the mapping absent, the two formats
+remain distinct.
+
+EventGroupSync has a separate config representation of the same mapping. When
+enabled, input for the mapped entity type must supply both the legacy reference
+ID and its equivalent entity key. EventGroupSync skips an input instead of
+creating or updating a resource when either identifier is missing, the mapped
+entity ID has the wrong prefix, conversion produces a blank reference ID, or
+the identifiers are not exactly equivalent. Inspect
+`edpa.event_group.invalid_event_group_failure` by `failure_reason`:
+
+* `entity_id_prefix_mismatch`
+* `reference_id_missing`
+* `mapped_reference_id_blank`
+* `reference_id_mismatch`
+* `validation_failure`
+
+These validation skips do not necessarily increment
+`edpa.event_group.sync_failure`, so check the invalid-input metric and the
+EventGroupSync logs directly.
+
+During a batched EventGroup migration, a report can temporarily select both
+reference-ID-only and entity-key EventGroups. RequisitionFetcher refuses that
+report as `UNFULFILLABLE`; a ResultsFulfiller mapping does not bypass this
+validation. Before enabling EventGroupSync mapping, deploy the identical mapping
+to ResultsFulfiller and prevent report creation against partially migrated
+cohorts until their EventGroups have all been upgraded.
+
+For blobs whose impression records lack entity keys,
+`ResultsFulfillerParams.whole_blob_entity_types` may identify an exhaustive
+entity-key group in `BlobDetails` as covering the whole blob. Configure a type
+only when its sidecar group lists every ID at that level: a non-exhaustive type
+can silently accept unmatched impressions and overcount.
 
 ### Model-line mismatch
 

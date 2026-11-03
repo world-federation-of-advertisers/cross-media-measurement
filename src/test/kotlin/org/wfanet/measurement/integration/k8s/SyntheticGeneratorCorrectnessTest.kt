@@ -250,6 +250,8 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         buildEventQuery(TEST_CONFIG.eventDataProvidersList),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
         kingdomApiThrottler = MaximumRateThrottler(maxPerSecond = 5.0),
+        initialResultPollingDelay = Duration.ofSeconds(1),
+        maximumResultPollingDelay = Duration.ofSeconds(5),
       )
     }
 

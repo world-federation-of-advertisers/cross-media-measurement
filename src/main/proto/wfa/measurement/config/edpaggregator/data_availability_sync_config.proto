@@ -18,6 +18,7 @@ package wfa.measurement.config.edpaggregator;
 
 import "google/api/resource.proto";
 import "google/api/field_behavior.proto";
+import "google/type/datetime.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
@@ -65,6 +66,30 @@ message DataAvailabilitySyncConfig {
   // warning but proceed with replacing data availability intervals normally.
   // Gap dates are always logged regardless of this setting.
   bool error_if_gaps_exist = 7;
+
+  // When present, publish positive EventGroup activity from finalized daily
+  // impression metadata.
+  EventGroupActivityPublishingConfig event_group_activity_publishing = 8;
+
+  // This publisher only appends activity. For the same DataProvider, a
+  // `SyncEventGroupActivities` process may use PATCH mode for explicit APPEND
+  // and DELETE operations. Do not use SYNC mode: it treats its input as
+  // authoritative and can delete dates published here.
+  message EventGroupActivityPublishingConfig {
+    // Time zone whose calendar dates define EventGroup activity. Set `id` to
+    // an IANA Time Zone Database identifier (e.g., "UTC",
+    // "America/New_York"). Every market date containing either interval
+    // endpoint or any time between them is published. Including both endpoint
+    // dates favors over-reporting activity over omitting a potentially active
+    // date.
+    google.type.TimeZone market_time_zone = 1;
+
+    // Blob URI containing `MappedEventGroup` records in Mesos RecordIO format.
+    string event_group_map_blob_uri = 2;
+
+    // Storage containing the EventGroup map.
+    StorageParams event_group_map_storage = 3;
+  }
 
   // List of model lines to use for a single mapping entry.
   message ModelLineList {

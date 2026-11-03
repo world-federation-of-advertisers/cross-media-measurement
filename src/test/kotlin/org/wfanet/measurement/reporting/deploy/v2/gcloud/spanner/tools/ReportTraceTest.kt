@@ -22,6 +22,7 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.MonitoredResource
 import com.google.cloud.logging.LogEntry
 import com.google.cloud.logging.Logging
+import com.google.cloud.logging.LoggingException
 import com.google.cloud.logging.Payload
 import com.google.cloud.logging.SourceLocation
 import com.google.common.truth.Truth.assertThat
@@ -75,6 +76,14 @@ private fun main(args: Array<String>, dependencies: ReportTraceDependencies): In
 @RunWith(JUnit4::class)
 class ReportTraceTest {
   @get:Rule val temporaryFolder = TemporaryFolder()
+
+  @Test
+  fun `Logging RESOURCE_EXHAUSTED is recognized as quota exhaustion`() {
+    val exception = mock<LoggingException>()
+    whenever(exception.code).thenReturn(8)
+
+    assertThat(exception.isQuotaExhaustion()).isTrue()
+  }
 
   @Test
   fun `context before Report creation only correlates by BasicReport`() {
@@ -8295,6 +8304,61 @@ class ReportTraceTest {
     assertThat(output.toString()).contains("raw scan reached its 1001-entry limit")
     assertThat(output.toString()).contains("| test | Cloud Logging | TRUNCATED | 1001 | 1 |")
     assertThat(output.toString()).contains(partialEntry.message)
+  }
+
+  @Test
+  fun `main reports rendered Cloud Logging truncation as partial`() {
+    val output = StringWriter()
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val partialEntry =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "reporting",
+        severity = "INFO",
+        trace = null,
+        message = "reporting.success xmm.report.name=$reportName",
+      )
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ ->
+          ReportTraceLogReader { _, _, _, _ ->
+            throw ReportTraceLogCollectionTruncatedException(
+              partialEntries = listOf(partialEntry),
+              contextEntriesExamined = 0,
+              contextEntryLimit = 1000,
+              grpcClassificationIncomplete = false,
+              rawEntriesExamined = 2,
+              rawEntryLimit = 1001,
+              rawQueriesTruncated = 0,
+              outputTruncated = true,
+            )
+          }
+        },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--report=$reportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--limit=1",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(output.toString()).contains("Collection completeness: PARTIAL")
+    assertThat(output.toString()).contains("rendered output reached its 1-entry limit")
+    assertThat(output.toString()).contains("| test | Cloud Logging | TRUNCATED | 1 | 1 |")
   }
 
   private fun traceSpan(spanId: String, startTime: Instant): ReportTraceSpan {

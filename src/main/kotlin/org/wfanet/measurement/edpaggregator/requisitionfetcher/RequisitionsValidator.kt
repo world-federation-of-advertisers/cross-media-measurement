@@ -134,18 +134,18 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
    * Validates that event group selectors are consistent across all event groups.
    *
    * An event group is considered to have a meaningful entity key when it has both `entity_key` set
-   * and a non-empty `entity_id`. The Kingdom defaults `entity_type="campaign"` on all event groups,
+   * and a non-blank `entity_id`. The Kingdom defaults `entity_type="campaign"` on all event groups,
    * so `hasEntityKey()` alone is not sufficient to distinguish legacy (reference-id-only) event
    * groups from those with explicit entity keys.
    *
-   * If any event group has a meaningful entity key, all must. If none do, all must have a non-empty
+   * If any event group has a meaningful entity key, all must. If none do, all must have a non-blank
    * `event_group_reference_id`.
    */
   fun validateEventGroupSelectors(eventGroupMap: Map<String, EventGroupDetails>) {
     require(eventGroupMap.isNotEmpty()) { "eventGroupMap must not be empty" }
 
     val hasMeaningfulEntityKey: (EventGroupDetails) -> Boolean = {
-      it.hasEntityKey() && it.entityKey.entityId.isNotEmpty()
+      it.hasEntityKey() && it.entityKey.entityId.isNotBlank()
     }
     val anyHasEntityKey = eventGroupMap.values.any(hasMeaningfulEntityKey)
     if (anyHasEntityKey) {
@@ -155,7 +155,7 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
         )
       }
     } else {
-      if (!eventGroupMap.values.all { it.eventGroupReferenceId.isNotEmpty() }) {
+      if (!eventGroupMap.values.all { it.eventGroupReferenceId.isNotBlank() }) {
         throw InconsistentEventGroupSelectorsException(
           "All event groups must have event_group_reference_id when entity_key is not present"
         )

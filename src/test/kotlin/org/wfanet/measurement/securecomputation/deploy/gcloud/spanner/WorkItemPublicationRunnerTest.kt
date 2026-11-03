@@ -441,7 +441,7 @@ class WorkItemPublicationRunnerTest {
   fun `starting a WorkItem attempt removes its pending publication`() = runBlocking {
     insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
     spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
-      transaction.insertWorkItemAttempt(WORK_ITEM_ID, 456L, "attempt-1")
+      transaction.insertWorkItemAttempt(WORK_ITEM_ID, 456L, "attempt-1", 1L)
     }
     val publisher = RecordingPublisher()
     val clock = MutableClock(Instant.now().plusSeconds(10))

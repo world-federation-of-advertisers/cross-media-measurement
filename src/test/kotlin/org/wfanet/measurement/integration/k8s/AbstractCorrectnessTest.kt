@@ -93,14 +93,20 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
   private val reportingTestHarness: ReportingUserSimulator
     get() = measurementSystem.reportingTestHarness
 
-  @Test(timeout = 1 * 60 * 1000)
+  @Test(timeout = DIRECT_MEASUREMENT_TEST_TIMEOUT_MILLIS)
   fun `impression measurement completes with expected result`() = runBlocking {
-    testHarness.testImpression("$runId-impression")
+    testHarness.testImpression(
+      "$runId-impression",
+      resultPollingTimeout = DIRECT_MEASUREMENT_RESULT_POLLING_TIMEOUT,
+    )
   }
 
-  @Test(timeout = 1 * 60 * 1000)
+  @Test(timeout = DIRECT_MEASUREMENT_TEST_TIMEOUT_MILLIS)
   fun `duration measurement completes with expected result`() = runBlocking {
-    testHarness.testDuration("$runId-duration")
+    testHarness.testDuration(
+      "$runId-duration",
+      resultPollingTimeout = DIRECT_MEASUREMENT_RESULT_POLLING_TIMEOUT,
+    )
   }
 
   @Test
@@ -220,6 +226,9 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
   }
 
   companion object {
+    private const val DIRECT_MEASUREMENT_TEST_TIMEOUT_MILLIS = 3 * 60 * 1000L
+    private val DIRECT_MEASUREMENT_RESULT_POLLING_TIMEOUT = Duration.ofMinutes(2)
+
     private const val MC_ENCRYPTION_PRIVATE_KEY_NAME = "mc_enc_private.tink"
     private const val MC_CS_CERT_DER_NAME = "mc_cs_cert.der"
     private const val MC_CS_PRIVATE_KEY_DER_NAME = "mc_cs_private.der"

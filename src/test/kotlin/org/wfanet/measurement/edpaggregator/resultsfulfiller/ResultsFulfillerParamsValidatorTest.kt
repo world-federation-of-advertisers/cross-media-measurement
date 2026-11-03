@@ -123,6 +123,36 @@ class ResultsFulfillerParamsValidatorTest {
   }
 
   @Test
+  fun `validate rejects noise with k-anonymity thresholds`() {
+    for (noiseType in
+      listOf(NoiseType.CONTINUOUS_GAUSSIAN, NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE)) {
+      val invalidParams =
+        VALID_PARAMS.copy {
+          noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
+          kAnonymityParams = VALID_K_ANONYMITY_PARAMS
+        }
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          ResultsFulfillerParamsValidator.validate(invalidParams)
+        }
+
+      assertThat(exception).hasMessageThat().contains("noise_params.noise_type must be NONE")
+    }
+  }
+
+  @Test
+  fun `validate accepts k-anonymity thresholds with no noise`() {
+    ResultsFulfillerParamsValidator.validate(
+      VALID_PARAMS.copy {
+        noiseParams = ResultsFulfillerParamsKt.noiseParams { noiseType = NoiseType.NONE }
+        kAnonymityParams = VALID_K_ANONYMITY_PARAMS
+      },
+      DATA_PROVIDER,
+    )
+  }
+
+  @Test
   fun `every k-anonymity threshold must be positive`() {
     val invalidThresholds =
       listOf(
@@ -147,7 +177,10 @@ class ResultsFulfillerParamsValidatorTest {
       val exception =
         assertFailsWith<IllegalArgumentException> {
           ResultsFulfillerParamsValidator.validate(
-            VALID_PARAMS.copy { kAnonymityParams = thresholds }
+            VALID_PARAMS.copy {
+              noiseParams = ResultsFulfillerParamsKt.noiseParams { noiseType = NoiseType.NONE }
+              kAnonymityParams = thresholds
+            }
           )
         }
 
@@ -283,8 +316,73 @@ class ResultsFulfillerParamsValidatorTest {
     assertThat(exception).hasMessageThat().contains("Invalid key name format")
   }
 
+  @Test
+  fun `event group reference ID mapping requires entity type`() {
+    val invalidParams =
+      VALID_PARAMS.copy {
+        eventGroupReferenceIdEntityKeyMapping =
+          ResultsFulfillerParamsKt.eventGroupReferenceIdEntityKeyMapping {
+            eventGroupReferenceIdPrefix = "ref/"
+            entityIdPrefix = "entity/"
+          }
+      }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResultsFulfillerParamsValidator.validate(invalidParams)
+      }
+
+    assertThat(exception).hasMessageThat().contains("entity_type")
+  }
+
+  @Test
+  fun `event group reference ID mapping rejects blank entity type`() {
+    val invalidParams =
+      VALID_PARAMS.copy {
+        eventGroupReferenceIdEntityKeyMapping =
+          ResultsFulfillerParamsKt.eventGroupReferenceIdEntityKeyMapping {
+            entityType = "   "
+            eventGroupReferenceIdPrefix = "ref/"
+            entityIdPrefix = "entity/"
+          }
+      }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResultsFulfillerParamsValidator.validate(invalidParams)
+      }
+
+    assertThat(exception).hasMessageThat().contains("entity_type")
+  }
+
+  @Test
+  fun `whole blob entity types accepts nonblank values`() {
+    ResultsFulfillerParamsValidator.validate(
+      VALID_PARAMS.copy { wholeBlobEntityTypes += listOf("campaign", "placement") },
+      DATA_PROVIDER,
+    )
+  }
+
+  @Test
+  fun `whole blob entity types rejects blank value`() {
+    val invalidParams = VALID_PARAMS.copy { wholeBlobEntityTypes += listOf("campaign", "   ") }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResultsFulfillerParamsValidator.validate(invalidParams)
+      }
+
+    assertThat(exception).hasMessageThat().contains("whole_blob_entity_types")
+  }
+
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp1"
+    private val VALID_K_ANONYMITY_PARAMS =
+      ResultsFulfillerParamsKt.kAnonymityParams {
+        minUsers = 1
+        minImpressions = 1
+        reachMaxFrequencyPerUser = 1
+      }
     private val VALID_PARAMS: ResultsFulfillerParams = resultsFulfillerParams {
       dataProvider = DATA_PROVIDER
       storageParams =
