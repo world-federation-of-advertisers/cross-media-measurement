@@ -29,9 +29,20 @@ java_binary(
 )
 
 kt_jvm_library(
+    name = "done_blob_generation_resolver",
+    srcs = ["DoneBlobGenerationResolver.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_library(
     name = "replay_data_availability_sync",
     srcs = ["ReplayDataAvailabilitySync.kt"],
     deps = [
+        ":done_blob_generation_resolver",
         "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync_replay",
@@ -137,6 +148,7 @@ kt_jvm_library(
     name = "recover_missing_impression_metadata",
     srcs = ["RecoverMissingImpressionMetadata.kt"],
     deps = [
+        ":done_blob_generation_resolver",
         "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_blobs",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
