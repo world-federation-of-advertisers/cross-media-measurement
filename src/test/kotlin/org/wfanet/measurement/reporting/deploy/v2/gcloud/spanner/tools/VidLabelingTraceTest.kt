@@ -739,7 +739,53 @@ class VidLabelingTraceTest {
   }
 
   @Test
-  fun `availability evidence matches model line and interval`() = runBlocking {
+  fun `one broad availability publication satisfies every covered row node`() = runBlocking {
+    val intervalStart = "2026-09-01T00:00:00Z"
+    val intervalEnd = "2026-09-02T00:00:00Z"
+    val graph =
+      testGraph(listOf(MEMOIZED_MODEL_LINE))
+        .copy(
+          nodes =
+            listOf(
+              availabilityNode(
+                "healed-replacement-availability",
+                MEMOIZED_MODEL_LINE,
+                intervalStart,
+                intervalEnd,
+              ),
+              availabilityNode(
+                "deferred-upload-availability",
+                MEMOIZED_MODEL_LINE,
+                intervalStart,
+                intervalEnd,
+              ),
+            )
+        )
+    val entry =
+      entry(
+        "data_availability_publish",
+        modelLineFields(MEMOIZED_MODEL_LINE) +
+          " xmm.edpa.availability.interval_start=$intervalStart" +
+          " xmm.edpa.availability.interval_end=$intervalEnd",
+        traceId = ROOT_TRACE,
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(listOf(entry)) },
+        spanReader = completeTraceReader(),
+        stateResolver = VidLabelingStateResolver { graph },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val collection = collector.collect(request())
+
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.COMPLETE)
+    assertThat(collection.modelLines.single().stages.map { it.evidenceCount }).containsExactly(1, 1)
+    assertThat(collection.evidence.count { it.stage == "data_availability_publish" }).isEqualTo(1)
+  }
+
+  @Test
+  fun `single-day availability evidence remains isolated by model line`() = runBlocking {
     val intervalStart = "2026-09-01T00:00:00Z"
     val intervalEnd = "2026-09-02T00:00:00Z"
     val graph =
