@@ -131,6 +131,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param readBlobMetadata reads the storage generation, size, and creation time for a blob in one
  *   metadata lookup.
  * @param rpcThrottlers process-scoped rate limiters shared with the dispatch sequencer.
+ * @param footerReadConcurrency maximum number of Parquet footer reads in flight.
  * @param clock clock for determining active model line windows.
  * @param metrics OpenTelemetry metrics recorder.
  */
@@ -152,6 +153,7 @@ class VidLabelingDispatcher(
   private val readEventDate: suspend (blobKey: String) -> LocalDate,
   private val readBlobMetadata: suspend (blobKey: String) -> RawImpressionBlobMetadata,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
+  footerReadConcurrency: Int = DEFAULT_FOOTER_READ_CONCURRENCY,
   private val clock: Clock = Clock.systemUTC(),
   private val correctionCandidateRetention: Duration = Duration.ofDays(90),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
@@ -164,6 +166,10 @@ class VidLabelingDispatcher(
       }
     },
 ) {
+
+  init {
+    require(footerReadConcurrency > 0) { "footerReadConcurrency must be positive" }
+  }
 
   enum class UploadOutcome(val telemetryValue: String) {
     SUCCEEDED("succeeded"),
@@ -199,8 +205,8 @@ class VidLabelingDispatcher(
     STALE,
   }
 
-  /** Caps concurrent Parquet-footer reads so footer fan-out stays well under GCS per-bucket QPS. */
-  private val readSemaphore = Semaphore(FOOTER_READ_PARALLELISM)
+  /** Caps concurrent Parquet-footer reads to bound GCS buffers and parsed metadata in memory. */
+  private val readSemaphore = Semaphore(footerReadConcurrency)
   private val manifestClassifier = RawImpressionUploadManifestClassifier()
 
   /**
@@ -1869,27 +1875,20 @@ class VidLabelingDispatcher(
     }
   }
 
-  private suspend fun resolveEventDates(blobs: List<RawBlobVersion>): Map<String, Date> = buildMap {
-    for (chunk in blobs.chunked(RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE)) {
-      putAll(
-        coroutineScope {
-          chunk
-            .associate { blobVersion ->
-              blobVersion.blobUri to
-                async {
-                  readSemaphore.withPermit {
-                    readEventDate(
-                        generationMatchedBlobUri(blobVersion.blobUri, blobVersion.generation)
-                      )
-                      .toProtoDate()
-                  }
-                }
+  private suspend fun resolveEventDates(blobs: List<RawBlobVersion>): Map<String, Date> =
+    coroutineScope {
+      blobs
+        .associate { blobVersion ->
+          blobVersion.blobUri to
+            async {
+              readSemaphore.withPermit {
+                readEventDate(generationMatchedBlobUri(blobVersion.blobUri, blobVersion.generation))
+                  .toProtoDate()
+              }
             }
-            .mapValues { (_, deferred) -> deferred.await() }
         }
-      )
+        .mapValues { (_, deferred) -> deferred.await() }
     }
-  }
 
   private suspend fun resolveSingleEventDates(
     blobs: List<RawBlobVersion>,
@@ -1967,8 +1966,17 @@ class VidLabelingDispatcher(
     private const val RAW_IMPRESSION_UPLOAD_FILE_LOOKUP_BATCH_SIZE = 100
     private const val RAW_IMPRESSION_UPLOAD_MODEL_LINE_BATCH_SIZE = 50
 
-    /** Max concurrent Parquet-footer reads when resolving event dates (well under GCS QPS). */
-    private const val FOOTER_READ_PARALLELISM = 100
+    /** Default maximum number of concurrent Parquet-footer reads. */
+    const val DEFAULT_FOOTER_READ_CONCURRENCY = 12
+
+    const val FOOTER_READ_CONCURRENCY_ENV = "VID_LABELING_DISPATCHER_FOOTER_READ_CONCURRENCY"
+
+    fun resolveFooterReadConcurrency(value: String?): Int {
+      if (value == null) return DEFAULT_FOOTER_READ_CONCURRENCY
+      return requireNotNull(value.toIntOrNull()?.takeIf { it > 0 }) {
+        "$FOOTER_READ_CONCURRENCY_ENV must be a positive integer"
+      }
+    }
 
     private val NON_ADDITIVE_CLASSIFICATIONS =
       setOf(
