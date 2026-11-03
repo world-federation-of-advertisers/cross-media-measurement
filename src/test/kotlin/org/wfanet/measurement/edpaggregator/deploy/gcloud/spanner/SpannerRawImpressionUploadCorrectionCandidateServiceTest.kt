@@ -21,9 +21,15 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
+import com.google.type.Date
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
@@ -37,6 +43,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.AdvanceRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequestKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
@@ -54,6 +61,13 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
   private val service by lazy {
     SpannerRawImpressionUploadCorrectionCandidateService(spannerDatabase.databaseClient)
   }
+  private val mixedManifestComparison =
+    manifestComparison(
+      RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED,
+      UPLOAD_ID,
+    )
+  private val priorDigest = manifestDigest(mixedManifestComparison.priorManifestList)
+  private val currentDigest = manifestDigest(mixedManifestComparison.currentManifestList)
 
   @Test
   fun `create persists candidate`() =
@@ -79,8 +93,9 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
       assertThat(created.rawImpressionUploadResourceId).isEqualTo(UPLOAD_ID)
       assertThat(created.classification)
         .isEqualTo(RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED)
-      assertThat(created.priorManifestDigest).isEqualTo(PRIOR_DIGEST)
-      assertThat(created.currentManifestDigest).isEqualTo(CURRENT_DIGEST)
+      assertThat(created.priorManifestDigest).isEqualTo(priorDigest)
+      assertThat(created.currentManifestDigest).isEqualTo(currentDigest)
+      assertThat(created.manifestComparison).isEqualTo(mixedManifestComparison)
       assertThat(created.state)
         .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING)
       assertThat(created.decision)
@@ -104,6 +119,40 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
       val second = service.createRawImpressionUploadCorrectionCandidate(request)
 
       assertThat(second).isEqualTo(first)
+    }
+
+  @Test
+  fun `create rejects reused request ID with reordered manifest comparison`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      val request = createRequest()
+      service.createRawImpressionUploadCorrectionCandidate(request)
+      val reorderedComparison =
+        mixedManifestComparison
+          .toBuilder()
+          .clearPriorManifest()
+          .addAllPriorManifest(mixedManifestComparison.priorManifestList.reversed())
+          .clearCurrentManifest()
+          .addAllCurrentManifest(mixedManifestComparison.currentManifestList.reversed())
+          .clearDifferences()
+          .addAllDifferences(mixedManifestComparison.differencesList.reversed())
+          .build()
+      val changedRequest =
+        request.copy {
+          rawImpressionUploadCorrectionCandidate =
+            rawImpressionUploadCorrectionCandidate.copy { manifestComparison = reorderedComparison }
+        }
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUploadCorrectionCandidate(changedRequest)
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
     }
 
   @Test
@@ -193,6 +242,114 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
           rawImpressionUploadCorrectionCandidate =
             rawImpressionUploadCorrectionCandidate.copy {
               priorManifestDigest = ByteString.copyFromUtf8("not-sha256")
+            }
+        }
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUploadCorrectionCandidate(request)
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `create rejects a manifest comparison that does not match its digest`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      val request =
+        createRequest().copy {
+          rawImpressionUploadCorrectionCandidate =
+            rawImpressionUploadCorrectionCandidate.copy {
+              manifestComparison =
+                mixedManifestComparison
+                  .toBuilder()
+                  .setCurrentManifest(
+                    0,
+                    mixedManifestComparison.currentManifestList[0]
+                      .toBuilder()
+                      .setBlobGeneration(3L)
+                      .build(),
+                  )
+                  .build()
+            }
+        }
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUploadCorrectionCandidate(request)
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `create rejects a manifest entry without an event date`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      val request =
+        createRequest().copy {
+          rawImpressionUploadCorrectionCandidate =
+            rawImpressionUploadCorrectionCandidate.copy {
+              manifestComparison =
+                mixedManifestComparison
+                  .toBuilder()
+                  .setCurrentManifest(
+                    0,
+                    mixedManifestComparison.currentManifestList[0]
+                      .toBuilder()
+                      .clearEventDate()
+                      .build(),
+                  )
+                  .build()
+            }
+        }
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUploadCorrectionCandidate(request)
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `create rejects a manifest entry with year zero`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      val request =
+        createRequest().copy {
+          rawImpressionUploadCorrectionCandidate =
+            rawImpressionUploadCorrectionCandidate.copy {
+              manifestComparison =
+                mixedManifestComparison
+                  .toBuilder()
+                  .setCurrentManifest(
+                    0,
+                    mixedManifestComparison.currentManifestList[0]
+                      .toBuilder()
+                      .setEventDate(
+                        date {
+                          year = 0
+                          month = 1
+                          day = 1
+                        }
+                      )
+                      .build(),
+                  )
+                  .build()
             }
         }
 
@@ -809,13 +966,15 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     classification: RawImpressionUploadCorrectionCandidate.Classification =
       RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED,
   ) = createRawImpressionUploadCorrectionCandidateRequest {
+    val comparison = manifestComparison(classification, uploadId)
     dataProviderResourceId = DATA_PROVIDER_ID
     rawImpressionUploadCorrectionCandidateId = candidateId
     rawImpressionUploadCorrectionCandidate = rawImpressionUploadCorrectionCandidate {
       rawImpressionUploadResourceId = uploadId
       this.classification = classification
-      priorManifestDigest = PRIOR_DIGEST
-      currentManifestDigest = CURRENT_DIGEST
+      priorManifestDigest = manifestDigest(comparison.priorManifestList)
+      currentManifestDigest = manifestDigest(comparison.currentManifestList)
+      manifestComparison = comparison
       expireTime = EXPIRY_TIME
     }
     this.requestId = requestId
@@ -835,6 +994,97 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     uploadHealingOperationId = operationId
     supersedingRawImpressionUploadCorrectionCandidateId = supersedingCandidateId
     requestId = REQUEST_IDS.getValue(action)
+  }
+
+  private fun manifestComparison(
+    classification: RawImpressionUploadCorrectionCandidate.Classification,
+    currentOwner: String,
+  ): RawImpressionUploadCorrectionCandidate.ManifestComparison =
+    RawImpressionUploadCorrectionCandidateKt.manifestComparison {
+      val priorA = manifestEntry("gs://raw/a", 1L, "prior-a")
+      priorManifest += priorA
+      when (classification) {
+        RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED -> {
+          val currentA = manifestEntry("gs://raw/a", 2L, currentOwner)
+          currentManifest += currentA
+          differences +=
+            RawImpressionUploadCorrectionCandidateKt.manifestDifference {
+              type = RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_EDITED
+              prior = priorA
+              current = currentA
+            }
+        }
+        RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_REMOVED -> {
+          differences +=
+            RawImpressionUploadCorrectionCandidateKt.manifestDifference {
+              type = RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_REMOVED
+              prior = priorA
+            }
+        }
+        RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED -> {
+          val priorB = manifestEntry("gs://raw/b", 1L, "prior-b")
+          val currentA = manifestEntry("gs://raw/a", 2L, currentOwner)
+          val currentC = manifestEntry("gs://raw/c", 1L, currentOwner)
+          priorManifest += priorB
+          currentManifest += listOf(currentA, currentC)
+          differences +=
+            listOf(
+              RawImpressionUploadCorrectionCandidateKt.manifestDifference {
+                type = RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_EDITED
+                prior = priorA
+                current = currentA
+              },
+              RawImpressionUploadCorrectionCandidateKt.manifestDifference {
+                type = RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_REMOVED
+                prior = priorB
+              },
+              RawImpressionUploadCorrectionCandidateKt.manifestDifference {
+                type = RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_ADDED
+                current = currentC
+              },
+            )
+        }
+        RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_UNSPECIFIED,
+        RawImpressionUploadCorrectionCandidate.Classification.UNRECOGNIZED ->
+          error("Invalid test classification")
+      }
+    }
+
+  private fun manifestEntry(
+    uri: String,
+    generation: Long,
+    owner: String,
+    eventDate: Date = date {
+      year = 2026
+      month = 1
+      day = 1
+    },
+  ) =
+    RawImpressionUploadCorrectionCandidateKt.manifestEntry {
+      blobUri = uri
+      blobGeneration = generation
+      this.eventDate = eventDate
+      outputSourceRawImpressionUploadResourceId = owner
+    }
+
+  private fun manifestDigest(
+    manifest: List<RawImpressionUploadCorrectionCandidate.ManifestEntry>
+  ): ByteString {
+    val digest = MessageDigest.getInstance("SHA-256")
+    for (entry in manifest.sortedBy { it.blobUri }) {
+      val uriBytes = entry.blobUri.toByteArray(StandardCharsets.UTF_8)
+      digest.update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(uriBytes.size).array())
+      digest.update(uriBytes)
+      digest.update(ByteBuffer.allocate(Long.SIZE_BYTES).putLong(entry.blobGeneration).array())
+      digest.update(
+        ByteBuffer.allocate(Int.SIZE_BYTES * 3)
+          .putInt(entry.eventDate.year)
+          .putInt(entry.eventDate.month)
+          .putInt(entry.eventDate.day)
+          .array()
+      )
+    }
+    return digest.digest().toByteString()
   }
 
   private suspend fun insertRawUpload(
@@ -955,8 +1205,6 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION to
           "00000000-0000-4000-8000-000000000008",
       )
-    private val PRIOR_DIGEST = ByteString.copyFrom(ByteArray(32) { 1 })
-    private val CURRENT_DIGEST = ByteString.copyFrom(ByteArray(32) { 2 })
     private val EXPIRY_TIME = timestamp { seconds = 4_102_444_800L }
   }
 }

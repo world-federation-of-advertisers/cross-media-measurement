@@ -41,6 +41,7 @@ CREATE TABLE RawImpressionUploadCorrectionCandidate (
   Classification `wfa.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate.Classification` NOT NULL,
   PriorManifestDigest BYTES(MAX) NOT NULL,
   CurrentManifestDigest BYTES(MAX) NOT NULL,
+  ManifestComparison BYTES(MAX) NOT NULL,
   State `wfa.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate.State` NOT NULL,
   Decision `wfa.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate.Decision` NOT NULL,
   SupersedingRawImpressionUploadCorrectionCandidateId STRING(36),

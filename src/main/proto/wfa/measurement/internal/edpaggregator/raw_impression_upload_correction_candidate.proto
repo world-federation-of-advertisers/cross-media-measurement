@@ -29,7 +29,7 @@ message RawImpressionUploadCorrectionCandidate {
     string blob_uri = 1;
     int64 blob_generation = 2;
     google.type.Date event_date = 3;
-    string owner_raw_impression_upload_resource_id = 4;
+    string output_source_raw_impression_upload_resource_id = 4;
   }
 
   message ManifestDifference {
@@ -38,6 +38,7 @@ message RawImpressionUploadCorrectionCandidate {
       TYPE_ADDED = 1;
       TYPE_EDITED = 2;
       TYPE_REMOVED = 3;
+      TYPE_EVENT_DATE_CHANGED = 4;
     }
 
     Type type = 1;
