@@ -780,6 +780,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
 
