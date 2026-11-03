@@ -170,7 +170,8 @@ class ImpressionsWriter(
         }
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
       val encryptedStorage = run {
-        val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
+        val selectedStorageClient =
+          FixtureStorageClient(SelectedStorageClient(impressionsFileUri, storagePath))
 
         val aeadStorageClient =
           selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
@@ -201,7 +202,7 @@ class ImpressionsWriter(
 
       // Create the impressions metadata store
       val impressionsMetadataStorageClient =
-        SelectedStorageClient(impressionsMetadataFileUri, storagePath)
+        FixtureStorageClient(SelectedStorageClient(impressionsMetadataFileUri, storagePath))
 
       val zoneId = ZoneOffset.UTC
       val startOfDay = localDate.atStartOfDay(zoneId).toInstant().toProtoTime()
