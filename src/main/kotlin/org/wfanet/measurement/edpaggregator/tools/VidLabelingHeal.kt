@@ -85,6 +85,8 @@ import picocli.CommandLine.Parameters
       MarkFailedCommand::class,
       RetryFailedCommand::class,
       BackfillModelLineCommand::class,
+      ListCorrectionCandidatesCommand::class,
+      GetCorrectionCandidateCommand::class,
       EvictUploadsCommand::class,
       ResumeHealingCommand::class,
       RecoverUploadCommand::class,
