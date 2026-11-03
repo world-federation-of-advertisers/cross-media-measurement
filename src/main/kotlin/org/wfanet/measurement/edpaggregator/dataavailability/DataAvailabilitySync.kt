@@ -150,6 +150,9 @@ class DataAvailabilitySync(
     require(impressionMetadataBatchSize > 0) {
       "impressionMetadataBatchSize must be greater than zero"
     }
+    require(impressionMetadataBatchSize <= MAX_IMPRESSION_METADATA_BATCH_SIZE) {
+      "impressionMetadataBatchSize must not exceed $MAX_IMPRESSION_METADATA_BATCH_SIZE"
+    }
     require(modelLineMap.values.all { it.isNotEmpty() }) {
       "modelLineMap entries must contain at least one model line"
     }
@@ -523,60 +526,75 @@ class DataAvailabilitySync(
 
       // BatchCreate new entries, chunked at the RPC boundary
       val createResponses =
-        toCreate.chunked(impressionMetadataBatchSize).flatMap { createChunk ->
-          ensureLeaseActive()
-          runMetadataAction(
-            action = "created",
-            attempted = createChunk.map { it.impressionMetadata },
+        chunkByWeight(
+            toCreate,
+            maxItems = impressionMetadataBatchSize,
+            maxWeight = MAX_ENTITY_KEYS_PER_BATCH,
           ) {
-            throttler
-              .onReady {
-                impressionMetadataServiceStub.batchCreateImpressionMetadata(
-                  batchCreateImpressionMetadataRequest {
-                    parent = dataProviderName
-                    this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
-                    createChunk.forEach { item ->
-                      requests += createImpressionMetadataRequest {
-                        parent = dataProviderName
-                        this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
-                        impressionMetadata = item.impressionMetadata
-                        requestId = contentAwareRequestId(item.impressionMetadata)
+            it.impressionMetadata.entityKeysCount
+          }
+          .flatMap { createChunk ->
+            ensureLeaseActive()
+            runMetadataAction(
+              action = "created",
+              attempted = createChunk.map { it.impressionMetadata },
+            ) {
+              throttler
+                .onReady {
+                  impressionMetadataServiceStub.batchCreateImpressionMetadata(
+                    batchCreateImpressionMetadataRequest {
+                      parent = dataProviderName
+                      this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
+                      createChunk.forEach { item ->
+                        requests += createImpressionMetadataRequest {
+                          parent = dataProviderName
+                          this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
+                          impressionMetadata = item.impressionMetadata
+                          requestId = contentAwareRequestId(item.impressionMetadata)
+                        }
                       }
                     }
-                  }
-                )
-              }
-              .impressionMetadataList
+                  )
+                }
+                .impressionMetadataList
+            }
           }
-        }
 
       // BatchUpdate changed entries, chunked at the RPC boundary
       val updateResponses =
-        toUpdate.chunked(impressionMetadataBatchSize).flatMap { updateChunk ->
-          ensureLeaseActive()
-          runMetadataAction(
-            action = "updated",
-            attempted = updateChunk.map { it.impressionMetadata },
-          ) {
-            throttler
-              .onReady {
-                impressionMetadataServiceStub.batchUpdateImpressionMetadata(
-                  batchUpdateImpressionMetadataRequest {
-                    parent = dataProviderName
-                    this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
-                    updateChunk.forEach { item ->
-                      requests += updateImpressionMetadataRequest {
-                        this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
-                        impressionMetadata = item.impressionMetadata
-                        requestId = contentAwareRequestId(item.impressionMetadata)
+        chunkByWeight(
+            toUpdate,
+            maxItems = impressionMetadataBatchSize,
+            maxWeight = MAX_ENTITY_KEYS_PER_BATCH,
+          ) { item ->
+            existingByBlobUri.getValue(item.impressionMetadata.blobUri).entityKeysCount +
+              item.impressionMetadata.entityKeysCount
+          }
+          .flatMap { updateChunk ->
+            ensureLeaseActive()
+            runMetadataAction(
+              action = "updated",
+              attempted = updateChunk.map { it.impressionMetadata },
+            ) {
+              throttler
+                .onReady {
+                  impressionMetadataServiceStub.batchUpdateImpressionMetadata(
+                    batchUpdateImpressionMetadataRequest {
+                      parent = dataProviderName
+                      this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
+                      updateChunk.forEach { item ->
+                        requests += updateImpressionMetadataRequest {
+                          this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
+                          impressionMetadata = item.impressionMetadata
+                          requestId = contentAwareRequestId(item.impressionMetadata)
+                        }
                       }
                     }
-                  }
-                )
-              }
-              .impressionMetadataList
+                  )
+                }
+                .impressionMetadataList
+            }
           }
-        }
 
       // Restore soft-deleted entries only after their latest content has been persisted. This
       // prevents stale metadata from becoming visible if an update fails.
@@ -958,7 +976,46 @@ class DataAvailabilitySync(
     }
   }
 
+  private fun <T> chunkByWeight(
+    items: Iterable<T>,
+    maxItems: Int,
+    maxWeight: Int,
+    weightOf: (T) -> Int,
+  ): List<List<T>> {
+    require(maxItems > 0) { "maxItems must be positive" }
+    require(maxWeight > 0) { "maxWeight must be positive" }
+
+    val batches = mutableListOf<List<T>>()
+    var batch = mutableListOf<T>()
+    var batchWeight = 0
+    fun flush() {
+      if (batch.isEmpty()) return
+      batches += batch
+      batch = mutableListOf()
+      batchWeight = 0
+    }
+
+    for (item in items) {
+      val weight = weightOf(item)
+      require(weight >= 0) { "item weight must not be negative" }
+      if (weight > maxWeight) {
+        flush()
+        batches += listOf(item)
+        continue
+      }
+      if (batch.isNotEmpty() && (batch.size >= maxItems || batchWeight + weight > maxWeight)) {
+        flush()
+      }
+      batch += item
+      batchWeight += weight
+    }
+    flush()
+    return batches
+  }
+
   companion object {
+    private const val MAX_IMPRESSION_METADATA_BATCH_SIZE = 100
+    private const val MAX_ENTITY_KEYS_PER_BATCH = 4_000
     private val RECORD_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.count")
     private val CREATED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.created")
     private val UPDATED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.updated")
