@@ -20,7 +20,7 @@
 START BATCH DDL;
 
 ALTER TABLE UploadHealingOperation
-ADD COLUMN State INT64 NOT NULL DEFAULT (9);
+ADD COLUMN State INT64;
 
 ALTER TABLE UploadHealingOperation ADD COLUMN ResumeState INT64;
 
@@ -38,6 +38,21 @@ ADD COLUMN RawImpressionUploadCorrectionCandidateId STRING(36);
 
 ALTER TABLE UploadHealingStep
 ADD COLUMN LabeledOutputManifest BYTES(MAX) NOT NULL DEFAULT (B'');
+
+RUN BATCH;
+
+-- changeset marcopremier:18-backfill-state dbms:cloudspanner
+-- comment: Preserve completed legacy upload-healing operations.
+UPDATE UploadHealingOperation SET State = 2 WHERE TRUE;
+
+-- changeset marcopremier:18-require-state dbms:cloudspanner
+-- comment: Require explicit lifecycle state for new operations.
+ALTER TABLE UploadHealingOperation
+ALTER COLUMN State INT64 NOT NULL;
+
+-- changeset marcopremier:18-index-state dbms:cloudspanner
+-- comment: Index upload-healing operations by explicit lifecycle state.
+START BATCH DDL;
 
 CREATE INDEX UploadHealingOperationByStateAndCreateTime
   ON UploadHealingOperation(
