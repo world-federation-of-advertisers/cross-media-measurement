@@ -1176,9 +1176,9 @@ class EdpAggregatorReportingIntegrationTest {
      *
      * A VID's impressions are spread across that whole range, so a short interval samples only a
      * fraction of each VID's frequency and leaves the K+ reach metrics under their noise floor.
-     * Thirty-six days puts 2+ reach at roughly 18x sigma.
+     * Thirty-five days puts 2+ reach at roughly 18x sigma.
      */
-    private val REPORT_START: LocalDate = LocalDate.of(2026, 4, 1)
+    private val REPORT_START: LocalDate = LocalDate.of(2026, 4, 2)
     private val REPORT_END: LocalDate = LocalDate.of(2026, 5, 7)
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
