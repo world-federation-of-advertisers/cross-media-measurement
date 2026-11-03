@@ -558,6 +558,53 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `batchCreateImpressionMetadata rejects more than 100 records`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            repeat(101) { requests += createImpressionMetadataRequest {} }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).contains("must contain at most 100 entries")
+  }
+
+  @Test
+  fun `batchCreateImpressionMetadata rejects an unsafe entity-key mutation weight`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            requests += createImpressionMetadataRequest {
+              this.synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+              impressionMetadata =
+                IMPRESSION_METADATA.copy {
+                  entityKeys +=
+                    (0 until 7_001).map { index ->
+                      entityKey {
+                        entityType = "campaign"
+                        entityId = "campaign-$index"
+                      }
+                    }
+                }
+              requestId = UUID.randomUUID().toString()
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+    assertThat(exception.status.description).contains("maximum supported weight is 7000")
+  }
+
+  @Test
   fun `batchCreateImpressionMetadata is idempotent and creates new items in same request`() =
     runBlocking {
       val idempotentRequest = createImpressionMetadataRequest {
@@ -814,6 +861,71 @@ abstract class ImpressionMetadataServiceTest {
     assertThat(updated.entityKeysList).containsExactly(ENTITY_KEY_AD_1, ENTITY_KEY_CAMPAIGN_1)
     assertThat(updated.blobUri).isEqualTo(BLOB_URI)
     assertThat(updated.eventGroupReferenceId).isEqualTo(EVENT_GROUP_REFERENCE_ID)
+  }
+
+  @Test
+  fun `batchUpdateImpressionMetadata rejects an unsafe replacement entity-key mutation weight`() =
+    runBlocking {
+      val created =
+        service
+          .batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+              requests += createImpressionMetadataRequest {
+                this.synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+                impressionMetadata = IMPRESSION_METADATA.copy { entityKeys += ENTITY_KEY_AD_1 }
+                requestId = UUID.randomUUID().toString()
+              }
+            }
+          )
+          .impressionMetadataList
+          .single()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchUpdateImpressionMetadata(
+            batchUpdateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+              requests += updateImpressionMetadataRequest {
+                this.synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+                impressionMetadata =
+                  IMPRESSION_METADATA.copy {
+                    impressionMetadataResourceId = created.impressionMetadataResourceId
+                    entityKeys +=
+                      (0 until 7_000).map { index ->
+                        entityKey {
+                          entityType = "campaign"
+                          entityId = "campaign-$index"
+                        }
+                      }
+                  }
+                requestId = UUID.randomUUID().toString()
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+      assertThat(exception.status.description).contains("maximum supported weight is 7000")
+    }
+
+  @Test
+  fun `batchUpdateImpressionMetadata rejects more than 100 records`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchUpdateImpressionMetadata(
+          batchUpdateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            repeat(101) { requests += updateImpressionMetadataRequest {} }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).contains("must contain at most 100 entries")
   }
 
   @Test
