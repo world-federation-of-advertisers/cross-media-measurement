@@ -161,6 +161,7 @@ class SpannerImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     requireSynchronizationAttemptId(request.synchronizationAttemptId)
+    requireBatchSize(request.requestsCount)
     if (request.requestsList.isEmpty()) {
       return BatchCreateImpressionMetadataResponse.getDefaultInstance()
     }
@@ -293,6 +294,7 @@ class SpannerImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     requireSynchronizationAttemptId(request.synchronizationAttemptId)
+    requireBatchSize(request.requestsCount)
     if (request.requestsList.isEmpty()) {
       return BatchUpdateImpressionMetadataResponse.getDefaultInstance()
     }
@@ -371,6 +373,15 @@ class SpannerImpressionMetadataService(
             }
           }
         }
+    }
+  }
+
+  private fun requireBatchSize(size: Int) {
+    if (size > MAX_IMPRESSION_METADATA_BATCH_SIZE) {
+      throw InvalidFieldValueException("requests") {
+          "must contain at most $MAX_IMPRESSION_METADATA_BATCH_SIZE entries"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
 
@@ -901,6 +912,7 @@ class SpannerImpressionMetadataService(
   }
 
   companion object {
+    private const val MAX_IMPRESSION_METADATA_BATCH_SIZE = 100
     /**
      * Maximum page size for `ListImpressionMetadata`.
      *
