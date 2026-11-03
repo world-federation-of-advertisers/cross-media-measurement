@@ -125,6 +125,33 @@ class DataAvailabilitySyncWorkItemProcessorTest {
   }
 
   @Test
+  fun `process retries when referenced impressions blob is missing`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.FAILED
+      }
+    var availabilityMarked = false
+    val processor =
+      processor(
+        synchronize = { _, _, _ ->
+          throw IllegalStateException("Referenced impressions blob is missing")
+        },
+        markAvailabilitySynchronized = { availabilityMarked = true },
+      )
+
+    assertFailsWith<IllegalStateException> { processor.process(input()) }
+
+    verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+    verifyBlocking(workItemAttemptsStub, never()) {
+      completeWorkItemAttempt(any(), any<Metadata>())
+    }
+    assertThat(availabilityMarked).isFalse()
+  }
+
+  @Test
   fun `process retries when marking availability synchronized fails`() = runBlocking {
     stubAttemptCreation()
     whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn

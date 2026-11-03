@@ -998,6 +998,9 @@ class DataAvailabilitySync(
         } else {
           throw IllegalArgumentException("Unsupported file extension for metadata: $fileName")
         }
+      require(blobDetails.blobUri.isNotEmpty()) {
+        "BlobDetails blob_uri is empty for metadata: ${impressionMetadataBlob.blobKey}"
+      }
 
       if (candidate.expectedImpressionBlobUri != null) {
         require(blobDetails.blobUri == candidate.expectedImpressionBlobUri) {
@@ -1049,6 +1052,13 @@ class DataAvailabilitySync(
         }
       }
       val impressionBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
+      require(
+        impressionBlobUri.scheme == doneBlobUri.scheme &&
+          impressionBlobUri.bucket == doneBlobUri.bucket &&
+          impressionBlobUri.key.isNotEmpty()
+      ) {
+        "BlobDetails blob_uri must reference an object in the upload storage root"
+      }
       val metadataBlobUri =
         when (doneBlobUri.scheme) {
           "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
@@ -1059,15 +1069,13 @@ class DataAvailabilitySync(
       logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
       val impressionBlob = storageClient.getBlob(impressionBlobUri.key)
       if (impressionBlob == null) {
-        if (candidate.expectedImpressionBlobUri != null) {
-          throw IllegalStateException(
-            "VID Labeler output disappeared during discovery: ${impressionBlobUri.key}"
-          )
-        } else {
-          logger.info(
-            "Encrypted impressions blob not found for metadata: ${impressionMetadataBlob.blobKey}."
-          )
-        }
+        val eventDate =
+          blobDetails.interval.startTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate()
+        throw IllegalStateException(
+          "Encrypted impressions blob ${impressionBlobUri.key} referenced by " +
+            "${impressionMetadataBlob.blobKey} is missing for model line " +
+            "${blobDetails.modelLine} on $eventDate"
+        )
       } else {
         logger.info("MetadataBlobUri is: $metadataBlobUri")
         val impressionMetadata = impressionMetadata {
