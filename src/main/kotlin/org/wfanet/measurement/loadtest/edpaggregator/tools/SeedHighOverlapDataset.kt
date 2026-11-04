@@ -66,6 +66,7 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
+import org.wfanet.measurement.integration.common.PopulationSetup
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine.ArgGroup
@@ -381,6 +382,7 @@ class SeedHighOverlapDataset : Runnable {
       kingdomPublicApiTarget,
       signingCerts,
       kingdomPublicApiCertHost.ifEmpty { null },
+      defaultServiceConfig = PopulationSetup.SERVICE_CONFIG,
     )
   }
 

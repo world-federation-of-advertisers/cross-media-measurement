@@ -10,15 +10,34 @@ kt_jvm_library(
     srcs = ["RequestIds.kt"],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:__pkg__",
+    ],
+)
+
+kt_jvm_library(
+    name = "raw_impression_upload_manifest_classifier",
+    srcs = ["RawImpressionUploadManifestClassifier.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_correction_candidate_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
     ],
 )
 
 kt_jvm_library(
     name = "work_item_ids",
     srcs = ["WorkItemIds.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__",
+    ],
 )
 
 kt_jvm_library(

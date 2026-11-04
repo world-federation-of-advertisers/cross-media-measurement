@@ -61,3 +61,24 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
+
+kt_jvm_test(
+    name = "FixtureStorageClientTest",
+    srcs = ["FixtureStorageClientTest.kt"],
+    test_class = "org.wfanet.measurement.loadtest.edpaggregator.testing.FixtureStorageClientTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:fixture_storage_client",
+        "@wfa_common_jvm//imports/java/com/google/api/gax",
+        "@wfa_common_jvm//imports/java/com/google/cloud:core",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)

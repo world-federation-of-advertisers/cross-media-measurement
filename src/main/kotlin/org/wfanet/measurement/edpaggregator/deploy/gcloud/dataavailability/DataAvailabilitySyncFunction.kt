@@ -53,10 +53,13 @@ import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
@@ -152,6 +155,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       val dataProvidersClient = DataProvidersCoroutineStub(instrumentedCmmsChannel)
       val impressionMetadataServicesClient =
         ImpressionMetadataServiceCoroutineStub(instrumentedImpMetadataChannel)
+      val dataAvailabilitySyncLeaseClient =
+        DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedImpMetadataChannel)
 
       val eventGroupActivityPublisher =
         dataAvailabilitySyncConfig.eventGroupActivityPublishing
@@ -211,12 +216,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
       Tracing.withW3CTraceContext(request) {
         val generation =
-          request
-            .getFirstHeader(VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER)
-            .map(String::toLongOrNull)
-            .orElse(null)
-        val objectIdentity =
-          generation?.let { VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, it) }
+          parseDataWatcherGeneration(
+            request
+              .getFirstHeader(VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER)
+              .orElse(null)
+          )
+        val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, generation)
         val attributes =
           Attributes.builder()
             .put(
@@ -237,17 +242,25 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               request.getFirstHeader(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER).ifPresent {
                 builder.put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, it)
               }
-              if (objectIdentity != null) {
-                builder
-                  .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
-                  .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
-              }
+              builder
+                .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
+                .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
             }
             .build()
         Tracing.trace("edpa.data_availability.sync", attributes) {
           val outcome =
             runBlocking(Context.current().asContextElement()) {
-              dataAvailabilitySync.sync(doneBlobPath)
+              DataAvailabilitySyncLeaseRunner(
+                  GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient)
+                )
+                .run(dataAvailabilitySyncConfig.dataProvider) { lease ->
+                  dataAvailabilitySync.sync(
+                    doneBlobPath,
+                    dataAvailabilitySyncLease = lease.name,
+                    ensureLeaseActive = lease::invoke,
+                    doneBlobGeneration = generation,
+                  )
+                }
             }
           Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
         }
@@ -447,4 +460,15 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       return GrpcChannels(cmmsChannel = cmmsChannel, impressionMetadataChannel = impressionChannel)
     }
   }
+}
+
+internal fun parseDataWatcherGeneration(value: String?): Long {
+  val generation =
+    requireNotNull(value?.toLongOrNull()) {
+      "${VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER} must contain a generation"
+    }
+  require(generation > 0L) {
+    "${VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER} must be positive"
+  }
+  return generation
 }

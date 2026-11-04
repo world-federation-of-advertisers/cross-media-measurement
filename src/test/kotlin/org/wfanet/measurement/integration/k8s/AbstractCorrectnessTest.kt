@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.integration.k8s
 
-import com.google.common.hash.Hashing
 import com.google.common.truth.TruthJUnit.assume
 import com.google.crypto.tink.InsecureSecretKeyAccess
 import com.google.crypto.tink.TinkProtoKeysetFormat
@@ -24,7 +23,6 @@ import com.google.protobuf.util.JsonFormat
 import com.google.rpc.ErrorInfo
 import io.grpc.Channel
 import io.grpc.Status
-import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.io.File
 import java.nio.file.Path
@@ -59,14 +57,11 @@ import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
-import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -76,6 +71,7 @@ import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.EventQuery
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
+import org.wfanet.measurement.integration.common.PopulationSetup
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
@@ -201,27 +197,12 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     @Blocking
     protected fun ensurePopulation(kingdomPublicApiChannel: Channel): Population {
       val populationData = getPopulationData()
-      val populationsStub = PopulationsGrpc.newBlockingStub(kingdomPublicApiChannel)
-
-      return try {
-        populationsStub.createPopulation(
-          createPopulationRequest {
-            parent = populationData.populationDataProviderName
-            population = population { populationSpec = populationData.populationSpec }
-            // This is relying on protobuf serialization which is known not to be deterministic
-            // across builds. That said, it's sufficient to avoid creating too many duplicate
-            // Populations.
-            @OptIn(ExperimentalStdlibApi::class) // For `HexFormat`.
-            requestId =
-              Hashing.murmur3_128()
-                .hashBytes(populationData.populationSpec.toByteArray())
-                .asBytes()
-                .toHexString(HexFormat.Default)
-          }
-        )
-      } catch (e: StatusException) {
-        throw Exception("Error creating population", e)
-      }
+      return PopulationSetup.ensurePopulation(
+        kingdomPublicApiChannel,
+        populationData.populationDataProviderName,
+        populationData.populationSpec,
+        description = "",
+      )
     }
   }
 

@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.loadtest.edpaggregator.tools
 
-import com.google.common.hash.Hashing
 import io.grpc.Channel
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -32,18 +31,16 @@ import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
-import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
-import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.integration.common.PopulationSetup
 
 /**
  * Ensures the high overlap [Population] exists and that the high overlap [ModelLine] has a
@@ -117,29 +114,12 @@ class HighOverlapModelResources(
    */
   @Blocking
   private fun ensurePopulation(): Population {
-    // Protobuf serialization is not guaranteed deterministic across builds. A spurious duplicate is
-    // harmless, since the newest rollout wins regardless.
-    @OptIn(ExperimentalStdlibApi::class) // For `HexFormat`.
-    val requestId =
-      Hashing.murmur3_128()
-        .hashBytes(populationSpec.toByteArray())
-        .asBytes()
-        .toHexString(HexFormat.Default)
-    return try {
-      PopulationsGrpc.newBlockingStub(pdpChannel)
-        .createPopulation(
-          createPopulationRequest {
-            parent = populationDataProvider
-            population = population {
-              populationSpec = this@HighOverlapModelResources.populationSpec
-              description = POPULATION_DESCRIPTION
-            }
-            this.requestId = requestId
-          }
-        )
-    } catch (e: StatusRuntimeException) {
-      throw IllegalStateException("Unable to create Population for $populationDataProvider", e)
-    }
+    return PopulationSetup.ensurePopulation(
+      pdpChannel,
+      populationDataProvider,
+      populationSpec,
+      description = POPULATION_DESCRIPTION,
+    )
   }
 
   /** Ensures a [ModelRelease] exists for [population] and is rolled out on [modelLine]. */

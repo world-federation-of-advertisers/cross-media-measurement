@@ -39,6 +39,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.Collections
 import java.util.logging.Logger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -70,16 +71,23 @@ import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLease
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RenewDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ValidateDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
@@ -141,11 +149,61 @@ class DataAvailabilitySyncFunctionTest {
         }
     }
 
+  private val dataAvailabilitySyncLeaseServiceMock:
+    DataAvailabilitySyncLeaseServiceCoroutineImplBase =
+    mockService {
+      onBlocking {
+          acquireDataAvailabilitySyncLease(any<AcquireDataAvailabilitySyncLeaseRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<AcquireDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.ACTIVE
+            etag = "etag"
+          }
+        }
+      onBlocking { renewDataAvailabilitySyncLease(any<RenewDataAvailabilitySyncLeaseRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<RenewDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.ACTIVE
+            etag = "renewed-etag"
+          }
+        }
+      onBlocking {
+          validateDataAvailabilitySyncLease(any<ValidateDataAvailabilitySyncLeaseRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ValidateDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.ACTIVE
+            etag = request.etag
+          }
+        }
+      onBlocking {
+          releaseDataAvailabilitySyncLease(any<ReleaseDataAvailabilitySyncLeaseRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ReleaseDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.RELEASED
+            etag = "released-etag"
+          }
+        }
+    }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(ServerInterceptors.intercept(dataProvidersServiceMock, metadataCaptureInterceptor))
     addService(
       ServerInterceptors.intercept(impressionMetadataServiceMock, metadataCaptureInterceptor)
+    )
+    addService(
+      ServerInterceptors.intercept(dataAvailabilitySyncLeaseServiceMock, metadataCaptureInterceptor)
     )
   }
 
@@ -173,6 +231,10 @@ class DataAvailabilitySyncFunctionTest {
                 impressionMetadataServiceMock.bindService(),
                 metadataCaptureInterceptor,
               ),
+              ServerInterceptors.intercept(
+                dataAvailabilitySyncLeaseServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              ),
             ),
         )
         .start()
@@ -195,6 +257,15 @@ class DataAvailabilitySyncFunctionTest {
         grpcServer.shutdown()
       }
     }
+  }
+
+  @Test
+  fun `DataWatcher generation must be present and positive`() {
+    for (value in listOf<String?>(null, "invalid", "0", "-1")) {
+      assertFailsWith<IllegalArgumentException> { parseDataWatcherGeneration(value) }
+    }
+    assertThat(parseDataWatcherGeneration(DONE_BLOB_GENERATION.toString()))
+      .isEqualTo(DONE_BLOB_GENERATION)
   }
 
   @Test
@@ -266,6 +337,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create(url))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
@@ -279,8 +351,21 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
       .contains("some-model-line-mapped")
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    val metadataRequest = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(metadataRequest.capture())
+    }
+    assertThat(
+        metadataRequest.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+      )
+      .isEqualTo(DONE_BLOB_GENERATION)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+    verifyBlocking(dataAvailabilitySyncLeaseServiceMock, times(1)) {
+      acquireDataAvailabilitySyncLease(any())
+    }
+    verifyBlocking(dataAvailabilitySyncLeaseServiceMock, times(1)) {
+      releaseDataAvailabilitySyncLease(any())
+    }
   }
 
   @Test
@@ -386,6 +471,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .header("traceparent", traceParentHeader)
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
@@ -494,6 +580,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create(url))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(anyJson))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
@@ -694,6 +781,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
@@ -759,6 +847,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
 
@@ -814,6 +903,8 @@ class DataAvailabilitySyncFunctionTest {
   private fun ByteArray.toHexString(): String = joinToString(separator = "") { "%02x".format(it) }
 
   companion object {
+
+    private const val DONE_BLOB_GENERATION = 77L
 
     private val SECRETS_DIR: Path =
       getRuntimePath(

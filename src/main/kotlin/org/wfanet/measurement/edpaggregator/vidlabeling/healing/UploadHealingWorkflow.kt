@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.tools
+package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.common.toInstant
@@ -34,6 +34,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
@@ -90,8 +92,8 @@ class UploadHealingWorkflow(
     val preparedPlan = evictionExecutor.prepare(plan)
     val dataProviderName = dataProviderOf(preparedPlan.badUploads.first())
     val operationId = preparedPlan.evictionOperationId
-    val operatorRecoveryTargets =
-      preparedPlan.recoveryTargets
+    val replacementTargets =
+      (preparedPlan.recoveryTargets + preparedPlan.replacementTargets)
         .flatMap { target -> target.cmmsModelLines.map { target.uploadName to it } }
         .toSet()
     val operation = uploadHealingOperation {
@@ -109,10 +111,8 @@ class UploadHealingWorkflow(
             memoized = entry.memoized
             recoveryAction = entry.recoveryAction
             recoveryPredecessorRawImpressionUpload = entry.recoveryPredecessorUploadName
-            recoveryTarget =
-              entry.recoveryAction ==
-                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION ||
-                (entry.uploadName to entry.cmmsModelLine) in operatorRecoveryTargets
+            recoveryTarget = (entry.uploadName to entry.cmmsModelLine) in replacementTargets
+            labeledOutputManifest = entry.labeledOutputManifest
           }
         }
     }
@@ -251,10 +251,31 @@ class UploadHealingWorkflow(
       requireNotNull(UploadHealingOperationKey.fromName(operation.name)) {
         "Malformed UploadHealingOperation resource name: ${operation.name}"
       }
+    val dataProvider = dataProviderOf(operation.badRawImpressionUploadsList.first())
+    val fenceState = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+    val fence =
+      uploadsStub.acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          parent = dataProvider
+          evictionOperationId = operationKey.uploadHealingOperationId
+          state = fenceState
+          requestId =
+            RequestIds.forAcquireUploadEvictionFence(
+              operationKey.uploadHealingOperationId,
+              fenceState.name,
+            )
+        }
+      )
     uploadsStub.releaseRawImpressionUploadEvictionFence(
       releaseRawImpressionUploadEvictionFenceRequest {
-        parent = dataProviderOf(operation.badRawImpressionUploadsList.first())
+        parent = dataProvider
         evictionOperationId = operationKey.uploadHealingOperationId
+        etag = fence.etag
+        requestId =
+          RequestIds.forReleaseUploadEvictionFence(
+            operationKey.uploadHealingOperationId,
+            fence.etag,
+          )
       }
     )
   }
@@ -329,6 +350,7 @@ class UploadHealingWorkflow(
             memoized = step.memoized,
             recoveryAction = step.recoveryAction,
             recoveryPredecessorUploadName = step.recoveryPredecessorRawImpressionUpload,
+            labeledOutputManifest = step.labeledOutputManifest,
           )
         }
     val badUploadSet = badRawImpressionUploadsList.toSet()
@@ -338,6 +360,17 @@ class UploadHealingWorkflow(
           it.recoveryTarget &&
             it.recoveryAction ==
               RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
+        .groupBy { it.sourceRawImpressionUpload }
+        .map { (uploadName, steps) ->
+          EvictUploader.RecoveryTarget(uploadName, steps.map { it.cmmsModelLine }.distinct())
+        }
+    val replacementTargets =
+      stepsList
+        .filter {
+          it.recoveryTarget &&
+            it.recoveryAction ==
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
         }
         .groupBy { it.sourceRawImpressionUpload }
         .map { (uploadName, steps) ->
@@ -361,6 +394,7 @@ class UploadHealingWorkflow(
       cutoffTime = cutoffTime.toInstant(),
       evictionOperationId = operationId,
       recoveryTargets = recoveryTargets,
+      replacementTargets = replacementTargets,
     )
   }
 

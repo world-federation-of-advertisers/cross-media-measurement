@@ -132,7 +132,7 @@ edpAggregator: #EdpAggregator & {
 			"--impression-metadata-api-cert-host=localhost",
 			"--lookback-days=90",
 			"--end-days-ago=0",
-			"--impression-metadata-batch-size=1000",
+			"--impression-metadata-batch-size=100",
 			"--throttler-minimum-interval=100ms",
 		]
 	}
