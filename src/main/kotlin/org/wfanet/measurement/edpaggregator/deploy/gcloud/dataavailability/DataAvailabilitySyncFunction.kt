@@ -20,6 +20,9 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.BlobId
+import com.google.cloud.storage.BlobInfo
+import com.google.cloud.storage.Storage
+import com.google.cloud.storage.StorageException as GcsStorageException
 import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
@@ -32,11 +35,16 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
+import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.common.EnvVars
@@ -58,6 +66,8 @@ import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActiv
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.ExternalDataAvailabilitySnapshotChangedException
+import org.wfanet.measurement.edpaggregator.dataavailability.GenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -76,9 +86,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemPublicationCodec
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private data class ChannelKey(
@@ -90,6 +100,11 @@ private data class ChannelKey(
 data class GrpcChannels(
   val cmmsChannel: ManagedChannel,
   val impressionMetadataChannel: ManagedChannel,
+)
+
+private data class StorageAccess(
+  val client: BlobMetadataStorageClient,
+  val generationMatchedMetadataUpdater: GenerationMatchedBlobMetadataUpdater?,
 )
 
 private fun Throwable.grpcStatusCodeFromCauseChain(): Status.Code? {
@@ -267,6 +282,10 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               workItem.doneBlobUri,
               dataAvailabilitySyncLease = lease.name,
               doneBlobGeneration = workItem.doneBlobGeneration,
+              externalDoneBlobCreateTime =
+                workItem.doneBlobCreateTime.takeIf {
+                  workItem.isExternal && fileSystemPath.isNullOrEmpty()
+                },
               discoveryMode = discoveryMode,
               onStage = onStage,
               ensureLeaseActive = lease::invoke,
@@ -368,7 +387,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   private fun buildDataAvailabilitySync(
     dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
   ): DataAvailabilitySync {
-    val storageClient = createStorageClient(dataAvailabilitySyncConfig)
+    val storageAccess = createStorageAccess(dataAvailabilitySyncConfig)
     val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
     val instrumentedCmmsChannel =
@@ -415,7 +434,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         }
     return DataAvailabilitySync(
       dataAvailabilitySyncConfig.edpImpressionPath,
-      storageClient,
+      storageAccess.client,
       DataProvidersCoroutineStub(instrumentedCmmsChannel),
       ImpressionMetadataServiceCoroutineStub(
         ClientInterceptors.intercept(
@@ -430,6 +449,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       modelLineMap =
         dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
+      generationMatchedMetadataUpdater = storageAccess.generationMatchedMetadataUpdater,
     )
   }
 
@@ -450,24 +470,23 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   /**
-   * Creates a [BlobMetadataStorageClient] based on the current environment and the provided data
-   * provider configuration.
+   * Creates storage access based on the current environment and the provided data provider
+   * configuration.
    *
    * @param dataProviderConfig The configuration object for a `DataProvider`.
-   * @return A [BlobMetadataStorageClient] instance, either for local file system access or GCS
-   *   access.
+   * @return Storage access backed by either the local file system or GCS.
    */
   // @TODO(@marcopremier): This function should be reused across Cloud Functions.
-  private fun createStorageClient(
+  private fun createStorageAccess(
     dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
-  ): BlobMetadataStorageClient {
+  ): StorageAccess {
     return if (!fileSystemPath.isNullOrEmpty()) {
-      NoOpBlobMetadataStorageClient(
+      val delegate =
         FileSystemStorageClient(File(EnvVars.checkIsPath("DATA_AVAILABILITY_FILE_SYSTEM_PATH")))
-      )
+      StorageAccess(NoOpBlobMetadataStorageClient(delegate), null)
     } else {
       val gcsConfig = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs
-      GcsStorageClient(
+      val storage =
         StorageOptions.newBuilder()
           .also {
             if (gcsConfig.projectId.isNotEmpty()) {
@@ -475,8 +494,10 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             }
           }
           .build()
-          .service,
-        gcsConfig.bucketName,
+          .service
+      StorageAccess(
+        GcsStorageClient(storage, gcsConfig.bucketName),
+        GcsGenerationMatchedBlobMetadataUpdater(storage, gcsConfig.bucketName),
       )
     }
   }
@@ -487,8 +508,9 @@ class DataAvailabilitySyncFunction() : HttpFunction {
    * Since [FileSystemStorageClient] doesn't support blob metadata, this provides a no-op
    * implementation of [updateBlobMetadata].
    */
-  private class NoOpBlobMetadataStorageClient(private val delegate: StorageClient) :
-    BlobMetadataStorageClient, StorageClient by delegate {
+  private class NoOpBlobMetadataStorageClient(
+    private val delegate: ConditionalOperationStorageClient
+  ) : BlobMetadataStorageClient, ConditionalOperationStorageClient by delegate {
     override suspend fun updateBlobMetadata(
       blobKey: String,
       customCreateTime: java.time.Instant?,
@@ -498,7 +520,49 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     }
   }
 
+  private class GcsGenerationMatchedBlobMetadataUpdater(
+    private val storage: Storage,
+    private val bucketName: String,
+  ) : GenerationMatchedBlobMetadataUpdater {
+    override suspend fun update(
+      blobKey: String,
+      generation: Long,
+      customCreateTime: Instant?,
+      metadata: Map<String, String>,
+    ) {
+      require(customCreateTime != null || metadata.isNotEmpty()) {
+        "At least one of customCreateTime or metadata must be specified"
+      }
+      withContext(Dispatchers.IO) {
+        try {
+          val blobInfo =
+            BlobInfo.newBuilder(BlobId.of(bucketName, blobKey))
+              .apply {
+                if (customCreateTime != null) {
+                  setCustomTimeOffsetDateTime(
+                    OffsetDateTime.ofInstant(customCreateTime, ZoneOffset.UTC)
+                  )
+                }
+                if (metadata.isNotEmpty()) {
+                  setMetadata(metadata)
+                }
+              }
+              .build()
+          storage.update(blobInfo, Storage.BlobTargetOption.generationMatch(generation))
+            ?: throw ExternalDataAvailabilitySnapshotChangedException()
+        } catch (e: GcsStorageException) {
+          if (e.code == HTTP_PRECONDITION_FAILED || e.code == HTTP_NOT_FOUND) {
+            throw ExternalDataAvailabilitySnapshotChangedException(cause = e)
+          }
+          throw e
+        }
+      }
+    }
+  }
+
   companion object {
+    private const val HTTP_NOT_FOUND = 404
+    private const val HTTP_PRECONDITION_FAILED = 412
     private val RETRYABLE_GRPC_STATUS_CODES =
       setOf(
         Status.Code.ABORTED,
