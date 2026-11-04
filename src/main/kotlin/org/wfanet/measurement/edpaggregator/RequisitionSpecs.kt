@@ -36,9 +36,27 @@ val Requisition.isMultimeasurement: Boolean
  *
  * A multimeasurement [Requisition] carries it unsigned in `unsigned_measurement_spec`. Any other
  * carries it signed in `measurement_spec`.
+ *
+ * @throws IllegalArgumentException if this is a multimeasurement [Requisition] that also carries a
+ *   signed spec, whose spec is not a multimeasurement, or whose protocol is not TrusTEE v2
  */
-fun Requisition.readMeasurementSpec(): MeasurementSpec =
-  if (isMultimeasurement) unsignedMeasurementSpec else measurementSpec.unpack()
+fun Requisition.readMeasurementSpec(): MeasurementSpec {
+  if (!isMultimeasurement) {
+    return measurementSpec.unpack()
+  }
+  // Skipping consent signaling is only sound for a TrusTEE v2 multimeasurement.
+  require(!hasMeasurementSpec()) {
+    "$name sets both measurement_spec and unsigned_measurement_spec"
+  }
+  require(unsignedMeasurementSpec.hasMulti()) {
+    "$name has an unsigned_measurement_spec that is not a multimeasurement"
+  }
+  val protocols = protocolConfig.protocolsList
+  require(protocols.isNotEmpty() && protocols.all { it.hasTrusTeeV2() }) {
+    "$name has an unsigned_measurement_spec but a protocol other than TrusTEE v2"
+  }
+  return unsignedMeasurementSpec
+}
 
 /**
  * Returns the [RequisitionSpec] of this [Requisition].
@@ -47,11 +65,17 @@ fun Requisition.readMeasurementSpec(): MeasurementSpec =
  * Any other carries it encrypted to the `DataProvider`'s key in `encrypted_requisition_spec`, which
  * is decrypted with [privateEncryptionKey].
  *
+ * @throws IllegalArgumentException if this is a multimeasurement [Requisition] without a plaintext
+ *   spec or with an encrypted one
  * @throws GeneralSecurityException if decryption fails
  */
-fun Requisition.readRequisitionSpec(privateEncryptionKey: PrivateKeyHandle): RequisitionSpec =
-  if (isMultimeasurement) {
-    requisitionSpec
-  } else {
-    decryptRequisitionSpec(encryptedRequisitionSpec, privateEncryptionKey).unpack()
+fun Requisition.readRequisitionSpec(privateEncryptionKey: PrivateKeyHandle): RequisitionSpec {
+  if (!isMultimeasurement) {
+    return decryptRequisitionSpec(encryptedRequisitionSpec, privateEncryptionKey).unpack()
   }
+  require(hasRequisitionSpec()) { "$name is a multimeasurement without a requisition_spec" }
+  require(!hasEncryptedRequisitionSpec()) {
+    "$name sets both requisition_spec and encrypted_requisition_spec"
+  }
+  return requisitionSpec
+}

@@ -530,12 +530,13 @@ class ResultsFulfiller(
         )
 
     val measurementSpec: MeasurementSpec = requisition.readMeasurementSpec()
+    // TODO: Issue #2914
     val requisitionSpec: RequisitionSpec =
       try {
         withContext(Dispatchers.IO) { requisition.readRequisitionSpec(privateEncryptionKey) }
       } catch (e: GeneralSecurityException) {
-        throw Exception("RequisitionSpec decryption failed", e)
-      } // TODO: Issue #2914
+        throw Exception("RequisitionSpec could not be read", e)
+      }
     val reportId =
       requireNotNull(requisitionMetadata.report) {
         "Report ID is missing from requisition metadata: ${requisitionMetadata.name}"

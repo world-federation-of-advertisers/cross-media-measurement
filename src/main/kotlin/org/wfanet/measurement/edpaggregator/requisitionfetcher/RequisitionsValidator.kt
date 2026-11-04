@@ -71,6 +71,16 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
         },
         e,
       )
+    } catch (e: IllegalArgumentException) {
+      logger.severe("Invalid measurement spec for ${requisition.name}: ${e.message}")
+      throw InvalidRequisitionException(
+        listOf(requisition),
+        refusal {
+          justification = Refusal.Justification.SPEC_INVALID
+          message = "Invalid MeasurementSpec"
+        },
+        e,
+      )
     }
   }
 
@@ -98,6 +108,16 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
         refusal {
           justification = Refusal.Justification.SPEC_INVALID
           message = "Unable to parse RequisitionSpec"
+        },
+        e,
+      )
+    } catch (e: IllegalArgumentException) {
+      logger.severe("Invalid requisition spec for ${requisition.name}: ${e.message}")
+      throw InvalidRequisitionException(
+        listOf(requisition),
+        refusal {
+          justification = Refusal.Justification.SPEC_INVALID
+          message = "Invalid RequisitionSpec"
         },
         e,
       )

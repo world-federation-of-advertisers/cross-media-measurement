@@ -124,6 +124,52 @@ class RequisitionsValidatorTest {
   }
 
   @Test
+  fun `refuses Requisition with an unsigned MeasurementSpec and a non-TrusTEE v2 protocol`() {
+    val requisition =
+      multimeasurementRequisition(MULTI_MEASUREMENT_SPEC).copy {
+        protocolConfig = TestRequisitionData.REQUISITION.protocolConfig
+      }
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
+  }
+
+  @Test
+  fun `refuses Requisition with both signed and unsigned MeasurementSpecs`() {
+    val requisition =
+      multimeasurementRequisition(MULTI_MEASUREMENT_SPEC).copy {
+        measurementSpec = TestRequisitionData.REQUISITION.measurementSpec
+      }
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
+  }
+
+  @Test
+  fun `refuses Requisition whose unsigned MeasurementSpec is not a multimeasurement`() {
+    val requisition =
+      multimeasurementRequisition(TestRequisitionData.MEASUREMENT_SPEC.copy { nonceHashes.clear() })
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
+  }
+
+  @Test
+  fun `refuses multimeasurement Requisition with both plaintext and encrypted RequisitionSpecs`() {
+    val requisition =
+      multimeasurementRequisition(MULTI_MEASUREMENT_SPEC).copy {
+        encryptedRequisitionSpec = TestRequisitionData.REQUISITION.encryptedRequisitionSpec
+      }
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateRequisitionSpec(requisition)
+    }
+  }
+
+  @Test
   fun `calls fatalRequisitionErrorPredicate when Measurement Spec cannot be parsed`() {
 
     val requisition =
@@ -412,7 +458,12 @@ class RequisitionsValidatorTest {
         clearEncryptedRequisitionSpec()
         unsignedMeasurementSpec = unsignedSpec
         requisitionSpec = MULTI_REQUISITION_SPEC
+        protocolConfig = TRUS_TEE_V2_PROTOCOL_CONFIG
       }
+
+    private val TRUS_TEE_V2_PROTOCOL_CONFIG = protocolConfig {
+      protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
+    }
 
     private val REQUISITION_SPEC = requisitionSpec {
       events =
