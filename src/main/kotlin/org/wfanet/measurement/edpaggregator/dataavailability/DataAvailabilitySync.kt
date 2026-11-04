@@ -26,6 +26,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.nio.ByteBuffer
 import java.security.MessageDigest
+import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.logging.Level
@@ -115,6 +116,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @property metrics Metrics recorder for telemetry.
  * @property publishEventGroupActivities Optional function for publishing positive EventGroup
  *   activity derived from finalized impression metadata.
+ * @property kingdomPublicationTimeout Deadline for publishing availability to the Kingdom.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
@@ -128,6 +130,7 @@ class DataAvailabilitySync(
   private val modelLineMap: Map<String, List<String>>,
   private val errorIfGapsExist: Boolean,
   private val publishEventGroupActivities: (suspend (Collection<ImpressionMetadata>) -> Int)?,
+  private val kingdomPublicationTimeout: Duration = DEFAULT_KINGDOM_PUBLICATION_TIMEOUT,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
   enum class Outcome {
@@ -155,6 +158,9 @@ class DataAvailabilitySync(
     }
     require(modelLineMap.values.all { it.isNotEmpty() }) {
       "modelLineMap entries must contain at least one model line"
+    }
+    require(!kingdomPublicationTimeout.isZero && !kingdomPublicationTimeout.isNegative) {
+      "kingdomPublicationTimeout must be positive"
     }
   }
 
@@ -368,7 +374,7 @@ class DataAvailabilitySync(
       throttler.onReady {
         try {
           dataProvidersStub
-            .withDeadlineAfter(KINGDOM_PUBLICATION_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .withDeadlineAfter(kingdomPublicationTimeout.toNanos(), TimeUnit.NANOSECONDS)
             .replaceDataAvailabilityIntervals(
               replaceDataAvailabilityIntervalsRequest {
                 name = dataProviderName
@@ -1022,7 +1028,7 @@ class DataAvailabilitySync(
     private val RESTORED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.restored")
     private val UNCHANGED_COUNT_ATTR =
       AttributeKey.longKey("xmm.edpa.impression_metadata.unchanged")
-    private const val KINGDOM_PUBLICATION_TIMEOUT_SECONDS = 300L
+    private val DEFAULT_KINGDOM_PUBLICATION_TIMEOUT: Duration = Duration.ofMinutes(5)
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val DATA_PROVIDER_KEY_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")
