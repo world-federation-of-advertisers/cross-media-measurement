@@ -29,13 +29,6 @@ on:
           - dev
           - qa
           - head
-  # DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement#4661): Remove this
-  # trigger, which lets update-cmms seed while testing this workflow.
-  workflow_call:
-    inputs:
-      environment:
-        required: true
-        type: string
 
 permissions:
   contents: read

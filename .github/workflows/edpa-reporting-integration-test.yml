@@ -14,9 +14,7 @@
 
 name: Run EDPA Reporting Integration Test
 
-run-name: >-
-  ${{ inputs.seed_only && 'Seed High Overlap Dataset' || 'Run EDPA Reporting Integration Test' }}
-  [${{ inputs.environment }}]
+run-name: Run EDPA Reporting Integration Test [${{ inputs.environment }}]
 
 on:
   workflow_call:
@@ -34,47 +32,12 @@ on:
           - dev
           - qa
           - head
-      # DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement#4661): Remove
-      # the seed-only dispatch path after M3.
-      seed_only:
-        description: "Reseed the high-overlap dataset on dev without running reporting tests"
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
 jobs:
-  # DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement#4661): Remove
-  # these seed-only jobs and the run-tests guard after M3.
-  validate-seed-only:
-    if: ${{ inputs.seed_only }}
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Validate seed-only scope
-        env:
-          ENVIRONMENT: ${{ inputs.environment }}
-        run: |
-          set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" != workflow_dispatch || "$ENVIRONMENT" != dev ]]; then
-            echo "Seed-only mode requires a manual dispatch on dev." >&2
-            exit 1
-          fi
-
-  run-high-overlap-seeding:
-    if: ${{ inputs.seed_only }}
-    needs: [validate-seed-only]
-    uses: ./.github/workflows/high-overlap-seeding.yml
-    secrets: inherit
-    permissions:
-      contents: read
-      id-token: write
-    with:
-      environment: ${{ inputs.environment }}
-
   run-tests:
-    if: ${{ !inputs.seed_only }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
