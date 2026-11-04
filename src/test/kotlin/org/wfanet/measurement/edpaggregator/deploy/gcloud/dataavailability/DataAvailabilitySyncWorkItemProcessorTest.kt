@@ -44,6 +44,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
+import org.wfanet.measurement.edpaggregator.dataavailability.ExternalDataAvailabilitySnapshotChangedException
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
@@ -64,9 +65,10 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAtt
 class DataAvailabilitySyncWorkItemProcessorTest {
   private val workItemsStub = mock<WorkItemsCoroutineStub>()
   private val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+  private val leaseClient = FakeLeaseClient()
   private val leaseRunner =
     DataAvailabilitySyncLeaseRunner(
-      FakeLeaseClient(),
+      leaseClient,
       uuidGenerator = { "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
     )
 
@@ -308,6 +310,28 @@ class DataAvailabilitySyncWorkItemProcessorTest {
   }
 
   @Test
+  fun `external validation failure releases synchronization lease`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.FAILED
+      }
+    val releasesBefore = leaseClient.releaseCount
+
+    assertFailsWith<ExternalDataAvailabilitySnapshotChangedException> {
+      processor(
+          synchronize = { _, _, _ -> throw ExternalDataAvailabilitySnapshotChangedException() }
+        )
+        .process(externalInput())
+    }
+
+    assertThat(leaseClient.releaseCount).isEqualTo(releasesBefore + 1)
+    verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+  }
+
+  @Test
   fun `successful external task redelivery does not synchronize again`() = runBlocking {
     val terminal =
       StatusProto.toStatusException(
@@ -455,6 +479,7 @@ class DataAvailabilitySyncWorkItemProcessorTest {
           dataPathParams = dataPathParams {
             dataPath = DONE_BLOB_URI
             generation = 7L
+            createTime = timestamp { seconds = 1_800_000_000L }
             eventType = StorageEventType.FINALIZED
           }
         }
@@ -462,6 +487,9 @@ class DataAvailabilitySyncWorkItemProcessorTest {
   }
 
   private class FakeLeaseClient : DataAvailabilitySyncLeaseClient {
+    var releaseCount = 0
+      private set
+
     override suspend fun acquire(
       parent: String,
       attemptId: String,
@@ -483,10 +511,13 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     override suspend fun release(
       lease: DataAvailabilitySyncLease,
       requestId: String,
-    ): DataAvailabilitySyncLease = dataAvailabilitySyncLease {
-      name = lease.name
-      state = DataAvailabilitySyncLease.State.RELEASED
-      etag = lease.etag
+    ): DataAvailabilitySyncLease {
+      releaseCount++
+      return dataAvailabilitySyncLease {
+        name = lease.name
+        state = DataAvailabilitySyncLease.State.RELEASED
+        etag = lease.etag
+      }
     }
   }
 
