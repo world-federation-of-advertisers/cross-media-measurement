@@ -222,7 +222,7 @@ class RequisitionGrouperByReportIdTest {
   }
 
   @Test
-  fun `groups several multimeasurement requisitions from one DataProvider`() = runBlocking {
+  fun `groups several multimeasurement requisitions from one DataProvider`() = runBlocking<Unit> {
     val r1 =
       makeMultimeasurementRequisitionWithInterval(
         name = "${TestRequisitionData.EDP_NAME}/requisitions/vector0",
