@@ -76,6 +76,7 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
         insertMutation("VidLabelingEvictionFence") {
           set("DataProviderResourceId").to(dataProviderResourceId)
           set("EvictionOperationId").to(evictionOperationId)
+          set("Etag").to(evictionOperationId)
           set("State").to(Value.protoEnum(state))
           set("CreateTime").to(Value.COMMIT_TIMESTAMP)
         }

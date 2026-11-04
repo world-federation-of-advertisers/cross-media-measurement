@@ -151,6 +151,35 @@ class BasicReportExternalReportIdBackfillerTest {
     }
 
   @Test
+  fun `backfills FAILED BasicReport`() =
+    runBlocking<Unit> { assertBackfillsTerminalState(BasicReport.State.FAILED) }
+
+  @Test
+  fun `backfills INVALID BasicReport`() =
+    runBlocking<Unit> { assertBackfillsTerminalState(BasicReport.State.INVALID) }
+
+  @Test
+  fun `does not backfill BasicReport that is not in a terminal state`() =
+    runBlocking<Unit> {
+      val basicReportName =
+        BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID).toName()
+      createReport(EXTERNAL_REPORT_ID, "", basicReportName)
+      insertBasicReport(
+        SPANNER_BASIC_REPORT_ID,
+        EXTERNAL_BASIC_REPORT_ID,
+        "",
+        "",
+        state = BasicReport.State.REPORT_CREATED,
+      )
+
+      val result = newBackfiller(dryRun = false, matchExternalBasicReportId = false).run()
+
+      assertThat(result.examined).isEqualTo(0)
+      assertThat(result.updated).isEqualTo(0)
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
+    }
+
+  @Test
   fun `backfills from create Report request ID`() =
     runBlocking<Unit> {
       createReport(EXTERNAL_REPORT_ID, CREATE_REPORT_REQUEST_ID, "")
@@ -530,6 +559,22 @@ class BasicReportExternalReportIdBackfillerTest {
     )
   }
 
+  private suspend fun assertBackfillsTerminalState(state: BasicReport.State) {
+    val basicReportName =
+      BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID).toName()
+    createReport(EXTERNAL_REPORT_ID, "", basicReportName)
+    insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", "", state = state)
+
+    val result = newBackfiller(dryRun = false, matchExternalBasicReportId = false).run()
+
+    assertThat(result.examined).isEqualTo(1)
+    assertThat(result.updated).isEqualTo(1)
+    val basicReport = readBasicReport(EXTERNAL_BASIC_REPORT_ID)
+    assertThat(basicReport.externalReportId).isEqualTo(EXTERNAL_REPORT_ID)
+    // Only the link is backfilled; the BasicReport keeps its terminal state.
+    assertThat(basicReport.state).isEqualTo(state)
+  }
+
   private suspend fun createReport(
     externalReportId: String,
     createReportRequestId: String,
@@ -597,6 +642,7 @@ class BasicReportExternalReportIdBackfillerTest {
     externalBasicReportId: String,
     createReportRequestId: String,
     externalReportId: String,
+    state: BasicReport.State = BasicReport.State.SUCCEEDED,
   ) {
     insertBasicReport(
       measurementConsumerId = SPANNER_MEASUREMENT_CONSUMER_ID,
@@ -605,6 +651,7 @@ class BasicReportExternalReportIdBackfillerTest {
       externalBasicReportId = externalBasicReportId,
       createReportRequestId = createReportRequestId,
       externalReportId = externalReportId,
+      state = state,
     )
   }
 
@@ -615,6 +662,7 @@ class BasicReportExternalReportIdBackfillerTest {
     externalBasicReportId: String,
     createReportRequestId: String,
     externalReportId: String,
+    state: BasicReport.State = BasicReport.State.SUCCEEDED,
   ) {
     spannerClient.readWriteTransaction().run { transaction ->
       transaction.insertBasicReport(
@@ -627,7 +675,7 @@ class BasicReportExternalReportIdBackfillerTest {
             this.createReportRequestId = createReportRequestId
             this.externalReportId = externalReportId
           },
-        state = BasicReport.State.SUCCEEDED,
+        state = state,
         requestId = null,
       )
     }
