@@ -26,7 +26,9 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.nio.ByteBuffer
 import java.security.MessageDigest
+import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
@@ -114,6 +116,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @property metrics Metrics recorder for telemetry.
  * @property publishEventGroupActivities Optional function for publishing positive EventGroup
  *   activity derived from finalized impression metadata.
+ * @property kingdomPublicationTimeout Deadline for publishing availability to the Kingdom.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
@@ -127,6 +130,7 @@ class DataAvailabilitySync(
   private val modelLineMap: Map<String, List<String>>,
   private val errorIfGapsExist: Boolean,
   private val publishEventGroupActivities: (suspend (Collection<ImpressionMetadata>) -> Int)?,
+  private val kingdomPublicationTimeout: Duration = DEFAULT_KINGDOM_PUBLICATION_TIMEOUT,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
   enum class Outcome {
@@ -149,8 +153,14 @@ class DataAvailabilitySync(
     require(impressionMetadataBatchSize > 0) {
       "impressionMetadataBatchSize must be greater than zero"
     }
+    require(impressionMetadataBatchSize <= MAX_IMPRESSION_METADATA_BATCH_SIZE) {
+      "impressionMetadataBatchSize must not exceed $MAX_IMPRESSION_METADATA_BATCH_SIZE"
+    }
     require(modelLineMap.values.all { it.isNotEmpty() }) {
       "modelLineMap entries must contain at least one model line"
+    }
+    require(!kingdomPublicationTimeout.isZero && !kingdomPublicationTimeout.isNegative) {
+      "kingdomPublicationTimeout must be positive"
     }
   }
 
@@ -163,14 +173,25 @@ class DataAvailabilitySync(
    * collecting and processing metadata for that day.
    *
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
+   * @param dataAvailabilitySyncLease synchronization lease resource name.
+   * @param ensureLeaseActive validates the synchronization lease before each mutation.
    * @param doneBlobGeneration the immutable positive generation of that object.
    */
-  suspend fun sync(doneBlobPath: String, doneBlobGeneration: Long): Outcome {
+  suspend fun sync(
+    doneBlobPath: String,
+    dataAvailabilitySyncLease: String,
+    doneBlobGeneration: Long,
+    ensureLeaseActive: suspend () -> Unit,
+  ): Outcome {
+    require(dataAvailabilitySyncLease.isNotEmpty()) {
+      "dataAvailabilitySyncLease must not be empty"
+    }
     require(doneBlobGeneration > 0L) { "doneBlobGeneration must be positive" }
     // Start timing for sync duration
     val syncStartTime = TimeSource.Monotonic.markNow()
 
     try {
+      ensureLeaseActive()
       // 1. Crawl for metadata files
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
@@ -207,6 +228,7 @@ class DataAvailabilitySync(
       // 2. Announce this attempt before mutating ImpressionMetadata. This invalidates any
       // publication marker left by an earlier attempt, so a failure during persistence remains
       // visible and retryable.
+      ensureLeaseActive()
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
         metadata = mapOf(DataAvailabilityBlobs.SYNC_ID_KEY to syncId),
@@ -214,7 +236,7 @@ class DataAvailabilitySync(
 
       // 3. Persist ImpressionMetadata (create new, update changed)
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
-        saveImpressionMetadata(metadataWithBlobKeys)
+        saveImpressionMetadata(metadataWithBlobKeys, dataAvailabilitySyncLease, ensureLeaseActive)
       }
       Span.current()
         .addEvent(
@@ -227,6 +249,7 @@ class DataAvailabilitySync(
 
       // Record metadata-store completion separately. Disjoint marker writes prevent an older
       // overlapping attempt from overwriting a newer attempt's ID and falsely completing it.
+      ensureLeaseActive()
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
         metadata =
@@ -234,6 +257,7 @@ class DataAvailabilitySync(
       )
 
       // 4. Retrieve model line bound from ImpressionMetadataStorage for all model lines
+      ensureLeaseActive()
       val modelLineBounds: ComputeModelLineBoundsResponse =
         impressionMetadataServiceStub.computeModelLineBounds(
           computeModelLineBoundsRequest { parent = dataProviderName }
@@ -346,15 +370,17 @@ class DataAvailabilitySync(
           return Outcome.BLOCKED_GAPS
         }
       }
-
+      ensureLeaseActive()
       throttler.onReady {
         try {
-          dataProvidersStub.replaceDataAvailabilityIntervals(
-            replaceDataAvailabilityIntervalsRequest {
-              name = dataProviderName
-              dataAvailabilityIntervals += availabilityEntries
-            }
-          )
+          dataProvidersStub
+            .withDeadlineAfter(kingdomPublicationTimeout.toNanos(), TimeUnit.NANOSECONDS)
+            .replaceDataAvailabilityIntervals(
+              replaceDataAvailabilityIntervalsRequest {
+                name = dataProviderName
+                dataAvailabilityIntervals += availabilityEntries
+              }
+            )
         } catch (e: StatusException) {
           for (entry in availabilityEntries) {
             logAvailabilityInterval(entry.key, entry.value, "failed", e)
@@ -398,6 +424,7 @@ class DataAvailabilitySync(
       // This marker is the durable completion signal for both phases of synchronization. Only
       // update the publication ID here. If another attempt has written a newer sync ID while this
       // attempt was publishing, the resulting mismatch must remain visible and retryable.
+      ensureLeaseActive()
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
         metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),
@@ -458,7 +485,9 @@ class DataAvailabilitySync(
   }
 
   private suspend fun saveImpressionMetadata(
-    impressionMetadataList: List<ImpressionMetadataWithBlobKey>
+    impressionMetadataList: List<ImpressionMetadataWithBlobKey>,
+    dataAvailabilitySyncLease: String,
+    ensureLeaseActive: suspend () -> Unit,
   ) {
     try {
       // Build a map from metadata blob URI to impressions blob key for later lookup
@@ -503,65 +532,88 @@ class DataAvailabilitySync(
 
       // BatchCreate new entries, chunked at the RPC boundary
       val createResponses =
-        toCreate.chunked(impressionMetadataBatchSize).flatMap { createChunk ->
-          runMetadataAction(
-            action = "created",
-            attempted = createChunk.map { it.impressionMetadata },
+        chunkByWeight(
+            toCreate,
+            maxItems = impressionMetadataBatchSize,
+            maxWeight = MAX_ENTITY_KEYS_PER_BATCH,
           ) {
-            throttler
-              .onReady {
-                impressionMetadataServiceStub.batchCreateImpressionMetadata(
-                  batchCreateImpressionMetadataRequest {
-                    parent = dataProviderName
-                    createChunk.forEach { item ->
-                      requests += createImpressionMetadataRequest {
-                        parent = dataProviderName
-                        impressionMetadata = item.impressionMetadata
-                        requestId = contentAwareRequestId(item.impressionMetadata)
+            it.impressionMetadata.entityKeysCount
+          }
+          .flatMap { createChunk ->
+            ensureLeaseActive()
+            runMetadataAction(
+              action = "created",
+              attempted = createChunk.map { it.impressionMetadata },
+            ) {
+              throttler
+                .onReady {
+                  impressionMetadataServiceStub.batchCreateImpressionMetadata(
+                    batchCreateImpressionMetadataRequest {
+                      parent = dataProviderName
+                      this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
+                      createChunk.forEach { item ->
+                        requests += createImpressionMetadataRequest {
+                          parent = dataProviderName
+                          this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
+                          impressionMetadata = item.impressionMetadata
+                          requestId = contentAwareRequestId(item.impressionMetadata)
+                        }
                       }
                     }
-                  }
-                )
-              }
-              .impressionMetadataList
+                  )
+                }
+                .impressionMetadataList
+            }
           }
-        }
 
       // BatchUpdate changed entries, chunked at the RPC boundary
       val updateResponses =
-        toUpdate.chunked(impressionMetadataBatchSize).flatMap { updateChunk ->
-          runMetadataAction(
-            action = "updated",
-            attempted = updateChunk.map { it.impressionMetadata },
-          ) {
-            throttler
-              .onReady {
-                impressionMetadataServiceStub.batchUpdateImpressionMetadata(
-                  batchUpdateImpressionMetadataRequest {
-                    parent = dataProviderName
-                    updateChunk.forEach { item ->
-                      requests += updateImpressionMetadataRequest {
-                        impressionMetadata = item.impressionMetadata
-                        requestId = contentAwareRequestId(item.impressionMetadata)
+        chunkByWeight(
+            toUpdate,
+            maxItems = impressionMetadataBatchSize,
+            maxWeight = MAX_ENTITY_KEYS_PER_BATCH,
+          ) { item ->
+            existingByBlobUri.getValue(item.impressionMetadata.blobUri).entityKeysCount +
+              item.impressionMetadata.entityKeysCount
+          }
+          .flatMap { updateChunk ->
+            ensureLeaseActive()
+            runMetadataAction(
+              action = "updated",
+              attempted = updateChunk.map { it.impressionMetadata },
+            ) {
+              throttler
+                .onReady {
+                  impressionMetadataServiceStub.batchUpdateImpressionMetadata(
+                    batchUpdateImpressionMetadataRequest {
+                      parent = dataProviderName
+                      this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
+                      updateChunk.forEach { item ->
+                        requests += updateImpressionMetadataRequest {
+                          this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
+                          impressionMetadata = item.impressionMetadata
+                          requestId = contentAwareRequestId(item.impressionMetadata)
+                        }
                       }
                     }
-                  }
-                )
-              }
-              .impressionMetadataList
+                  )
+                }
+                .impressionMetadataList
+            }
           }
-        }
 
       // Restore soft-deleted entries only after their latest content has been persisted. This
       // prevents stale metadata from becoming visible if an update fails.
       val restoreResponses =
         toRestore.chunked(impressionMetadataBatchSize).flatMap { restoreChunk ->
+          ensureLeaseActive()
           runMetadataAction(action = "restored", attempted = restoreChunk) {
             throttler
               .onReady {
                 impressionMetadataServiceStub.batchUndeleteImpressionMetadata(
                   batchUndeleteImpressionMetadataRequest {
                     parent = dataProviderName
+                    this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
                     names += restoreChunk.map { it.name }
                   }
                 )
@@ -609,6 +661,7 @@ class DataAvailabilitySync(
         }
       }
       for (item in impressionMetadataList) {
+        ensureLeaseActive()
         val blobUri = item.impressionMetadata.blobUri
         val resultMetadata = resourceIdByBlobUri.getValue(blobUri)
         val metadataBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
@@ -625,6 +678,7 @@ class DataAvailabilitySync(
         )
 
         // Also update the impressions blob with Custom-Time (no resource ID needed)
+        ensureLeaseActive()
         val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(blobUri)
         storageClient.updateBlobMetadata(
           blobKey = impressionsBlobKey,
@@ -928,13 +982,53 @@ class DataAvailabilitySync(
     }
   }
 
+  private fun <T> chunkByWeight(
+    items: Iterable<T>,
+    maxItems: Int,
+    maxWeight: Int,
+    weightOf: (T) -> Int,
+  ): List<List<T>> {
+    require(maxItems > 0) { "maxItems must be positive" }
+    require(maxWeight > 0) { "maxWeight must be positive" }
+
+    val batches = mutableListOf<List<T>>()
+    var batch = mutableListOf<T>()
+    var batchWeight = 0
+    fun flush() {
+      if (batch.isEmpty()) return
+      batches += batch
+      batch = mutableListOf()
+      batchWeight = 0
+    }
+
+    for (item in items) {
+      val weight = weightOf(item)
+      require(weight >= 0) { "item weight must not be negative" }
+      if (weight > maxWeight) {
+        flush()
+        batches += listOf(item)
+        continue
+      }
+      if (batch.isNotEmpty() && (batch.size >= maxItems || batchWeight + weight > maxWeight)) {
+        flush()
+      }
+      batch += item
+      batchWeight += weight
+    }
+    flush()
+    return batches
+  }
+
   companion object {
+    private const val MAX_IMPRESSION_METADATA_BATCH_SIZE = 100
+    private const val MAX_ENTITY_KEYS_PER_BATCH = 4_000
     private val RECORD_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.count")
     private val CREATED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.created")
     private val UPDATED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.updated")
     private val RESTORED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.restored")
     private val UNCHANGED_COUNT_ATTR =
       AttributeKey.longKey("xmm.edpa.impression_metadata.unchanged")
+    private val DEFAULT_KINGDOM_PUBLICATION_TIMEOUT: Duration = Duration.ofMinutes(5)
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val DATA_PROVIDER_KEY_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")
