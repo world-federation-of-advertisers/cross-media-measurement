@@ -59,6 +59,7 @@ class GoogleWorkItemPublisher(
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
+      orderedPublisher.resumePublish(orderingKey)
       throw PublishFailedException(queueName, e)
     }
   }
