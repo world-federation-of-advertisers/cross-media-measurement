@@ -39,7 +39,8 @@ service DataAvailabilitySyncLeaseService {
       returns (DataAvailabilitySyncLease);
 
   // Validates that a synchronization lease remains active.
-  rpc ValidateDataAvailabilitySyncLease(ValidateDataAvailabilitySyncLeaseRequest)
+  rpc ValidateDataAvailabilitySyncLease(
+      ValidateDataAvailabilitySyncLeaseRequest)
       returns (DataAvailabilitySyncLease);
 
   // Releases a synchronization lease.
