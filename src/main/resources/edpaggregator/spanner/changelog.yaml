@@ -94,3 +94,9 @@ databaseChangeLog:
   - include:
       file: create-raw-impression-upload-correction-candidate-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-correction-plan-fields-to-upload-healing-operation.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: create-data-availability-sync-lease-schema.sql
+      relativeToChangeLogFile: true

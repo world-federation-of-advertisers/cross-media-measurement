@@ -1,0 +1,21 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "GoogleWorkItemPublisherTest",
+    srcs = ["GoogleWorkItemPublisherTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/publisher:google_work_item_publisher",
+    ],
+    test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisherTest",
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/api/core",
+        "@wfa_common_jvm//imports/java/com/google/cloud/pubsub",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:google_pub_sub_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:publisher",
+    ],
+)
