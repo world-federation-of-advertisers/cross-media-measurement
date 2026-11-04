@@ -22,10 +22,10 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.readMeasurementSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
@@ -72,7 +72,7 @@ class RequisitionGrouperByReportId(
     if (requisitions.isEmpty()) return null
     val perRequisitionGroups =
       requisitions.map { req ->
-        val measurementSpec: MeasurementSpec = req.measurementSpec.unpack()
+        val measurementSpec: MeasurementSpec = req.readMeasurementSpec()
         val eventGroupMapEntries =
           getEventGroupMapEntries(requisitionValidator.getRequisitionSpec(req))
         groupedRequisitions {

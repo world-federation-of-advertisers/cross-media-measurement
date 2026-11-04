@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Message
-import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
@@ -47,10 +46,8 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -60,10 +57,11 @@ import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.readMeasurementSpec
+import org.wfanet.measurement.edpaggregator.readRequisitionSpec
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
@@ -531,18 +529,13 @@ class ResultsFulfiller(
           "Requisition metadata not found for requisition: ${requisition.name}"
         )
 
-    val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-    val signedRequisitionSpec: SignedMessage =
+    val measurementSpec: MeasurementSpec = requisition.readMeasurementSpec()
+    val requisitionSpec: RequisitionSpec =
       try {
-        withContext(Dispatchers.IO) {
-          val result =
-            decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-          result
-        }
+        withContext(Dispatchers.IO) { requisition.readRequisitionSpec(privateEncryptionKey) }
       } catch (e: GeneralSecurityException) {
         throw Exception("RequisitionSpec decryption failed", e)
-      }
-    val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack() // TODO: Issue #2914
+      } // TODO: Issue #2914
     val reportId =
       requireNotNull(requisitionMetadata.report) {
         "Report ID is missing from requisition metadata: ${requisitionMetadata.name}"

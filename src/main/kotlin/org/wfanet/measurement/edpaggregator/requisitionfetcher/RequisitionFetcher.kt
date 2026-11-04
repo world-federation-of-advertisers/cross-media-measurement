@@ -50,7 +50,6 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -59,6 +58,7 @@ import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.readMeasurementSpec
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.traceSuspending
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
@@ -886,7 +886,7 @@ class RequisitionFetcher(
         return e.refusal
       }
     }
-    val measurementSpecs = requisitions.map { it.measurementSpec.unpack<MeasurementSpec>() }
+    val measurementSpecs = requisitions.map { it.readMeasurementSpec() }
     val modelLine = measurementSpecs.first().modelLine
     if (measurementSpecs.any { it.modelLine != modelLine }) {
       return refusal {
@@ -970,7 +970,7 @@ class RequisitionFetcher(
   private fun extractReportIdentifiers(requisition: Requisition): ReportIdentifiers? {
     val measurementSpec: MeasurementSpec =
       try {
-        requisition.measurementSpec.unpack()
+        requisition.readMeasurementSpec()
       } catch (e: Exception) {
         logger.log(Level.WARNING, "Unable to parse MeasurementSpec for ${requisition.name}", e)
         return null

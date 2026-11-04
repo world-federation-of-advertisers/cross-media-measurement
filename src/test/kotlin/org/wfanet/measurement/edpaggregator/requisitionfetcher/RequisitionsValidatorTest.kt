@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
 import com.google.protobuf.kotlin.toByteString
@@ -34,6 +35,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -99,6 +101,26 @@ class RequisitionsValidatorTest {
 
     assertNotNull(requisitionValidator.validateRequisitionSpec(TestRequisitionData.REQUISITION))
     assertNotNull(requisitionValidator.validateMeasurementSpec(TestRequisitionData.REQUISITION))
+  }
+
+  @Test
+  fun `validates multimeasurement Requisition with unsigned and plaintext specs`() {
+    val requisition = multimeasurementRequisition(MULTI_MEASUREMENT_SPEC)
+
+    assertThat(requisitionValidator.validateMeasurementSpec(requisition))
+      .isEqualTo(MULTI_MEASUREMENT_SPEC)
+    assertThat(requisitionValidator.validateRequisitionSpec(requisition))
+      .isEqualTo(MULTI_REQUISITION_SPEC)
+  }
+
+  @Test
+  fun `refuses multimeasurement Requisition whose unsigned MeasurementSpec has no report`() {
+    val requisition =
+      multimeasurementRequisition(MULTI_MEASUREMENT_SPEC.copy { clearReportingMetadata() })
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
   }
 
   @Test
@@ -375,6 +397,23 @@ class RequisitionsValidatorTest {
         .toEncryptionPublicKey()
 
     private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
+    private val MULTI_REQUISITION_SPEC: RequisitionSpec =
+      TestRequisitionData.REQUISITION_SPEC.copy { clearNonce() }
+
+    private val MULTI_MEASUREMENT_SPEC: MeasurementSpec =
+      TestRequisitionData.MEASUREMENT_SPEC.copy {
+        nonceHashes.clear()
+        multi = MeasurementSpecKt.multiMeasurementSpec {}
+      }
+
+    private fun multimeasurementRequisition(unsignedSpec: MeasurementSpec): Requisition =
+      TestRequisitionData.REQUISITION.copy {
+        clearMeasurementSpec()
+        clearEncryptedRequisitionSpec()
+        unsignedMeasurementSpec = unsignedSpec
+        requisitionSpec = MULTI_REQUISITION_SPEC
+      }
+
     private val REQUISITION_SPEC = requisitionSpec {
       events =
         RequisitionSpecKt.events {

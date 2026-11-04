@@ -24,9 +24,9 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.edpaggregator.readMeasurementSpec
+import org.wfanet.measurement.edpaggregator.readRequisitionSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
 
@@ -48,11 +48,9 @@ class InvalidRequisitionException(
 class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) {
   fun validateMeasurementSpec(requisition: Requisition): MeasurementSpec {
     return try {
-      val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
+      val measurementSpec: MeasurementSpec = requisition.readMeasurementSpec()
 
-      if (
-        requisition.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report.isBlank()
-      ) {
+      if (measurementSpec.reportingMetadata.report.isBlank()) {
         throw InvalidRequisitionException(
           listOf(requisition),
           refusal {
@@ -77,8 +75,7 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
   }
 
   fun getRequisitionSpec(requisition: Requisition): RequisitionSpec {
-    return decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-      .unpack()
+    return requisition.readRequisitionSpec(privateEncryptionKey)
   }
 
   fun validateRequisitionSpec(requisition: Requisition): RequisitionSpec {
