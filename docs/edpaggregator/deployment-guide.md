@@ -942,9 +942,10 @@ a direct-dispatch block for every configured data provider, a control-plane targ
 paths, and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any
 deployed DataWatcher regex that matches a representative direct-path object. It also rejects a
 DataWatcher `control_plane_queue_sink` whose `app_params` contains `ResultsFulfillerParams`.
-Validation failure therefore stops deployment before any worker is quiesced. The workflow first
-rolls both Secure Computation API deployments with WorkItem publication, legacy reconciliation,
-and dead-letter processing disabled.
+DataWatcher enforces the same restriction when it loads its runtime configuration. Validation
+failure therefore stops deployment before any worker is quiesced. The workflow first rolls both
+Secure Computation API deployments with WorkItem publication, legacy reconciliation, and
+dead-letter processing disabled.
 Its first Terraform apply then pauses the RequisitionFetcher Cloud Scheduler job, uploads the
 direct-only configuration and binary, and quiesces all WorkItem-consuming TEE MIGs. The workflow
 waits for the fetcher's 600-second maximum invocation duration and verifies that every affected TEE

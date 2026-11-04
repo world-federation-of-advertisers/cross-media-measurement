@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Any
 import com.google.protobuf.TextFormat
 import com.google.protobuf.duration
 import kotlin.test.assertFailsWith
@@ -30,7 +29,9 @@ import org.wfanet.measurement.config.edpaggregator.RequisitionWorkItemDispatchCo
 import org.wfanet.measurement.config.edpaggregator.StorageParams
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
-import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
+import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import picocli.CommandLine
 
@@ -42,7 +43,7 @@ class RequisitionFetcherConfigValidatorTest {
     RequisitionFetcherConfigValidator.validate(
       validFetcherConfig(),
       CONTROL_PLANE_TARGET,
-      dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+      buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
     )
   }
 
@@ -53,20 +54,6 @@ class RequisitionFetcherConfigValidatorTest {
       CONTROL_PLANE_TARGET,
       DataWatcherConfig.getDefaultInstance(),
     )
-  }
-
-  @Test
-  fun `deployment config rejects legacy ResultsFulfiller DataWatcher route`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        RequisitionFetcherConfigValidator.validate(
-          validFetcherConfig(),
-          CONTROL_PLANE_TARGET,
-          dataWatcherConfig("^gs://bucket/legacy/(.*)$", Any.pack(resultsFulfillerParams())),
-        )
-      }
-
-    assertThat(exception).hasMessageThat().contains("uses legacy ResultsFulfiller dispatch")
   }
 
   @Test
@@ -96,7 +83,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionFetcherConfigValidator.validate(
           config,
           CONTROL_PLANE_TARGET,
-          dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+          buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
         )
       }
 
@@ -121,7 +108,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionFetcherConfigValidator.validate(
           config,
           CONTROL_PLANE_TARGET,
-          dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+          buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
         )
       }
 
@@ -135,7 +122,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionFetcherConfigValidator.validate(
           validFetcherConfig(),
           CONTROL_PLANE_TARGET,
-          dataWatcherConfig("^gs://bucket/(.*)$"),
+          buildDataWatcherConfig("^gs://bucket/(.*)$"),
         )
       }
 
@@ -154,7 +141,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionFetcherConfigValidator.validate(
           config,
           CONTROL_PLANE_TARGET,
-          dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+          buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
         )
       }
 
@@ -168,7 +155,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionFetcherConfigValidator.validate(
           validFetcherConfig(),
           "",
-          dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+          buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
         )
       }
 
@@ -189,7 +176,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionFetcherConfigValidator.validate(
           config,
           CONTROL_PLANE_TARGET,
-          dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+          buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
         )
       }
 
@@ -217,7 +204,7 @@ class RequisitionFetcherConfigValidatorTest {
           RequisitionFetcherConfigValidator.validate(
             config,
             CONTROL_PLANE_TARGET,
-            dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+            buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
           )
         }
 
@@ -231,7 +218,7 @@ class RequisitionFetcherConfigValidatorTest {
     fetcherFile.writeText(TextFormat.printer().printToString(validFetcherConfig()))
     val watcherFile = temporaryFolder.newFile("data-watcher-config.textproto")
     watcherFile.writeText(
-      TextFormat.printer().printToString(dataWatcherConfig("^gs://bucket/legacy/(.*)$"))
+      TextFormat.printer().printToString(buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"))
     )
 
     val exitCode =
@@ -300,22 +287,13 @@ class RequisitionFetcherConfigValidatorTest {
       )
       .build()
 
-  private fun dataWatcherConfig(
-    regex: String,
-    appParams: Any = Any.getDefaultInstance(),
-  ): DataWatcherConfig =
-    DataWatcherConfig.newBuilder()
-      .addWatchedPaths(
-        WatchedPath.newBuilder()
-          .setIdentifier("legacy-requisitions")
-          .setSourcePathRegex(regex)
-          .setControlPlaneQueueSink(
-            WatchedPath.ControlPlaneQueueSink.newBuilder()
-              .setQueue(RESULTS_FULFILLER_QUEUE)
-              .setAppParams(appParams)
-          )
-      )
-      .build()
+  private fun buildDataWatcherConfig(regex: String): DataWatcherConfig = dataWatcherConfig {
+    watchedPaths += watchedPath {
+      identifier = "legacy-requisitions"
+      sourcePathRegex = regex
+      this.controlPlaneQueueSink = controlPlaneQueueSink { queue = RESULTS_FULFILLER_QUEUE }
+    }
+  }
 
   companion object {
     private const val DATA_PROVIDER = "dataProviders/dp"

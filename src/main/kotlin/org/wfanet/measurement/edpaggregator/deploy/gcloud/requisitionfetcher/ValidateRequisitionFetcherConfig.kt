@@ -23,6 +23,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcherConfigValidator
 import picocli.CommandLine
 
 /** Validates the deployed RequisitionFetcher and DataWatcher configs before direct dispatch. */
@@ -55,6 +56,7 @@ class ValidateRequisitionFetcherConfig : Runnable {
     val typeRegistry = TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build()
     val dataWatcherConfig =
       parseTextProto(dataWatcherConfigFile, DataWatcherConfig.getDefaultInstance(), typeRegistry)
+    DataWatcherConfigValidator.validate(dataWatcherConfig)
     RequisitionFetcherConfigValidator.validate(
       requisitionFetcherConfig,
       controlPlaneTarget,

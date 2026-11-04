@@ -47,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcherConfigValidator
 
 /*
  * Cloud Function receives a CloudEvent. If the cloud event path matches config, it calls the
@@ -212,11 +213,14 @@ class DataWatcherFunction(
     private val configBlobKey: String by lazy { checkNotEmpty("CONFIG_BLOB_KEY") }
     private val dataWatcherConfig by lazy {
       runBlocking {
-        getConfigAsProtoMessage(
-          configBlobKey,
-          DataWatcherConfig.getDefaultInstance(),
-          TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build(),
-        )
+        val config =
+          getConfigAsProtoMessage(
+            configBlobKey,
+            DataWatcherConfig.getDefaultInstance(),
+            TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build(),
+          )
+        DataWatcherConfigValidator.validate(config)
+        config
       }
     }
     private val defaultDataWatcher by lazy {
