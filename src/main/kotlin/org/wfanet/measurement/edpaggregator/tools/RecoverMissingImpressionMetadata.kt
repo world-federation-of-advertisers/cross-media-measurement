@@ -182,7 +182,7 @@ class RecoverMissingImpressionMetadata : Runnable {
   @set:Option(
     names = ["--impression-metadata-batch-size"],
     description = ["Maximum ImpressionMetadata resources per list or write request"],
-    defaultValue = "1000",
+    defaultValue = "100",
   )
   private var impressionMetadataBatchSize: Int by Delegates.notNull()
 
@@ -194,6 +194,9 @@ class RecoverMissingImpressionMetadata : Runnable {
   private var publishEventGroupActivities: Boolean by Delegates.notNull()
 
   override fun run() {
+    require(impressionMetadataBatchSize in 1..MAX_IMPRESSION_METADATA_BATCH_SIZE) {
+      "--impression-metadata-batch-size must be between 1 and " + MAX_IMPRESSION_METADATA_BATCH_SIZE
+    }
     val config = parseTextProto(configFile, DataAvailabilitySyncConfig.getDefaultInstance())
     require(config.dataAvailabilityStorage.storageCase == StorageCase.GCS) {
       "data_availability_storage must use GCS"
@@ -401,6 +404,7 @@ class RecoverMissingImpressionMetadata : Runnable {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val MAX_IMPRESSION_METADATA_BATCH_SIZE = 100
     private const val SHUTDOWN_TIMEOUT_SECONDS = 30L
   }
 }

@@ -151,6 +151,40 @@ class RecoverMissingImpressionMetadataTest {
   }
 
   @Test
+  fun `main exits nonzero when impression metadata batch size is greater than 100`() {
+    val configFile = writeConfigFile(validConfig())
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(
+        requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0) +
+          "--impression-metadata-batch-size=101",
+        ::main,
+      )
+
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+    CommandLineTesting.assertThat(capturedOutput)
+      .err()
+      .contains("--impression-metadata-batch-size must be between 1 and 100")
+  }
+
+  @Test
+  fun `main exits nonzero when impression metadata batch size is zero`() {
+    val configFile = writeConfigFile(validConfig())
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(
+        requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0) +
+          "--impression-metadata-batch-size=0",
+        ::main,
+      )
+
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+    CommandLineTesting.assertThat(capturedOutput)
+      .err()
+      .contains("--impression-metadata-batch-size must be between 1 and 100")
+  }
+
+  @Test
   fun `main exits nonzero when configuration is invalid`() {
     val configFile =
       writeConfigFile(
