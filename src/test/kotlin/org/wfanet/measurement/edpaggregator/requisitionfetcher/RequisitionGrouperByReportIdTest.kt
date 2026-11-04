@@ -37,8 +37,10 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.copy
@@ -116,35 +118,7 @@ class RequisitionGrouperByReportIdTest {
     startOffsetHours: Long,
     endOffsetHours: Long,
   ): Requisition {
-    val spec =
-      TestRequisitionData.REQUISITION_SPEC.copy {
-        events =
-          RequisitionSpecKt.events {
-            eventGroups +=
-              RequisitionSpecKt.eventGroupEntry {
-                key = TestRequisitionData.EVENT_GROUP_NAME
-                value =
-                  RequisitionSpecKt.EventGroupEntryKt.value {
-                    collectionInterval = interval {
-                      startTime =
-                        TestRequisitionData.TIME_RANGE.start
-                          .plus(startOffsetHours, ChronoUnit.HOURS)
-                          .toProtoTime()
-                      endTime =
-                        TestRequisitionData.TIME_RANGE.endExclusive
-                          .plus(endOffsetHours, ChronoUnit.HOURS)
-                          .toProtoTime()
-                    }
-                    filter =
-                      RequisitionSpecKt.eventFilter {
-                        expression =
-                          "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
-                            "person.gender == ${Person.Gender.FEMALE_VALUE}"
-                      }
-                  }
-              }
-          }
-      }
+    val spec = makeRequisitionSpecWithInterval(startOffsetHours, endOffsetHours)
     return TestRequisitionData.REQUISITION.copy {
       this.name = name
       encryptedRequisitionSpec =
@@ -154,6 +128,59 @@ class RequisitionGrouperByReportIdTest {
         )
     }
   }
+
+  private fun makeMultimeasurementRequisitionWithInterval(
+    name: String,
+    startOffsetHours: Long,
+    endOffsetHours: Long,
+  ): Requisition {
+    val spec =
+      makeRequisitionSpecWithInterval(startOffsetHours, endOffsetHours).copy { clearNonce() }
+    return TestRequisitionData.REQUISITION.copy {
+      this.name = name
+      clearMeasurementSpec()
+      clearEncryptedRequisitionSpec()
+      unsignedMeasurementSpec =
+        TestRequisitionData.MEASUREMENT_SPEC.copy {
+          nonceHashes.clear()
+          multi = MeasurementSpecKt.multiMeasurementSpec {}
+        }
+      requisitionSpec = spec
+    }
+  }
+
+  private fun makeRequisitionSpecWithInterval(
+    startOffsetHours: Long,
+    endOffsetHours: Long,
+  ): RequisitionSpec =
+    TestRequisitionData.REQUISITION_SPEC.copy {
+      events =
+        RequisitionSpecKt.events {
+          eventGroups +=
+            RequisitionSpecKt.eventGroupEntry {
+              key = TestRequisitionData.EVENT_GROUP_NAME
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval = interval {
+                    startTime =
+                      TestRequisitionData.TIME_RANGE.start
+                        .plus(startOffsetHours, ChronoUnit.HOURS)
+                        .toProtoTime()
+                    endTime =
+                      TestRequisitionData.TIME_RANGE.endExclusive
+                        .plus(endOffsetHours, ChronoUnit.HOURS)
+                        .toProtoTime()
+                  }
+                  filter =
+                    RequisitionSpecKt.eventFilter {
+                      expression =
+                        "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
+                          "person.gender == ${Person.Gender.FEMALE_VALUE}"
+                    }
+                }
+            }
+        }
+    }
 
   @Test
   fun `groupForReport returns null for empty input`() = runBlocking {
@@ -192,6 +219,36 @@ class RequisitionGrouperByReportIdTest {
         }
       )
     assertThat(result.requisitionsList).hasSize(2)
+  }
+
+  @Test
+  fun `groups several multimeasurement requisitions from one DataProvider`() = runBlocking {
+    val r1 =
+      makeMultimeasurementRequisitionWithInterval(
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/vector0",
+        startOffsetHours = 0,
+        endOffsetHours = 0,
+      )
+    val r2 =
+      makeMultimeasurementRequisitionWithInterval(
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/vector1",
+        startOffsetHours = 1,
+        endOffsetHours = 1,
+      )
+
+    val result = grouper.groupForReport(REPORT_ID, listOf(r1, r2), GROUP_ID)
+
+    assertThat(result).isNotNull()
+    assertThat(result!!.requisitionsList.map { it.requisition.unpack(Requisition::class.java) })
+      .containsExactly(r1, r2)
+    assertThat(result.modelLine).isEqualTo("some-model-line")
+    assertThat(result.eventGroupMapList.single().details.collectionIntervalsList)
+      .containsExactly(
+        interval {
+          startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+          endTime = TestRequisitionData.TIME_RANGE.endExclusive.plusSeconds(3600).toProtoTime()
+        }
+      )
   }
 
   @Test
