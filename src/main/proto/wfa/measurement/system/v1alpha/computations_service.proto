@@ -97,20 +97,25 @@ message SetComputationResultRequest {
 
   // Resource name of a `Certificate` belonging to the aggregator `Duchy`.
   //
-  // Required unless `result` is set.
+  // Required unless `result` is set. Every protocol other than TrusTEE v2
+  // signs its `Result` with this certificate, so it is required for every
+  // `encrypted_result`. A multimeasurement `Result` is neither signed nor
+  // encrypted, so it has no certificate.
   string aggregator_certificate = 2
       [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 
   // Serialized `EncryptionPublicKey` message from the public API.
   //
-  // Required unless `result` is set.
+  // Required unless `result` is set. It is the key `encrypted_result` is
+  // encrypted to, and a multimeasurement `Result` is not encrypted.
   bytes result_public_key = 3;
 
   // Encrypted `SignedData` message from the public API containing a serialized
   // `Result` message from the public API, which can be verified using
   // `aggregator_certificate`.
   //
-  // Exactly one of `encrypted_result` and `result` is set.
+  // Exactly one of `encrypted_result` and `result` is set. Every protocol
+  // other than TrusTEE v2 sets `encrypted_result`.
   bytes encrypted_result = 4;
 
   // Serialized `Result` message from the public API, neither signed nor

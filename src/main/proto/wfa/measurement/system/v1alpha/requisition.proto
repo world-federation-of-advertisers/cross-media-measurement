@@ -48,7 +48,9 @@ message Requisition {
   // public API.
   //
   // Required unless this is a multimeasurement `Requisition`, whose
-  // `RequisitionSpec` carries no nonce.
+  // `RequisitionSpec` carries no nonce. A multimeasurement `RequisitionSpec`
+  // is in plaintext, so `requisition_spec_hash` and the authenticated
+  // `DataProvider` bind a fulfillment to its `Requisition` instead.
   bytes nonce_hash = 3 [(google.api.field_behavior) = IMMUTABLE];
 
   // State of a `Requisition`.
@@ -80,7 +82,7 @@ message Requisition {
   // `nonce` value from the encrypted `RequisitionSpec` from the public API.
   //
   // Set when `state` is `FULFILLED`, unless this is a multimeasurement
-  // `Requisition`.
+  // `Requisition`, whose `RequisitionSpec` has no nonce.
   //
   // (-- api-linter: core::0141::forbidden-types=disabled
   //     aip.dev/not-precedent: This is a random 64-bit value. --)
