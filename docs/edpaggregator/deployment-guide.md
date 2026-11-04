@@ -936,14 +936,15 @@ To activate direct dispatch, operators only need to:
    direct dispatch, TEE MIGs, or individual deployment phases independently.
 
 The workflow's environment-scoped concurrency lock prevents overlapping deployments from
-interleaving rollout phases. Before its first Terraform apply, the workflow validates the exact
-RequisitionFetcher and DataWatcher textprotos committed for the selected environment. It requires
-a direct-dispatch block for every configured data provider, a control-plane target, queue, TLS
-paths, and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any
-deployed DataWatcher regex that matches a representative direct-path object. It also rejects a
-DataWatcher `control_plane_queue_sink` whose `app_params` contains `ResultsFulfillerParams`.
-DataWatcher enforces the same restriction when it loads its runtime configuration. Validation
-failure therefore stops deployment before any worker is quiesced. The workflow first rolls both
+interleaving rollout phases. Before its first Terraform apply, separate preflight commands validate
+the exact RequisitionFetcher and DataWatcher textprotos committed for the selected environment. The
+RequisitionFetcher preflight requires a direct-dispatch block for every configured data provider, a
+control-plane target, queue, TLS paths, and valid ResultsFulfiller parameters; it also rejects
+overlapping storage prefixes or any deployed DataWatcher regex that matches a representative
+direct-path object. The DataWatcher preflight rejects a `control_plane_queue_sink` whose
+`app_params` contains `ResultsFulfillerParams`. DataWatcher enforces the same restriction when it
+loads its runtime configuration. Validation failure therefore stops deployment before any worker
+is quiesced. The workflow first rolls both
 Secure Computation API deployments with WorkItem publication, legacy reconciliation, and
 dead-letter processing disabled.
 Its first Terraform apply then pauses the RequisitionFetcher Cloud Scheduler job, uploads the
