@@ -449,14 +449,7 @@ private val SERIALIZED_MULTI_MEASUREMENT_SPEC: ByteString =
 private val MULTI_REQUISITION_1 = TestRequisition("1") { SERIALIZED_MULTI_MEASUREMENT_SPEC }
 private val MULTI_REQUISITION_2 = TestRequisition("2") { SERIALIZED_MULTI_MEASUREMENT_SPEC }
 
-private val TRUS_TEE_V2_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
-  trusTeeV2 = trusTeeV2 {
-    resultMinimumThresholds = systemTrusTeeResultMinimumThresholds {
-      minImpressions = 10
-      minUsers = 5
-    }
-  }
-}
+private val TRUS_TEE_V2_MPC_PROTOCOL_CONFIG = mpcProtocolConfig { trusTeeV2 = trusTeeV2 {} }
 
 private val EVENT_DESCRIPTOR_SET: FileDescriptorSet =
   FileDescriptorSet.newBuilder()
@@ -2795,10 +2788,6 @@ class HeraldTest {
               descriptorSet = EVENT_DESCRIPTOR_SET
               eventMessageType = "test.Event"
             }
-          resultMinimumThresholds = internalResultMinimumThresholds {
-            minImpressions = 10
-            minUsers = 5
-          }
         }
       )
   }
