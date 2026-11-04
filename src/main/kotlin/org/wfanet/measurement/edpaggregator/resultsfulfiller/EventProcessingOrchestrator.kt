@@ -30,7 +30,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.edpaggregator.readRequisitionSpec
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.size
 
@@ -77,7 +77,8 @@ data class FilterSpecIndex(
       val reqNameToFilterSpec = mutableMapOf<String, FilterSpec>()
 
       for (requisition in requisitions) {
-        val requisitionSpec: RequisitionSpec = requisition.readRequisitionSpec(privateEncryptionKey)
+        val requisitionSpec: RequisitionSpec =
+          RequisitionSpecs.readRequisitionSpec(requisition, privateEncryptionKey)
 
         require(!requisitionSpec.events.eventGroupsList.isEmpty()) {
           "event groups list is empty for requisition"

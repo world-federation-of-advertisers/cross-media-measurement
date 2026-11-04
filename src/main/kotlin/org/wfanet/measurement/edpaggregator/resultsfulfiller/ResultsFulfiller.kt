@@ -59,9 +59,8 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.readMeasurementSpec
-import org.wfanet.measurement.edpaggregator.readRequisitionSpec
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
@@ -529,11 +528,13 @@ class ResultsFulfiller(
           "Requisition metadata not found for requisition: ${requisition.name}"
         )
 
-    val measurementSpec: MeasurementSpec = requisition.readMeasurementSpec()
+    val measurementSpec: MeasurementSpec = RequisitionSpecs.readMeasurementSpec(requisition)
     // TODO: Issue #2914
     val requisitionSpec: RequisitionSpec =
       try {
-        withContext(Dispatchers.IO) { requisition.readRequisitionSpec(privateEncryptionKey) }
+        withContext(Dispatchers.IO) {
+          RequisitionSpecs.readRequisitionSpec(requisition, privateEncryptionKey)
+        }
       } catch (e: GeneralSecurityException) {
         throw Exception("RequisitionSpec could not be read", e)
       }

@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
@@ -127,11 +128,42 @@ class RequisitionsValidatorTest {
   fun `refuses Requisition with an unsigned MeasurementSpec and a non-TrusTEE v2 protocol`() {
     val requisition =
       multimeasurementRequisition(MULTI_MEASUREMENT_SPEC).copy {
-        protocolConfig = TestRequisitionData.REQUISITION.protocolConfig
+        protocolConfig =
+          TestRequisitionData.REQUISITION.protocolConfig.copy {
+            measurementType = ProtocolConfig.MeasurementType.MULTI
+          }
       }
 
     assertFailsWith<InvalidRequisitionException> {
       requisitionValidator.validateMeasurementSpec(requisition)
+    }
+  }
+
+  @Test
+  fun `refuses Requisition with an unsigned MeasurementSpec but no MULTI measurement type`() {
+    val requisition =
+      multimeasurementRequisition(MULTI_MEASUREMENT_SPEC).copy {
+        protocolConfig =
+          TRUS_TEE_V2_PROTOCOL_CONFIG.copy {
+            measurementType = ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
+          }
+      }
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
+  }
+
+  @Test
+  fun `refuses MULTI Requisition with signed and encrypted specs`() {
+    val requisition =
+      TestRequisitionData.REQUISITION.copy { protocolConfig = TRUS_TEE_V2_PROTOCOL_CONFIG }
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateRequisitionSpec(requisition)
     }
   }
 
@@ -462,6 +494,7 @@ class RequisitionsValidatorTest {
       }
 
     private val TRUS_TEE_V2_PROTOCOL_CONFIG = protocolConfig {
+      measurementType = ProtocolConfig.MeasurementType.MULTI
       protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
     }
 

@@ -58,7 +58,7 @@ import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.edpaggregator.readMeasurementSpec
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.traceSuspending
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
@@ -886,7 +886,7 @@ class RequisitionFetcher(
         return e.refusal
       }
     }
-    val measurementSpecs = requisitions.map { it.readMeasurementSpec() }
+    val measurementSpecs = requisitions.map { RequisitionSpecs.readMeasurementSpec(it) }
     val modelLine = measurementSpecs.first().modelLine
     if (measurementSpecs.any { it.modelLine != modelLine }) {
       return refusal {
@@ -970,7 +970,7 @@ class RequisitionFetcher(
   private fun extractReportIdentifiers(requisition: Requisition): ReportIdentifiers? {
     val measurementSpec: MeasurementSpec =
       try {
-        requisition.readMeasurementSpec()
+        RequisitionSpecs.readMeasurementSpec(requisition)
       } catch (e: Exception) {
         logger.log(Level.WARNING, "Unable to parse MeasurementSpec for ${requisition.name}", e)
         return null

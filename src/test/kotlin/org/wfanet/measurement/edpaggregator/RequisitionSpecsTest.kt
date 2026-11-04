@@ -24,6 +24,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
@@ -37,77 +38,94 @@ class RequisitionSpecsTest {
   fun `reads signed and encrypted specs of a non-multimeasurement Requisition`() {
     val requisition = TestRequisitionData.REQUISITION
 
-    assertThat(requisition.isMultimeasurement).isFalse()
-    assertThat(requisition.readMeasurementSpec()).isEqualTo(TestRequisitionData.MEASUREMENT_SPEC)
-    assertThat(requisition.readRequisitionSpec(PRIVATE_ENCRYPTION_KEY))
+    assertThat(RequisitionSpecs.isMultimeasurement(requisition)).isFalse()
+    assertThat(RequisitionSpecs.readMeasurementSpec(requisition))
+      .isEqualTo(TestRequisitionData.MEASUREMENT_SPEC)
+    assertThat(RequisitionSpecs.readRequisitionSpec(requisition, PRIVATE_ENCRYPTION_KEY))
       .isEqualTo(TestRequisitionData.REQUISITION_SPEC)
   }
 
   @Test
   fun `reads unsigned and plaintext specs of a multimeasurement Requisition`() {
-    assertThat(MULTI_REQUISITION.isMultimeasurement).isTrue()
-    assertThat(MULTI_REQUISITION.readMeasurementSpec()).isEqualTo(MULTI_MEASUREMENT_SPEC)
-    assertThat(MULTI_REQUISITION.readRequisitionSpec(PRIVATE_ENCRYPTION_KEY))
+    assertThat(RequisitionSpecs.isMultimeasurement(MULTI_REQUISITION)).isTrue()
+    assertThat(RequisitionSpecs.readMeasurementSpec(MULTI_REQUISITION))
+      .isEqualTo(MULTI_MEASUREMENT_SPEC)
+    assertThat(RequisitionSpecs.readRequisitionSpec(MULTI_REQUISITION, PRIVATE_ENCRYPTION_KEY))
       .isEqualTo(MULTI_REQUISITION_SPEC)
   }
 
   @Test
-  fun `readMeasurementSpec throws for an unsigned spec with a non-TrusTEE v2 protocol`() {
-    val requisition =
-      MULTI_REQUISITION.copy { protocolConfig = TestRequisitionData.REQUISITION.protocolConfig }
-
-    assertFailsWith<IllegalArgumentException> { requisition.readMeasurementSpec() }
+  fun `refuses a MULTI Requisition with a protocol other than TrusTEE v2`() {
+    assertRefused(
+      MULTI_REQUISITION.copy {
+        protocolConfig =
+          TestRequisitionData.REQUISITION.protocolConfig.copy {
+            measurementType = ProtocolConfig.MeasurementType.MULTI
+          }
+      }
+    )
   }
 
   @Test
-  fun `readMeasurementSpec throws for an unsigned spec that is not a multimeasurement`() {
-    val requisition =
+  fun `refuses a MULTI Requisition whose MeasurementSpec is not a MultiMeasurementSpec`() {
+    assertRefused(
       MULTI_REQUISITION.copy { unsignedMeasurementSpec = TestRequisitionData.MEASUREMENT_SPEC }
-
-    assertFailsWith<IllegalArgumentException> { requisition.readMeasurementSpec() }
+    )
   }
 
   @Test
-  fun `readMeasurementSpec throws when both signed and unsigned specs are set`() {
-    val requisition =
+  fun `refuses a MULTI Requisition that also carries a signed MeasurementSpec`() {
+    assertRefused(
       MULTI_REQUISITION.copy { measurementSpec = TestRequisitionData.REQUISITION.measurementSpec }
-
-    assertFailsWith<IllegalArgumentException> { requisition.readMeasurementSpec() }
+    )
   }
 
   @Test
-  fun `readRequisitionSpec throws for an unsigned spec with a non-TrusTEE v2 protocol`() {
-    val requisition =
-      MULTI_REQUISITION.copy { protocolConfig = TestRequisitionData.REQUISITION.protocolConfig }
-
-    assertFailsWith<IllegalArgumentException> {
-      requisition.readRequisitionSpec(PRIVATE_ENCRYPTION_KEY)
-    }
+  fun `refuses a MULTI Requisition without a plaintext RequisitionSpec`() {
+    assertRefused(MULTI_REQUISITION.copy { clearRequisitionSpec() })
   }
 
   @Test
-  fun `readRequisitionSpec throws for a multimeasurement without a plaintext spec`() {
-    val requisition = MULTI_REQUISITION.copy { clearRequisitionSpec() }
-
-    assertFailsWith<IllegalArgumentException> {
-      requisition.readRequisitionSpec(PRIVATE_ENCRYPTION_KEY)
-    }
-  }
-
-  @Test
-  fun `readRequisitionSpec throws for a multimeasurement with an encrypted spec`() {
-    val requisition =
+  fun `refuses a MULTI Requisition that also carries an encrypted RequisitionSpec`() {
+    assertRefused(
       MULTI_REQUISITION.copy {
         encryptedRequisitionSpec = TestRequisitionData.REQUISITION.encryptedRequisitionSpec
       }
+    )
+  }
 
+  @Test
+  fun `refuses a MULTI Requisition with signed and encrypted specs`() {
+    assertRefused(TestRequisitionData.REQUISITION.copy { protocolConfig = MULTI_PROTOCOL_CONFIG })
+  }
+
+  @Test
+  fun `refuses an unsigned and plaintext Requisition whose measurement type is not MULTI`() {
+    assertRefused(
+      MULTI_REQUISITION.copy {
+        protocolConfig =
+          MULTI_PROTOCOL_CONFIG.copy {
+            measurementType = ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
+          }
+      }
+    )
+  }
+
+  /** Asserts that both readers refuse [requisition]. */
+  private fun assertRefused(requisition: Requisition) {
+    assertFailsWith<IllegalArgumentException> { RequisitionSpecs.readMeasurementSpec(requisition) }
     assertFailsWith<IllegalArgumentException> {
-      requisition.readRequisitionSpec(PRIVATE_ENCRYPTION_KEY)
+      RequisitionSpecs.readRequisitionSpec(requisition, PRIVATE_ENCRYPTION_KEY)
     }
   }
 
   companion object {
     private val PRIVATE_ENCRYPTION_KEY = TestRequisitionData.EDP_DATA.privateEncryptionKey
+
+    private val MULTI_PROTOCOL_CONFIG = protocolConfig {
+      measurementType = ProtocolConfig.MeasurementType.MULTI
+      protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
+    }
 
     private val MULTI_REQUISITION_SPEC: RequisitionSpec =
       TestRequisitionData.REQUISITION_SPEC.copy { clearNonce() }
@@ -124,9 +142,7 @@ class RequisitionSpecsTest {
         clearEncryptedRequisitionSpec()
         unsignedMeasurementSpec = MULTI_MEASUREMENT_SPEC
         requisitionSpec = MULTI_REQUISITION_SPEC
-        protocolConfig = protocolConfig {
-          protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
-        }
+        protocolConfig = MULTI_PROTOCOL_CONFIG
       }
   }
 }
