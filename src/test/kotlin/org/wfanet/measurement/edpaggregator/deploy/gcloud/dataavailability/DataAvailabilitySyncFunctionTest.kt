@@ -462,7 +462,7 @@ class DataAvailabilitySyncFunctionTest {
         "$outputKey.metadata.binpb",
         flowOf(
           blobDetails {
-              blobUri = "file:////$outputKey"
+              blobUri = "gs://bucket/$outputKey"
               eventGroupReferenceId = "external-reference"
               modelLine = MODEL_LINE
               interval = interval {
@@ -501,6 +501,7 @@ class DataAvailabilitySyncFunctionTest {
               dataPathParams = dataPathParams {
                 dataPath = "gs://bucket/$folder/done"
                 generation = 123L
+                createTime = timestamp { seconds = 1_800_000_000L }
                 eventType = StorageEventType.FINALIZED
               }
             }
@@ -648,6 +649,7 @@ class DataAvailabilitySyncFunctionTest {
                   LocalDate.of(2025, 1, 5),
                 )
               generation = 123L
+              createTime = timestamp { seconds = 1_800_000_000L }
               eventType = StorageEventType.FINALIZED
             }
             traceContext["traceparent"] = "00-1af7651916cd43dd8448eb211c80319c-0123456789abcdef-01"
