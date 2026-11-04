@@ -44,17 +44,7 @@ fun Requisition.readMeasurementSpec(): MeasurementSpec {
   if (!isMultimeasurement) {
     return measurementSpec.unpack()
   }
-  // Skipping consent signaling is only sound for a TrusTEE v2 multimeasurement.
-  require(!hasMeasurementSpec()) {
-    "$name sets both measurement_spec and unsigned_measurement_spec"
-  }
-  require(unsignedMeasurementSpec.hasMulti()) {
-    "$name has an unsigned_measurement_spec that is not a multimeasurement"
-  }
-  val protocols = protocolConfig.protocolsList
-  require(protocols.isNotEmpty() && protocols.all { it.hasTrusTeeV2() }) {
-    "$name has an unsigned_measurement_spec but a protocol other than TrusTEE v2"
-  }
+  requireTrusTeeV2Multimeasurement()
   return unsignedMeasurementSpec
 }
 
@@ -65,17 +55,35 @@ fun Requisition.readMeasurementSpec(): MeasurementSpec {
  * Any other carries it encrypted to the `DataProvider`'s key in `encrypted_requisition_spec`, which
  * is decrypted with [privateEncryptionKey].
  *
- * @throws IllegalArgumentException if this is a multimeasurement [Requisition] without a plaintext
- *   spec or with an encrypted one
+ * @throws IllegalArgumentException if this is a multimeasurement [Requisition] that is not a
+ *   well-formed TrusTEE v2 multimeasurement, or that lacks a plaintext spec or has an encrypted one
  * @throws GeneralSecurityException if decryption fails
  */
 fun Requisition.readRequisitionSpec(privateEncryptionKey: PrivateKeyHandle): RequisitionSpec {
   if (!isMultimeasurement) {
     return decryptRequisitionSpec(encryptedRequisitionSpec, privateEncryptionKey).unpack()
   }
+  requireTrusTeeV2Multimeasurement()
   require(hasRequisitionSpec()) { "$name is a multimeasurement without a requisition_spec" }
   require(!hasEncryptedRequisitionSpec()) {
     "$name sets both requisition_spec and encrypted_requisition_spec"
   }
   return requisitionSpec
+}
+
+/**
+ * Requires that this multimeasurement [Requisition] is a TrusTEE v2 one with no signed spec, since
+ * skipping consent signaling is only sound for that protocol.
+ */
+private fun Requisition.requireTrusTeeV2Multimeasurement() {
+  require(!hasMeasurementSpec()) {
+    "$name sets both measurement_spec and unsigned_measurement_spec"
+  }
+  require(unsignedMeasurementSpec.hasMulti()) {
+    "$name has an unsigned_measurement_spec that is not a multimeasurement"
+  }
+  val protocols = protocolConfig.protocolsList
+  require(protocols.isNotEmpty() && protocols.all { it.hasTrusTeeV2() }) {
+    "$name has an unsigned_measurement_spec but a protocol other than TrusTEE v2"
+  }
 }

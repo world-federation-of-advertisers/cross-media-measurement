@@ -76,6 +76,16 @@ class RequisitionSpecsTest {
   }
 
   @Test
+  fun `readRequisitionSpec throws for an unsigned spec with a non-TrusTEE v2 protocol`() {
+    val requisition =
+      MULTI_REQUISITION.copy { protocolConfig = TestRequisitionData.REQUISITION.protocolConfig }
+
+    assertFailsWith<IllegalArgumentException> {
+      requisition.readRequisitionSpec(PRIVATE_ENCRYPTION_KEY)
+    }
+  }
+
+  @Test
   fun `readRequisitionSpec throws for a multimeasurement without a plaintext spec`() {
     val requisition = MULTI_REQUISITION.copy { clearRequisitionSpec() }
 
