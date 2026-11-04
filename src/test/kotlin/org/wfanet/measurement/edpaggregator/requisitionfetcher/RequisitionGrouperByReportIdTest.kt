@@ -222,34 +222,35 @@ class RequisitionGrouperByReportIdTest {
   }
 
   @Test
-  fun `groups several multimeasurement requisitions from one DataProvider`() = runBlocking<Unit> {
-    val r1 =
-      makeMultimeasurementRequisitionWithInterval(
-        name = "${TestRequisitionData.EDP_NAME}/requisitions/vector0",
-        startOffsetHours = 0,
-        endOffsetHours = 0,
-      )
-    val r2 =
-      makeMultimeasurementRequisitionWithInterval(
-        name = "${TestRequisitionData.EDP_NAME}/requisitions/vector1",
-        startOffsetHours = 1,
-        endOffsetHours = 1,
-      )
+  fun `groups several multimeasurement requisitions from one DataProvider`() =
+    runBlocking<Unit> {
+      val r1 =
+        makeMultimeasurementRequisitionWithInterval(
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/vector0",
+          startOffsetHours = 0,
+          endOffsetHours = 0,
+        )
+      val r2 =
+        makeMultimeasurementRequisitionWithInterval(
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/vector1",
+          startOffsetHours = 1,
+          endOffsetHours = 1,
+        )
 
-    val result = grouper.groupForReport(REPORT_ID, listOf(r1, r2), GROUP_ID)
+      val result = grouper.groupForReport(REPORT_ID, listOf(r1, r2), GROUP_ID)
 
-    assertThat(result).isNotNull()
-    assertThat(result!!.requisitionsList.map { it.requisition.unpack(Requisition::class.java) })
-      .containsExactly(r1, r2)
-    assertThat(result.modelLine).isEqualTo("some-model-line")
-    assertThat(result.eventGroupMapList.single().details.collectionIntervalsList)
-      .containsExactly(
-        interval {
-          startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
-          endTime = TestRequisitionData.TIME_RANGE.endExclusive.plusSeconds(3600).toProtoTime()
-        }
-      )
-  }
+      assertThat(result).isNotNull()
+      assertThat(result!!.requisitionsList.map { it.requisition.unpack(Requisition::class.java) })
+        .containsExactly(r1, r2)
+      assertThat(result.modelLine).isEqualTo("some-model-line")
+      assertThat(result.eventGroupMapList.single().details.collectionIntervalsList)
+        .containsExactly(
+          interval {
+            startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+            endTime = TestRequisitionData.TIME_RANGE.endExclusive.plusSeconds(3600).toProtoTime()
+          }
+        )
+    }
 
   @Test
   fun `groupForReport keeps sole non-empty BasicReport`() = runBlocking {
