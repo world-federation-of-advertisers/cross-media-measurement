@@ -98,8 +98,10 @@ message ApproveUploadHealingOperationRequest {
   string data_provider_resource_id = 1;
   string upload_healing_operation_id = 2;
   string etag = 3;
-  repeated CandidateDecision candidate_decisions = 4;
+  RawImpressionUploadCorrectionCandidate.Decision decision = 4
+      [deprecated = true];
   string request_id = 5;
+  repeated CandidateDecision candidate_decisions = 6;
 }
 
 message RetryUploadHealingOperationRequest {
