@@ -111,6 +111,18 @@ class RequisitionSpecsTest {
     )
   }
 
+  @Test
+  fun `refuses a signed and encrypted Requisition with a TrusTEE v2 protocol`() {
+    assertRefused(
+      TestRequisitionData.REQUISITION.copy {
+        protocolConfig =
+          MULTI_PROTOCOL_CONFIG.copy {
+            measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+          }
+      }
+    )
+  }
+
   /** Asserts that both readers refuse [requisition]. */
   private fun assertRefused(requisition: Requisition) {
     assertFailsWith<IllegalArgumentException> { RequisitionSpecs.readMeasurementSpec(requisition) }

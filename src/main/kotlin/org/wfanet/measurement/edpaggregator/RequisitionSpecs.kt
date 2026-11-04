@@ -30,8 +30,8 @@ import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
  *
  * A multimeasurement [Requisition], one whose `protocol_config.measurement_type` is `MULTI`,
  * carries its [MeasurementSpec] unsigned and its [RequisitionSpec] in plaintext, and is fulfilled
- * by TrusTEE v2. Any other carries a signed [MeasurementSpec] and an encrypted [RequisitionSpec].
- * Each reader refuses a [Requisition] that mixes the two forms.
+ * by TrusTEE v2, which fulfills nothing else. Any other carries a signed [MeasurementSpec] and an
+ * encrypted [RequisitionSpec]. Each reader refuses a [Requisition] that mixes the two forms.
  */
 object RequisitionSpecs {
   /** Whether [requisition] belongs to a multimeasurement. */
@@ -101,6 +101,9 @@ object RequisitionSpecs {
   private fun requireSignedAndEncrypted(requisition: Requisition) {
     require(!requisition.hasUnsignedMeasurementSpec() && !requisition.hasRequisitionSpec()) {
       "${requisition.name} is not a multimeasurement but carries an unsigned or plaintext spec"
+    }
+    require(requisition.protocolConfig.protocolsList.none { it.hasTrusTeeV2() }) {
+      "${requisition.name} is not a multimeasurement but has a TrusTEE v2 protocol"
     }
   }
 }
