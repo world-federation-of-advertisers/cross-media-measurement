@@ -251,7 +251,8 @@ class MissingImpressionMetadataRecoveryTest {
               leaseChecks++
               if (leaseChecks == 2) throw Status.UNAVAILABLE.asException()
             },
-          ) { _, _ -> }
+          ) { _, _ ->
+          }
           .recover()
       }
 

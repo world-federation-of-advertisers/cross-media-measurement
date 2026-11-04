@@ -20,6 +20,7 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "VidLabelingEvictionFenceStateProto";
 
+// State of a VID-labeling eviction fence.
 enum VidLabelingEvictionFenceState {
   // The fence state is unknown.
   VID_LABELING_EVICTION_FENCE_STATE_UNSPECIFIED = 0;
