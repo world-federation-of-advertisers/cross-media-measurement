@@ -1,21 +1,52 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "RawImpressionsWriterTest",
+    srcs = ["RawImpressionsWriterTest.kt"],
+    test_class = "org.wfanet.measurement.loadtest.edpaggregator.testing.RawImpressionsWriterTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:raw_impressions_writer",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_api",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:parquet_storage_client",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_test(
     name = "ImpressionWriterTest",
     srcs = ["ImpressionWriterTest.kt"],
     test_class = "org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionWriterTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:impression_writer",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
@@ -28,5 +59,26 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:event_group_sync_scale_test_data",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "FixtureStorageClientTest",
+    srcs = ["FixtureStorageClientTest.kt"],
+    test_class = "org.wfanet.measurement.loadtest.edpaggregator.testing.FixtureStorageClientTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:fixture_storage_client",
+        "@wfa_common_jvm//imports/java/com/google/api/gax",
+        "@wfa_common_jvm//imports/java/com/google/cloud:core",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
     ],
 )

@@ -1,0 +1,6 @@
+# proto-file: wfa/measurement/config/edpaggregator/event_group_activity_sync_config.proto
+# proto-message: wfa.measurement.config.edpaggregator.EventGroupActivitySyncConfig
+data_provider: "dataProviders/Z1YwJJmvvN8"
+spot_data_blob_uri: "gs://secure-computation-storage-head-bucket/edp/edp7/spot-data.json"
+gcs_project: "halo-cmm-head"
+kingdom_public_api_target: "v2alpha.kingdom.head.halo-cmm.org:8443"

@@ -274,6 +274,46 @@ class RequisitionsValidatorTest {
     }
   }
 
+  @Test
+  fun `validateEventGroupSelectors throws when entity id is blank`() {
+    val eventGroupMap =
+      mapOf(
+        "eg1" to
+          eventGroupDetails {
+            eventGroupReferenceId = "ref-1"
+            entityKey = entityKey {
+              entityType = "campaign"
+              entityId = "   "
+            }
+          },
+        "eg2" to
+          eventGroupDetails {
+            eventGroupReferenceId = "ref-2"
+            entityKey = entityKey {
+              entityType = "campaign"
+              entityId = "campaign-2"
+            }
+          },
+      )
+
+    assertFailsWith<InconsistentEventGroupSelectorsException> {
+      requisitionValidator.validateEventGroupSelectors(eventGroupMap)
+    }
+  }
+
+  @Test
+  fun `validateEventGroupSelectors throws when reference id is blank`() {
+    val eventGroupMap =
+      mapOf(
+        "eg1" to eventGroupDetails { eventGroupReferenceId = "ref-1" },
+        "eg2" to eventGroupDetails { eventGroupReferenceId = "   " },
+      )
+
+    assertFailsWith<InconsistentEventGroupSelectorsException> {
+      requisitionValidator.validateEventGroupSelectors(eventGroupMap)
+    }
+  }
+
   companion object {
     private const val MC_ID = "mc"
     private const val MC_NAME = "measurementConsumers/$MC_ID"

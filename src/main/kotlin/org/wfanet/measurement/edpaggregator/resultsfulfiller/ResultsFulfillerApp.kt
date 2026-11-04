@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -210,6 +211,8 @@ class ResultsFulfillerApp(
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         noiserSelector = noiseSelector,
         resultMinimumThresholds = resultMinimumThresholds,
+        disableMultiPartyFrequencyVectorSuppression =
+          fulfillerParams.kAnonymityParams.disableMultiPartyFrequencyVectorSuppression,
         // Read under UNSPECIFIED and CUSTOM_CAP. -1 means no cap, 0 or unset means the
         // MeasurementSpec's value. The explicit modes carry the choice themselves.
         overrideImpressionMaxFrequencyPerUser =
@@ -238,6 +241,18 @@ class ResultsFulfillerApp(
           }
         }
       }
+    val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? =
+      if (fulfillerParams.hasEventGroupReferenceIdEntityKeyMapping()) {
+        fulfillerParams.eventGroupReferenceIdEntityKeyMapping.let { params ->
+          EventGroupReferenceIdEntityKeyMapping(
+            entityType = params.entityType,
+            eventGroupReferenceIdPrefix = params.eventGroupReferenceIdPrefix,
+            entityIdPrefix = params.entityIdPrefix,
+          )
+        }
+      } else {
+        null
+      }
 
     ResultsFulfiller(
         dataProvider = fulfillerParams.dataProvider,
@@ -253,6 +268,8 @@ class ResultsFulfillerApp(
         impressionsStorageConfig = impressionsStorageConfig,
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = fulfillerParams.wholeBlobEntityTypesList.toSet(),
+        eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
         metrics = metrics,
       )
       .fulfillRequisitions()

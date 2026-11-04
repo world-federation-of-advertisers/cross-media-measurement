@@ -1,0 +1,17 @@
+{
+  "bigquery_region": "us-central1",
+  "deletion_protection": true,
+  "operators": [
+    "serviceAccount:cmms-operators@halo-cmm-qa.iam.gserviceaccount.com"
+  ],
+  "edps": [
+    {
+      "name": "meta",
+      "resource_id": "WLb7yRONEO4"
+    },
+    {
+      "name": "edp7",
+      "resource_id": "MPxlwJmFW7A"
+    }
+  ]
+}

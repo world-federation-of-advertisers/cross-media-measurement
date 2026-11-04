@@ -25,6 +25,8 @@ locals {
   reporting_v2_cluster_name = "reporting-v2"
   simulators_cluster_name   = "simulators"
 
+  cmms_operator_service_account_email = "cmms-operators@${data.google_client_config.default.project}.iam.gserviceaccount.com"
+
   cluster_location        = var.cluster_location == null ? data.google_client_config.default.zone : var.cluster_location
   key_ring_location       = var.key_ring_location == null ? data.google_client_config.default.region : var.key_ring_location
   storage_bucket_location = var.storage_bucket_location == null ? data.google_client_config.default.region : var.storage_bucket_location
@@ -33,6 +35,14 @@ locals {
 provider "google" {}
 
 data "google_client_config" "default" {}
+
+resource "google_service_account_iam_member" "cmms_operator_token_creator" {
+  for_each = nonsensitive(toset(keys(var.cmms_operator_members)))
+
+  service_account_id = "projects/${data.google_client_config.default.project}/serviceAccounts/${local.cmms_operator_service_account_email}"
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = var.cmms_operator_members[each.value]
+}
 
 module "common" {
   source = "../modules/common"

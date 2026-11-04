@@ -68,6 +68,9 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @property impressionsMetadataBucket The storage bucket where metadata for impressions is stored.
  * @property storagePath An optional file path for local storage, defaulting to null.
  * @property schema The URI schema for storage paths, defaulting to "file:///".
+ * @property includeEventGroupReferenceIdInImpressions whether to stamp the legacy reference ID on
+ *   each impression. This is only needed when generating data in the legacy format used by
+ *   out-of-band uploaders.
  */
 class ImpressionsWriter(
   private val eventGroupReferenceId: String,
@@ -79,7 +82,12 @@ class ImpressionsWriter(
   private val storagePath: File? = null,
   private val schema: String = "file:///",
   private val outputKey: String = "",
+  private val includeEventGroupReferenceIdInImpressions: Boolean,
 ) {
+
+  init {
+    require(!includeEventGroupReferenceIdInImpressions || eventGroupReferenceId.isNotBlank())
+  }
 
   /**
    * Takes a sequence of [EntityKeyedLabeledEventDateShard]s, encrypts the data with a KMS, and
@@ -140,6 +148,9 @@ class ImpressionsWriter(
               this.event = Any.pack(event.message)
               eventTime = event.timestamp.toProtoTime()
               entityKeys += protoEntityKeys
+              if (includeEventGroupReferenceIdInImpressions) {
+                eventGroupReferenceId = this@ImpressionsWriter.eventGroupReferenceId
+              }
             }
           }
         }
@@ -159,7 +170,8 @@ class ImpressionsWriter(
         }
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
       val encryptedStorage = run {
-        val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
+        val selectedStorageClient =
+          FixtureStorageClient(SelectedStorageClient(impressionsFileUri, storagePath))
 
         val aeadStorageClient =
           selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
@@ -190,7 +202,7 @@ class ImpressionsWriter(
 
       // Create the impressions metadata store
       val impressionsMetadataStorageClient =
-        SelectedStorageClient(impressionsMetadataFileUri, storagePath)
+        FixtureStorageClient(SelectedStorageClient(impressionsMetadataFileUri, storagePath))
 
       val zoneId = ZoneOffset.UTC
       val startOfDay = localDate.atStartOfDay(zoneId).toInstant().toProtoTime()

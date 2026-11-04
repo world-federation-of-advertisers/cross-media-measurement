@@ -26,7 +26,6 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Descriptors
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
-import com.google.type.Interval
 import java.io.IOException
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -40,8 +39,10 @@ import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 
 /** Result of processing a single EventReader. */
 data class EventReaderResult(val batchCount: Int, val eventCount: Int)
@@ -109,7 +110,7 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
 /**
  * Event source that builds readers from an impression metadata facade.
  *
- * Resolves data sources via [ImpressionMetadataService] for each configured event group interval,
+ * Resolves data sources via [ImpressionMetadataService] for each resolved event group interval,
  * then creates [EventReader]s and streams batches in parallel. This class is agnostic to storage
  * layout and transport.
  *
@@ -118,7 +119,7 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
  * - Memory: bounded by batch size and number of concurrent readers
  *
  * @property impressionDataSourceProvider facade providing data sources for intervals.
- * @property eventGroupDetailsList event groups with their collection intervals.
+ * @property resolvedEventGroups event groups normalized for storage lookup and filtering.
  * @property modelLine model line to use for fetching impressions
  * @property kmsClient KMS client for decryption operations
  * @property impressionsStorageConfig storage configuration for reading impressions
@@ -137,7 +138,7 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
  */
 class StorageEventSource(
   private val impressionDataSourceProvider: ImpressionDataSourceProvider,
-  private val eventGroupDetailsList: List<EventGroupDetails>,
+  private val resolvedEventGroups: ResolvedEventGroups,
   private val modelLine: String,
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
@@ -153,18 +154,13 @@ class StorageEventSource(
   init {
     require(readConcurrency > 0) { "readConcurrency must be positive" }
     require(readMaxAttempts >= 1) { "readMaxAttempts must be at least 1" }
+    require(resolvedEventGroups.eventGroupsByKey.isNotEmpty()) {
+      "resolvedEventGroups must not be empty"
+    }
   }
 
   /** Cache for unique impression data sources to avoid duplicate API calls. */
   private var cachedImpressionDataSources: List<ImpressionDataSource>? = null
-
-  private val useEntityKeyStrategy: Boolean = run {
-    require(eventGroupDetailsList.isNotEmpty()) { "eventGroupDetailsList must not be empty" }
-    val allEntityKey = eventGroupDetailsList.all { hasEntityKey(it) }
-    val noneEntityKey = eventGroupDetailsList.none { hasEntityKey(it) }
-    require(allEntityKey || noneEntityKey) { "Cannot mix entity-key and reference-id event groups" }
-    allEntityKey
-  }
 
   /**
    * Generates batches of events by reading from storage in parallel.
@@ -200,7 +196,7 @@ class StorageEventSource(
       val eventReaders: List<ResolvedEventReader> = createEventReaders()
       ProgressTracker(eventReaders.size).use { progressTracker ->
         logger.info(
-          "Processing ${eventReaders.size} EventReaders across ${eventGroupDetailsList.size} event groups"
+          "Processing ${eventReaders.size} EventReaders across ${resolvedEventGroups.eventGroupsByKey.size} event groups"
         )
         // Launch one coroutine per EventReader, but bound how many read + decrypt concurrently via
         // a semaphore so the outbound Cloud Storage / Cloud KMS fan-out cannot exhaust Cloud NAT
@@ -224,60 +220,94 @@ class StorageEventSource(
     }
   }
 
-  /** Returns true if [details] has an entity key with a non-empty entity ID. */
-  private fun hasEntityKey(details: EventGroupDetails): Boolean {
-    return details.hasEntityKey() && details.entityKey.entityId.isNotEmpty()
-  }
-
-  /** Collects all impression data sources and deduplicates by blob URI. */
+  /** Collects and caches all impression data sources. */
   private suspend fun getUniqueImpressionDataSources(): List<ImpressionDataSource> {
     cachedImpressionDataSources?.let {
       return it
     }
 
-    val allSources =
-      if (useEntityKeyStrategy) {
-        eventGroupDetailsList.flatMap { details ->
-          logger.info("EventGroup details: $details")
-          val selector =
-            ImpressionQuerySelector.ByEntityKey(
-              entityKey {
-                entityType = details.entityKey.entityType
-                entityId = details.entityKey.entityId
-              }
-            )
-          details.collectionIntervalsList.flatMap { interval ->
-            logger.info("EventGroup collection interval: $interval")
-            impressionDataSourceProvider.listImpressionDataSources(modelLine, selector, interval)
-          }
-        }
-      } else {
-        // Batch every event-group reference ID that shares a collection interval into ONE paginated
-        // ListImpressionMetadata call (an IN UNNEST query) instead of one call per event group.
-        // This collapses hundreds of metadata RPCs per report into a handful.
-        val referenceIdsByInterval: Map<Interval, List<String>> =
-          eventGroupDetailsList
-            .flatMap { details ->
-              details.collectionIntervalsList.map { interval ->
-                interval to details.eventGroupReferenceId
-              }
-            }
-            .groupBy({ it.first }, { it.second })
-            .mapValues { (_, referenceIds) -> referenceIds.distinct() }
-        referenceIdsByInterval.flatMap { (interval, referenceIds) ->
-          logger.info(
-            "Batching ${referenceIds.size} event-group reference IDs for interval: $interval"
-          )
-          impressionDataSourceProvider.listImpressionDataSources(
-            modelLine,
-            ImpressionQuerySelector.ByEventGroupReferenceIds(referenceIds.toList()),
-            interval,
-          )
-        }
-      }
-    val result = allSources.distinctBy { it.blobDetails.blobUri }
+    val result: List<ImpressionDataSource> =
+      impressionDataSourceProvider.listImpressionDataSources(
+        modelLine,
+        resolvedEventGroups.eventGroupsByKey.values,
+      )
     cachedImpressionDataSources = result
     return result
+  }
+
+  private fun validateAndCanonicalizeEntityKeyGroups(
+    blobDetails: BlobDetails
+  ): Set<EntityKeyGroup> {
+    val entityKeyGroups: List<EntityKeyGroup> = blobDetails.entityKeysList
+    require(entityKeyGroups.all { it.entityType.isNotBlank() }) {
+      "BlobDetails for ${blobDetails.blobUri} has a blank entity type"
+    }
+    require(entityKeyGroups.map { it.entityType }.toSet().size == entityKeyGroups.size) {
+      "BlobDetails for ${blobDetails.blobUri} has duplicate entity types"
+    }
+    require(entityKeyGroups.all { it.entityIdsList.isNotEmpty() }) {
+      "BlobDetails for ${blobDetails.blobUri} has an empty entity-key group"
+    }
+    require(entityKeyGroups.all { group -> group.entityIdsList.all { it.isNotBlank() } }) {
+      "BlobDetails for ${blobDetails.blobUri} has a blank entity ID"
+    }
+    require(
+      entityKeyGroups.all { group -> group.entityIdsList.toSet().size == group.entityIdsCount }
+    ) {
+      "BlobDetails for ${blobDetails.blobUri} has duplicate entity IDs"
+    }
+    return entityKeyGroups
+      .map { group ->
+        entityKeyGroup {
+          entityType = group.entityType
+          entityIds += group.entityIdsList.sorted()
+        }
+      }
+      .toSet()
+  }
+
+  private fun flattenEntityKeys(
+    entityKeyGroups: Set<EntityKeyGroup>
+  ): Set<LabeledImpression.EntityKey> {
+    return entityKeyGroups
+      .asSequence()
+      .flatMap { group ->
+        group.entityIdsList.asSequence().map { entityId ->
+          LabeledImpressionKt.entityKey {
+            entityType = group.entityType
+            this.entityId = entityId
+          }
+        }
+      }
+      .toSet()
+  }
+
+  private fun eventGroupIdentifier(blobDetails: BlobDetails): EventGroupIdentifier {
+    val entityKeyGroups: Set<EntityKeyGroup> = validateAndCanonicalizeEntityKeyGroups(blobDetails)
+    val directReferenceId: String? = blobDetails.eventGroupReferenceId.takeIf { it.isNotBlank() }
+    val mappedEntityGroup: EntityKeyGroup? =
+      resolvedEventGroups.mappedEntityType?.let { mappedEntityType ->
+        entityKeyGroups.singleOrNull { it.entityType == mappedEntityType }
+      }
+
+    if (
+      resolvedEventGroups.mappedEntityType != null &&
+        directReferenceId == null &&
+        entityKeyGroups.isEmpty()
+    ) {
+      error(
+        "BlobDetails for ${blobDetails.blobUri} has neither entity keys nor an " +
+          "event-group reference ID"
+      )
+    }
+
+    return EventGroupIdentifier(
+      eventGroupReferenceId =
+        directReferenceId.takeUnless { (mappedEntityGroup?.entityIdsCount ?: 0) > 1 },
+      entityKeys = flattenEntityKeys(entityKeyGroups),
+      wholeBlobEntityKeyGroups =
+        entityKeyGroups.filter { it.entityType in resolvedEventGroups.wholeBlobEntityTypes }.toSet(),
+    )
   }
 
   private suspend fun createEventReaders(): List<ResolvedEventReader> {
@@ -285,15 +315,9 @@ class StorageEventSource(
     val uniqueSources = getUniqueImpressionDataSources()
 
     return uniqueSources.map { source ->
-      val eventGroupIdentifier =
-        if (useEntityKeyStrategy) {
-          EventGroupIdentifier.ByEntityKeys(source.blobDetails.entityKeysList)
-        } else {
-          EventGroupIdentifier.ByReferenceId(source.blobDetails.eventGroupReferenceId)
-        }
       ResolvedEventReader(
         reader = eventReaderFactory(source.blobDetails),
-        eventGroupIdentifier = eventGroupIdentifier,
+        eventGroupIdentifier = eventGroupIdentifier(source.blobDetails),
         blobUri = source.blobDetails.blobUri,
       )
     }

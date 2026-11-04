@@ -87,6 +87,66 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             480,
         )
 
+    def test_direct_histogram_with_suppressed_one_plus_can_be_corrected(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              whole_campaign_result {
+                reach { value: 110 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 30 standard_deviation: 0 } }
+                  bins { key: 3 value { value: 70 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 280
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+            ),
+            potential_direct_thresholding_data_provider_ids={"edp-one"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"}
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+        self.assertAlmostEqual(
+            result.updated_measurements["frequency-bin-1"],
+            10,
+            delta=NOISE_CORRECTION_TOLERANCE,
+        )
+        self.assertAlmostEqual(
+            result.updated_measurements["frequency-bin-2"],
+            30,
+            delta=NOISE_CORRECTION_TOLERANCE,
+        )
+        self.assertAlmostEqual(
+            result.updated_measurements["frequency-bin-3"],
+            70,
+            delta=NOISE_CORRECTION_TOLERANCE,
+        )
+
     def test_zero_direct_cumulative_reach_can_be_corrected(self):
         report_summary = text_format.Parse(
             """

@@ -80,6 +80,7 @@ class WorkItemAttemptsServiceTest {
       workItemResourceId = "workItem"
       workItemAttemptResourceId = "workItemAttempt"
       state = InternalWorkItemAttempt.State.ACTIVE
+      workItemGeneration = 3L
     }
     internalServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn internalWorkItemAttempt
@@ -117,9 +118,11 @@ class WorkItemAttemptsServiceTest {
         WorkItemAttempt.CREATE_TIME_FIELD_NUMBER,
         WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER,
         WorkItemAttempt.STATE_FIELD_NUMBER,
+        WorkItemAttempt.WORK_ITEM_GENERATION_FIELD_NUMBER,
       )
       .isEqualTo(request.workItemAttempt)
     assertThat(response.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+    assertThat(response.workItemGeneration).isEqualTo(3L)
   }
 
   @Test

@@ -25,7 +25,6 @@ import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -51,6 +50,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.UploadHealingWorkflow
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -58,7 +60,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
@@ -82,6 +83,8 @@ import picocli.CommandLine.Parameters
       MarkFailedCommand::class,
       RetryFailedCommand::class,
       BackfillModelLineCommand::class,
+      ListCorrectionCandidatesCommand::class,
+      GetCorrectionCandidateCommand::class,
       EvictUploadsCommand::class,
       ResumeHealingCommand::class,
       RecoverUploadCommand::class,
@@ -903,24 +906,22 @@ private fun newEvictUploader(
   normalizedOutputPrefix: String,
   gcsProject: String,
 ): EvictUploader {
-  val outputStorageClients = ConcurrentHashMap<Pair<String, String>, StorageClient>()
-  outputStorageClients[outputPrefixBlobUri.scheme to outputPrefixBlobUri.bucket] =
-    SelectedStorageClient(blobUri = outputPrefixBlobUri, projectId = gcsProject.ifEmpty { null })
-      .underlyingClient
-  val deleteBlob: suspend (String) -> Boolean = { blobPath ->
-    val blobUri = SelectedStorageClient.parseBlobUri(blobPath)
-    val storageClient =
-      outputStorageClients.computeIfAbsent(blobUri.scheme to blobUri.bucket) {
-        SelectedStorageClient(blobUri = blobUri, projectId = gcsProject.ifEmpty { null })
-          .underlyingClient
-      }
-    val blob = storageClient.getBlob(blobUri.key)
-    if (blob == null) {
-      false
+  require(outputPrefixBlobUri.scheme == "gs") { "labeled output must use gs://" }
+  val storage =
+    if (gcsProject.isEmpty()) {
+      StorageOptions.getDefaultInstance().service
     } else {
-      blob.delete()
-      true
+      StorageOptions.newBuilder().setProjectId(gcsProject).build().service
     }
+  val getBlobGeneration: suspend (String) -> Long? = { blobPath ->
+    val blobUri = SelectedStorageClient.parseBlobUri(blobPath)
+    require(blobUri.scheme == "gs") { "labeled output must use gs://" }
+    storage.get(BlobId.of(blobUri.bucket, blobUri.key))?.generation
+  }
+  val deleteBlob: suspend (String, Long) -> Boolean = { blobPath, generation ->
+    val blobUri = SelectedStorageClient.parseBlobUri(blobPath)
+    require(blobUri.scheme == "gs") { "labeled output must use gs://" }
+    storage.delete(BlobId.of(blobUri.bucket, blobUri.key, generation))
   }
   return EvictUploader(
     RawImpressionUploadServiceCoroutineStub(channel),
@@ -929,6 +930,7 @@ private fun newEvictUploader(
     RawImpressionUploadFileServiceCoroutineStub(channel),
     ImpressionMetadataServiceCoroutineStub(channel),
     normalizedOutputPrefix,
+    getBlobGeneration,
     deleteBlob,
   )
 }
