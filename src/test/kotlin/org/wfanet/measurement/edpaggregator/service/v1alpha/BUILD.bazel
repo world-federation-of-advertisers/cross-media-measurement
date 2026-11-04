@@ -403,6 +403,7 @@ spanner_emulator_test(
     deps = [
         ":vid_labeling_pipeline_test_harness",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_blobs",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:data_availability_sync_work_items",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
