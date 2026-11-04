@@ -298,7 +298,7 @@ class EventGroupSyncScaleTest {
         eventGroupsStub.listEventGroups(
           kingdomListEventGroupsRequest {
             parent = measurementConsumer
-            pageSize = PAGE_SIZE
+            pageSize = KINGDOM_PAGE_SIZE
             this.pageToken = pageToken
             filter =
               KingdomListEventGroupsRequestKt.filter {
@@ -307,6 +307,9 @@ class EventGroupSyncScaleTest {
               }
           }
         )
+      if (response.nextPageToken.isNotEmpty()) {
+        assertThat(response.eventGroupsCount).isEqualTo(KINGDOM_PAGE_SIZE)
+      }
       result += response.eventGroupsList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -438,6 +441,7 @@ class EventGroupSyncScaleTest {
     private const val TARGET_EVENT_GROUP_COUNT = 5_000
     private const val MUTATION_COUNT = 50
     private const val PAGE_SIZE = 500
+    private const val KINGDOM_PAGE_SIZE = 2_000
 
     private fun mutationCampaignName(seed: String): String = "changed-$seed"
   }

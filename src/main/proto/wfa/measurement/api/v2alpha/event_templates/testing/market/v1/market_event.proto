@@ -19,7 +19,7 @@
 //   * The default `TestEvent` is the only event template baked into the
 //     synthetic data generation tools. We need a *second*, structurally
 //     different event message to prove that
-//     `GenerateSyntheticData`/`VerifySyntheticData` correctly handle
+//     `GenerateSyntheticData`/`VerifyVidLabeledImpressions` correctly handle
 //     arbitrary user-supplied event message types via the
 //     `--event-message-descriptor-set` and `--event-message-type-url` flags.
 //   * Real markets define their own event templates (for example, a market

@@ -19,6 +19,7 @@ import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
+import java.time.DateTimeException
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlin.coroutines.CoroutineContext
@@ -91,8 +92,12 @@ class EventGroupActivitiesService(
         "Parent is either unspecified or invalid"
       }
 
+    grpcRequire(parentKey.dataProviderId != ResourceKey.WILDCARD_ID) {
+      "Wildcard ID is not supported for the DataProvider in parent"
+    }
+    val hasWildcardEventGroup = parentKey.eventGroupId == ResourceKey.WILDCARD_ID
     val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
-    if (authenticatedPrincipal.resourceKey != parentKey.parentKey) {
+    if (authenticatedPrincipal.resourceKey != DataProviderKey(parentKey.dataProviderId)) {
       throw Permission.UPDATE.deniedStatus(request.parent).asRuntimeException()
     }
 
@@ -107,11 +112,47 @@ class EventGroupActivitiesService(
             "Child request event group activity name is either unspecified or invalid"
           }
 
-        if (eventGroupActivityKey.parentKey != parentKey) {
+        grpcRequire(eventGroupActivityKey.eventGroupId != ResourceKey.WILDCARD_ID) {
+          "Wildcard ID is not supported for the EventGroup in child request"
+        }
+
+        if (eventGroupActivityKey.dataProviderId != parentKey.dataProviderId) {
+          throw Status.INVALID_ARGUMENT.withDescription(
+              "the DataProvider component of parent and child's EventGroupActivity do not match"
+            )
+            .asRuntimeException()
+        }
+
+        if (!hasWildcardEventGroup && eventGroupActivityKey.parentKey != parentKey) {
           throw Status.INVALID_ARGUMENT.withDescription(
               "the EventGroup component of parent and child's EventGroupActivity do not match"
             )
             .asRuntimeException()
+        }
+
+        val activityIdDate: LocalDate =
+          try {
+            LocalDate.parse(eventGroupActivityKey.eventGroupActivityId)
+          } catch (_: DateTimeParseException) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "the EventGroupActivity component of the child name is not a date in ISO-8601 format"
+              )
+              .asRuntimeException()
+          }
+        grpcRequire(child.eventGroupActivity.hasDate()) {
+          "Child request event group activity date is unspecified"
+        }
+        val activityDate: LocalDate =
+          try {
+            child.eventGroupActivity.date.toLocalDate()
+          } catch (_: DateTimeException) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "Child request event group activity date is invalid"
+              )
+              .asRuntimeException()
+          }
+        grpcRequire(activityIdDate == activityDate) {
+          "the EventGroupActivity component of the child name does not match its date"
         }
 
         internalUpdateEventGroupActivityRequest {
@@ -126,7 +167,9 @@ class EventGroupActivitiesService(
 
     val internalBatchRequest = internalBatchUpdateEventGroupActivitiesRequest {
       externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
-      externalEventGroupId = apiIdToExternalId(parentKey.eventGroupId)
+      if (!hasWildcardEventGroup) {
+        externalEventGroupId = apiIdToExternalId(parentKey.eventGroupId)
+      }
       requests += internalRequests
     }
 

@@ -53,6 +53,14 @@ Optional flags:
 - `--impression-metadata-api-cert-host`
 - `--throttler-minimum-interval` (default `1s`)
 - `--impression-metadata-batch-size` (default `1000`)
+- `--publish-event-group-activities` publishes positive EventGroup activity for metadata blobs that
+  this recovery run already selected. It requires `event_group_activity_publishing` in the config.
+
+The activity flag does not change the recovery command's folder or blob selection rules. It does
+not replay already-complete folders solely to backfill EventGroup activity. To publish activity for
+all historical completion blobs below a prefix, or for an explicit list of completion blobs, use
+[Replay DataAvailabilitySync](replay-data-availability-sync.md) in
+`EVENT_GROUP_ACTIVITY_ONLY` mode.
 
 Choose exactly one date-selection mode:
 
@@ -111,9 +119,10 @@ The job uses the same Workload Identity service account as
 their metadata during synchronization.
 
 The deployment workflow derives the job's single-EDP config from the `edp/edp7` entry in the
-existing `DATA_AVAILABILITY_SYNC_CONFIG_CONTENT` GitHub environment variable and rewrites its TLS
-paths for the Kubernetes mounts. The expected Cloud Function TLS paths must remain present in that
-source config so the workflow can validate and replace each one explicitly.
+selected environment's `data-availability-sync-config.textproto` under
+`src/main/terraform/gcloud/cmms/envs/` and rewrites its TLS paths for the Kubernetes mounts. The
+expected Cloud Function TLS paths must remain present in that source config so the workflow can
+validate and replace each one explicitly.
 
 The pod needs:
 

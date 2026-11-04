@@ -20,6 +20,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.CommitResponse
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
+import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
@@ -116,6 +117,10 @@ class SpannerImpressionMetadataServiceTransactionRetryTest {
         .to("event-group-1")
         .set("CmmsModelLine")
         .to("modelLines/1")
+        .set("RawImpressionUploadResourceId")
+        .to(Value.string(null))
+        .set("OutputDoneBlobGeneration")
+        .to(Value.int64(null))
         .set("IntervalStartTime")
         .to(COMMIT_TIMESTAMP)
         .set("IntervalEndTime")

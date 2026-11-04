@@ -87,3 +87,17 @@ variable "report_trace_observability_projects" {
   default     = []
   nullable    = false
 }
+
+variable "vid_labeling_trace_operators" {
+  description = "IAM members permitted to impersonate the read-only VID-labeling trace operator service account."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "vid_labeling_trace_observability_projects" {
+  description = "Additional GCP project IDs from which the VID-labeling trace operator may read logs and traces. The deployment project is always included."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}

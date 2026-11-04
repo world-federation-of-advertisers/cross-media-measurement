@@ -14,7 +14,70 @@
 
 locals {
 
-  edp_display_names = ["edp7", "edpa_meta", "edpa_video_pub", "edpa_retail_pub"]
+  edp_secret_mount_paths = {
+    edp7 = {
+      requisition_fetcher = {
+        tls_key     = "/secrets/key/edp7_tls.key"
+        tls_pem     = "/secrets/cert/edp7_tls.pem"
+        enc_private = "/secrets/private/edp7_enc_private.tink"
+      }
+      event_group_sync = {
+        tls_key = "/secrets/key/edp7_tls.key"
+        tls_pem = "/secrets/cert/edp7_tls.pem"
+      }
+      data_availability_sync = {
+        tls_key = "/secrets/key/edp7_tls.key"
+        tls_pem = "/secrets/cert/edp7_tls.pem"
+      }
+    }
+    edpa_meta = {
+      requisition_fetcher = {
+        tls_key     = "/secrets/key-edp2/edpa_meta_tls.key"
+        tls_pem     = "/secrets/cert-edp2/edpa_meta_tls.pem"
+        enc_private = "/secrets/private-edp2/edpa_meta_enc_private.tink"
+      }
+      event_group_sync = {
+        tls_key = "/secrets/key-edp2/edpa_meta_tls.key"
+        tls_pem = "/secrets/cert-edp2/edpa_meta_tls.pem"
+      }
+      data_availability_sync = {
+        tls_key = "/secrets/key_edpa_meta/edpa_meta_tls.key"
+        tls_pem = "/secrets/cert_edpa_meta/edpa_meta_tls.pem"
+      }
+    }
+    edpa_video_pub = {
+      requisition_fetcher = {
+        tls_key     = "/secrets/key-video/edpa_video_pub_tls.key"
+        tls_pem     = "/secrets/cert-video/edpa_video_pub_tls.pem"
+        enc_private = "/secrets/private-video/edpa_video_pub_enc_private.tink"
+      }
+      event_group_sync = {
+        tls_key = "/secrets/key-video/edpa_video_pub_tls.key"
+        tls_pem = "/secrets/cert-video/edpa_video_pub_tls.pem"
+      }
+      data_availability_sync = {
+        tls_key = "/secrets/key-video/edpa_video_pub_tls.key"
+        tls_pem = "/secrets/cert-video/edpa_video_pub_tls.pem"
+      }
+    }
+    edpa_retail_pub = {
+      requisition_fetcher = {
+        tls_key     = "/secrets/key-retail/edpa_retail_pub_tls.key"
+        tls_pem     = "/secrets/cert-retail/edpa_retail_pub_tls.pem"
+        enc_private = "/secrets/private-retail/edpa_retail_pub_enc_private.tink"
+      }
+      event_group_sync = {
+        tls_key = "/secrets/key-retail/edpa_retail_pub_tls.key"
+        tls_pem = "/secrets/cert-retail/edpa_retail_pub_tls.pem"
+      }
+      data_availability_sync = {
+        tls_key = "/secrets/key-retail/edpa_retail_pub_tls.key"
+        tls_pem = "/secrets/cert-retail/edpa_retail_pub_tls.pem"
+      }
+    }
+  }
+
+  edp_display_names = keys(local.edp_secret_mount_paths)
 
   edpa_tee_app_tls_key = {
     secret_id         = "edpa-tee-app-tls-key",
@@ -111,6 +174,51 @@ locals {
       }
     }
   }
+
+  requisition_fetcher_secret_mappings = concat(
+    flatten([
+      for edp, mount_paths in local.edp_secret_mount_paths : [
+        "${mount_paths.requisition_fetcher.tls_key}=${local.edps_certs[edp].tls_key.secret_id}:latest",
+        "${mount_paths.requisition_fetcher.tls_pem}=${local.edps_certs[edp].tls_pem.secret_id}:latest",
+        "${mount_paths.requisition_fetcher.enc_private}=${local.edps_certs[edp].enc_private.secret_id}:latest",
+      ]
+    ]),
+    [
+      "/secrets/ca/kingdom_root.pem=${local.trusted_root_ca_collection.secret_id}:latest",
+      "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem=${local.requisition_fetcher_tls_pem.secret_id}:latest",
+      "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key=${local.requisition_fetcher_tls_key.secret_id}:latest",
+      "/secrets/ca/cert_metadata_storage/edp_aggregator_root.pem=${local.metadata_storage_root_ca.secret_id}:latest",
+    ]
+  )
+
+  event_group_secret_mappings = concat(
+    flatten([
+      for edp, mount_paths in local.edp_secret_mount_paths : [
+        "${mount_paths.event_group_sync.tls_key}=${local.edps_certs[edp].tls_key.secret_id}:latest",
+        "${mount_paths.event_group_sync.tls_pem}=${local.edps_certs[edp].tls_pem.secret_id}:latest",
+      ]
+    ]),
+    [
+      "/secrets/ca/kingdom_root.pem=${local.trusted_root_ca_collection.secret_id}:latest",
+      "/secrets/key-scale/event_group_scale_tls.key=event_group_scale-tls-key:latest",
+      "/secrets/cert-scale/event_group_scale_tls.pem=event_group_scale-tls-pem:latest",
+    ]
+  )
+
+  data_availability_secret_mappings = concat(
+    flatten([
+      for edp, mount_paths in local.edp_secret_mount_paths : [
+        "${mount_paths.data_availability_sync.tls_key}=${local.edps_certs[edp].tls_key.secret_id}:latest",
+        "${mount_paths.data_availability_sync.tls_pem}=${local.edps_certs[edp].tls_pem.secret_id}:latest",
+      ]
+    ]),
+    [
+      "/secrets/ca/kingdom_root.pem=${local.trusted_root_ca_collection.secret_id}:latest",
+      "/secrets/cert/data_availability/data_availability_tls.pem=${local.data_availability_tls_pem.secret_id}:latest",
+      "/secrets/key/data_availability/data_availability_tls.key=${local.data_availability_tls_key.secret_id}:latest",
+      "/secrets/ca/metadata_storage/edp_aggregator_root.pem=${local.metadata_storage_root_ca.secret_id}:latest",
+    ]
+  )
 
   requisition_fulfiller_config = {
     queue = {
@@ -273,7 +381,7 @@ locals {
         "MAX_REQUISITIONS_PER_GROUP=100",
       ]))
       secret_mappings = join(",", compact([
-        var.requisition_fetcher_secret_mapping,
+        join(",", local.requisition_fetcher_secret_mappings),
         "/secrets/secure-computation-ca/secure_computation_root.pem=${local.secure_computation_root_ca.secret_id}:latest",
       ]))
       uber_jar_path = var.requisition_fetcher_uber_jar_path
@@ -282,14 +390,14 @@ locals {
       function_name   = "event-group-sync"
       entry_point     = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
       extra_env_vars  = "${var.event_group_env_var},CONFIG_BLOB_KEY=${local.event_group_sync_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
-      secret_mappings = var.event_group_secret_mapping
+      secret_mappings = join(",", local.event_group_secret_mappings)
       uber_jar_path   = var.event_group_uber_jar_path
     }
     data_availability_sync = {
       function_name   = "data-availability-sync"
       entry_point     = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunction"
       extra_env_vars  = "${var.data_availability_env_var},CONFIG_BLOB_KEY=${local.data_availability_sync_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
-      secret_mappings = var.data_availability_secret_mapping
+      secret_mappings = join(",", local.data_availability_secret_mappings)
       uber_jar_path   = var.data_availability_uber_jar_path
     }
     data_watcher_delete = {
@@ -339,12 +447,9 @@ locals {
     destination = "vid-labeling-monitor-config.textproto"
   }
 
-  # Health cadence: staleness alerting, stuck-phase recovery, and data-quality
-  # checks (VidLabelingMonitor.runHealth, selected by ?mode=health). Runs once
-  # daily, 30 minutes after the 06:00 dispatch tick, so the two scheduled requests
-  # do not compete for the function's single instance. Recovery attempts remain
-  # spaced a day apart and never race an in-flight last-out (see
-  # staleness_threshold's 24h floor).
+  # Daily health checks select VidLabelingMonitor.runHealth with ?mode=health.
+  # HTTP retries accommodate a busy monitor; stuck-phase recovery remains spaced
+  # a day apart by the staleness threshold's 24h floor.
   vid_labeling_monitor_scheduler_config = {
     schedule                  = "30 6 * * *" # Daily at 06:30
     time_zone                 = "UTC"
@@ -356,18 +461,19 @@ locals {
     scheduler_job_name        = "vid-labeling-monitor"
   }
 
-  # Dispatch cadence: publish WorkItems for newly-registered uploads
-  # (VidLabelingMonitor.runDispatch, selected by ?mode=dispatch). Runs every 6h
-  # so new uploads start promptly; dispatch is user-visible latency, so it wants
-  # a fast clock independent of the slow health cadence.
+  # Fallback dispatch recovers registered uploads after fast-path retries are exhausted.
+  # ?mode=dispatch selects VidLabelingMonitor.runDispatch without health recovery.
   vid_labeling_dispatch_scheduler_config = {
-    schedule                  = "0 */6 * * *" # Every 6 hours
+    # Short fallback interval for development/cloud tests (30-minute setup timeout).
+    # Long-lived deployments should run 1-4 times per day (every 6-24 hours);
+    # newly registered uploads normally start through fast-path dispatch.
+    schedule                  = "*/5 * * * *" # Every 5 minutes
     time_zone                 = "UTC"
     name                      = "vid-labeling-dispatch-sched"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor?mode=dispatch"
     scheduler_sa_display_name = "VID Labeling Dispatch Scheduler"
     scheduler_sa_description  = "Service account for Cloud Scheduler to trigger VID labeling dispatch"
-    scheduler_job_description = "Six-hourly job dispatching VID labeling WorkItems for newly-registered uploads"
+    scheduler_job_description = "Five-minute job dispatching VID labeling WorkItems for newly-registered uploads"
     scheduler_job_name        = "vid-labeling-dispatcher"
   }
 
@@ -538,4 +644,5 @@ module "edp_aggregator" {
   vid_labeling_monitor_scheduler_config            = local.vid_labeling_monitor_scheduler_config
   vid_labeling_dispatch_scheduler_config           = local.vid_labeling_dispatch_scheduler_config
   spanner_instance                                 = google_spanner_instance.spanner_instance
+  vid_labeling_trace_operator_member               = "serviceAccount:${module.reporting_v2.vid_labeling_trace_operator_service_account_email}"
 }

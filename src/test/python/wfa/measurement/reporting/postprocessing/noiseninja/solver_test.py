@@ -16,9 +16,11 @@ import unittest
 import numpy as np
 
 from unittest.mock import MagicMock
+from unittest.mock import patch
 
 from qpsolvers import Solution
 
+from noiseninja import noise_correction_value_logging
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
@@ -35,6 +37,24 @@ TOLERANCE = 1e-1
 
 
 class SolverTest(unittest.TestCase):
+
+    @patch("noiseninja.solver.logging.debug")
+    def test_base_vector_values_are_logged_only_when_enabled(self, mock_debug):
+        spec = SetMeasurementsSpec()
+        spec.add_measurement(1, Measurement(918273, 1, "measurement_01"))
+
+        Solver(spec)
+
+        self.assertNotIn("918273", str(mock_debug.call_args_list))
+        self.assertIn(
+            "Initialized the solver base vector", str(mock_debug.call_args_list)
+        )
+
+        mock_debug.reset_mock()
+        with noise_correction_value_logging.measurement_value_logging(True):
+            Solver(spec)
+
+        self.assertIn("918273", str(mock_debug.call_args_list))
 
     def test_solve_when_highs_solver_fails_to_converge(self):
         spec = SetMeasurementsSpec()

@@ -1,0 +1,56 @@
+entries {
+  authority_key_identifier: "|\346?\352e\355q=\236Yy\240\310\b\311W\252\306\261j"
+  principal_resource_name: "measurementConsumers/ZGbb2aYAMzg"
+}
+entries {
+  authority_key_identifier: "\220\301\323\275\346t\001U\247\357\346dr\246h\234A[w\004"
+  principal_resource_name: "dataProviders/R0htZln_0Go"
+}
+entries {
+  authority_key_identifier: "\366\355\321\220.\362\004\006\353\026\304@\317iC\206\026\314\256\b"
+  principal_resource_name: "dataProviders/SPNHf1n_0PE"
+}
+entries {
+  authority_key_identifier: "\310\003s\220\236\2773F\352\224D\304\254wMGg\241\201\224"
+  principal_resource_name: "dataProviders/GMCFvln_0WQ"
+}
+entries {
+  authority_key_identifier: "\225B\002L\355\0236\375.\263\2530\376+\232\006\276\031\027T"
+  principal_resource_name: "dataProviders/NRfn0Fn_0dc"
+}
+entries {
+  authority_key_identifier: "\204\352=\376\326EC?\\\306\355\206\242\203=\370\r]k\267"
+  principal_resource_name: "dataProviders/MBwc0aYALbk"
+}
+entries {
+  authority_key_identifier: "\273\022 \250\346\004\225\317\2503B3\'\322\ai\302\277\212Z"
+  principal_resource_name: "dataProviders/GPo2HFn_0rw"
+}
+entries {
+  authority_key_identifier: "\x4D\xB3\xF8\x49\x40\x46\x55\x07\x5C\x34\xF7\x2B\x3D\x51\x7E\x70\x0F\x7F\xDE\x48"
+  principal_resource_name: "dataProviders/Z1YwJJmvvN8"
+}
+entries {
+  authority_key_identifier: "\x1D\x41\x38\x58\xCB\x91\x33\x85\x7B\xA3\x3F\x4E\x49\xD7\x02\x8F\xAC\xD0\xD5\xD6"
+  principal_resource_name: "dataProviders/YpCPT-x89j4"
+}
+entries {
+  authority_key_identifier: "\x95\x0C\xC5\xC1\xA8\xCA\xA4\x77\xE9\x8F\xEE\x48\xF1\xE1\x5E\x38\xCC\xDF\xAD\xB3"
+  principal_resource_name: "dataProviders/TMB_hM88nzQ"
+}
+entries {
+  authority_key_identifier: "\xB1\x32\x83\x2F\x19\x02\xE1\xAD\xC6\x01\xE1\x4F\x57\xD7\x08\x05\xE7\x1F\x6F\x79"
+  principal_resource_name: "modelProviders/PYauXl6kcsA"
+}
+entries {
+  authority_key_identifier: "\xA0\x47\xF5\x71\x78\x0A\x72\x3E\xC0\x21\xBB\x9E\xF0\x13\x03\x99\xBB\xB4\xE1\x49"
+  principal_resource_name: "dataProviders/eO3DIA2ihRw"
+}
+entries {
+  authority_key_identifier: "\xA0\x4F\x50\x0C\xD6\xC2\x02\xD1\xE6\x06\x87\x37\x52\xC5\xD7\x88\xCC\xB1\x09\x65"
+  principal_resource_name: "dataProviders/DikW9D-jyWk"
+}
+entries {
+  authority_key_identifier: "\x3D\x4A\x3A\x8A\x5E\x0B\x98\xAA\x05\xF1\x83\xA4\x48\xEC\xA0\xAD\x2D\xAE\xB9\xBA"
+  principal_resource_name: "dataProviders/TiyslcBcEfA"
+}

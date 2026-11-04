@@ -48,9 +48,6 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServices
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
-import org.wfanet.measurement.edpaggregator.tools.EvictUploader
-import org.wfanet.measurement.edpaggregator.tools.RecoverUploader
-import org.wfanet.measurement.edpaggregator.tools.UploadHealingWorkflow
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
@@ -92,6 +89,9 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKey
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.UploadHealingWorkflow
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
@@ -191,7 +191,8 @@ class UploadHealingWorkflowIntegrationTest {
         filesStub,
         impressionMetadataStub,
         LABELED_OUTPUT_PREFIX,
-        deleteBlob = { blobUri ->
+        getBlobGeneration = { blobUri -> if (blobUri in outputBlobUris) 100L else null },
+        deleteBlob = { blobUri, _ ->
           requestedBlobDeletions += blobUri
           check(blobUri.startsWith("$LABELED_OUTPUT_PREFIX/")) {
             "Eviction attempted to delete a blob outside the labeled-output prefix: $blobUri"

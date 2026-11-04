@@ -202,6 +202,7 @@ class WriteHighOverlapImpressionsRule(
         storagePath = null,
         schema = GCS_SCHEME,
         outputKey = eventGroup.outputKey,
+        includeEventGroupReferenceIdInImpressions = false,
       )
     impressionWriter.writeLabeledImpressionData(
       generateShards(eventGroup),

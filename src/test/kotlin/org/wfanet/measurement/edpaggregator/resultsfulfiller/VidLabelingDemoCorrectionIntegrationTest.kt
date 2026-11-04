@@ -40,6 +40,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
@@ -124,7 +125,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
   @Before
   fun initOrchestrator() {
     kmsClient = TestEncryptedStorage.buildFakeKmsClient(kekUri, keyTemplate = "AES128_GCM")
-    orchestrator = EventProcessingOrchestrator(PRIVATE_ENCRYPTION_KEY)
+    orchestrator = EventProcessingOrchestrator(privateEncryptionKey = PRIVATE_ENCRYPTION_KEY)
   }
 
   @Test
@@ -248,9 +249,19 @@ class VidLabelingDemoCorrectionIntegrationTest {
       vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
       populationSpec = POPULATION_SPEC,
       requisitions = requisitions,
-      eventGroupSelector =
-        FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-          mapOf(EVENT_GROUP to EVENT_GROUP)
+      resolvedEventGroups =
+        ResolvedEventGroups(
+          eventGroupsByKey =
+            mapOf(
+              EVENT_GROUP_KEY to
+                ResolvedEventGroup(
+                  collectionIntervals = emptyList(),
+                  eventGroupReferenceId = EVENT_GROUP,
+                  entityKey = null,
+                )
+            ),
+          mappedEntityType = null,
+          wholeBlobEntityTypes = emptySet(),
         ),
       config =
         PipelineConfiguration(
@@ -269,7 +280,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
         RequisitionSpecKt.events {
           eventGroups +=
             RequisitionSpecKt.eventGroupEntry {
-              key = EVENT_GROUP
+              key = EVENT_GROUP_KEY.toName()
               value =
                 RequisitionSpecKt.EventGroupEntryKt.value {
                   collectionInterval =
@@ -336,7 +347,12 @@ class VidLabelingDemoCorrectionIntegrationTest {
               events,
               times.min(),
               times.max(),
-              eventGroupIdentifier = EventGroupIdentifier.ByReferenceId(eventGroupReferenceId),
+              eventGroupIdentifier =
+                EventGroupIdentifier(
+                  eventGroupReferenceId = eventGroupReferenceId,
+                  entityKeys = emptySet(),
+                  wholeBlobEntityKeyGroups = emptySet(),
+                ),
             )
           )
         }
@@ -353,6 +369,8 @@ class VidLabelingDemoCorrectionIntegrationTest {
     private const val DATA_PROVIDER = "dataProviders/edp-1"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val EVENT_GROUP = "event-group-1"
+    private val EVENT_GROUP_KEY =
+      EventGroupKey(dataProviderId = "edp-1", eventGroupId = EVENT_GROUP)
 
     private const val EVENT_ID_COLUMN = "event_id"
     private const val EVENT_TIME_COLUMN = "event_time_micros"

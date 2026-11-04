@@ -23,22 +23,43 @@ import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.toInt64Array
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 
-/** Returns the operation ID holding the VID-labeling eviction fence, if any. */
-suspend fun AsyncDatabaseClient.ReadContext.getVidLabelingEvictionOperationId(
+data class VidLabelingEvictionFence(
+  val evictionOperationId: String,
+  val state: VidLabelingEvictionFenceState,
+)
+
+/** Reads the VID-labeling eviction fence, if any. */
+suspend fun AsyncDatabaseClient.ReadContext.getVidLabelingEvictionFence(
   dataProviderResourceId: String
-): String? {
+): VidLabelingEvictionFence? {
   val row =
     readRow(
       "VidLabelingEvictionFence",
       Key.of(dataProviderResourceId),
-      listOf("EvictionOperationId"),
+      listOf("EvictionOperationId", "State"),
     ) ?: return null
-  return row.getString("EvictionOperationId")
+  return VidLabelingEvictionFence(
+    evictionOperationId = row.getString("EvictionOperationId"),
+    state =
+      if (row.isNull("State")) {
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+      } else {
+        row.getProtoEnum("State", VidLabelingEvictionFenceState::forNumber)
+      },
+  )
 }
+
+/** Returns the operation ID holding the VID-labeling eviction fence, if any. */
+suspend fun AsyncDatabaseClient.ReadContext.getVidLabelingEvictionOperationId(
+  dataProviderResourceId: String
+): String? = getVidLabelingEvictionFence(dataProviderResourceId)?.evictionOperationId
 
 /** Returns whether any upload registration is incomplete for the data provider. */
 suspend fun AsyncDatabaseClient.ReadContext.hasIncompleteRawImpressionUploadRegistration(
@@ -81,15 +102,14 @@ suspend fun AsyncDatabaseClient.ReadContext.hasActiveRawImpressionUploadModelLin
     SELECT RawImpressionUploadModelLineId
     FROM RawImpressionUploadModelLine@{FORCE_INDEX=RawImpressionUploadModelLineByState}
     WHERE DataProviderResourceId = @dataProviderResourceId
-      AND State IN UNNEST(@activeStates)
+      AND CAST(State AS INT64) IN UNNEST(@activeStates)
     LIMIT 1
     """
       .trimIndent()
   return executeQuery(
       statement(sql) {
         bind("dataProviderResourceId").to(dataProviderResourceId)
-        bind("activeStates")
-          .toProtoEnumArray(activeStates, RawImpressionUploadModelLineState.getDescriptor())
+        bind("activeStates").toInt64Array(activeStates.map { it.number.toLong() })
       },
       Options.tag("action=hasActiveRawImpressionUploadModelLine"),
     )
@@ -127,11 +147,25 @@ suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadHasEvictionOperat
 fun AsyncDatabaseClient.TransactionContext.insertVidLabelingEvictionFence(
   dataProviderResourceId: String,
   evictionOperationId: String,
+  state: VidLabelingEvictionFenceState =
+    VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING,
 ) {
   bufferInsertMutation("VidLabelingEvictionFence") {
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("EvictionOperationId").to(evictionOperationId)
+    set("State").to(state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+/** Buffers a VID-labeling eviction-fence state update. */
+fun AsyncDatabaseClient.TransactionContext.updateVidLabelingEvictionFenceState(
+  dataProviderResourceId: String,
+  state: VidLabelingEvictionFenceState,
+) {
+  bufferUpdateMutation("VidLabelingEvictionFence") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("State").to(state)
   }
 }
 

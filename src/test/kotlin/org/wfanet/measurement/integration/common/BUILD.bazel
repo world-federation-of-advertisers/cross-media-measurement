@@ -98,3 +98,27 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
+
+kt_jvm_test(
+    name = "PopulationSetupTest",
+    srcs = ["PopulationSetupTest.kt"],
+    test_class = "org.wfanet.measurement.integration.common.PopulationSetupTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:population_setup",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:populations_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc/inprocess",
+        "@wfa_common_jvm//imports/java/io/grpc/stub",
+        "@wfa_common_jvm//imports/java/io/grpc/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/io/grpc/service_config:service_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)

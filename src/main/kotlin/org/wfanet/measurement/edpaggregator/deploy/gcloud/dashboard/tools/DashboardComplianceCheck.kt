@@ -46,8 +46,8 @@ class DashboardComplianceCheck : Runnable {
     required = true,
     description =
       [
-        "Path to a DASHBOARD_CONFIG_CONTENT JSON file supplying the EDPs and BigQuery region, " +
-          "parsed against the DashboardConfig proto schema."
+        "Path to the committed envs/<env>/dashboard-config.json file supplying the EDPs and " +
+          "BigQuery region, parsed against the DashboardConfig proto schema."
       ],
   )
   private lateinit var dashboardConfigFile: File

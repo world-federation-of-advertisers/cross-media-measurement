@@ -112,6 +112,8 @@ import org.wfanet.measurement.storage.StorageClient
  *   detected and log a warning. If false (default), log a warning but proceed with replacing data
  *   availability intervals normally. Gap dates are always logged regardless of this setting.
  * @property metrics Metrics recorder for telemetry.
+ * @property publishEventGroupActivities Optional function for publishing positive EventGroup
+ *   activity derived from finalized impression metadata.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
@@ -124,6 +126,7 @@ class DataAvailabilitySync(
   private val impressionMetadataBatchSize: Int,
   private val modelLineMap: Map<String, List<String>>,
   private val errorIfGapsExist: Boolean,
+  private val publishEventGroupActivities: (suspend (Collection<ImpressionMetadata>) -> Int)?,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
   enum class Outcome {
@@ -160,8 +163,10 @@ class DataAvailabilitySync(
    * collecting and processing metadata for that day.
    *
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
+   * @param doneBlobGeneration the immutable positive generation of that object.
    */
-  suspend fun sync(doneBlobPath: String): Outcome {
+  suspend fun sync(doneBlobPath: String, doneBlobGeneration: Long): Outcome {
+    require(doneBlobGeneration > 0L) { "doneBlobGeneration must be positive" }
     // Start timing for sync duration
     val syncStartTime = TimeSource.Monotonic.markNow()
 
@@ -182,7 +187,11 @@ class DataAvailabilitySync(
 
       // 1. Retrieve blob details from storage and build a map and validate them
       val impressionMetadataMap: Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> =
-        createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
+        createModelLineToImpressionMetadataMap(
+          impressionMetadataBlobs,
+          doneBlobUri,
+          doneBlobGeneration,
+        )
 
       if (impressionMetadataMap.isEmpty()) {
         logger.info("There were no valid impressions metadata.")
@@ -337,6 +346,7 @@ class DataAvailabilitySync(
           return Outcome.BLOCKED_GAPS
         }
       }
+
       throttler.onReady {
         try {
           dataProvidersStub.replaceDataAvailabilityIntervals(
@@ -371,6 +381,18 @@ class DataAvailabilitySync(
         )
       for (entry in availabilityEntries) {
         logAvailabilityInterval(entry.key, entry.value, "published")
+      }
+
+      if (publishEventGroupActivities != null) {
+        val publishedActivityCount =
+          publishEventGroupActivities(
+            impressionMetadataMap.values.flatten().map { it.impressionMetadata }
+          )
+        Span.current()
+          .addEvent(
+            "edpa.data_availability.event_group_activity_published",
+            Attributes.builder().put(ACTIVITY_COUNT_ATTR, publishedActivityCount.toLong()).build(),
+          )
       }
 
       // This marker is the durable completion signal for both phases of synchronization. Only
@@ -461,10 +483,17 @@ class DataAvailabilitySync(
           if (existing.state == ImpressionMetadata.State.DELETED) {
             toRestore.add(existing)
           }
-          if (hasContentChanged(item.impressionMetadata, existing)) {
+          val scanned =
+            item.impressionMetadata.copy {
+              name = existing.name
+              if (item.impressionMetadata.rawImpressionUpload.isEmpty()) {
+                rawImpressionUpload = existing.rawImpressionUpload
+              }
+            }
+          if (hasContentChanged(scanned, existing)) {
             toUpdate.add(
               ImpressionMetadataWithBlobKey(
-                impressionMetadata = item.impressionMetadata.copy { name = existing.name },
+                impressionMetadata = scanned,
                 impressionsBlobKey = item.impressionsBlobKey,
               )
             )
@@ -732,6 +761,7 @@ class DataAvailabilitySync(
    *
    * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
    * @param doneBlobUri the URI of the "done" blob, used to derive the storage scheme and bucket.
+   * @param doneBlobGeneration the immutable generation of the "done" blob, when available.
    * @return a map where each key is a [ModelLineKey] and each value is the list of
    *   [ImpressionMetadataWithBlobKey] objects associated with that model line.
    * @throws com.google.protobuf.InvalidProtocolBufferException if a binary `.binpb` blob cannot be
@@ -741,6 +771,7 @@ class DataAvailabilitySync(
   private suspend fun createModelLineToImpressionMetadataMap(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
     doneBlobUri: BlobUri,
+    doneBlobGeneration: Long,
   ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
     val impressionMetadataMap =
       mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
@@ -814,6 +845,7 @@ class DataAvailabilitySync(
           blobTypeUrl = BLOB_TYPE_URL
           eventGroupReferenceId = blobDetails.eventGroupReferenceId
           modelLine = blobDetails.modelLine
+          outputDoneBlobGeneration = doneBlobGeneration
           interval = blobDetails.interval
           entityKeys += blobDetails.entityKeysList.flatMap { it.toEntityKeys() }
         }
@@ -858,6 +890,10 @@ class DataAvailabilitySync(
       append(metadata.interval.endTime.nanos)
       append(FIELD_SEPARATOR)
       append(metadata.eventGroupReferenceId)
+      append(FIELD_SEPARATOR)
+      append(metadata.rawImpressionUpload)
+      append(FIELD_SEPARATOR)
+      append(metadata.outputDoneBlobGeneration)
       append(FIELD_SEPARATOR)
       val sortedKeys =
         metadata.entityKeysList.map { "${it.entityType}$FIELD_SEPARATOR${it.entityId}" }.sorted()
@@ -908,6 +944,8 @@ class DataAvailabilitySync(
       AttributeKey.stringKey("edpa.data_availability_sync.rpc_method")
     private val STATUS_CODE_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.data_availability_sync.status_code")
+    private val ACTIVITY_COUNT_ATTR: AttributeKey<Long> =
+      AttributeKey.longKey("xmm.edpa.event_group_activity.count")
     private const val SYNC_STATUS_SUCCESS = "success"
     private const val SYNC_STATUS_FAILED = "failed"
     private const val SYNC_STATUS_SKIPPED_GAPS = "skipped_gaps"

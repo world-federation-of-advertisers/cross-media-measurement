@@ -25,7 +25,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -34,9 +33,12 @@ import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -69,23 +71,58 @@ class ImpressionDataSourceProvider(
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
 
-  /**
-   * Lists impression data sources for a given selector within a period.
-   *
-   * @param modelLine the model line to query.
-   * @param selector determines whether to query by entity key or event group reference ID.
-   * @param period closed-open time interval in UTC.
-   * @return sources covering the requested period; empty if the period maps to no dates.
-   * @throws ImpressionReadException if a required metadata blob does not exist.
-   * @throws com.google.protobuf.InvalidProtocolBufferException if a metadata blob is present but
-   *   contains invalid `BlobDetails`.
-   */
+  /** Lists impression data sources for [eventGroups], batching selectors by interval. */
   suspend fun listImpressionDataSources(
     modelLine: String,
-    selector: ImpressionQuerySelector,
-    period: Interval,
+    eventGroups: Collection<ResolvedEventGroup>,
   ): List<ImpressionDataSource> {
-    return getImpressionsMetadata(modelLine, selector, period)
+    val eventGroupsByInterval: Map<Interval, List<ResolvedEventGroup>> =
+      eventGroups
+        .flatMap { eventGroup ->
+          eventGroup.collectionIntervals.map { interval -> interval to eventGroup }
+        }
+        .groupBy({ it.first }, { it.second })
+    val metadata = mutableListOf<ImpressionMetadata>()
+    for ((interval, intervalEventGroups) in eventGroupsByInterval) {
+      val entityKeys: Set<EntityKey> =
+        intervalEventGroups
+          .mapNotNull { eventGroup ->
+            val labeledEntityKey = eventGroup.entityKey ?: return@mapNotNull null
+            entityKey {
+              entityType = labeledEntityKey.entityType
+              entityId = labeledEntityKey.entityId
+            }
+          }
+          .toSet()
+      if (entityKeys.isNotEmpty()) {
+        metadata +=
+          getImpressionsMetadata(
+              ListImpressionMetadataRequestKt.filter {
+                this.modelLine = modelLine
+                this.entityKeys += entityKeys
+                intervalOverlaps = interval
+              }
+            )
+            .toList()
+      }
+
+      val referenceIds: Set<String> =
+        intervalEventGroups.mapNotNull { it.eventGroupReferenceId }.toSet()
+      if (referenceIds.isNotEmpty()) {
+        metadata +=
+          getImpressionsMetadata(
+              ListImpressionMetadataRequestKt.filter {
+                this.modelLine = modelLine
+                eventGroupReferenceIds += referenceIds
+                intervalOverlaps = interval
+              }
+            )
+            .toList()
+      }
+    }
+
+    return metadata
+      .distinctBy { it.blobUri }
       .map { metadata ->
         logger.info("Processing impression metadata: $metadata")
         val blobDetails = readBlobDetails(metadata.blobUri)
@@ -95,23 +132,15 @@ class ImpressionDataSourceProvider(
           blobDetails = blobDetails,
         )
       }
-      .toList()
+      .distinctBy { it.blobDetails.blobUri }
   }
 
-  /**
-   * Queries impression metadata using the given [selector] strategy.
-   *
-   * @param reportModelLine the model line
-   * @param selector determines whether to query by entity key or event group reference ID.
-   * @param period the time period to filter by
-   */
+  /** Queries impression metadata using [filter]. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private fun getImpressionsMetadata(
-    reportModelLine: String,
-    selector: ImpressionQuerySelector,
-    period: Interval,
+    filter: ListImpressionMetadataRequest.Filter
   ): Flow<ImpressionMetadata> {
-    logger.info("Resolving path for impression metadata: $reportModelLine, $selector, $period")
+    logger.info("Resolving path for impression metadata: $filter")
 
     // Fetches a single page, retrying the transient gRPC statuses that are safe to replay here
     // (ListImpressionMetadata is an idempotent read): UNAVAILABLE and DEADLINE_EXCEEDED, so a
@@ -131,19 +160,7 @@ class ImpressionDataSourceProvider(
             impressionMetadataStub.listImpressionMetadata(
               listImpressionMetadataRequest {
                 parent = dataProvider
-                filter =
-                  ListImpressionMetadataRequestKt.filter {
-                    modelLine = reportModelLine
-                    when (selector) {
-                      is ImpressionQuerySelector.ByEventGroupReferenceId ->
-                        eventGroupReferenceIds += selector.refId
-                      is ImpressionQuerySelector.ByEventGroupReferenceIds ->
-                        eventGroupReferenceIds += selector.refIds
-                      is ImpressionQuerySelector.ByEntityKey ->
-                        this.entityKeys += selector.entityKey
-                    }
-                    intervalOverlaps = period
-                  }
+                this.filter = filter
                 this.pageSize = pageSize
                 this.pageToken = pageToken
               }
@@ -157,7 +174,7 @@ class ImpressionDataSourceProvider(
           if (!retryable || attempt >= listMaxAttempts) {
             throw Exception(
               "Error listing ImpressionMetadata for dataProvider=$dataProvider, " +
-                "modelLine=$reportModelLine, selector=$selector, period=$period: ${e.status}",
+                "filter=$filter: ${e.status}",
               e,
             )
           }
