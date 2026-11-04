@@ -382,6 +382,25 @@ class SpannerDataAvailabilitySyncLeaseServiceTest {
   }
 
   @Test
+  fun `release marks an elapsed active lease expired`() = runBlocking {
+    val original = serviceAt(START_TIME).acquireDataAvailabilitySyncLease(acquireRequest())
+    val request = releaseDataAvailabilitySyncLeaseRequest {
+      dataProviderResourceId = DATA_PROVIDER_ID
+      synchronizationAttemptId = ATTEMPT_ID
+      etag = original.etag
+      requestId = RELEASE_REQUEST_ID
+    }
+    val service = serviceAt(START_TIME.plus(LEASE_DURATION))
+
+    val expired = service.releaseDataAvailabilitySyncLease(request)
+    val replay = service.releaseDataAvailabilitySyncLease(request)
+
+    assertThat(expired.state)
+      .isEqualTo(DataAvailabilitySyncLeaseState.DATA_AVAILABILITY_SYNC_LEASE_STATE_EXPIRED)
+    assertThat(replay).isEqualTo(expired)
+  }
+
+  @Test
   fun `terminal release rejects a changed replay`() = runBlocking {
     val service = serviceAt(START_TIME)
     val original = service.acquireDataAvailabilitySyncLease(acquireRequest())

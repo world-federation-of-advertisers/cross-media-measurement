@@ -233,6 +233,16 @@ class SpannerDataAvailabilitySyncLeaseService(
             )
             return@run MutationResult()
           }
+          if (!result.dataAvailabilitySyncLease.expireTime.toInstant().isAfter(now)) {
+            txn.updateDataAvailabilitySyncLease(
+              result,
+              DataAvailabilitySyncLeaseState.DATA_AVAILABILITY_SYNC_LEASE_STATE_EXPIRED,
+              result.dataAvailabilitySyncLease.expireTime.toInstant(),
+              request.requestId,
+              requestFingerprint,
+            )
+            return@run MutationResult()
+          }
           checkEtag(request.etag, result.dataAvailabilitySyncLease.etag)
           txn.updateDataAvailabilitySyncLease(
             result,
