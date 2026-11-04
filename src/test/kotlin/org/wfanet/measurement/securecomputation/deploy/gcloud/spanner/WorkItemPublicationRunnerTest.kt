@@ -44,6 +44,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemSourceObject
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.claimWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.deleteWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItem
@@ -88,6 +89,103 @@ class WorkItemPublicationRunnerTest {
   }
 
   @Test
+  fun `publication forwards the WorkItem serialization key`() =
+    runBlocking<Unit> {
+      insertPendingWorkItem(
+        WORK_ITEM_ID,
+        "work-item-1",
+        serializationKey = "data-availability:dataProviders/provider-1",
+      )
+      val publisher = RecordingPublisher()
+
+      assertThat(newRunner(publisher, MutableClock(Instant.now())).publishPendingWorkItems())
+        .isEqualTo(1)
+
+      assertThat(publisher.orderingKeys)
+        .containsExactly("data-availability:dataProviders/provider-1")
+    }
+
+  @Test
+  fun `runner publishes out-of-order creations by authoritative source time`() = runBlocking {
+    val serializationKey = "data-availability:dataProviders/provider-1:modelLines/model-line-1"
+    insertPendingWorkItem(
+      WORK_ITEM_ID,
+      "work-item-later",
+      serializationKey = serializationKey,
+      sourceObject =
+        WorkItemSourceObject(
+          "gs://bucket/model-line/model-line-1/2026-08-16/done",
+          200L,
+          SOURCE_CREATE_TIME.plusSeconds(1),
+        ),
+    )
+    insertPendingWorkItem(
+      WORK_ITEM_ID + 1,
+      "work-item-earlier",
+      serializationKey = serializationKey,
+      sourceObject =
+        WorkItemSourceObject(
+          "gs://bucket/model-line/model-line-1/2026-08-15/done",
+          100L,
+          SOURCE_CREATE_TIME,
+        ),
+    )
+    val publisher = RecordingPublisher()
+
+    assertThat(
+        newRunner(publisher, MutableClock(Instant.now().plusSeconds(10)))
+          .publishPendingWorkItems(limit = 2)
+      )
+      .isEqualTo(2)
+
+    assertThat(publisher.messages.map { (it as WorkItem).workItemResourceId })
+      .containsExactly("work-item-earlier", "work-item-later")
+      .inOrder()
+  }
+
+  @Test
+  fun `active earlier same-key publication blocks concurrent publisher`() = runBlocking {
+    val serializationKey = "data-availability:dataProviders/provider-1:modelLines/model-line-1"
+    insertOrderedPair(serializationKey)
+    val clock = MutableClock(Instant.now().plusSeconds(10))
+    val publisher = BlockingPublisher()
+    val firstRunner = newRunner(publisher, clock)
+    val secondPublisher = RecordingPublisher()
+    val secondRunner = newRunner(secondPublisher, clock)
+
+    val firstPublication = async { firstRunner.publishPendingWorkItems(limit = 1) }
+    publisher.started.await()
+
+    val secondPublicationCount = secondRunner.publishPendingWorkItems(limit = 1)
+    publisher.release.complete(Unit)
+
+    assertThat(firstPublication.await()).isEqualTo(1)
+    assertThat(secondPublicationCount).isEqualTo(0)
+    assertThat(secondPublisher.callCount).isEqualTo(0)
+    assertThat(publisher.callCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `failed earlier same-key publication blocks later publication`() = runBlocking {
+    val serializationKey = "data-availability:dataProviders/provider-1:modelLines/model-line-1"
+    insertOrderedPair(serializationKey)
+    val publisher = RecordingPublisher(fail = true)
+    val clock = MutableClock(Instant.now().plusSeconds(10))
+    val runner = newRunner(publisher, clock)
+
+    assertThat(runner.publishWorkItem(WORK_ITEM_ID)).isFalse()
+    assertThat(runner.publishWorkItem(WORK_ITEM_ID + 1)).isFalse()
+    assertThat(publisher.callCount).isEqualTo(1)
+
+    publisher.fail = false
+    clock.advance(Duration.ofSeconds(2))
+    assertThat(runner.publishPendingWorkItems(limit = 2)).isEqualTo(2)
+    assertThat(publisher.messages.map { (it as WorkItem).workItemResourceId })
+      .containsExactly("work-item-earlier", "work-item-later")
+      .inOrder()
+  }
+
+  @Test
   fun `publication runner logs retryable failure and later success`() = runBlocking {
     insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
     val publisher = RecordingPublisher(fail = true)
@@ -111,10 +209,12 @@ class WorkItemPublicationRunnerTest {
       .containsAtLeast(
         "event=secure_computation.work_item.publication " +
           "xmm.work_item.name=workItems/work-item-1 " +
+          "xmm.work_item.publication_attempt=1 " +
           "xmm.lifecycle.stage=work_item_publication xmm.outcome=retryable_failure " +
           "xmm.error.type=IllegalStateException",
         "event=secure_computation.work_item.publication " +
           "xmm.work_item.name=workItems/work-item-1 " +
+          "xmm.work_item.publication_attempt=2 " +
           "xmm.lifecycle.stage=work_item_publication xmm.outcome=succeeded",
       )
     Unit
@@ -463,15 +563,28 @@ class WorkItemPublicationRunnerTest {
     )
   }
 
-  private suspend fun insertPendingWorkItem(workItemId: Long, workItemResourceId: String) {
+  private suspend fun insertPendingWorkItem(
+    workItemId: Long,
+    workItemResourceId: String,
+    serializationKey: String = "",
+    sourceObject: WorkItemSourceObject? = null,
+  ) {
     val queue = checkNotNull(TestConfig.QUEUE_MAPPING.getQueueByResourceId(QUEUE_RESOURCE_ID))
-    insertPendingWorkItem(workItemId, workItemResourceId, queue.queueId)
+    insertPendingWorkItem(
+      workItemId,
+      workItemResourceId,
+      queue.queueId,
+      serializationKey,
+      sourceObject,
+    )
   }
 
   private suspend fun insertPendingWorkItem(
     workItemId: Long,
     workItemResourceId: String,
     queueId: Long,
+    serializationKey: String = "",
+    sourceObject: WorkItemSourceObject? = null,
   ) {
     spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
       transaction.insertWorkItem(
@@ -479,9 +592,36 @@ class WorkItemPublicationRunnerTest {
         workItemResourceId,
         queueId,
         Any.pack(testWork { userName = "UserName" }),
+        serializationKey,
+        sourceObject,
       )
       transaction.insertWorkItemPublication(workItemId)
     }
+  }
+
+  private suspend fun insertOrderedPair(serializationKey: String) {
+    insertPendingWorkItem(
+      WORK_ITEM_ID,
+      "work-item-earlier",
+      serializationKey = serializationKey,
+      sourceObject =
+        WorkItemSourceObject(
+          "gs://bucket/model-line/model-line-1/2026-08-15/done",
+          100L,
+          SOURCE_CREATE_TIME,
+        ),
+    )
+    insertPendingWorkItem(
+      WORK_ITEM_ID + 1,
+      "work-item-later",
+      serializationKey = serializationKey,
+      sourceObject =
+        WorkItemSourceObject(
+          "gs://bucket/model-line/model-line-1/2026-08-16/done",
+          200L,
+          SOURCE_CREATE_TIME.plusSeconds(1),
+        ),
+    )
   }
 
   private suspend fun insertLegacyQueuedWorkItem(workItemId: Long, workItemResourceId: String) {
@@ -560,13 +700,19 @@ class WorkItemPublicationRunnerTest {
       private set
 
     val messages = mutableListOf<Message>()
+    val orderingKeys = mutableListOf<String>()
 
     override suspend fun publishMessage(queueName: String, message: Message) {
+      publishMessage(queueName, message, "")
+    }
+
+    override suspend fun publishMessage(queueName: String, message: Message, orderingKey: String) {
       callCount++
       if (fail) {
         error("Publication failed")
       }
       messages += message
+      orderingKeys += orderingKey
     }
   }
 
@@ -650,6 +796,7 @@ class WorkItemPublicationRunnerTest {
   companion object {
     private const val WORK_ITEM_ID = 123L
     private const val QUEUE_RESOURCE_ID = "test-topid-id"
+    private val SOURCE_CREATE_TIME = Instant.parse("2026-08-15T10:15:30Z")
 
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }

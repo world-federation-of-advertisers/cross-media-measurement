@@ -82,6 +82,7 @@ import org.wfanet.measurement.common.telemetry.GoogleCloudLogReader as SharedGoo
 import org.wfanet.measurement.common.telemetry.GoogleCloudTraceReader as SharedGoogleCloudTraceReader
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.SafeTelemetryText
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.telemetry.buildCloudTelemetryLoggingOptions
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -3475,6 +3476,7 @@ internal object ReportTraceOutput {
       "xmm.edpa.group_id",
       "xmm.work_item.name",
       "xmm.work_item_attempt.name",
+      XmmTraceAttributes.WORK_ITEM_PUBLICATION_ATTEMPT_STRING,
       "xmm.computation.name",
       ReportTraceAttributes.COMPUTATION_STAGE_STRING,
       ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING,
