@@ -35,7 +35,7 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:impression_metadata_service",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_lease_service_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_lease_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_service_kt_jvm_grpc",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
