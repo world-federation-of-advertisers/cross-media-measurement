@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
 import com.google.protobuf.TextFormat
 import com.google.protobuf.duration
 import kotlin.test.assertFailsWith
@@ -52,6 +53,20 @@ class RequisitionFetcherConfigValidatorTest {
       CONTROL_PLANE_TARGET,
       DataWatcherConfig.getDefaultInstance(),
     )
+  }
+
+  @Test
+  fun `deployment config rejects legacy ResultsFulfiller DataWatcher route`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        RequisitionFetcherConfigValidator.validate(
+          validFetcherConfig(),
+          CONTROL_PLANE_TARGET,
+          dataWatcherConfig("^gs://bucket/legacy/(.*)$", Any.pack(resultsFulfillerParams())),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("uses legacy ResultsFulfiller dispatch")
   }
 
   @Test
@@ -285,14 +300,19 @@ class RequisitionFetcherConfigValidatorTest {
       )
       .build()
 
-  private fun dataWatcherConfig(regex: String): DataWatcherConfig =
+  private fun dataWatcherConfig(
+    regex: String,
+    appParams: Any = Any.getDefaultInstance(),
+  ): DataWatcherConfig =
     DataWatcherConfig.newBuilder()
       .addWatchedPaths(
         WatchedPath.newBuilder()
           .setIdentifier("legacy-requisitions")
           .setSourcePathRegex(regex)
           .setControlPlaneQueueSink(
-            WatchedPath.ControlPlaneQueueSink.newBuilder().setQueue(RESULTS_FULFILLER_QUEUE)
+            WatchedPath.ControlPlaneQueueSink.newBuilder()
+              .setQueue(RESULTS_FULFILLER_QUEUE)
+              .setAppParams(appParams)
           )
       )
       .build()

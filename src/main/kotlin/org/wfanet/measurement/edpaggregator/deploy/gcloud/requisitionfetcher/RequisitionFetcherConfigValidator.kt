@@ -26,6 +26,7 @@ import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.StoragePathPrefixes
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerParamsValidator
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
 /** Validates RequisitionFetcher direct-dispatch configuration before or during activation. */
 object RequisitionFetcherConfigValidator {
@@ -33,8 +34,8 @@ object RequisitionFetcherConfigValidator {
    * Validates [config].
    *
    * Every configured DataProvider must have a complete direct-dispatch block, [controlPlaneTarget]
-   * must be set, and [dataWatcherConfig] must prove that no legacy object-name filter matches a
-   * representative object in a direct namespace.
+   * must be set, and [dataWatcherConfig] must not contain a legacy ResultsFulfiller route or match
+   * a representative object in a direct namespace.
    */
   fun validate(
     config: RequisitionFetcherConfig,
@@ -44,6 +45,9 @@ object RequisitionFetcherConfigValidator {
   ) {
     require(config.configsCount > 0) { "RequisitionFetcher config has no data providers." }
     requisitionRefusalDuration(config)
+    if (dataWatcherConfig != null) {
+      requireNoLegacyResultsFulfillerRoute(dataWatcherConfig)
+    }
     val namespaces = buildList {
       for (dataProviderConfig in config.configsList) {
         val dispatchConfig =
@@ -182,6 +186,18 @@ object RequisitionFetcherConfigValidator {
     require(cert.isNotBlank()) { "Missing 'cert_file_path' in $owner." }
     require(key.isNotBlank()) { "Missing 'private_key_file_path' in $owner." }
     require(roots.isNotBlank()) { "Missing 'cert_collection_file_path' in $owner." }
+  }
+
+  private fun requireNoLegacyResultsFulfillerRoute(dataWatcherConfig: DataWatcherConfig) {
+    for (watchedPath in dataWatcherConfig.watchedPathsList) {
+      if (!watchedPath.hasControlPlaneQueueSink()) continue
+      require(
+        !watchedPath.controlPlaneQueueSink.appParams.`is`(ResultsFulfillerParams::class.java)
+      ) {
+        "DataWatcher path '${watchedPath.identifier}' uses legacy ResultsFulfiller dispatch; " +
+          "remove it and use RequisitionFetcher 'work_item_dispatch'."
+      }
+    }
   }
 
   private fun requireDataWatcherExcludesDirectPath(

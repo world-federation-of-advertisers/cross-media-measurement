@@ -940,10 +940,11 @@ interleaving rollout phases. Before its first Terraform apply, the workflow vali
 RequisitionFetcher and DataWatcher textprotos committed for the selected environment. It requires
 a direct-dispatch block for every configured data provider, a control-plane target, queue, TLS
 paths, and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any
-deployed DataWatcher regex that matches a representative direct-path object. Validation failure
-therefore stops deployment before any worker is quiesced. The workflow first rolls both Secure
-Computation API deployments with WorkItem publication, legacy reconciliation, and dead-letter
-processing disabled.
+deployed DataWatcher regex that matches a representative direct-path object. It also rejects a
+DataWatcher `control_plane_queue_sink` whose `app_params` contains `ResultsFulfillerParams`.
+Validation failure therefore stops deployment before any worker is quiesced. The workflow first
+rolls both Secure Computation API deployments with WorkItem publication, legacy reconciliation,
+and dead-letter processing disabled.
 Its first Terraform apply then pauses the RequisitionFetcher Cloud Scheduler job, uploads the
 direct-only configuration and binary, and quiesces all WorkItem-consuming TEE MIGs. The workflow
 waits for the fetcher's 600-second maximum invocation duration and verifies that every affected TEE
@@ -959,8 +960,8 @@ invocation polls the same unfulfilled Kingdom requisitions. DataWatcher stays ac
 Pub/Sub messages remain queued; they must not be drained.
 
 After all legacy groups have finished and no legacy blobs require recovery, remove the legacy
-ResultsFulfiller watched path from the DataWatcher configuration. Preflight accepts a DataWatcher
-configuration without that route; direct dispatch does not depend on the legacy queue mapping.
+ResultsFulfiller watched path from the DataWatcher configuration. Preflight requires that route to
+be absent before deployment; direct dispatch does not depend on the legacy queue mapping.
 
 Do not invoke child deployment workflows independently for this upgrade. No manual service
 scaling, subscription drain, WorkItem snapshot, active-attempt query, or migration-time
