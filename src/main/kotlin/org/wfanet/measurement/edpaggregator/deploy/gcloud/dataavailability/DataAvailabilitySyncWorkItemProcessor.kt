@@ -23,6 +23,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 import java.util.logging.Level
@@ -40,6 +41,7 @@ import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseContext
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
@@ -81,6 +83,9 @@ internal data class DataAvailabilitySyncWorkItem(
 
   val doneBlobGeneration: Long
     get() = dataPathParams.generation
+
+  val doneBlobCreateTime: Instant
+    get() = dataPathParams.createTime.toInstant()
 
   val eventDate: LocalDate
     get() =
@@ -153,6 +158,7 @@ internal data class DataAvailabilitySyncWorkItem(
       require(dataPathParams.hasGeneration() && dataPathParams.generation > 0L) {
         "data path generation must be positive"
       }
+      require(dataPathParams.hasCreateTime()) { "data path create_time is required" }
       require(
         dataPathParams.eventType ==
           WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
