@@ -82,6 +82,9 @@ message AcquireRawImpressionUploadEvictionFenceRequest {
   ];
 
   // Initial fence state.
+  // (-- api-linter: core::0216::state-field-output-only=disabled
+  //     aip.dev/not-precedent: This is a requested fence transition, not a
+  //     resource state field. --)
   VidLabelingEvictionFenceState state = 3
       [(google.api.field_behavior) = REQUIRED];
 
@@ -123,6 +126,9 @@ message AdvanceRawImpressionUploadEvictionFenceRequest {
   ];
 
   // Next fence state.
+  // (-- api-linter: core::0216::state-field-output-only=disabled
+  //     aip.dev/not-precedent: This is a requested fence transition, not a
+  //     resource state field. --)
   VidLabelingEvictionFenceState state = 3
       [(google.api.field_behavior) = REQUIRED];
 

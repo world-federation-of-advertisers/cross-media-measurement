@@ -105,6 +105,12 @@ message CreateImpressionMetadataRequest {
       [(google.api.field_behavior) = REQUIRED];
 
   // Synchronization lease authorizing this mutation.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: Required to enforce the eviction-fence
+  //     interlock at the mutation boundary. --)
+  // (-- api-linter: core::0133::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: Carries the mutation-boundary interlock
+  //     authorization. --)
   string data_availability_sync_lease = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
@@ -140,6 +146,9 @@ message BatchCreateImpressionMetadataRequest {
       [(google.api.field_behavior) = REQUIRED];
 
   // Synchronization lease authorizing this mutation.
+  // (-- api-linter: core::0233::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: Hoisted so the atomic batch shares one
+  //     mutation-boundary interlock authorization. --)
   string data_availability_sync_lease = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
@@ -177,6 +186,12 @@ message UpdateImpressionMetadataRequest {
   ];
 
   // Synchronization lease authorizing this mutation.
+  // (-- api-linter: core::0134::request-required-fields=disabled
+  //     aip.dev/not-precedent: Required to enforce the eviction-fence
+  //     interlock at the mutation boundary. --)
+  // (-- api-linter: core::0134::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: Carries the mutation-boundary interlock
+  //     authorization. --)
   string data_availability_sync_lease = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
@@ -204,6 +219,9 @@ message BatchUpdateImpressionMetadataRequest {
       [(google.api.field_behavior) = REQUIRED];
 
   // Synchronization lease authorizing this mutation.
+  // (-- api-linter: core::0234::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: Hoisted so the atomic batch shares one
+  //     mutation-boundary interlock authorization. --)
   string data_availability_sync_lease = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
@@ -345,6 +363,9 @@ message UndeleteImpressionMetadataRequest {
   ];
 
   // Synchronization lease authorizing this mutation.
+  // (-- api-linter: core::0164::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: Carries the mutation-boundary interlock
+  //     authorization for this custom method. --)
   string data_availability_sync_lease = 2 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
