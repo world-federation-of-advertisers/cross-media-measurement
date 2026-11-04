@@ -106,7 +106,7 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_impression_metadata_service",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal/testing:impression_metadata_service_test",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_lease_service_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_lease_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],

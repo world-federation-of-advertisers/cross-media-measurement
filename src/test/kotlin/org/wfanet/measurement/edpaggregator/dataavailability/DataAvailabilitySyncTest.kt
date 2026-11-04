@@ -21,6 +21,12 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
+import io.grpc.CallOptions
+import io.grpc.Channel
+import io.grpc.ClientCall
+import io.grpc.ClientInterceptor
+import io.grpc.ClientInterceptors
+import io.grpc.MethodDescriptor
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -33,6 +39,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
@@ -50,7 +57,9 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
+import org.mockito.kotlin.spy
 import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -272,6 +281,56 @@ class DataAvailabilitySyncTest {
   }
 
   @get:Rule val tempFolder = TemporaryFolder()
+
+  @Test
+  fun `sync applies configured Kingdom publication timeout`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    var rpcHadDeadline = false
+    val deadlineCapturingChannel =
+      ClientInterceptors.intercept(
+        grpcTestServerRule.channel,
+        object : ClientInterceptor {
+          override fun <ReqT : Any, RespT : Any> interceptCall(
+            method: MethodDescriptor<ReqT, RespT>,
+            callOptions: CallOptions,
+            next: Channel,
+          ): ClientCall<ReqT, RespT> {
+            if (method.fullMethodName.endsWith("/ReplaceDataAvailabilityIntervals")) {
+              rpcHadDeadline = callOptions.deadline != null
+            }
+            return next.newCall(method, callOptions)
+          }
+        },
+      )
+    val deadlineApplyingStub = spy(DataProvidersCoroutineStub(deadlineCapturingChannel))
+    val publicationTimeout = Duration.ofMinutes(2)
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        deadlineApplyingStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        RecordingThrottler(),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        publishEventGroupActivities = null,
+        kingdomPublicationTimeout = publicationTimeout,
+      )
+
+    dataAvailabilitySync.sync(
+      "$bucket/${folderPrefix}done",
+      TestDataAvailabilitySyncLease.NAME,
+      DONE_BLOB_GENERATION,
+    ) {}
+
+    verify(deadlineApplyingStub)
+      .withDeadlineAfter(publicationTimeout.toNanos(), TimeUnit.NANOSECONDS)
+    assertThat(rpcHadDeadline).isTrue()
+  }
 
   @Test
   fun `register single contiguous day for existing model line using proto message`() = runBlocking {
