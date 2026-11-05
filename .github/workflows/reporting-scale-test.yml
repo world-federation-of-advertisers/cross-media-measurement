@@ -21,9 +21,21 @@ on:
       environment:
         type: string
         required: true
-      weeks:
+      report-days:
         type: number
-        default: 13
+        default: 60
+      report-start:
+        type: string
+        default: "2026-04-01"
+      event-group-reference-ids:
+        type: string
+        default: ""
+      model-line:
+        type: string
+        default: ""
+      demographic-breakdown:
+        type: string
+        default: "age,gender"
       state-counts:
         type: string
         default: "0,50"
@@ -39,16 +51,33 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "GitHub-managed environment with the high overlap dataset seeded"
+        description: "GitHub-managed environment with the selected dataset already seeded"
         type: choice
         required: true
         options: [dev, head, qa]
-      weeks:
-        description: "Report duration in weeks (1–13)"
+      report-days:
+        description: "Report duration in days (1–91; 60 reuses a sixty-day flight)"
         type: number
-        default: 13
+        default: 60
+      report-start:
+        description: "First reporting date in the existing dataset, YYYY-MM-DD"
+        type: string
+        default: "2026-04-01"
+      event-group-reference-ids:
+        description: "Existing EventGroup reference IDs, comma-separated; empty uses high overlap all4"
+        type: string
+        default: ""
+      model-line:
+        description: "Existing ModelLine resource name; empty uses HIGH_OVERLAP_MODEL_LINE"
+        type: string
+        default: ""
+      demographic-breakdown:
+        description: "Keep age and gender initially; reduce only to isolate a failure"
+        type: choice
+        default: "age,gender"
+        options: ["age,gender", "age", "gender", "none"]
       state-counts:
-        description: "Comma-separated counts: 0 is unsegmented; 51 is native grouping including DC"
+        description: "Comma-separated counts: 0 has no state cuts; 51 is native grouping including DC"
         type: string
         default: "0,50"
       qualification-filters:
@@ -108,7 +137,11 @@ jobs:
       - name: Run reporting scale test
         id: run-test
         env:
-          REPORTING_SCALE_WEEKS: ${{ inputs.weeks }}
+          REPORTING_SCALE_REPORT_DAYS: ${{ inputs.report-days }}
+          REPORTING_SCALE_REPORT_START: ${{ inputs.report-start }}
+          REPORTING_SCALE_EVENT_GROUP_REFERENCE_IDS: ${{ inputs.event-group-reference-ids }}
+          REPORTING_SCALE_MODEL_LINE: ${{ inputs.model-line }}
+          REPORTING_SCALE_DEMOGRAPHIC_FIELDS: ${{ inputs.demographic-breakdown }}
           REPORTING_SCALE_STATE_COUNTS: ${{ inputs.state-counts }}
           REPORTING_SCALE_FILTER_IDS: ${{ inputs.qualification-filters }}
           REPORTING_SCALE_REPETITIONS: ${{ inputs.repetitions }}
@@ -125,7 +158,11 @@ jobs:
             --test_env=REPORTING_SERVICE_ENDPOINT \
             --test_env=REPORTING_TOKEN_AUDIENCE \
             --test_env=HIGH_OVERLAP_MODEL_LINE \
-            --test_env=REPORTING_SCALE_WEEKS \
+            --test_env=REPORTING_SCALE_REPORT_DAYS \
+            --test_env=REPORTING_SCALE_REPORT_START \
+            --test_env=REPORTING_SCALE_EVENT_GROUP_REFERENCE_IDS \
+            --test_env=REPORTING_SCALE_MODEL_LINE \
+            --test_env=REPORTING_SCALE_DEMOGRAPHIC_FIELDS \
             --test_env=REPORTING_SCALE_STATE_COUNTS \
             --test_env=REPORTING_SCALE_FILTER_IDS \
             --test_env=REPORTING_SCALE_REPETITIONS \
@@ -158,10 +195,11 @@ jobs:
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as target:
               target.write('## Reporting creation scale test\n\n')
               if summary.exists():
-                  target.write('| States | Weeks | Create (ms) | HTTP | Readback state | Outcome |\n')
-                  target.write('|---:|---:|---:|---:|---|---|\n')
+                  target.write('| States | Days | Demographics | Create (ms) | HTTP | Readback state | Outcome |\n')
+                  target.write('|---:|---:|---|---:|---:|---|---|\n')
                   for row in json.loads(summary.read_text()):
-                      target.write(f"| {row['state_count']} | {row['weeks']} | {row.get('create_ms', '')} | {row.get('create_http_status', '')} | {row.get('state', row.get('after_failure_state', ''))} | {row.get('outcome', '')} |\n")
+                      demographics = ','.join(name for name, key in [('age', 'group_by_age'), ('gender', 'group_by_gender')] if row.get(key)) or 'none'
+                      target.write(f"| {row['state_count']} | {row['report_days']} | {demographics} | {row.get('create_ms', '')} | {row.get('create_http_status', '')} | {row.get('state', row.get('after_failure_state', ''))} | {row.get('outcome', '')} |\n")
               else:
                   target.write('No creation summary was produced. Inspect the test log for setup or build failures.\n')
           PY

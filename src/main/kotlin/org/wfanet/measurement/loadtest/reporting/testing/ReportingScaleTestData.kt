@@ -41,24 +41,28 @@ import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
 /** Builds synthetic reporting requests with reproducible geographic cardinality. */
 object ReportingScaleTestData {
   const val STATE_FIELD_PATH = "common.us_state"
+  const val AGE_FIELD_PATH = "common.age_group"
+  const val GENDER_FIELD_PATH = "common.gender"
 
   fun buildReport(
     campaignGroup: String,
     dataProviders: List<String>,
     modelLine: String,
     reportStart: LocalDate,
-    weeks: Int,
+    reportDays: Int,
     stateCount: Int,
     filterIds: List<String>,
+    groupByAge: Boolean,
+    groupByGender: Boolean,
   ): BasicReport {
     require(dataProviders.size == 3 && dataProviders.distinct().size == 3)
-    require(weeks in 1..13)
+    require(reportDays in 1..91)
     require(stateCount in 0..51)
     require(filterIds.isNotEmpty() && filterIds.distinct().size == filterIds.size)
     require(filterIds.all { it in setOf("ami", "mrc") })
-    val reportEnd = reportStart.plusWeeks(weeks.toLong())
+    val reportEnd = reportStart.plusDays(reportDays.toLong())
     return basicReport {
-      title = "Reporting scale: $weeks weeks, $stateCount states"
+      title = "Reporting scale: $reportDays days, $stateCount states"
       this.campaignGroup = campaignGroup
       this.modelLine = modelLine
       reportingInterval = reportingInterval {
@@ -80,7 +84,7 @@ object ReportingScaleTestData {
             impressionQualificationFilter = "impressionQualificationFilters/$id"
           }
         }
-      for ((index, dimension) in dimensions(stateCount).withIndex()) {
+      for ((index, dimension) in dimensions(stateCount, groupByAge, groupByGender).withIndex()) {
         resultGroupSpecs += resultGroupSpec {
           title = "Weekly reach $index"
           reportingUnit = reportingUnit { components += dataProviders }
@@ -137,29 +141,39 @@ object ReportingScaleTestData {
     }
   }
 
-  private fun dimensions(stateCount: Int): List<DimensionSpec> {
-    if (stateCount == 0) return listOf(dimensionSpec {})
-    if (stateCount == 51) {
-      return listOf(
-        dimensionSpec {
-          grouping = DimensionSpecKt.grouping { eventTemplateFields += STATE_FIELD_PATH }
-        }
-      )
+  private fun dimensions(
+    stateCount: Int,
+    groupByAge: Boolean,
+    groupByGender: Boolean,
+  ): List<DimensionSpec> {
+    val fields = buildList {
+      if (groupByGender) add(GENDER_FIELD_PATH)
+      if (groupByAge) add(AGE_FIELD_PATH)
+      if (stateCount == 51) add(STATE_FIELD_PATH)
     }
+    val base = dimensionSpec {
+      if (fields.isNotEmpty()) {
+        grouping = DimensionSpecKt.grouping { eventTemplateFields += fields }
+      }
+    }
+    if (stateCount == 0 || stateCount == 51) return listOf(base)
     return Common.UsState.values()
       .filter { it != Common.UsState.UNRECOGNIZED && it.number > 0 }
       .filter { it != Common.UsState.DISTRICT_OF_COLUMBIA }
       .sortedBy { it.number }
       .take(stateCount)
       .map { state ->
-        dimensionSpec {
-          filters += eventFilter {
-            terms += eventTemplateField {
-              path = STATE_FIELD_PATH
-              value = EventTemplateFieldKt.fieldValue { enumValue = state.name }
+        base
+          .toBuilder()
+          .addFilters(
+            eventFilter {
+              terms += eventTemplateField {
+                path = STATE_FIELD_PATH
+                value = EventTemplateFieldKt.fieldValue { enumValue = state.name }
+              }
             }
-          }
-        }
+          )
+          .build()
       }
   }
 }

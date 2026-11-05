@@ -66,8 +66,21 @@ class ReportingScaleTest {
       val accessTarget = requiredEnvironmentVariable("ACCESS_PUBLIC_API_TARGET")
       val endpoint = requiredEnvironmentVariable("REPORTING_SERVICE_ENDPOINT").toHttpUrl()
       val audience = requiredEnvironmentVariable("REPORTING_TOKEN_AUDIENCE")
-      val modelLine = requiredEnvironmentVariable("HIGH_OVERLAP_MODEL_LINE")
-      val weeks = System.getenv("REPORTING_SCALE_WEEKS")?.toInt() ?: 13
+      val modelLine =
+        System.getenv("REPORTING_SCALE_MODEL_LINE")?.takeIf(String::isNotBlank)
+          ?: requiredEnvironmentVariable("HIGH_OVERLAP_MODEL_LINE")
+      val reportDays = System.getenv("REPORTING_SCALE_REPORT_DAYS")?.toInt() ?: 60
+      val demographics =
+        (System.getenv("REPORTING_SCALE_DEMOGRAPHIC_FIELDS") ?: "age,gender")
+          .split(',')
+          .map(String::trim)
+          .toSet()
+      require(
+        demographics == setOf("none") ||
+          demographics.isNotEmpty() && demographics.all { it in setOf("age", "gender") }
+      )
+      val groupByAge = "age" in demographics
+      val groupByGender = "gender" in demographics
       val stateCounts =
         (System.getenv("REPORTING_SCALE_STATE_COUNTS") ?: "0,50").split(',').map {
           it.trim().toInt()
@@ -79,7 +92,7 @@ class ReportingScaleTest {
         Duration.ofSeconds(System.getenv("REPORTING_SCALE_DEADLINE_SECONDS")?.toLong() ?: 60L)
       val reportStart =
         LocalDate.parse(System.getenv("REPORTING_SCALE_REPORT_START") ?: "2026-04-01")
-      require(weeks in 1..13 && stateCounts.isNotEmpty() && stateCounts.all { it in 0..51 })
+      require(reportDays in 1..91 && stateCounts.isNotEmpty() && stateCounts.all { it in 0..51 })
       require(repetitions in 1..10 && deadline.seconds in 1..600)
       val output = Paths.get(requiredEnvironmentVariable("TEST_UNDECLARED_OUTPUTS_DIR"))
       Files.createDirectories(output)
@@ -120,7 +133,15 @@ class ReportingScaleTest {
               linkedMapOf<String, Any?>(
                   "case" to caseName,
                   "seed" to System.getenv("REPORTING_SCALE_SEED"),
-                  "weeks" to weeks,
+                  "report_days" to reportDays,
+                  "report_start" to reportStart.toString(),
+                  "event_group_reference_ids" to
+                    eventGroups.map(EventGroup::getEventGroupReferenceId),
+                  "cmms_event_groups" to eventGroups.map(EventGroup::getCmmsEventGroup),
+                  "data_providers" to dataProviders,
+                  "model_line" to modelLine,
+                  "group_by_age" to groupByAge,
+                  "group_by_gender" to groupByGender,
                   "state_count" to stateCount,
                   "filter_ids" to filterIds,
                   "basic_report" to basicReportName,
@@ -152,9 +173,11 @@ class ReportingScaleTest {
                   dataProviders = dataProviders,
                   modelLine = modelLine,
                   reportStart = reportStart,
-                  weeks = weeks,
+                  reportDays = reportDays,
                   stateCount = stateCount,
                   filterIds = filterIds,
+                  groupByAge = groupByAge,
+                  groupByGender = groupByGender,
                 )
               val requestBody = JsonFormat.printer().print(requestMessage)
               record["result_group_spec_count"] = requestMessage.resultGroupSpecsCount
@@ -252,7 +275,7 @@ class ReportingScaleTest {
     measurementConsumer: String,
   ): List<EventGroup> {
     val references =
-      (System.getenv("REPORTING_SCALE_EVENT_GROUP_REFERENCE_IDS")
+      (System.getenv("REPORTING_SCALE_EVENT_GROUP_REFERENCE_IDS")?.takeIf(String::isNotBlank)
           ?: DEFAULT_EVENT_GROUP_REFERENCES.joinToString(","))
         .split(',')
         .map(String::trim)
@@ -266,7 +289,11 @@ class ReportingScaleTest {
             parent = measurementConsumer
             pageSize = 500
             this.pageToken = pageToken
-            structuredFilter = ListEventGroupsRequestKt.filter { entityTypeIn += "ad_group" }
+            // CMMS defaults an empty entity type filter to campaign, rather than all types.
+            structuredFilter =
+              ListEventGroupsRequestKt.filter {
+                entityTypeIn += listOf("campaign", "ad_group", "creative-id")
+              }
           }
         )
       for (eventGroup in response.eventGroupsList) {
@@ -276,7 +303,7 @@ class ReportingScaleTest {
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty() && selected.size < references.size)
     check(selected.keys.containsAll(references)) {
-      "Missing seeded EventGroups ${references - selected.keys}. Run the EDPA reporting integration test to seed the high overlap dataset first."
+      "Missing seeded EventGroups ${references - selected.keys}. Seed the selected dataset before running this creation-only test."
     }
     return references.map(selected::getValue)
   }
@@ -332,6 +359,7 @@ class ReportingScaleTest {
       .readTimeout(deadline)
       .writeTimeout(deadline)
       .callTimeout(deadline)
+      .retryOnConnectionFailure(false)
       .build()
   }
 
