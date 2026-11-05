@@ -155,6 +155,18 @@ method name being tested.
     `src/main/` tree, with its Bazel targets marked as `testonly`.
 *   Favor numerous smaller test cases over fewer large ones.
 
+## Spanner proto bundles
+
+The EDP Aggregator schema tests validate proto bundle dependencies in Liquibase
+changelog order. This check runs in process without starting an emulator or
+connecting to Spanner:
+
+```shell
+bazel test //src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:ProtoBundleValidatorTest
+```
+
+Database tests remain necessary to validate DDL execution and data migrations.
+
 ## See Also
 
 *   [Reporting scale test](operations/reporting-scale-test.md) — deployed
