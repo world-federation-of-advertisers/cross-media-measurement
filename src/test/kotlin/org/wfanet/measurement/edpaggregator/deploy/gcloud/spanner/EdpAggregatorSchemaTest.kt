@@ -30,24 +30,18 @@ import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 class EdpAggregatorSchemaTest : UsingSpannerEmulator(Schemata.EDP_AGGREGATOR_CHANGELOG_PATH) {
 
   @Test
-  fun `database is created`() {
-    // No-op. Just ensure that DB is created by test infra.
-  }
-
-  @Test
-  fun `correction candidate proto can be queried`() = runBlocking {
+  fun `database resolves correction candidate proto`() = runBlocking {
     val row =
-      databaseClient.singleUse().use { txn ->
-        txn
+      databaseClient.singleUse().use { transaction ->
+        transaction
           .executeQuery(
             Statement.of(
               """
-              SELECT CAST(candidate.decision AS INT64) AS Decision
+              SELECT candidate.data_provider_resource_id AS DataProviderResourceId
               FROM (
-                SELECT CAST(
-                  'decision: DECISION_APPLY_CANDIDATE'
-                  AS `wfa.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate`
-                ) AS candidate
+                SELECT CAST(B'' AS
+                  `wfa.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate`)
+                  AS candidate
               )
               """
                 .trimIndent()
@@ -55,7 +49,11 @@ class EdpAggregatorSchemaTest : UsingSpannerEmulator(Schemata.EDP_AGGREGATOR_CHA
           )
           .single()
       }
+    assertThat(row.getString("DataProviderResourceId")).isEmpty()
+  }
 
-    assertThat(row.getLong("Decision")).isEqualTo(1L)
+  @Test
+  fun `database is created`() {
+    // No-op. Just ensure that DB is created by test infra.
   }
 }
