@@ -26,3 +26,11 @@ the Kingdom, you could run
 kubectl delete pods,jobs,services,deployments,networkpolicies,ingresses \
   --selector=app.kubernetes.io/part-of=halo-cmms,app.kubernetes.io/component=kingdom
 ```
+
+## EDP Aggregator schema migrations
+
+The internal API deployment applies database migrations in the
+`update-edp-aggregator-schema` init container before the API process starts.
+When a rollout stalls, inspect that container's current and previous logs.
+After correcting the cause, resume the rollout through its deployment workflow
+so the remaining service updates and worker activation steps can finish.
