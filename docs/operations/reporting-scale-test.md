@@ -1,10 +1,12 @@
-# Reporting creation scale test
+# Reporting scale test
 
 The **Run Reporting Scale Test** workflow exercises the deployed Reporting HTTP
 gateway and public APIs, following the EventGroupSync scale test pattern. It
-compares a report with no geographic cuts against geographically segmented
-reports and stops after creation and a successful readback. Computation
-continues asynchronously; this test does not assert report completion or values.
+exercises geographically segmented
+reports through creation, EDPA fulfillment, measurement computation, and final
+report assembly. A case passes only when the BasicReport, its underlying Report,
+and every linked metric and Kingdom measurement succeed, and every requisition
+is present and fulfilled. Cases finish before the next case starts.
 
 ## Reuse existing data
 
@@ -36,8 +38,8 @@ overlap `all4` EventGroups for `edp7`, `edpa_meta` and `edpa_video_pub`, and
 Test** first if needed. The default report starts 2026-04-01 and covers 60 days.
 
 The workflow uses committed CMMS environment configuration and existing
-synthetic test certificates and Reporting principal setup. No additional GitHub
-environment variables or secrets are required. Use synthetic test datasets.
+synthetic test certificates and Reporting principal setup. The workflow reuses the existing `MC_API_KEY` secret to read Kingdom
+measurements and requisitions. No additional environment settings are required. Use synthetic test datasets.
 
 ## Run
 
@@ -51,9 +53,9 @@ reusable workflow after the chosen dataset is available.
 | `event-group-reference-ids` | empty | Existing references; empty selects high overlap `all4` |
 | `model-line` | empty | Existing ModelLine; empty uses `HIGH_OVERLAP_MODEL_LINE` |
 | `demographic-breakdown` | `age,gender` | Keep both initially; choose `age`, `gender`, or `none` to isolate a failure |
-| `state-counts` | `0,50` | No geographic cuts, followed by exactly 50 states |
+| `state-counts` | `50` | Exactly 50 states, retaining the selected demographics |
 | `qualification-filters` | `ami,mrc` | Both existing qualification filters |
-| `repetitions` | `1` | Fresh reports per state count |
+| `fulfillment-timeout-seconds` | `3600` | Per-case completion and verification timeout, separate from the HTTP deadline |
 | `create-deadline-seconds` | `60` | Whole HTTP request deadline, including response reading |
 
 The synthetic schema has three age groups and two genders. Keeping both gives
@@ -72,22 +74,56 @@ Frequency is measured only over the whole interval. A 60-day window has eight
 full weeks and a final partial week.
 
 Start with age and gender retained. For a threshold search, use
-`state-counts: 0,5,10,25,50`, then run `51` separately to test native grouping.
+`state-counts: 5,10,25,50`, then run `51` separately to test native grouping.
 If creation fails, reduce demographics, isolate `ami` versus `mrc`, or reduce
 `report-days`. Cases run serially and stop on the first failure. Change the HTTP
-deadline only when explicitly comparing deadline sensitivity.
+deadline only when explicitly comparing deadline sensitivity. Its default remains
+60 seconds; increasing it does not establish that creation latency improved.
+
+Run on a quiet environment. The workflow checks for active or queued EDPA cloud
+tests, reporting integration tests, deployments, and reporting scale runs in the
+same environment. It refuses to start when one is present. This preflight does
+not prevent another workflow from starting later; keep the environment reserved
+for the duration and check overlapping runs when interpreting timings. Neither
+this test nor its workflow cancels another test or modifies its data.
 
 ## Results
 
-The workflow summary records creation time, HTTP status, readback state and
-outcome. The artifact includes `summary.json` and each case's request, create
-response, readback response and test log. It records the existing EventGroups,
-EDPs and ModelLine used, demographic selection, dates, request/response bytes,
-failure stage, and BasicReport name for tracing. A failed create triggers a
-bounded read of that same resource, identifying a partially persisted report
-without retrying creation.
+The workflow summary and `summary.json` record creation timing (headers and full
+response separately), final states, metric and measurement counts, actual
+requisition counts by data provider, and failure stage. Population provider
+requisitions appear separately from the three EDPA EDPs. Artifacts include the
+request, create response, BasicReport, underlying Report, measurement states,
+requisition names and states, fixture references, and test log.
 
-A pass means the HTTP create completed within its deadline and the same report's
-requested result groups can be read back. It does not mean measurements have
-been fulfilled. Unpopulated states may produce empty or noisy results; that is
-outside this creation test's assertions.
+A bounded initial measurement sample matches the exact BasicReport name in
+signed `MeasurementSpec.reporting_metadata` and identifies its underlying
+Report. Its counts are labeled as observations, not totals. Complete IDs come
+from final metric results, so verification does not scan the entire measurement
+consumer or depend on measurement-list pagination. Reads use batches of 50
+measurements or 100 metrics and at most four concurrent calls. Polling
+BasicReports tolerates bounded transient HTTP errors. Final verification checks
+all metric result measurement links, every measurement's expected provider
+requisitions, and positive participation by all three EDPs. Missing entries and
+empty result sets fail the test. Verification time is distinct from creation
+and fulfillment time.
+
+A failed create triggers a bounded read of the same resource without retrying
+creation. A persisted RUNNING BasicReport is diagnostic evidence; it cannot pass
+creation or fulfillment checks. A timeout or terminal failure records the last
+observed states and resource names for further tracing.
+
+This is a capacity and lifecycle test. The existing high-overlap dataset has
+five populated states; the remaining state cuts exercise empty audiences and
+may expose threshold or report postprocessing failures. Completion does not
+establish statistical accuracy of each noisy result; use the high-overlap
+correctness tests for numerical assertions. Report a postprocessing failure
+separately from an EDPA fulfillment failure, using the linked measurement and
+requisition evidence.
+
+For read-only follow-up on a prior scale test from the dev VM, set
+`REPORTING_SCALE_EXISTING_BASIC_REPORT` to its full resource name and select one
+state count matching that report. This mode records `creation_reused: true` and
+`fulfilled_existing`; it cannot establish fresh creation latency or an isolated
+capacity result. It creates no campaign group or report. Normal workflow runs
+always create fresh reports.

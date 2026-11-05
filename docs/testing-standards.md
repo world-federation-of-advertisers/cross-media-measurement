@@ -157,7 +157,7 @@ method name being tested.
 
 ## See Also
 
-*   [Reporting creation scale test](operations/reporting-scale-test.md) — deployed
+*   [Reporting scale test](operations/reporting-scale-test.md) — deployed
     AMI/MRC report creation with adjustable geographic cardinality.
 
 *   [Code Style](code-style.md) — general testing guidance, assertion library

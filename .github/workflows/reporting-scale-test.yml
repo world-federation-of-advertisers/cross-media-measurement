@@ -38,13 +38,16 @@ on:
         default: "age,gender"
       state-counts:
         type: string
-        default: "0,50"
+        default: "50"
       qualification-filters:
         type: string
         default: "ami,mrc"
       repetitions:
         type: number
         default: 1
+      fulfillment-timeout-seconds:
+        type: number
+        default: 3600
       create-deadline-seconds:
         type: number
         default: 60
@@ -79,15 +82,15 @@ on:
       state-counts:
         description: "Comma-separated counts: 0 has no state cuts; 51 is native grouping including DC"
         type: string
-        default: "0,50"
+        default: "50"
       qualification-filters:
         description: "ami,mrc; use ami or mrc to isolate a failure"
         type: string
         default: "ami,mrc"
-      repetitions:
-        description: "Fresh reports to create at each state count (1–10)"
+      fulfillment-timeout-seconds:
+        description: "Maximum time for each report to finish and verify (60–14400 seconds)"
         type: number
-        default: 1
+        default: 3600
       create-deadline-seconds:
         description: "HTTP request deadline (1–600 seconds)"
         type: number
@@ -103,9 +106,10 @@ concurrency:
 jobs:
   run-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 360
     environment: ${{ inputs.environment }}
     permissions:
+      actions: read
       contents: read
       id-token: write
     steps:
@@ -134,6 +138,29 @@ jobs:
           build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
           EOF
 
+      - name: Check for other EDPA cloud tests or deployments
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCALE_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          python3 - <<'PYCHECK'
+          import json, os, urllib.request
+          names = {'Run EDP Aggregator Cloud Test', 'Run EDPA Reporting Integration Test', 'Update CMMS', 'Run Reporting Scale Test'}
+          conflicts = []
+          for status in ('in_progress', 'queued'):
+              url = f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs?status={status}&per_page=100"
+              request = urllib.request.Request(url, headers={'Authorization': f"Bearer {os.environ['GH_TOKEN']}"})
+              with urllib.request.urlopen(request) as response:
+                  runs = json.load(response)['workflow_runs']
+              for run in runs:
+                  if str(run['id']) == os.environ['GITHUB_RUN_ID'] or run['name'] not in names:
+                      continue
+                  if f"[{os.environ['SCALE_ENVIRONMENT']}]" in run['display_title']:
+                      conflicts.append(run['html_url'])
+          if conflicts:
+              raise SystemExit('Wait for these runs to finish before retrying: ' + ', '.join(conflicts))
+          PYCHECK
+
       - name: Run reporting scale test
         id: run-test
         env:
@@ -144,15 +171,19 @@ jobs:
           REPORTING_SCALE_DEMOGRAPHIC_FIELDS: ${{ inputs.demographic-breakdown }}
           REPORTING_SCALE_STATE_COUNTS: ${{ inputs.state-counts }}
           REPORTING_SCALE_FILTER_IDS: ${{ inputs.qualification-filters }}
-          REPORTING_SCALE_REPETITIONS: ${{ inputs.repetitions }}
+          REPORTING_SCALE_REPETITIONS: ${{ inputs.repetitions || 1 }}
+          REPORTING_SCALE_FULFILLMENT_TIMEOUT_SECONDS: ${{ inputs.fulfillment-timeout-seconds }}
+          MC_API_KEY: ${{ secrets.MC_API_KEY }}
           REPORTING_SCALE_DEADLINE_SECONDS: ${{ inputs.create-deadline-seconds }}
           REPORTING_SCALE_SEED: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           bazel test \
             --config=ci \
             --test_output=streamed \
-            --test_timeout=2100 \
+            --test_timeout=21000 \
             --test_env=MC_NAME \
+            --test_env=MC_API_KEY \
+            --test_env=KINGDOM_PUBLIC_API_TARGET \
             --test_env=REPORTING_PUBLIC_API_TARGET \
             --test_env=ACCESS_PUBLIC_API_TARGET \
             --test_env=REPORTING_SERVICE_ENDPOINT \
@@ -166,6 +197,7 @@ jobs:
             --test_env=REPORTING_SCALE_STATE_COUNTS \
             --test_env=REPORTING_SCALE_FILTER_IDS \
             --test_env=REPORTING_SCALE_REPETITIONS \
+            --test_env=REPORTING_SCALE_FULFILLMENT_TIMEOUT_SECONDS \
             --test_env=REPORTING_SCALE_DEADLINE_SECONDS \
             --test_env=REPORTING_SCALE_SEED \
             //src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingScaleTest
@@ -193,15 +225,15 @@ jobs:
               shutil.copy(logs / 'test.log', output / 'test.log')
           summary = output / 'summary.json'
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as target:
-              target.write('## Reporting creation scale test\n\n')
+              target.write('## Reporting scale test\n\n')
               if summary.exists():
-                  target.write('| States | Days | Demographics | Create (ms) | HTTP | Readback state | Outcome |\n')
-                  target.write('|---:|---:|---|---:|---:|---|---|\n')
+                  target.write('| States | Days | Demographics | Create (ms) | HTTP | Final state | Metrics | Measurements | Requisitions by EDP | Outcome |\n')
+                  target.write('|---:|---:|---|---:|---:|---|---:|---:|---|---|\n')
                   for row in json.loads(summary.read_text()):
                       demographics = ','.join(name for name, key in [('age', 'group_by_age'), ('gender', 'group_by_gender')] if row.get(key)) or 'none'
-                      target.write(f"| {row['state_count']} | {row['report_days']} | {demographics} | {row.get('create_ms', '')} | {row.get('create_http_status', '')} | {row.get('state', row.get('after_failure_state', ''))} | {row.get('outcome', '')} |\n")
+                      target.write(f"| {row['state_count']} | {row['report_days']} | {demographics} | {row.get('create_ms', '')} | {row.get('create_http_status', '')} | {row.get('state', row.get('after_failure_state', ''))} | {row.get('metric_count', '')} | {row.get('measurement_count', '')} | {row.get('requisitions_per_data_provider', '')} | {row.get('outcome', '')} |\n")
               else:
-                  target.write('No creation summary was produced. Inspect the test log for setup or build failures.\n')
+                  target.write('No summary was produced. Inspect the test log for setup or build failures.\n')
           PY
 
       - name: Upload reporting scale results
