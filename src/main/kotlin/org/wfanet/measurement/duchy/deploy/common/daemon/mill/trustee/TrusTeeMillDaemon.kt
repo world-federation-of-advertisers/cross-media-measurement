@@ -125,7 +125,6 @@ abstract class TrusTeeMillDaemon : Runnable {
         systemComputationLogEntriesClient = systemComputationLogEntriesClient,
         computationStatsClient = computationStatsClient,
         workLockDuration = flags.workLockDuration,
-        initializationPriorityBurstSize = flags.initializationPriorityBurstSize,
         trusTeeProcessorFactory = TrusTeeProcessorImpl.Factory,
         gcloudKmsClientFactory = gcloudKmsClientFactory,
         gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,

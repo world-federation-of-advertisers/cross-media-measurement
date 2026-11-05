@@ -50,15 +50,4 @@ class TrusTeeMillFlags : MillFlags() {
   )
   lateinit var pollingInterval: Duration
     private set
-
-  @CommandLine.Option(
-    names = ["--initialization-priority-burst-size"],
-    defaultValue = "3",
-    description =
-      [
-        "Number of work claims prioritizing initialization before one claim prioritizing computation."
-      ],
-  )
-  var initializationPriorityBurstSize: Int = 0
-    private set
 }

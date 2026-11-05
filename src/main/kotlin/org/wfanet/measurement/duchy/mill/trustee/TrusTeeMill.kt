@@ -71,7 +71,6 @@ class TrusTeeMill(
   systemComputationLogEntriesClient: ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
   workLockDuration: Duration,
-  private val initializationPriorityBurstSize: Int,
   private val trusTeeProcessorFactory: TrusTeeProcessor.Factory,
   private val gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
   private val gcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
@@ -99,19 +98,13 @@ class TrusTeeMill(
     clock = clock,
   ) {
 
-  init {
-    require(initializationPriorityBurstSize > 0) {
-      "Initialization priority burst size must be positive"
-    }
-  }
-
   private var initializationPriorityClaims = 0
 
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
   override fun prioritizedStagesForClaim(): List<ComputationStage> {
-    // Periodically prefer ready computations so new initialization work cannot monopolize claims.
-    if (initializationPriorityClaims == initializationPriorityBurstSize) {
+    // Periodically prefer ready computations so initialization cannot monopolize claims.
+    if (initializationPriorityClaims == INITIALIZATION_PRIORITY_BURST_SIZE) {
       initializationPriorityClaims = 0
       return listOf(Stage.COMPUTING.toProtocolStage())
     }
@@ -355,6 +348,8 @@ class TrusTeeMill(
     }
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private const val INITIALIZATION_PRIORITY_BURST_SIZE = 3
 
     private const val OAUTH_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token"
     private const val GOOGLE_STS_TOKEN_URL = "https://sts.googleapis.com/v1/token"

@@ -62,23 +62,17 @@ Key parameters include:
     efficient.
 
 Each mill processes one work item at a time and immediately claims the next
-available item after processing it. `--polling-interval` controls the wait after
-an empty claim or an error, rather than adding a delay between successful claims.
+available item. `--polling-interval` controls the wait after an empty claim or
+an error.
 
-`--initialization-priority-burst-size` controls how often a mill gives ready
-computations priority. The default is three claims prioritizing `INITIALIZED`,
-followed by one claim prioritizing `COMPUTING`, repeated while polling. These
-are claim requests, including empty claims, rather than counts of completed
-stages. If the preferred stage has no available work, the claim can select
-another stage.
+Mills prioritize initialization for three claims, then ready computation for
+one claim. Empty claims count toward this cycle. If the preferred stage has no
+available work, another stage can be selected.
 
-In the CMMS Terraform configuration, `duchy_aggregator_trustee_replicas` sets the
-MIG size and defaults to one; the dev configuration uses two. Each instance has a
-distinct mill ID and uses the existing computation locks to claim work.
-Increasing this count adds VM cost and can increase load on the computations
-service, Spanner, storage, and KMS. Increase it gradually while comparing report
-completion time, time waiting for computation, worker CPU and memory, and service
-errors under the same report workload.
+`duchy_aggregator_trustee_replicas` sets the MIG size and defaults to one; dev
+uses two. Each instance has a distinct mill ID and shares the existing work
+locks. Increasing the count adds VM cost and service load; compare queue waits,
+completion time, and worker utilization before increasing it further.
 
 The reference Terraform module also sets the following environment variables
 through Confidential Space instance metadata. Custom infrastructure must set

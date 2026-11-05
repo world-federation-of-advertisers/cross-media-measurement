@@ -358,7 +358,6 @@ class InProcessDuchy(
             systemComputationLogEntriesClient = systemComputationLogEntriesClient,
             computationStatsClient = computationStatsClient,
             workLockDuration = Duration.ofMinutes(5),
-            initializationPriorityBurstSize = 3,
             trusTeeProcessorFactory = TrusTeeProcessorImpl,
             gcloudKmsClientFactory = gcloudKmsClientFactory,
             gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,

@@ -23,15 +23,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.yield
 
-/**
- * Processes available work serially, waiting only when no work was claimed or an error occurred.
- */
+/** Processes available work serially until cancellation. */
 object MillWorkLoop {
   /**
-   * Runs [claimAndProcessWork] until cancellation.
-   *
-   * Successful claims are followed immediately by another claim. Empty claims and exceptions wait
-   * [pollingInterval] before trying again. Cancellation is propagated.
+   * Immediately repeats successful claims; waits [pollingInterval] after empty claims or errors.
    */
   suspend fun run(pollingInterval: Duration, claimAndProcessWork: suspend () -> Boolean) {
     require(!pollingInterval.isNegative && !pollingInterval.isZero) {

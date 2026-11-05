@@ -14,10 +14,9 @@
 
 package org.wfanet.measurement.duchy.mill
 
+import com.google.common.truth.Truth.assertThat
 import java.time.Duration
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -43,11 +42,11 @@ class MillWorkLoopTest {
 
     runCurrent()
 
-    assertEquals(List(101) { 0L }, claimTimes)
+    assertThat(claimTimes).containsExactlyElementsIn(List(101) { 0L }).inOrder()
     advanceTimeBy(5_000)
     runCurrent()
-    assertEquals(5_000L, claimTimes.last())
-    assertEquals(102, claimTimes.size)
+    assertThat(claimTimes.last()).isEqualTo(5_000L)
+    assertThat(claimTimes).hasSize(102)
   }
 
   @Test
@@ -63,13 +62,13 @@ class MillWorkLoopTest {
     runCurrent()
     advanceTimeBy(4_999)
     runCurrent()
-    assertEquals(listOf(0L), claimTimes)
+    assertThat(claimTimes).containsExactly(0L)
 
     advanceTimeBy(1)
     runCurrent()
     advanceTimeBy(5_000)
     runCurrent()
-    assertEquals(listOf(0L, 5_000L, 10_000L), claimTimes)
+    assertThat(claimTimes).containsExactly(0L, 5_000L, 10_000L).inOrder()
   }
 
   @Test
@@ -89,11 +88,11 @@ class MillWorkLoopTest {
     runCurrent()
     advanceTimeBy(4_999)
     runCurrent()
-    assertEquals(listOf(0L), claimTimes)
+    assertThat(claimTimes).containsExactly(0L)
 
     advanceTimeBy(1)
     runCurrent()
-    assertEquals(listOf(0L, 5_000L, 5_000L), claimTimes)
+    assertThat(claimTimes).containsExactly(0L, 5_000L, 5_000L).inOrder()
   }
 
   @Test
@@ -111,8 +110,8 @@ class MillWorkLoopTest {
     advanceTimeBy(5_000)
     runCurrent()
 
-    assertTrue(job.isCancelled)
-    assertEquals(1, claims)
+    assertThat(job.isCancelled).isTrue()
+    assertThat(claims).isEqualTo(1)
   }
 
   @Test
@@ -129,8 +128,8 @@ class MillWorkLoopTest {
 
     runCurrent()
 
-    assertTrue(job.isCancelled)
-    assertEquals(1, claims)
+    assertThat(job.isCancelled).isTrue()
+    assertThat(claims).isEqualTo(1)
   }
 
   @Test
