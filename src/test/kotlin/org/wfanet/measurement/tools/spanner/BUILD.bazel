@@ -1,0 +1,14 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "ValidateSpannerProtoBundlesTest",
+    srcs = ["ValidateSpannerProtoBundlesTest.kt"],
+    test_class = "org.wfanet.measurement.tools.spanner.ValidateSpannerProtoBundlesTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/tools/spanner:ValidateSpannerProtoBundles",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

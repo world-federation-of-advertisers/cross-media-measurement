@@ -137,6 +137,11 @@ jobs:
       - name: Check lockfile
         run: bazel mod deps
 
+      - name: Validate Spanner proto bundles
+        run: >
+          bazel run //src/main/kotlin/org/wfanet/measurement/tools/spanner:ValidateSpannerProtoBundles --
+          "$GITHUB_WORKSPACE/src/main/resources/edpaggregator/spanner/changelog.yaml"
+
       - name: Build
         run: >
           bazel build --worker_quit_after_build

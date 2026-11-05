@@ -155,6 +155,20 @@ method name being tested.
     `src/main/` tree, with its Bazel targets marked as `testonly`.
 *   Favor numerous smaller test cases over fewer large ones.
 
+## Spanner proto bundles
+
+Build and test validates EDP Aggregator proto bundle membership before the main
+build. To run the check locally:
+
+```shell
+bazel run //src/main/kotlin/org/wfanet/measurement/tools/spanner:ValidateSpannerProtoBundles -- \\
+  "$PWD/src/main/resources/edpaggregator/spanner/changelog.yaml"
+```
+
+The validator follows Liquibase changelog order and checks containing types and
+message-field dependencies after each bundle change. Database tests remain
+necessary to validate DDL execution and data migrations.
+
 ## See Also
 
 *   [Code Style](code-style.md) — general testing guidance, assertion library
