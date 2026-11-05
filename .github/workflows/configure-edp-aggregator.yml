@@ -217,7 +217,12 @@ jobs:
       id: wait-rollout
       if: ${{ inputs.apply }}
       run: |
-        for deployment in $(kubectl get deployments -l app.kubernetes.io/component=edp-aggregator -o name); do
+        edpa_deployments=$(kubectl get deployments -l app.kubernetes.io/component=edp-aggregator -o name)
+        if [ -z "$edpa_deployments" ]; then
+          echo "No EDP Aggregator deployments found for rollout" >&2
+          exit 1
+        fi
+        for deployment in $edpa_deployments; do
           kubectl rollout status "$deployment" --timeout=5m
         done
 
