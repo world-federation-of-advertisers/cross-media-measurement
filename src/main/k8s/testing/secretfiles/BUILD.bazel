@@ -40,6 +40,14 @@ exports_files([
 ])
 
 filegroup(
+    name = "edpa_tls_srcs",
+    srcs = glob([
+        "edpa_*_tls.key",
+        "edpa_*_tls.pem",
+    ]),
+)
+
+filegroup(
     name = "all_der_files",
     srcs = glob(["*.der"]),
 )

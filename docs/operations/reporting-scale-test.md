@@ -6,7 +6,12 @@ exercises geographically segmented
 reports through creation, EDPA fulfillment, measurement computation, and final
 report assembly. A case passes only when the BasicReport, its underlying Report,
 and every linked metric and Kingdom measurement succeed, and every requisition
-is present and fulfilled. Cases finish before the next case starts.
+is present and fulfilled. Creation and fulfillment run as separate invocations.
+The requisition-fetcher scheduler is paused before each creation attempt. Failed
+creation cancels unfinished measurements belonging to that exact test report,
+withdrawing their unfulfilled requisitions. Successful creation verifies all
+resource links and counts before fetching resumes and fulfillment is tested.
+Cases finish before the next case starts.
 
 ## Reuse existing data
 
@@ -48,10 +53,12 @@ reusable workflow after the chosen dataset is available.
 
 | Input | Default | Meaning |
 |---|---|---|
+| `reuse-paused-fetcher` | `false` | Reuse the scheduler pause from your preceding failed scale-test attempt |
 | `report-days` | `60` | Report length in days; use `91` for 13 weeks |
 | `report-start` | `2026-04-01` | First reporting date in the existing dataset |
 | `event-group-reference-ids` | empty | Existing references; empty selects high overlap `all4` |
 | `model-line` | empty | Existing ModelLine; empty uses `HIGH_OVERLAP_MODEL_LINE` |
+| `edp-tls-names` | `edp7,edpa_meta,edpa_video_pub` | Synthetic TLS fixtures in distinct provider order from the selected EventGroups |
 | `demographic-breakdown` | `age,gender` | Keep both initially; choose `age`, `gender`, or `none` to isolate a failure |
 | `state-counts` | `50` | Exactly 50 states, retaining the selected demographics |
 | `qualification-filters` | `ami,mrc` | Both existing qualification filters |
@@ -82,10 +89,19 @@ deadline only when explicitly comparing deadline sensitivity. Its default remain
 
 Run on a quiet environment. The workflow checks for active or queued EDPA cloud
 tests, reporting integration tests, deployments, and reporting scale runs in the
-same environment. It refuses to start when one is present. This preflight does
+same environment. It refuses to start when one is present. If the fetcher scheduler is already
+paused, explicitly set `reuse-paused-fetcher` to retry your own failed scale test. This preflight does
 not prevent another workflow from starting later; keep the environment reserved
-for the duration and check overlapping runs when interpreting timings. Neither
-this test nor its workflow cancels another test or modifies its data.
+for the duration and check overlapping runs when interpreting timings. The
+workflow pauses the scheduler identified by `REQUISITION_FETCHER_ENDPOINT`; it
+does not disable the Cloud Run service or interrupt existing invocations. Allow
+an existing invocation to finish before starting an isolated creation test.
+Cleanup is scoped to the failed case's exact signed BasicReport metadata; it
+preserves completed measurements and leaves other reports untouched. If cleanup
+cannot be verified, the scheduler stays paused and its state is recorded in the
+artifacts. After successful cleanup it stays paused, so the next attempt can reuse that
+pause without waiting for partial EDPA fulfillment. Fetching resumes only after
+the creation gate passes.
 
 ## Results
 
@@ -96,22 +112,29 @@ requisitions appear separately from the three EDPA EDPs. Artifacts include the
 request, create response, BasicReport, underlying Report, measurement states,
 requisition names and states, fixture references, and test log.
 
-A bounded initial measurement sample matches the exact BasicReport name in
-signed `MeasurementSpec.reporting_metadata` and identifies its underlying
-Report. Its counts are labeled as observations, not totals. Complete IDs come
-from final metric results, so verification does not scan the entire measurement
-consumer or depend on measurement-list pagination. Reads use batches of 50
-measurements or 100 metrics and at most four concurrent calls. Polling
-BasicReports tolerates bounded transient HTTP errors. Final verification checks
-all metric result measurement links, every measurement's expected provider
-requisitions, and positive participation by all three EDPs. Missing entries and
-empty result sets fail the test. Verification time is distinct from creation
-and fulfillment time.
+Creation verification enumerates the fresh measurement creation window with
+pages of 1,000 and matches exact signed BasicReport metadata. It reads the
+underlying Report and every unique metric, checks each metric's signed Kingdom
+measurement link, and verifies each measurement's expected provider requisitions.
+Requisition reads use each provider's synthetic TLS identity and pages of 500,
+rather than one request per measurement. Only requisitions belonging to the
+selected measurement IDs are retained; unrelated historical entries cannot
+satisfy the checks. Public requisition visibility requires duchy parameter setup,
+so this check allows a bounded interval for setup without requiring fulfillment.
+Metrics and measurements may still be RUNNING at this gate.
 
 A failed create triggers a bounded read of the same resource without retrying
-creation. A persisted RUNNING BasicReport is diagnostic evidence; it cannot pass
-creation or fulfillment checks. A timeout or terminal failure records the last
-observed states and resource names for further tracing.
+creation. A persisted RUNNING BasicReport cannot pass the creation gate. Cleanup
+uses the public CancelMeasurement API, skips terminal measurements, and verifies
+two scans with no active measurements. Cancellation withdraws unfinished
+requisitions; already fulfilled requisitions remain fulfilled.
+
+After the creation gate passes, the workflow resumes and immediately triggers
+the fetcher scheduler. A read-only follow-up invocation waits for the same report
+to succeed and verifies every final metric result link, measurement state, and
+fulfilled requisition. Creation, creation verification, fulfillment, and final
+verification timings are recorded separately. Increasing the HTTP deadline does
+not establish that creation latency improved.
 
 This is a capacity and lifecycle test. The existing high-overlap dataset has
 five populated states; the remaining state cuts exercise empty audiences and
@@ -126,7 +149,16 @@ For read-only follow-up on a prior scale test from the dev VM, set
 state count matching that report. This mode records `creation_reused: true` and
 `fulfilled_existing`; it cannot establish fresh creation latency or an isolated
 capacity result. It creates no campaign group or report. Normal workflow runs
-always create fresh reports.
+create fresh reports during the creation invocation and reuse them during the
+fulfillment invocation.
+
+For creation diagnostics from the dev VM, pause the fetcher scheduler first and
+set `REPORTING_SCALE_PHASE=creation` and
+`REPORTING_SCALE_CANCEL_FAILED_CREATION=true`. Supply `PDP_NAME` from the CMMS
+environment configuration. A successful creation-only invocation records
+`creation_verified: true` and `creation_succeeded`; it does not claim fulfillment.
+Resume fetching only after that gate passes, then follow up with
+`REPORTING_SCALE_EXISTING_BASIC_REPORT` and `REPORTING_SCALE_PHASE=full`.
 
 ### Reporting transport limits
 

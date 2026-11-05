@@ -14,6 +14,7 @@ package(default_testonly = True)
 kt_jvm_library(
     name = "reporting_scale_test",
     srcs = ["ReportingScaleTest.kt"],
+    data = ["//src/main/k8s/testing/secretfiles:edpa_tls_srcs"],
     deps = [
         ":abstract_correctness_test",
         "//imports/java/okhttp3",

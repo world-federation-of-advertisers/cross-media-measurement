@@ -21,6 +21,7 @@ import com.google.devtools.build.runfiles.Runfiles
 import com.google.gson.Gson
 import com.google.protobuf.util.JsonFormat
 import io.grpc.ManagedChannel
+import io.grpc.Status
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -51,6 +52,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -96,6 +99,10 @@ class ReportingScaleTest {
     val modelLine =
       System.getenv("REPORTING_SCALE_MODEL_LINE")?.takeIf(String::isNotBlank)
         ?: requiredEnvironmentVariable("HIGH_OVERLAP_MODEL_LINE")
+    val phase = System.getenv("REPORTING_SCALE_PHASE") ?: "full"
+    require(phase in setOf("creation", "full"))
+    val cancelFailedCreation =
+      System.getenv("REPORTING_SCALE_CANCEL_FAILED_CREATION")?.toBooleanStrict() ?: false
     val reportDays = System.getenv("REPORTING_SCALE_REPORT_DAYS")?.toInt() ?: 60
     val demographics =
       (System.getenv("REPORTING_SCALE_DEMOGRAPHIC_FIELDS") ?: "age,gender")
@@ -151,9 +158,7 @@ class ReportingScaleTest {
           .also(channels::add)
       val measurementsClient =
         MeasurementsCoroutineStub(kingdomChannel.withDefaultDeadline(Duration.ofSeconds(60)))
-          .withAuthenticationKey(apiKey)
-      val requisitionsClient =
-        RequisitionsCoroutineStub(kingdomChannel.withDefaultDeadline(Duration.ofSeconds(60)))
+          .withMaxInboundMessageSize(64 * 1024 * 1024)
           .withAuthenticationKey(apiKey)
       val reportsClient =
         ReportsCoroutineStub(reportingChannel.withDefaultDeadline(Duration.ofMinutes(5)))
@@ -173,6 +178,28 @@ class ReportingScaleTest {
       check(dataProviders.size == 3) {
         "Scale test requires three distinct EDPs, got $dataProviders"
       }
+      val edpTlsNames =
+        (System.getenv("REPORTING_SCALE_EDP_TLS_NAMES") ?: "edp7,edpa_meta,edpa_video_pub")
+          .split(',')
+          .map(String::trim)
+      require(
+        edpTlsNames.size == dataProviders.size &&
+          edpTlsNames.all { it.matches(Regex("[a-zA-Z0-9_]+")) }
+      )
+      val providerClients =
+        (dataProviders.zip(edpTlsNames) + (requiredEnvironmentVariable("PDP_NAME") to "pdp1"))
+          .associate { (provider, cert) ->
+            val channel =
+              buildMutualTlsChannel(
+                  kingdomTarget,
+                  signingCerts("${cert}_tls", "mc_trusted_certs"),
+                  null,
+                )
+                .also(channels::add)
+            provider to
+              RequisitionsCoroutineStub(channel.withDefaultDeadline(Duration.ofSeconds(60)))
+                .withMaxInboundMessageSize(64 * 1024 * 1024)
+          }
       val existingReportName =
         System.getenv("REPORTING_SCALE_EXISTING_BASIC_REPORT")?.takeIf(String::isNotEmpty)
       if (existingReportName != null) {
@@ -210,7 +237,7 @@ class ReportingScaleTest {
             fulfillmentTimeout,
             dataProviders,
             measurementsClient,
-            requisitionsClient,
+            providerClients,
             reportsClient,
             metricsClient,
             readClient,
@@ -240,6 +267,7 @@ class ReportingScaleTest {
           val record =
             linkedMapOf<String, Any?>(
                 "case" to caseName,
+                "phase" to phase,
                 "seed" to System.getenv("REPORTING_SCALE_SEED"),
                 "report_days" to reportDays,
                 "report_start" to reportStart.toString(),
@@ -330,6 +358,27 @@ class ReportingScaleTest {
               .containsExactlyElementsIn(requestMessage.resultGroupSpecsList)
             record["state"] = retrieved.state.name
             record["creation_completed_at"] = Instant.now().toString()
+            record["stage"] = "verify_creation"
+            verifyCreation(
+              basicReportName,
+              Instant.parse(record.getValue("started_at") as String),
+              dataProviders,
+              measurementsClient,
+              providerClients,
+              reportsClient,
+              metricsClient,
+              output,
+              caseName,
+              record,
+            )
+            record["creation_verified"] = true
+            record["creation_verified_at"] = Instant.now().toString()
+            Files.writeString(output.resolve("summary.json"), Gson().toJson(records))
+            if (phase == "creation") {
+              record["outcome"] = "creation_succeeded"
+              record["stage"] = "complete"
+              return@repeat
+            }
             record["stage"] = "fulfillment"
             awaitFulfillment(
               basicReportName,
@@ -337,7 +386,7 @@ class ReportingScaleTest {
               fulfillmentTimeout,
               dataProviders,
               measurementsClient,
-              requisitionsClient,
+              providerClients,
               reportsClient,
               metricsClient,
               readClient,
@@ -377,6 +426,24 @@ class ReportingScaleTest {
                 record["after_failure_get_error"] = readError.message
               }
             }
+            if (cancelFailedCreation && record["creation_verified"] != true) {
+              try {
+                record["cleanup_started_at"] = Instant.now().toString()
+                Files.writeString(output.resolve("summary.json"), Gson().toJson(records))
+                cancelFailedReport(
+                  basicReportName,
+                  Instant.parse(record.getValue("started_at") as String),
+                  measurementsClient,
+                  output,
+                  caseName,
+                  record,
+                )
+              } catch (cleanupError: Exception) {
+                record["cleanup_complete"] = false
+                record["cleanup_error"] = cleanupError.message
+                e.addSuppressed(cleanupError)
+              }
+            }
             throw e
           } finally {
             Files.writeString(output.resolve("summary.json"), Gson().toJson(records))
@@ -397,7 +464,7 @@ class ReportingScaleTest {
     timeout: Duration,
     dataProviders: List<String>,
     measurementsClient: MeasurementsCoroutineStub,
-    requisitionsClient: RequisitionsCoroutineStub,
+    providerClients: Map<String, RequisitionsCoroutineStub>,
     reportsClient: ReportsCoroutineStub,
     metricsClient: MetricsCoroutineStub,
     httpClient: OkHttpClient,
@@ -626,41 +693,7 @@ class ReportingScaleTest {
         )
         record["measurement_states"] = finalMeasurements.groupingBy { it.state.name }.eachCount()
         record["stage"] = "verify_requisitions"
-        val requisitions =
-          mapBounded(measurements.values.toList()) { measurement ->
-              val result = mutableListOf<Requisition>()
-              var token = ""
-              do {
-                val response =
-                  requisitionsClient.listRequisitions(
-                    listRequisitionsRequest {
-                      parent = measurement.name
-                      pageSize = 100
-                      pageToken = token
-                    }
-                  )
-                result += response.requisitionsList
-                token = response.nextPageToken
-              } while (token.isNotEmpty())
-              val expectedProviders = measurement.dataProvidersList.map { it.key }.toSet()
-              check(
-                result.size == expectedProviders.size &&
-                  result
-                    .map { it.dataProviderCertificate.substringBefore("/certificates/") }
-                    .toSet() == expectedProviders
-              ) {
-                "Missing or duplicated requisitions for ${measurement.name}"
-              }
-              check(
-                result.all {
-                  it.measurement == measurement.name && it.state == Requisition.State.FULFILLED
-                }
-              ) {
-                "Unfulfilled requisitions for ${measurement.name}: ${result.map { "${it.name}: ${it.state}" }}"
-              }
-              result
-            }
-            .flatten()
+        val requisitions = verifyRequisitions(finalMeasurements, providerClients, true)
         val counts =
           requisitions
             .groupingBy { it.dataProviderCertificate.substringBefore("/certificates/") }
@@ -697,10 +730,325 @@ class ReportingScaleTest {
     }
   }
 
-  /** Limits read concurrency so verification does not become another scale workload. */
+  /** Enumerates only the fresh creation window, retaining exact signed report links. */
+  private suspend fun listReportMeasurements(
+    basicReportName: String,
+    startedAt: Instant,
+    client: MeasurementsCoroutineStub,
+  ): List<Measurement> {
+    val result = linkedMapOf<String, Measurement>()
+    var token = ""
+    val cutoff = Instant.now().toProtoTime()
+    do {
+      val response = retryRpc {
+        client.listMeasurements(
+          listMeasurementsRequest {
+            parent = basicReportName.substringBefore("/basicReports/")
+            pageSize = 1000
+            pageToken = token
+            filter =
+              ListMeasurementsRequestKt.filter {
+                createdAfter = startedAt.minusSeconds(1).toProtoTime()
+                createdBefore = cutoff
+              }
+          }
+        )
+      }
+      for (measurement in response.measurementsList) {
+        if (
+          measurement.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.basicReport ==
+            basicReportName
+        ) {
+          result[measurement.name] = measurement
+        }
+      }
+      token = response.nextPageToken
+      if (token.isNotEmpty()) delay(250)
+    } while (token.isNotEmpty())
+    return result.values.toList()
+  }
+
+  private suspend fun verifyCreation(
+    basicReportName: String,
+    startedAt: Instant,
+    dataProviders: List<String>,
+    measurementsClient: MeasurementsCoroutineStub,
+    providerClients: Map<String, RequisitionsCoroutineStub>,
+    reportsClient: ReportsCoroutineStub,
+    metricsClient: MetricsCoroutineStub,
+    output: Path,
+    caseName: String,
+    record: MutableMap<String, Any?>,
+  ) {
+    val started = System.nanoTime()
+    val measurements = listReportMeasurements(basicReportName, startedAt, measurementsClient)
+    check(measurements.isNotEmpty()) { "Creation produced no linked Kingdom measurements" }
+    val metadata =
+      measurements.map { it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata }
+    val reportNames = metadata.map { it.report }.toSet()
+    check(reportNames.size == 1 && reportNames.single().isNotEmpty()) {
+      "Missing or inconsistent underlying Report link"
+    }
+    val report = reportsClient.getReport(getReportRequest { name = reportNames.single() })
+    check(report.basicReport == basicReportName) {
+      "Underlying Report belongs to another BasicReport"
+    }
+    Files.writeString(output.resolve("$caseName-report.json"), JsonFormat.printer().print(report))
+    val metricNames =
+      report.metricCalculationResultsList
+        .flatMap { it.resultAttributesList }
+        .map { it.metric }
+        .toSet()
+    check(metricNames.isNotEmpty() && metricNames.all(String::isNotEmpty)) {
+      "Report has missing metric names"
+    }
+    val metrics =
+      mapBounded(metricNames.toList().chunked(100)) { names ->
+          retryRpc {
+            metricsClient
+              .batchGetMetrics(
+                batchGetMetricsRequest {
+                  parent = basicReportName.substringBefore("/basicReports/")
+                  this.names += names
+                }
+              )
+              .metricsList
+          }
+        }
+        .flatten()
+    check(metrics.size == metricNames.size && metrics.map { it.name }.toSet() == metricNames) {
+      "Report metrics were not all created"
+    }
+    check(
+      metrics.all {
+        it.basicReport == basicReportName &&
+          it.state in setOf(Metric.State.RUNNING, Metric.State.SUCCEEDED)
+      }
+    ) {
+      "Metric creation failed or has an incorrect report link"
+    }
+    // Fresh campaign groups prevent reuse from another report. Each unique metric must have
+    // at least one signed Kingdom measurement link before fetching is resumed.
+    check(metadata.map { it.metric }.toSet() == metricNames) {
+      "Report metrics are missing Kingdom measurements"
+    }
+    check(
+      measurements.all {
+        it.state != Measurement.State.FAILED && it.state != Measurement.State.CANCELLED
+      }
+    ) {
+      "Measurement failed during creation"
+    }
+    val requisitions = verifyRequisitions(measurements, providerClients, false)
+    val counts =
+      requisitions
+        .groupingBy { it.dataProviderCertificate.substringBefore("/certificates/") }
+        .eachCount()
+    check(dataProviders.all { (counts[it] ?: 0) > 0 }) { "An EDP has no requisitions" }
+    record["report"] = report.name
+    record["metric_count"] = metrics.size
+    record["metric_states"] = metrics.groupingBy { it.state.name }.eachCount()
+    record["measurement_count"] = measurements.size
+    record["measurement_states"] = measurements.groupingBy { it.state.name }.eachCount()
+    record["requisition_count"] = requisitions.size
+    record["requisitions_per_data_provider"] = counts
+    record["requisition_states"] = requisitions.groupingBy { it.state.name }.eachCount()
+    record["creation_verification_ms"] = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
+    Files.writeString(
+      output.resolve("$caseName-created-measurements.json"),
+      Gson()
+        .toJson(
+          measurements.map {
+            mapOf(
+              "name" to it.name,
+              "state" to it.state.name,
+              "metric" to it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.metric,
+              "data_providers" to it.dataProvidersList.map { entry -> entry.key },
+            )
+          }
+        ),
+    )
+    Files.writeString(
+      output.resolve("$caseName-created-requisitions.json"),
+      Gson()
+        .toJson(
+          requisitions.map {
+            mapOf(
+              "name" to it.name,
+              "measurement" to it.measurement,
+              "data_provider" to it.dataProviderCertificate.substringBefore("/certificates/"),
+              "state" to it.state.name,
+            )
+          }
+        ),
+    )
+  }
+
+  /** Lists 500 requisitions per provider call instead of one call per measurement. */
+  private suspend fun verifyRequisitions(
+    measurements: List<Measurement>,
+    providerClients: Map<String, RequisitionsCoroutineStub>,
+    requireFulfilled: Boolean,
+  ): List<Requisition> = coroutineScope {
+    val expected =
+      measurements
+        .flatMap { measurement -> measurement.dataProvidersList.map { measurement.name to it.key } }
+        .toSet()
+    check(providerClients.keys.containsAll(expected.map { it.second })) {
+      "Missing provider TLS fixture for requisition verification"
+    }
+    val requisitions =
+      providerClients
+        .map { (provider, client) ->
+          async {
+            val needed = expected.filter { it.second == provider }.toSet()
+            val found = linkedMapOf<String, Requisition>()
+            // PENDING_PARAMS requisitions are not visible in the public API. Give duchy parameter
+            // setup a bounded interval, without requiring any requisition fulfillment.
+            kotlinx.coroutines.withTimeout(Duration.ofMinutes(5).toMillis()) {
+              do {
+                var token = ""
+                do {
+                  val response = retryRpc {
+                    client.listRequisitions(
+                      listRequisitionsRequest {
+                        parent = provider
+                        pageSize = 500
+                        pageToken = token
+                      }
+                    )
+                  }
+                  for (requisition in response.requisitionsList) {
+                    if ((requisition.measurement to provider) in needed) {
+                      // Retain verification fields rather than every encrypted payload for a large
+                      // report.
+                      found[requisition.name] =
+                        Requisition.newBuilder()
+                          .setName(requisition.name)
+                          .setMeasurement(requisition.measurement)
+                          .setDataProviderCertificate(requisition.dataProviderCertificate)
+                          .setState(requisition.state)
+                          .build()
+                    }
+                  }
+                  token = response.nextPageToken
+                  if (token.isNotEmpty()) delay(250)
+                } while (token.isNotEmpty() && found.size < needed.size)
+                if (found.size < needed.size) delay(5_000)
+              } while (found.size < needed.size)
+            }
+            check(
+              found.size == needed.size &&
+                found.values.map { it.measurement to provider }.toSet() == needed
+            ) {
+              "Missing or duplicated provider requisitions"
+            }
+            check(
+              found.values.all {
+                it.dataProviderCertificate.substringBefore("/certificates/") == provider
+              }
+            ) {
+              "Incorrect requisition provider"
+            }
+            check(
+              found.values.all {
+                if (requireFulfilled) it.state == Requisition.State.FULFILLED
+                else
+                  it.state != Requisition.State.REFUSED && it.state != Requisition.State.WITHDRAWN
+              }
+            ) {
+              "Unexpected requisition state for $provider"
+            }
+            found.values.toList()
+          }
+        }
+        .awaitAll()
+        .flatten()
+    check(
+      requisitions
+        .map { it.measurement to it.dataProviderCertificate.substringBefore("/certificates/") }
+        .toSet() == expected
+    ) {
+      "Incomplete requisition coverage"
+    }
+    requisitions
+  }
+
+  private suspend fun cancelFailedReport(
+    basicReportName: String,
+    startedAt: Instant,
+    client: MeasurementsCoroutineStub,
+    output: Path,
+    caseName: String,
+    record: MutableMap<String, Any?>,
+  ) {
+    val terminal =
+      setOf(Measurement.State.SUCCEEDED, Measurement.State.FAILED, Measurement.State.CANCELLED)
+    val cancelled = linkedSetOf<String>()
+    kotlinx.coroutines.withTimeout(Duration.ofMinutes(15).toMillis()) {
+      var quietScans = 0
+      while (quietScans < 2) {
+        val observed = listReportMeasurements(basicReportName, startedAt, client)
+        record["cleanup_observed_measurement_count"] = observed.size
+        record["cleanup_observed_measurement_states"] =
+          observed.groupingBy { it.state.name }.eachCount()
+        record["cleanup_expected_requisitions_per_data_provider"] =
+          observed
+            .flatMap { it.dataProvidersList.map { entry -> entry.key } }
+            .groupingBy { it }
+            .eachCount()
+        val pending = observed.filter { it.state !in terminal }
+        record["cleanup_active_measurement_count"] = pending.size
+        if (pending.isEmpty()) quietScans++ else quietScans = 0
+        for (measurement in pending) {
+          val final =
+            try {
+              retryRpc {
+                client.cancelMeasurement(cancelMeasurementRequest { name = measurement.name })
+              }
+            } catch (e: Exception) {
+              if (Status.fromThrowable(e).code != Status.Code.FAILED_PRECONDITION) throw e
+              retryRpc { client.getMeasurement(getMeasurementRequest { name = measurement.name }) }
+            }
+          check(final.state in terminal) { "Failed to cancel ${measurement.name}" }
+          if (final.state == Measurement.State.CANCELLED) cancelled += final.name
+          delay(250)
+        }
+        if (quietScans < 2) delay(5_000)
+      }
+    }
+    record["cleanup_complete"] = true
+    record["cleanup_completed_at"] = Instant.now().toString()
+    record["cancelled_measurement_count"] = cancelled.size
+    Files.writeString(
+      output.resolve("$caseName-cancelled-measurements.json"),
+      Gson().toJson(cancelled),
+    )
+  }
+
+  private suspend fun <T> retryRpc(block: suspend () -> T): T {
+    repeat(6) { attempt ->
+      try {
+        return block()
+      } catch (e: Exception) {
+        val status = Status.fromThrowable(e)
+        if (
+          attempt == 5 ||
+            status.code !in setOf(Status.Code.UNAVAILABLE, Status.Code.RESOURCE_EXHAUSTED)
+        )
+          throw e
+        delay(minOf(30_000L, 1000L shl attempt))
+      }
+    }
+    error("Unreachable")
+  }
+
+  /** Keeps reads within the synthetic consumer's five-request-per-second rate limit. */
   private suspend fun <T, R> mapBounded(items: List<T>, transform: suspend (T) -> R): List<R> =
     items.chunked(4).flatMap { batch ->
-      coroutineScope { batch.map { item -> async { transform(item) } }.awaitAll() }
+      val result = coroutineScope { batch.map { item -> async { transform(item) } }.awaitAll() }
+      delay(1000)
+      result
     }
 
   private suspend fun resolveEventGroups(

@@ -21,6 +21,9 @@ on:
       environment:
         type: string
         required: true
+      reuse-paused-fetcher:
+        type: boolean
+        default: false
       report-days:
         type: number
         default: 60
@@ -33,6 +36,9 @@ on:
       model-line:
         type: string
         default: ""
+      edp-tls-names:
+        type: string
+        default: "edp7,edpa_meta,edpa_video_pub"
       demographic-breakdown:
         type: string
         default: "age,gender"
@@ -58,6 +64,10 @@ on:
         type: choice
         required: true
         options: [dev, head, qa]
+      reuse-paused-fetcher:
+        description: "Reuse the scheduler pause left by your previous failed scale-test attempt"
+        type: boolean
+        default: false
       report-days:
         description: "Report duration in days (1–91; 60 reuses a sixty-day flight)"
         type: number
@@ -74,6 +84,10 @@ on:
         description: "Existing ModelLine resource name; empty uses HIGH_OVERLAP_MODEL_LINE"
         type: string
         default: ""
+      edp-tls-names:
+        description: "Synthetic EDP TLS fixture names in the order of distinct providers in the selected EventGroups"
+        type: string
+        default: "edp7,edpa_meta,edpa_video_pub"
       demographic-breakdown:
         description: "Keep age and gender initially; reduce only to isolate a failure"
         type: choice
@@ -161,9 +175,11 @@ jobs:
               raise SystemExit('Wait for these runs to finish before retrying: ' + ', '.join(conflicts))
           PYCHECK
 
-      - name: Run reporting scale test
+      - name: Verify creation with fetching paused, then verify fulfillment
         id: run-test
         env:
+          REPORTING_SCALE_REUSE_PAUSED_FETCHER: ${{ inputs.reuse-paused-fetcher }}
+          REPORTING_SCALE_EDP_TLS_NAMES: ${{ inputs.edp-tls-names }}
           REPORTING_SCALE_REPORT_DAYS: ${{ inputs.report-days }}
           REPORTING_SCALE_REPORT_START: ${{ inputs.report-start }}
           REPORTING_SCALE_EVENT_GROUP_REFERENCE_IDS: ${{ inputs.event-group-reference-ids }}
@@ -177,52 +193,15 @@ jobs:
           REPORTING_SCALE_DEADLINE_SECONDS: ${{ inputs.create-deadline-seconds }}
           REPORTING_SCALE_SEED: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          bazel test \
-            --config=ci \
-            --test_output=streamed \
-            --test_timeout=21000 \
-            --test_env=MC_NAME \
-            --test_env=MC_API_KEY \
-            --test_env=KINGDOM_PUBLIC_API_TARGET \
-            --test_env=REPORTING_PUBLIC_API_TARGET \
-            --test_env=ACCESS_PUBLIC_API_TARGET \
-            --test_env=REPORTING_SERVICE_ENDPOINT \
-            --test_env=REPORTING_TOKEN_AUDIENCE \
-            --test_env=HIGH_OVERLAP_MODEL_LINE \
-            --test_env=REPORTING_SCALE_REPORT_DAYS \
-            --test_env=REPORTING_SCALE_REPORT_START \
-            --test_env=REPORTING_SCALE_EVENT_GROUP_REFERENCE_IDS \
-            --test_env=REPORTING_SCALE_MODEL_LINE \
-            --test_env=REPORTING_SCALE_DEMOGRAPHIC_FIELDS \
-            --test_env=REPORTING_SCALE_STATE_COUNTS \
-            --test_env=REPORTING_SCALE_FILTER_IDS \
-            --test_env=REPORTING_SCALE_REPETITIONS \
-            --test_env=REPORTING_SCALE_FULFILLMENT_TIMEOUT_SECONDS \
-            --test_env=REPORTING_SCALE_DEADLINE_SECONDS \
-            --test_env=REPORTING_SCALE_SEED \
-            //src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingScaleTest
+          python3 .github/scripts/run_reporting_scale_test.py
 
       - name: Summarize reporting scale results
         if: always()
         run: |
           python3 - <<'PY'
-          import json, os, pathlib, shutil, zipfile
-          logs = pathlib.Path('bazel-testlogs/src/test/kotlin/org/wfanet/measurement/integration/k8s/ReportingScaleTest')
+          import json, os, pathlib
           output = pathlib.Path('reporting-scale-results')
           output.mkdir(exist_ok=True)
-          undeclared = logs / 'test.outputs'
-          archive = undeclared / 'outputs.zip'
-          if archive.exists():
-              with zipfile.ZipFile(archive) as source:
-                  source.extractall(output)
-          elif undeclared.exists():
-              for source in undeclared.rglob('*'):
-                  if source.is_file():
-                      destination = output / source.relative_to(undeclared)
-                      destination.parent.mkdir(parents=True, exist_ok=True)
-                      shutil.copyfile(source, destination)
-          if (logs / 'test.log').exists():
-              shutil.copy(logs / 'test.log', output / 'test.log')
           summary = output / 'summary.json'
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as target:
               target.write('## Reporting scale test\n\n')
@@ -234,6 +213,9 @@ jobs:
                       target.write(f"| {row['state_count']} | {row['report_days']} | {demographics} | {row.get('create_ms', '')} | {row.get('create_http_status', '')} | {row.get('state', row.get('after_failure_state', ''))} | {row.get('metric_count', '')} | {row.get('measurement_count', '')} | {row.get('requisitions_per_data_provider', '')} | {row.get('outcome', '')} |\n")
               else:
                   target.write('No summary was produced. Inspect the test log for setup or build failures.\n')
+              fetcher = output / 'fetcher-state.json'
+              if fetcher.exists():
+                  target.write('\nFetcher scheduler: **' + json.loads(fetcher.read_text())['state'] + '**\n')
           PY
 
       - name: Upload reporting scale results

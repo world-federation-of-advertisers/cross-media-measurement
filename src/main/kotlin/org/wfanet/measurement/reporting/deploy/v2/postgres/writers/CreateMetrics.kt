@@ -22,6 +22,8 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import java.util.concurrent.TimeUnit
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
@@ -112,8 +114,9 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
   override suspend fun TransactionScope.runTransaction(): List<Metric> {
     val cmmsMeasurementConsumerId = requests[0].metric.cmmsMeasurementConsumerId
     val measurementConsumerId =
-      (MeasurementConsumerReader(transactionContext).getByCmmsId(cmmsMeasurementConsumerId)
-          ?: throw MeasurementConsumerNotFoundException(cmmsMeasurementConsumerId))
+      (logPhase("read_measurement_consumer") {
+          MeasurementConsumerReader(transactionContext).getByCmmsId(cmmsMeasurementConsumerId)
+        } ?: throw MeasurementConsumerNotFoundException(cmmsMeasurementConsumerId))
         .measurementConsumerId
 
     // Request IDs take precedence
@@ -121,10 +124,12 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
       requests.mapNotNull { it.requestId.ifBlank { null } }.distinct()
 
     val existingMetricsMap =
-      MetricReader(transactionContext)
-        .readMetricsByRequestId(measurementConsumerId, createMetricRequestIds)
-        .toList()
-        .associateBy({ it.createMetricRequestId }, { it.metric })
+      logPhase("read_existing_metrics") {
+        MetricReader(transactionContext)
+          .readMetricsByRequestId(measurementConsumerId, createMetricRequestIds)
+          .toList()
+          .associateBy({ it.createMetricRequestId }, { it.metric })
+      }
 
     val externalIdsSet: Set<String> =
       requests
@@ -139,7 +144,11 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
 
     // Existence-only check: avoids the ReportingSets/Measurements/etc join that
     // batchGetMetrics() pays for, since only presence -- not the matched rows -- is needed here.
-    if (MetricReader(transactionContext).metricsExist(measurementConsumerId, externalIdsSet)) {
+    if (
+      logPhase("check_external_ids") {
+        MetricReader(transactionContext).metricsExist(measurementConsumerId, externalIdsSet)
+      }
+    ) {
       // If there is any metric found, it means there are metrics already existing with different
       // request IDs or without request IDs.
       throw MetricAlreadyExistsException()
@@ -159,10 +168,12 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     }
 
     val reportingSetMap: Map<String, InternalId> =
-      ReportingSetReader(transactionContext)
-        .readIds(measurementConsumerId, externalReportingSetIds)
-        .toList()
-        .associateBy({ it.externalReportingSetId }, { it.reportingSetId })
+      logPhase("read_reporting_set_ids") {
+        ReportingSetReader(transactionContext)
+          .readIds(measurementConsumerId, externalReportingSetIds)
+          .toList()
+          .associateBy({ it.externalReportingSetId }, { it.reportingSetId })
+      }
 
     for (externalReportingSetId in externalReportingSetIds) {
       if (!reportingSetMap.containsKey(externalReportingSetId)) {
@@ -170,6 +181,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
       }
     }
 
+    val preparationStarted = System.nanoTime()
     val metrics = mutableListOf<Metric>()
 
     val metricCalculationSpecReportingMetricsValuesList =
@@ -630,23 +642,52 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         }
       }
 
+    logElapsed("prepare_rows", preparationStarted)
     if (existingMetricsMap.size < requests.size) {
       transactionContext.run {
-        executeStatement(statement)
+        logPhase("insert_metrics") { executeStatement(statement) }
         if (metricCalculationSpecReportingMetricsValuesList.isNotEmpty()) {
-          executeStatement(metricCalculationSpecReportingMetricsStatement)
+          logPhase("link_report_metrics") {
+            executeStatement(metricCalculationSpecReportingMetricsStatement)
+          }
         }
-        measurementsStatements.forEach { executeStatement(it) }
-        metricMeasurementsStatements.forEach { executeStatement(it) }
-        primitiveReportingSetBasesStatements.forEach { executeStatement(it) }
+        logPhase("insert_measurements") { measurementsStatements.forEach { executeStatement(it) } }
+        logPhase("link_metric_measurements") {
+          metricMeasurementsStatements.forEach { executeStatement(it) }
+        }
+        logPhase("insert_primitive_bases") {
+          primitiveReportingSetBasesStatements.forEach { executeStatement(it) }
+        }
         if (primitiveReportingSetBasisFiltersValuesList.isNotEmpty()) {
-          primitiveReportingSetBasisFiltersStatements.forEach { executeStatement(it) }
+          logPhase("insert_basis_filters") {
+            primitiveReportingSetBasisFiltersStatements.forEach { executeStatement(it) }
+          }
         }
-        measurementPrimitiveReportingSetBasesStatements.forEach { executeStatement(it) }
+        logPhase("link_measurement_bases") {
+          measurementPrimitiveReportingSetBasesStatements.forEach { executeStatement(it) }
+        }
       }
     }
 
     return metrics
+  }
+
+  /** Records phase timings without formatting potentially large protobuf payloads. */
+  private suspend fun <T> logPhase(phase: String, block: suspend () -> T): T {
+    val started = System.nanoTime()
+    try {
+      return block()
+    } finally {
+      logElapsed(phase, started)
+    }
+  }
+
+  private fun logElapsed(phase: String, started: Long) {
+    if (requests.size >= 100) {
+      logger.info(
+        "CreateMetrics phase=$phase metrics=${requests.size} report=${requests[0].metric.details.containingReport} elapsed_ms=${TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)}"
+      )
+    }
   }
 
   private fun TransactionScope.createWeightedMeasurementsInsertData(
@@ -769,6 +810,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
   }
 
   companion object {
+    private val logger = Logger.getLogger(CreateMetrics::class.java.name)
     // A metric can expand to many related rows; bound each INSERT in the same transaction.
     private const val INSERT_BATCH_SIZE = 1000
   }
