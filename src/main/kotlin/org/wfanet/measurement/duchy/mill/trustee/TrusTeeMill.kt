@@ -43,6 +43,7 @@ import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeReachAndFreque
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeReachParams
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -70,6 +71,7 @@ class TrusTeeMill(
   systemComputationLogEntriesClient: ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub,
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
   workLockDuration: Duration,
+  private val initializationPriorityBurstSize: Int,
   private val trusTeeProcessorFactory: TrusTeeProcessor.Factory,
   private val gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
   private val gcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
@@ -97,7 +99,25 @@ class TrusTeeMill(
     clock = clock,
   ) {
 
+  init {
+    require(initializationPriorityBurstSize > 0) {
+      "Initialization priority burst size must be positive"
+    }
+  }
+
+  private var initializationPriorityClaims = 0
+
   override val endingStage = Stage.COMPLETE.toProtocolStage()
+
+  override fun prioritizedStagesForClaim(): List<ComputationStage> {
+    // Periodically prefer ready computations so new initialization work cannot monopolize claims.
+    if (initializationPriorityClaims == initializationPriorityBurstSize) {
+      initializationPriorityClaims = 0
+      return listOf(Stage.COMPUTING.toProtocolStage())
+    }
+    initializationPriorityClaims++
+    return listOf(Stage.INITIALIZED.toProtocolStage())
+  }
 
   override suspend fun processComputationImpl(token: ComputationToken) {
     require(token.computationDetails.hasTrusTee()) {

@@ -220,7 +220,7 @@ class TrusTeeMillTest {
     ComputationStatsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private fun createMill(): TrusTeeMill {
+  private fun createMill(initializationPriorityBurstSize: Int): TrusTeeMill {
     val csCertificate = Certificate(DUCHY_CERT_NAME, DUCHY_SIGNING_CERT)
 
     return TrusTeeMill(
@@ -234,6 +234,7 @@ class TrusTeeMillTest {
       systemComputationLogEntriesClient = systemComputationLogEntriesStub,
       computationStatsClient = computationStatsStub,
       workLockDuration = Duration.ofMinutes(5),
+      initializationPriorityBurstSize = initializationPriorityBurstSize,
       trusTeeProcessorFactory = mockProcessorFactory,
       gcloudKmsClientFactory = mockGcloudKmsClientFactory,
       gcloudToAwsKmsClientFactory = mockGcloudToAwsKmsClientFactory,
@@ -346,12 +347,107 @@ class TrusTeeMillTest {
       computationDetails = COMPUTATION_DETAILS,
       requisitions = REQUISITIONS,
     )
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     assertThat(fakeComputationDb[2]!!.computationStage)
       .isEqualTo(Stage.WAIT_TO_START.toProtocolStage())
     assertThat(fakeComputationDb[1]!!.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+  }
+
+  @Test
+  fun `claimAndProcessWork prioritizes computation after the initialization burst`() = runBlocking {
+    writeRequisitionData()
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = COMPUTATION_DETAILS,
+      requisitions = REQUISITIONS,
+    )
+    for (localId in 1L..4L) {
+      fakeComputationDb.addComputation(
+        localId,
+        Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = REQUISITIONS,
+      )
+    }
+    val mill = createMill(initializationPriorityBurstSize = 3)
+
+    repeat(3) { assertThat(mill.claimAndProcessWork()).isTrue() }
+
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
+      .isEqualTo(Stage.COMPUTING.toProtocolStage())
+    assertThat(fakeComputationDb[4]!!.computationStage)
+      .isEqualTo(Stage.INITIALIZED.toProtocolStage())
+
+    assertThat(mill.claimAndProcessWork()).isTrue()
+
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
+      .isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+    assertThat(fakeComputationDb[4]!!.computationStage)
+      .isEqualTo(Stage.INITIALIZED.toProtocolStage())
+
+    assertThat(mill.claimAndProcessWork()).isTrue()
+
+    assertThat(fakeComputationDb[4]!!.computationStage)
+      .isEqualTo(Stage.WAIT_TO_START.toProtocolStage())
+  }
+
+  @Test
+  fun `claimAndProcessWork honors a shorter initialization burst`() = runBlocking {
+    writeRequisitionData()
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = COMPUTATION_DETAILS,
+      requisitions = REQUISITIONS,
+    )
+    for (localId in 1L..2L) {
+      fakeComputationDb.addComputation(
+        localId,
+        Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = REQUISITIONS,
+      )
+    }
+    val mill = createMill(initializationPriorityBurstSize = 1)
+
+    mill.claimAndProcessWork()
+    mill.claimAndProcessWork()
+
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
+      .isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(fakeComputationDb[2]!!.computationStage)
+      .isEqualTo(Stage.INITIALIZED.toProtocolStage())
+  }
+
+  @Test
+  fun `claimAndProcessWork falls back to initialization when no computation is ready`() =
+    runBlocking {
+      val mill = createMill(initializationPriorityBurstSize = 1)
+      assertThat(mill.claimAndProcessWork()).isFalse()
+      fakeComputationDb.addComputation(
+        LOCAL_ID,
+        Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = REQUISITIONS,
+      )
+
+      assertThat(mill.claimAndProcessWork()).isTrue()
+
+      assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
+        .isEqualTo(Stage.WAIT_TO_START.toProtocolStage())
+    }
+
+  @Test
+  fun `constructor rejects nonpositive initialization priority burst sizes`() {
+    assertFailsWith<IllegalArgumentException> { createMill(initializationPriorityBurstSize = 0) }
+    assertFailsWith<IllegalArgumentException> { createMill(initializationPriorityBurstSize = -1) }
   }
 
   @Test
@@ -371,7 +467,7 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     assertThat(fakeComputationDb[LOCAL_ID])
@@ -422,7 +518,7 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     assertThat(fakeComputationDb[LOCAL_ID])
@@ -465,7 +561,7 @@ class TrusTeeMillTest {
         )
         .buildAndRegisterGlobal()
     try {
-      val mill = createMill()
+      val mill = createMill(initializationPriorityBurstSize = 3)
       val lifecycleFields = captureReportTraceLifecycleFields { mill.claimAndProcessWork() }
 
       val finalToken = fakeComputationDb[LOCAL_ID]!!
@@ -548,7 +644,7 @@ class TrusTeeMillTest {
     whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
     whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
 
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
@@ -576,7 +672,7 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS, // Includes the one with missing data
     )
 
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
@@ -603,7 +699,7 @@ class TrusTeeMillTest {
       throw GeneralSecurityException("KMS client creation failed for test")
     }
 
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
@@ -631,7 +727,7 @@ class TrusTeeMillTest {
     whenever(mockGcloudKmsClientFactory.getKmsClient(any<GCloudWifCredentials>()))
       .thenReturn(incompleteKmsClient)
 
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     // The attempt fails and the computation is enqueued
@@ -661,7 +757,7 @@ class TrusTeeMillTest {
     whenever(mockGcloudKmsClientFactory.getKmsClient(any<GCloudWifCredentials>()))
       .thenReturn(inaccessibleKmsClient)
 
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
@@ -698,7 +794,7 @@ class TrusTeeMillTest {
       requisitions = listOf(corruptedRequisition1, REQUISITION_2, REQUISITION_3),
     )
 
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
@@ -727,7 +823,7 @@ class TrusTeeMillTest {
     whenever(mockGcloudKmsClientFactory.getKmsClient(any<GCloudWifCredentials>()))
       .thenReturn(transientErrorKmsClient)
 
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
@@ -757,7 +853,7 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
@@ -801,7 +897,7 @@ class TrusTeeMillTest {
       )
 
     try {
-      val mill = createMill()
+      val mill = createMill(initializationPriorityBurstSize = 3)
       val lifecycleFields = captureReportTraceLifecycleFields { mill.claimAndProcessWork() }
 
       val finalToken = fakeComputationDb[LOCAL_ID]!!
@@ -871,7 +967,7 @@ class TrusTeeMillTest {
           )
           .buildAndRegisterGlobal()
       try {
-        val mill = createMill()
+        val mill = createMill(initializationPriorityBurstSize = 3)
 
         val lifecycleFields = captureReportTraceLifecycleFields {
           assertFailsWith<CancellationException> { mill.claimAndProcessWork() }
@@ -947,7 +1043,7 @@ class TrusTeeMillTest {
       requisitions = REQUISITIONS,
     )
 
-    val mill = createMill()
+    val mill = createMill(initializationPriorityBurstSize = 3)
     mill.claimAndProcessWork()
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
@@ -1005,7 +1101,7 @@ class TrusTeeMillTest {
         requisitions = REQUISITIONS,
       )
 
-      val mill = createMill()
+      val mill = createMill(initializationPriorityBurstSize = 3)
       mill.claimAndProcessWork()
 
       val finalToken = fakeComputationDb[LOCAL_ID]!!

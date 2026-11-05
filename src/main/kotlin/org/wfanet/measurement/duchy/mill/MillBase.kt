@@ -223,6 +223,10 @@ abstract class MillBase(
 
   private var computationsServerReady = false
 
+  /** Stages to prioritize in the next work claim. */
+  protected open fun prioritizedStagesForClaim(): List<ComputationStage> =
+    computationType.prioritizedStages
+
   /**
    * Claim the next available work item and process it.
    *
@@ -235,7 +239,7 @@ abstract class MillBase(
       computationType = this@MillBase.computationType
       owner = millId
       lockDuration = workLockDuration.toProtoDuration()
-      prioritizedStages += this@MillBase.computationType.prioritizedStages
+      prioritizedStages += prioritizedStagesForClaim()
     }
     val claimWorkResponse =
       try {

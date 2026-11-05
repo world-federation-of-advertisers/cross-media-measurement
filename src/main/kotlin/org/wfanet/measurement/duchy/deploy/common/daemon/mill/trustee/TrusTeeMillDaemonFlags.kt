@@ -46,8 +46,19 @@ class TrusTeeMillFlags : MillFlags() {
   @CommandLine.Option(
     names = ["--polling-interval"],
     defaultValue = "2s",
-    description = ["How long to sleep before polling the computation queue again if it is empty."],
+    description = ["How long to wait after an empty work claim or an error before polling again."],
   )
   lateinit var pollingInterval: Duration
+    private set
+
+  @CommandLine.Option(
+    names = ["--initialization-priority-burst-size"],
+    defaultValue = "3",
+    description =
+      [
+        "Number of work claims prioritizing initialization before one claim prioritizing computation."
+      ],
+  )
+  var initializationPriorityBurstSize: Int = 0
     private set
 }
