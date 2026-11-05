@@ -16,6 +16,10 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.Statement
+import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -28,5 +32,30 @@ class EdpAggregatorSchemaTest : UsingSpannerEmulator(Schemata.EDP_AGGREGATOR_CHA
   @Test
   fun `database is created`() {
     // No-op. Just ensure that DB is created by test infra.
+  }
+
+  @Test
+  fun `correction candidate proto can be queried`() = runBlocking {
+    val row =
+      databaseClient.singleUse().use { txn ->
+        txn
+          .executeQuery(
+            Statement.of(
+              """
+              SELECT CAST(candidate.decision AS INT64) AS Decision
+              FROM (
+                SELECT CAST(
+                  'decision: DECISION_APPLY_CANDIDATE'
+                  AS `wfa.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate`
+                ) AS candidate
+              )
+              """
+                .trimIndent()
+            )
+          )
+          .single()
+      }
+
+    assertThat(row.getLong("Decision")).isEqualTo(1L)
   }
 }
