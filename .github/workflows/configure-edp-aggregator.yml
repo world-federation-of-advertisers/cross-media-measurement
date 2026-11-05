@@ -222,9 +222,9 @@ jobs:
         done
 
     - name: Collect rollout diagnostics
-      id: rollout-diagnostics
       if: ${{ failure() && inputs.apply && (steps.kubectl-apply.outcome == 'failure' || steps.wait-rollout.outcome == 'failure') }}
       continue-on-error: true
+      timeout-minutes: 5
       run: >
         python3 .github/workflows/scripts/k8s_rollout_diagnostics.py
         --selector=app.kubernetes.io/component=edp-aggregator
