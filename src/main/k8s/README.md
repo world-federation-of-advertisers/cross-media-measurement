@@ -42,14 +42,10 @@ kubectl delete pods,jobs,services,deployments,networkpolicies,ingresses \
   --selector=app.kubernetes.io/part-of=halo-cmms,app.kubernetes.io/component=kingdom
 ```
 
-## EDP Aggregator schema migration recovery
+## EDP Aggregator schema migrations
 
-The internal API deployment runs schema migrations in the
-`update-edp-aggregator-schema` init container. A failed migration prevents the
-replacement API pod from starting. Inspect that container's current and previous
-logs before retrying a rollout.
-
-If changeset 17 fails because a correction-candidate type is missing from the
-proto bundle, deploy an image containing the corrected migration. When using
-Update CMMS, rerun the complete workflow with that image so worker activation
-can finish after the API rollout succeeds.
+The internal API deployment applies database migrations in the
+`update-edp-aggregator-schema` init container before the API process starts.
+When a rollout stalls, inspect that container's current and previous logs.
+After correcting the cause, resume the rollout through its deployment workflow
+so the remaining service updates and worker activation steps can finish.
