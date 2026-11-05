@@ -1,0 +1,179 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Run Reporting Scale Test
+run-name: Run Reporting Scale Test [${{ inputs.environment }}]
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      weeks:
+        type: number
+        default: 13
+      state-counts:
+        type: string
+        default: "0,50"
+      qualification-filters:
+        type: string
+        default: "ami,mrc"
+      repetitions:
+        type: number
+        default: 1
+      create-deadline-seconds:
+        type: number
+        default: 60
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub-managed environment with the high overlap dataset seeded"
+        type: choice
+        required: true
+        options: [dev, head, qa]
+      weeks:
+        description: "Report duration in weeks (1–13)"
+        type: number
+        default: 13
+      state-counts:
+        description: "Comma-separated counts: 0 is unsegmented; 51 is native grouping including DC"
+        type: string
+        default: "0,50"
+      qualification-filters:
+        description: "ami,mrc; use ami or mrc to isolate a failure"
+        type: string
+        default: "ami,mrc"
+      repetitions:
+        description: "Fresh reports to create at each state count (1–10)"
+        type: number
+        default: 1
+      create-deadline-seconds:
+        description: "HTTP request deadline (1–600 seconds)"
+        type: number
+        default: 60
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reporting-scale-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  run-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Load CMMS environment configuration
+        uses: ./.github/actions/load-cmms-environment
+        id: cmms-config
+        with:
+          environment: ${{ inputs.environment }}
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Run reporting scale test
+        id: run-test
+        env:
+          REPORTING_SCALE_WEEKS: ${{ inputs.weeks }}
+          REPORTING_SCALE_STATE_COUNTS: ${{ inputs.state-counts }}
+          REPORTING_SCALE_FILTER_IDS: ${{ inputs.qualification-filters }}
+          REPORTING_SCALE_REPETITIONS: ${{ inputs.repetitions }}
+          REPORTING_SCALE_DEADLINE_SECONDS: ${{ inputs.create-deadline-seconds }}
+          REPORTING_SCALE_SEED: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          bazel test \
+            --config=ci \
+            --test_output=streamed \
+            --test_timeout=2100 \
+            --test_env=MC_NAME \
+            --test_env=REPORTING_PUBLIC_API_TARGET \
+            --test_env=ACCESS_PUBLIC_API_TARGET \
+            --test_env=REPORTING_SERVICE_ENDPOINT \
+            --test_env=REPORTING_TOKEN_AUDIENCE \
+            --test_env=HIGH_OVERLAP_MODEL_LINE \
+            --test_env=REPORTING_SCALE_WEEKS \
+            --test_env=REPORTING_SCALE_STATE_COUNTS \
+            --test_env=REPORTING_SCALE_FILTER_IDS \
+            --test_env=REPORTING_SCALE_REPETITIONS \
+            --test_env=REPORTING_SCALE_DEADLINE_SECONDS \
+            --test_env=REPORTING_SCALE_SEED \
+            //src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingScaleTest
+
+      - name: Summarize reporting scale results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, shutil, zipfile
+          logs = pathlib.Path('bazel-testlogs/src/test/kotlin/org/wfanet/measurement/integration/k8s/ReportingScaleTest')
+          output = pathlib.Path('reporting-scale-results')
+          output.mkdir(exist_ok=True)
+          undeclared = logs / 'test.outputs'
+          archive = undeclared / 'outputs.zip'
+          if archive.exists():
+              with zipfile.ZipFile(archive) as source:
+                  source.extractall(output)
+          elif undeclared.exists():
+              for source in undeclared.rglob('*'):
+                  if source.is_file():
+                      destination = output / source.relative_to(undeclared)
+                      destination.parent.mkdir(parents=True, exist_ok=True)
+                      shutil.copyfile(source, destination)
+          if (logs / 'test.log').exists():
+              shutil.copy(logs / 'test.log', output / 'test.log')
+          summary = output / 'summary.json'
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as target:
+              target.write('## Reporting creation scale test\n\n')
+              if summary.exists():
+                  target.write('| States | Weeks | Create (ms) | HTTP | Readback state | Outcome |\n')
+                  target.write('|---:|---:|---:|---:|---|---|\n')
+                  for row in json.loads(summary.read_text()):
+                      target.write(f"| {row['state_count']} | {row['weeks']} | {row.get('create_ms', '')} | {row.get('create_http_status', '')} | {row.get('state', row.get('after_failure_state', ''))} | {row.get('outcome', '')} |\n")
+              else:
+                  target.write('No creation summary was produced. Inspect the test log for setup or build failures.\n')
+          PY
+
+      - name: Upload reporting scale results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reporting-scale-${{ inputs.environment }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reporting-scale-results
+
+      - name: Upload Bazel testlogs
+        if: failure() && steps.run-test.outcome == 'failure'
+        continue-on-error: true
+        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0

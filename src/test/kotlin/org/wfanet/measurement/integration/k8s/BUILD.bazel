@@ -12,6 +12,46 @@ load(
 package(default_testonly = True)
 
 kt_jvm_library(
+    name = "reporting_scale_test",
+    srcs = ["ReportingScaleTest.kt"],
+    deps = [
+        ":abstract_correctness_test",
+        "//imports/java/okhttp3",
+        "//imports/java/okhttp3/tls",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/reporting/testing:reporting_scale_test_data",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_set_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/devtools/build/runfiles",
+        "@wfa_common_jvm//imports/java/com/google/gson",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_test(
+    name = "ReportingScaleTest",
+    timeout = "long",
+    tags = [
+        "exclusive",
+        "external",
+        "manual",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.k8s.ReportingScaleTest",
+    runtime_deps = [":reporting_scale_test"],
+)
+
+kt_jvm_library(
     name = "abstract_correctness_test",
     srcs = ["AbstractCorrectnessTest.kt"],
     data = [
