@@ -132,6 +132,46 @@ class RolloutDiagnosticsTest(unittest.TestCase):
         self.assertEqual([event["reason"] for event in events], ["FailedCreate"])
         self.assertFalse(any("logs" in command for command in commands))
 
+    def test_main_normalizes_legacy_and_preferred_events_in_observation_order(self):
+        data = self.fixture()
+        data["events"] = [
+            {
+                "apiVersion": "events.k8s.io/v1",
+                "regarding": {"uid": "rs-1"}, "type": "Warning",
+                "reason": "FailedCreate", "note": "quota",
+                "eventTime": "2026-11-05T01:02:00Z",
+                "series": {"count": 5, "lastObservedTime": "2026-11-05T01:04:00Z"},
+            },
+            {
+                "apiVersion": "events.k8s.io/v1",
+                "regarding": {"uid": "pod-1"}, "type": "Warning",
+                "reason": "BackOff", "note": "schema retry",
+                "eventTime": "2026-11-05T01:03:00Z", "deprecatedCount": 2,
+            },
+            {
+                "apiVersion": "v1",
+                "involvedObject": {"uid": "pod-1"}, "type": "Normal",
+                "reason": "Scheduled", "message": "assigned", "count": 1,
+                "lastTimestamp": "2026-11-05T01:01:00Z",
+            },
+            {
+                "apiVersion": "events.k8s.io/v1",
+                "regarding": {"uid": "unrelated"}, "note": "UNRELATED_EVENT",
+                "eventTime": "2026-11-05T01:05:00Z",
+            },
+        ]
+        result, output, _, _ = self.invoke(data)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        events = json.loads((output / "status.json").read_text())["events"]
+        self.assertEqual([event["reason"] for event in events], ["Scheduled", "BackOff", "FailedCreate"])
+        self.assertEqual([event["message"] for event in events], ["assigned", "schema retry", "quota"])
+        self.assertEqual([event["count"] for event in events], [1, 2, 5])
+        self.assertEqual(
+            [event["lastTimestamp"] for event in events],
+            ["2026-11-05T01:01:00Z", "2026-11-05T01:03:00Z", "2026-11-05T01:04:00Z"],
+        )
+        self.assertEqual([event["involvedObject"]["uid"] for event in events], ["pod-1", "pod-1", "rs-1"])
+
     def test_main_skips_completed_init_container(self):
         data = self.fixture()
         container = data["pods"][0]["status"]["initContainerStatuses"][0]
