@@ -122,16 +122,26 @@ def main():
                     kubectl(arguments + ["--previous"], args.output_dir / (prefix + "-previous.log"))
 
     events = kubectl(["get", "events", "-o", "json"], None) if object_uids else None
-    matching_events = [
-        event for event in (events or {}).get("items", [])
-        if event.get("involvedObject", {}).get("uid") in object_uids
-    ]
-    matching_events.sort(key=lambda event: event.get("lastTimestamp") or event.get("metadata", {}).get("creationTimestamp", ""))
-    for event in matching_events[-100:]:
-        status["events"].append({
-            key: event.get(key) for key in
-            ("involvedObject", "type", "reason", "message", "count", "lastTimestamp")
+    matching_events = []
+    for event in (events or {}).get("items", []):
+        involved_object = event.get("involvedObject") or event.get("regarding") or {}
+        if involved_object.get("uid") not in object_uids:
+            continue
+        series = event.get("series") or {}
+        matching_events.append({
+            "involvedObject": involved_object,
+            "type": event.get("type"),
+            "reason": event.get("reason"),
+            "message": event.get("message") or event.get("note"),
+            "count": series.get("count", event.get("count", event.get("deprecatedCount"))),
+            "lastTimestamp": (
+                series.get("lastObservedTime") or event.get("lastTimestamp")
+                or event.get("deprecatedLastTimestamp") or event.get("eventTime")
+                or event.get("metadata", {}).get("creationTimestamp", "")
+            ),
         })
+    matching_events.sort(key=lambda event: event["lastTimestamp"])
+    status["events"] = matching_events[-100:]
 
     (args.output_dir / "status.json").write_text(json.dumps(status, indent=2) + "\n")
     (args.output_dir / "errors.json").write_text(json.dumps(errors, indent=2) + "\n")
