@@ -22,8 +22,8 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
@@ -88,7 +88,7 @@ class SingleRequisitionGrouper(
    * requisition's spec or event groups cannot be resolved.
    */
   suspend fun groupSingle(requisition: Requisition, groupId: String): GroupedRequisitions? {
-    val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
+    val measurementSpec: MeasurementSpec = RequisitionSpecs.readMeasurementSpec(requisition)
     val spec =
       try {
         requisitionValidator.validateRequisitionSpec(requisition)
