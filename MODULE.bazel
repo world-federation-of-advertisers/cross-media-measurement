@@ -42,6 +42,15 @@ bazel_dep(
     version = "0.160.0",
     repo_name = "wfa_common_jvm",
 )
+
+# TODO(world-federation-of-advertisers/cross-media-measurement#4819): Use the common-jvm release that
+# includes MaximumRateThrottler instead of this override.
+git_override(
+    module_name = "common-jvm",
+    commit = "f49edfd3df820f9a35393ce1a4c1666dc75ef9e2",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",
