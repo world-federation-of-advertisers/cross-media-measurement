@@ -46,9 +46,12 @@ import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncReplay
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityBackfill
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobUri
@@ -149,7 +152,7 @@ class ReplayDataAvailabilitySync : Runnable {
   @set:Option(
     names = ["--impression-metadata-batch-size"],
     description = ["Maximum ImpressionMetadata resources per list or write request"],
-    defaultValue = "1000",
+    defaultValue = "100",
   )
   private var impressionMetadataBatchSize: Int by Delegates.notNull()
 
@@ -170,22 +173,20 @@ class ReplayDataAvailabilitySync : Runnable {
     require(storageConfig.bucketName.isNotEmpty()) { "GCS bucket_name must be set" }
     val selection = buildReplaySelection(config.edpImpressionPath, storageConfig.bucketName)
     val storageApiEndpoint = storageApiEndpoint
-    val storageClient =
-      GcsStorageClient(
-        StorageOptions.newBuilder()
-          .apply {
-            if (storageConfig.projectId.isNotEmpty()) {
-              setProjectId(storageConfig.projectId)
-            }
-            if (storageApiEndpoint != null) {
-              setHost(storageApiEndpoint)
-              setCredentials(NoCredentials.getInstance())
-            }
+    val storage =
+      StorageOptions.newBuilder()
+        .apply {
+          if (storageConfig.projectId.isNotEmpty()) {
+            setProjectId(storageConfig.projectId)
           }
-          .build()
-          .service,
-        storageConfig.bucketName,
-      )
+          if (storageApiEndpoint != null) {
+            setHost(storageApiEndpoint)
+            setCredentials(NoCredentials.getInstance())
+          }
+        }
+        .build()
+        .service
+    val storageClient = GcsStorageClient(storage, storageConfig.bucketName)
     val kingdomChannel =
       buildChannel(config.cmmsConnection, kingdomPublicApiTarget, kingdomPublicApiCertHost)
     val impressionMetadataChannel =
@@ -197,11 +198,13 @@ class ReplayDataAvailabilitySync : Runnable {
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
     val instrumentedKingdomChannel =
       ClientInterceptors.intercept(kingdomChannel, grpcTelemetry.newClientInterceptor())
-    val impressionMetadataStub =
-      ImpressionMetadataServiceCoroutineStub(
-        ClientInterceptors.intercept(
-          impressionMetadataChannel,
-          grpcTelemetry.newClientInterceptor(),
+    val instrumentedMetadataChannel =
+      ClientInterceptors.intercept(impressionMetadataChannel, grpcTelemetry.newClientInterceptor())
+    val impressionMetadataStub = ImpressionMetadataServiceCoroutineStub(instrumentedMetadataChannel)
+    val leaseRunner =
+      DataAvailabilitySyncLeaseRunner(
+        GrpcDataAvailabilitySyncLeaseClient(
+          DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedMetadataChannel)
         )
       )
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
@@ -255,7 +258,17 @@ class ReplayDataAvailabilitySync : Runnable {
                   storageClient = storageClient,
                   storageRootUri = storageRootUri,
                   selection = selection,
-                  sync = dataAvailabilitySync::sync,
+                  sync = { doneBlobUri ->
+                    leaseRunner.run(config.dataProvider) { lease ->
+                      dataAvailabilitySync.sync(
+                        doneBlobPath = doneBlobUri,
+                        dataAvailabilitySyncLease = lease.name,
+                        doneBlobGeneration =
+                          DoneBlobGenerationResolver.resolve(storage, doneBlobUri),
+                        ensureLeaseActive = lease::invoke,
+                      )
+                    }
+                  },
                 )
                 .replay()
             }

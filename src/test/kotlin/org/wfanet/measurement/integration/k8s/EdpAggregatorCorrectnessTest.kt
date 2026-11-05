@@ -498,7 +498,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
                 .GET()
                 .build()
             val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-            check(response.statusCode() == 200)
+            check(response.statusCode() == 200) {
+              "RequisitionFetcher returned HTTP ${response.statusCode()}: ${response.body()}"
+            }
 
             areRequisitionsReady =
               storageClient

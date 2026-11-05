@@ -65,4 +65,6 @@ message WorkItemAttempt {
   // is renewed.
   google.protobuf.Timestamp lease_expiration_time = 8
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  int64 work_item_generation = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

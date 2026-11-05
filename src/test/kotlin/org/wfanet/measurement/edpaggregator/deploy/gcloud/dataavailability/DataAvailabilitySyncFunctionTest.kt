@@ -28,6 +28,7 @@ import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
 import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
+import io.grpc.Status
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
 import java.net.URI
@@ -38,6 +39,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.Collections
 import java.util.logging.Logger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -50,6 +52,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -68,16 +71,23 @@ import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLease
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RenewDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ValidateDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
@@ -90,6 +100,7 @@ class DataAvailabilitySyncFunctionTest {
   private lateinit var grpcServer: CommonServer
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
 
+  @Volatile private var batchCreateStatus: Status? = null
   private val capturedTraceparentHeaders = Collections.synchronizedList(mutableListOf<String>())
   private val capturedGrpcTraceBinHeaders = Collections.synchronizedList(mutableListOf<ByteArray>())
   private val traceparentKey = Metadata.Key.of("traceparent", Metadata.ASCII_STRING_MARSHALLER)
@@ -118,6 +129,7 @@ class DataAvailabilitySyncFunctionTest {
         .thenAnswer { listImpressionMetadataResponse {} }
       onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
+          batchCreateStatus?.let { throw it.asException() }
           val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
           batchCreateImpressionMetadataResponse {
             impressionMetadata += request.requestsList.map { it.impressionMetadata }
@@ -137,11 +149,61 @@ class DataAvailabilitySyncFunctionTest {
         }
     }
 
+  private val dataAvailabilitySyncLeaseServiceMock:
+    DataAvailabilitySyncLeaseServiceCoroutineImplBase =
+    mockService {
+      onBlocking {
+          acquireDataAvailabilitySyncLease(any<AcquireDataAvailabilitySyncLeaseRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<AcquireDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.ACTIVE
+            etag = "etag"
+          }
+        }
+      onBlocking { renewDataAvailabilitySyncLease(any<RenewDataAvailabilitySyncLeaseRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<RenewDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.ACTIVE
+            etag = "renewed-etag"
+          }
+        }
+      onBlocking {
+          validateDataAvailabilitySyncLease(any<ValidateDataAvailabilitySyncLeaseRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ValidateDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.ACTIVE
+            etag = request.etag
+          }
+        }
+      onBlocking {
+          releaseDataAvailabilitySyncLease(any<ReleaseDataAvailabilitySyncLeaseRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ReleaseDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.RELEASED
+            etag = "released-etag"
+          }
+        }
+    }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(ServerInterceptors.intercept(dataProvidersServiceMock, metadataCaptureInterceptor))
     addService(
       ServerInterceptors.intercept(impressionMetadataServiceMock, metadataCaptureInterceptor)
+    )
+    addService(
+      ServerInterceptors.intercept(dataAvailabilitySyncLeaseServiceMock, metadataCaptureInterceptor)
     )
   }
 
@@ -149,6 +211,7 @@ class DataAvailabilitySyncFunctionTest {
 
   @Before
   fun startInfra() {
+    batchCreateStatus = null
     capturedTraceparentHeaders.clear()
     capturedGrpcTraceBinHeaders.clear()
     /** Start gRPC server with mock EventGroups service */
@@ -168,6 +231,10 @@ class DataAvailabilitySyncFunctionTest {
                 impressionMetadataServiceMock.bindService(),
                 metadataCaptureInterceptor,
               ),
+              ServerInterceptors.intercept(
+                dataAvailabilitySyncLeaseServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              ),
             ),
         )
         .start()
@@ -181,7 +248,24 @@ class DataAvailabilitySyncFunctionTest {
 
   @After
   fun cleanUp() {
-    grpcServer.shutdown()
+    try {
+      if (::functionProcess.isInitialized) {
+        functionProcess.close()
+      }
+    } finally {
+      if (::grpcServer.isInitialized) {
+        grpcServer.shutdown()
+      }
+    }
+  }
+
+  @Test
+  fun `DataWatcher generation must be present and positive`() {
+    for (value in listOf<String?>(null, "invalid", "0", "-1")) {
+      assertFailsWith<IllegalArgumentException> { parseDataWatcherGeneration(value) }
+    }
+    assertThat(parseDataWatcherGeneration(DONE_BLOB_GENERATION.toString()))
+      .isEqualTo(DONE_BLOB_GENERATION)
   }
 
   @Test
@@ -253,6 +337,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create(url))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
@@ -266,8 +351,56 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
       .contains("some-model-line-mapped")
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    val metadataRequest = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(metadataRequest.capture())
+    }
+    assertThat(
+        metadataRequest.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+      )
+      .isEqualTo(DONE_BLOB_GENERATION)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+    verifyBlocking(dataAvailabilitySyncLeaseServiceMock, times(1)) {
+      acquireDataAvailabilitySyncLease(any())
+    }
+    verifyBlocking(dataAvailabilitySyncLeaseServiceMock, times(1)) {
+      releaseDataAvailabilitySyncLease(any())
+    }
+  }
+
+  @Test
+  fun `service returns service unavailable for DEADLINE_EXCEEDED metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.DEADLINE_EXCEEDED)).isEqualTo(503)
+  }
+
+  @Test
+  fun `service returns service unavailable for UNAVAILABLE metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.UNAVAILABLE)).isEqualTo(503)
+  }
+
+  @Test
+  fun `service returns service unavailable for ABORTED metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.ABORTED)).isEqualTo(503)
+  }
+
+  @Test
+  fun `service returns service unavailable for RESOURCE_EXHAUSTED metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.RESOURCE_EXHAUSTED)).isEqualTo(503)
+  }
+
+  @Test
+  fun `service returns internal server error for PERMISSION_DENIED metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.PERMISSION_DENIED)).isEqualTo(500)
+  }
+
+  @Test
+  fun `service returns internal server error for INTERNAL metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.INTERNAL)).isEqualTo(500)
+  }
+
+  @Test
+  fun `service returns internal server error for UNKNOWN metadata failure`() {
+    assertThat(syncWithMetadataFailure(Status.UNKNOWN)).isEqualTo(500)
   }
 
   @Test
@@ -338,6 +471,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .header("traceparent", traceParentHeader)
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
@@ -446,6 +580,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create(url))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(anyJson))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
@@ -646,6 +781,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
@@ -654,6 +790,74 @@ class DataAvailabilitySyncFunctionTest {
 
     assertThat(response.statusCode()).isEqualTo(200)
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  private fun syncWithMetadataFailure(status: Status): Int {
+    batchCreateStatus = status
+    val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
+    val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"
+    val localMetadataBlobKey = "edp/edp_name/timestamp/metadata.binpb"
+    val localDoneBlobUri = "file:////edp/edp_name/timestamp/done"
+    val blobDetails = blobDetails {
+      blobUri = localImpressionBlobUri
+      eventGroupReferenceId = "reference-id"
+      modelLine = "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"
+      interval = interval {
+        startTime = timestamp { seconds = 1735689600 }
+        endTime = timestamp { seconds = 1736467200 }
+      }
+    }
+    val dataAvailabilitySyncConfig = fileSystemDataAvailabilitySyncConfig()
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = dataAvailabilitySyncConfigs { configs += dataAvailabilitySyncConfig }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+    File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+    val modelLineDatePath = "edp/edp_name/model-line/some-model-line/2025-01-05"
+    File(tempFolder.root, "$modelLineDatePath/").mkdirs()
+    runBlocking {
+      val fsClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      fsClient.writeBlob("$modelLineDatePath/done", emptyFlow())
+      fsClient.writeBlob("$modelLineDatePath/data_file", emptyFlow())
+    }
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
+      storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
+    }
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", DONE_BLOB_GENERATION.toString())
+        .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
+        .build()
+
+    val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+
+    verifyBlocking(impressionMetadataServiceMock, atLeastOnce()) {
+      batchCreateImpressionMetadata(any())
+    }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    return response.statusCode()
   }
 
   private fun fileSystemDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
@@ -699,6 +903,8 @@ class DataAvailabilitySyncFunctionTest {
   private fun ByteArray.toHexString(): String = joinToString(separator = "") { "%02x".format(it) }
 
   companion object {
+
+    private const val DONE_BLOB_GENERATION = 77L
 
     private val SECRETS_DIR: Path =
       getRuntimePath(

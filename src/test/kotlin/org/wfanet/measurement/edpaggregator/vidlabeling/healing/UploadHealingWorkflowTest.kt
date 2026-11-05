@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.tools
+package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.common.truth.Truth.assertThat
 import java.time.Instant
@@ -29,6 +29,8 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
@@ -78,6 +80,11 @@ class UploadHealingWorkflowTest {
                   it.doneBlobUri == request.filter.doneBlobUri)
             }
         }
+
+      override suspend fun acquireRawImpressionUploadEvictionFence(
+        request: AcquireRawImpressionUploadEvictionFenceRequest
+      ): AcquireRawImpressionUploadEvictionFenceResponse =
+        AcquireRawImpressionUploadEvictionFenceResponse.newBuilder().setEtag(FENCE_ETAG).build()
 
       override suspend fun releaseRawImpressionUploadEvictionFence(
         request: ReleaseRawImpressionUploadEvictionFenceRequest
@@ -246,7 +253,8 @@ class UploadHealingWorkflowTest {
           RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(channel),
           ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel),
           "gs://output/vid",
-          deleteBlob = { true },
+          getBlobGeneration = { 100L },
+          deleteBlob = { _, _ -> true },
         )
         .plan(listOf(D2, D4), cutoffTime = Instant.EPOCH)
     assertThat(plan.cascade.map { it.uploadName }).containsExactly(D2, D3, D4, D5).inOrder()
@@ -364,7 +372,8 @@ class UploadHealingWorkflowTest {
             ),
             ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel),
             "gs://output/vid",
-            deleteBlob = { true },
+            getBlobGeneration = { 100L },
+            deleteBlob = { _, _ -> true },
           )
           .plan(listOf(D2, D4), cutoffTime = Instant.EPOCH, noReplacementUploads = setOf(D2, D4))
       val workflow =
@@ -466,7 +475,7 @@ class UploadHealingWorkflowTest {
       operation =
         request.uploadHealingOperation.copy {
           name = operationName
-          state = UploadHealingOperation.State.IN_PROGRESS
+          state = UploadHealingOperation.State.EVICTING
           steps.clear()
           steps +=
             request.uploadHealingOperation.stepsList.mapIndexed { index, step ->
@@ -528,6 +537,7 @@ class UploadHealingWorkflowTest {
   }
 
   companion object {
+    private const val FENCE_ETAG = "fence-etag"
     private const val DATA_PROVIDER = "dataProviders/dp"
     private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
     private const val D1 = "$DATA_PROVIDER/rawImpressionUploads/d1"

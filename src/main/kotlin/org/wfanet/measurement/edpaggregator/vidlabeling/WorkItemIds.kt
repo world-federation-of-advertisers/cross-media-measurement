@@ -34,6 +34,9 @@ import java.util.UUID
  * dedup keys, not addressable resource IDs.
  */
 object WorkItemIds {
+  /** Maximum number of monitor-created recovery WorkItems for one original WorkItem. */
+  const val MAX_MONITOR_RECOVERY_ATTEMPTS = 3
+
   /**
    * `WorkItem` ID for a Phase-0 `SubpoolAssigner` shard, keyed by [uploadName], [modelLineName],
    * and [shardIndex] (one WorkItem per (upload, model line, shard)).
@@ -54,6 +57,19 @@ object WorkItemIds {
    */
   fun forVidLabeler(vidLabelingJobName: String): String =
     "vl-" + fromKey("vidLabelingWorkItem:$vidLabelingJobName")
+
+  /** `WorkItem` ID for synchronizing the availability of one exact labeled-output done object. */
+  fun forDataAvailabilitySync(doneBlobPathHash: String, generation: Long): String {
+    require(doneBlobPathHash.isNotEmpty()) { "doneBlobPathHash must not be empty" }
+    require(generation > 0) { "generation must be positive" }
+    return "das-" + fromKey("dataAvailabilitySyncWorkItem:$doneBlobPathHash:$generation")
+  }
+
+  /** Resource ID for a bounded monitor-recovery attempt. */
+  fun forMonitorRecovery(originalWorkItemId: String, attempt: Int): String {
+    require(attempt in 1..MAX_MONITOR_RECOVERY_ATTEMPTS)
+    return "$originalWorkItemId-monitor-recovery-$attempt"
+  }
 
   private fun fromKey(key: String): String = UUID.nameUUIDFromBytes(key.toByteArray()).toString()
 }

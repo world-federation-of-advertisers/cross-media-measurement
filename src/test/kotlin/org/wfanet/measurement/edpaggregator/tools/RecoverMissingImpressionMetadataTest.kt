@@ -17,6 +17,9 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.cloud.storage.BlobInfo
+import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.timestamp
+import com.google.type.interval
 import io.grpc.Server
 import io.grpc.netty.NettyServerBuilder
 import java.io.File
@@ -32,22 +35,73 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLease
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata.State.ACTIVE
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ValidateDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.gcloud.gcs.testing.StorageEmulatorRule
 
 @RunWith(JUnit4::class)
 class RecoverMissingImpressionMetadataTest {
   @get:Rule val tempDir = TemporaryFolder()
+
+  private val leaseServiceMock: DataAvailabilitySyncLeaseServiceCoroutineImplBase = mockService {
+    onBlocking { acquireDataAvailabilitySyncLease(any<AcquireDataAvailabilitySyncLeaseRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<AcquireDataAvailabilitySyncLeaseRequest>(0)
+        dataAvailabilitySyncLease {
+          name = request.name
+          state = DataAvailabilitySyncLease.State.ACTIVE
+          etag = "etag"
+        }
+      }
+    onBlocking {
+        validateDataAvailabilitySyncLease(any<ValidateDataAvailabilitySyncLeaseRequest>())
+      }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ValidateDataAvailabilitySyncLeaseRequest>(0)
+        dataAvailabilitySyncLease {
+          name = request.name
+          state = DataAvailabilitySyncLease.State.ACTIVE
+          etag = request.etag
+        }
+      }
+    onBlocking { releaseDataAvailabilitySyncLease(any<ReleaseDataAvailabilitySyncLeaseRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ReleaseDataAvailabilitySyncLeaseRequest>(0)
+        dataAvailabilitySyncLease {
+          name = request.name
+          state = DataAvailabilitySyncLease.State.RELEASED
+          etag = "released-etag"
+        }
+      }
+  }
 
   @Test
   fun `main exits nonzero when flag is invalid`() {
@@ -97,6 +151,40 @@ class RecoverMissingImpressionMetadataTest {
   }
 
   @Test
+  fun `main exits nonzero when impression metadata batch size is greater than 100`() {
+    val configFile = writeConfigFile(validConfig())
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(
+        requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0) +
+          "--impression-metadata-batch-size=101",
+        ::main,
+      )
+
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+    CommandLineTesting.assertThat(capturedOutput)
+      .err()
+      .contains("--impression-metadata-batch-size must be between 1 and 100")
+  }
+
+  @Test
+  fun `main exits nonzero when impression metadata batch size is zero`() {
+    val configFile = writeConfigFile(validConfig())
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(
+        requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0) +
+          "--impression-metadata-batch-size=0",
+        ::main,
+      )
+
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+    CommandLineTesting.assertThat(capturedOutput)
+      .err()
+      .contains("--impression-metadata-batch-size must be between 1 and 100")
+  }
+
+  @Test
   fun `main exits nonzero when configuration is invalid`() {
     val configFile =
       writeConfigFile(
@@ -137,24 +225,29 @@ class RecoverMissingImpressionMetadataTest {
 
   @Test
   fun `main exits zero when no date folders exist`() {
+    val server = newServer()
     storageEmulator.createBucket(BUCKET_NAME)
     try {
       val configFile = writeConfigFile(validConfig())
 
       val capturedOutput =
         CommandLineTesting.capturingOutput(
-          requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0) + storageArgs,
+          requiredArgs(configFile, apiTarget = "localhost:${server.port}", endDaysAgo = 0) +
+            storageArgs,
           ::main,
         )
 
       CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
     } finally {
+      server.shutdown()
+      server.awaitTermination(1, SECONDS)
       storageEmulator.deleteBucketRecursive(BUCKET_NAME)
     }
   }
 
   @Test
   fun `main excludes date folders newer than end days ago`() {
+    val server = newServer()
     storageEmulator.createBucket(BUCKET_NAME)
     try {
       val futureFolderPrefix =
@@ -171,7 +264,7 @@ class RecoverMissingImpressionMetadataTest {
 
       val capturedOutput =
         CommandLineTesting.capturingOutput(
-          requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 1) +
+          requiredArgs(configFile, apiTarget = "localhost:${server.port}", endDaysAgo = 1) +
             arrayOf(
               "--storage-api-endpoint=${storageEmulator.storage.options.host}",
               "--lookback-days=3",
@@ -182,12 +275,15 @@ class RecoverMissingImpressionMetadataTest {
 
       CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
     } finally {
+      server.shutdown()
+      server.awaitTermination(1, SECONDS)
       storageEmulator.deleteBucketRecursive(BUCKET_NAME)
     }
   }
 
   @Test
   fun `main includes date folder at end days ago boundary`() {
+    val server = newServer()
     storageEmulator.createBucket(BUCKET_NAME)
     try {
       val yesterdayFolderPrefix =
@@ -204,7 +300,7 @@ class RecoverMissingImpressionMetadataTest {
 
       val capturedOutput =
         CommandLineTesting.capturingOutput(
-          requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 1) +
+          requiredArgs(configFile, apiTarget = "localhost:${server.port}", endDaysAgo = 1) +
             arrayOf(
               "--storage-api-endpoint=${storageEmulator.storage.options.host}",
               "--lookback-days=2",
@@ -215,6 +311,8 @@ class RecoverMissingImpressionMetadataTest {
 
       CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
     } finally {
+      server.shutdown()
+      server.awaitTermination(1, SECONDS)
       storageEmulator.deleteBucketRecursive(BUCKET_NAME)
     }
   }
@@ -229,6 +327,7 @@ class RecoverMissingImpressionMetadataTest {
       NettyServerBuilder.forPort(0)
         .sslContext(serverCerts.toServerTlsContext())
         .addService(impressionMetadataServiceMock)
+        .addService(leaseServiceMock)
         .build()
         .start()
     storageEmulator.createBucket(BUCKET_NAME)
@@ -276,6 +375,7 @@ class RecoverMissingImpressionMetadataTest {
       NettyServerBuilder.forPort(0)
         .sslContext(serverCerts.toServerTlsContext())
         .addService(impressionMetadataServiceMock)
+        .addService(leaseServiceMock)
         .build()
         .start()
     storageEmulator.createBucket(BUCKET_NAME)
@@ -306,6 +406,107 @@ class RecoverMissingImpressionMetadataTest {
     }
   }
 
+  @Test
+  fun `recovery registers metadata with the exact done generation`() {
+    val recoveredMetadata = mutableListOf<ImpressionMetadata>()
+    val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
+      onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
+        .thenAnswer { listImpressionMetadataResponse { impressionMetadata += recoveredMetadata } }
+      onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
+          val created =
+            request.requestsList.mapIndexed { index, createRequest ->
+              createRequest.impressionMetadata.copy {
+                name = "${request.parent}/impressionMetadata/recovered-$index"
+                state = ACTIVE
+              }
+            }
+          recoveredMetadata += created
+          batchCreateImpressionMetadataResponse { impressionMetadata += created }
+        }
+      onBlocking { computeModelLineBounds(any<ComputeModelLineBoundsRequest>()) }
+        .thenReturn(
+          computeModelLineBoundsResponse {
+            modelLineBounds += modelLineBoundMapEntry {
+              key = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+              value = interval {
+                startTime = timestamp { seconds = 1 }
+                endTime = timestamp { seconds = 2 }
+              }
+            }
+          }
+        )
+    }
+    val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
+      onBlocking {
+          replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>())
+        }
+        .thenReturn(DataProvider.getDefaultInstance())
+    }
+    val server: Server =
+      NettyServerBuilder.forPort(0)
+        .sslContext(serverCerts.toServerTlsContext())
+        .addService(impressionMetadataServiceMock)
+        .addService(dataProvidersServiceMock)
+        .addService(leaseServiceMock)
+        .build()
+        .start()
+    storageEmulator.createBucket(BUCKET_NAME)
+    try {
+      val impressionsKey = "$DATE_FOLDER_PREFIX/impressions"
+      val metadataKey = "$impressionsKey.metadata.binpb"
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, impressionsKey).build(),
+        byteArrayOf(),
+      )
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, metadataKey).build(),
+        blobDetails {
+            blobUri = "gs://$BUCKET_NAME/$impressionsKey"
+            eventGroupReferenceId = "event-group"
+            modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+            interval = interval {
+              startTime = timestamp { seconds = 1 }
+              endTime = timestamp { seconds = 2 }
+            }
+          }
+          .toByteArray(),
+      )
+      val doneBlob =
+        storageEmulator.storage.create(
+          BlobInfo.newBuilder(BUCKET_NAME, "$DATE_FOLDER_PREFIX/done").build(),
+          byteArrayOf(),
+        )
+      val configFile = writeConfigFile(validConfig())
+
+      val capturedOutput =
+        CommandLineTesting.capturingOutput(
+          connectionArgs(configFile, apiTarget = "localhost:${server.port}") +
+            arrayOf(
+              "--data-date=2000-01-01",
+              "--storage-api-endpoint=${storageEmulator.storage.options.host}",
+              "--throttler-minimum-interval=0s",
+            ),
+          ::main,
+        )
+
+      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
+      val request = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchCreateImpressionMetadata(request.capture())
+      }
+      assertThat(
+          request.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+        )
+        .isEqualTo(doneBlob.generation)
+    } finally {
+      server.shutdown()
+      server.awaitTermination(1, SECONDS)
+      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
+  }
+
   private val storageArgs: Array<String>
     get() =
       arrayOf(
@@ -313,6 +514,13 @@ class RecoverMissingImpressionMetadataTest {
         "--lookback-days=100000",
         "--throttler-minimum-interval=0s",
       )
+
+  private fun newServer(): Server =
+    NettyServerBuilder.forPort(0)
+      .sslContext(serverCerts.toServerTlsContext())
+      .addService(leaseServiceMock)
+      .build()
+      .start()
 
   private fun connectionArgs(configFile: File, apiTarget: String): Array<String> =
     arrayOf(

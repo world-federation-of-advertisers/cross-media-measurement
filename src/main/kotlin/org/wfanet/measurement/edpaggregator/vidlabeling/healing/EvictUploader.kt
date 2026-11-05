@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.tools
+package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.type.interval
 import java.time.Instant
@@ -35,6 +35,8 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
@@ -47,10 +49,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.deleteRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
@@ -82,7 +86,8 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
  * @param impressionMetadataStub stub used to soft-delete invalid labeled-output metadata.
  * @param labeledImpressionsBlobPrefix absolute URI prefix under which the VID labeler writes
  *   generated output.
- * @param deleteBlob deletes a labeled output or sidecar by URI and returns whether it existed.
+ * @param getBlobGeneration returns the live generation of a labeled output or sidecar.
+ * @param deleteBlob deletes one exact labeled-output generation and returns whether it existed.
  */
 class EvictUploader(
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
@@ -91,7 +96,8 @@ class EvictUploader(
   private val rawImpressionFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   labeledImpressionsBlobPrefix: String,
-  private val deleteBlob: suspend (String) -> Boolean,
+  private val getBlobGeneration: suspend (String) -> Long?,
+  private val deleteBlob: suspend (String, Long) -> Boolean,
 ) : EvictionExecutor {
   private val labeledImpressionsBlobPrefix = labeledImpressionsBlobPrefix.trimEnd('/')
 
@@ -109,9 +115,10 @@ class EvictUploader(
     val memoized: Boolean,
     val recoveryAction: RawImpressionUploadModelLine.RecoveryAction,
     val recoveryPredecessorUploadName: String,
+    val labeledOutputManifest: LabeledOutputManifest = LabeledOutputManifest.getDefaultInstance(),
   )
 
-  /** An evicted upload that the operator must recover for the memoized path only. */
+  /** An evicted upload on which a replacement action must run. */
   data class RecoveryTarget(val uploadName: String, val cmmsModelLines: List<String>)
 
   /** The forward cascade to evict, ordered by upload create time. */
@@ -129,6 +136,8 @@ class EvictUploader(
     val evictionOperationId: String,
     /** Latest revisions evicted only because their memoized rank state depended on a bad upload. */
     val recoveryTargets: List<RecoveryTarget>,
+    /** Latest invalid revisions that an EDP correction replaces. */
+    val replacementTargets: List<RecoveryTarget> = emptyList(),
   )
 
   /** Outcome of an [evict] run. */
@@ -157,6 +166,38 @@ class EvictUploader(
     cutoffTime: Instant,
     evictionOperationId: String = UUID.randomUUID().toString(),
     noReplacementUploads: Set<String> = emptySet(),
+  ): EvictionPlan =
+    plan(
+      badUploads,
+      cutoffTime,
+      evictionOperationId,
+      noReplacementUploads,
+      includeSupersedingRevisions = false,
+    )
+
+  /**
+   * Builds a correction plan that also evicts completed revisions superseding [historicalOwners].
+   */
+  suspend fun planCorrection(
+    historicalOwners: List<String>,
+    cutoffTime: Instant,
+    evictionOperationId: String = UUID.randomUUID().toString(),
+    noReplacementOwners: Set<String> = emptySet(),
+  ): EvictionPlan =
+    plan(
+      historicalOwners,
+      cutoffTime,
+      evictionOperationId,
+      noReplacementOwners,
+      includeSupersedingRevisions = true,
+    )
+
+  private suspend fun plan(
+    badUploads: List<String>,
+    cutoffTime: Instant,
+    evictionOperationId: String,
+    noReplacementUploads: Set<String>,
+    includeSupersedingRevisions: Boolean,
   ): EvictionPlan {
     require(badUploads.isNotEmpty()) { "at least one bad upload is required" }
     require(runCatching { UUID.fromString(evictionOperationId) }.isSuccess) {
@@ -192,7 +233,30 @@ class EvictUploader(
         "finished. Active upload/model-line resources: ${queuedOrRunningRows.map { it.name }}"
     }
 
-    val rowsByUpload = badUploads.associateWith { listModelLines(it) }
+    val candidateSupersedingUploads =
+      if (includeSupersedingRevisions) {
+        uploadsByName.keys.filter { candidate ->
+          candidate !in badUploads &&
+            badUploads.any { owner -> replacesUpload(candidate, owner, uploadsByName) }
+        }
+      } else {
+        emptyList()
+      }
+    val candidateSupersedingRows = candidateSupersedingUploads.associateWith { listModelLines(it) }
+    val supersedingUploads =
+      candidateSupersedingRows
+        .filterValues { rows ->
+          rows.any { it.state == RawImpressionUploadModelLine.State.COMPLETED }
+        }
+        .keys
+    val plannedBadUploads =
+      (badUploads + supersedingUploads)
+        .distinct()
+        .sortedWith(compareBy<String> { createTimeByUpload.getValue(it) }.thenBy { it })
+    val rowsByUpload =
+      plannedBadUploads.associateWith { uploadName ->
+        candidateSupersedingRows[uploadName] ?: listModelLines(uploadName)
+      }
     val requestedMissing = badUploads.filter { rowsByUpload.getValue(it).isEmpty() }
     require(requestedMissing.isEmpty()) {
       "requested upload(s) have no model-line rows (nothing to evict): $requestedMissing"
@@ -218,7 +282,18 @@ class EvictUploader(
       snapshots.filter { !it.deleted }.mapTo(mutableSetOf()) { it.uploadName to it.cmmsModelLine }
     val memoizedRequestedRows = requestedRows.filter { isMemoized(it, snapshotRows) }
     val nonMemoizedRequestedRows = requestedRows - memoizedRequestedRows.toSet()
-    val requestedNames = badUploads.toSet()
+    val requestedNames = plannedBadUploads.toSet()
+    val plannedNoReplacementUploads =
+      if (includeSupersedingRevisions) {
+        plannedBadUploads
+          .filter { upload ->
+            upload in noReplacementUploads ||
+              noReplacementUploads.any { owner -> replacesUpload(upload, owner, uploadsByName) }
+          }
+          .toSet()
+      } else {
+        noReplacementUploads
+      }
     val completedReplacements =
       requestedRows.flatMap { badRow ->
         val badUploadName = uploadNameOf(badRow.name)
@@ -256,7 +331,7 @@ class EvictUploader(
               cmmsModelLine = cmmsModelLine,
               memoized = true,
               recoveryAction =
-                if (uploadName in noReplacementUploads) {
+                if (uploadName in plannedNoReplacementUploads) {
                   RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
                 } else if (uploadName in requestedNames) {
                   RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
@@ -277,7 +352,7 @@ class EvictUploader(
             row.cmmsModelLine,
             memoized = false,
             recoveryAction =
-              if (uploadName in noReplacementUploads) {
+              if (uploadName in plannedNoReplacementUploads) {
                 RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
               } else {
                 RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
@@ -292,8 +367,9 @@ class EvictUploader(
           compareBy<Pair<Instant, CascadeEntry>> { it.first }.thenBy { it.second.cmmsModelLine }
         )
         .map { it.second }
-    val latestUploadByDoneBlobUri =
-      uploadsByName.values
+    val latestCascadeUploadByDoneBlobUri =
+      unlinkedCascade
+        .map { uploadsByName.getValue(it.uploadName) }
         .groupBy { it.doneBlobUri }
         .mapValues { (_, revisions) -> findLatestUpload(revisions) }
     val predecessorByModelLineAndUpload =
@@ -312,7 +388,7 @@ class EvictUploader(
           val actionHeads =
             cascadeEntries.filter { entry ->
               val upload = uploadsByName.getValue(entry.uploadName)
-              latestUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+              latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
             }
           val orderedActions = actionHeads
           if (orderedActions.isEmpty()) return@flatMap emptyList()
@@ -359,9 +435,14 @@ class EvictUploader(
             }
         )
       }
-    val extraUploads = cascade.map { it.uploadName }.filter { it !in requestedNames }.distinct()
+    val cascadeWithOutputManifests =
+      cascade.map { entry ->
+        entry.copy(labeledOutputManifest = resolveLabeledOutputManifest(entry))
+      }
+    val extraUploads =
+      cascadeWithOutputManifests.map { it.uploadName }.filter { it !in requestedNames }.distinct()
     val recoveryTargets =
-      cascade
+      cascadeWithOutputManifests
         .filter { entry ->
           if (
             entry.recoveryAction !=
@@ -370,22 +451,39 @@ class EvictUploader(
             return@filter false
           }
           val upload = uploadsByName.getValue(entry.uploadName)
-          latestUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+          latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+        }
+        .groupBy { it.uploadName }
+        .map { (uploadName, entries) ->
+          RecoveryTarget(uploadName, entries.map { it.cmmsModelLine }.distinct())
+        }
+    val replacementTargets =
+      cascadeWithOutputManifests
+        .filter { entry ->
+          if (
+            entry.recoveryAction !=
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+          ) {
+            return@filter false
+          }
+          val upload = uploadsByName.getValue(entry.uploadName)
+          latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
         }
         .groupBy { it.uploadName }
         .map { (uploadName, entries) ->
           RecoveryTarget(uploadName, entries.map { it.cmmsModelLine }.distinct())
         }
     return EvictionPlan(
-      cascade,
+      cascadeWithOutputManifests,
       extraUploads,
       memoizedModelLines,
       nonMemoizedModelLines,
-      badUploads,
-      noReplacementUploads,
+      plannedBadUploads,
+      plannedNoReplacementUploads,
       cutoffTime,
       evictionOperationId,
       recoveryTargets,
+      replacementTargets,
     )
   }
 
@@ -398,9 +496,8 @@ class EvictUploader(
    * replacement upload can calculate its delta against the evicted upload. Before refreshing the
    * plan, this acquires a durable DataProvider-wide fence that verifies the pipeline is idle and
    * defers unrelated upload processing until the complete healing workflow finishes. A partial
-   * failure leaves the fence in place so the same operation ID can safely resume. The caller must
-   * pause `DataAvailabilitySync` and wait for existing sync calls to drain, because an in-flight
-   * sync could otherwise restore metadata while its output is being removed.
+   * failure leaves the fence in place so the same operation ID can safely resume. Synchronization
+   * leases prevent eviction from crossing in-flight `DataAvailabilitySync` mutations.
    *
    * Metadata is deleted before its GCS object. This makes `DataAvailabilityCleanup` harmless when
    * the object-deletion event arrives: its active-only lookup finds no row, and a cleanup event
@@ -419,6 +516,8 @@ class EvictUploader(
         acquireRawImpressionUploadEvictionFenceRequest {
           parent = dataProvider
           evictionOperationId = plan.evictionOperationId
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          requestId = RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, state.name)
         }
       )
     try {
@@ -441,6 +540,12 @@ class EvictUploader(
               releaseRawImpressionUploadEvictionFenceRequest {
                 parent = dataProvider
                 evictionOperationId = plan.evictionOperationId
+                etag = acquireResponse.etag
+                requestId =
+                  RequestIds.forReleaseUploadEvictionFence(
+                    plan.evictionOperationId,
+                    acquireResponse.etag,
+                  )
               }
             )
           }
@@ -458,10 +563,14 @@ class EvictUploader(
     onEntryEvicted: suspend (CascadeEntry) -> Unit,
   ): EvictionResult {
     val dataProvider = dataProviderOf(plan.badUploads.first())
+    val fenceState = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
     uploadsStub.acquireRawImpressionUploadEvictionFence(
       acquireRawImpressionUploadEvictionFenceRequest {
         parent = dataProvider
         evictionOperationId = plan.evictionOperationId
+        state = fenceState
+        requestId =
+          RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, fenceState.name)
       }
     )
     val result = executeEviction(plan, reason, onEntryEvicted)
@@ -473,6 +582,7 @@ class EvictUploader(
     reason: String,
     onEntryEvicted: suspend (CascadeEntry) -> Unit,
   ): EvictionResult {
+    verifyLabeledOutputManifests(plan)
     val failed = mutableListOf<String>()
     var deleted = 0
     var deletedMetadata = 0
@@ -613,16 +723,9 @@ class EvictUploader(
 
   private data class OutputCleanupResult(val deletedMetadata: Int, val deletedBlobs: Int)
 
-  private suspend fun cleanLabeledOutputs(
-    entry: CascadeEntry,
-    cleanedMetadataNames: MutableSet<String>,
-    cleanedBlobUris: MutableSet<String>,
-  ): OutputCleanupResult {
-    val files = listRawImpressionUploadFiles(entry.uploadName)
-    if (files.isEmpty()) return OutputCleanupResult(0, 0)
-
-    val expectedImpressionsBlobUris =
-      files
+  private suspend fun resolveLabeledOutputManifest(entry: CascadeEntry): LabeledOutputManifest {
+    val outputUris =
+      listRawImpressionUploadFiles(entry.uploadName)
         .map { file ->
           LabeledImpressionsBlobKeys.forInputUri(
             labeledImpressionsBlobPrefix,
@@ -632,6 +735,62 @@ class EvictUploader(
           )
         }
         .distinct()
+        .sorted()
+        .flatMap { impressionsBlobUri ->
+          listOf(impressionsBlobUri + LABELED_OUTPUT_METADATA_SUFFIX, impressionsBlobUri)
+        }
+    val semaphore = Semaphore(OUTPUT_DELETE_PARALLELISM)
+    val versions = coroutineScope {
+      outputUris
+        .map { blobUri ->
+          async {
+            semaphore.withPermit {
+              LabeledOutputManifestKt.blobVersion {
+                this.blobUri = blobUri
+                getBlobGeneration(blobUri)?.let { generation = it }
+              }
+            }
+          }
+        }
+        .awaitAll()
+    }
+    return labeledOutputManifest { blobs += versions }
+  }
+
+  private suspend fun verifyLabeledOutputManifests(plan: EvictionPlan) {
+    val approvedByUri = mutableMapOf<String, LabeledOutputManifest.BlobVersion>()
+    for (entry in plan.cascade) {
+      for (blob in entry.labeledOutputManifest.blobsList) {
+        val previous = approvedByUri.putIfAbsent(blob.blobUri, blob)
+        check(previous == null || previous == blob) {
+          "Healing plan has conflicting generations for ${blob.blobUri}"
+        }
+      }
+    }
+    for (blob in approvedByUri.values) {
+      val liveGeneration = getBlobGeneration(blob.blobUri)
+      val unchanged =
+        if (blob.hasGeneration()) {
+          liveGeneration == null || liveGeneration == blob.generation
+        } else {
+          liveGeneration == null
+        }
+      check(unchanged) {
+        "Labeled output ${blob.blobUri} changed after plan approval: " +
+          "expected=${blob.generation.takeIf { blob.hasGeneration() }}, live=$liveGeneration"
+      }
+    }
+  }
+
+  private suspend fun cleanLabeledOutputs(
+    entry: CascadeEntry,
+    cleanedMetadataNames: MutableSet<String>,
+    cleanedBlobUris: MutableSet<String>,
+  ): OutputCleanupResult {
+    val versionsByUri = entry.labeledOutputManifest.blobsList.associateBy { it.blobUri }
+    val expectedImpressionsBlobUris =
+      versionsByUri.keys.filterNot { it.endsWith(LABELED_OUTPUT_METADATA_SUFFIX) }.sorted()
+    if (expectedImpressionsBlobUris.isEmpty()) return OutputCleanupResult(0, 0)
     val expectedMetadataBlobUris =
       expectedImpressionsBlobUris.map { it + LABELED_OUTPUT_METADATA_SUFFIX }
     val expectedMetadataBlobUriSet = expectedMetadataBlobUris.toSet()
@@ -650,24 +809,24 @@ class EvictUploader(
       )
     }
 
-    val blobUriPairs =
+    val blobVersionPairs =
       expectedMetadataBlobUris.zip(expectedImpressionsBlobUris).mapNotNull {
         (metadataBlobUri, impressionsBlobUri) ->
-        listOf(metadataBlobUri, impressionsBlobUri)
-          .filter { cleanedBlobUris.add(it) }
+        listOfNotNull(versionsByUri[metadataBlobUri], versionsByUri[impressionsBlobUri])
+          .filter { cleanedBlobUris.add(it.blobUri) }
           .takeIf { it.isNotEmpty() }
       }
     val deletedBlobs = coroutineScope {
       val semaphore = Semaphore(OUTPUT_DELETE_PARALLELISM)
-      blobUriPairs
-        .map { blobUris ->
+      blobVersionPairs
+        .map { blobVersions ->
           async {
             semaphore.withPermit {
               // Delete the sidecar before its data blob so metadata is never left pointing at an
               // absent data object if this pair fails partway through.
               var count = 0
-              for (blobUri in blobUris) {
-                if (deleteBlob(blobUri)) count++
+              for (blob in blobVersions) {
+                if (blob.hasGeneration() && deleteBlob(blob.blobUri, blob.generation)) count++
               }
               count
             }

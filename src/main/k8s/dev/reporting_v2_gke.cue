@@ -208,7 +208,7 @@ reporting: #Reporting & {
 						minDomains:        2
 						topologyKey:       "kubernetes.io/hostname"
 						whenUnsatisfiable: "DoNotSchedule"
-						labelSelector: matchLabels: app: "access-internal-api-server-app"
+						labelSelector:     reporting.deployments["access-internal-api-server"].spec.selector
 					}]
 				}
 			}

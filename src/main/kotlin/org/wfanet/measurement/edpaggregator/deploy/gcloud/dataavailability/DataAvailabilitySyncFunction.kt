@@ -22,6 +22,7 @@ import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
+import io.grpc.Status
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
@@ -32,6 +33,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -41,6 +43,7 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -50,10 +53,13 @@ import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
@@ -72,6 +78,18 @@ data class GrpcChannels(
   val cmmsChannel: ManagedChannel,
   val impressionMetadataChannel: ManagedChannel,
 )
+
+private fun Throwable.grpcStatusCodeFromCauseChain(): Status.Code? {
+  var current: Throwable? = this
+  while (current != null) {
+    val statusCode = current.grpcStatusCode()
+    if (statusCode != null) {
+      return statusCode
+    }
+    current = current.cause
+  }
+  return null
+}
 
 /**
  * Cloud Function that synchronizes data availability state between ImpressionMetadataStorage and
@@ -137,6 +155,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       val dataProvidersClient = DataProvidersCoroutineStub(instrumentedCmmsChannel)
       val impressionMetadataServicesClient =
         ImpressionMetadataServiceCoroutineStub(instrumentedImpMetadataChannel)
+      val dataAvailabilitySyncLeaseClient =
+        DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedImpMetadataChannel)
 
       val eventGroupActivityPublisher =
         dataAvailabilitySyncConfig.eventGroupActivityPublishing
@@ -196,12 +216,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
       Tracing.withW3CTraceContext(request) {
         val generation =
-          request
-            .getFirstHeader(VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER)
-            .map(String::toLongOrNull)
-            .orElse(null)
-        val objectIdentity =
-          generation?.let { VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, it) }
+          parseDataWatcherGeneration(
+            request
+              .getFirstHeader(VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER)
+              .orElse(null)
+          )
+        val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, generation)
         val attributes =
           Attributes.builder()
             .put(
@@ -222,20 +242,35 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               request.getFirstHeader(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER).ifPresent {
                 builder.put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, it)
               }
-              if (objectIdentity != null) {
-                builder
-                  .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
-                  .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
-              }
+              builder
+                .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
+                .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
             }
             .build()
         Tracing.trace("edpa.data_availability.sync", attributes) {
           val outcome =
             runBlocking(Context.current().asContextElement()) {
-              dataAvailabilitySync.sync(doneBlobPath)
+              DataAvailabilitySyncLeaseRunner(
+                  GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient)
+                )
+                .run(dataAvailabilitySyncConfig.dataProvider) { lease ->
+                  dataAvailabilitySync.sync(
+                    doneBlobPath,
+                    dataAvailabilitySyncLease = lease.name,
+                    ensureLeaseActive = lease::invoke,
+                    doneBlobGeneration = generation,
+                  )
+                }
             }
           Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
         }
+      }
+    } catch (e: Exception) {
+      if (e.grpcStatusCodeFromCauseChain() in RETRYABLE_GRPC_STATUS_CODES) {
+        logger.log(Level.WARNING, "Transient downstream gRPC failure", e)
+        response.setStatusCode(503)
+      } else {
+        throw e
       }
     } finally {
       // Critical for Cloud Functions: flush metrics before function freezes
@@ -293,6 +328,13 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   companion object {
+    private val RETRYABLE_GRPC_STATUS_CODES =
+      setOf(
+        Status.Code.ABORTED,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.RESOURCE_EXHAUSTED,
+        Status.Code.UNAVAILABLE,
+      )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private const val THROTTLER_DURATION_MILLIS = 1000L
@@ -418,4 +460,15 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       return GrpcChannels(cmmsChannel = cmmsChannel, impressionMetadataChannel = impressionChannel)
     }
   }
+}
+
+internal fun parseDataWatcherGeneration(value: String?): Long {
+  val generation =
+    requireNotNull(value?.toLongOrNull()) {
+      "${VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER} must contain a generation"
+    }
+  require(generation > 0L) {
+    "${VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER} must be positive"
+  }
+  return generation
 }

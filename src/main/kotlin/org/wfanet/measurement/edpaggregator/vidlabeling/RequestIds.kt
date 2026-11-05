@@ -126,6 +126,31 @@ object RequestIds {
   fun forUploadHealingOperation(operationId: String): String =
     fromKey("uploadHealingOperation:$operationId")
 
+  /** `request_id` for approving one version of an upload-healing operation. */
+  fun forApproveUploadHealingOperation(
+    operationName: String,
+    etag: String,
+    candidateDecisions: Map<String, Int>,
+  ): String =
+    fromKey(
+      "approveUploadHealingOperation:$operationName:$etag:" +
+        candidateDecisions.toSortedMap().entries.joinToString(",") { (candidate, decision) ->
+          "$candidate=$decision"
+        }
+    )
+
+  /** `request_id` for retrying one version of an upload-healing operation. */
+  fun forRetryUploadHealingOperation(operationName: String, etag: String): String =
+    fromKey("retryUploadHealingOperation:$operationName:$etag")
+
+  /** `request_id` for acquiring an upload-eviction fence. */
+  fun forAcquireUploadEvictionFence(operationId: String, state: String): String =
+    fromKey("acquireUploadEvictionFence:$operationId:$state")
+
+  /** `request_id` for releasing an upload-eviction fence. */
+  fun forReleaseUploadEvictionFence(operationId: String, etag: String): String =
+    fromKey("releaseUploadEvictionFence:$operationId:$etag")
+
   /** `request_id` for recording one durable upload-healing checkpoint and its evidence. */
   fun forUploadHealingStep(stepName: String, checkpoint: String, evidence: String): String =
     fromKey("uploadHealingStep:$stepName:$checkpoint:$evidence")

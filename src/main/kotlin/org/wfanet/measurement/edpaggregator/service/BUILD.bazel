@@ -16,11 +16,13 @@ package(
 kt_jvm_library(
     name = "resource_key",
     srcs = [
+        "DataAvailabilitySyncLeaseKey.kt",
         "IdVariable.kt",
         "ImpressionMetadataKey.kt",
         "PoolAssignmentJobKey.kt",
         "RankIndexBlobKey.kt",
         "RankerJobKey.kt",
+        "RawImpressionUploadCorrectionCandidateKey.kt",
         "RawImpressionUploadKey.kt",
         "RawImpressionUploadModelLineKey.kt",
         "RequisitionMetadataKey.kt",

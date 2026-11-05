@@ -50,7 +50,6 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -59,6 +58,7 @@ import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.traceSuspending
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
@@ -104,6 +104,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @property requisitionValidator validates per-report requisitions before grouping.
  * @property requisitionGrouper the in-memory grouper that builds [GroupedRequisitions].
  * @property metadataThrottler throttles all Requisition Metadata Service RPCs.
+ * @property kingdomListThrottler process-scoped throttle shared across providers for Kingdom lists.
  * @property workItemDispatcher dispatcher for the Secure Computation Control Plane.
  * @property requisitionRefusalDuration maximum age, measured from the Kingdom Requisition's
  *   `update_time`, before an unfulfilled Requisition is refused rather than dispatched.
@@ -138,6 +139,7 @@ class RequisitionFetcher(
   private val requisitionValidator: RequisitionsValidator,
   private val requisitionGrouper: RequisitionGrouperByReportId,
   private val metadataThrottler: Throttler,
+  private val kingdomListThrottler: Throttler,
   private val workItemDispatcher: RequisitionWorkItemDispatcher,
   private val requisitionRefusalDuration: Duration,
   private val clock: Clock,
@@ -339,7 +341,7 @@ class RequisitionFetcher(
           minPageSize = MIN_LIST_REQUISITIONS_PAGE_SIZE,
           onPageSizeReduced = { oldSize, newSize ->
             logger.warning(
-              "ListRequisitions returned RESOURCE_EXHAUSTED at page_size=$oldSize for " +
+              "ListRequisitions exceeded the inbound message size at page_size=$oldSize for " +
                 "$dataProviderName; halving to $newSize and retrying"
             )
             metrics.pageSizeReductions.add(1, dataProviderAttrs)
@@ -353,13 +355,15 @@ class RequisitionFetcher(
           }
           val response =
             try {
-              requisitionsStub.listRequisitions(request)
+              kingdomListThrottler.onReady { requisitionsStub.listRequisitions(request) }
             } catch (e: StatusException) {
-              // RESOURCE_EXHAUSTED is the adaptive page-size signal — propagate raw so the
-              // listResourcesWithAdaptivePageSize wrapper can detect it and halve. Wrap
-              // everything else with context to disambiguate failures from getEventGroup /
-              // metadata RPCs that share the StatusException type.
-              if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) throw e
+              val description = e.status.description.orEmpty()
+              val oversized =
+                description.startsWith(GRPC_MESSAGE_SIZE_ERROR_PREFIX) ||
+                  description.startsWith(GRPC_DECOMPRESSED_MESSAGE_SIZE_ERROR_PREFIX)
+              // Only transport message-size errors justify reducing the page. Quota rejection,
+              // overload, and unknown resource errors must not reach the adaptive-size handler.
+              if (e.status.code == Status.Code.RESOURCE_EXHAUSTED && oversized) throw e
               throw Exception("Error listing requisitions for $dataProviderName", e)
             }
           ResourceList(response.requisitionsList, response.nextPageToken)
@@ -882,7 +886,7 @@ class RequisitionFetcher(
         return e.refusal
       }
     }
-    val measurementSpecs = requisitions.map { it.measurementSpec.unpack<MeasurementSpec>() }
+    val measurementSpecs = requisitions.map { RequisitionSpecs.readMeasurementSpec(it) }
     val modelLine = measurementSpecs.first().modelLine
     if (measurementSpecs.any { it.modelLine != modelLine }) {
       return refusal {
@@ -966,7 +970,7 @@ class RequisitionFetcher(
   private fun extractReportIdentifiers(requisition: Requisition): ReportIdentifiers? {
     val measurementSpec: MeasurementSpec =
       try {
-        requisition.measurementSpec.unpack()
+        RequisitionSpecs.readMeasurementSpec(requisition)
       } catch (e: Exception) {
         logger.log(Level.WARNING, "Unable to parse MeasurementSpec for ${requisition.name}", e)
         return null
@@ -1466,6 +1470,10 @@ class RequisitionFetcher(
     Attributes.of(ATTR_DATA_PROVIDER_KEY, dataProviderName)
 
   companion object {
+    private const val GRPC_MESSAGE_SIZE_ERROR_PREFIX = "gRPC message exceeds maximum size "
+    private const val GRPC_DECOMPRESSED_MESSAGE_SIZE_ERROR_PREFIX =
+      "Decompressed gRPC message exceeds maximum size "
+
     private val logger: Logger = Logger.getLogger(RequisitionFetcher::class.java.name)
     private val ATTR_DATA_PROVIDER_KEY = AttributeKey.stringKey("edpa.data_provider_name")
     private val ATTR_REQUISITION_COUNT_KEY =

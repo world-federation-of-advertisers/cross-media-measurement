@@ -1069,14 +1069,21 @@ configs {
 
 * reads the Mesos RecordIO `MappedEventGroup` output produced by `EventGroupSync`;
 * joins every entity key in finalized impression metadata to all EventGroups mapped to that key;
-* converts each metadata interval to every inclusive calendar date that it touches in
-  `market_time_zone`; and
+* converts each half-open metadata interval to every calendar date containing an included instant
+  in `market_time_zone`; and
 * appends the resulting `EventGroupActivity` resources without deleting historical activity.
 
 Set `market_time_zone.id` to an IANA Time Zone Database identifier. `UTC` is valid, as are regional
 identifiers such as `America/New_York`. Use the market's calendar time zone so intervals that cross
-a UTC date boundary are attributed to the market dates they touch. Both endpoint dates are included
-intentionally, favoring over-reporting over omitting a potentially active date.
+a UTC date boundary are attributed to the market dates they touch. The interval start is inclusive
+and its end is exclusive. Legacy intervals with equal bounds are attributed to that instant's date.
+
+Legacy sidecars may instead encode the final included impression timestamp in `end_time`. Replay
+and backfill interpret all persisted intervals using the half-open contract. If a legacy end falls
+exactly at local midnight, the date starting at that midnight is therefore not recreated. Existing
+`EventGroupActivity` resources are append-only and are not deleted. Before replaying legacy metadata
+into a target without its historical activities, migrate those intervals to an exclusive end when
+the former conservative endpoint-date inclusion must be preserved.
 
 The map join uses entity keys only. A key may map to multiple EventGroups, and keys at any entity
 hierarchy level are eligible. Legacy EventGroup reference-ID-only map records are ignored. Keep the
@@ -1382,6 +1389,39 @@ existing WorkItems RPCs, queues, topics, subscriptions, and DLQs. The Secure Com
 workload-agnostic: it stores and republishes opaque WorkItem parameters and does not call the
 Requisition Metadata or Impression Metadata APIs.
 
+#### Secure Computation API memory
+
+The development Secure Computation internal API requests and limits 1 GiB of
+container memory, with a 64M Java heap and an explicit 128M Java direct-buffer
+limit. Size the container for the complete instrumented JVM: heap, class metadata,
+compiled code, buffers, thread stacks, and other native allocations. A direct-buffer
+limit does not bound total process memory.
+
+An `OOMKilled` termination with exit code 137 indicates a container memory kill.
+It can occur with free Java heap and without a Java `OutOfMemoryError` or heap dump.
+Identify the affected container and its termination time before changing memory
+settings; internal and public API containers have separate budgets.
+
+Compare `kubernetes.io/container/memory/used_bytes` and
+`kubernetes.io/container/memory/limit_bytes` with `workload.googleapis.com/jvm.memory.used`
+by memory pool and `workload.googleapis.com/jvm.thread.count`. Container measurements
+include memory outside those JVM pools. Observe startup, warm idle operation, and
+sustained creation/publication across the configured queues when choosing a budget.
+Check the memory trend and restart count after the workload finishes.
+
+For a deeper JVM allocation breakdown, start a diagnostic JVM with
+`-XX:NativeMemoryTracking=summary`. Using JDK diagnostic tools with access to attach
+to that process, take a baseline after warmup and compare it after the workload:
+
+```bash
+jcmd JVM_PID VM.native_memory baseline
+jcmd JVM_PID VM.native_memory summary.diff scale=MB
+```
+
+Native Memory Tracking requires startup configuration and has overhead; enable it
+for a profiling session. Its totals do not include every allocation made by
+third-party native libraries, so compare them with container memory as well.
+
 #### Recovering after correcting a queue mapping
 
 When the publisher cannot resolve a WorkItem's queue, it deprioritizes that pending publication so
@@ -1530,6 +1570,11 @@ data-availability → ResultsFulfiller → result returned to the CMMS.
    `--create-done-blobs` writes the `done` marker in each date directory so the
    pipeline picks up the data.
 
+   Labeled impressions, metadata, and done marker uploads use generation
+   preconditions so the GCS SDK can retry transient upload errors. A concurrent
+   change to the same blob fails the upload instead of overwriting that change.
+   Run only one generator for a given output path at a time.
+
 ### Cloud test steps
 
 The test walks through: (1) event-group creation, (2) upload of the event group to
@@ -1570,3 +1615,48 @@ image is not `STABLE`). Never use a debug image in production.
 For tracing a specific report and the full failure-mode catalog (model-line mismatch,
 missing impression blobs, KMS-type mismatch, MIG scaling, capacity exhaustion), see
 the [Report Debugging Guide](report-debugging-guide.md).
+
+### VID labeling dispatch recovery
+
+Newly registered uploads normally start through fast-path dispatch. Registration
+is durable and acknowledged even when best-effort dispatch fails. The public
+WorkItems API preserves backend `UNAVAILABLE` failures so the existing common-jvm
+gRPC retry policy can handle a transient outage; backend diagnostics remain in the
+server-side cause. If those retries are exhausted, scheduled dispatch can discover
+the registered upload and start its eligible work.
+
+Set `vid_labeling_dispatch_scheduler_config.schedule` for the deployment's recovery
+needs. The following examples use `time_zone = "UTC"`:
+
+| Deployment | Dispatch schedule | Purpose |
+|---|---|---|
+| CMMS development/cloud tests | `*/5 * * * *` | Allow another dispatch attempt during the 30-minute setup timeout |
+| Long-lived deployment, four runs per day | `0 */6 * * *` | Check every six hours |
+| Long-lived deployment, one run per day | `0 0 * * *` | Check daily |
+
+Use 1–4 fallback runs per day (every 6–24 hours) for long-lived deployments. A
+longer interval reduces metadata scans and increases the time a registration can
+wait after fast-path retries are exhausted. Recovery also depends on service
+availability and scan duration; a schedule does not set a completion deadline.
+
+A `?mode=dispatch` tick scans metadata and starts eligible work; it does not rerun
+completed labeling or the daily health checks. Deterministic WorkItem IDs and etag
+claims protect dispatch when the fast path and monitor run concurrently.
+
+The dispatcher and monitor each configure a maximum of one instance and one
+concurrent HTTP request. The dispatcher and monitor can still run concurrently.
+The monitor's dispatch and health modes share its instance. Long-running scans can
+delay or skip a scheduled tick. Outbound RPC pacing remains process-scoped.
+
+Dispatch Scheduler requests rely on the next scheduled invocation for recovery.
+Daily health HTTP requests allow up to three retries, with 300–600 second backoff.
+This uses the retry-count limit without an additional retry-duration window. Both
+jobs allow 660 seconds for a request, beyond the monitor's 600-second timeout.
+The monitor reports application dispatch/recovery issues through logs and metrics
+and returns HTTP 200; Scheduler retries cover HTTP/platform failures only.
+
+Health recovery creates at most three recovery WorkItems for a stuck transition.
+If a previous recovery already exists, it must be older than the configured
+`staleness_threshold` before another is created. A missing/future creation time or
+failed lookup defers recovery. This prevents repeated health requests or a lost
+HTTP response from consuming all three attempts while recovery is still in progress.
