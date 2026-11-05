@@ -142,3 +142,8 @@ transport settings; its default server and channel limit remains 4 MiB.
 The Reporting HTTP gateway uses `--reporting-public-api-max-inbound-message-size`
 with the same 64 MiB bound, so completed BasicReport responses can be read. The
 scale test uses that bound for underlying Report and metric readback as well.
+
+In dev, full gRPC payload logging is disabled on the two Reporting servers
+through `_verboseReportingGrpcServerLogging`. The logging interceptor formats
+batch payloads before delivering requests and sending responses, so enabling
+it can consume RPC deadlines during scaled creation.

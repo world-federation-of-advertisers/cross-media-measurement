@@ -15,8 +15,9 @@
 package k8s
 
 #Reporting: Reporting={
-	_verboseGrpcServerLogging: bool | *false
-	_verboseGrpcClientLogging: bool | *false
+	_verboseGrpcServerLogging:          bool | *false
+	_verboseReportingGrpcServerLogging: bool | *_verboseGrpcServerLogging
+	_verboseGrpcClientLogging:          bool | *false
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
 	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
@@ -125,6 +126,7 @@ package k8s
 	_basicReportMetricSpecConfigFileFlag:         "--basic-report-metric-spec-config-file=/etc/\(#AppName)/config-files/basic_report_metric_spec_config.textproto"
 	_debugVerboseGrpcClientLoggingFlag:           "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag:           "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
+	_debugVerboseReportingGrpcServerLoggingFlag:  "--debug-verbose-grpc-server-logging=\(_verboseReportingGrpcServerLogging)"
 
 	services: [Name=_]: #Service & {
 		metadata: {
@@ -172,7 +174,7 @@ package k8s
 			_container: args: [
 						"--max-inbound-message-size=67108864",
 						_reportingCertCollectionFileFlag,
-						_debugVerboseGrpcServerLoggingFlag,
+						_debugVerboseReportingGrpcServerLoggingFlag,
 						"--port=8443",
 						"--health-port=8080",
 						"--basic-reports-enabled=" + Reporting._basicReportsEnabled,
@@ -207,7 +209,7 @@ package k8s
 			_container: args: [
 						"--max-inbound-message-size=67108864",
 						_debugVerboseGrpcClientLoggingFlag,
-						_debugVerboseGrpcServerLoggingFlag,
+						_debugVerboseReportingGrpcServerLoggingFlag,
 						_reportingCertCollectionFileFlag,
 						_akidToPrincipalMapFileFlag,
 						_measurementConsumerConfigFileFlag,

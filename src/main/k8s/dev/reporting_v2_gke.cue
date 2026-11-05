@@ -145,7 +145,9 @@ reporting: #Reporting & {
 	}
 
 	_verboseGrpcServerLogging: true
-	_logNoiseCorrectionValues: true
+	// Full batch payload logging runs before gRPC sendMessage and can consume RPC deadlines.
+	_verboseReportingGrpcServerLogging: false
+	_logNoiseCorrectionValues:          true
 
 	serviceAccounts: {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
