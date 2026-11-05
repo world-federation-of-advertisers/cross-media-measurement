@@ -213,8 +213,38 @@ jobs:
       run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl-edpa
 
     - name: Wait for rollout
+      id: rollout
       if: ${{ inputs.apply }}
       run: |
         for deployment in $(kubectl get deployments -l app.kubernetes.io/component=edp-aggregator -o name); do
           kubectl rollout status "$deployment" --timeout=5m
+        done
+
+    # DO_NOT_SUBMIT: Remove after diagnosing the stalled EDP aggregator rollout.
+    - name: Collect EDP aggregator rollout diagnostics
+      if: ${{ failure() && steps.rollout.outcome == 'failure' }}
+      continue-on-error: true
+      timeout-minutes: 5
+      run: |
+        kubectl_args=(--namespace=default --request-timeout=15s)
+        deployment_selector="app.kubernetes.io/component=edp-aggregator"
+        deployments="$(kubectl "${kubectl_args[@]}" get deployments -l "$deployment_selector" -o json)"
+        apps="$(jq -r '[.items[].spec.selector.matchLabels.app] | map(select(. != null)) | unique | join(",")' <<< "$deployments")"
+        if [[ -z "$apps" ]]; then
+          echo "No EDP aggregator pod selectors found." >&2
+          exit 1
+        fi
+        pod_selector="app in ($apps)"
+
+        kubectl "${kubectl_args[@]}" describe deployments -l "$deployment_selector" || true
+        kubectl "${kubectl_args[@]}" get pods -l "$pod_selector" -o wide || true
+        kubectl "${kubectl_args[@]}" describe pods -l "$pod_selector" || true
+        for pod in $(kubectl "${kubectl_args[@]}" get pods -l "$pod_selector" -o name); do
+          echo "::group::$pod logs"
+          containers="$(kubectl "${kubectl_args[@]}" get "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}')" || containers=""
+          for container in $containers; do
+            kubectl "${kubectl_args[@]}" logs "$pod" -c "$container" --prefix --timestamps --tail=100 || true
+            kubectl "${kubectl_args[@]}" logs "$pod" -c "$container" --prefix --timestamps --tail=100 --previous || true
+          done
+          echo "::endgroup::"
         done
