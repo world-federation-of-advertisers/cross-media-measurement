@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.tools.spanner
+package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing
 
 import com.google.protobuf.DescriptorProtos
-import java.nio.file.Path
 import java.util.Base64
 import liquibase.Scope
 import liquibase.change.AbstractSQLChange
 import liquibase.changelog.ChangeLogParameters
 import liquibase.parser.ChangeLogParserFactory
-import liquibase.resource.DirectoryResourceAccessor
+import liquibase.resource.ResourceAccessor
 import liquibase.util.StringUtil
 
 /** Checks Spanner proto bundle membership in Liquibase migration order. */
-object ValidateSpannerProtoBundles {
+object ProtoBundleValidator {
   private data class Definition(val dependencies: Set<String>)
 
   private val descriptorStatement = Regex("(?is)SET\\s+PROTO_DESCRIPTORS\\s*=\\s*'([^']*)'")
@@ -34,36 +33,26 @@ object ValidateSpannerProtoBundles {
   private val action = Regex("(?is)(INSERT|UPDATE|DELETE)\\s*\\(([^)]*)\\)")
   private val typeName = Regex("[A-Za-z_][A-Za-z_0-9]*(?:\\.[A-Za-z_][A-Za-z_0-9]*)*")
 
-  @JvmStatic
-  fun main(args: Array<String>) {
-    require(args.isNotEmpty()) { "Usage: ValidateSpannerProtoBundles <changelog>..." }
-    for (arg in args) {
-      validate(Path.of(arg).toAbsolutePath().normalize())
-    }
-  }
-
-  private fun validate(path: Path) {
-    DirectoryResourceAccessor(path.fileSystem.rootDirectories.first()).use { accessor ->
-      Scope.child(mapOf(Scope.Attr.resourceAccessor.name to accessor)) {
-        val changelog =
-          ChangeLogParserFactory.getInstance()
-            .getParser(path.toString(), accessor)
-            .parse(path.toString(), ChangeLogParameters(), accessor)
-        val definitions = mutableMapOf<String, Definition>()
-        val bundle = mutableMapOf<String, Definition>()
-        for (changeSet in changelog.changeSets) {
-          for (change in changeSet.changes) {
-            if (change !is AbstractSQLChange) continue
-            val sql = change.sql ?: continue
-            for (statement in StringUtil.processMultiLineSQL(sql, true, true, ";")) {
-              try {
-                apply(statement.trim(), definitions, bundle)
-              } catch (e: IllegalArgumentException) {
-                throw IllegalArgumentException(
-                  "${changeSet.filePath}::${changeSet.id}::${changeSet.author}: ${e.message}",
-                  e,
-                )
-              }
+  fun validate(changeLogPath: String, resourceAccessor: ResourceAccessor) {
+    Scope.child(mapOf(Scope.Attr.resourceAccessor.name to resourceAccessor)) {
+      val changelog =
+        ChangeLogParserFactory.getInstance()
+          .getParser(changeLogPath, resourceAccessor)
+          .parse(changeLogPath, ChangeLogParameters(), resourceAccessor)
+      val definitions = mutableMapOf<String, Definition>()
+      val bundle = mutableMapOf<String, Definition>()
+      for (changeSet in changelog.changeSets) {
+        for (change in changeSet.changes) {
+          if (change !is AbstractSQLChange) continue
+          val sql = change.sql ?: continue
+          for (statement in StringUtil.processMultiLineSQL(sql, true, true, ";")) {
+            try {
+              apply(statement.trim(), definitions, bundle)
+            } catch (e: IllegalArgumentException) {
+              throw IllegalArgumentException(
+                "${changeSet.filePath}::${changeSet.id}::${changeSet.author}: ${e.message}",
+                e,
+              )
             }
           }
         }
@@ -91,6 +80,10 @@ object ValidateSpannerProtoBundles {
         }
       }
       return
+    }
+
+    require(!Regex("(?is)^SET\\s+PROTO_DESCRIPTORS\\b").containsMatchIn(sql)) {
+      "Unsupported PROTO_DESCRIPTORS statement"
     }
 
     val next = bundle.toMutableMap()

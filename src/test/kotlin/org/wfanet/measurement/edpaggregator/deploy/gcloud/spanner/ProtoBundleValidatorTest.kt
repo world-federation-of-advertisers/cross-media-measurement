@@ -12,25 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.tools.spanner
+package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.DescriptorProtos
 import java.nio.file.Files
+import java.nio.file.Path
 import java.util.Base64
 import kotlin.test.assertFailsWith
+import liquibase.resource.ClassLoaderResourceAccessor
+import liquibase.resource.DirectoryResourceAccessor
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.ProtoBundleValidator
 
 @RunWith(JUnit4::class)
-class ValidateSpannerProtoBundlesTest {
+class ProtoBundleValidatorTest {
   @get:Rule val temporaryFolder = TemporaryFolder()
 
   @Test
-  fun `main rejects nested enum without its parent`() {
+  fun `validate rejects nested enum without its parent`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
         run("CREATE PROTO BUNDLE (`example.Parent.Mode`);", parent())
@@ -40,12 +44,12 @@ class ValidateSpannerProtoBundlesTest {
   }
 
   @Test
-  fun `main accepts nested enum with its parent`() {
+  fun `validate accepts nested enum with its parent`() {
     run("CREATE PROTO BUNDLE (`example.Parent`, `example.Parent.Mode`,);", parent())
   }
 
   @Test
-  fun `main rejects missing message field dependency`() {
+  fun `validate rejects missing message field dependency`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
         run("CREATE PROTO BUNDLE (`example.A`);", message("A", "example.B"), message("B", null))
@@ -54,7 +58,7 @@ class ValidateSpannerProtoBundlesTest {
   }
 
   @Test
-  fun `main accepts cyclic message dependencies`() {
+  fun `validate accepts cyclic message dependencies`() {
     run(
       "CREATE PROTO BUNDLE (`example.A`, `example.B`);",
       message("A", "example.B"),
@@ -63,7 +67,7 @@ class ValidateSpannerProtoBundlesTest {
   }
 
   @Test
-  fun `main rejects deletion of a referenced type`() {
+  fun `validate rejects deletion of a referenced type`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
         run(
@@ -77,7 +81,7 @@ class ValidateSpannerProtoBundlesTest {
   }
 
   @Test
-  fun `main accepts deletion of an entire dependent set`() {
+  fun `validate accepts deletion of an entire dependent set`() {
     run(
       "CREATE PROTO BUNDLE (`example.Parent`, `example.Parent.Mode`); " +
         "ALTER PROTO BUNDLE DELETE (`example.Parent`, `example.Parent.Mode`);",
@@ -86,7 +90,7 @@ class ValidateSpannerProtoBundlesTest {
   }
 
   @Test
-  fun `main rejects unknown descriptors`() {
+  fun `validate rejects unknown descriptors`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
         run("CREATE PROTO BUNDLE (`example.Missing`);", message("A", null))
@@ -95,7 +99,7 @@ class ValidateSpannerProtoBundlesTest {
   }
 
   @Test
-  fun `main rejects unsupported bundle syntax`() {
+  fun `validate rejects unsupported bundle syntax`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
         run("ALTER PROTO BUNDLE INSERT (`example.A`) unexpected;", message("A", null))
@@ -104,7 +108,7 @@ class ValidateSpannerProtoBundlesTest {
   }
 
   @Test
-  fun `main validates update against newly supplied descriptors`() {
+  fun `validate validates update against newly supplied descriptors`() {
     val root = temporaryFolder.newFolder().toPath()
     Files.writeString(
       root.resolve("first.sql"),
@@ -133,16 +137,13 @@ class ValidateSpannerProtoBundlesTest {
     """
         .trimIndent(),
     )
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        ValidateSpannerProtoBundles.main(arrayOf(changelog.toString()))
-      }
+    val error = assertFailsWith<IllegalArgumentException> { validate(changelog) }
     assertThat(error.message).contains("second.sql::2::test")
     assertThat(error.message).contains("unregistered type example.B")
   }
 
   @Test
-  fun `main checks each changelog independently`() {
+  fun `validate checks each changelog independently`() {
     val root = temporaryFolder.newFolder().toPath()
     Files.writeString(
       root.resolve("first.sql"),
@@ -152,15 +153,39 @@ class ValidateSpannerProtoBundlesTest {
       root.resolve("second.sql"),
       migration("CREATE PROTO BUNDLE (`example.A`);", "2", message("A", null)),
     )
-    ValidateSpannerProtoBundles.main(
-      arrayOf(root.resolve("first.sql").toString(), root.resolve("second.sql").toString())
-    )
+    validate(root.resolve("first.sql"))
+    validate(root.resolve("second.sql"))
+  }
+
+  @Test
+  fun `validate accepts the EDP Aggregator changelog`() {
+    ClassLoaderResourceAccessor(javaClass.classLoader).use { accessor ->
+      ProtoBundleValidator.validate("edpaggregator/spanner/changelog.yaml", accessor)
+    }
+  }
+
+  @Test
+  fun `validate rejects unsupported descriptor syntax`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        run(
+          "SET PROTO_DESCRIPTORS = 'unused' extra; CREATE PROTO BUNDLE (`example.A`);",
+          message("A", null),
+        )
+      }
+    assertThat(error.message).contains("Unsupported PROTO_DESCRIPTORS statement")
+  }
+
+  private fun validate(path: Path) {
+    DirectoryResourceAccessor(path.parent).use { accessor ->
+      ProtoBundleValidator.validate(path.fileName.toString(), accessor)
+    }
   }
 
   private fun run(sql: String, vararg messages: DescriptorProtos.DescriptorProto) {
     val path = temporaryFolder.newFolder().toPath().resolve("migration.sql")
     Files.writeString(path, migration(sql, "1", *messages))
-    ValidateSpannerProtoBundles.main(arrayOf(path.toString()))
+    validate(path)
   }
 
   private fun migration(
