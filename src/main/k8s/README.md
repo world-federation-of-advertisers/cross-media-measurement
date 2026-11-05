@@ -7,6 +7,21 @@ See the
 [Kubernetes API Reference](https://kubernetes.io/docs/reference/kubernetes-api/)
 for background.
 
+## EDP Aggregator rollout diagnostics
+
+When Configure Edp Aggregator Services fails during apply or rollout, inspect
+its job summary and the `edp-aggregator-rollout-diagnostics-<attempt>` artifact.
+It contains deployment and pod status, relevant events, and bounded current and
+previous init-container logs. `errors.json` lists reads that could not complete.
+
+To collect the same diagnostics locally using the current Kubernetes context:
+
+```shell
+python3 .github/workflows/scripts/k8s_rollout_diagnostics.py \
+  --selector=app.kubernetes.io/component=edp-aggregator \
+  --output-dir=/tmp/edp-aggregator-rollout-diagnostics
+```
+
 ## Useful Labels
 
 All resources defined in these manifests should have the
