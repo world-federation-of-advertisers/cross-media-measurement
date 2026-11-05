@@ -132,6 +132,9 @@ message RawImpressionUploadModelLine {
   // `VidRankBuilderParams.encrypted_subpool_maps_dek` — stays consistent with
   // the already-written merged blobs instead of diverging on a freshly
   // generated DEK.
+  // (-- api-linter: core::0215::foreign-type-reference=disabled
+  //     aip.dev/not-precedent: Shared encryption key schema used by
+  //     impression processing and aggregation. --)
   wfa.measurement.securecomputation.impressions.EncryptedDek
       encrypted_merged_dek = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 
