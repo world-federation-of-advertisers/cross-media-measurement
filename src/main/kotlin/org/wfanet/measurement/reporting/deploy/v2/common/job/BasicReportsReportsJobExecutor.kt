@@ -106,6 +106,7 @@ private fun run(
         reportingApiServerFlags.internalApiFlags.target,
         clientCerts,
         reportingApiServerFlags.internalApiFlags.certHost,
+        maxInboundMessageSize = reportingApiServerFlags.internalApiFlags.maxInboundMessageSize,
       )
       .withShutdownTimeout(Duration.ofSeconds(5))
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)

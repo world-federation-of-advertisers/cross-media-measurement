@@ -127,3 +127,18 @@ state count matching that report. This mode records `creation_reused: true` and
 `fulfilled_existing`; it cannot establish fresh creation latency or an isolated
 capacity result. It creates no campaign group or report. Normal workflow runs
 always create fresh reports.
+
+### Reporting transport limits
+
+The geographically segmented profile produces internal Reporting requests and responses larger
+than gRPC Java's default 4 MiB limit. The Reporting internal server is configured with
+`--max-inbound-message-size=67108864`, and Reporting internal API clients default to
+64 MiB through `--internal-api-max-inbound-message-size`. This limit applies to each
+uncompressed protobuf message.
+
+The common-jvm patch in `build/common_jvm/patches/grpc_message_size.patch` exposes these
+transport settings; its default server and channel limit remains 4 MiB.
+
+The Reporting HTTP gateway uses `--reporting-public-api-max-inbound-message-size`
+with the same 64 MiB bound, so completed BasicReport responses can be read. The
+scale test uses that bound for underlying Report and metric readback as well.

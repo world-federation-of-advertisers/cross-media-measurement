@@ -160,6 +160,7 @@ class ReportingScaleTest {
           .withMaxInboundMessageSize(64 * 1024 * 1024)
       val metricsClient =
         MetricsCoroutineStub(reportingChannel.withDefaultDeadline(Duration.ofSeconds(60)))
+          .withMaxInboundMessageSize(64 * 1024 * 1024)
       val httpClient = httpClient(deadline)
       val readClient =
         httpClient

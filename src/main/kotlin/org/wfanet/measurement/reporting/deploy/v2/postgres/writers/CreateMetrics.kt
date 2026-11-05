@@ -482,11 +482,12 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         }
       }
 
-    val measurementsStatement =
-      valuesListBoundStatement(
-        valuesStartIndex = 0,
-        paramCount = 9,
-        """
+    val measurementsStatements =
+      measurementsValuesList.chunked(INSERT_BATCH_SIZE).map { batch ->
+        valuesListBoundStatement(
+          valuesStartIndex = 0,
+          paramCount = 9,
+          """
         INSERT INTO Measurements
           (
             MeasurementConsumerId,
@@ -502,27 +503,29 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         VALUES
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
         """,
-      ) {
-        measurementsValuesList.forEach {
-          addValuesBinding {
-            bindValuesParam(0, measurementConsumerId)
-            bindValuesParam(1, it.measurementId)
-            bindValuesParam(2, it.cmmsCreateMeasurementRequestId)
-            bindValuesParam<String>(3, null)
-            bindValuesParam(4, it.timeIntervalStart)
-            bindValuesParam(5, it.timeIntervalEndExclusive)
-            bindValuesParam(6, Measurement.State.STATE_UNSPECIFIED)
-            bindValuesParam(7, it.details)
-            bindValuesParam(8, it.details.toJson())
+        ) {
+          batch.forEach {
+            addValuesBinding {
+              bindValuesParam(0, measurementConsumerId)
+              bindValuesParam(1, it.measurementId)
+              bindValuesParam(2, it.cmmsCreateMeasurementRequestId)
+              bindValuesParam<String>(3, null)
+              bindValuesParam(4, it.timeIntervalStart)
+              bindValuesParam(5, it.timeIntervalEndExclusive)
+              bindValuesParam(6, Measurement.State.STATE_UNSPECIFIED)
+              bindValuesParam(7, it.details)
+              bindValuesParam(8, it.details.toJson())
+            }
           }
         }
       }
 
-    val metricMeasurementsStatement =
-      valuesListBoundStatement(
-        valuesStartIndex = 0,
-        paramCount = 5,
-        """
+    val metricMeasurementsStatements =
+      metricMeasurementsValuesList.chunked(INSERT_BATCH_SIZE).map { batch ->
+        valuesListBoundStatement(
+          valuesStartIndex = 0,
+          paramCount = 5,
+          """
         INSERT INTO MetricMeasurements
           (
             MeasurementConsumerId,
@@ -534,23 +537,25 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         VALUES
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
         """,
-      ) {
-        metricMeasurementsValuesList.forEach {
-          addValuesBinding {
-            bindValuesParam(0, measurementConsumerId)
-            bindValuesParam(1, it.metricId)
-            bindValuesParam(2, it.measurementId)
-            bindValuesParam(3, it.coefficient)
-            bindValuesParam(4, it.binaryRepresentation)
+        ) {
+          batch.forEach {
+            addValuesBinding {
+              bindValuesParam(0, measurementConsumerId)
+              bindValuesParam(1, it.metricId)
+              bindValuesParam(2, it.measurementId)
+              bindValuesParam(3, it.coefficient)
+              bindValuesParam(4, it.binaryRepresentation)
+            }
           }
         }
       }
 
-    val primitiveReportingSetBasesStatement =
-      valuesListBoundStatement(
-        valuesStartIndex = 0,
-        paramCount = 3,
-        """
+    val primitiveReportingSetBasesStatements =
+      primitiveReportingSetBasesValuesList.chunked(INSERT_BATCH_SIZE).map { batch ->
+        valuesListBoundStatement(
+          valuesStartIndex = 0,
+          paramCount = 3,
+          """
         INSERT INTO PrimitiveReportingSetBases
           (
             MeasurementConsumerId,
@@ -560,21 +565,23 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         VALUES
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
         """,
-      ) {
-        primitiveReportingSetBasesValuesList.forEach {
-          addValuesBinding {
-            bindValuesParam(0, measurementConsumerId)
-            bindValuesParam(1, it.primitiveReportingSetBasisId)
-            bindValuesParam(2, it.primitiveReportingSetId)
+        ) {
+          batch.forEach {
+            addValuesBinding {
+              bindValuesParam(0, measurementConsumerId)
+              bindValuesParam(1, it.primitiveReportingSetBasisId)
+              bindValuesParam(2, it.primitiveReportingSetId)
+            }
           }
         }
       }
 
-    val primitiveReportingSetBasisFiltersStatement =
-      valuesListBoundStatement(
-        valuesStartIndex = 0,
-        paramCount = 4,
-        """
+    val primitiveReportingSetBasisFiltersStatements =
+      primitiveReportingSetBasisFiltersValuesList.chunked(INSERT_BATCH_SIZE).map { batch ->
+        valuesListBoundStatement(
+          valuesStartIndex = 0,
+          paramCount = 4,
+          """
         INSERT INTO PrimitiveReportingSetBasisFilters
           (
             MeasurementConsumerId,
@@ -585,22 +592,24 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         VALUES
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
         """,
-      ) {
-        primitiveReportingSetBasisFiltersValuesList.forEach {
-          addValuesBinding {
-            bindValuesParam(0, measurementConsumerId)
-            bindValuesParam(1, it.primitiveReportingSetBasisId)
-            bindValuesParam(2, it.primitiveReportingSetBasisFilterId)
-            bindValuesParam(3, it.filter)
+        ) {
+          batch.forEach {
+            addValuesBinding {
+              bindValuesParam(0, measurementConsumerId)
+              bindValuesParam(1, it.primitiveReportingSetBasisId)
+              bindValuesParam(2, it.primitiveReportingSetBasisFilterId)
+              bindValuesParam(3, it.filter)
+            }
           }
         }
       }
 
-    val measurementPrimitiveReportingSetBasesStatement =
-      valuesListBoundStatement(
-        valuesStartIndex = 0,
-        paramCount = 3,
-        """
+    val measurementPrimitiveReportingSetBasesStatements =
+      measurementPrimitiveReportingSetBasesValuesList.chunked(INSERT_BATCH_SIZE).map { batch ->
+        valuesListBoundStatement(
+          valuesStartIndex = 0,
+          paramCount = 3,
+          """
         INSERT INTO MeasurementPrimitiveReportingSetBases
           (
             MeasurementConsumerId,
@@ -610,12 +619,13 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         VALUES
         ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
         """,
-      ) {
-        measurementPrimitiveReportingSetBasesValuesList.forEach {
-          addValuesBinding {
-            bindValuesParam(0, measurementConsumerId)
-            bindValuesParam(1, it.measurementId)
-            bindValuesParam(2, it.primitiveReportingSetBasisId)
+        ) {
+          batch.forEach {
+            addValuesBinding {
+              bindValuesParam(0, measurementConsumerId)
+              bindValuesParam(1, it.measurementId)
+              bindValuesParam(2, it.primitiveReportingSetBasisId)
+            }
           }
         }
       }
@@ -626,13 +636,13 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         if (metricCalculationSpecReportingMetricsValuesList.isNotEmpty()) {
           executeStatement(metricCalculationSpecReportingMetricsStatement)
         }
-        executeStatement(measurementsStatement)
-        executeStatement(metricMeasurementsStatement)
-        executeStatement(primitiveReportingSetBasesStatement)
+        measurementsStatements.forEach { executeStatement(it) }
+        metricMeasurementsStatements.forEach { executeStatement(it) }
+        primitiveReportingSetBasesStatements.forEach { executeStatement(it) }
         if (primitiveReportingSetBasisFiltersValuesList.isNotEmpty()) {
-          executeStatement(primitiveReportingSetBasisFiltersStatement)
+          primitiveReportingSetBasisFiltersStatements.forEach { executeStatement(it) }
         }
-        executeStatement(measurementPrimitiveReportingSetBasesStatement)
+        measurementPrimitiveReportingSetBasesStatements.forEach { executeStatement(it) }
       }
     }
 
@@ -756,5 +766,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
       measurementPrimitiveReportingSetBasesValuesList =
         measurementPrimitiveReportingSetBasesValuesList,
     )
+  }
+
+  companion object {
+    // A metric can expand to many related rows; bound each INSERT in the same transaction.
+    private const val INSERT_BATCH_SIZE = 1000
   }
 }

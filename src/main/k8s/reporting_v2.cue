@@ -170,6 +170,7 @@ package k8s
 	deployments: {
 		"postgres-internal-reporting-server": #ServerDeployment & {
 			_container: args: [
+						"--max-inbound-message-size=67108864",
 						_reportingCertCollectionFileFlag,
 						_debugVerboseGrpcServerLoggingFlag,
 						"--port=8443",
@@ -204,6 +205,7 @@ package k8s
 
 		"reporting-v2alpha-public-api-server": #ServerDeployment & {
 			_container: args: [
+						"--max-inbound-message-size=67108864",
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
 						_reportingCertCollectionFileFlag,
@@ -243,6 +245,7 @@ package k8s
 		"reporting-grpc-gateway": {
 			_container: {
 				args: [
+					"--reporting-public-api-max-inbound-message-size=67108864",
 					"--port=8443",
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
 				] + _tlsArgs + _reportingApiTarget.args

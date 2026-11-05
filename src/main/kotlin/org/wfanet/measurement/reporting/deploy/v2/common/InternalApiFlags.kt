@@ -27,6 +27,14 @@ class InternalApiFlags {
   lateinit var target: String
 
   @CommandLine.Option(
+    names = ["--internal-api-max-inbound-message-size"],
+    description = ["Maximum inbound Reporting internal API response size in bytes."],
+    defaultValue = "67108864",
+  )
+  var maxInboundMessageSize: Int = 64 * 1024 * 1024
+    private set
+
+  @CommandLine.Option(
     names = ["--internal-api-cert-host"],
     description =
       [

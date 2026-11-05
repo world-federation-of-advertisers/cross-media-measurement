@@ -129,6 +129,7 @@ private object V2AlphaPublicApiServer {
           reportingApiServerFlags.internalApiFlags.target,
           clientCerts,
           reportingApiServerFlags.internalApiFlags.certHost,
+          maxInboundMessageSize = reportingApiServerFlags.internalApiFlags.maxInboundMessageSize,
         )
         .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
