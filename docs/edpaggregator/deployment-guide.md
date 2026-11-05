@@ -830,7 +830,7 @@ requisition_refusal_duration {
 configs {
   data_provider: "dataProviders/DATA_PROVIDER_ID"
   requisition_storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
-  storage_path_prefix: "<edp-id>/requisitions"  # Legacy recovery only; no new writes.
+  storage_path_prefix: "<edp-id>/requisitions"  # Existing group lookup only; no new writes.
   cmms_connection {
     cert_file_path: "/secrets/cert/<edp-id>_tls.pem"
     private_key_file_path: "/secrets/key/<edp-id>_tls.key"
@@ -844,8 +844,8 @@ configs {
   }
   # Required. All newly fetched requisitions use direct dispatch.
   work_item_dispatch {
-    # Dedicated namespace for directly dispatched groups. Do not match this
-    # path in the legacy DataWatcher source_path_regex.
+    # Dedicated namespace for directly dispatched groups. This must be
+    # disjoint from every configured storage path prefix in the bucket.
     storage_path_prefix: "<edp-id>/requisitions-v2"
     control_plane_connection {
       cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
@@ -896,106 +896,32 @@ current run; a later scheduled invocation retries the refusal.
 
 `work_item_dispatch` is required for every configured data provider. RequisitionFetcher writes every
 new grouped blob under its nested `storage_path_prefix` and dispatches it directly. The top-level
-`storage_path_prefix` is retained only to recognize and recover pre-cutover DataWatcher-owned groups.
-Every legacy and direct prefix sharing a bucket must be disjoint globally: no prefix may equal,
+`storage_path_prefix` is retained to locate previously recorded groups and receives no new writes.
+Every top-level and direct prefix sharing a bucket must be disjoint globally: no prefix may equal,
 contain, or be contained by another at a path-segment boundary, even when the prefixes belong to
 different data providers. The fetcher validates all namespaces before processing any provider.
-Before upgrading, keep any legacy DataWatcher `results-fulfiller` watched path restricted to the
-top-level legacy prefix until the migration checklist below is complete. The upgraded configuration
-must omit that watched path. RequisitionFetcher also requires
+RequisitionFetcher also requires
 `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
 `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST`. The repository's Terraform entry point injects the
 target from `secure_computation_public_api_target` and mounts the
 `securecomputation-root-ca` secret at `/secrets/secure-computation-ca/secure_computation_root.pem`; each
 `control_plane_connection.cert_collection_file_path` must name that mounted path.
 
-#### Migrating from DataWatcher dispatch
+The repository's top-level **Update CMMS** workflow is the supported deployment path. Its preflight
+validates the exact RequisitionFetcher and DataWatcher configurations committed for the selected
+environment before any worker is quiesced. The RequisitionFetcher validation requires a
+direct-dispatch block for every configured data provider, a control-plane target, queue, TLS paths,
+valid ResultsFulfiller parameters, and disjoint storage prefixes. Do not invoke the child deployment
+workflows independently.
 
-The legacy and direct paths use separate object namespaces. All new groups are created atomically in
-`QUEUED` under the direct prefix. Pre-cutover legacy groups remain `STORED` under the original
-prefix. Recovery uses each group's persisted `blob_uri`; it never moves a group between namespaces.
-Keep the direct prefix unchanged while any direct group remains `STORED`, `QUEUED`, or `PROCESSING`.
-RequisitionFetcher determines ownership by comparing each persisted `blob_uri` with the URI derived
-from the currently configured prefix; changing it sooner makes those groups unrecognizable and
-strands their recovery.
-
-A legacy group with any `PROCESSING` row remains owned by its existing
-DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob.
-The fetcher also does not claim a legacy `STORED` blob, because it cannot safely distinguish a
-missing WorkItem from a DataWatcher delivery race. Removing the watched path while either case
-remains can therefore strand the group. The fetcher still processes newly discovered requisitions
-for the same report through the direct namespace.
-
-Before upgrading a deployment that still has the legacy ResultsFulfiller watched path:
-
-1. Keep the watched path active on the currently deployed version while legacy groups drain. Audit
-   RequisitionMetadata by persisted `blob_uri`, and do not continue while a group under the legacy
-   prefix remains `STORED`, `QUEUED`, or `PROCESSING`.
-2. For every legacy `STORED` group whose blob exists, verify that a matching WorkItem exists and can
-   complete. Redeliver or repair missing and ambiguous deliveries with the currently deployed
-   legacy route still active. An event that DataWatcher acknowledged without creating a WorkItem
-   will not be recoverable after the route is removed.
-3. Remove the legacy ResultsFulfiller watched path from the selected environment's
-   `data-watcher-config.textproto`. Preserve the RequisitionFetcher's top-level legacy
-   `storage_path_prefix` so historical metadata can still be recognized.
-4. Run the repository's top-level **Update CMMS** workflow, or automation that implements the same
-   environment lock and ordered barriers. If deployment fails before workers are restored, rerun
-   the complete process; do not invoke individual deployment phases independently.
-
-The workflow's environment-scoped concurrency lock prevents overlapping deployments from
-interleaving rollout phases. Before its first Terraform apply, separate preflight commands validate
-the exact RequisitionFetcher and DataWatcher textprotos committed for the selected environment. The
-RequisitionFetcher preflight requires a direct-dispatch block for every configured data provider, a
-control-plane target, queue, TLS paths, and valid ResultsFulfiller parameters; it also rejects
-overlapping storage prefixes or any deployed DataWatcher regex that matches a representative
-direct-path object. The DataWatcher preflight rejects a `control_plane_queue_sink` whose
-`app_params` contains `ResultsFulfillerParams`. DataWatcher enforces the same restriction when it
-loads its runtime configuration. Validation failure therefore stops deployment before any worker
-is quiesced. The workflow first rolls both
-Secure Computation API deployments with WorkItem publication, legacy reconciliation, and
-dead-letter processing disabled.
-Its first Terraform apply then pauses the RequisitionFetcher Cloud Scheduler job, uploads the
-direct-only configuration and binary, and quiesces all WorkItem-consuming TEE MIGs. The workflow
-waits for the fetcher's 600-second maximum invocation duration and verifies that every affected TEE
-MIG has zero instances before continuing. It rolls both Secure Computation API deployments again
-with publication and dead-letter processing enabled, then rolls every EDP Aggregator/Requisition
-Metadata API deployment to completion. Its final Terraform apply validates the configuration again
-before resuming the RequisitionFetcher scheduler and enabling the new workers.
-
-The final Terraform apply resumes the RequisitionFetcher scheduler and enables the new workers.
-Scheduler pausing is independent of the function revision, so an old fetcher cannot run during the
-API and worker rollout and the new direct-only fetcher needs no legacy-mode process flag. The next
-invocation polls the same unfulfilled Kingdom requisitions. DataWatcher remains active for its other
-configured watched paths, but it no longer dispatches ResultsFulfiller events.
-
-The DataWatcher preflight and runtime validation enforce that the legacy route is absent, but they
-only inspect configuration. They do not prove that live legacy metadata and blobs were drained; the
-pre-upgrade audit above is the safety gate for removing the route.
-
-Do not invoke child deployment workflows independently for this upgrade. The live-state audit must
-finish before the top-level workflow begins.
-
-The upgraded publication runner automatically repairs old `QUEUED` WorkItems without outbox rows,
-but it cannot create a WorkItem for a legacy `STORED` blob. Retained legacy storage events are not a
-recovery mechanism after the ResultsFulfiller watched path is removed.
-
-This cutover does not add version-suffixed RPCs or another Secure Computation queue, Pub/Sub topic,
-subscription, or dead-letter queue. It keeps the existing outbox publish-ack behavior,
-`EnsureWorkItem` for idempotent dispatch, and `RegisterQueuedRequisitionMetadata` for atomic
-ownership registration. The existing EDPA-aware DLQ behavior predates this change and is not
-expanded for ResultsFulfiller.
-
-After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
+A `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
 failure, then call `RetryWorkItem` explicitly. Upgraded workers renew attempt leases, and the Secure
 Computation internal API automatically republishes an attempt after its lease expires.
 
-For rollback, first pause the RequisitionFetcher scheduler and disable the WorkItem consumers, then
-drain or repair all direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`; the legacy
-DataWatcher intentionally does not watch that namespace. Restore the pre-cutover RequisitionFetcher
-binary and config as a unit before resuming the scheduler. Do not remove `work_item_dispatch` while
-the new binary is deployed: the field is required. If legacy recovery must be restored, roll back
-the DataWatcher binary and configuration together; the upgraded DataWatcher rejects a
-ResultsFulfiller watched path.
+For rollback, pause the RequisitionFetcher scheduler and disable the WorkItem consumers, then drain
+or repair all directly dispatched groups in `STORED`, `QUEUED`, or `PROCESSING`. Restore the
+RequisitionFetcher binary and configuration as a unit before resuming the scheduler. Do not remove
+`work_item_dispatch` while the new binary is deployed: the field is required.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
 
