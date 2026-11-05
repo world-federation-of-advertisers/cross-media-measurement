@@ -39,16 +39,16 @@ class RequisitionFetcherConfigValidatorTest {
   @get:Rule val temporaryFolder = TemporaryFolder()
 
   @Test
-  fun `deployment config with excluded direct namespace is valid`() {
+  fun `deployment config with unrelated watcher namespace is valid`() {
     RequisitionFetcherConfigValidator.validate(
       validFetcherConfig(),
       CONTROL_PLANE_TARGET,
-      buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+      buildDataWatcherConfig("^gs://bucket/unrelated/(.*)$"),
     )
   }
 
   @Test
-  fun `deployment config without legacy DataWatcher route is valid`() {
+  fun `deployment config without DataWatcher paths is valid`() {
     RequisitionFetcherConfigValidator.validate(
       validFetcherConfig(),
       CONTROL_PLANE_TARGET,
@@ -83,7 +83,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionFetcherConfigValidator.validate(
           config,
           CONTROL_PLANE_TARGET,
-          buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+          buildDataWatcherConfig("^gs://bucket/unrelated/(.*)$"),
         )
       }
 
@@ -108,7 +108,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionFetcherConfigValidator.validate(
           config,
           CONTROL_PLANE_TARGET,
-          buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+          buildDataWatcherConfig("^gs://bucket/unrelated/(.*)$"),
         )
       }
 
@@ -141,11 +141,34 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionFetcherConfigValidator.validate(
           config,
           CONTROL_PLANE_TARGET,
-          buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+          buildDataWatcherConfig("^gs://bucket/unrelated/(.*)$"),
         )
       }
 
     assertThat(exception).hasMessageThat().contains("Missing 'work_item_dispatch'")
+  }
+
+  @Test
+  fun `deployment config rejects deprecated storage path prefix`() {
+    val config =
+      RequisitionFetcherConfig.newBuilder()
+        .addConfigs(
+          validDataProviderConfig()
+            .toBuilder()
+            .setField(DEPRECATED_STORAGE_PATH_PREFIX_FIELD, "old-prefix")
+        )
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        RequisitionFetcherConfigValidator.validate(
+          config,
+          CONTROL_PLANE_TARGET,
+          DataWatcherConfig.getDefaultInstance(),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("Deprecated top-level 'storage_path_prefix'")
   }
 
   @Test
@@ -155,7 +178,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionFetcherConfigValidator.validate(
           validFetcherConfig(),
           "",
-          buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+          buildDataWatcherConfig("^gs://bucket/unrelated/(.*)$"),
         )
       }
 
@@ -176,7 +199,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionFetcherConfigValidator.validate(
           config,
           CONTROL_PLANE_TARGET,
-          buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+          buildDataWatcherConfig("^gs://bucket/unrelated/(.*)$"),
         )
       }
 
@@ -204,7 +227,7 @@ class RequisitionFetcherConfigValidatorTest {
           RequisitionFetcherConfigValidator.validate(
             config,
             CONTROL_PLANE_TARGET,
-            buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+            buildDataWatcherConfig("^gs://bucket/unrelated/(.*)$"),
           )
         }
 
@@ -218,7 +241,7 @@ class RequisitionFetcherConfigValidatorTest {
     fetcherFile.writeText(TextFormat.printer().printToString(validFetcherConfig()))
     val watcherFile = temporaryFolder.newFile("data-watcher-config.textproto")
     watcherFile.writeText(
-      TextFormat.printer().printToString(buildDataWatcherConfig("^gs://bucket/legacy/(.*)$"))
+      TextFormat.printer().printToString(buildDataWatcherConfig("^gs://bucket/unrelated/(.*)$"))
     )
 
     val exitCode =
@@ -242,7 +265,6 @@ class RequisitionFetcherConfigValidatorTest {
         StorageParams.newBuilder()
           .setGcs(StorageParams.GcsStorage.newBuilder().setBucketName("bucket"))
       )
-      .setStoragePathPrefix("legacy")
       .setEdpPrivateKeyPath("/secrets/edp.key")
       .setCmmsConnection(tlsParams())
       .setRequisitionMetadataStorageConnection(tlsParams())
@@ -289,13 +311,15 @@ class RequisitionFetcherConfigValidatorTest {
 
   private fun buildDataWatcherConfig(regex: String): DataWatcherConfig = dataWatcherConfig {
     watchedPaths += watchedPath {
-      identifier = "legacy-requisitions"
+      identifier = "unrelated-path"
       sourcePathRegex = regex
       this.controlPlaneQueueSink = controlPlaneQueueSink { queue = RESULTS_FULFILLER_QUEUE }
     }
   }
 
   companion object {
+    private val DEPRECATED_STORAGE_PATH_PREFIX_FIELD =
+      checkNotNull(DataProviderRequisitionConfig.getDescriptor().findFieldByNumber(3))
     private const val DATA_PROVIDER = "dataProviders/dp"
     private const val CONTROL_PLANE_TARGET = "secure-computation.example:8443"
     private const val RESULTS_FULFILLER_QUEUE = "results-fulfiller-queue"

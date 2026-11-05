@@ -830,7 +830,6 @@ requisition_refusal_duration {
 configs {
   data_provider: "dataProviders/DATA_PROVIDER_ID"
   requisition_storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
-  storage_path_prefix: "<edp-id>/requisitions"  # Existing group lookup only; no new writes.
   cmms_connection {
     cert_file_path: "/secrets/cert/<edp-id>_tls.pem"
     private_key_file_path: "/secrets/key/<edp-id>_tls.key"
@@ -845,7 +844,7 @@ configs {
   # Required. All newly fetched requisitions use direct dispatch.
   work_item_dispatch {
     # Dedicated namespace for directly dispatched groups. This must be
-    # disjoint from every configured storage path prefix in the bucket.
+    # disjoint from every other direct-dispatch prefix in the bucket.
     storage_path_prefix: "<edp-id>/requisitions-v2"
     control_plane_connection {
       cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
@@ -895,11 +894,11 @@ Kingdom state and applies the matching local terminal transition. If the Requisi
 current run; a later scheduled invocation retries the refusal.
 
 `work_item_dispatch` is required for every configured data provider. RequisitionFetcher writes every
-new grouped blob under its nested `storage_path_prefix` and dispatches it directly. The top-level
-`storage_path_prefix` is retained to locate previously recorded groups and receives no new writes.
-Every top-level and direct prefix sharing a bucket must be disjoint globally: no prefix may equal,
-contain, or be contained by another at a path-segment boundary, even when the prefixes belong to
-different data providers. The fetcher validates all namespaces before processing any provider.
+new grouped blob under its `storage_path_prefix` and dispatches it directly. Every direct prefix
+sharing a bucket must be disjoint globally: no prefix may equal, contain, or be contained by another
+at a path-segment boundary, even when the prefixes belong to different data providers. The fetcher
+validates all namespaces before processing any provider. The deprecated top-level
+`storage_path_prefix` must remain unset.
 RequisitionFetcher also requires
 `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
 `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST`. The repository's Terraform entry point injects the
@@ -1252,8 +1251,8 @@ The repository's top-level **Update CMMS** workflow is the supported upgrade pat
 child deployment workflows independently; doing so bypasses the worker-quiescence barrier.
 
 Configure the deployment, then run **Update CMMS** once. Before changing a deployment, the workflow
-validates the RequisitionFetcher and DataWatcher configuration, including direct/legacy namespace
-separation and required control-plane settings. An environment-scoped concurrency lock prevents
+validates the RequisitionFetcher and DataWatcher configuration, including direct-dispatch namespace
+exclusion and required control-plane settings. An environment-scoped concurrency lock prevents
 two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
 performs the required order:
 

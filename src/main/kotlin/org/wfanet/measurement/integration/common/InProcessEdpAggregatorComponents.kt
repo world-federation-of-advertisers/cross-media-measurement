@@ -356,7 +356,6 @@ class InProcessEdpAggregatorComponents(
           requisitionMetadataStub = requisitionMetadataClient,
           storageClient = storageClient,
           dataProviderName = edpResourceName,
-          storagePathPrefix = "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
           directStoragePathPrefix = "$REQUISITION_STORAGE_PREFIX-v2-$edpAggregatorShortName",
           blobUriPrefix = "file://",
           requisitionValidator = requisitionsValidator,

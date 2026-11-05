@@ -163,11 +163,7 @@ data_provider_routes {
 }
 ```
 
-`EDPA` means the direct RequisitionFetcher-to-Secure-Computation WorkItem path.
-There is intentionally no `LEGACY` route. The tool does not support the legacy
-DataWatcher dispatch path, and an operator must not classify a legacy EDPA as
-`EDPA`: doing so would make the tool look for direct-dispatch stages that the
-deployment cannot emit.
+`EDPA` means the RequisitionFetcher-to-Secure-Computation WorkItem path.
 
 ```bash
 SPANNER_DISABLE_BUILTIN_METRICS=true \
@@ -462,8 +458,7 @@ its logs while processing a BasicReport with `xmm.basic_report.name`,
 `xmm.report.name`, lifecycle stage, and outcome.
 
 EDPA route tracing requires the direct RequisitionFetcher dispatcher described
-in the deployment guide. The legacy DataWatcher dispatch route is not supported
-by `report-trace`.
+in the deployment guide.
 
 The CLI searches Cloud Trace and Cloud Logging using the resolved BasicReport,
 Report, Metric, and Measurement identifiers, plus unresolved Metric and
@@ -731,7 +726,6 @@ cluster is `reporting-v2`; duchy identities are `worker1` / `worker2` /
 | Duchy | requisition fulfillment endpoint (EDPs send fulfilled data here for computed protocols) | `<duchy>-requisition-fulfillment-server-container` |
 | EDPA | requisition-fetcher (Kingdom → GCS + work queue) | Cloud Function `requisition-fetcher` |
 | EDPA | data-availability-sync (registers impression metadata) | Cloud Function `data-availability-sync` |
-| EDPA | data-watcher (legacy GCS → work queue) | Cloud Function `data-watcher` |
 | EDPA | results-fulfiller (decrypt + fulfill) | `edpa.results_fulfiller` log name (GCE MIG, `gce_instance`) |
 | EDPA | requisition-/impression-metadata public API (v1alpha) | `edp-aggregator-system-api-server-container` |
 | EDPA | requisition-/impression-metadata internal API (edp-aggregator Spanner) | `edp-aggregator-internal-api-server-container` |
@@ -766,7 +760,7 @@ Useful metric families (all under the `edpa.*` namespace unless noted):
 | Fetcher throughput/health | `edpa.requisition_fetcher.requisitions_fetched`, `edpa.requisition_fetcher.storage_writes`, `edpa.requisition_fetcher.report_failures`, `edpa.requisition_fetcher.report_refusals`, `edpa.requisition_fetcher.fetch_latency` | whether S4-A stage 2 is fetching, storing, and how many reports it is failing/refusing |
 | Impression data availability | `edpa.data_availability.records_synced`, `edpa.data_availability.cmms_rpc_errors`, `edpa.data_availability.sync_duration`, `edpa.data_availability.date_count` | whether the EDP's impression metadata is being registered (a precondition for S4-A fulfillment), and Kingdom RPC errors during sync |
 | Fulfillment | `edpa.results_fulfiller.requisitions_processed` (dimensioned by `status`=`success`/`failure`), `edpa.results_fulfiller.requisition_fulfillment_latency`, `edpa.results_fulfiller.report_fulfillment_latency` | whether S4-A stage 4 is processing and succeeding (`status=failure` counts failures) |
-| Work dispatch | RequisitionFetcher logs and `RequisitionMetadata.WorkItem` | whether S4-A dispatched a WorkItem to the results-fulfiller queue; legacy deployments also expose `edpa.data_watcher.queue_writes` and `.processing_duration` |
+| Work dispatch | RequisitionFetcher logs and `RequisitionMetadata.WorkItem` | whether S4-A dispatched a WorkItem to the results-fulfiller queue |
 | Event-group sync | `edpa.event_group.sync_success`, `edpa.event_group.sync_failure`, `edpa.event_group.invalid_event_group_failure`, `edpa.event_group.sync_deleted`, `edpa.event_group.sync_latency` | event-group registration health; invalid input is counted separately from operational sync failures |
 | Duchy computation | Duchy mill emits `stage_wall_clock_duration_ms`, `crypto_wall_clock_duration_ms`, `crypto_cpu_duration_ms` | S5 stage progress / where a computation spends time or stalls |
 
@@ -1021,15 +1015,13 @@ Trace:
      ResultsFulfiller failure or dead-letter message, remediate it, and then have an
      operator call `RetryWorkItem`. RequisitionFetcher does not restart a dead-letter cycle.
    - Row `STORED (1)` → the blob is registered but direct dispatch has not
-     completed its queue transition; check the fetcher. For a pre-cutover legacy group, continue to
-     the DataWatcher checks in step 3.
+     completed its queue transition; check the fetcher.
    - No row → the fetcher never stored it; go to step 2.
 
 2. **requisition-fetcher** (Cloud Function). It polls the Kingdom and is also
    HTTP-triggered, writing every new grouped-requisitions blob to the configured direct-dispatch
    prefix and registering it via the **v1alpha RequisitionMetadata service**. After every row in the
-   group is `QUEUED`, the fetcher creates the deterministic ResultsFulfiller WorkItem directly. The
-   legacy prefix is used only to recover pre-cutover groups.
+   group is `QUEUED`, the fetcher creates the deterministic ResultsFulfiller WorkItem directly.
 
    ```bash
    gcloud logging read \
@@ -1088,56 +1080,6 @@ Trace:
    `QUEUED`, or `PROCESSING`. Recovery compares the persisted `blob_uri` with the URI derived from
    the current prefix; changing it earlier makes those groups unrecognizable to RequisitionFetcher.
 
-   The **data-watcher** remains running for pre-cutover groups under the top-level legacy
-   requisition prefix while the automated rollout quiesces the WorkItem consumers. It must not
-   match the dedicated direct-dispatch `storage_path_prefix`. Updated DataWatcher revisions use a
-   deterministic WorkItem ID and propagate transient dispatch failures so retained and future
-   events can be retried safely. An event that an older DataWatcher already acknowledged after an
-   ambiguous dispatch failure is not recoverable from Pub/Sub after retention. For a legacy group,
-   a GCS `object.finalized` Eventarc trigger submits the WorkItem:
-
-   ```bash
-   gcloud logging read \
-     'resource.type="cloud_run_revision" AND resource.labels.service_name="data-watcher" AND timestamp>="<START>"' \
-     --project=<ENV> --limit=30 --format=json | python3 -c '
-   import json, sys
-   for l in reversed(json.load(sys.stdin)):
-       m = l.get("jsonPayload", {}).get("message", "") or l.get("textPayload", "")
-       if m and ("Submitted work item" in m or "matched path" in m or "Received data path" in m):
-           print(l["timestamp"][:19], m[:200])'
-   ```
-
-   - `Submitted work item to control plane queue: ... queue=results-fulfiller-queue`
-     → dispatched; continue.
-   - Nothing for the blob → the Eventarc trigger did not fire. Verify the blob
-     exists and the trigger is healthy. Grep **both** `jsonPayload.message` and
-     `textPayload` and widen the window before concluding "not dispatched".
-
-   Legacy metric cross-check (Cloud Monitoring):
-   `edpa.data_watcher.queue_writes` counts work items written to the queue; if it
-   is flat while blobs are landing, the data-watcher is not dispatching
-   (Eventarc trigger or the data-watcher itself).
-
-   **Legacy data-watcher dead-letter queue.** The GCS-event delivery to the
-   data-watcher is itself dead-lettered: if the data-watcher repeatedly fails to
-   process a blob, the triggering event lands in the data-watcher's own DLQ
-   (`data-watcher-dlq-sub`, 7-day retention) — a *separate* queue from the
-   results-fulfiller DLQ in step 4.
-   A message here means the blob never became a work item at all. There is a
-   Cloud Monitoring alert on this DLQ's `num_undelivered_messages`; check it
-   directly with:
-
-   ```bash
-   gcloud pubsub subscriptions pull data-watcher-dlq-sub --project=<ENV> --limit=50 \
-     --format="value(message.publishTime,message.data,message.attributes)"
-   ```
-
-   Search the returned messages for **your** blob path (`<edp>/requisitions/<groupId>`)
-   rather than treating any message as the signal — this DLQ can carry unrelated
-   failures. A message matching your blob means the data-watcher is failing that GCS
-   event; read its logs above for
-   the error. (The delete path has its own `data-watcher-delete-dlq-sub`.)
-
 4. **results-fulfiller** (GCE MIG). Use trace labels together with logs (see
    [Debugging in production](#debugging-in-production-many-requisitions-in-flight)).
    To isolate your requisition at volume, filter Cloud Trace by
@@ -1182,9 +1124,9 @@ Trace:
    growing** against the MIG size, not by "is it zero" (see
    [MIG not scaling to demand](#mig-not-scaling-to-demand)).
 
-   **On the results-fulfiller dead-letter queue** (`results-fulfiller-queue-dlq-sub`
-   — distinct from the legacy data-watcher DLQ in step 3; this one holds WorkItems
-   whose delivery exhausted `max_delivery_attempts` (5 by default). The
+   **On the results-fulfiller dead-letter queue** (`results-fulfiller-queue-dlq-sub`),
+   WorkItems whose delivery exhausted `max_delivery_attempts` (5 by default) are
+   retained for investigation. The
    workload-agnostic DLQ listener terminalizes the WorkItem but does not update
    Requisition Metadata. The `CloudPubSubDeadLetterSourceDeliveryCount` attribute
    shows the attempt count. Match a DLQ message to your requisition by its WorkItem
@@ -1550,8 +1492,8 @@ it belongs to a requisition created **after** your change — check the requisit
 `CreateTime` (Kingdom or EDPA) or the delivery timestamp, and match the
 `GroupId` / `CmmsRequisition` to current work rather than assuming the newest error
 reflects the current config. Conversely, when a failure mode points at
-configuration (model line, KMS type, EDPs config, RequisitionFetcher WorkItem
-dispatch config, or a legacy data-watcher config), suspect a recent config change
+configuration (model line, KMS type, EDPs config, or RequisitionFetcher WorkItem
+dispatch config), suspect a recent config change
 as the root cause and compare against the last-known-good value rather than
 inventing a new one.
 
