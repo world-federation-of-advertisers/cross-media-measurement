@@ -36,6 +36,7 @@ package k8s
 
 	_maxCreatedBasicReportAge:           string | *"15m"
 	_kingdomMeasurementBatchConcurrency: string | *"8"
+	_reportMetricBatchConcurrency:       int | *3
 
 	_postgresConfig:         #PostgresConfig
 	_reportingSpannerConfig: #SpannerConfig & {
@@ -73,6 +74,9 @@ package k8s
 		targetOption:          "--reporting-public-api-target"
 		certificateHostOption: "--reporting-public-api-cert-host"
 	}
+
+	_internalApiTimeoutSeconds: int | *30
+	_kingdomApiTimeoutSeconds:  int | *30
 
 	_imageSuffixes: [_=string]: string
 	_imageSuffixes: {
@@ -207,6 +211,8 @@ package k8s
 
 		"reporting-v2alpha-public-api-server": #ServerDeployment & {
 			_container: args: [
+						"--internal-api-timeout-seconds=\(_internalApiTimeoutSeconds)",
+						"--kingdom-api-timeout-seconds=\(_kingdomApiTimeoutSeconds)",
 						"--max-inbound-message-size=67108864",
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseReportingGrpcServerLoggingFlag,
@@ -230,6 +236,7 @@ package k8s
 						"--default-report-start-hour=6",
 						"--enable-reporting-set-reporting-unit-components=\(_reportingSetReportingUnitComponentsEnabled)",
 						"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
+						"--report-metric-batch-concurrency=\(Reporting._reportMetricBatchConcurrency)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {

@@ -62,6 +62,7 @@ import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.toInstant
@@ -129,14 +130,20 @@ class ReportingScaleTest {
     require(fulfillmentTimeout.seconds in 60..14400)
     val reportStart = LocalDate.parse(System.getenv("REPORTING_SCALE_REPORT_START") ?: "2026-04-01")
     require(reportDays in 1..91 && stateCounts.isNotEmpty() && stateCounts.all { it in 0..51 })
-    require(repetitions in 1..10 && deadline.seconds in 1..600)
+    require(repetitions in 1..10 && deadline.seconds in 1..14400)
     val output = Paths.get(requiredEnvironmentVariable("TEST_UNDECLARED_OUTPUTS_DIR"))
     Files.createDirectories(output)
     val records = mutableListOf<MutableMap<String, Any?>>()
     val channels = mutableListOf<ManagedChannel>()
     try {
       val reportingChannel =
-        buildMutualTlsChannel(reportingTarget, signingCerts("mc_tls", "reporting_root"), null)
+        buildMutualTlsChannel(
+            reportingTarget,
+            signingCerts("mc_tls", "reporting_root"),
+            null,
+            defaultServiceConfig = serviceConfigWithTimeout(deadline.seconds),
+            maxInboundMessageSize = 64 * 1024 * 1024,
+          )
           .also(channels::add)
       val accessChannel =
         buildMutualTlsChannel(accessTarget, signingCerts("access_tls", "reporting_root"), null)
@@ -151,27 +158,33 @@ class ReportingScaleTest {
           accessChannel = accessChannel.withDefaultDeadline(deadline),
           audience = audience,
           scopes = REPORTING_SCOPES,
-          ttl = fulfillmentTimeout.plus(Duration.ofMinutes(30)),
+          ttl = deadline.plus(fulfillmentTimeout).plus(Duration.ofMinutes(30)),
         )
       val kingdomChannel =
-        buildMutualTlsChannel(kingdomTarget, signingCerts("mc_tls", "mc_trusted_certs"), null)
+        buildMutualTlsChannel(
+            kingdomTarget,
+            signingCerts("mc_tls", "mc_trusted_certs"),
+            null,
+            defaultServiceConfig = serviceConfigWithTimeout(600),
+            maxInboundMessageSize = 64 * 1024 * 1024,
+          )
           .also(channels::add)
       val measurementsClient =
-        MeasurementsCoroutineStub(kingdomChannel.withDefaultDeadline(Duration.ofSeconds(60)))
+        MeasurementsCoroutineStub(kingdomChannel.withDefaultDeadline(Duration.ofMinutes(10)))
           .withMaxInboundMessageSize(64 * 1024 * 1024)
           .withAuthenticationKey(apiKey)
       val reportsClient =
-        ReportsCoroutineStub(reportingChannel.withDefaultDeadline(Duration.ofMinutes(5)))
+        ReportsCoroutineStub(reportingChannel.withDefaultDeadline(Duration.ofMinutes(10)))
           .withMaxInboundMessageSize(64 * 1024 * 1024)
       val metricsClient =
-        MetricsCoroutineStub(reportingChannel.withDefaultDeadline(Duration.ofSeconds(60)))
+        MetricsCoroutineStub(reportingChannel.withDefaultDeadline(Duration.ofMinutes(10)))
           .withMaxInboundMessageSize(64 * 1024 * 1024)
       val httpClient = httpClient(deadline)
       val readClient =
         httpClient
           .newBuilder()
-          .callTimeout(Duration.ofMinutes(5))
-          .readTimeout(Duration.ofMinutes(5))
+          .callTimeout(Duration.ofMinutes(10))
+          .readTimeout(Duration.ofMinutes(10))
           .build()
       val eventGroups = resolveEventGroups(eventGroupsClient, measurementConsumer)
       val dataProviders = eventGroups.map(EventGroup::getCmmsDataProvider).distinct()
@@ -194,10 +207,12 @@ class ReportingScaleTest {
                   kingdomTarget,
                   signingCerts("${cert}_tls", "mc_trusted_certs"),
                   null,
+                  defaultServiceConfig = serviceConfigWithTimeout(600),
+                  maxInboundMessageSize = 64 * 1024 * 1024,
                 )
                 .also(channels::add)
             provider to
-              RequisitionsCoroutineStub(channel.withDefaultDeadline(Duration.ofSeconds(60)))
+              RequisitionsCoroutineStub(channel.withDefaultDeadline(Duration.ofMinutes(10)))
                 .withMaxInboundMessageSize(64 * 1024 * 1024)
           }
       val existingReportName =
@@ -839,6 +854,17 @@ class ReportingScaleTest {
     ) {
       "Measurement failed during creation"
     }
+    record["metric_count"] = metrics.size
+    record["measurement_count"] = measurements.size
+    record["report"] = report.name
+    record["expected_requisitions_per_data_provider"] =
+      measurements
+        .flatMap { it.dataProvidersList.map { entry -> entry.key } }
+        .groupingBy { it }
+        .eachCount()
+    record["metrics_and_measurements_creation_verified"] = true
+    record["stage"] = "verify_creation_requisitions"
+    Files.writeString(output.resolve("summary.json"), Gson().toJson(listOf(record)))
     val requisitions = verifyRequisitions(measurements, providerClients, false)
     val counts =
       requisitions
@@ -905,7 +931,7 @@ class ReportingScaleTest {
             val found = linkedMapOf<String, Requisition>()
             // PENDING_PARAMS requisitions are not visible in the public API. Give duchy parameter
             // setup a bounded interval, without requiring any requisition fulfillment.
-            kotlinx.coroutines.withTimeout(Duration.ofMinutes(5).toMillis()) {
+            kotlinx.coroutines.withTimeout(Duration.ofMinutes(30).toMillis()) {
               do {
                 var token = ""
                 do {
@@ -1143,6 +1169,15 @@ class ReportingScaleTest {
       .callTimeout(deadline)
       .retryOnConnectionFailure(false)
       .build()
+  }
+
+  private fun serviceConfigWithTimeout(timeoutSeconds: Long): ProtobufServiceConfig {
+    val timeout = com.google.protobuf.Duration.newBuilder().setSeconds(timeoutSeconds).build()
+    return ProtobufServiceConfig.DEFAULT.copy {
+      for (index in methodConfig.indices) {
+        methodConfig[index] = methodConfig[index].toBuilder().setTimeout(timeout).build()
+      }
+    }
   }
 
   private fun signingCerts(name: String, root: String): SigningCerts =

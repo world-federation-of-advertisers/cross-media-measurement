@@ -27,6 +27,14 @@ class KingdomApiFlags {
   lateinit var target: String
 
   @CommandLine.Option(
+    names = ["--kingdom-api-timeout-seconds"],
+    description = ["Default gRPC timeout for Reporting calls to this API, in seconds."],
+    defaultValue = "30",
+  )
+  var timeoutSeconds: Long = 30
+    private set
+
+  @CommandLine.Option(
     names = ["--kingdom-api-cert-host"],
     description =
       [

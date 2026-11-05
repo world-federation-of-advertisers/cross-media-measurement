@@ -101,7 +101,8 @@ def main():
                 environment["REPORTING_SCALE_PHASE"] = "creation"
                 environment["REPORTING_SCALE_CANCEL_FAILED_CREATION"] = "true"
                 environment["REPORTING_SCALE_EXISTING_BASIC_REPORT"] = ""
-                scheduler("pause", job)
+                if scheduler("describe", job)["state"] != "PAUSED":
+                    scheduler("pause", job)
                 if scheduler("describe", job)["state"] != "PAUSED":
                     raise RuntimeError("Fetcher scheduler did not pause")
                 creation_complete = False

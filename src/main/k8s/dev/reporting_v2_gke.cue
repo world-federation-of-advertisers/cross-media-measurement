@@ -141,8 +141,12 @@ reporting: #Reporting & {
 	_postgresConfig: {
 		iamUserLocal:     "reporting-v2-internal"
 		database:         "reporting-v2"
-		statementTimeout: "60s"
+		statementTimeout: "600s"
 	}
+
+	_internalApiTimeoutSeconds:    600
+	_reportMetricBatchConcurrency: 1
+	_kingdomApiTimeoutSeconds:     600
 
 	_verboseGrpcServerLogging: true
 	// Full batch payload logging runs before gRPC sendMessage and can consume RPC deadlines.

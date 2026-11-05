@@ -49,6 +49,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.InProcessServersMethods.startInProcessServerWithService
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withInterceptor
@@ -102,6 +103,16 @@ private object V2AlphaPublicApiServer {
   private const val SERVER_NAME = "V2AlphaPublicApiServer"
   private const val IN_PROCESS_SERVER_NAME = "$SERVER_NAME-in-process"
 
+  private fun serviceConfigWithTimeout(timeoutSeconds: Long): ProtobufServiceConfig {
+    require(timeoutSeconds > 0) { "API timeout must be positive" }
+    val timeout = com.google.protobuf.Duration.newBuilder().setSeconds(timeoutSeconds).build()
+    return ProtobufServiceConfig.DEFAULT.copy {
+      for (index in methodConfig.indices) {
+        methodConfig[index] = methodConfig[index].toBuilder().setTimeout(timeout).build()
+      }
+    }
+  }
+
   @CommandLine.Command(
     name = SERVER_NAME,
     description = ["Server daemon for Reporting v2alpha public API services."],
@@ -129,6 +140,8 @@ private object V2AlphaPublicApiServer {
           reportingApiServerFlags.internalApiFlags.target,
           clientCerts,
           reportingApiServerFlags.internalApiFlags.certHost,
+          defaultServiceConfig =
+            serviceConfigWithTimeout(reportingApiServerFlags.internalApiFlags.timeoutSeconds),
           maxInboundMessageSize = reportingApiServerFlags.internalApiFlags.maxInboundMessageSize,
         )
         .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
@@ -138,6 +151,8 @@ private object V2AlphaPublicApiServer {
           target = kingdomApiFlags.target,
           clientCerts = clientCerts,
           hostName = kingdomApiFlags.certHost,
+          defaultServiceConfig = serviceConfigWithTimeout(kingdomApiFlags.timeoutSeconds),
+          maxInboundMessageSize = reportingApiServerFlags.internalApiFlags.maxInboundMessageSize,
         )
         .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
@@ -299,6 +314,7 @@ private object V2AlphaPublicApiServer {
         SecureRandom().asKotlinRandom(),
         reportingApiServerFlags.allowSamplingIntervalWrapping,
         serviceDispatcher,
+        metricBatchConcurrency = reportingApiServerFlags.reportMetricBatchConcurrency,
       )
 
     startInProcessServerWithService(

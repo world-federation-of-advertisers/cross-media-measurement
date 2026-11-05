@@ -34,6 +34,7 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         tls_key_file="client_key",
         cert_collection_file="root_ca_cert",
         internal_api_cert_host="cert_host",
+        internal_api_max_inbound_message_size=128 * 1024 * 1024,
         log_noise_correction_values=True,
     )
     @mock.patch("os.path.exists", return_value=True)
@@ -71,7 +72,8 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         mock_get_credentials.assert_called_once_with("client_key",
                                                      "client_cert",
                                                      "root_ca_cert")
-        expected_options = [("grpc.ssl_target_name_override", "cert_host")]
+        expected_options = [("grpc.max_receive_message_length", 128 * 1024 * 1024),
+                            ("grpc.ssl_target_name_override", "cert_host")]
         mock_create_channel.assert_called_once_with(
             "internal_api_target", mock_credentials, expected_options
         )
@@ -123,7 +125,8 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                                                      "client_cert",
                                                      "root_ca_cert")
         mock_create_channel.assert_called_once_with(
-            "internal_api_target", mock_credentials, []
+            "internal_api_target", mock_credentials,
+            [("grpc.max_receive_message_length", 64 * 1024 * 1024)]
         )
         mock_job_class.assert_called_once_with(
             mock_channel_instance,
@@ -175,7 +178,8 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
 
         # Verifies the expected behavior.
         mock_create_channel.assert_called_once_with(
-            "internal_api_target", mock_credentials, []
+            "internal_api_target", mock_credentials,
+            [("grpc.max_receive_message_length", 64 * 1024 * 1024)]
         )
         mock_job_class.assert_called_once_with(
             mock_channel_instance,

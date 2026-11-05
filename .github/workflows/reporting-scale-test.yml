@@ -106,7 +106,7 @@ on:
         type: number
         default: 3600
       create-deadline-seconds:
-        description: "HTTP request deadline (1–600 seconds)"
+        description: "HTTP request deadline (1–14400 seconds)"
         type: number
         default: 60
 
@@ -193,7 +193,7 @@ jobs:
           REPORTING_SCALE_DEADLINE_SECONDS: ${{ inputs.create-deadline-seconds }}
           REPORTING_SCALE_SEED: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          python3 .github/scripts/run_reporting_scale_test.py
+          python3 .github/workflows/scripts/run_reporting_scale_test.py
 
       - name: Summarize reporting scale results
         if: always()

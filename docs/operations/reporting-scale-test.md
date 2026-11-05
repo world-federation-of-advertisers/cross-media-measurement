@@ -83,8 +83,7 @@ full weeks and a final partial week.
 Start with age and gender retained. For a threshold search, use
 `state-counts: 5,10,25,50`, then run `51` separately to test native grouping.
 If creation fails, reduce demographics, isolate `ami` versus `mrc`, or reduce
-`report-days`. Cases run serially and stop on the first failure. Change the HTTP
-deadline only when explicitly comparing deadline sensitivity. Its default remains
+`report-days`. Cases run serially and stop on the first failure. The HTTP deadline accepts 1 through 14,400 seconds. Its default remains
 60 seconds; increasing it does not establish that creation latency improved.
 
 Run on a quiet environment. The workflow checks for active or queued EDPA cloud
@@ -103,6 +102,20 @@ artifacts. After successful cleanup it stays paused, so the next attempt can reu
 pause without waiting for partial EDPA fulfillment. Fetching resumes only after
 the creation gate passes.
 
+## Server settings for capacity diagnostics
+
+The Reporting public API supports `--internal-api-timeout-seconds` and
+`--kingdom-api-timeout-seconds` (both default to 30 seconds), preserving the
+channel's existing retry policy. A longer HTTP deadline alone cannot override
+these gRPC channel deadlines. Dev currently uses 600 seconds for these calls and
+for PostgreSQL's statement timeout.
+
+`--report-metric-batch-concurrency` defaults to three concurrent batches.
+Dev uses one batch at a time to avoid repeated PostgreSQL serialization
+conflicts. Each batch still dispatches Kingdom measurement requests with the
+separately configured `--kingdom-measurement-batch-concurrency`.
+Record database capacity and deployed settings when comparing timings.
+
 ## Results
 
 The workflow summary and `summary.json` record creation timing (headers and full
@@ -120,7 +133,8 @@ Requisition reads use each provider's synthetic TLS identity and pages of 500,
 rather than one request per measurement. Only requisitions belonging to the
 selected measurement IDs are retained; unrelated historical entries cannot
 satisfy the checks. Public requisition visibility requires duchy parameter setup,
-so this check allows a bounded interval for setup without requiring fulfillment.
+so this check allows 30 minutes for setup without requiring fulfillment.
+A metrics-and-measurements checkpoint is saved before waiting for public requisition visibility.
 Metrics and measurements may still be RUNNING at this gate.
 
 A failed create triggers a bounded read of the same resource without retrying

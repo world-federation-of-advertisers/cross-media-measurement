@@ -27,6 +27,14 @@ class InternalApiFlags {
   lateinit var target: String
 
   @CommandLine.Option(
+    names = ["--internal-api-timeout-seconds"],
+    description = ["Default gRPC timeout for Reporting calls to this API, in seconds."],
+    defaultValue = "30",
+  )
+  var timeoutSeconds: Long = 30
+    private set
+
+  @CommandLine.Option(
     names = ["--internal-api-max-inbound-message-size"],
     description = ["Maximum inbound Reporting internal API response size in bytes."],
     defaultValue = "67108864",
