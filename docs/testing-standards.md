@@ -157,17 +157,15 @@ method name being tested.
 
 ## Spanner proto bundles
 
-Build and test validates EDP Aggregator proto bundle membership before the main
-build. To run the check locally:
+The EDP Aggregator schema tests validate proto bundle dependencies in Liquibase
+changelog order. This check runs in process without starting an emulator or
+connecting to Spanner:
 
 ```shell
-bazel run //src/main/kotlin/org/wfanet/measurement/tools/spanner:ValidateSpannerProtoBundles -- \\
-  "$PWD/src/main/resources/edpaggregator/spanner/changelog.yaml"
+bazel test //src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:ProtoBundleValidatorTest
 ```
 
-The validator follows Liquibase changelog order and checks containing types and
-message-field dependencies after each bundle change. Database tests remain
-necessary to validate DDL execution and data migrations.
+Database tests remain necessary to validate DDL execution and data migrations.
 
 ## See Also
 

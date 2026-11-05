@@ -309,3 +309,18 @@ spanner_emulator_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "ProtoBundleValidatorTest",
+    srcs = ["ProtoBundleValidatorTest.kt"],
+    resources = ["//src/main/resources/edpaggregator/spanner"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.ProtoBundleValidatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:proto_bundle_validator",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/liquibase:core",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
