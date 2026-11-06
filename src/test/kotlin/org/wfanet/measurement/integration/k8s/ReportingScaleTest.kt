@@ -50,13 +50,10 @@ import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
-import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ExponentialBackoff
@@ -209,19 +206,19 @@ class ReportingScaleTest {
               .also(channels::add)
           InternalReportsCoroutineStub(channel.withDefaultDeadline(Duration.ofMinutes(10)))
         } else null
+      val internalRequisitionsChannel =
+        buildMutualTlsChannel(
+            requiredEnvironmentVariable("REPORTING_SCALE_KINGDOM_INTERNAL_API_TARGET"),
+            signingCerts("kingdom_tls", "kingdom_root"),
+            "localhost",
+            defaultServiceConfig = serviceConfigWithTimeout(600),
+            maxInboundMessageSize = 64 * 1024 * 1024,
+          )
+          .also(channels::add)
       val internalRequisitionsClient =
-        if (verifiesCreation) {
-          val channel =
-            buildMutualTlsChannel(
-                requiredEnvironmentVariable("REPORTING_SCALE_KINGDOM_INTERNAL_API_TARGET"),
-                signingCerts("kingdom_tls", "kingdom_root"),
-                "localhost",
-                defaultServiceConfig = serviceConfigWithTimeout(600),
-                maxInboundMessageSize = 64 * 1024 * 1024,
-              )
-              .also(channels::add)
-          InternalRequisitionsCoroutineStub(channel.withDefaultDeadline(Duration.ofMinutes(10)))
-        } else null
+        InternalRequisitionsCoroutineStub(
+          internalRequisitionsChannel.withDefaultDeadline(Duration.ofMinutes(10))
+        )
       val httpClient = httpClient(deadline)
       val readClient =
         httpClient
@@ -234,30 +231,6 @@ class ReportingScaleTest {
       check(dataProviders.size == 3) {
         "Scale test requires three distinct EDPs, got $dataProviders"
       }
-      val edpTlsNames =
-        (System.getenv("REPORTING_SCALE_EDP_TLS_NAMES") ?: "edp7,edpa_meta,edpa_video_pub")
-          .split(',')
-          .map(String::trim)
-      require(
-        edpTlsNames.size == dataProviders.size &&
-          edpTlsNames.all { it.matches(Regex("[a-zA-Z0-9_]+")) }
-      )
-      val providerClients =
-        (dataProviders.zip(edpTlsNames) + (requiredEnvironmentVariable("PDP_NAME") to "pdp1"))
-          .associate { (provider, cert) ->
-            val channel =
-              buildMutualTlsChannel(
-                  kingdomTarget,
-                  signingCerts("${cert}_tls", "mc_trusted_certs"),
-                  null,
-                  defaultServiceConfig = serviceConfigWithTimeout(600),
-                  maxInboundMessageSize = 64 * 1024 * 1024,
-                )
-                .also(channels::add)
-            provider to
-              RequisitionsCoroutineStub(channel.withDefaultDeadline(Duration.ofMinutes(10)))
-                .withMaxInboundMessageSize(64 * 1024 * 1024)
-          }
       val existingReportName =
         System.getenv("REPORTING_SCALE_EXISTING_BASIC_REPORT")?.takeIf(String::isNotEmpty)
       if (existingReportName != null) {
@@ -314,7 +287,7 @@ class ReportingScaleTest {
               fulfillmentTimeout,
               dataProviders,
               measurementsClient,
-              providerClients,
+              internalRequisitionsClient,
               reportsClient,
               metricsClient,
               readClient,
@@ -485,7 +458,7 @@ class ReportingScaleTest {
               fulfillmentTimeout,
               dataProviders,
               measurementsClient,
-              providerClients,
+              internalRequisitionsClient,
               reportsClient,
               metricsClient,
               readClient,
@@ -583,7 +556,7 @@ class ReportingScaleTest {
     timeout: Duration,
     dataProviders: List<String>,
     measurementsClient: MeasurementsCoroutineStub,
-    providerClients: Map<String, RequisitionsCoroutineStub>,
+    internalRequisitionsClient: InternalRequisitionsCoroutineStub,
     reportsClient: ReportsCoroutineStub,
     metricsClient: MetricsCoroutineStub,
     httpClient: OkHttpClient,
@@ -820,10 +793,16 @@ class ReportingScaleTest {
         )
         record["measurement_states"] = finalMeasurements.groupingBy { it.state.name }.eachCount()
         record["stage"] = "verify_requisitions"
-        val requisitions = verifyRequisitions(finalMeasurements, providerClients, true)
+        val requisitions =
+          verifyReportRequisitions(
+            finalMeasurements,
+            finalMeasurements.minOf { it.createTime.toInstant() }.minusSeconds(1),
+            internalRequisitionsClient,
+            requireFulfilled = true,
+          )
         val counts =
           requisitions
-            .groupingBy { it.dataProviderCertificate.substringBefore("/certificates/") }
+            .groupingBy { "dataProviders/${externalIdToApiId(it.externalDataProviderId)}" }
             .eachCount()
         check(dataProviders.all { (counts[it] ?: 0) > 0 }) {
           "An EDP did not participate in fulfillment"
@@ -837,9 +816,12 @@ class ReportingScaleTest {
             .toJson(
               requisitions.map {
                 mapOf(
-                  "name" to it.name,
-                  "measurement" to it.measurement,
-                  "data_provider" to it.dataProviderCertificate.substringBefore("/certificates/"),
+                  "name" to
+                    "dataProviders/${externalIdToApiId(it.externalDataProviderId)}/requisitions/${externalIdToApiId(it.externalRequisitionId)}",
+                  "measurement" to
+                    "$measurementConsumer/measurements/${externalIdToApiId(it.externalMeasurementId)}",
+                  "data_provider" to
+                    "dataProviders/${externalIdToApiId(it.externalDataProviderId)}",
                   "state" to it.state.name,
                 )
               }
@@ -909,19 +891,43 @@ class ReportingScaleTest {
   ) {
     val started = System.nanoTime()
     val measurementConsumer = basicReportName.substringBefore("/basicReports/")
-    val internalBasicReport =
+    val internalBasicReportsClient =
       InternalBasicReportsCoroutineStub(
-          internalReportsClient.channel.withDefaultDeadline(Duration.ofMinutes(10))
-        )
-        .getBasicReport(
-          internalGetBasicReportRequest {
-            cmmsMeasurementConsumerId = measurementConsumer.substringAfter("measurementConsumers/")
-            externalBasicReportId = basicReportName.substringAfter("/basicReports/")
+        internalReportsClient.channel.withDefaultDeadline(Duration.ofMinutes(10))
+      )
+    val internalBasicReport =
+      kotlinx.coroutines.withTimeout(Duration.ofMinutes(15).toMillis()) {
+        var current = retryRpc {
+          internalBasicReportsClient.getBasicReport(
+            internalGetBasicReportRequest {
+              cmmsMeasurementConsumerId =
+                measurementConsumer.substringAfter("measurementConsumers/")
+              externalBasicReportId = basicReportName.substringAfter("/basicReports/")
+            }
+          )
+        }
+        while (current.externalReportId.isEmpty()) {
+          check(
+            current.state != org.wfanet.measurement.internal.reporting.v2.BasicReport.State.FAILED
+          ) {
+            "BasicReport failed before all report resources were created"
           }
-        )
-    check(internalBasicReport.externalReportId.isNotEmpty()) {
-      "BasicReport has no persisted underlying Report link"
-    }
+          delay(1000)
+          current = retryRpc {
+            internalBasicReportsClient.getBasicReport(
+              internalGetBasicReportRequest {
+                cmmsMeasurementConsumerId =
+                  measurementConsumer.substringAfter("measurementConsumers/")
+                externalBasicReportId = basicReportName.substringAfter("/basicReports/")
+              }
+            )
+          }
+        }
+        current
+      }
+    record["all_resources_ready_observed_at"] = Instant.now().toString()
+    record["creation_resources_ready_upper_bound_ms"] =
+      Duration.between(startedAt, Instant.now()).toMillis()
     val reportName = "$measurementConsumer/reports/${internalBasicReport.externalReportId}"
     // A RUNNING public Report intentionally omits metric results. Its persisted plan contains
     // every requested metric, including metrics that have not yet finished.
@@ -1052,7 +1058,7 @@ class ReportingScaleTest {
     record["stage"] = "verify_creation_requisitions"
     Files.writeString(output.resolve("summary.json"), Gson().toJson(listOf(record)))
     val requisitions =
-      verifyCreatedRequisitions(
+      verifyReportRequisitions(
         measurements,
         measurements.minOf { it.createTime.toInstant() }.minusSeconds(1),
         internalRequisitionsClient,
@@ -1103,12 +1109,14 @@ class ReportingScaleTest {
     )
   }
 
-  /** Verifies creation even before Duchy setup makes PENDING_PARAMS requisitions public. */
-  private suspend fun verifyCreatedRequisitions(
+  /** Reads one consumer's bounded creation window and verifies exact measurement/provider pairs. */
+  private suspend fun verifyReportRequisitions(
     measurements: List<Measurement>,
     startedAt: Instant,
     client: InternalRequisitionsCoroutineStub,
+    requireFulfilled: Boolean = false,
   ): List<InternalRequisition> {
+    check(measurements.isNotEmpty())
     val expected =
       measurements
         .flatMap { measurement ->
@@ -1127,134 +1135,74 @@ class ReportingScaleTest {
           .substringBefore("/measurements/")
           .substringAfter("measurementConsumers/")
       )
-    client
-      .streamRequisitions(
-        streamRequisitionsRequest {
-          filter =
-            StreamRequisitionsRequestKt.filter {
-              externalMeasurementConsumerId = consumerId
-              updatedAfter = startedAt.toProtoTime()
-            }
-        }
-      )
-      .collect { requisition ->
-        val key = requisition.externalMeasurementId to requisition.externalDataProviderId
-        if (key in expected) {
-          check(key !in found) { "Duplicated measurement/provider requisition" }
-          check(
-            requisition.externalMeasurementConsumerId == consumerId &&
-              requisition.externalRequisitionId != 0L &&
-              requisition.state in
-                setOf(
-                  InternalRequisition.State.PENDING_PARAMS,
-                  InternalRequisition.State.UNFULFILLED,
-                  InternalRequisition.State.FULFILLED,
-                )
-          ) {
-            "Invalid or terminally unsuccessful requisition during creation"
-          }
-          // Discard encrypted payloads as the stream is read.
-          found[key] =
-            InternalRequisition.newBuilder()
-              .setExternalMeasurementId(requisition.externalMeasurementId)
-              .setExternalDataProviderId(requisition.externalDataProviderId)
-              .setExternalRequisitionId(requisition.externalRequisitionId)
-              .setState(requisition.state)
-              .build()
-        }
-      }
-    check(found.keys == expected) { "Missing created requisitions" }
-    return found.values.toList()
-  }
-
-  /** Lists 500 requisitions per provider call instead of one call per measurement. */
-  private suspend fun verifyRequisitions(
-    measurements: List<Measurement>,
-    providerClients: Map<String, RequisitionsCoroutineStub>,
-    requireFulfilled: Boolean,
-  ): List<Requisition> = coroutineScope {
-    val expected =
-      measurements
-        .flatMap { measurement -> measurement.dataProvidersList.map { measurement.name to it.key } }
-        .toSet()
-    check(providerClients.keys.containsAll(expected.map { it.second })) {
-      "Missing provider TLS fixture for requisition verification"
-    }
-    val requisitions =
-      providerClients
-        .map { (provider, client) ->
-          async {
-            val needed = expected.filter { it.second == provider }.toSet()
-            val found = linkedMapOf<String, Requisition>()
-            // PENDING_PARAMS requisitions are not visible in the public API. Give duchy parameter
-            // setup a bounded interval, without requiring any requisition fulfillment.
-            kotlinx.coroutines.withTimeout(Duration.ofMinutes(30).toMillis()) {
-              do {
-                var token = ""
-                do {
-                  val response = retryRpc {
-                    client.listRequisitions(
-                      listRequisitionsRequest {
-                        parent = provider
-                        pageSize = 500
-                        pageToken = token
+    var cursor: InternalRequisition? = null
+    do {
+      val page = retryRpc {
+        val values = mutableListOf<InternalRequisition>()
+        client
+          .streamRequisitions(
+            streamRequisitionsRequest {
+              limit = 1000
+              filter =
+                StreamRequisitionsRequestKt.filter {
+                  externalMeasurementConsumerId = consumerId
+                  updatedAfter = startedAt.toProtoTime()
+                  cursor?.let { last ->
+                    after =
+                      StreamRequisitionsRequestKt.FilterKt.after {
+                        updateTime = last.updateTime
+                        externalDataProviderId = last.externalDataProviderId
+                        externalRequisitionId = last.externalRequisitionId
                       }
-                    )
                   }
-                  for (requisition in response.requisitionsList) {
-                    if ((requisition.measurement to provider) in needed) {
-                      // Retain verification fields rather than every encrypted payload for a large
-                      // report.
-                      found[requisition.name] =
-                        Requisition.newBuilder()
-                          .setName(requisition.name)
-                          .setMeasurement(requisition.measurement)
-                          .setDataProviderCertificate(requisition.dataProviderCertificate)
-                          .setState(requisition.state)
-                          .build()
-                    }
-                  }
-                  token = response.nextPageToken
-                  if (token.isNotEmpty()) delay(250)
-                } while (token.isNotEmpty() && found.size < needed.size)
-                if (found.size < needed.size) delay(5_000)
-              } while (found.size < needed.size)
+                }
             }
-            check(
-              found.size == needed.size &&
-                found.values.map { it.measurement to provider }.toSet() == needed
-            ) {
-              "Missing or duplicated provider requisitions"
-            }
-            check(
-              found.values.all {
-                it.dataProviderCertificate.substringBefore("/certificates/") == provider
-              }
-            ) {
-              "Incorrect requisition provider"
-            }
-            check(
-              found.values.all {
-                if (requireFulfilled) it.state == Requisition.State.FULFILLED
-                else
-                  it.state != Requisition.State.REFUSED && it.state != Requisition.State.WITHDRAWN
-              }
-            ) {
-              "Unexpected requisition state for $provider"
-            }
-            found.values.toList()
+          )
+          .collect { requisition ->
+            // Discard encrypted payloads immediately, including unrelated rows.
+            values +=
+              InternalRequisition.newBuilder()
+                .setExternalMeasurementConsumerId(requisition.externalMeasurementConsumerId)
+                .setExternalMeasurementId(requisition.externalMeasurementId)
+                .setExternalDataProviderId(requisition.externalDataProviderId)
+                .setExternalRequisitionId(requisition.externalRequisitionId)
+                .setState(requisition.state)
+                .setUpdateTime(requisition.updateTime)
+                .build()
           }
+        values
+      }
+      for (requisition in page) {
+        val key = requisition.externalMeasurementId to requisition.externalDataProviderId
+        if (key !in expected) continue
+        check(
+          found[key]?.externalRequisitionId?.let { it == requisition.externalRequisitionId } !=
+            false
+        ) {
+          "Duplicated measurement/provider requisition"
         }
-        .awaitAll()
-        .flatten()
-    check(
-      requisitions
-        .map { it.measurement to it.dataProviderCertificate.substringBefore("/certificates/") }
-        .toSet() == expected
-    ) {
-      "Incomplete requisition coverage"
-    }
-    requisitions
+        check(
+          requisition.externalMeasurementConsumerId == consumerId &&
+            requisition.externalRequisitionId != 0L &&
+            requisition.state in
+              setOf(
+                InternalRequisition.State.PENDING_PARAMS,
+                InternalRequisition.State.UNFULFILLED,
+                InternalRequisition.State.FULFILLED,
+              )
+        ) {
+          "Invalid or terminally unsuccessful report requisition"
+        }
+        check(!requireFulfilled || requisition.state == InternalRequisition.State.FULFILLED) {
+          "Report requisition is not fulfilled"
+        }
+        found[key] = requisition
+      }
+      cursor = page.lastOrNull()
+      if (found.keys == expected || page.size < 1000) break
+    } while (cursor != null)
+    check(found.keys == expected) { "Missing report requisitions" }
+    return found.values.toList()
   }
 
   private suspend fun cancelFailedReport(
