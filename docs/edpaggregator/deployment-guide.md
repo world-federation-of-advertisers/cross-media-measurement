@@ -303,6 +303,10 @@ from a Pub/Sub subscription. Inside the TEE it:
 3. Computes the requisition result, applies the configured noise / k-anonymity, signs
    the result with the EDP's consent key, and returns it to the CMMS.
 
+The worker processes at most 100 requisitions together per pass, including retries of
+larger stored groups. Allocate enough heap for a pass of full-population frequency
+vectors; increasing the fetcher group size does not increase this worker limit.
+
 Its per-WorkItem parameters are defined in RequisitionFetcher's `work_item_dispatch` configuration
 as the versioned `ResultsFulfillerParams` message. RequisitionFetcher validates and
 passes that message unchanged as the WorkItem payload; its per-EDP TLS / consent / KMS material is
