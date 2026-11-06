@@ -43,6 +43,7 @@ import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeReachAndFreque
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeReachParams
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -97,7 +98,19 @@ class TrusTeeMill(
     clock = clock,
   ) {
 
+  private var initializationPriorityClaims = 0
+
   override val endingStage = Stage.COMPLETE.toProtocolStage()
+
+  override fun prioritizedStagesForClaim(): List<ComputationStage> {
+    // Periodically prefer ready computations so initialization cannot monopolize claims.
+    if (initializationPriorityClaims == INITIALIZATION_PRIORITY_BURST_SIZE) {
+      initializationPriorityClaims = 0
+      return listOf(Stage.COMPUTING.toProtocolStage())
+    }
+    initializationPriorityClaims++
+    return listOf(Stage.INITIALIZED.toProtocolStage())
+  }
 
   override suspend fun processComputationImpl(token: ComputationToken) {
     require(token.computationDetails.hasTrusTee()) {
@@ -335,6 +348,8 @@ class TrusTeeMill(
     }
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private const val INITIALIZATION_PRIORITY_BURST_SIZE = 3
 
     private const val OAUTH_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token"
     private const val GOOGLE_STS_TOKEN_URL = "https://sts.googleapis.com/v1/token"
