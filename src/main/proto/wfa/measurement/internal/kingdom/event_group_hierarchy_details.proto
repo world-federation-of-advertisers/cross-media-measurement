@@ -25,8 +25,9 @@ message EventGroupHierarchyDetails {
     // The EventGroup.EntityKey.entity_type of EventGroups at this level.
     //
     // Distinct from the entity_type of every other Level of every
-    // EventGroupHierarchy of the same DataProvider. The value "campaign" is
-    // reserved for legacy EventGroups and is never used here.
+    // EventGroupHierarchy of the same DataProvider.
+    //
+    // The value "campaign" is allowed.
     string entity_type = 1;
 
     // The entity_metadata key holding the ID of the entity at this level.

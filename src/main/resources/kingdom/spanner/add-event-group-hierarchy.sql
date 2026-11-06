@@ -89,20 +89,10 @@ ALTER TABLE EventGroups
     TOKENIZE_FULLTEXT(TO_JSON_STRING(EntityMetadataJson))
   ) HIDDEN;
 
--- The expression of a generated column cannot be altered in place, so
--- Metadata_Tokens is dropped and re-added with EntityMetadata_Tokens included.
--- The search index over it must be dropped first and recreated after.
-DROP SEARCH INDEX EventGroupsByMetadata;
-
-ALTER TABLE EventGroups
-  DROP COLUMN Metadata_Tokens;
-
-ALTER TABLE EventGroups
-  ADD COLUMN Metadata_Tokens TOKENLIST AS (
-    TOKENLIST_CONCAT([BrandName_Tokens, CampaignName_Tokens, EntityMetadata_Tokens])
-  ) HIDDEN;
-
-CREATE SEARCH INDEX EventGroupsByMetadata ON EventGroups(Metadata_Tokens);
+-- Keep EventGroupsByMetadata available while this index backfills. Both token
+-- columns must be in one index for queries that search across them.
+CREATE SEARCH INDEX EventGroupsByEntityMetadata
+  ON EventGroups(Metadata_Tokens, EntityMetadata_Tokens);
 
 -- Subtree scans: STARTS_WITH(EntityPath, prefix).
 CREATE NULL_FILTERED INDEX EventGroupsByEntityPath
