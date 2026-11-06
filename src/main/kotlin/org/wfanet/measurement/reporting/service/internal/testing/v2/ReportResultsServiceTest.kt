@@ -129,9 +129,9 @@ abstract class ReportResultsServiceTest {
     )
   }
 
-  private val basicReportsStub by lazy { BasicReportsGrpc.newBlockingV2Stub(grpcChannel) }
+  protected val basicReportsStub by lazy { BasicReportsGrpc.newBlockingV2Stub(grpcChannel) }
 
-  private val reportResultsStub by lazy { ReportResultsGrpc.newBlockingV2Stub(grpcChannel) }
+  protected val reportResultsStub by lazy { ReportResultsGrpc.newBlockingV2Stub(grpcChannel) }
 
   protected abstract fun createServices(
     idGenerator: IdGenerator,
@@ -736,71 +736,6 @@ abstract class ReportResultsServiceTest {
   }
 
   @Test
-  fun `addProcessedResultValues resumes already persisted prefix before publishing report`() {
-    val basicReport = ensureMeasurementConsumer()
-    basicReportsStub.setExternalReportId(
-      setExternalReportIdRequest {
-        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-        externalBasicReportId = basicReport.externalBasicReportId
-        externalReportId = "report-prefix"
-      }
-    )
-    val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
-    val results =
-      reportResultsStub
-        .batchCreateReportingSetResults(
-          BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
-            reportResult.externalReportResultId
-          )
-        )
-        .reportingSetResultsList
-    val request = buildAddProcessedResultValuesRequest(results)
-    val firstKey = results.first().externalReportingSetResultId
-    reportResultsStub.addProcessedResultValues(
-      request.copy {
-        reportingSetResults.clear()
-        reportingSetResults[firstKey] = request.reportingSetResultsMap.getValue(firstKey)
-      }
-    )
-    reportResultsStub.batchCreateReportingSetResults(
-      batchCreateReportingSetResultsRequest {
-        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-        externalReportResultId = reportResult.externalReportResultId
-        externalBasicReportId = basicReport.externalBasicReportId
-      }
-    )
-    val getRequest = getBasicReportRequest {
-      cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-      externalBasicReportId = basicReport.externalBasicReportId
-    }
-    assertThat(basicReportsStub.getBasicReport(getRequest).state)
-      .isEqualTo(BasicReport.State.UNPROCESSED_RESULTS_READY)
-
-    reportResultsStub.addProcessedResultValues(request)
-
-    assertThat(basicReportsStub.getBasicReport(getRequest).state)
-      .isEqualTo(BasicReport.State.SUCCEEDED)
-    val full =
-      reportResultsStub
-        .listReportingSetResults(
-          listReportingSetResultsRequest {
-            cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-            externalReportResultId = reportResult.externalReportResultId
-            view = ReportingSetResultView.REPORTING_SET_RESULT_VIEW_FULL
-          }
-        )
-        .reportingSetResultsList
-        .associateBy { it.externalReportingSetResultId }
-    for ((key, processed) in request.reportingSetResultsMap) {
-      val windows = full.getValue(key).reportingWindowResultsList.associateBy { it.key }
-      for (entry in processed.reportingWindowResultsList) {
-        assertThat(windows.getValue(entry.key).value.processedReportResultValues)
-          .isEqualTo(entry.value)
-      }
-    }
-  }
-
-  @Test
   fun `addProcessedResultValues validates later windows before writing a prefix`() {
     ensureMeasurementConsumer()
     val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
@@ -894,7 +829,7 @@ abstract class ReportResultsServiceTest {
    *
    * @param reportingSetResults Results created from [BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST].
    */
-  private fun buildAddProcessedResultValuesRequest(
+  protected fun buildAddProcessedResultValuesRequest(
     reportingSetResults: List<ReportingSetResult>
   ): AddProcessedResultValuesRequest {
     val cmmsMeasurementConsumerId = reportingSetResults.first().cmmsMeasurementConsumerId
@@ -945,7 +880,7 @@ abstract class ReportResultsServiceTest {
   /**
    * Ensures that a MeasurementConsumer exists in the DB accessible by the ReportResults service.
    */
-  private fun ensureMeasurementConsumer(): BasicReport {
+  protected fun ensureMeasurementConsumer(): BasicReport {
     val reportingSetsStub = ReportingSetsGrpc.newBlockingV2Stub(grpcChannel)
     val measurementConsumersStub = MeasurementConsumersGrpc.newBlockingV2Stub(grpcChannel)
 
@@ -1033,6 +968,18 @@ abstract class ReportResultsServiceTest {
         }
       }
     )
+  }
+
+  protected fun BatchCreateReportingSetResultsRequest.withExternalReportResultId(
+    externalReportResultId: Long
+  ): BatchCreateReportingSetResultsRequest {
+    return copy {
+      this.externalReportResultId = externalReportResultId
+      requests.mapIndexed { index, createRequest ->
+        requests[index] =
+          createRequest.copy { this.externalReportResultId = externalReportResultId }
+      }
+    }
   }
 
   companion object {
@@ -1268,17 +1215,6 @@ abstract class ReportResultsServiceTest {
           }
         }
       }
-    }
-  }
-}
-
-private fun BatchCreateReportingSetResultsRequest.withExternalReportResultId(
-  externalReportResultId: Long
-): BatchCreateReportingSetResultsRequest {
-  return copy {
-    this.externalReportResultId = externalReportResultId
-    requests.mapIndexed { index, createRequest ->
-      requests[index] = createRequest.copy { this.externalReportResultId = externalReportResultId }
     }
   }
 }
