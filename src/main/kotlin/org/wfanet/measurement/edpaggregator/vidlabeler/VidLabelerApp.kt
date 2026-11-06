@@ -94,8 +94,9 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * `RankIndexBlobService`, derives each VID from its memoized rank (the labeler hashes any overflow
  * / unseen fingerprint), writes the encrypted labeled output, marks the `VidLabelingJob`
  * `SUCCEEDED`, and — when this call was the last job out for a model line — transitions the parent
- * `RawImpressionUploadModelLine` to `COMPLETED`, writes its dated `done` markers, and ensures the
- * downstream availability WorkItems.
+ * `RawImpressionUploadModelLine` to `AVAILABILITY_SYNCING`, writes its dated `done` markers, and
+ * ensures the downstream availability WorkItems. The parent reaches `COMPLETED` only after every
+ * date-level availability handoff succeeds.
  *
  * Failure model: [runWork] does NOT mark the job `FAILED` itself. A transient failure propagates
  * out of [runWork] so the TEE framework retains the delivery while another attempt owns the
@@ -116,7 +117,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param vidLabelingJobsStub stub to mark this WorkItem's `VidLabelingJob` `SUCCEEDED` and learn
  *   whether it is the last job out for one or more model lines.
  * @param rawImpressionUploadModelLinesStub stub for transitioning the parent
- *   `RawImpressionUploadModelLine` to `COMPLETED` on last-job-out.
+ *   `RawImpressionUploadModelLine` to `AVAILABILITY_SYNCING` on last-job-out.
  * @param rankIndexBlobsStub stub used by [MemoizedRankIndex.load] to resolve the per-subpool
  *   rank-index blob pointers.
  * @param rawImpressionUploadFilesStub stub used by [RawImpressionSource] and to resolve the
@@ -1246,7 +1247,8 @@ class VidLabelerApp(
             requireNotNull(
               getGcsObjectCreateTime(storageConfig.projectId, bucket, doneBlobUri.key, generation)
             ) {
-              "Done object creation time is not available: $doneUri#$generation"
+              "Done object creation time is not available for path hash " +
+                "${VidLabelingTraceAttributes.gcsObjectPathHash(doneUri)} at generation $generation"
             }
           DoneObject(doneUri, generation, createTime)
         } else {
@@ -1278,7 +1280,7 @@ class VidLabelerApp(
     val doneObjectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(doneUri, generation)
     val doneObjectPathHash = doneObjectIdentity.pathHash
     metrics.doneBlobsWrittenCounter.add(1, Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider))
-    logger.info("Wrote done marker $doneUri")
+    logger.info("Wrote done marker path_hash=$doneObjectPathHash generation=$generation")
     Span.current()
       .addEvent(
         "edpa.vid_labeling.label.done_object",
@@ -1355,8 +1357,10 @@ class VidLabelerApp(
         throw e
       }
     if (!DataAvailabilitySyncWorkItems.hasSameIdentity(existing, request)) {
+      val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneUri)
       logger.info(
-        "Replacing done marker $doneUri because its WorkItem belongs to another availability handoff"
+        "Replacing done marker path_hash=$pathHash generation=$generation because its WorkItem " +
+          "belongs to another availability handoff"
       )
       return null
     }
