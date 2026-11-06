@@ -37,6 +37,7 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
@@ -242,6 +243,8 @@ class VidLabelingMonitorFunction : HttpFunction {
       UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
         rawImpressionUploadChannel
       )
+    val rankIndexBlobStub =
+      RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(rawImpressionUploadChannel)
     val rawImpressionUploadModelLineStub =
       RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
         rawImpressionUploadChannel
@@ -265,6 +268,8 @@ class VidLabelingMonitorFunction : HttpFunction {
       VidLabelingDispatchSequencer(
         rawImpressionUploadStub = rawImpressionUploadStub,
         rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+        rankIndexBlobStub = rankIndexBlobStub,
+        uploadHealingOperationStub = uploadHealingOperationStub,
         workItemsStub = workItemsStub,
         poolAssignmentJobStub = poolAssignmentJobStub,
         modelRolloutsStub = modelRolloutsStub,

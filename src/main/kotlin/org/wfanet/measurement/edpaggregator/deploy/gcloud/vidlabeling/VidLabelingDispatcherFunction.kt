@@ -60,12 +60,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -95,6 +97,9 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`,
  *   `RawImpressionUploadModelLineService`, and `PoolAssignmentJobService`.
  * - `RAW_IMPRESSION_UPLOAD_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `CORRECTION_DETECTION_TARGET`: Required. Target endpoint for the internal correction-detection
+ *   service.
+ * - `CORRECTION_DETECTION_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `CONTROL_PLANE_TARGET`: Required. Target endpoint for the Secure Computation control plane
  *   (`WorkItemsService`).
  * - `CONTROL_PLANE_CERT_HOST`: Optional. Overrides TLS authority for testing.
@@ -107,6 +112,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   throttlers.
  * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
  *   of GCS. Used only in testing.
+ * - `VID_LABELING_DISPATCHER_FOOTER_READ_CONCURRENCY`: Optional. Maximum concurrent Parquet footer
+ *   reads (default: 12).
  *
  * ## Request Headers
  * - `X-DataWatcher-Path`: Required. Full storage URI of the "done" blob.
@@ -210,6 +217,16 @@ class VidLabelingDispatcherFunction : HttpFunction {
         RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
           rawImpressionUploadChannel
         )
+      val correctionDetectionChannel =
+        VidLabelingFunctionHelpers.createInstrumentedChannel(
+          config.rawImpressionMetadataStorageConnection,
+          correctionDetectionTarget,
+          correctionDetectionCertHost,
+          grpcTelemetry,
+        )
+      val correctionDetectionStub =
+        InternalCorrectionCandidateServiceGrpcKt
+          .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(correctionDetectionChannel)
 
       val rawImpressionUploadModelLineStub =
         RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
@@ -217,6 +234,10 @@ class VidLabelingDispatcherFunction : HttpFunction {
         )
       val rankIndexBlobStub =
         RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(rawImpressionUploadChannel)
+      val uploadHealingOperationStub =
+        UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+          rawImpressionUploadChannel
+        )
       // PoolAssignmentJobService is served by the same RawImpressionMetadata storage deployment.
       val poolAssignmentJobStub =
         PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
@@ -249,6 +270,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
         VidLabelingDispatchSequencer(
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+          rankIndexBlobStub = rankIndexBlobStub,
+          uploadHealingOperationStub = uploadHealingOperationStub,
           workItemsStub = workItemsStub,
           poolAssignmentJobStub = poolAssignmentJobStub,
           modelRolloutsStub = modelRolloutsStub,
@@ -284,6 +307,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           readBlobMetadata = readBlobMetadata,
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+          correctionDetectionStub = correctionDetectionStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
           rankIndexBlobStub = rankIndexBlobStub,
           modelLinesStub = modelLinesStub,
@@ -294,6 +318,10 @@ class VidLabelingDispatcherFunction : HttpFunction {
           recoverySourceUpload = recoverySourceUpload,
           recoveryOperationId = evictionOperationId,
           modelLineConfigs = modelLineConfigs,
+          footerReadConcurrency =
+            VidLabelingDispatcher.resolveFooterReadConcurrency(
+              System.getenv(VidLabelingDispatcher.FOOTER_READ_CONCURRENCY_ENV)
+            ),
           rpcThrottlers = rpcThrottlers,
         )
 
@@ -359,6 +387,10 @@ class VidLabelingDispatcherFunction : HttpFunction {
       EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET")
     private val rawImpressionUploadCertHost: String? =
       System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST")
+    private val correctionDetectionTarget: String =
+      EnvVars.checkNotNullOrEmpty("CORRECTION_DETECTION_TARGET")
+    private val correctionDetectionCertHost: String? =
+      System.getenv("CORRECTION_DETECTION_CERT_HOST")
     private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
     private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
     private val vidLabelerQueueName: String = EnvVars.checkNotNullOrEmpty("VID_LABELER_QUEUE_NAME")
