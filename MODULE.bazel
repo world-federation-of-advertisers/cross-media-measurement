@@ -242,6 +242,7 @@ maven.install(
     artifacts = [
         "com.squareup.okhttp3:okhttp",
         "com.squareup.okhttp3:okhttp-tls",
+        "io.r2dbc:r2dbc-pool:1.0.2.RELEASE",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
 
         # OpenTelemetry SDK metrics (sdk is available from common-jvm, but sdk-metrics is not exposed)
