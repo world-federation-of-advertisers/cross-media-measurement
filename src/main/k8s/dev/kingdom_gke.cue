@@ -74,9 +74,10 @@ kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name
 	_spannerConfig: database: "kingdom"
 
-	_verboseGrpcServerLogging:          true
-	_verbosePublicApiGrpcServerLogging: false
-	_trusTeeEnabled:                    true
+	_verboseGrpcServerLogging:            true
+	_verboseInternalApiGrpcServerLogging: false
+	_verbosePublicApiGrpcServerLogging:   false
+	_trusTeeEnabled:                      true
 
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
