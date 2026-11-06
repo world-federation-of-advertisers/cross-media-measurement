@@ -305,7 +305,10 @@ DATA_WATCHER_SECRET_FILES = [
 filegroup(
     name = "data_watcher_secret_files",
     srcs = DATA_WATCHER_SECRET_FILES,
-    visibility = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:__pkg__",
+    ],
 )
 
 PDP1_TLS_RENAMES = {
