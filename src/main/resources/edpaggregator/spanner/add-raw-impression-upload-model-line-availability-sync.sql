@@ -27,6 +27,9 @@ ALTER TABLE RawImpressionUploadModelLine
   ADD COLUMN PendingAvailabilityDates ARRAY<DATE>;
 
 ALTER TABLE RawImpressionUploadModelLine
+  ADD COLUMN SynchronizedAvailabilityDates ARRAY<DATE>;
+
+ALTER TABLE RawImpressionUploadModelLine
   ADD COLUMN MarkAvailabilitySyncingRequestId STRING(36);
 
 CREATE UNIQUE NULL_FILTERED INDEX RawImpressionUploadModelLineByMarkAvailabilitySyncingRequestId

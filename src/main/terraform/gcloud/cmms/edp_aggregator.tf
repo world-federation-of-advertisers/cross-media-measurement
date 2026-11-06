@@ -216,6 +216,8 @@ locals {
       "/secrets/ca/kingdom_root.pem=${local.trusted_root_ca_collection.secret_id}:latest",
       "/secrets/cert/data_availability/data_availability_tls.pem=${local.data_availability_tls_pem.secret_id}:latest",
       "/secrets/key/data_availability/data_availability_tls.key=${local.data_availability_tls_key.secret_id}:latest",
+      "/secrets/cert-control-plane/edpa_tee_app_tls.pem=${local.edpa_tee_app_tls_pem.secret_id}:latest",
+      "/secrets/key-control-plane/edpa_tee_app_tls.key=${local.edpa_tee_app_tls_key.secret_id}:latest",
       "/secrets/ca/metadata_storage/edp_aggregator_root.pem=${local.metadata_storage_root_ca.secret_id}:latest",
     ]
   )
@@ -401,7 +403,6 @@ locals {
         "CONFIG_BLOB_KEY=${local.data_availability_sync_config.destination}",
         "EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}",
         "SECURE_COMPUTATION_CONTROL_PLANE_TARGET=${var.secure_computation_public_api_target}",
-        "SECURE_COMPUTATION_CERT_COLLECTION_FILE=/secrets/secure-computation-ca/secure_computation_root.pem",
       ]))
       secret_mappings = join(",", compact([
         join(",", local.data_availability_secret_mappings),

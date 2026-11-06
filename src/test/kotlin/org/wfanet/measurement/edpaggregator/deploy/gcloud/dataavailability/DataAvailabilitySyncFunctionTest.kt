@@ -55,8 +55,10 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.atLeastOnce
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
@@ -65,6 +67,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigKt.modelLineList
@@ -86,6 +89,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
@@ -426,6 +430,132 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(parseDataWatcherGeneration(DONE_BLOB_GENERATION.toString()))
       .isEqualTo(DONE_BLOB_GENERATION)
+  }
+
+  @Test
+  fun `Secure Computation connection is independent from metadata connection`() {
+    val config =
+      fileSystemDataAvailabilitySyncConfig()
+        .toBuilder()
+        .setSecureComputationControlPlaneConnection(
+          transportLayerSecurityParams {
+            certFilePath = "/control-plane/cert.pem"
+            privateKeyFilePath = "/control-plane/key.pem"
+            certCollectionFilePath = "/control-plane/root.pem"
+          }
+        )
+        .build()
+
+    assertThat(requireSecureComputationControlPlaneConnection(config))
+      .isEqualTo(config.secureComputationControlPlaneConnection)
+    assertThat(config.secureComputationControlPlaneConnection)
+      .isNotEqualTo(config.impressionMetadataStorageConnection)
+    assertFailsWith<IllegalArgumentException> {
+      requireSecureComputationControlPlaneConnection(
+        config.toBuilder().clearSecureComputationControlPlaneConnection().build()
+      )
+    }
+  }
+
+  @Test
+  fun `raw upload file listing throttles every page and filters the event date`() = runBlocking {
+    val stub = mock<RawImpressionUploadFileServiceCoroutineStub>()
+    whenever(stub.listRawImpressionUploadFiles(any(), any<Metadata>())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
+      when (request.pageToken) {
+        "" ->
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              blobUri = RAW_INPUT_BLOB_URI
+              eventDate = date {
+                year = 2025
+                month = 1
+                day = 5
+              }
+            }
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              blobUri = OTHER_DATE_RAW_INPUT_BLOB_URI
+              eventDate = date {
+                year = 2025
+                month = 1
+                day = 6
+              }
+            }
+            nextPageToken = "next"
+          }
+        "next" ->
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              blobUri = RAW_INPUT_BLOB_URI
+              eventDate = date {
+                year = 2025
+                month = 1
+                day = 5
+              }
+            }
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              blobUri = "gs://raw-bucket/upload/input-2.parquet"
+              eventDate = date {
+                year = 2025
+                month = 1
+                day = 5
+              }
+            }
+          }
+        else -> error("Unexpected page token ${request.pageToken}")
+      }
+    }
+    var throttledCalls = 0
+    val throttler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T {
+          throttledCalls++
+          return block()
+        }
+      }
+    val input =
+      DataAvailabilitySyncWorkItem.parse(
+        workItem {
+          name = WORK_ITEM_NAME
+          generation = 1L
+          workItemParams =
+            Any.pack(
+              workItemParams {
+                appParams =
+                  Any.pack(
+                    dataAvailabilitySyncParams {
+                      dataProvider = DATA_PROVIDER
+                      triggeringRawImpressionUpload = RAW_UPLOAD
+                      modelLine = MODEL_LINE
+                      rawImpressionUploadModelLine = RAW_MODEL_LINE
+                      eventDate = date {
+                        year = 2025
+                        month = 1
+                        day = 5
+                      }
+                    }
+                  )
+                dataPathParams = dataPathParams {
+                  dataPath = "gs://output-bucket/done"
+                  generation = DONE_BLOB_GENERATION
+                  eventType = StorageEventType.FINALIZED
+                }
+              }
+            )
+        }
+      )
+
+    val blobUris = listRawImpressionBlobUris(stub, input, throttler)
+
+    assertThat(blobUris)
+      .containsExactly(RAW_INPUT_BLOB_URI, "gs://raw-bucket/upload/input-2.parquet")
+      .inOrder()
+    assertThat(throttledCalls).isEqualTo(2)
+    val requests = argumentCaptor<ListRawImpressionUploadFilesRequest>()
+    verifyBlocking(stub, times(2)) {
+      listRawImpressionUploadFiles(requests.capture(), any<Metadata>())
+    }
+    assertThat(requests.allValues.map { it.pageToken }).containsExactly("", "next").inOrder()
   }
 
   @Test
@@ -1048,6 +1178,11 @@ class DataAvailabilitySyncFunctionTest {
         privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
+      secureComputationControlPlaneConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"
       modelLineMap[modelLineResourceName] = modelLineList { modelLines += "some-model-line-mapped" }
@@ -1195,6 +1330,11 @@ class DataAvailabilitySyncFunctionTest {
         certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
         privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
         // TODO(@marcopremier): Replace with ImpressionMetadata cert when available
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      secureComputationControlPlaneConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }

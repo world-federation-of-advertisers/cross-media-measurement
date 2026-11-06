@@ -613,6 +613,7 @@ class SpannerRawImpressionUploadModelLineService(
         currentMarkRequestId = { it.markAvailabilitySyncingRequestId },
       ) {
         set("PendingAvailabilityDates").toDateArray(pendingDates.map { it.toCloudDate() })
+        set("SynchronizedAvailabilityDates").toDateArray(emptyList<com.google.cloud.Date>())
       }
     return if (result.isReplay) {
       result.modelLine
@@ -620,6 +621,7 @@ class SpannerRawImpressionUploadModelLineService(
       result.modelLine.copy {
         pendingAvailabilityDates.clear()
         pendingAvailabilityDates += pendingDates
+        synchronizedAvailabilityDates.clear()
       }
     }
   }
@@ -663,35 +665,42 @@ class SpannerRawImpressionUploadModelLineService(
               )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
-        if (
-          result.rawImpressionUploadModelLine.state ==
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
-        ) {
-          return@run TransactionResult(result.rawImpressionUploadModelLine, isReplay = true)
+        val modelLine = result.rawImpressionUploadModelLine
+        val synchronizedDates = modelLine.synchronizedAvailabilityDatesList
+        if (modelLine.state == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED) {
+          if (request.eventDate in synchronizedDates) {
+            return@run TransactionResult(modelLine, isReplay = true)
+          }
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "event_date was not synchronized for this RawImpressionUploadModelLine"
+            )
+            .asRuntimeException()
         }
-        if (
-          result.rawImpressionUploadModelLine.state !=
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING
-        ) {
+        if (modelLine.state != State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING) {
           throw RawImpressionUploadModelLineStateInvalidException(
               request.dataProviderResourceId,
               request.rawImpressionUploadResourceId,
               request.rawImpressionUploadModelLineResourceId,
-              result.rawImpressionUploadModelLine.state,
+              modelLine.state,
               setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING),
             )
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
 
-        val remainingDates =
-          result.rawImpressionUploadModelLine.pendingAvailabilityDatesList.filterNot {
-            it == request.eventDate
-          }
-        if (
-          remainingDates.size == result.rawImpressionUploadModelLine.pendingAvailabilityDatesCount
-        ) {
-          return@run TransactionResult(result.rawImpressionUploadModelLine, isReplay = true)
+        if (request.eventDate in synchronizedDates) {
+          return@run TransactionResult(modelLine, isReplay = true)
         }
+        if (request.eventDate !in modelLine.pendingAvailabilityDatesList) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "event_date was not pending for this RawImpressionUploadModelLine"
+            )
+            .asRuntimeException()
+        }
+        val remainingDates = modelLine.pendingAvailabilityDatesList - request.eventDate
+        val nextSynchronizedDates =
+          (synchronizedDates + request.eventDate).sortedWith(
+            compareBy({ it.year }, { it.month }, { it.day })
+          )
         val nextState =
           if (remainingDates.isEmpty()) {
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
@@ -705,6 +714,8 @@ class SpannerRawImpressionUploadModelLineService(
           nextState,
         ) {
           set("PendingAvailabilityDates").toDateArray(remainingDates.map { it.toCloudDate() })
+          set("SynchronizedAvailabilityDates")
+            .toDateArray(nextSynchronizedDates.map { it.toCloudDate() })
         }
         if (
           nextState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED &&
@@ -721,10 +732,12 @@ class SpannerRawImpressionUploadModelLineService(
           )
         }
         TransactionResult(
-          result.rawImpressionUploadModelLine.copy {
+          modelLine.copy {
             state = nextState
             pendingAvailabilityDates.clear()
             pendingAvailabilityDates += remainingDates
+            synchronizedAvailabilityDates.clear()
+            synchronizedAvailabilityDates += nextSynchronizedDates
           }
         )
       }

@@ -91,4 +91,7 @@ message RawImpressionUploadModelLine {
 
   // Event dates whose VID-labeled output has not yet been synchronized.
   repeated google.type.Date pending_availability_dates = 18;
+
+  // Event dates whose VID-labeled output has already been synchronized.
+  repeated google.type.Date synchronized_availability_dates = 19;
 }

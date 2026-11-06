@@ -48,11 +48,11 @@ import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
-import org.wfanet.measurement.config.edpaggregator.copy
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
@@ -122,8 +122,6 @@ private fun Throwable.grpcStatusCodeFromCauseChain(): Status.Code? {
  * - `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`: Required for WorkItem processing. Target endpoint
  *   for the Secure Computation public API.
  * - `SECURE_COMPUTATION_CERT_HOST`: Optional. Overrides TLS authority for testing.
- * - `SECURE_COMPUTATION_CERT_COLLECTION_FILE`: Optional trusted certificate collection for the
- *   Secure Computation public API.
  * - `DATA_AVAILABILITY_FILE_SYSTEM_PATH`: Optional. If set, enables `FileSystemStorageClient`
  *   instead of GCS. Used only in testing.
  *
@@ -245,7 +243,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         ),
         synchronize = { workItem, lease, onStage ->
           val rawImpressionBlobUris =
-            listRawImpressionBlobUris(rawImpressionUploadFilesStub, workItem)
+            listRawImpressionBlobUris(rawImpressionUploadFilesStub, workItem, globalThrottler)
           check(rawImpressionBlobUris.isNotEmpty()) {
             "No RawImpressionUploadFile rows matched the WorkItem event date"
           }
@@ -282,30 +280,6 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         },
       )
     runBlocking { processor.process(input) }
-  }
-
-  private suspend fun listRawImpressionBlobUris(
-    stub: RawImpressionUploadFileServiceCoroutineStub,
-    workItem: DataAvailabilitySyncWorkItem,
-  ): List<String> {
-    val blobUris = mutableListOf<String>()
-    var pageToken = ""
-    do {
-      val response =
-        stub.listRawImpressionUploadFiles(
-          listRawImpressionUploadFilesRequest {
-            parent = workItem.appParams.triggeringRawImpressionUpload
-            pageSize = RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE
-            this.pageToken = pageToken
-          }
-        )
-      blobUris +=
-        response.rawImpressionUploadFilesList
-          .filter { it.eventDate.toLocalDate() == workItem.eventDate }
-          .map { it.blobUri }
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-    return blobUris.distinct()
   }
 
   private fun verifyWorkItemDoneObject(
@@ -480,7 +454,6 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       Duration.ofMillis(System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS)
 
     private const val DATA_WATHCER_PATH_HEADER: String = "X-DataWatcher-Path"
-    private const val RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE = 1000
 
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
@@ -496,8 +469,6 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     private val secureComputationControlPlaneTarget: String? =
       System.getenv("SECURE_COMPUTATION_CONTROL_PLANE_TARGET")
     private val secureComputationCertHost: String? = System.getenv("SECURE_COMPUTATION_CERT_HOST")
-    private val secureComputationCertCollectionFile: String? =
-      System.getenv("SECURE_COMPUTATION_CERT_COLLECTION_FILE")
 
     private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
 
@@ -612,10 +583,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         requireNotNull(secureComputationControlPlaneTarget) {
           "SECURE_COMPUTATION_CONTROL_PLANE_TARGET is required for WorkItem processing"
         }
-      val connection =
-        dataAvailabilitySyncConfig.impressionMetadataStorageConnection.copy {
-          secureComputationCertCollectionFile?.let { certCollectionFilePath = it }
-        }
+      val connection = requireSecureComputationControlPlaneConnection(dataAvailabilitySyncConfig)
       val channelKey = ChannelKey(connection, target, secureComputationCertHost)
       return channelCache.computeIfAbsent(channelKey) {
         createPublicChannel(connection, target, secureComputationCertHost)
@@ -623,6 +591,44 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     }
   }
 }
+
+internal fun requireSecureComputationControlPlaneConnection(
+  config: DataAvailabilitySyncConfig
+): TransportLayerSecurityParams {
+  require(config.hasSecureComputationControlPlaneConnection()) {
+    "secure_computation_control_plane_connection is required for WorkItem processing"
+  }
+  return config.secureComputationControlPlaneConnection
+}
+
+internal suspend fun listRawImpressionBlobUris(
+  stub: RawImpressionUploadFileServiceCoroutineStub,
+  workItem: DataAvailabilitySyncWorkItem,
+  throttler: Throttler,
+): List<String> {
+  val blobUris = mutableListOf<String>()
+  var pageToken = ""
+  do {
+    val response =
+      throttler.onReady {
+        stub.listRawImpressionUploadFiles(
+          listRawImpressionUploadFilesRequest {
+            parent = workItem.appParams.triggeringRawImpressionUpload
+            pageSize = RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE
+            this.pageToken = pageToken
+          }
+        )
+      }
+    blobUris +=
+      response.rawImpressionUploadFilesList
+        .filter { it.eventDate.toLocalDate() == workItem.eventDate }
+        .map { it.blobUri }
+    pageToken = response.nextPageToken
+  } while (pageToken.isNotEmpty())
+  return blobUris.distinct()
+}
+
+private const val RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE = 1000
 
 internal fun parseDataWatcherGeneration(value: String?): Long {
   val generation =

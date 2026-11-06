@@ -116,7 +116,7 @@ locals {
     ]
   ])
 
-  data_availability_sync_secrets_access = concat(
+  data_availability_service_secrets_access = concat(
     [
       "metadata_storage_root_ca",
       "trusted_root_ca_collection",
@@ -126,11 +126,19 @@ locals {
     local.edp_tls_keys
   )
 
+  data_availability_sync_secrets_access = concat(
+    local.data_availability_service_secrets_access,
+    [
+      "edpa_tee_app_tls_key",
+      "edpa_tee_app_tls_pem",
+    ]
+  )
+
   # Secrets access for data_watcher_delete (same as data_watcher)
   data_watcher_delete_secrets_access = local.data_watcher_secrets_access
 
-  # Secrets access for data_availability_cleanup (same as data_availability_sync)
-  data_availability_cleanup_secrets_access = local.data_availability_sync_secrets_access
+  # Cleanup does not call the Secure Computation control plane.
+  data_availability_cleanup_secrets_access = local.data_availability_service_secrets_access
 
   requisition_fetcher_secrets_access = concat(
     [

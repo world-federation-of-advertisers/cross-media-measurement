@@ -75,6 +75,17 @@ class DataAvailabilityWatcherConfigTest {
           )
 
         assertThat(selectedConfig).isEqualTo(runtimeConfigsByDataProvider.getValue(dataProvider))
+        assertWithMessage("$environment Secure Computation connection for $dataProvider")
+          .that(selectedConfig.hasSecureComputationControlPlaneConnection())
+          .isTrue()
+        assertThat(selectedConfig.secureComputationControlPlaneConnection.certFilePath)
+          .endsWith("/edpa_tee_app_tls.pem")
+        assertThat(selectedConfig.secureComputationControlPlaneConnection.privateKeyFilePath)
+          .endsWith("/edpa_tee_app_tls.key")
+        assertThat(selectedConfig.secureComputationControlPlaneConnection.certCollectionFilePath)
+          .endsWith("/secure_computation_root.pem")
+        assertThat(selectedConfig.secureComputationControlPlaneConnection)
+          .isNotEqualTo(selectedConfig.impressionMetadataStorageConnection)
       }
     }
   }

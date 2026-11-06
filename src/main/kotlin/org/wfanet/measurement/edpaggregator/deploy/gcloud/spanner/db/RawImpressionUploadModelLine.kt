@@ -542,6 +542,7 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.RecoveryAction,
       RawImpressionUploadModelLine.RecoveryPredecessorRawImpressionUploadResourceId,
       RawImpressionUploadModelLine.PendingAvailabilityDates,
+      RawImpressionUploadModelLine.SynchronizedAvailabilityDates,
     FROM
       RawImpressionUploadModelLine
     """
@@ -601,6 +602,10 @@ private object RawImpressionUploadModelLineEntity {
         if (!struct.isNull("PendingAvailabilityDates")) {
           pendingAvailabilityDates +=
             struct.getDateList("PendingAvailabilityDates").map { it.toProtoDate() }
+        }
+        if (!struct.isNull("SynchronizedAvailabilityDates")) {
+          synchronizedAvailabilityDates +=
+            struct.getDateList("SynchronizedAvailabilityDates").map { it.toProtoDate() }
         }
       },
       struct.getLong("RawImpressionUploadId"),
