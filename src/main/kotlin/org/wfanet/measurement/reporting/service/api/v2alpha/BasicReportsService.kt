@@ -751,7 +751,7 @@ class BasicReportsService(
                 }
                 dataProviders += dataProviderNames
                 if (requestModelLine.isNotEmpty()) {
-                  types += listOf(ModelLine.Type.PROD, ModelLine.Type.DEV, ModelLine.Type.HOLDBACK)
+                  types += listOf(ModelLine.Type.PROD, ModelLine.Type.DEV)
                 }
               }
             )

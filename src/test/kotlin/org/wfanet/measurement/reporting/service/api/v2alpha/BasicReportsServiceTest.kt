@@ -3584,17 +3584,27 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport uses explicitly requested HOLDBACK ModelLine`(): Unit = runBlocking {
+  fun `createBasicReport throws FAILED_PRECONDITION for explicitly requested HOLDBACK ModelLine`():
+    Unit = runBlocking {
     stubAvailableModelLines(listOf(PROD_MODEL_LINE, HOLDBACK_MODEL_LINE, DEV_MODEL_LINE))
     val request = createModelLineBasicReportRequest(HOLDBACK_MODEL_LINE.name)
 
-    val response =
-      withPrincipalAndScopes(PRINCIPAL, setOf(BasicReportsService.Permission.CREATE)) {
-        service.createBasicReport(request)
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(response.modelLine).isEqualTo(HOLDBACK_MODEL_LINE.name)
-    assertThat(response.effectiveModelLine).isEqualTo(HOLDBACK_MODEL_LINE.name)
+    assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.MODEL_LINE_NOT_ACTIVE.name
+          metadata[Errors.Metadata.MODEL_LINE.key] = HOLDBACK_MODEL_LINE.name
+        }
+      )
+    assertNoBasicReportCreated(request)
   }
 
   @Test
