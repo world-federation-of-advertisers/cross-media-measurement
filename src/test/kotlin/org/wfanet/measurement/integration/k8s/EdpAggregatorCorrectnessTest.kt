@@ -109,7 +109,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     val doneBlobKey = "$EDP7_IMPRESSION_PATH/model-line/$modelLineId/$ACTIVITY_START_DATE/done"
     val storageClient = StorageOptions.getDefaultInstance().service
 
-    withTimeout(EVENT_GROUP_ACTIVITY_TIMEOUT) {
+    withTimeout(DATA_AVAILABILITY_SYNC_TIMEOUT) {
       while (true) {
         val metadata = storageClient.get(TEST_CONFIG.storageBucket, doneBlobKey)?.metadata.orEmpty()
         val syncId = metadata[DATA_AVAILABILITY_SYNC_ID_METADATA_KEY]
@@ -592,6 +592,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
+    // Allow the eight-minute sync request plus delivery and retry headroom.
+    private val DATA_AVAILABILITY_SYNC_TIMEOUT = 10.minutes
     private val EVENT_GROUP_ACTIVITY_TIMEOUT = 5.minutes
     private val EVENT_GROUP_ACTIVITY_POLLING_INTERVAL = 3.seconds
     private const val ACTIVITY_START_DATE = "2021-03-15"

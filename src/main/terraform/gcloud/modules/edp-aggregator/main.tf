@@ -408,6 +408,9 @@ module "data_availability_sync_cloud_function" {
   # ImpressionMetadata service from completion-marker bursts.
   max_instances = 5
   concurrency   = 1
+
+  # Leave one minute of response headroom under DataWatcher's 540-second timeout.
+  timeout_seconds = 480
 }
 
 module "data_availability_cleanup_cloud_function" {

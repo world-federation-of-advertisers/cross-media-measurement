@@ -238,6 +238,11 @@ notifies the Kingdom that impressions for that day are available.
 When `event_group_activity_publishing` is configured, the same sync also derives
 positive EventGroup activity from the finalized metadata and appends it in the Kingdom.
 
+The Terraform module gives synchronization an eight-minute request timeout;
+DataWatcher has a nine-minute timeout to receive the terminal response. Apply
+Terraform to redeploy the function when changing this budget. Keep callers and
+publication waits longer than the synchronization timeout.
+
 Config: [`DataAvailabilitySyncConfigs`](#dataavailabilitysync-config-dataavailabilitysyncconfigs).
 For historical replay or EventGroup activity backfill, see
 [Replay DataAvailabilitySync](../gke/replay-data-availability-sync.md).
