@@ -2025,6 +2025,65 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `listMeasurements pagination advances past the last update time and measurement ID`() {
+    val rows =
+      listOf(
+        INTERNAL_MEASUREMENT,
+        INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 },
+        INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_3 },
+      )
+    internalMeasurementsMock.stub {
+      onBlocking { streamMeasurements(any()) }
+        .thenAnswer { invocation ->
+          val request: StreamMeasurementsRequest = invocation.getArgument(0)
+          val after = request.filter.after
+          val remaining =
+            if (!request.filter.hasAfter()) rows
+            else {
+              // The stream's cursor includes both timestamp and ID.
+              val lastIndex =
+                rows.indexOfFirst {
+                  it.updateTime == after.updateTime &&
+                    it.externalMeasurementId == after.measurement.externalMeasurementId
+                }
+              check(lastIndex >= 0) {
+                "The page cursor did not preserve the last row's update time"
+              }
+              rows.drop(lastIndex + 1)
+            }
+          flowOf(*remaining.take(request.limit).toTypedArray())
+        }
+    }
+    val first =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking {
+          service.listMeasurements(
+            listMeasurementsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              pageSize = 2
+            }
+          )
+        }
+      }
+    val second =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking {
+          service.listMeasurements(
+            listMeasurementsRequest {
+              parent = MEASUREMENT_CONSUMER_NAME
+              pageSize = 2
+              pageToken = first.nextPageToken
+            }
+          )
+        }
+      }
+    assertThat((first.measurementsList + second.measurementsList).map { it.name })
+      .containsExactly(MEASUREMENT_NAME, MEASUREMENT_NAME_2, MEASUREMENT_NAME_3)
+      .inOrder()
+    assertThat(second.nextPageToken).isEmpty()
+  }
+
+  @Test
   fun `listMeasurements with page token with filter returns response`() {
     val pageSize = 2
     val internalStates =
@@ -2084,6 +2143,7 @@ class MeasurementsServiceTest {
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
         states += publicStates
         lastMeasurement = previousPageEnd {
+          updateTime = UPDATE_TIME
           externalMeasurementId =
             apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
         }
