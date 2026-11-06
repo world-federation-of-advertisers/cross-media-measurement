@@ -14,7 +14,7 @@
 
 """Run each scale case with fetching paused until creation has been verified."""
 
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -38,7 +38,7 @@ TEST_ENVIRONMENT = (
     "REPORTING_SCALE_FILTER_IDS", "REPORTING_SCALE_REPETITIONS",
     "REPORTING_SCALE_FULFILLMENT_TIMEOUT_SECONDS", "REPORTING_SCALE_DEADLINE_SECONDS",
     "REPORTING_SCALE_SEED", "REPORTING_SCALE_PHASE", "REPORTING_SCALE_CANCEL_FAILED_CREATION",
-    "REPORTING_SCALE_EXISTING_BASIC_REPORT", "REPORTING_SCALE_EDP_TLS_NAMES",
+    "REPORTING_SCALE_EXISTING_BASIC_REPORT", "REPORTING_SCALE_UNDERLYING_REPORT",
     "REPORTING_SCALE_INTERNAL_API_TARGET", "REPORTING_SCALE_KINGDOM_INTERNAL_API_TARGET",
 )
 
@@ -130,14 +130,9 @@ def internal_api_targets(environment):
 
 
 def run_phase(environment, destination):
-    connections = (
-        internal_api_targets(environment)
-        if environment.get("REPORTING_SCALE_PHASE") == "creation"
-        else nullcontext(environment)
-    )
-    with connections as test_environment:
+    with internal_api_targets(environment) as test_environment:
         result = subprocess.run(
-            ["bazel", "test", "--config=ci", "--test_output=streamed",
+            ["bazel", "test", "--test_output=streamed",
              "--test_timeout=21000", "--cache_test_results=no"]
             + ["--test_env=" + key for key in TEST_ENVIRONMENT] + [TARGET],
             env=test_environment,
@@ -148,12 +143,10 @@ def run_phase(environment, destination):
 def main():
     OUTPUT.mkdir(exist_ok=True)
     # Complete compilation before pausing a shared scheduler.
-    subprocess.run(["bazel", "build", "--config=ci", TARGET], check=True)
+    subprocess.run(["bazel", "build", TARGET], check=True)
     output_base = subprocess.check_output(["bazel", "info", "output_base"], text=True).strip()
     environment = os.environ.copy()
     environment["LD_LIBRARY_PATH"] = str(Path(output_base) / "external/cloud-spanner-emulator-bin+")
-    environment.setdefault("REPORTING_SCALE_EDP_TLS_NAMES", "edp7,edpa_meta,edpa_video_pub")
-    environment["REPORTING_SCALE_REPETITIONS"] = "1"
     jobs = scheduler("list")
     matching = [job for job in jobs if job.get("httpTarget", {}).get("uri") == os.environ["REQUISITION_FETCHER_ENDPOINT"]]
     if len(matching) != 1:
@@ -170,6 +163,7 @@ def main():
             for repetition in range(repetitions):
                 case = OUTPUT / f"states-{state_count.strip()}-repeat-{repetition + 1}"
                 environment["REPORTING_SCALE_STATE_COUNTS"] = state_count.strip()
+                environment["REPORTING_SCALE_REPETITIONS"] = "1"
                 environment["REPORTING_SCALE_PHASE"] = "creation"
                 environment["REPORTING_SCALE_CANCEL_FAILED_CREATION"] = "true"
                 environment["REPORTING_SCALE_EXISTING_BASIC_REPORT"] = ""
@@ -203,6 +197,7 @@ def main():
                 environment["REPORTING_SCALE_PHASE"] = "full"
                 environment["REPORTING_SCALE_CANCEL_FAILED_CREATION"] = "false"
                 environment["REPORTING_SCALE_EXISTING_BASIC_REPORT"] = creation[0]["basic_report"]
+                environment["REPORTING_SCALE_UNDERLYING_REPORT"] = creation[0]["report"]
                 code, fulfillment = run_phase(environment, case / "fulfillment")
                 records.extend(fulfillment)
                 if code != 0:
