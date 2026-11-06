@@ -653,6 +653,7 @@ class DataAvailabilitySyncFunctionTest {
                 dataPathParams = dataPathParams {
                   dataPath = "gs://output-bucket/done"
                   generation = DONE_BLOB_GENERATION
+                  createTime = timestamp { seconds = 1_800_000_000L }
                   eventType = StorageEventType.FINALIZED
                 }
               }
