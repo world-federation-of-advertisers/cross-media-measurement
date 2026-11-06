@@ -18,6 +18,11 @@ variable "tee_consumers_enabled" {
   default     = true
 }
 
+variable "vid_labeling_trace_operator_member" {
+  description = "IAM member for the read-only VID-labeling trace operator."
+  type        = string
+}
+
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({
@@ -165,6 +170,18 @@ variable "pubsub_iam_service_account_member" {
   type        = string
   default     = "secure-computation-pubsub"
   nullable    = false
+}
+
+variable "data_availability_sync_work_item_queue" {
+  description = "Pub/Sub queue for DataAvailabilitySync WorkItems."
+  type = object({
+    topic_name            = string
+    subscription_name     = string
+    ack_deadline_seconds  = number
+    max_delivery_attempts = number
+    minimum_backoff       = string
+    maximum_backoff       = string
+  })
 }
 
 variable "edp_aggregator_bucket_name" {

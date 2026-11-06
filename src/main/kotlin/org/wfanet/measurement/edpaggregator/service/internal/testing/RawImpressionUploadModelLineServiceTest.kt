@@ -17,11 +17,16 @@ package org.wfanet.measurement.edpaggregator.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
+import com.google.type.Date
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -39,10 +44,13 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineLabelingRequest
@@ -77,6 +85,8 @@ abstract class RawImpressionUploadModelLineServiceTest {
   protected abstract suspend fun setEvictionFence(
     dataProviderResourceId: String,
     evictionOperationId: String,
+    state: VidLabelingEvictionFenceState =
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING,
   )
 
   /** Sets how the parent upload participates in an active eviction operation. */
@@ -85,6 +95,12 @@ abstract class RawImpressionUploadModelLineServiceTest {
     rawImpressionUploadResourceId: String,
     evictionOperationId: String?,
     processingDeferred: Boolean,
+  )
+
+  protected abstract suspend fun setParentUploadState(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    state: RawImpressionUploadState,
   )
 
   @Before
@@ -977,6 +993,313 @@ abstract class RawImpressionUploadModelLineServiceTest {
           RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
         )
     }
+
+  @Test
+  fun `availability dates complete model line only after every date is synchronized`() =
+    runBlocking {
+      val firstDate = date {
+        year = 2026
+        month = 1
+        day = 1
+      }
+      val secondDate = date {
+        year = 2026
+        month = 1
+        day = 2
+      }
+      val syncing = markAvailabilitySyncing(secondDate, firstDate, secondDate)
+
+      assertThat(syncing.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING
+        )
+      assertThat(syncing.pendingAvailabilityDatesList)
+        .containsExactly(firstDate, secondDate)
+        .inOrder()
+      assertThat(syncing.synchronizedAvailabilityDatesList).isEmpty()
+
+      val firstSynchronized =
+        service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+          markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+            eventDate = firstDate
+          }
+        )
+      assertThat(firstSynchronized.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING
+        )
+      assertThat(firstSynchronized.pendingAvailabilityDatesList).containsExactly(secondDate)
+      assertThat(firstSynchronized.synchronizedAvailabilityDatesList).containsExactly(firstDate)
+      assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+        .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE)
+
+      val replay =
+        service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+          markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+            eventDate = firstDate
+          }
+        )
+      assertThat(replay).isEqualTo(firstSynchronized)
+
+      val completed =
+        service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+          markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+            eventDate = secondDate
+          }
+        )
+      assertThat(completed.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
+        )
+      assertThat(completed.pendingAvailabilityDatesList).isEmpty()
+      assertThat(completed.synchronizedAvailabilityDatesList)
+        .containsExactly(firstDate, secondDate)
+        .inOrder()
+      assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+        .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED)
+
+      val completedReplay =
+        service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+          markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+            eventDate = firstDate
+          }
+        )
+      assertThat(completedReplay).isEqualTo(completed)
+    }
+
+  @Test
+  fun `unexpected availability date is rejected before and after completion`() = runBlocking {
+    val expectedDate = date {
+      year = 2026
+      month = 1
+      day = 1
+    }
+    val unexpectedDate = date {
+      year = 2026
+      month = 1
+      day = 2
+    }
+    val syncing = markAvailabilitySyncing(expectedDate)
+
+    val unexpectedWhileSyncing =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+          markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+            eventDate = unexpectedDate
+          }
+        )
+      }
+    assertThat(unexpectedWhileSyncing.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+    service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+      markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+        eventDate = expectedDate
+      }
+    )
+
+    val unexpectedAfterCompletion =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+          markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+            eventDate = unexpectedDate
+          }
+        )
+      }
+    assertThat(unexpectedAfterCompletion.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `synchronized availability date is not replayed after eviction`() = runBlocking {
+    val eventDate = date {
+      year = 2026
+      month = 1
+      day = 1
+    }
+    val syncing = markAvailabilitySyncing(eventDate)
+    val completed =
+      service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+        markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+          this.eventDate = eventDate
+        }
+      )
+    service.markRawImpressionUploadModelLineFailed(
+      markRawImpressionUploadModelLineFailedRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+        etag = completed.etag
+        errorMessage = "completed output contains invalid data"
+        failureReason = FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+        evictionOperationId = EVICTION_OPERATION_ID
+        recoveryAction =
+          RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
+      }
+    )
+
+    val replayAfterEviction =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+          markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+            this.eventDate = eventDate
+          }
+        )
+      }
+    assertThat(replayAfterEviction.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `availability retry clears synchronized dates from the prior attempt`() = runBlocking {
+    val firstDate = date {
+      year = 2026
+      month = 1
+      day = 1
+    }
+    val secondDate = date {
+      year = 2026
+      month = 1
+      day = 2
+    }
+    val syncing = markAvailabilitySyncing(firstDate, secondDate)
+    val partiallySynchronized =
+      service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+        markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+          eventDate = firstDate
+        }
+      )
+    val failed =
+      service.markRawImpressionUploadModelLineFailed(
+        markRawImpressionUploadModelLineFailedRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+          etag = partiallySynchronized.etag
+          errorMessage = "retry availability"
+          failureReason =
+            FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE
+        }
+      )
+    val labeling =
+      service.markRawImpressionUploadModelLineLabeling(
+        markRawImpressionUploadModelLineLabelingRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+          etag = failed.etag
+        }
+      )
+
+    val retried =
+      service.markRawImpressionUploadModelLineAvailabilitySyncing(
+        markRawImpressionUploadModelLineAvailabilitySyncingRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+          etag = labeling.etag
+          pendingAvailabilityDates += listOf(firstDate, secondDate)
+        }
+      )
+
+    assertThat(retried.pendingAvailabilityDatesList)
+      .containsExactly(firstDate, secondDate)
+      .inOrder()
+    assertThat(retried.synchronizedAvailabilityDatesList).isEmpty()
+  }
+
+  @Test
+  fun `concurrent availability dates are both synchronized`(): Unit = runBlocking {
+    val dates =
+      listOf(
+        date {
+          year = 2026
+          month = 1
+          day = 1
+        },
+        date {
+          year = 2026
+          month = 1
+          day = 2
+        },
+      )
+    val syncing = markAvailabilitySyncing(*dates.toTypedArray())
+
+    coroutineScope {
+      dates
+        .map { eventDate ->
+          async {
+            service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+              markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+                requestId = UUID.randomUUID().toString()
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+                rawImpressionUploadModelLineResourceId =
+                  syncing.rawImpressionUploadModelLineResourceId
+                this.eventDate = eventDate
+              }
+            )
+          }
+        }
+        .awaitAll()
+    }
+
+    val result =
+      service.getRawImpressionUploadModelLine(
+        getRawImpressionUploadModelLineRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = syncing.rawImpressionUploadModelLineResourceId
+        }
+      )
+    assertThat(result.state)
+      .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED)
+    assertThat(result.pendingAvailabilityDatesList).isEmpty()
+    assertThat(result.synchronizedAvailabilityDatesList).containsExactlyElementsIn(dates).inOrder()
+  }
 
   @Test
   fun `markRawImpressionUploadModelLineFailed transitions from CREATED to FAILED`() = runBlocking {
@@ -1993,6 +2316,32 @@ abstract class RawImpressionUploadModelLineServiceTest {
   }
 
   @Test
+  fun `createRawImpressionUploadModelLine rejects quarantined parent`() =
+    runBlocking<Unit> {
+      setParentUploadState(
+        DATA_PROVIDER_RESOURCE_ID,
+        RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUploadModelLine(
+            createRawImpressionUploadModelLineRequest {
+              requestId = UUID.randomUUID().toString()
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+                cmmsModelLine = CMMS_MODEL_LINE
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
   fun `createRawImpressionUploadModelLine leaves a CREATED parent unchanged`() = runBlocking {
     service.createRawImpressionUploadModelLine(
       createRawImpressionUploadModelLineRequest {
@@ -2093,6 +2442,32 @@ abstract class RawImpressionUploadModelLineServiceTest {
         }
       }
     )
+
+  private suspend fun markAvailabilitySyncing(
+    vararg pendingDates: Date
+  ): RawImpressionUploadModelLine {
+    val created = createModelLine()
+    val labeling =
+      service.markRawImpressionUploadModelLineLabeling(
+        markRawImpressionUploadModelLineLabelingRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = created.etag
+        }
+      )
+    return service.markRawImpressionUploadModelLineAvailabilitySyncing(
+      markRawImpressionUploadModelLineAvailabilitySyncingRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = labeling.etag
+        pendingAvailabilityDates += pendingDates.toList()
+      }
+    )
+  }
 
   @Test
   fun `markRawImpressionUploadModelLinePoolAssigning is idempotent with same request_id`() =
@@ -2594,6 +2969,49 @@ abstract class RawImpressionUploadModelLineServiceTest {
       }
 
     assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `approval fence allows in-flight processing to advance`() = runBlocking {
+    val created =
+      service.createRawImpressionUploadModelLine(
+        createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+        }
+      )
+    service.markRawImpressionUploadModelLinePoolAssigning(
+      markRawImpressionUploadModelLinePoolAssigningRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
+      }
+    )
+    setEvictionFence(
+      DATA_PROVIDER_RESOURCE_ID,
+      UUID.randomUUID().toString(),
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING,
+    )
+
+    val ranking =
+      service.markRawImpressionUploadModelLineRanking(
+        markRawImpressionUploadModelLineRankingRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
+        }
+      )
+
+    assertThat(ranking.state)
+      .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING)
   }
 
   @Test

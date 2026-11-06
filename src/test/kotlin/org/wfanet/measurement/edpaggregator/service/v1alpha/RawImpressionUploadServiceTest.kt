@@ -48,7 +48,9 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.advanceRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
@@ -60,6 +62,8 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase as InternalUploadServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub as InternalUploadServiceCoroutineStub
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
 
 @RunWith(JUnit4::class)
 class RawImpressionUploadServiceTest {
@@ -83,6 +87,17 @@ class RawImpressionUploadServiceTest {
   fun initService() {
     service =
       RawImpressionUploadService(InternalUploadServiceCoroutineStub(grpcTestServerRule.channel))
+  }
+
+  @Test
+  fun `state conversions map correction required`() {
+    val internal = internalRawImpressionUpload {
+      dataProviderResourceId = DATA_PROVIDER_ID
+      rawImpressionUploadResourceId = "candidate-upload"
+      state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
+    }
+
+    assertThat(internal.toPublic().state).isEqualTo(RawImpressionUpload.State.CORRECTION_REQUIRED)
   }
 
   @Test
@@ -782,10 +797,8 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads state filter maps ACTIVE and COMPLETED`(): Unit = runBlocking {
-    // Only CREATED uploads are reachable via the public API, so ACTIVE and COMPLETED filters must
-    // map through toInternal() and match nothing here. This pins the ACTIVE and COMPLETED state
-    // conversions that the CREATED/FAILED filter tests do not exercise.
+  fun `listRawImpressionUploads maps non-created state filters`(): Unit = runBlocking {
+    // Only CREATED uploads are reachable via the public API, so the other filters match nothing.
     val created =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
@@ -820,6 +833,18 @@ class RawImpressionUploadServiceTest {
       )
     assertThat(completedResponse.rawImpressionUploadsList).isEmpty()
 
+    val correctionResponse =
+      service.listRawImpressionUploads(
+        listRawImpressionUploadsRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter =
+            ListRawImpressionUploadsRequestKt.filter {
+              stateIn += RawImpressionUpload.State.CORRECTION_REQUIRED
+            }
+        }
+      )
+    assertThat(correctionResponse.rawImpressionUploadsList).isEmpty()
+
     val mixedResponse =
       service.listRawImpressionUploads(
         listRawImpressionUploadsRequest {
@@ -829,6 +854,7 @@ class RawImpressionUploadServiceTest {
               stateIn += RawImpressionUpload.State.CREATED
               stateIn += RawImpressionUpload.State.ACTIVE
               stateIn += RawImpressionUpload.State.COMPLETED
+              stateIn += RawImpressionUpload.State.CORRECTION_REQUIRED
             }
         }
       )
@@ -883,12 +909,15 @@ class RawImpressionUploadServiceTest {
     val acquireRequest = acquireRawImpressionUploadEvictionFenceRequest {
       parent = DATA_PROVIDER_KEY.toName()
       evictionOperationId = operationId
+      state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+      requestId = UUID.randomUUID().toString()
     }
     val initialAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
     val resumedAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
 
     assertThat(initialAcquire.newlyAcquired).isTrue()
-    assertThat(resumedAcquire.newlyAcquired).isFalse()
+    assertThat(initialAcquire.etag).isNotEmpty()
+    assertThat(resumedAcquire).isEqualTo(initialAcquire)
 
     val upload =
       service.createRawImpressionUpload(
@@ -907,11 +936,114 @@ class RawImpressionUploadServiceTest {
       releaseRawImpressionUploadEvictionFenceRequest {
         parent = DATA_PROVIDER_KEY.toName()
         evictionOperationId = operationId
+        etag = initialAcquire.etag
+        requestId = UUID.randomUUID().toString()
       }
     )
     val released =
       service.getRawImpressionUpload(getRawImpressionUploadRequest { name = upload.name })
     assertThat(released.processingDeferred).isFalse()
+  }
+
+  @Test
+  fun `eviction fence forwards staged state transitions`(): Unit = runBlocking {
+    val operationId = UUID.randomUUID().toString()
+    val acquired =
+      service.acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          evictionOperationId = operationId
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    val draining =
+      service.advanceRawImpressionUploadEvictionFence(
+        advanceRawImpressionUploadEvictionFenceRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          evictionOperationId = operationId
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+          etag = acquired.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    service.advanceRawImpressionUploadEvictionFence(
+      advanceRawImpressionUploadEvictionFenceRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        evictionOperationId = operationId
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+        etag = draining.etag
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+  }
+
+  @Test
+  fun `eviction fence acquisition requires an explicit state`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            evictionOperationId = UUID.randomUUID().toString()
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `eviction fence rejects non-version-4 operation ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            evictionOperationId = "11111111-1111-1111-8111-111111111111"
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `eviction fence rejects non-RFC-4122 operation ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            evictionOperationId = "11111111-1111-4111-0111-111111111111"
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `eviction fence rejects noncanonical operation ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            evictionOperationId = "1-1-4111-8111-1"
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
