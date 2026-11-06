@@ -37,10 +37,7 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
 class PopulationAttributeWriterTest {
   private val eventDescriptor = TestEvent.getDescriptor()
 
-  /**
-   * `v1.Common` carries three population attributes (gender, age_group, us_state), so a spec that
-   * sets fewer than all three is rejected rather than silently zeroing the omitted one.
-   */
+  /** Builds a complete subpopulation for tests of the all-fields-modeled behavior. */
   private fun subPopulation(
     gender: Common.Gender,
     ageGroup: Common.AgeGroup,
@@ -149,10 +146,8 @@ class PopulationAttributeWriterTest {
   }
 
   @Test
-  fun `constructor rejects a spec that omits a population attribute`() {
-    // us_state unset: copying it would write US_STATE_UNSPECIFIED over the uploaded value on every
-    // impression, which is the corruption this class exists to avoid.
-    val incomplete = populationSpec {
+  fun `apply leaves population attribute unchanged when absent from every subpopulation`() {
+    val withoutState = populationSpec {
       subpopulations +=
         PopulationSpecKt.subPopulation {
           attributes +=
@@ -168,11 +163,64 @@ class PopulationAttributeWriterTest {
               endVidInclusive = 100L
             }
         }
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          attributes +=
+            ProtoAny.pack(
+              common {
+                gender = Common.Gender.FEMALE
+                ageGroup = Common.AgeGroup.YEARS_35_TO_54
+              }
+            )
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 101L
+              endVidInclusive = 200L
+            }
+        }
+    }
+    val writer = PopulationAttributeWriter(eventDescriptor, withoutState)
+
+    val event = writer.apply(uploadedEvent(), 150L).unpack(TestEvent::class.java)
+
+    assertThat(event.common.gender).isEqualTo(Common.Gender.FEMALE)
+    assertThat(event.common.ageGroup).isEqualTo(Common.AgeGroup.YEARS_35_TO_54)
+    assertThat(event.common.usState).isEqualTo(Common.UsState.CALIFORNIA)
+  }
+
+  @Test
+  fun `constructor rejects population attribute present in only some subpopulations`() {
+    val mixed = populationSpec {
+      subpopulations +=
+        subPopulation(
+          Common.Gender.MALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.UsState.CALIFORNIA,
+          1L,
+          100L,
+        )
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          attributes +=
+            ProtoAny.pack(
+              common {
+                gender = Common.Gender.FEMALE
+                ageGroup = Common.AgeGroup.YEARS_35_TO_54
+              }
+            )
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 101L
+              endVidInclusive = 200L
+            }
+        }
     }
 
-    assertFailsWith<PopulationSpecValidationException> {
-      PopulationAttributeWriter(eventDescriptor, incomplete)
-    }
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        PopulationAttributeWriter(eventDescriptor, mixed)
+      }
+    assertThat(exception).hasMessageThat().contains("Common.us_state")
   }
 
   @Test
@@ -210,6 +258,28 @@ class PopulationAttributeWriterTest {
         PopulationAttributeWriter(DuplicatePersonEvent.getDescriptor(), spec)
       }
     assertThat(exception).hasMessageThat().contains("more than one field")
+  }
+
+  @Test
+  fun `constructor rejects an attribute whose type is not an event template`() {
+    val unknown = populationSpec {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          attributes +=
+            ProtoAny.newBuilder().setTypeUrl("type.googleapis.com/example.Unknown").build()
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 1L
+              endVidInclusive = 100L
+            }
+        }
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        PopulationAttributeWriter(eventDescriptor, unknown)
+      }
+    assertThat(exception).hasMessageThat().contains("example.Unknown")
   }
 
   @Test
