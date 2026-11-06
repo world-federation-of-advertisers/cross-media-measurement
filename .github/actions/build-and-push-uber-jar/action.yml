@@ -55,7 +55,7 @@ runs:
       env:
         BAZEL_TARGET_LABEL: ${{ inputs.bazel_target_label }}
       run: |
-        bazel build "$BAZEL_TARGET_LABEL"
+        tools/bazel-with-results bazel build "$BAZEL_TARGET_LABEL"
 
     - name: Deploy fat‑jar to GitHub Packages
       shell: bash

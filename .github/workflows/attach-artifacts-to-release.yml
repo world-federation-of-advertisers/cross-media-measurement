@@ -52,7 +52,7 @@ jobs:
 
       - name: Build CLI uber jars
         run: >
-          bazel build
+          tools/bazel-with-results bazel build
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:MeasurementSystem_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EventTemplateValidator_deploy.jar
@@ -73,12 +73,12 @@ jobs:
 
       - name: Build CLI pyzips
         run: >
-          bazel build
+          tools/bazel-with-results bazel build
           //src/main/python/wfa/measurement/reporting/postprocessing/tools:log_processor_pyzip
 
       - name: Build reporting API specs
         run: |
-          bazel build //src/main/proto/wfa/measurement/reporting/v2alpha:exposed_openapi_specs
+          tools/bazel-with-results bazel build //src/main/proto/wfa/measurement/reporting/v2alpha:exposed_openapi_specs
           bazel cquery //src/main/proto/wfa/measurement/reporting/v2alpha:exposed_openapi_specs --output files \
             | grep "^bazel-out" \
             | tar -czf reporting_api_specs.tar.gz --transform='s|^.*/wfa/measurement/||' -T -
