@@ -195,24 +195,26 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
           .count { it.value.hasProcessedReportResultValues() }
       )
       .isEqualTo(2)
-    val unwrittenResult =
-      full.reportingSetResultsList.single { result ->
-        result.reportingWindowResultsList.any { !it.value.hasProcessedReportResultValues() }
-      }
-    val unwrittenWindow =
-      unwrittenResult.reportingWindowResultsList.single {
-        !it.value.hasProcessedReportResultValues()
-      }
-    val originalValues =
-      fixture.request.reportingSetResultsMap.getValue(unwrittenResult.externalReportingSetResultId)
+    val fullById = full.reportingSetResultsList.associateBy { it.externalReportingSetResultId }
+    val (unwrittenResultId, unwrittenWindow) =
+      fixture.request.reportingSetResultsMap
+        .flatMap { (id, requested) ->
+          val storedByWindow =
+            fullById.getValue(id).reportingWindowResultsList.associateBy { it.key }
+          requested.reportingWindowResultsList
+            .filter { !storedByWindow.getValue(it.key).value.hasProcessedReportResultValues() }
+            .map { id to it.key }
+        }
+        .single()
+    val originalValues = fixture.request.reportingSetResultsMap.getValue(unwrittenResultId)
     val conflicting =
       fixture.request.copy {
-        reportingSetResults[unwrittenResult.externalReportingSetResultId] =
+        reportingSetResults[unwrittenResultId] =
           originalValues.copy {
             reportingWindowResults.clear()
             reportingWindowResults +=
               originalValues.reportingWindowResultsList.map { entry ->
-                if (entry.key == unwrittenWindow.key)
+                if (entry.key == unwrittenWindow)
                   entry.copy {
                     value =
                       entry.value.copy {
