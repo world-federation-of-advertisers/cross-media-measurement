@@ -92,7 +92,8 @@ class FrequencyVectorSamplingTest {
       reach = reach {}
       vidSamplingInterval = vidSamplingInterval { width = 1.0f }
     }
-    val thresholds = ResultMinimumThresholds(reachMaxFrequencyPerUser = 3)
+    val thresholds =
+      ResultMinimumThresholds(minUsers = 0, minImpressions = 0, reachMaxFrequencyPerUser = 3)
     assertThat(sampling(spec, thresholds, null).sample(FREQUENCIES))
       .isEqualTo(byteArrayOf(0, 1, 2, 3, 3, 3, 3, 3, 3, 3))
   }
