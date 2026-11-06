@@ -39,6 +39,7 @@ import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -87,6 +88,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportRe
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
+import org.wfanet.measurement.internal.reporting.v2.SetExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
@@ -114,6 +116,8 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
+import org.wfanet.measurement.reporting.service.api.v2alpha.toCreationPlan
+import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.Report
@@ -279,7 +283,7 @@ class BasicReportsReportsJobTest {
   private fun assertReportCreatedPageRequested() {
     val requests: List<ListBasicReportsRequest> =
       verifyAndCapture(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports, times(2))
-    assertThat(requests.first())
+    assertThat(requests.single { it.filter.state == BasicReport.State.REPORT_CREATED })
       .isEqualTo(
         listBasicReportsRequest {
           filter =
@@ -290,6 +294,83 @@ class BasicReportsReportsJobTest {
           pageSize = BATCH_SIZE
         }
       )
+  }
+
+  private fun pendingCreationReport(): BasicReport =
+    INTERNAL_BASIC_REPORT.copy {
+      state = BasicReport.State.CREATED
+      externalBasicReportId = "pending-basic"
+      createTime = timestamp { seconds = NOW.minusSeconds(30).epochSecond }
+      createReportRequestId = "78b9facb-5a64-4026-8735-a5153b46cf62"
+      details = details.copy { reportCreationPlan = REPORT.toCreationPlan() }
+    }
+
+  @Test
+  fun `execute resumes a frozen creation plan and links the returned Report`(): Unit = runBlocking {
+    val pending = pendingCreationReport()
+    stubListCreatedBasicReports(listOf(pending))
+    val returnedName = ReportKey(CMMS_MEASUREMENT_CONSUMER_ID, "returned-id").toName()
+    whenever(reportsMock.createReport(any())).thenReturn(report { name = returnedName })
+    withTimeout(5_000) { job.execute() }
+    val creation = argumentCaptor<CreateReportRequest>()
+    verify(reportsMock).createReport(creation.capture())
+    assertThat(creation.firstValue.requestId).isEqualTo(pending.createReportRequestId)
+    assertThat(creation.firstValue.report.reportingMetricEntriesList)
+      .containsExactlyElementsIn(REPORT.reportingMetricEntriesList)
+    assertThat(creation.firstValue.report.reportingInterval).isEqualTo(REPORT.reportingInterval)
+    assertThat(creation.firstValue.report.basicReport)
+      .isEqualTo(
+        BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, pending.externalBasicReportId).toName()
+      )
+    val association = argumentCaptor<SetExternalReportIdRequest>()
+    verify(basicReportsMock).setExternalReportId(association.capture())
+    assertThat(association.firstValue.externalReportId).isEqualTo("returned-id")
+  }
+
+  @Test
+  fun `execute retries a transient creation failure with the same inputs and request ID`(): Unit =
+    runBlocking {
+      val pending = pendingCreationReport()
+      stubListCreatedBasicReports(listOf(pending))
+      whenever(reportsMock.createReport(any()))
+        .thenAnswer { throw Status.UNAVAILABLE.asException() }
+        .thenReturn(
+          report { name = ReportKey(CMMS_MEASUREMENT_CONSUMER_ID, "returned-id").toName() }
+        )
+      withTimeout(5_000) { job.execute() }
+      withTimeout(5_000) { job.execute() }
+      val creation = argumentCaptor<CreateReportRequest>()
+      verify(reportsMock, times(2)).createReport(creation.capture())
+      assertThat(creation.firstValue).isEqualTo(creation.secondValue)
+      assertThat(creation.firstValue.requestId).isEqualTo(pending.createReportRequestId)
+      verify(basicReportsMock).setExternalReportId(any())
+      verify(basicReportsMock, times(0)).failBasicReport(any())
+    }
+
+  @Test
+  fun `execute fails a permanent creation error`(): Unit = runBlocking {
+    val pending = pendingCreationReport()
+    stubListCreatedBasicReports(listOf(pending))
+    whenever(reportsMock.createReport(any())).thenAnswer {
+      throw Status.FAILED_PRECONDITION.asException()
+    }
+    withTimeout(5_000) { job.execute() }
+    verify(basicReportsMock).failBasicReport(any())
+    verify(basicReportsMock, times(0)).setExternalReportId(any())
+  }
+
+  @Test
+  fun `execute expires a creation plan without starting more measurements`(): Unit = runBlocking {
+    val pending =
+      pendingCreationReport().copy {
+        createTime = timestamp {
+          seconds = NOW.minus(MAX_CREATED_BASIC_REPORT_AGE).minusSeconds(1).epochSecond
+        }
+      }
+    stubListCreatedBasicReports(listOf(pending))
+    withTimeout(5_000) { job.execute() }
+    verify(basicReportsMock).failBasicReport(any())
+    verify(reportsMock, times(0)).createReport(any())
   }
 
   @Test
@@ -2835,15 +2916,19 @@ class BasicReportsReportsJobTest {
           }
       }
 
-      whenever(basicReportsMock.listBasicReports(any()))
-        .thenReturn(
-          listBasicReportsResponse {
-            basicReports += page1Reports
-            nextPageToken = pageToken
-          }
-        )
-        .thenReturn(listBasicReportsResponse { basicReports += page2Reports })
-        .thenReturn(ListBasicReportsResponse.getDefaultInstance())
+      whenever(basicReportsMock.listBasicReports(any())).thenAnswer { invocation ->
+        val request: ListBasicReportsRequest = invocation.getArgument(0)
+        when {
+          request.filter.state != BasicReport.State.REPORT_CREATED ->
+            ListBasicReportsResponse.getDefaultInstance()
+          request.hasPageToken() -> listBasicReportsResponse { basicReports += page2Reports }
+          else ->
+            listBasicReportsResponse {
+              basicReports += page1Reports
+              nextPageToken = pageToken
+            }
+        }
+      }
 
       job.execute()
 

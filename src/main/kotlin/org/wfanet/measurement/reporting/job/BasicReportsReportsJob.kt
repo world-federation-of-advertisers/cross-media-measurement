@@ -20,6 +20,7 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.Timestamp
 import com.google.type.Date
 import com.google.type.date
+import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
@@ -71,6 +72,7 @@ import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRe
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
+import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
@@ -79,6 +81,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.buildCelExpression
 import org.wfanet.measurement.reporting.service.api.v2alpha.buildCelExpressions
 import org.wfanet.measurement.reporting.service.api.v2alpha.toEventFilter
 import org.wfanet.measurement.reporting.service.api.v2alpha.toImpressionQualificationFilterSpec
+import org.wfanet.measurement.reporting.service.api.v2alpha.toReport
 import org.wfanet.measurement.reporting.service.internal.InvalidBasicReportException
 import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.v2alpha.MetricResult
@@ -86,6 +89,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.UnivariateStatistics
+import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 
 class BasicReportsReportsJob(
@@ -118,6 +122,11 @@ class BasicReportsReportsJob(
       val cmmsMeasurementConsumerId =
         requireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
           .measurementConsumerId
+
+      processCreatedBasicReports(
+        cmmsMeasurementConsumerId,
+        measurementConsumerConfig.offlinePrincipal,
+      )
 
       val resourceLists =
         internalBasicReportsStub.listResources { pageToken: ListBasicReportsPageToken? ->
@@ -332,20 +341,86 @@ class BasicReportsReportsJob(
           }
         }
       }
-
-      failStuckBasicReports(cmmsMeasurementConsumerId)
     }
   }
 
   /**
-   * Transitions every [BasicReport] that has been in State CREATED for longer than
-   * [maxCreatedBasicReportAge] to State FAILED.
-   *
-   * A `BasicReport` is committed in State CREATED before its `Report` is created, so an
-   * interruption between the two leaves it in State CREATED with no `Report` and no way to
-   * progress.
+   * Resumes durable creation using immutable stored inputs and the original request ID. A transient
+   * failure leaves the BasicReport pending for the next execution. The creation-age watchdog bounds
+   * retries, including configuration failures that cannot be repaired promptly.
    */
-  private suspend fun failStuckBasicReports(cmmsMeasurementConsumerId: String) {
+  private suspend fun materializeReport(basicReport: BasicReport, offlinePrincipal: String) {
+    val basicReportName =
+      BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalBasicReportId)
+        .toName()
+    try {
+      check(basicReport.createReportRequestId.isNotEmpty())
+      val createdReport =
+        reportsStub
+          .withCallCredentials(
+            TrustedPrincipalAuthInterceptor.Credentials(
+              principal { name = offlinePrincipal },
+              setOf(
+                "reporting.reports.create",
+                "reporting.metrics.create",
+                "reporting.metrics.createWithDevModelLine",
+              ),
+            )
+          )
+          .createReport(
+            createReportRequest {
+              parent = MeasurementConsumerKey(basicReport.cmmsMeasurementConsumerId).toName()
+              report =
+                basicReport.details.reportCreationPlan.toReport(
+                  basicReport.cmmsMeasurementConsumerId,
+                  basicReportName,
+                )
+              requestId = basicReport.createReportRequestId
+              reportId = "a" + basicReport.createReportRequestId
+            }
+          )
+      val reportKey = checkNotNull(ReportKey.fromName(createdReport.name))
+      check(reportKey.cmmsMeasurementConsumerId == basicReport.cmmsMeasurementConsumerId)
+      internalBasicReportsStub.setExternalReportId(
+        setExternalReportIdRequest {
+          cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReport.externalBasicReportId
+          externalReportId = reportKey.reportId
+        }
+      )
+      logger.info("Materialized Report ${createdReport.name} for BasicReport $basicReportName")
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: StatusException) {
+      if (
+        e.status.code in
+          setOf(
+            Status.Code.INVALID_ARGUMENT,
+            Status.Code.FAILED_PRECONDITION,
+            Status.Code.NOT_FOUND,
+          )
+      ) {
+        failBasicReport(basicReport.cmmsMeasurementConsumerId, basicReport.externalBasicReportId)
+        logger.log(Level.WARNING, "Report creation failed for BasicReport $basicReportName", e)
+      } else {
+        logger.log(
+          Level.WARNING,
+          "Report creation remains pending for BasicReport $basicReportName",
+          e,
+        )
+      }
+    }
+  }
+
+  /**
+   * Resumes CREATED BasicReports carrying a frozen creation plan, and fails any CREATED BasicReport
+   * older than [maxCreatedBasicReportAge]. Legacy rows without plans retain their previous watchdog
+   * behavior.
+   */
+  private suspend fun processCreatedBasicReports(
+    cmmsMeasurementConsumerId: String,
+    offlinePrincipal: String,
+  ) {
     val cutoff: Instant = clock.instant().minus(maxCreatedBasicReportAge)
 
     val resourceLists =
@@ -371,6 +446,9 @@ class BasicReportsReportsJob(
     resourceLists.collect { resourceList ->
       for (basicReport in resourceList.resources) {
         if (basicReport.createTime.toInstant().isAfter(cutoff)) {
+          if (basicReport.details.hasReportCreationPlan()) {
+            materializeReport(basicReport, offlinePrincipal)
+          }
           continue
         }
 

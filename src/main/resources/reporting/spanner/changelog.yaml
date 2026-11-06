@@ -66,3 +66,6 @@ databaseChangeLog:
 - include:
     file: update-proto-bundle-for-custom-groups.sql
     relativeToChangeLogFile: true
+- include:
+    file: update-proto-bundle-for-report-creation-plan.sql
+    relativeToChangeLogFile: true

@@ -425,6 +425,7 @@ private object V2AlphaPublicApiServer {
             reportingApiServerFlags.enableReportingSetReportingUnitComponents,
             v2AlphaPublicServerFlags.emitCelNullGuardsForNestedMembers,
             serviceDispatcher,
+            enableAsyncReportCreation = v2AlphaPublicServerFlags.enableAsyncReportCreation,
           )
           .withInterceptor(principalAuthInterceptor),
         ModelLinesService(
@@ -440,6 +441,14 @@ private object V2AlphaPublicApiServer {
   }
 
   class V2AlphaPublicServerFlags {
+    @CommandLine.Option(
+      names = ["--enable-async-basic-report-creation"],
+      description = ["Persist a creation plan and materialize its Report in the reporting job."],
+      defaultValue = "false",
+    )
+    var enableAsyncReportCreation: Boolean = false
+      private set
+
     @CommandLine.Option(
       names = ["--authority-key-identifier-to-principal-map-file"],
       description = ["File path to a AuthorityKeyToPrincipalMap textproto"],

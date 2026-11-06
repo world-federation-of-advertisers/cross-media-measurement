@@ -53,4 +53,19 @@ message BasicReportDetails {
   // synthesized reports, while existing reports (false here) continue to
   // report their supplied `campaign_group`.
   bool campaign_group_synthesized = 6;
+
+  // Frozen inputs for durable Report creation. Presence means that the
+  // BasicReportsReportsJob owns materialization while this BasicReport is CREATED.
+  // Calculation specifications are immutable and contain the resolved model,
+  // privacy parameters, filters and grouping predicates.
+  message ReportCreationPlan {
+    message ReportingMetricEntry {
+      string external_reporting_set_id = 1;
+      repeated string external_metric_calculation_spec_ids = 2;
+    }
+    repeated ReportingMetricEntry reporting_metric_entries = 1;
+    // Contains the resolved report_start rather than a date requiring defaults.
+    ReportingInterval reporting_interval = 2;
+  }
+  ReportCreationPlan report_creation_plan = 7;
 }
