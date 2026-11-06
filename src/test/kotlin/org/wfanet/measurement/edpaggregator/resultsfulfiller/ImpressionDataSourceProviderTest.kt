@@ -106,6 +106,129 @@ class ImpressionDataSourceProviderTest {
   }
 
   @Test
+  fun `selected model line fails when matching metadata was deleted`(): Unit = runBlocking {
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+      if (request.showDeleted) {
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.DELETED
+            blobUri = "file:///meta-bucket/deleted-metadata"
+          }
+        }
+      } else {
+        listImpressionMetadataResponse {}
+      }
+    }
+    val date = LocalDate.of(2026, 10, 5)
+    val period = interval {
+      startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        createService()
+          .listImpressionDataSources(
+            modelLine,
+            listOf(referenceEventGroup("eg-deleted", period)),
+            failOnDeletedMetadata = true,
+          )
+      }
+
+    assertThat(exception).hasMessageThat().contains("deleted impression metadata")
+  }
+
+  @Test
+  fun `selected model line permits finalized zero impressions without metadata`(): Unit =
+    runBlocking {
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+      val date = LocalDate.of(2026, 10, 5)
+      val period = interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+
+      val sources =
+        createService()
+          .listImpressionDataSources(
+            modelLine,
+            listOf(referenceEventGroup("eg-zero", period)),
+            failOnDeletedMetadata = true,
+          )
+
+      assertThat(sources).isEmpty()
+    }
+
+
+  @Test
+  fun `storage-backed returns one source for a single day`(): Unit = runBlocking {
+    val svc = createService()
+    val bucketName = "meta-bucket"
+    val bucketDir = File(tmp.root, bucketName)
+    bucketDir.mkdirs()
+
+    // Write BlobDetails at the resolved metadata path key within the bucket.
+    val date = LocalDate.of(2025, 1, 15)
+    val eventGroupRef = "eg-1"
+    val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+    val blobDetailsBytes =
+      blobDetails {
+          blobUri = "file:///impressions/$date/$eventGroupRef"
+          encryptedDek = EncryptedDek.getDefaultInstance()
+        }
+        .toByteString()
+    val fs = FileSystemStorageClient(bucketDir)
+    fs.writeBlob(key, blobDetailsBytes)
+
+    val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///$bucketName/$key"
+            interval = interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            }
+          }
+        }
+      )
+
+    val period = interval {
+      startTime = timestamp {
+        seconds = start.epochSecond
+        nanos = start.nano
+      }
+      endTime = timestamp {
+        seconds = end.epochSecond
+        nanos = end.nano
+      }
+    }
+    val sources =
+      svc.listImpressionDataSources(
+        modelLine = modelLine,
+        eventGroups = listOf(referenceEventGroup(eventGroupRef, period)),
+      )
+
+    assertThat(sources).hasSize(1)
+    assertThat(sources[0].blobDetails.blobUri).isEqualTo("file:///impressions/$date/$eventGroupRef")
+    assertThat(sources[0].interval.startTime).isEqualTo(start.toProtoTime())
+    assertThat(sources[0].interval.endTime).isEqualTo(end.toProtoTime())
+  }
+
+
+  @Test
   fun `listImpressionDataSources prefers pinned output after metadata upgrade between queries`():
     Unit = runBlocking {
     val bucketName = "meta-bucket"

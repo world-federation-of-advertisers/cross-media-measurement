@@ -91,3 +91,14 @@ message RequisitionMetadataAction {
   // The timestamp when the action occurred.
   google.protobuf.Timestamp create_time = 6;
 }
+
+// Internal representation of a ReportRoutingDecision.
+message ReportRoutingDecision {
+  string data_provider_resource_id = 1;
+  string report = 2;
+  google.protobuf.Timestamp report_start_time = 3;
+  string external_model_line = 4;
+  string selected_model_line = 5;
+  google.protobuf.Timestamp cutover_time = 6;
+  google.protobuf.Timestamp create_time = 7;
+}

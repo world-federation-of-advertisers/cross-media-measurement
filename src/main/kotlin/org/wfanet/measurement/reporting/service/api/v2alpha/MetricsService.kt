@@ -834,6 +834,9 @@ class MetricsService(
         reportingMetadata = reportingMetadata {
           report = metric.details.containingReport
           basicReport = metric.details.basicReport
+          if (metric.details.hasReportStartTime()) {
+            reportStartTime = metric.details.reportStartTime
+          }
           this.metric =
             MetricKey(metric.cmmsMeasurementConsumerId, metric.externalMetricId).toName()
         }
@@ -2362,6 +2365,9 @@ class MetricsService(
           InternalMetricKt.details {
             containingReport = request.metric.containingReport
             basicReport = request.metric.basicReport
+            if (request.metric.hasReportStartTime()) {
+              reportStartTime = request.metric.reportStartTime
+            }
             filters += request.metric.filtersList
           }
       }
@@ -2769,6 +2775,9 @@ class MetricsService(
       createTime = source.createTime
       containingReport = source.details.containingReport
       basicReport = source.details.basicReport
+      if (source.details.hasReportStartTime()) {
+        reportStartTime = source.details.reportStartTime
+      }
       // The calculations can throw an error, but we still want to return the metric.
       when (state) {
         Metric.State.SUCCEEDED -> {

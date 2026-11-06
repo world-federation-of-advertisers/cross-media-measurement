@@ -933,6 +933,15 @@ configs {
       }
       noise_params { noise_type: CONTINUOUS_GAUSSIAN }
     }
+    # Optional report-level model-line cutover.
+    # model_line_cutovers {
+    #   external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/VISIBLE"
+    #   historical_model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+    #   replacement_model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+    #   cutover_date { year: 2026 month: 10 day: 5 }
+    #   legacy_required_through_date { year: 2027 month: 1 day: 3 }
+    #   maximum_report_duration { seconds: 7776000 } # 90 days
+    # }
   }
 }
 ```
@@ -1053,6 +1062,14 @@ configs {
   vid_labeled_impression_path: "vid-labeled-impressions/edp/<edp-id>"  # required when VID labeling is enabled
   # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
+  # model_line_cutovers {
+  #   external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/VISIBLE"
+  #   historical_model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+  #   replacement_model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+  #   cutover_date { year: 2026 month: 10 day: 5 }
+  #   legacy_required_through_date { year: 2027 month: 1 day: 3 }
+  #   maximum_report_duration { seconds: 7776000 } # 90 days
+  # }
   # event_group_activity_publishing {
   #   market_time_zone { id: "America/New_York" }
   #   event_group_map_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb"
@@ -1081,6 +1098,27 @@ The deployment validator checks HTTP and queued external routes for overlap. Dra
 before migrating dispatcher, monitor, and sync configs together, and keep historical impression
 metadata. When `external_impression_path` is empty, external and legacy HTTP syncs use
 `edp_impression_path`.
+
+Configure the same cutover in RequisitionFetcher and DataAvailabilitySync. RequisitionFetcher
+selects one internal model line from the immutable Report start and persists that choice before
+dispatching the first WorkItem. Every later batch and retry for that Report reuses the persisted
+choice. Do not enable the cutover until the `ReportRoutingDecision` schema migration is deployed and
+pre-cutover WorkItems and unfulfilled Requisitions whose signed MeasurementSpec lacks
+`report_start_time` have drained.
+
+`maximum_report_duration` must be a positive whole number of days.
+`legacy_required_through_date` must be at least `cutover_date + maximum_report_duration`, ensuring
+that every Report starting before the cutover can finish on the historical line. Through
+`legacy_required_through_date`, DataAvailabilitySync advances the advertiser-visible end
+only through complete contiguous coverage in both contributing model lines. A gap in either line
+leaves Kingdom availability unchanged even when `error_if_gaps_exist` is false. After that date,
+the replacement line advances the end independently.
+
+For cutover-routed groups, ResultsFulfiller also checks for soft-deleted ImpressionMetadata that
+overlaps any requested interval on the selected internal line. Any match fails fulfillment instead
+of silently returning a partial result. An interval with no active or deleted matching metadata is
+still allowed because a finalized date can legitimately contain zero impressions; DAS and
+DataAvailabilityMonitor remain responsible for verifying its completion marker and date coverage.
 
 `event_group_activity_publishing` is optional. When present, `DataAvailabilitySync`:
 
@@ -1131,8 +1169,17 @@ One `configs` entry per monitored impression path.
 # proto-message: wfa.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 configs {
   storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
-  edp_impression_path: "edp/<edp-id>"
-  model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/ML" }
+  edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"
+  model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL" }
+  model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT" }
+  model_line_cutovers {
+    external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/VISIBLE"
+    historical_model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+    replacement_model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+    cutover_date { year: 2026 month: 10 day: 5 }
+    legacy_required_through_date { year: 2027 month: 1 day: 3 }
+    maximum_report_duration { seconds: 7776000 }
+  }
   max_stale_days: 3                       # optional (default 3)
   time_zone: "UTC"
   data_provider_name: "dataProviders/DATA_PROVIDER_ID"
@@ -1144,8 +1191,13 @@ configs {
 
 For every nonempty DataAvailabilitySync `external_impression_path`, configure the same
 `data_provider_name`, storage backend and root, and normalized `edp_impression_path` here.
-`data_provider_name` is also required when the spurious-deletion check is enabled. Do not add the
-internal VID Labeler output to this monitor; VidLabelingMonitor owns that prefix.
+`data_provider_name` is also required when the spurious-deletion check is enabled. VidLabelingMonitor retains internal pipeline recovery. DataAvailabilityMonitor may also
+inspect internal cutover contributors with the matching data provider ownership.
+
+Configure the same cutover in RequisitionFetcher, DataAvailabilitySync, and
+DataAvailabilityMonitor. Monitor both contributing model lines. The replacement line is required
+from `cutover_date`; the historical line remains required through
+`legacy_required_through_date`. Dates outside those windows do not produce cutover alerts.
 
 ### EDP config (`event_data_provider_configs`)
 
@@ -1196,8 +1248,10 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
   multi-party suppression is disabled as described below. When this is configured,
   `noise_params.noise_type` must be `NONE`.
 * `impression_max_frequency_per_user` — direct impression measurements only.
-* `model_line_map` — optional external→internal model-line remapping for impression
-  lookup.
+* `model_line_map` — optional external→internal model-line remapping for impression lookup when no
+  report-level cutover is configured. Report-level cutovers belong in
+  `work_item_dispatch.model_line_cutovers`; ResultsFulfiller consumes the internal line persisted
+  in each `GroupedRequisitions` blob rather than evaluating the cutover again.
 * `trustee_params.kek_uri_to_key_name` — required for TrusTEE support; maps an input
   KEK URI to a re-encryption key in the same GCP key ring or AWS account and region
   (see the EDP-side

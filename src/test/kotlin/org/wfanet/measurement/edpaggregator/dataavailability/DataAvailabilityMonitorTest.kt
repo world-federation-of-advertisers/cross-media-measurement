@@ -1986,4 +1986,81 @@ class DataAvailabilityMonitorTest {
     assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_UNPROCESSED_DONE))
       .containsExactly("2026-03-14", "2026-03-15")
   }
+
+  @Test
+  fun `cutover replacement window reports missing cutover date only`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    for (date in listOf("2026-03-10", "2026-03-12", "2026-03-14", "2026-03-15")) {
+      ensureDirectories(MODEL_LINE_A.modelLineId, date)
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, date)
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, date)
+    }
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        monitoringWindows =
+          mapOf(
+            MODEL_LINE_A.toName() to
+              DataAvailabilityMonitor.MonitoringWindow(startDate = LocalDate.of(2026, 3, 13))
+          ),
+        impressionMetadataStub = null,
+        dataProviderName = null,
+      )
+
+    val status =
+      monitor
+        .checkFullStatus(
+          maxStaleDays = 3,
+          timeZone = TIME_ZONE,
+          clock = { TODAY },
+          unprocessedDoneThreshold = Duration.ofHours(24),
+          spuriousDeletionLookbackDays = null,
+        )
+        .statuses
+        .single()
+
+    assertThat(status.gapDates).containsExactly(LocalDate.of(2026, 3, 13))
+    assertThat(status.earliestDate).isEqualTo(LocalDate.of(2026, 3, 14))
+  }
+
+  @Test
+  fun `cutover historical window is not stale after required period closes`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    for (date in listOf("2026-03-12", "2026-03-13", "2026-03-14", "2026-03-16")) {
+      ensureDirectories(MODEL_LINE_A.modelLineId, date)
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, date)
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, date)
+    }
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        monitoringWindows =
+          mapOf(
+            MODEL_LINE_A.toName() to
+              DataAvailabilityMonitor.MonitoringWindow(endDateInclusive = LocalDate.of(2026, 3, 14))
+          ),
+        impressionMetadataStub = null,
+        dataProviderName = null,
+      )
+
+    val status =
+      monitor
+        .checkFullStatus(
+          maxStaleDays = 3,
+          timeZone = TIME_ZONE,
+          clock = { LocalDate.of(2026, 3, 20) },
+          unprocessedDoneThreshold = Duration.ofHours(24),
+          spuriousDeletionLookbackDays = null,
+        )
+        .statuses
+        .single()
+
+    assertThat(status.isStale).isFalse()
+    assertThat(status.gapDates).isEmpty()
+    assertThat(status.latestDate).isEqualTo(LocalDate.of(2026, 3, 14))
+  }
 }

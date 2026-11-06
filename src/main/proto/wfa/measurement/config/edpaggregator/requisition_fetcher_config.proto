@@ -19,6 +19,7 @@ package wfa.measurement.config.edpaggregator;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/duration.proto";
+import "wfa/measurement/config/edpaggregator/model_line_cutover_config.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 import "wfa/measurement/edpaggregator/v1alpha/results_fulfiller_params.proto";
@@ -47,6 +48,9 @@ message RequisitionWorkItemDispatchConfig {
   // Parameters passed from RequisitionFetcher to ResultsFulfiller.
   wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
       results_fulfiller_params = 4;
+
+  // Report-level model-line cutovers applied before WorkItem dispatch.
+  repeated ModelLineCutoverConfig model_line_cutovers = 5;
 }
 
 // Individual config per EDP.

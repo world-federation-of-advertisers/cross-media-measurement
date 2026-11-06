@@ -58,6 +58,9 @@ import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverValidator
 import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.traceSuspending
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -75,7 +78,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markWithdrawnRequisitionMeta
 import org.wfanet.measurement.edpaggregator.v1alpha.queueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.reportRoutingDecision
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.resolveReportRoutingDecisionRequest
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -138,6 +143,8 @@ class RequisitionFetcher(
   private val workItemDispatcher: RequisitionWorkItemDispatcher,
   private val requisitionRefusalDuration: Duration,
   private val clock: Clock,
+  private val modelLineCutovers: List<ModelLineCutover> = emptyList(),
+  private val legacyModelLineMap: Map<String, String> = emptyMap(),
   private val responsePageSize: Int? = null,
   private val metadataPageSize: Int = DEFAULT_METADATA_PAGE_SIZE,
   private val flushInterval: Duration = DEFAULT_FLUSH_INTERVAL,
@@ -166,9 +173,18 @@ class RequisitionFetcher(
     require(!requisitionRefusalDuration.isZero && !requisitionRefusalDuration.isNegative) {
       "requisitionRefusalDuration must be positive, was $requisitionRefusalDuration"
     }
+    require(!StoragePathPrefixes.overlap(directStoragePathPrefix, storagePathPrefix)) {
+      "directStoragePathPrefix must not overlap storagePathPrefix"
+    }
+    ModelLineCutoverValidator.validate(modelLineCutovers, legacyModelLineMap.keys)
   }
 
-  private data class ReportIdentifiers(val reportName: String, val basicReportName: String)
+  private data class ReportIdentifiers(
+    val reportName: String,
+    val basicReportName: String,
+    val reportStart: Instant?,
+    val externalModelLine: String,
+  )
 
   private data class ReportWorkUnit(
     val identifiers: ReportIdentifiers,
@@ -420,22 +436,39 @@ class RequisitionFetcher(
 
         val reportId = identifiers.reportName
         val requisitionBytes = requisition.serializedSize.toLong()
+        var identifiersConflict = false
         val overCap =
           buffersMutex.withLock {
             val existing = openBuffers[reportId]
             if (existing == null) {
               openBuffers[reportId] =
                 OpenBuffer(identifiers = identifiers, requisitions = mutableListOf(requisition))
+            } else if (existing.identifiers.reportStart != identifiers.reportStart) {
+              identifiersConflict = true
             } else {
               existing.requisitions.add(requisition)
             }
-            totalBufferedBytes += requisitionBytes
+            if (!identifiersConflict) {
+              totalBufferedBytes += requisitionBytes
+            }
             if (openBuffers.size > openBufferHighWater) openBufferHighWater = openBuffers.size
             if (totalBufferedBytes > bufferedBytesHighWater) {
               bufferedBytesHighWater = totalBufferedBytes
             }
             totalBufferedBytes >= maxTotalBufferedBytes
           }
+        if (identifiersConflict) {
+          requisitionGrouper.refuseRequisitionToCmms(
+            requisition,
+            refusal {
+              justification = Requisition.Refusal.Justification.SPEC_INVALID
+              message =
+                "MeasurementSpec reporting metadata conflicts with another Requisition for " +
+                  reportId
+            },
+          )
+          return@collect
+        }
         // Memory backstop between periodic drains.
         if (overCap) drainAndSend()
       }
@@ -709,12 +742,14 @@ class RequisitionFetcher(
       if (pending.collected.isEmpty()) continue
 
       if (pending.collected.size >= pending.expected.size) {
+        val selectedModelLine = resolveSelectedModelLine(unit.identifiers)
         val rebuilt =
           try {
             requisitionGrouper.groupForReport(
               unit.reportId,
               pending.collected.values.toList(),
               existingGroupId,
+              selectedModelLine,
             )
           } catch (e: InconsistentEventGroupSelectorsException) {
             logger.log(
@@ -756,6 +791,7 @@ class RequisitionFetcher(
         refuseUnregisteredAndPersist(unregistered, unit.reportId, invalidRefusal)
         return
       }
+      val selectedModelLine = resolveSelectedModelLine(unit.identifiers)
 
       // Split the report's requisitions into groups of at most [maxRequisitionsPerGroup],
       // each with its own groupId, blob, and atomic metadata batch. There is no upstream
@@ -773,7 +809,7 @@ class RequisitionFetcher(
         val groupId = UUID.randomUUID().toString()
         val grouped =
           try {
-            requisitionGrouper.groupForReport(unit.reportId, chunk, groupId)
+            requisitionGrouper.groupForReport(unit.reportId, chunk, groupId, selectedModelLine)
           } catch (e: InconsistentEventGroupSelectorsException) {
             val refusal = refusal {
               justification = Requisition.Refusal.Justification.UNFULFILLABLE
@@ -929,6 +965,48 @@ class RequisitionFetcher(
    * Returns the report ID embedded in [requisition]'s [MeasurementSpec], or `null` if the spec
    * cannot be parsed or has no report set.
    */
+  private suspend fun resolveSelectedModelLine(identifiers: ReportIdentifiers): String {
+    val cutover =
+      modelLineCutovers.singleOrNull { it.externalModelLine == identifiers.externalModelLine }
+    val selectedModelLine =
+      if (cutover == null) {
+        legacyModelLineMap[identifiers.externalModelLine] ?: identifiers.externalModelLine
+      } else {
+        val reportStart =
+          requireNotNull(identifiers.reportStart) {
+            "Report ${identifiers.reportName} is missing reporting_metadata.report_start_time"
+          }
+        cutover.selectModelLine(reportStart)
+      }
+    val reportStart = identifiers.reportStart ?: return selectedModelLine
+
+    val response =
+      metadataThrottler.onReady {
+        requisitionMetadataStub.resolveReportRoutingDecision(
+          resolveReportRoutingDecisionRequest {
+            parent = dataProviderName
+            candidate = reportRoutingDecision {
+              report = identifiers.reportName
+              reportStartTime = reportStart.toProtoTime()
+              externalModelLine = identifiers.externalModelLine
+              this.selectedModelLine = selectedModelLine
+              if (cutover != null) {
+                cutoverTime = cutover.cutoverInstant.toProtoTime()
+              }
+            }
+          }
+        )
+      }
+    val persisted = response.reportRoutingDecision
+    if (persisted.selectedModelLine != selectedModelLine) {
+      logger.warning(
+        "Current routing configuration selects $selectedModelLine for ${identifiers.reportName}, " +
+          "but the persisted decision selects ${persisted.selectedModelLine}"
+      )
+    }
+    return persisted.selectedModelLine
+  }
+
   private fun extractReportIdentifiers(requisition: Requisition): ReportIdentifiers? {
     val measurementSpec: MeasurementSpec =
       try {
@@ -941,7 +1019,16 @@ class RequisitionFetcher(
     return if (metadata.report.isBlank()) {
       null
     } else {
-      ReportIdentifiers(metadata.report, metadata.basicReport)
+      val reportStart =
+        metadata.reportStartTime
+          .takeIf { metadata.hasReportStartTime() && Timestamps.isValid(it) }
+          ?.toInstant()
+      ReportIdentifiers(
+        metadata.report,
+        metadata.basicReport,
+        reportStart,
+        measurementSpec.modelLine,
+      )
     }
   }
 

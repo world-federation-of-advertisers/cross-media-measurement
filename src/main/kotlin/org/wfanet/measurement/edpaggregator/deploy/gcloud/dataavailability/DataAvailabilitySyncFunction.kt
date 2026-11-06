@@ -56,6 +56,7 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.config.edpaggregator.copy
 import org.wfanet.measurement.edpaggregator.ConfigLoader
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
@@ -470,6 +471,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       globalThrottler,
       impressionMetadataBatchSize = impressionMetadataBatchSize,
       errorIfGapsExist = dataAvailabilitySyncConfig.errorIfGapsExist,
+      modelLineCutovers =
+        dataAvailabilitySyncConfig.modelLineCutoversList.map(ModelLineCutover::from),
       modelLineMap =
         dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },

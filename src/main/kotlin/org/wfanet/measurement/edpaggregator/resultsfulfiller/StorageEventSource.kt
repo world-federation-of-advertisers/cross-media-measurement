@@ -140,6 +140,7 @@ class StorageEventSource(
   private val impressionDataSourceProvider: ImpressionDataSourceProvider,
   private val resolvedEventGroups: ResolvedEventGroups,
   private val modelLine: String,
+  private val failOnDeletedMetadata: Boolean = false,
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val descriptor: Descriptors.Descriptor,
@@ -237,6 +238,7 @@ class StorageEventSource(
       impressionDataSourceProvider.listImpressionDataSources(
         modelLine,
         resolvedEventGroups.eventGroupsByKey.values,
+        failOnDeletedMetadata,
       )
     cachedImpressionDataSources = result
     return result
