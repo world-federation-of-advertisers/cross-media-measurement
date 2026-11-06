@@ -174,7 +174,7 @@ class PostProcessReportResultTest(unittest.TestCase):
     @patch(
         "src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor"
     )
-    def test_empty_cohorts_do_not_change_positive_cohort_corrections(
+    def test_empty_cohorts_preserve_no_update_when_solver_returns_no_values(
             self, solver):
         result = MagicMock()
         result.status.status_code = report_post_processor_result_pb2.ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS
@@ -182,14 +182,29 @@ class PostProcessReportResultTest(unittest.TestCase):
         result.large_corrections = []
         solver.return_value.process.return_value = result
         solver.return_value.pre_correction_constraint_violations = ()
+        mixed = report_results_service_pb2.ListReportingSetResultsResponse()
+        mixed.CopyFrom(self.mock_list_reporing_set_results_response)
+        empties = self._empty_population_response()
+        for empty in empties.reporting_set_results:
+            empty.external_reporting_set_result_id += 1_000_000
+            empty.grouping_dimension_fingerprint += 1_000_000
+        mixed.reporting_set_results.extend(empties.reporting_set_results)
+        self._configure_stubs(mixed)
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+
+        self.assertIsNone(
+            processor.process(self.cmms_measurement_consumer_id,
+                              self.external_report_result_id))
+        solver.assert_called()
+
+    def test_empty_cohorts_do_not_change_positive_cohort_corrections(self):
         processor = PostProcessReportResult(self.mock_report_results_stub,
                                             self.mock_reporting_sets_stub)
         original = self.mock_list_reporing_set_results_response
         self._configure_stubs(original)
         baseline = processor.process(self.cmms_measurement_consumer_id,
                                      self.external_report_result_id)
-        calls = solver.call_count
-        solver.reset_mock()
         mixed = report_results_service_pb2.ListReportingSetResultsResponse()
         mixed.CopyFrom(original)
         empties = self._empty_population_response()
@@ -204,7 +219,8 @@ class PostProcessReportResultTest(unittest.TestCase):
         actual = processor.process(self.cmms_measurement_consumer_id,
                                    self.external_report_result_id)
 
-        self.assertEqual(solver.call_count, calls)
+        self.assertIsNotNone(baseline)
+        self.assertIsNotNone(actual)
         for key, expected in baseline.reporting_set_results.items():
             self.assertEqual(actual.reporting_set_results[key], expected)
         self.assertEqual(
@@ -898,6 +914,7 @@ class PostProcessReportResultTest(unittest.TestCase):
         report_summary = report_summary_v2_pb2.ReportSummaryV2(
             cmms_measurement_consumer_id="mc-diagnostic",
             external_report_result_id=987654321,
+            population=1000,
         )
         set_result = report_summary.report_summary_set_results.add(
             external_reporting_set_result_id=123456789,
@@ -1056,6 +1073,7 @@ class PostProcessReportResultTest(unittest.TestCase):
         second_summary = report_summary_v2_pb2.ReportSummaryV2(
             cmms_measurement_consumer_id="mc-diagnostic",
             external_report_result_id=987654321,
+            population=1000,
         )
         successful_result = (
             report_post_processor_result_pb2.ReportPostProcessorResult(
