@@ -500,8 +500,6 @@ def _copy_window_results(
                 frequency_bin.standard_deviation = (
                     bin_result.univariate_statistics.standard_deviation
                 )
-            else:
-                frequency_bin.standard_deviation_unknown = True
         report_summary_window_result.frequency.metric = f"frequency_{base_metric_name}"
 
 

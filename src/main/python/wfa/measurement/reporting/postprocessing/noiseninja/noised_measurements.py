@@ -23,43 +23,33 @@ from typing import TypeAlias
 DEFAULT_ABSOLUTE_TOLERANCE = 1e-1
 
 class Measurement:
-  """A measurement whose sigma is known, or None if it is unobserved.
-
-  A zero sigma is an exact observation. None leaves the value adjustable under
-  the report constraints without an observation target.
-  """
+  """Represents a measurement with a mean value and a standard deviation"""
   value: float
-  sigma: Optional[float]
+  sigma: float
   name: str
 
-  def __init__(self, value: float, sigma: Optional[float], name: str):
+  def __init__(self, value: float, sigma: float, name: str):
     self.value = value
     self.sigma = sigma
     self.name = name
 
   def __eq__(self, other):
-    """Returns True if two Measurement objects are equal.
+   """Returns True if two Measurement objects are equal.
 
-    Uses math.isclose for float comparisons to handle minor precision
-    differences.
-    """
-    if not isinstance(other, Measurement):
-      raise ValueError("Can not compare Measurement with non-Measurement.")
-    sigma_equal = (
-        self.sigma == other.sigma
-        if self.sigma is None or other.sigma is None
-        else math.isclose(self.sigma, other.sigma,
-                          abs_tol=DEFAULT_ABSOLUTE_TOLERANCE)
-    )
-    return (
-        math.isclose(self.value, other.value, abs_tol=DEFAULT_ABSOLUTE_TOLERANCE)
-        and sigma_equal
-        and self.name == other.name
-    )
+   Uses math.isclose for float comparisons to handle minor precision
+   differences.
+   """
+   if not isinstance(other, Measurement):
+     raise ValueError("Can not compare Measurement with non-Measurement.")
+   return (
+       math.isclose(self.value, other.value, abs_tol=DEFAULT_ABSOLUTE_TOLERANCE)
+       and math.isclose(self.sigma, other.sigma, abs_tol=DEFAULT_ABSOLUTE_TOLERANCE)
+       and self.name == other.name
+   )
 
   def __repr__(self):
-    sigma = "unknown" if self.sigma is None else f"{self.sigma:.2f}"
-    return f"Measurement({self.value:.2f}, {sigma}, {self.name})\n"
+    return 'Measurement({:.2f}, {:.2f}, {})\n'.format(self.value, self.sigma,
+                                                      self.name)
 
 
 KReachMeasurements: TypeAlias = dict[int, Measurement]

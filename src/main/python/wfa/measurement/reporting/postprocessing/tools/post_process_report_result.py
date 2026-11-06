@@ -99,7 +99,7 @@ class FrequencyBucketDiagnostic:
 
     frequency: int
     value: int
-    standard_deviation: float | None
+    standard_deviation: float
 
 
 @dataclass(frozen=True)
@@ -455,10 +455,7 @@ def _to_measurement_set(noisy_metric_set: Any) -> MeasurementSet | None:
         k_reach = {
             frequency: Measurement(
                 bin_result.value,
-                (
-                    bin_result.univariate_statistics.standard_deviation
-                    if bin_result.HasField("univariate_statistics") else None
-                ),
+                bin_result.univariate_statistics.standard_deviation,
                 f"frequency_bin_{frequency}",
             )
             for frequency, bin_result in (
@@ -569,7 +566,6 @@ class PostProcessReportResult:
                     value=bin_result.value,
                     standard_deviation=(
                         bin_result.univariate_statistics.standard_deviation
-                        if bin_result.HasField("univariate_statistics") else None
                     ),
                 )
                 for frequency, bin_result in sorted(

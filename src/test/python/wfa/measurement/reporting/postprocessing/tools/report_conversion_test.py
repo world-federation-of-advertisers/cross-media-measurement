@@ -15,9 +15,8 @@
 
 import unittest
 
-from tools.post_process_report_summary_v2 import ReportSummaryV2Processor
-
 from google.protobuf import text_format
+from tools.post_process_report_summary_v2 import ReportSummaryV2Processor
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.report_conversion import (
     _create_report_summary_for_group,
     report_summaries_from_reporting_set_results,
@@ -69,30 +68,28 @@ class ReportConversionTest(unittest.TestCase):
             ],
         }
 
-    def test_missing_frequency_uncertainty_does_not_force_publisher_reach_to_zero(self):
-        for missing_bins in ({1, 2}, {2}):
-            with self.subTest(missing_bins=missing_bins):
-                summary = self._zero_reach_summary(missing_bins)
-                result = ReportSummaryV2Processor(summary, []).process()
+    def test_zero_reach_frequency_variance_allows_consistent_correction(self):
+        # The zero-reach fallback contributes reach variance / 12 to each bin.
+        standard_deviation = 50 / (12 ** 0.5)
+        summary = self._zero_reach_summary(standard_deviation)
+        result = ReportSummaryV2Processor(summary, []).process()
 
-                self.assertFalse(result.large_corrections)
-                values = result.updated_measurements
-                publisher_reach = values["reach_1_cumulative_2025_01_08"]
-                union_reach = values["reach_2_cumulative_2025_01_08"]
-                self.assertGreater(publisher_reach, 75)
-                self.assertGreaterEqual(union_reach, publisher_reach)
-                self.assertEqual(
-                    values["frequency_2_cumulative_2025_01_08-bin-1"]
-                    + values["frequency_2_cumulative_2025_01_08-bin-2"],
-                    union_reach,
-                )
-                if missing_bins == {2}:
-                    self.assertEqual(
-                        values["frequency_2_cumulative_2025_01_08-bin-1"], 0
-                    )
+        self.assertFalse(result.large_corrections)
+        self.assertLessEqual(result.status.primal_equality_residual, 1e-6)
+        self.assertLessEqual(result.status.primal_inequality_residual, 1e-6)
+        values = result.updated_measurements
+        publisher_reach = values["reach_1_cumulative_2025_01_08"]
+        union_reach = values["reach_2_cumulative_2025_01_08"]
+        self.assertGreater(publisher_reach, 75)
+        self.assertGreaterEqual(union_reach, publisher_reach)
+        self.assertEqual(
+            values["frequency_2_cumulative_2025_01_08-bin-1"]
+            + values["frequency_2_cumulative_2025_01_08-bin-2"],
+            union_reach,
+        )
 
-    def test_known_zero_frequency_uncertainty_remains_exact(self):
-        summary = self._zero_reach_summary(set())
+    def test_known_zero_frequency_variance_remains_exact(self):
+        summary = self._zero_reach_summary(0.0)
         result = ReportSummaryV2Processor(summary, []).process()
 
         self.assertEqual(
@@ -103,7 +100,7 @@ class ReportConversionTest(unittest.TestCase):
         )
         self.assertTrue(result.large_corrections)
 
-    def _zero_reach_summary(self, missing_bins):
+    def _zero_reach_summary(self, frequency_standard_deviation):
         results = []
         for result_id, reporting_set, reach, sigma in (
             (1, "publisher-one", 80, 1),
@@ -150,8 +147,9 @@ class ReportConversionTest(unittest.TestCase):
                 for frequency in (1, 2):
                     bin_result = metrics.frequency_histogram.bin_results[frequency]
                     bin_result.value = 0
-                    if frequency not in missing_bins:
-                        bin_result.univariate_statistics.SetInParent()
+                    bin_result.univariate_statistics.standard_deviation = (
+                        frequency_standard_deviation
+                    )
             results.append(result)
         return report_summaries_from_reporting_set_results(
             results,
@@ -527,7 +525,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 2500 standard_deviation_unknown: true }
+                  value { value: 2500 }
                 }
                 metric: "frequency_1_cumulative_2025_10_15"
               }
@@ -612,7 +610,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 2500 standard_deviation_unknown: true }
+                  value { value: 2500 }
                 }
                 metric: "frequency_1_cumulative_2025_10_15"
               }
@@ -714,7 +712,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 1000 standard_deviation_unknown: true }
+                  value { value: 1000 }
                 }
                 metric: "frequency_1_non_cumulative_2025_10_08"
               }
@@ -736,7 +734,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 1500 standard_deviation_unknown: true }
+                  value { value: 1500 }
                 }
                 metric: "frequency_1_non_cumulative_2025_10_15"
               }
@@ -869,7 +867,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 1000 standard_deviation_unknown: true }
+                  value { value: 1000 }
                 }
                 metric: "frequency_1_non_cumulative_2025_10_08"
               }
@@ -891,7 +889,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 1500 standard_deviation_unknown: true }
+                  value { value: 1500 }
                 }
                 metric: "frequency_1_non_cumulative_2025_10_15"
               }

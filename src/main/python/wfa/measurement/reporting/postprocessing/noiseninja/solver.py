@@ -97,8 +97,6 @@ class Solver:
       variables[variable] = 1
       for measurement in set_measurement_spec.get_measurements(
           measured_set):
-        if measurement.sigma is None:
-          continue
         if abs(measurement.sigma) == 0:
           self._add_eq_term(variables, measurement.value)
         else:

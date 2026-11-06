@@ -303,12 +303,8 @@ class ReportSummaryV2Processor:
         if result.HasField("frequency"):
             for key, bin_result in result.frequency.bins.items():
                 k_reach_id = f"{result.frequency.metric}-bin-{key}"
-                sigma = (
-                    None if bin_result.standard_deviation_unknown
-                    else bin_result.standard_deviation
-                )
                 k_reach[int(key)] = Measurement(
-                    bin_result.value, sigma, k_reach_id
+                    bin_result.value, bin_result.standard_deviation, k_reach_id
                 )
         if result.HasField("impression_count"):
             impression = Measurement(

@@ -84,11 +84,6 @@ message ReportSummaryV2 {
       message BinResult {
         double value = 1;
         double standard_deviation = 2;
-
-        // Whether the standard deviation is unavailable. Such bins have no
-        // observation target during correction. When false, a zero
-        // standard_deviation denotes an exact observation.
-        bool standard_deviation_unknown = 3;
       }
       // Map of bin label to `BinResult`.
       map<int32, BinResult> bins = 1;
