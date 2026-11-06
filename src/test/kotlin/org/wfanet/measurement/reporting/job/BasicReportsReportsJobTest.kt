@@ -371,6 +371,85 @@ class BasicReportsReportsJobTest {
     verify(reportsMock, times(0)).createReport(any())
   }
 
+  private fun manyReportingSetResultsReport(): Report =
+    REPORT.copy {
+      metricCalculationResults.clear()
+      for (index in 0..100) {
+        metricCalculationResults +=
+          ReportKt.metricCalculationResult {
+            metricCalculationSpec =
+              MetricCalculationSpecKey(
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  NON_CUMULATIVE_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                )
+                .toName()
+            reportingSet = ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID, "set$index").toName()
+            resultAttributes +=
+              ReportKt.MetricCalculationResultKt.resultAttribute {
+                filter = "banner_ad != null && banner_ad.viewable == true"
+                metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
+                timeInterval = interval {
+                  startTime = timestamp { seconds = 1736150400 }
+                  endTime = timestamp { seconds = 1736755200 }
+                }
+                metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
+              }
+          }
+      }
+    }
+
+  @Test
+  fun `execute persists bounded batches and associates only the final batch`(): Unit = runBlocking {
+    whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
+    job.execute()
+    val captor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
+    verify(reportResultsMock, times(2)).batchCreateReportingSetResults(captor.capture())
+    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(100, 1).inOrder()
+    assertThat(captor.firstValue.externalBasicReportId).isEmpty()
+    assertThat(captor.secondValue.externalBasicReportId)
+      .isEqualTo(INTERNAL_BASIC_REPORT.externalBasicReportId)
+    val results = captor.allValues.flatMap { it.requestsList }.map { it.reportingSetResult }
+    assertThat(results.map { it.dimension.externalReportingSetId }.toSet())
+      .containsExactlyElementsIn((0..100).map { "set$it" })
+    assertThat(results.map { it.reportingWindowResultsCount })
+      .containsExactlyElementsIn(List(101) { 1 })
+    assertThat(
+        results.map {
+          it.reportingWindowResultsList
+            .single()
+            .value
+            .unprocessedReportResultValues
+            .nonCumulativeResults
+            .reach
+            .value
+        }
+      )
+      .containsExactlyElementsIn(List(101) { 1L })
+  }
+
+  @Test
+  fun `execute stops on failed batch without sending report association`(): Unit = runBlocking {
+    whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
+    whenever(reportResultsMock.batchCreateReportingSetResults(any()))
+      .thenThrow(Status.UNAVAILABLE.asException())
+    job.execute()
+    val captor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
+    verify(reportResultsMock).batchCreateReportingSetResults(captor.capture())
+    assertThat(captor.firstValue.externalBasicReportId).isEmpty()
+    assertThat(reportAssemblyLog()).contains("xmm.outcome=failed")
+  }
+
+  @Test
+  fun `execute associates an empty successful result set`(): Unit = runBlocking {
+    whenever(reportsMock.getReport(any())).thenReturn(REPORT)
+    job.execute()
+    val captor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
+    verify(reportResultsMock).batchCreateReportingSetResults(captor.capture())
+    assertThat(captor.firstValue.requestsCount).isEqualTo(0)
+    assertThat(captor.firstValue.externalBasicReportId)
+      .isEqualTo(INTERNAL_BASIC_REPORT.externalBasicReportId)
+  }
+
   @Test
   fun `execute transforms and persists results across calculation specification pages`(): Unit =
     runBlocking {
@@ -749,7 +828,7 @@ class BasicReportsReportsJobTest {
 
       stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
 
-      job.execute()
+      withTimeout(5_000) { job.execute() }
 
       assertReportCreatedPageRequested()
 
