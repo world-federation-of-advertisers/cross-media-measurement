@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 import com.google.protobuf.Descriptors
 import com.google.protobuf.TypeRegistry
 import java.util.concurrent.ConcurrentHashMap
-import kotlinx.coroutines.CancellationException
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -39,19 +38,16 @@ class PopulationAttributeWriterLoader(
   private val cache = ConcurrentHashMap<CacheKey, PopulationAttributeWriter>()
 
   /**
-   * Returns the writer for [modelLine], loading the `PopulationSpec` at
+   * Returns the writer for [config], loading the `PopulationSpec` at
    * [VidLabelerParams.ModelLineConfig.getPopulationSpecBlobUri] on first use. `ResultsFulfiller`
    * loads the same blob for the same model line.
    *
-   * @param modelLine resource name of the ModelLine whose spec is being loaded.
    * @param eventDescriptor the model line's already-resolved EventTemplate event descriptor.
    */
   suspend fun getWriter(
-    modelLine: String,
     config: VidLabelerParams.ModelLineConfig,
     eventDescriptor: Descriptors.Descriptor,
   ): PopulationAttributeWriter {
-    require(modelLine.isNotEmpty()) { "modelLine must not be empty" }
     val blobUri = config.populationSpecBlobUri
     require(blobUri.isNotEmpty()) {
       "population_spec_blob_uri must be set; without it the labeled output would carry the " +
@@ -69,21 +65,11 @@ class PopulationAttributeWriterLoader(
     // registers the type's whole file and recurses through its dependencies, so the event type's
     // transitive closure covers every template the spec can reference.
     val typeRegistry: TypeRegistry = TypeRegistry.newBuilder().add(eventDescriptor).build()
-    val writer =
-      try {
-        val populationSpec =
-          readBlob(blobUri).inputStream().reader(Charsets.UTF_8).use { reader ->
-            parseTextProto(reader, PopulationSpec.getDefaultInstance(), typeRegistry)
-          }
-        PopulationAttributeWriter(eventDescriptor, populationSpec)
-      } catch (e: CancellationException) {
-        throw e
-      } catch (e: Exception) {
-        throw IllegalArgumentException(
-          "Invalid PopulationSpec for model line '$modelLine': ${e.message}",
-          e,
-        )
+    val populationSpec =
+      readBlob(blobUri).inputStream().reader(Charsets.UTF_8).use { reader ->
+        parseTextProto(reader, PopulationSpec.getDefaultInstance(), typeRegistry)
       }
+    val writer = PopulationAttributeWriter(eventDescriptor, populationSpec)
     return cache.computeIfAbsent(cacheKey) { writer }
   }
 

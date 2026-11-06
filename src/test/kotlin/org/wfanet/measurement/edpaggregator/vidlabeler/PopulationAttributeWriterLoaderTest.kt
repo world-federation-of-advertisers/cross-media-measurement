@@ -56,7 +56,7 @@ class PopulationAttributeWriterLoaderTest {
   fun `getWriter loads the spec and builds a writer`() = runBlocking {
     val loader = PopulationAttributeWriterLoader { specTextProto.toByteArray() }
 
-    val writer = loader.getWriter(MODEL_LINE, config(), eventDescriptor)
+    val writer = loader.getWriter(config(), eventDescriptor)
 
     // Built from the loaded spec: VID 500 falls in its only subpopulation.
     val event = writer.apply(TestEvent.getDefaultInstance(), 500L).unpack(TestEvent::class.java)
@@ -74,8 +74,8 @@ class PopulationAttributeWriterLoaderTest {
       specTextProto.toByteArray()
     }
 
-    val first = loader.getWriter(MODEL_LINE, config(), eventDescriptor)
-    val second = loader.getWriter(MODEL_LINE, config(), eventDescriptor)
+    val first = loader.getWriter(config(), eventDescriptor)
+    val second = loader.getWriter(config(), eventDescriptor)
 
     assertThat(second).isSameInstanceAs(first)
     assertThat(reads.get()).isEqualTo(1)
@@ -89,48 +89,8 @@ class PopulationAttributeWriterLoaderTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        loader.getWriter(MODEL_LINE, config(specBlobUri = ""), eventDescriptor)
+        loader.getWriter(config(specBlobUri = ""), eventDescriptor)
       }
     assertThat(exception).hasMessageThat().contains("population_spec_blob_uri must be set")
-  }
-
-  @Test
-  fun `getWriter identifies model line when population fields are inconsistent`() = runBlocking {
-    val inconsistentSpec =
-      """
-      subpopulations {
-        attributes {
-          [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
-            gender: MALE
-            age_group: YEARS_18_TO_34
-            social_grade_group: A_B_C1
-          }
-        }
-        vid_ranges { start_vid: 1 end_vid_inclusive: 100 }
-      }
-      subpopulations {
-        attributes {
-          [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
-            gender: FEMALE
-            age_group: YEARS_35_TO_54
-          }
-        }
-        vid_ranges { start_vid: 101 end_vid_inclusive: 200 }
-      }
-      """
-        .trimIndent()
-    val loader = PopulationAttributeWriterLoader { inconsistentSpec.toByteArray() }
-
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        loader.getWriter(MODEL_LINE, config(), eventDescriptor)
-      }
-
-    assertThat(exception).hasMessageThat().contains(MODEL_LINE)
-    assertThat(exception).hasMessageThat().contains("Person.social_grade_group")
-  }
-
-  companion object {
-    private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
   }
 }
