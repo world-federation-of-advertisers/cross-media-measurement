@@ -195,6 +195,7 @@ class PostProcessReportResultTest(unittest.TestCase):
         empties = self._empty_population_response()
         for empty in empties.reporting_set_results:
             empty.external_reporting_set_result_id += 1_000_000
+            empty.grouping_dimension_fingerprint += 1_000_000
             empty.dimension.grouping.value_by_path[
                 "common.synthetic_cohort"].string_value = "empty"
         mixed.reporting_set_results.extend(empties.reporting_set_results)
