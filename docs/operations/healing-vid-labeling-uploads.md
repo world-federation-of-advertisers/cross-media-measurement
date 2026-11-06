@@ -10,6 +10,15 @@ lines.
 Do not pause `DataAvailabilitySync` manually. Synchronization leases block eviction until in-flight
 work drains and prevent new synchronization attempts after a correction fence is acquired.
 
+Automatically detected correction candidates use a versioned provisional plan. The plan fixes
+every affected upload/model-line row and labeled-output URI, including in-flight rows in a
+memoized model-line cascade, but does not claim that the current object generations are final.
+Operator approval atomically records every candidate decision, transfers the candidate fence to
+the operation, defers queued uploads, and enters `DRAINING`. Once existing labeling work,
+incomplete registrations, and synchronization leases finish, the fence enters `EVICTING`; only
+then does the controller capture and persist the exact output generations before deleting
+anything. An interrupted controller safely resumes either the drain or exact-version finalization.
+
 The command checks every upload/model-line under the DataProvider and refuses to run while any VID
 labeling pipeline is queued or running. If this happens, retry later after processing for that
 DataProvider has finished.
@@ -141,11 +150,19 @@ path, that every selected row belongs to that eviction operation and is marked f
 recovery, and that its predecessor has a completed replacement with a live snapshot. It then
 creates a replacement upload for only those model lines.
 
-The DataProvider's eviction fence remains active until the healing operation reaches `COMPLETE`.
-New `done` events received during healing are still registered, but their uploads are not
-dispatched. When the final `resume` completes the operation, it releases the fence; the periodic
-dispatcher then automatically processes every deferred upload in chronological order. The EDP does
-not need to rewrite those `done` objects.
+The DataProvider's eviction fence remains active until replacement labeling output is durable. The
+last replacement checkpoint moves the operation to `AVAILABILITY_HANDOFF_PENDING` and releases the
+fence. The scheduled controller then creates one exact-generation Data Availability WorkItem for
+every pending model-line date and marks the operation `COMPLETE` only after every WorkItem is
+durably scheduled or already exists with the same identity. A restart in this interval resumes the
+pending handoff idempotently.
+
+New `done` events received during healing are still registered, but their uploads remain deferred
+by the healing dispatch gate. Deferred ordinary uploads become eligible for chronological dispatch
+after the pending availability handoff is scheduled. A later correction does not acquire another
+eviction fence until the preceding replacement's scheduled availability handoff finishes, so those
+WorkItems cannot exhaust their retries behind a newer fence. The EDP does not need to rewrite the
+replacement or deferred `done` objects.
 
 ### Example: D2 and D4 contain bad data
 
@@ -171,9 +188,11 @@ Recovery proceeds as follows:
    the EDP to correct D4 and write a new `done` generation.
 4. After D4 completes, the operator reruns `resume`. It verifies D4, starts D5 recovery, and tells
    the operator to wait.
-5. After D5 completes, the operator reruns `resume`; the command verifies the final snapshot and
-   marks the operation complete. The final result has regenerated D2 and D4 for both model lines
-   and regenerated D2 through D5 for `ML_MEMO`. The EDP never needs to re-upload D3 or D5.
+5. After D5 completes, the operator reruns `resume`. The command verifies the final snapshot and
+   returns the operation in `AVAILABILITY_HANDOFF_PENDING`. The scheduled controller then creates
+   every deferred Data Availability WorkItem and marks the operation complete. The final result has
+   regenerated D2 and D4 for both model lines and regenerated D2 through D5 for `ML_MEMO`. The EDP
+   never needs to re-upload D3 or D5.
 
 The persisted workflow enforces oldest-to-newest recovery, so every cumulative rank-index snapshot
 is rebuilt from its corrected predecessor. Both normal EDP corrections and operator recovery events

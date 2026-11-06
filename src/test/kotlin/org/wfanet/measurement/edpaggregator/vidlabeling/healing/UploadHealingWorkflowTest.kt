@@ -20,7 +20,6 @@ import com.google.common.truth.Truth.assertThat
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -64,7 +63,6 @@ class UploadHealingWorkflowTest {
   private val uploadsByName = mutableMapOf<String, RawImpressionUpload>()
   private val modelLinesByUpload = mutableMapOf<String, List<RawImpressionUploadModelLine>>()
   private val releasedFenceOperationIds = mutableListOf<String>()
-  private var releaseFailuresRemaining = 0
   private val uploadsService =
     object : RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase() {
       override suspend fun getRawImpressionUpload(
@@ -90,10 +88,6 @@ class UploadHealingWorkflowTest {
         request: ReleaseRawImpressionUploadEvictionFenceRequest
       ): ReleaseRawImpressionUploadEvictionFenceResponse {
         releasedFenceOperationIds += request.evictionOperationId
-        if (releaseFailuresRemaining > 0) {
-          releaseFailuresRemaining--
-          throw io.grpc.Status.UNAVAILABLE.asException()
-        }
         return ReleaseRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
       }
     }
@@ -162,7 +156,6 @@ class UploadHealingWorkflowTest {
     activeSnapshots.clear()
     recoveredUploads.clear()
     releasedFenceOperationIds.clear()
-    releaseFailuresRemaining = 0
   }
 
   @Test
@@ -201,6 +194,10 @@ class UploadHealingWorkflowTest {
         ),
         RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel),
         object : EvictionExecutor {
+          override suspend fun finalizeOutputManifests(
+            plan: EvictUploader.EvictionPlan
+          ): EvictUploader.EvictionPlan = plan
+
           override suspend fun prepare(
             plan: EvictUploader.EvictionPlan
           ): EvictUploader.EvictionPlan {
@@ -275,7 +272,7 @@ class UploadHealingWorkflowTest {
           grpcTestServerRule.channel
         ),
         RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(grpcTestServerRule.channel),
-        EvictionExecutor { plan, _, checkpoint ->
+        testEvictionExecutor { plan, _, checkpoint ->
           for (entry in plan.cascade) {
             evictedEntries += entry.modelLineName
             checkpoint(entry)
@@ -332,16 +329,12 @@ class UploadHealingWorkflowTest {
     assertThat(releasedFenceOperationIds).isEmpty()
 
     addCompletedReplacement(D5, D5_REPLACEMENT)
-    releaseFailuresRemaining = 1
-    assertThrows(io.grpc.StatusException::class.java) {
-      runBlocking { workflow.resume(started.operation.name) }
-    }
     val completed = workflow.resume(started.operation.name)
 
-    assertThat(completed.operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
-    assertThat(releasedFenceOperationIds)
-      .containsExactly(plan.evictionOperationId, plan.evictionOperationId)
-      .inOrder()
+    assertThat(completed.operation.state)
+      .isEqualTo(UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING)
+    assertThat(completed.nextAction).contains("scheduled controller")
+    assertThat(releasedFenceOperationIds).isEmpty()
     Unit
   }
 
@@ -383,7 +376,7 @@ class UploadHealingWorkflowTest {
           RawImpressionUploadModelLineServiceGrpcKt
             .RawImpressionUploadModelLineServiceCoroutineStub(channel),
           RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel),
-          EvictionExecutor { evictionPlan, _, checkpoint ->
+          testEvictionExecutor { evictionPlan, _, checkpoint ->
             for (entry in evictionPlan.cascade) checkpoint(entry)
             EvictUploader.EvictionResult(evictionPlan.cascade.map { it.modelLineName }, 4, 4, 8)
           },
@@ -415,8 +408,10 @@ class UploadHealingWorkflowTest {
       addCompletedReplacement(D5, D5_REPLACEMENT)
       val completed = workflow.resume(started.operation.name)
 
-      assertThat(completed.operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
-      assertThat(releasedFenceOperationIds).containsExactly(plan.evictionOperationId)
+      assertThat(completed.operation.state)
+        .isEqualTo(UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING)
+      assertThat(completed.nextAction).contains("scheduled controller")
+      assertThat(releasedFenceOperationIds).isEmpty()
       Unit
     }
 
@@ -451,6 +446,24 @@ class UploadHealingWorkflowTest {
     createTime = Instant.ofEpochSecond(index.toLong() + 1L).toProtoTime()
     registrationComplete = true
   }
+
+  private fun testEvictionExecutor(
+    evict:
+      suspend (
+        EvictUploader.EvictionPlan, String, suspend (EvictUploader.CascadeEntry) -> Unit,
+      ) -> EvictUploader.EvictionResult
+  ): EvictionExecutor =
+    object : EvictionExecutor {
+      override suspend fun finalizeOutputManifests(
+        plan: EvictUploader.EvictionPlan
+      ): EvictUploader.EvictionPlan = plan
+
+      override suspend fun evict(
+        plan: EvictUploader.EvictionPlan,
+        reason: String,
+        onEntryEvicted: suspend (EvictUploader.CascadeEntry) -> Unit,
+      ): EvictUploader.EvictionResult = evict(plan, reason, onEntryEvicted)
+    }
 
   private class InMemoryOperationsService :
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase() {
@@ -529,7 +542,7 @@ class UploadHealingWorkflowTest {
           steps.clear()
           steps += updatedSteps
           if (updatedSteps.all { it.state == UploadHealingStep.State.COMPLETE }) {
-            state = UploadHealingOperation.State.COMPLETE
+            state = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
           }
         }
       return operation!!.stepsList.single { it.name == request.name }
