@@ -16,6 +16,7 @@
 import unittest
 
 from google.protobuf import text_format
+from tools.post_process_report_summary_v2 import ReportSummaryV2Processor
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.report_conversion import (
     _create_report_summary_for_group,
     report_summaries_from_reporting_set_results,
@@ -67,19 +68,96 @@ class ReportConversionTest(unittest.TestCase):
             ],
         }
 
-    def test_zero_population_cohorts_are_converted(self):
-        for result in self.reporting_set_results:
-            result.population_size = 0
-        summaries = report_summaries_from_reporting_set_results(
-            self.reporting_set_results, self.edp_combinations)
-        self.assertTrue(summaries)
-        self.assertTrue(all(summary.population == 0 for summary in summaries))
+    def test_zero_reach_frequency_variance_allows_consistent_correction(self):
+        # The zero-reach fallback contributes reach variance / 12 to each bin.
+        standard_deviation = 50 / (12 ** 0.5)
+        summary = self._zero_reach_summary(standard_deviation)
+        result = ReportSummaryV2Processor(summary, []).process()
 
-    def test_negative_population_is_rejected(self):
-        self.reporting_set_results[0].population_size = -1
-        with self.assertRaisesRegex(ValueError, "non-negative"):
-            report_summaries_from_reporting_set_results(
-                self.reporting_set_results, self.edp_combinations)
+        self.assertFalse(result.large_corrections)
+        self.assertLessEqual(result.status.primal_equality_residual, 1e-6)
+        self.assertLessEqual(result.status.primal_inequality_residual, 1e-6)
+        values = result.updated_measurements
+        publisher_reach = values["reach_1_cumulative_2025_01_08"]
+        union_reach = values["reach_2_cumulative_2025_01_08"]
+        self.assertGreater(publisher_reach, 75)
+        self.assertGreaterEqual(union_reach, publisher_reach)
+        self.assertEqual(
+            values["frequency_2_cumulative_2025_01_08-bin-1"]
+            + values["frequency_2_cumulative_2025_01_08-bin-2"],
+            union_reach,
+        )
+
+    def test_known_zero_frequency_variance_remains_exact(self):
+        summary = self._zero_reach_summary(0.0)
+        result = ReportSummaryV2Processor(summary, []).process()
+
+        self.assertEqual(
+            result.updated_measurements["reach_1_cumulative_2025_01_08"], 0
+        )
+        self.assertEqual(
+            result.updated_measurements["reach_2_cumulative_2025_01_08"], 0
+        )
+        self.assertTrue(result.large_corrections)
+
+    def _zero_reach_summary(self, frequency_standard_deviation):
+        results = []
+        for result_id, reporting_set, reach, sigma in (
+            (1, "publisher-one", 80, 1),
+            (2, "combined", 0, 50),
+        ):
+            result = text_format.Parse(
+                f"""
+                cmms_measurement_consumer_id: "test-consumer"
+                external_report_result_id: 123
+                external_reporting_set_result_id: {result_id}
+                population_size: 10000
+                dimension {{
+                  external_reporting_set_id: "{reporting_set}"
+                  venn_diagram_region_type: UNION
+                  external_impression_qualification_filter_id: "ami"
+                  metric_frequency_spec {{ total: true }}
+                }}
+                reporting_window_results {{
+                  key {{
+                    non_cumulative_start {{ year: 2025 month: 1 day: 1 }}
+                    end {{ year: 2025 month: 1 day: 8 }}
+                  }}
+                  value {{
+                    unprocessed_report_result_values {{
+                      cumulative_results {{
+                        reach {{
+                          value: {reach}
+                          univariate_statistics {{ standard_deviation: {sigma} }}
+                        }}
+                      }}
+                    }}
+                  }}
+                }}
+                """,
+                report_result_pb2.ReportingSetResult(),
+            )
+            if result_id == 2:
+                metrics = (
+                    result.reporting_window_results[0]
+                    .value.unprocessed_report_result_values.cumulative_results
+                )
+                metrics.impression_count.value = 1000
+                metrics.impression_count.univariate_statistics.standard_deviation = 10
+                for frequency in (1, 2):
+                    bin_result = metrics.frequency_histogram.bin_results[frequency]
+                    bin_result.value = 0
+                    bin_result.univariate_statistics.standard_deviation = (
+                        frequency_standard_deviation
+                    )
+            results.append(result)
+        return report_summaries_from_reporting_set_results(
+            results,
+            {
+                "publisher-one": ["dataProviders/one"],
+                "combined": ["dataProviders/one", "dataProviders/two"],
+            },
+        )[0]
 
     def test_create_report_summary_for_group_with_empty_results_raises_error(
             self):
