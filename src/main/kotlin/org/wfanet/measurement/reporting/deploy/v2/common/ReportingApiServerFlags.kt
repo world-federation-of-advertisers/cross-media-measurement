@@ -212,7 +212,11 @@ class ReportingApiServerFlags {
 
   @set:CommandLine.Option(
     names = ["--measurement-preparation-concurrency"],
-    description = ["Maximum concurrent measurement signing and encryption tasks per server."],
+    description =
+      [
+        "Signing/encryption concurrency; one retains serial preparation per batch, " +
+          "higher values bound parallel preparation across the server."
+      ],
     defaultValue = "1",
   )
   var measurementPreparationConcurrency: Int = 1

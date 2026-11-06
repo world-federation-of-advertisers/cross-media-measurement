@@ -433,42 +433,51 @@ class MetricsService(
             measurementCreationTraceAttributes(internalMeasurement, runningMetric)
         }
 
-      val pendingCmmsMeasurements: Flow<PendingCmmsMeasurement> = flow {
-        coroutineScope {
-          pendingMeasurements
-            .asFlow()
-            .mapConcurrently(this, measurementPreparationConcurrency) {
-              (internalMeasurement, runningMetric) ->
-              preparationPermits.withPermit {
-                withContext(measurementPreparationContext) {
-                  PendingCmmsMeasurement(
-                    request =
-                      ReportTracing.traceSuspending(
-                        spanName = "reporting.measurement.prepare",
-                        attributes =
-                          measurementCreationTraceAttributes(internalMeasurement, runningMetric),
-                      ) {
-                        buildCreateMeasurementRequest(
-                            internalMeasurement,
-                            runningMetric,
-                            internalPrimitiveReportingSetMap,
-                            preparation.measurementConsumer,
-                            measurementConsumerCreds,
-                            preparation.dataProviderInfoMap,
-                            preparation.measurementConsumerSigningKey,
-                          )
-                          .also {
-                            Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared")
-                          }
-                      },
-                    requestMetricFieldPath = runningMetric.requestMetricFieldPath,
-                  )
-                }
-              }
-            }
-            .collect { emit(it) }
-        }
+      suspend fun preparePendingMeasurement(
+        pending: Pair<InternalMeasurement, RunningMetric>
+      ): PendingCmmsMeasurement {
+        val (internalMeasurement, runningMetric) = pending
+        return PendingCmmsMeasurement(
+          request =
+            ReportTracing.traceSuspending(
+              spanName = "reporting.measurement.prepare",
+              attributes = measurementCreationTraceAttributes(internalMeasurement, runningMetric),
+            ) {
+              buildCreateMeasurementRequest(
+                  internalMeasurement,
+                  runningMetric,
+                  internalPrimitiveReportingSetMap,
+                  preparation.measurementConsumer,
+                  measurementConsumerCreds,
+                  preparation.dataProviderInfoMap,
+                  preparation.measurementConsumerSigningKey,
+                )
+                .also { Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared") }
+            },
+          requestMetricFieldPath = runningMetric.requestMetricFieldPath,
+        )
       }
+
+      val pendingCmmsMeasurements: Flow<PendingCmmsMeasurement> =
+        if (measurementPreparationConcurrency == 1) {
+          // Retain the existing caller context and serial preparation within each batch by default.
+          pendingMeasurements.asFlow().map { preparePendingMeasurement(it) }
+        } else {
+          flow {
+            coroutineScope {
+              pendingMeasurements
+                .asFlow()
+                .mapConcurrently(this, measurementPreparationConcurrency) { pending ->
+                  preparationPermits.withPermit {
+                    withContext(measurementPreparationContext) {
+                      preparePendingMeasurement(pending)
+                    }
+                  }
+                }
+                .collect { emit(it) }
+            }
+          }
+        }
 
       // Create CMMS measurements.
       val callBatchCreateMeasurementsRpc:
