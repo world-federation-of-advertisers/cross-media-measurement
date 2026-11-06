@@ -96,7 +96,7 @@ class VidLabelingTraceTest {
         ),
       )
     val logReader = FakeCloudLogReader(entries)
-    val finalStateResolver = VidLabelingFinalStateResolver { _, _ ->
+    val finalStateResolver = VidLabelingFinalStateResolver { _, _, _ ->
       VidLabelingFinalStateResolution(
         listOf(
           ExpectedTraceNode(
@@ -1302,7 +1302,7 @@ class VidLabelingTraceTest {
           },
         stateResolver = VidLabelingStateResolver { testGraph(listOf(NON_MEMOIZED_MODEL_LINE)) },
         finalStateResolver =
-          VidLabelingFinalStateResolver { _, _ ->
+          VidLabelingFinalStateResolver { _, _, _ ->
             VidLabelingFinalStateResolution(
               listOf(
                 ExpectedTraceNode(
@@ -1780,7 +1780,7 @@ class VidLabelingTraceTest {
             logReaderFactory = { FakeCloudLogReader(emptyList()) },
             spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
             stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
-            finalStateResolver = VidLabelingFinalStateResolver { _, _ -> awaitCancellation() },
+            finalStateResolver = VidLabelingFinalStateResolver { _, _, _ -> awaitCancellation() },
           ),
       )
 
@@ -1807,7 +1807,7 @@ class VidLabelingTraceTest {
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
         finalStateResolver =
-          VidLabelingFinalStateResolver { _, _ ->
+          VidLabelingFinalStateResolver { _, _, _ ->
             invocations++
             VidLabelingFinalStateResolution(emptyList(), mapOf("gcs_reads" to 0L))
           },
@@ -2319,7 +2319,7 @@ class VidLabelingTraceTest {
   }
 
   companion object {
-    private val NOOP_FINAL_STATE_RESOLVER = VidLabelingFinalStateResolver { _, _ ->
+    private val NOOP_FINAL_STATE_RESOLVER = VidLabelingFinalStateResolver { _, _, _ ->
       VidLabelingFinalStateResolution(emptyList(), emptyMap())
     }
     private const val RAW_UPLOAD = "dataProviders/123/rawImpressionUploads/upload-1"
