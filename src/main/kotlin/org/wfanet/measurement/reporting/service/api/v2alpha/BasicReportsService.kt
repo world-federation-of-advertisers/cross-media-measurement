@@ -35,9 +35,6 @@ import kotlin.collections.List
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filter
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.access.client.v1alpha.Authorization
@@ -1440,47 +1437,6 @@ class BasicReportsService(
     val existingMetricCalculationSpecsMap =
       buildMetricCalculationSpecToNameMap(campaignGroupKey).toMutableMap()
 
-    val requiredSpecs =
-      reportingSetMetricCalculationSpecDetailsMap.values
-        .flatten()
-        .map { details ->
-          metricCalculationSpec {
-            cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-            cmmsModelLine = modelLine
-            this.details = details
-          }
-        }
-        .distinct()
-    val specCreationStarted = System.nanoTime()
-    // Resolve duplicates before concurrent creation, and update the map after each bounded batch.
-    for (batch in
-      requiredSpecs
-        .filterNot(existingMetricCalculationSpecsMap::containsKey)
-        .chunked(METRIC_CALCULATION_SPEC_CREATION_CONCURRENCY)) {
-      val names = coroutineScope {
-        batch
-          .map { spec ->
-            async {
-              val created = createMetricCalculationSpec(spec)
-              spec to
-                MetricCalculationSpecKey(
-                    created.cmmsMeasurementConsumerId,
-                    created.externalMetricCalculationSpecId,
-                  )
-                  .toName()
-            }
-          }
-          .awaitAll()
-      }
-      existingMetricCalculationSpecsMap.putAll(names)
-    }
-    logger.info {
-      val elapsedMillis = (System.nanoTime() - specCreationStarted) / 1_000_000
-      "Resolved ${requiredSpecs.size} metric calculation specs for $basicReportName " +
-        "with concurrency $METRIC_CALCULATION_SPEC_CREATION_CONCURRENCY in ${elapsedMillis}ms"
-    }
-
     return report {
       this.basicReport = basicReportName
       for (reportingSetMetricCalculationSpecDetailsEntry in
@@ -1522,7 +1478,16 @@ class BasicReportsService(
                     details = metricCalculationSpecDetails
                   }
                   metricCalculationSpecs +=
-                    existingMetricCalculationSpecsMap.getValue(metricCalculationSpec)
+                    existingMetricCalculationSpecsMap.getOrPut(metricCalculationSpec) {
+                      val createdMetricCalculationSpec =
+                        createMetricCalculationSpec(metricCalculationSpec)
+
+                      MetricCalculationSpecKey(
+                          createdMetricCalculationSpec.cmmsMeasurementConsumerId,
+                          createdMetricCalculationSpec.externalMetricCalculationSpecId,
+                        )
+                        .toName()
+                    }
                 }
               }
           }
@@ -1627,7 +1592,6 @@ class BasicReportsService(
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
     private const val SCALING_FACTOR = 10000
-    private const val METRIC_CALCULATION_SPEC_CREATION_CONCURRENCY = 16
 
     /** Specifies default values using [MetricSpecConfig] */
     private fun MetricSpec.withDefaults(

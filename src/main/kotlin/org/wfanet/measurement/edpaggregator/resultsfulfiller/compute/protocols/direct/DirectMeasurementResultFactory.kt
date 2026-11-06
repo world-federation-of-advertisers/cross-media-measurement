@@ -35,7 +35,7 @@ object DirectMeasurementResultFactory {
    * @param directProtocolConfig The direct protocol configuration.
    * @param directNoiseMechanism The direct noise mechanism to use.
    * @param measurementSpec The measurement specification.
-   * @param frequencyData Per-VID frequencies encoded as unsigned bytes.
+   * @param frequencyData IntArray of VID indices.
    * @param maxPopulation Optional parameter of the max result that should be returned.
    * @param resultMinimumThresholds Optional small-cell suppression parameters.
    * @param impressionMaxFrequencyPerUser Optional override for max frequency per user. -1 means no
@@ -48,7 +48,7 @@ object DirectMeasurementResultFactory {
     directProtocolConfig: ProtocolConfig.Direct,
     directNoiseMechanism: DirectNoiseMechanism,
     measurementSpec: MeasurementSpec,
-    frequencyData: ByteArray,
+    frequencyData: IntArray,
     maxPopulation: Int?,
     resultMinimumThresholds: ResultMinimumThresholds?,
     impressionMaxFrequencyPerUser: Int?,

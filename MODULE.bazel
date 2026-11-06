@@ -42,14 +42,6 @@ bazel_dep(
     version = "0.161.0",
     repo_name = "wfa_common_jvm",
 )
-
-# Allow Reporting to configure transport limits for geographically segmented reports.
-single_version_override(
-    module_name = "common-jvm",
-    patch_strip = 1,
-    patches = ["//build/common_jvm/patches:grpc_message_size.patch"],
-)
-
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",

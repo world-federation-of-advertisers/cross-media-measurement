@@ -79,7 +79,6 @@ import org.wfanet.measurement.reporting.deploy.v2.common.EventMessageFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
-import org.wfanet.measurement.reporting.deploy.v2.common.serviceConfigWithTimeout
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
@@ -130,9 +129,6 @@ private object V2AlphaPublicApiServer {
           reportingApiServerFlags.internalApiFlags.target,
           clientCerts,
           reportingApiServerFlags.internalApiFlags.certHost,
-          defaultServiceConfig =
-            serviceConfigWithTimeout(reportingApiServerFlags.internalApiFlags.timeoutSeconds),
-          maxInboundMessageSize = reportingApiServerFlags.internalApiFlags.maxInboundMessageSize,
         )
         .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
@@ -141,8 +137,6 @@ private object V2AlphaPublicApiServer {
           target = kingdomApiFlags.target,
           clientCerts = clientCerts,
           hostName = kingdomApiFlags.certHost,
-          defaultServiceConfig = serviceConfigWithTimeout(kingdomApiFlags.timeoutSeconds),
-          maxInboundMessageSize = reportingApiServerFlags.internalApiFlags.maxInboundMessageSize,
         )
         .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
@@ -304,7 +298,6 @@ private object V2AlphaPublicApiServer {
         SecureRandom().asKotlinRandom(),
         reportingApiServerFlags.allowSamplingIntervalWrapping,
         serviceDispatcher,
-        metricBatchConcurrency = reportingApiServerFlags.reportMetricBatchConcurrency,
       )
 
     startInProcessServerWithService(

@@ -56,7 +56,6 @@ import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
-import org.wfanet.measurement.reporting.deploy.v2.common.serviceConfigWithTimeout
 import org.wfanet.measurement.reporting.job.ReportSchedulingJob
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
@@ -90,9 +89,6 @@ private fun run(
         reportingApiServerFlags.internalApiFlags.target,
         clientCerts,
         reportingApiServerFlags.internalApiFlags.certHost,
-        maxInboundMessageSize = reportingApiServerFlags.internalApiFlags.maxInboundMessageSize,
-        defaultServiceConfig =
-          serviceConfigWithTimeout(reportingApiServerFlags.internalApiFlags.timeoutSeconds),
       )
       .withShutdownTimeout(Duration.ofSeconds(5))
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
@@ -102,8 +98,6 @@ private fun run(
         target = kingdomApiFlags.target,
         clientCerts = clientCerts,
         hostName = kingdomApiFlags.certHost,
-        maxInboundMessageSize = reportingApiServerFlags.internalApiFlags.maxInboundMessageSize,
-        defaultServiceConfig = serviceConfigWithTimeout(kingdomApiFlags.timeoutSeconds),
       )
       .withShutdownTimeout(Duration.ofSeconds(5))
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)

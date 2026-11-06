@@ -56,27 +56,23 @@ import ("strings")
 		}
 	}
 
-	_duchy_info_config_flag:                              "--duchy-info-config=/var/run/secrets/files/duchy_cert_config.textproto"
-	_duchy_id_config_flag:                                "--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto"
-	_llv2_protocol_config_config:                         "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
-	_ro_llv2_protocol_config_config:                      "--ro-llv2-protocol-config-config=/var/run/secrets/files/ro_llv2_protocol_config_config.textproto"
-	_ro_llv2_enable_flag:                                 "--enable-ro-llv2-protocol"
-	_hmssEnableFlag:                                      "--enable-hmss"
-	_hmssProtocolConfigConfig:                            "--hmss-protocol-config-config=/var/run/secrets/files/hmss_protocol_config_config.textproto"
-	_trusteeEnableFlag:                                   "--enable-trustee"
-	_trusteeProtocolConfigConfig:                         "--trustee-protocol-config-config=/var/run/secrets/files/trustee_protocol_config_config.textproto"
-	_kingdom_tls_cert_file_flag:                          "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
-	_kingdom_tls_key_file_flag:                           "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
-	_kingdom_cert_collection_file_flag:                   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
-	_kingdom_root_cert_file_flag:                         "--cert-collection-file=/var/run/secrets/files/kingdom_root.pem"
-	_akid_to_principal_map_file_flag:                     "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
-	_knownEventGroupMetadataTypeFlag:                     "--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb"
-	_debug_verbose_grpc_client_logging_flag:              "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
-	_debug_verbose_grpc_server_logging_flag:              "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
-	_verboseInternalApiGrpcServerLogging:                 bool | *_verboseGrpcServerLogging
-	_debug_verbose_internal_api_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verboseInternalApiGrpcServerLogging)"
-	_verbosePublicApiGrpcServerLogging:                   bool | *_verboseGrpcServerLogging
-	_debug_verbose_public_api_grpc_server_logging_flag:   "--debug-verbose-grpc-server-logging=\(_verbosePublicApiGrpcServerLogging)"
+	_duchy_info_config_flag:                 "--duchy-info-config=/var/run/secrets/files/duchy_cert_config.textproto"
+	_duchy_id_config_flag:                   "--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto"
+	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
+	_ro_llv2_protocol_config_config:         "--ro-llv2-protocol-config-config=/var/run/secrets/files/ro_llv2_protocol_config_config.textproto"
+	_ro_llv2_enable_flag:                    "--enable-ro-llv2-protocol"
+	_hmssEnableFlag:                         "--enable-hmss"
+	_hmssProtocolConfigConfig:               "--hmss-protocol-config-config=/var/run/secrets/files/hmss_protocol_config_config.textproto"
+	_trusteeEnableFlag:                      "--enable-trustee"
+	_trusteeProtocolConfigConfig:            "--trustee-protocol-config-config=/var/run/secrets/files/trustee_protocol_config_config.textproto"
+	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
+	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
+	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
+	_kingdom_root_cert_file_flag:            "--cert-collection-file=/var/run/secrets/files/kingdom_root.pem"
+	_akid_to_principal_map_file_flag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
+	_knownEventGroupMetadataTypeFlag:        "--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb"
+	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
+	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 
 	_internal_api_target_flag:    "--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target
 	_internal_api_cert_host_flag: "--internal-api-cert-host=localhost"
@@ -142,7 +138,7 @@ import ("strings")
 					// Internal Kingdom API server should only trust Kingdom certs.
 					_kingdom_root_cert_file_flag,
 					_knownEventGroupMetadataTypeFlag,
-					_debug_verbose_internal_api_grpc_server_logging_flag,
+					_debug_verbose_grpc_server_logging_flag,
 				] + Container._commonServerFlags + _spannerConfig.flags
 			}
 			_updateSchemaContainer: Container=#Container & {
@@ -179,7 +175,7 @@ import ("strings")
 			_container:           Container={
 				args: [
 					_debug_verbose_grpc_client_logging_flag,
-					_debug_verbose_public_api_grpc_server_logging_flag,
+					_debug_verbose_grpc_server_logging_flag,
 					_llv2_protocol_config_config,
 					_ro_llv2_protocol_config_config,
 					_hmssProtocolConfigConfig,

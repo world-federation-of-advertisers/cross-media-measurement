@@ -20,22 +20,24 @@ import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.computation.FrequencyData
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultMinimumThresholder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder
 
 class TrusTeeMeasurementFulfiller(
   private val requisition: Requisition,
   private val requisitionNonce: Long,
-  private val sampledFrequencyVector: ByteArray,
+  private val sampledFrequencyVector: FrequencyVector,
   private val requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionsThrottler: Throttler,
@@ -97,12 +99,13 @@ class TrusTeeMeasurementFulfiller(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    /** Constructs a [TrusTeeMeasurementFulfiller] with a thresholded byte vector. */
+    /** Constructs a [TrusTeeMeasurementFulfiller] with a thresholded FrequencyVector. */
     fun buildThresholded(
       requisition: Requisition,
       requisitionNonce: Long,
       measurementSpec: MeasurementSpec,
-      frequencyData: ByteArray,
+      populationSpec: PopulationSpec,
+      frequencyVectorBuilder: FrequencyVectorBuilder,
       requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
       requisitionsStub: RequisitionsCoroutineStub,
       requisitionsThrottler: Throttler,
@@ -113,21 +116,15 @@ class TrusTeeMeasurementFulfiller(
       encryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams?,
     ): TrusTeeMeasurementFulfiller {
       val thresholdedFrequencyVector =
-        if (
-          ResultMinimumThresholder.isBelowThreshold(
-            FrequencyData.from(frequencyData),
-            measurementSpec.vidSamplingInterval.width.toDouble(),
-            resultMinimumThresholds,
-            maxPopulation,
-            protocolMinUsers,
-            protocolMinImpressions,
-          )
-        ) {
-          ByteArray(frequencyData.size)
-        } else {
-          frequencyData
-        }
-
+        ResultMinimumThresholder.applyThresholds(
+          measurementSpec,
+          populationSpec,
+          frequencyVectorBuilder,
+          resultMinimumThresholds,
+          maxPopulation,
+          protocolMinUsers,
+          protocolMinImpressions,
+        )
       return TrusTeeMeasurementFulfiller(
         requisition,
         requisitionNonce,

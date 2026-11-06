@@ -35,45 +35,6 @@ import org.wfanet.measurement.computation.ResultMinimumThresholds
 class FrequencyVectorBuilderTest {
 
   @Test
-  fun `buildBytes preserves unsigned frequencies without changing the integer vector`() {
-    val spec = measurementSpec {
-      impression = impression { maximumFrequencyPerUser = 1000 }
-      vidSamplingInterval = FULL_SAMPLING_INTERVAL
-    }
-    val frequencies = intArrayOf(0, 1, 127, 128, 200, 255, 0, 0, 0, 0)
-    val builder =
-      FrequencyVectorBuilder(
-        SMALL_POPULATION_SPEC,
-        spec,
-        frequencyVector { data += frequencies.asList() },
-        overrideImpressionMaxFrequencyPerUser = null,
-      )
-    val bytes = builder.buildBytes()
-    assertThat(bytes)
-      .isEqualTo(byteArrayOf(0, 1, 127, 128.toByte(), 200.toByte(), 255.toByte(), 0, 0, 0, 0))
-    bytes.fill(0)
-    assertThat(builder.build().dataList).containsExactlyElementsIn(frequencies.asList()).inOrder()
-  }
-
-  @Test
-  fun `buildBytes rejects integer frequencies outside the byte range`() {
-    val spec = measurementSpec {
-      impression = impression { maximumFrequencyPerUser = 1000 }
-      vidSamplingInterval = FULL_SAMPLING_INTERVAL
-    }
-    for (frequency in listOf(-1, 256)) {
-      val builder =
-        FrequencyVectorBuilder(
-          SMALL_POPULATION_SPEC,
-          spec,
-          frequencyVector { data += listOf(frequency, 0, 0, 0, 0, 0, 0, 0, 0, 0) },
-          overrideImpressionMaxFrequencyPerUser = null,
-        )
-      assertFailsWith<IllegalArgumentException> { builder.buildBytes() }
-    }
-  }
-
-  @Test
   fun `construction fails on reach and frequency measurement spec without max frequency`() {
     assertFailsWith<IllegalArgumentException>("expected exception") {
       FrequencyVectorBuilder(

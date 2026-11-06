@@ -320,18 +320,6 @@ variable "duchy_aggregator_computations_service_target" {
   type        = string
 }
 
-variable "duchy_aggregator_trustee_replicas" {
-  description = "Number of TrusTEE mill instances for the aggregator duchy."
-  type        = number
-  default     = 1
-  nullable    = false
-
-  validation {
-    condition     = var.duchy_aggregator_trustee_replicas >= 1 && floor(var.duchy_aggregator_trustee_replicas) == var.duchy_aggregator_trustee_replicas
-    error_message = "TrusTEE replica count must be a positive integer."
-  }
-}
-
 variable "kingdom_system_api_target" {
   description = "Target of the kingdom system api"
   type        = string

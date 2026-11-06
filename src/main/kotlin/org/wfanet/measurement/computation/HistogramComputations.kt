@@ -28,10 +28,9 @@ object HistogramComputations {
    * @return A [LongArray] representing the histogram, where index `k-1` is the count with frequency
    *   `k`.
    */
-  fun buildHistogram(frequencyVector: FrequencyData, maxFrequency: Int): LongArray {
+  fun buildHistogram(frequencyVector: IntArray, maxFrequency: Int): LongArray {
     val histogram = LongArray(maxFrequency)
-    for (index in 0 until frequencyVector.size) {
-      val frequency = frequencyVector[index]
+    for (frequency in frequencyVector) {
       if (frequency > 0) {
         // Cap the frequency at maxFrequency.
         val cappedFrequency = min(frequency, maxFrequency)

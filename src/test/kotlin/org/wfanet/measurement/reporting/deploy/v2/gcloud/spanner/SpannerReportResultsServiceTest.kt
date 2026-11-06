@@ -47,7 +47,6 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
         spannerClient,
         impressionQualificationFilterMapping,
         idGenerator = idGenerator,
-        processedResultBatchSize = 2,
       ),
       SpannerBasicReportsService(
         spannerClient,

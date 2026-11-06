@@ -27,7 +27,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
-import org.wfanet.measurement.computation.FrequencyData
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
@@ -49,7 +48,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  */
 class DirectReachAndFrequencyResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
-  private val frequencyData: ByteArray,
+  private val frequencyData: IntArray,
   private val maxFrequency: Int,
   private val reachPrivacyParams: CmmsDpParams,
   private val frequencyPrivacyParams: CmmsDpParams,
@@ -74,7 +73,7 @@ class DirectReachAndFrequencyResultBuilder(
     }
     val histogram: LongArray =
       HistogramComputations.buildHistogram(
-        frequencyVector = FrequencyData.from(frequencyData),
+        frequencyVector = frequencyData,
         maxFrequency = maxFrequency,
       )
 

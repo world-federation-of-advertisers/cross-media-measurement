@@ -46,7 +46,7 @@ class TrusTeeMillFlags : MillFlags() {
   @CommandLine.Option(
     names = ["--polling-interval"],
     defaultValue = "2s",
-    description = ["How long to wait after an empty work claim or an error before polling again."],
+    description = ["How long to sleep before polling the computation queue again if it is empty."],
   )
   lateinit var pollingInterval: Duration
     private set

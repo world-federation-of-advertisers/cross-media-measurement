@@ -44,11 +44,11 @@ locals {
   }
 
   aggregator_trustee_config = {
-    instance_template_name      = "trustee-mill-template"
-    base_instance_name          = "trustee-mill"
-    managed_instance_group_name = "trustee-mill-mig"
-    mig_service_account_name    = "trustee-mill-mig-sa"
-    replicas                    = var.duchy_aggregator_trustee_replicas
+    instance_template_name        = "trustee-mill-template"
+    base_instance_name            = "trustee-mill"
+    managed_instance_group_name   = "trustee-mill-mig"
+    mig_service_account_name      = "trustee-mill-mig-sa"
+    replicas                      = 1
     # Using n2d for better Confidential VM availability.
     # Production deployments may prefer c4d-standard-2 with
     # hyperdisk-balanced disk (provisioned_iops=5000,

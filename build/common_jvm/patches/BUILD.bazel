@@ -1,1 +1,0 @@
-exports_files(["grpc_message_size.patch"])

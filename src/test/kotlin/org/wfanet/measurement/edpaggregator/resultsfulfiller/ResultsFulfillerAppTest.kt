@@ -261,30 +261,6 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork processes requisition successfully`() = runBlocking {
-    assertDirectFulfillment(requisitionCount = 1, batchSize = 100)
-  }
-
-  @Test
-  fun `runWork fulfills every requisition across bounded event-processing batches`() = runBlocking {
-    assertDirectFulfillment(requisitionCount = 3, batchSize = 2)
-    verifyBlocking(impressionMetadataServiceMock, times(2)) { listImpressionMetadata(any()) }
-  }
-
-  private suspend fun assertDirectFulfillment(requisitionCount: Int, batchSize: Int) {
-    val requisitions =
-      (0 until requisitionCount).map { index ->
-        REQUISITION.copy {
-          if (index > 0) {
-            name = "$REQUISITION_NAME-$index"
-            measurement = "${REQUISITION.measurement}-$index"
-          }
-        }
-      }
-    whenever(requisitionsServiceMock.getRequisition(any())).thenAnswer { invocation ->
-      val request =
-        invocation.arguments[0] as org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
-      requisitions.single { it.name == request.name }
-    }
     val subscriber =
       Subscriber(
         projectId = PROJECT_ID,
@@ -301,16 +277,14 @@ class ResultsFulfillerAppTest {
     whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
       .thenReturn(
         listRequisitionMetadataResponse {
-          for (requisition in requisitions) {
-            requisitionMetadata += requisitionMetadata {
-              state = RequisitionMetadata.State.STORED
-              cmmsCreateTime = timestamp { seconds = 12345 }
-              cmmsRequisition = requisition.name
-              blobUri = "some blob uri"
-              blobTypeUrl = "some-blob-type-url"
-              groupId = "an-existing-group-id"
-              report = "report-name"
-            }
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some blob uri"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
           }
         }
       )
@@ -347,19 +321,11 @@ class ResultsFulfillerAppTest {
           requisitionValidator = requisitionValidator,
           throttler = throttler,
         )
-        .groupRequisitions(requisitions)
+        .groupRequisitions(listOf(REQUISITION))
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
       REQUISITIONS_BLOB_KEY,
-      Any.pack(
-          groupedRequisitions
-            .first()
-            .toBuilder()
-            .clearRequisitions()
-            .addAllRequisitions(groupedRequisitions.flatMap { it.requisitionsList })
-            .build()
-        )
-        .toByteString(),
+      Any.pack(groupedRequisitions.single()).toByteString(),
     )
 
     val kmsClients = getKmsClientMap()
@@ -432,30 +398,26 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
-        maxRequisitionsPerBatch = batchSize,
       )
     app.runWork(Any.pack(workItemParams))
 
-    verifyBlocking(requisitionsServiceMock, times(requisitionCount)) {
-      fulfillDirectRequisition(any())
-    }
-    val requests = org.mockito.kotlin.argumentCaptor<FulfillDirectRequisitionRequest>()
-    verifyBlocking(requisitionsServiceMock, times(requisitionCount)) {
-      fulfillDirectRequisition(requests.capture())
-    }
-    assertThat(requests.allValues.map { it.name })
-      .containsExactlyElementsIn(requisitions.map { it.name })
-    for (request in requests.allValues) {
-      val result: Measurement.Result =
-        decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-      assertThat(result.reach.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
-      assertTrue(result.reach.hasDeterministicCountDistinct())
-      assertThat(result.frequency.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
-      assertTrue(result.frequency.hasDeterministicDistribution())
-      assertThat(result.reach.value).isEqualTo(80)
-      assertThat(result.frequency.relativeFrequencyDistribution)
-        .isEqualTo(mapOf(1L to 0.75, 2L to 0.25))
-    }
+    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+
+    assertThat(result.reach.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertTrue(result.reach.hasDeterministicCountDistinct())
+    assertThat(result.frequency.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertTrue(result.frequency.hasDeterministicDistribution())
+
+    assertThat(result.reach.value).isEqualTo(80)
+
+    assertThat(result.frequency.relativeFrequencyDistribution)
+      .isEqualTo(mapOf(1L to 0.75, 2L to 0.25))
   }
 
   @Test

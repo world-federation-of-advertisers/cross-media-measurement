@@ -36,7 +36,7 @@ class DirectReachResultBuilderTest {
   @Test
   fun `buildMeasurementResult returns non-noisy reach result when noise mechanism is set to NONE`() =
     runBlocking {
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val directReachResultBuilder =
         DirectReachResultBuilder(
@@ -61,7 +61,7 @@ class DirectReachResultBuilderTest {
   @Test
   fun `buildMeasurementResult returns noisy reach-and-frequency result within acceptable range noise mechanism is set to CONTINUOUS_GAUSSIAN`() =
     runBlocking {
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val directReachResultBuilder =
         DirectReachResultBuilder(
@@ -87,7 +87,7 @@ class DirectReachResultBuilderTest {
   @Test
   fun `buildMeasurementResult is reproducible when noise mechanism is DETERMINISTIC_TRUNCATED_LAPLACE`() =
     runBlocking {
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       fun build() =
         DirectReachResultBuilder(

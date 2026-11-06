@@ -740,17 +740,6 @@ class PostProcessReportResult:
             logging.info("No report summaries were generated.")
             return
 
-        # A known empty cohort has only one feasible corrected result: every
-        # count is zero. Keep its windows and histogram shape without dividing
-        # by population or invoking the solver.
-        empty_population_results = [
-            result for result in reporting_set_results
-            if result.population_size == 0
-        ]
-        report_summaries = [
-            summary for summary in report_summaries if summary.population > 0
-        ]
-
         reporting_set_results_by_id = {}
         if values_enabled:
             reporting_set_results_by_id = {
@@ -926,19 +915,8 @@ class PostProcessReportResult:
             raise NoiseCorrectionFailure(summary_results)
 
         # Creates AddProcessedResultValuesRequest for each report summary.
-        if report_summaries:
-            request = self._create_add_processed_result_values_requests(
-                report_summaries, all_updated_measurements)
-        else:
-            request = AddProcessedResultValuesRequest(
-                cmms_measurement_consumer_id=cmms_measurement_consumer_id,
-                external_report_result_id=external_report_result_id,
-            )
-        if request is None:
-            return None
-        if empty_population_results:
-            _append_empty_population_results(request, empty_population_results)
-
+        request = self._create_add_processed_result_values_requests(
+            report_summaries, all_updated_measurements)
 
         # Snaps cross-window equality identities that may have been broken by
         # per-RSR rounding (e.g. whole_campaign.reach vs. last_cumulative_week
@@ -1604,43 +1582,6 @@ class PostProcessReportResult:
                                                     impressions, population)
 
         basic_metric_set.CopyFrom(computed_metrics)
-
-
-def _append_empty_population_results(
-    request: AddProcessedResultValuesRequest,
-    results: Iterable[ReportingSetResult],
-) -> None:
-    """Preserves empty-cohort windows and emits finite zero-valued metrics."""
-    for result in results:
-        processed = request.reporting_set_results[
-            result.external_reporting_set_result_id]
-        for window in result.reporting_window_results:
-            entry = processed.reporting_window_results.add()
-            entry.key.CopyFrom(window.key)
-            noisy_values = window.value.unprocessed_report_result_values
-            for field in ("cumulative_results", "non_cumulative_results"):
-                if not noisy_values.HasField(field):
-                    continue
-                noisy = getattr(noisy_values, field)
-                measurements = []
-                if noisy.HasField("reach"):
-                    measurements.append(noisy.reach)
-                if noisy.HasField("impression_count"):
-                    measurements.append(noisy.impression_count)
-                measurements.extend(
-                    noisy.frequency_histogram.bin_results.values())
-                if any(measurement.value != 0 and measurement.
-                       univariate_statistics.standard_deviation == 0
-                       for measurement in measurements):
-                    raise ValueError(
-                        "Exact nonzero measurements cannot have zero population."
-                    )
-                bins = len(noisy.frequency_histogram.bin_results)
-                getattr(entry.value, field).CopyFrom(
-                    BasicMetricSet(
-                        k_plus_reach=[0] * bins,
-                        percent_k_plus_reach=[0.0] * bins,
-                    ))
 
 
 def compute_basic_metric_set(

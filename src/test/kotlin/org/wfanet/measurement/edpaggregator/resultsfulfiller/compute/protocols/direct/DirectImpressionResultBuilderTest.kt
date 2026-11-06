@@ -40,7 +40,7 @@ class DirectImpressionResultBuilderTest {
     assertFailsWith<IllegalArgumentException> {
       DirectImpressionResultBuilder(
         directProtocolConfig = DIRECT_PROTOCOL,
-        frequencyData = ByteArray(1),
+        frequencyData = IntArray(1),
         privacyParams = PRIVACY_PARAMS,
         samplingRate = SAMPLING_RATE,
         directNoiseMechanism = DirectNoiseMechanism.NONE,
@@ -57,7 +57,7 @@ class DirectImpressionResultBuilderTest {
   @Test
   fun `buildMeasurementResult returns non-noisy impression result when noise mechanism is set to NONE`() =
     runBlocking {
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val directImpressionResultBuilder =
         DirectImpressionResultBuilder(
@@ -86,7 +86,7 @@ class DirectImpressionResultBuilderTest {
   @Test
   fun `buildMeasurementResult returns noisy impression result within acceptable range when noise mechanism is set to CONTINUOUS_GAUSSIAN`() =
     runBlocking {
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val directImpressionResultBuilder =
         DirectImpressionResultBuilder(
@@ -117,7 +117,7 @@ class DirectImpressionResultBuilderTest {
     runBlocking {
       // frequencyData would compute to 110 impressions (90 * 1 + 10 * 2 = 110)
       // but with impressionMaxFrequencyPerUser = -1, totalUncappedImpressions of 500 should be used
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val directImpressionResultBuilder =
         DirectImpressionResultBuilder(
@@ -146,7 +146,7 @@ class DirectImpressionResultBuilderTest {
     runBlocking {
       // frequencyData computes to 110 impressions (90 * 1 + 10 * 2 = 110)
       // Even with totalUncappedImpressions = 500, histogram should be used
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val directImpressionResultBuilder =
         DirectImpressionResultBuilder(
@@ -174,7 +174,7 @@ class DirectImpressionResultBuilderTest {
     runBlocking {
       // 100 users at frequency 2, capped at MAX_FREQUENCY: 200 impressions, not 100. Catches a
       // noiser built with the wrong per-user cap, since the cap sets the draw's sensitivity.
-      val frequencyData = ByteArray(100) { 2 }
+      val frequencyData = IntArray(100) { 2 }
 
       fun build() =
         DirectImpressionResultBuilder(
@@ -206,7 +206,7 @@ class DirectImpressionResultBuilderTest {
     val result =
       DirectImpressionResultBuilder(
           directProtocolConfig = DIRECT_PROTOCOL,
-          frequencyData = ByteArray(100) { 2 },
+          frequencyData = IntArray(100) { 2 },
           privacyParams = PRIVACY_PARAMS,
           samplingRate = SAMPLING_RATE,
           directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,

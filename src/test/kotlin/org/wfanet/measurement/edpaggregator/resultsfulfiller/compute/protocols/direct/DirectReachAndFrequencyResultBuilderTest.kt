@@ -35,7 +35,7 @@ class DirectReachAndFrequencyResultBuilderTest {
   @Test
   fun `buildMeasurementResult returns non-noisy reach-and-frequency result when noise mechanism is set to NONE`() =
     runBlocking {
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val directReachAndFrequencyResultBuilder =
         DirectReachAndFrequencyResultBuilder(
@@ -72,7 +72,7 @@ class DirectReachAndFrequencyResultBuilderTest {
   fun `buildMeasurementResult keeps reach and surviving frequency when freq-1 fails threshold`() =
     runBlocking {
       val frequencyData =
-        ByteArray(110) { index ->
+        IntArray(110) { index ->
           when {
             index < 8 -> 1
             index < 73 -> 2
@@ -117,7 +117,7 @@ class DirectReachAndFrequencyResultBuilderTest {
   @Test
   fun `buildMeasurementResult returns noisy reach-and-frequency result with respect to variance when noise mechanism is set to CONTINUOUS_GAUSSIAN`() =
     runBlocking {
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val directReachAndFrequencyResultBuilder =
         DirectReachAndFrequencyResultBuilder(
@@ -148,7 +148,7 @@ class DirectReachAndFrequencyResultBuilderTest {
   @Test
   fun `buildMeasurementResult returns noisy reach-and-frequency result within acceptable range noise mechanism is set to CONTINUOUS_GAUSSIAN`() =
     runBlocking {
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val reachResults = mutableListOf<Long>()
 
@@ -182,7 +182,7 @@ class DirectReachAndFrequencyResultBuilderTest {
   @Test
   fun `buildMeasurementResult is reproducible when noise mechanism is DETERMINISTIC_TRUNCATED_LAPLACE`() =
     runBlocking {
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       fun build() =
         DirectReachAndFrequencyResultBuilder(

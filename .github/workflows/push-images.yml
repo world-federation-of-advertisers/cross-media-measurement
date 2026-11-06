@@ -19,10 +19,6 @@ run-name: Build and push container images | image-tag=${{ inputs.image-tag }}
 on:
   workflow_call:
     inputs:
-      image-name:
-        description: "Single Bazel image name to publish; empty publishes all images"
-        type: string
-        default: ""
       image-tag:
         description: "Tag of container images"
         type: string
@@ -70,7 +66,6 @@ jobs:
           password: ${{ github.token }}
 
       - name: Build images
-        if: inputs.image-name == ''
         run: >
           bazelisk build
           //src/main/docker:push_all_gke_images 
@@ -79,19 +74,8 @@ jobs:
           //src/main/docker:push_all_eks_images
 
       - name: Push images
-        if: inputs.image-name == ''
         run: |
           bazelisk run //src/main/docker:push_all_gke_images 
           bazelisk run //src/main/docker:push_tee_app_gke_images
           bazelisk run //src/main/docker/panel_exchange_client:push_all_images
           bazelisk run //src/main/docker:push_all_eks_images
-
-
-      - name: Build and push selected image
-        if: inputs.image-name != ''
-        env:
-          IMAGE_NAME: ${{ inputs.image-name }}
-        run: |
-          set -euo pipefail
-          [[ "$IMAGE_NAME" =~ ^[a-z][a-z0-9_]*$ ]]
-          bazelisk run "//src/main/docker:push_$IMAGE_NAME"

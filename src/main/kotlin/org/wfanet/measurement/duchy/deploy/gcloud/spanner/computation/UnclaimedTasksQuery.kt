@@ -58,9 +58,7 @@ class UnclaimedTasksQuery<StageT>(
         CreationTime,
         LockExpirationTime,
         UpdateTime
-      -- A worker that loses a claim can try the next candidate from this snapshot.
-      -- Bound the fallback batch while retaining priority and creation-time ordering.
-      LIMIT 32
+      LIMIT 1
       """
   }
 

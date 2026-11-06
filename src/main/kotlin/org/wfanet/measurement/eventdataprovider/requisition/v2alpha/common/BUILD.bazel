@@ -15,7 +15,6 @@ kt_jvm_library(
     name = "common",
     srcs = [
         "FrequencyVectorBuilder.kt",
-        "FrequencyVectorSampling.kt",
         "InMemoryVidIndexMap.kt",
         "ParallelInMemoryVidIndexMap.kt",
         "VidIndexMap.kt",

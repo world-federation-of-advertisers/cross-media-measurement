@@ -34,13 +34,12 @@ import (
 )
 
 var (
-	grpcTarget                = flag.String("reporting-public-api-target", "", "gRPC target for the Reporting public API server (required)")
-	grpcMaxInboundMessageSize = flag.Int("reporting-public-api-max-inbound-message-size", 64*1024*1024, "maximum inbound Reporting gRPC message size in bytes")
-	grpcTargetCertHost        = flag.String("reporting-public-api-cert-host", "", "hostname of the server's certificate (optional, overrides DNS)")
-	tlsTrustedCertsPath       = flag.String("cert-collection-file", "", "path to PEM file containing trusted TLS certificates (required)")
-	tlsCertPath               = flag.String("tls-cert-file", "", "path to PEM file containing TLS server certificate (required)")
-	tlsKeyPath                = flag.String("tls-key-file", "", "path to PEM file containing private key for TLS server certificate (required)")
-	port                      = flag.Int("port", 8443, "port number to host the gateway on")
+	grpcTarget          = flag.String("reporting-public-api-target", "", "gRPC target for the Reporting public API server (required)")
+	grpcTargetCertHost  = flag.String("reporting-public-api-cert-host", "", "hostname of the server's certificate (optional, overrides DNS)")
+	tlsTrustedCertsPath = flag.String("cert-collection-file", "", "path to PEM file containing trusted TLS certificates (required)")
+	tlsCertPath         = flag.String("tls-cert-file", "", "path to PEM file containing TLS server certificate (required)")
+	tlsKeyPath          = flag.String("tls-key-file", "", "path to PEM file containing private key for TLS server certificate (required)")
+	port                = flag.Int("port", 8443, "port number to host the gateway on")
 )
 
 func run() error {
@@ -48,29 +47,29 @@ func run() error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Create connection object to connect to gRPC server
-	gatewayMux := runtime.NewServeMux()
-	conn, err := newClient(*grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
+  // Create connection object to connect to gRPC server
+  gatewayMux := runtime.NewServeMux()
+  conn, err := newClient(*grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
 
-	// TODO: Replace with connection to health check at grpcTarget
+  // TODO: Replace with connection to health check at grpcTarget
 	// Block until the connection is actually READY
-	fmt.Printf("Waiting for gRPC connection to %s...\n", *grpcTarget)
-	waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer waitCancel()
+  fmt.Printf("Waiting for gRPC connection to %s...\n", *grpcTarget)
+  waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
+  defer waitCancel()
 
-	for {
-		state := conn.GetState()
-		if state == connectivity.Idle {
-			conn.Connect()
-		}
-		if state == connectivity.Ready {
-			break
-		}
-		if !conn.WaitForStateChange(waitCtx, state) {
-			return fmt.Errorf("gRPC connection failed to reach READY state within timeout")
-		}
-	}
-	fmt.Println("gRPC connection established.")
+  for {
+      state := conn.GetState()
+      if state == connectivity.Idle {
+          conn.Connect()
+      }
+      if state == connectivity.Ready {
+          break
+      }
+      if !conn.WaitForStateChange(waitCtx, state) {
+          return fmt.Errorf("gRPC connection failed to reach READY state within timeout")
+      }
+  }
+  fmt.Println("gRPC connection established.")
 
 	if err != nil {
 		return err
@@ -90,9 +89,9 @@ func run() error {
 		}
 	}
 
-	mainMux := http.NewServeMux()
-	mainMux.HandleFunc("/healthz", healthzHandler)
-	mainMux.Handle("/", gatewayMux)
+  mainMux := http.NewServeMux()
+  mainMux.HandleFunc("/healthz", healthzHandler)
+  mainMux.Handle("/", gatewayMux)
 
 	// Start HTTP server (and proxy calls to gRPC server endpoint)
 	addr := ":" + strconv.Itoa(*port)
@@ -105,13 +104,13 @@ func newClient(target string, trustedCertsPath string, certHost string) (*grpc.C
 		return nil, err
 	}
 
-	return grpc.NewClient(target, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(*grpcMaxInboundMessageSize)))
+	return grpc.NewClient(target, grpc.WithTransportCredentials(creds))
 }
 
 // Create a local health handler
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ok"))
+  w.WriteHeader(http.StatusOK)
+  w.Write([]byte("ok"))
 }
 
 func main() {

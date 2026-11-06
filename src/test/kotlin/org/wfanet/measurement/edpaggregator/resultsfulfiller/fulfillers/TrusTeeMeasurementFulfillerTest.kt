@@ -35,6 +35,8 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import org.wfanet.frequencycount.FrequencyVector
+import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt
@@ -63,7 +65,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorSampling
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.testing.Requisitions.TRUSTEE_REQUISITION
 import org.wfanet.measurement.testing.Requisitions.TRUSTEE_V2_REQUISITION
 
@@ -130,7 +132,7 @@ class TrusTeeMeasurementFulfillerTest {
   @Test
   fun `fulfillRequisition calls stub with correct parameters`() = runBlocking {
     val requisitionNonce = Random.Default.nextLong()
-    val sampledFrequencyVector = byteArrayOf(4, 5, 6)
+    val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
     val requisition = TRUSTEE_REQUISITION.copy { this.nonce = requisitionNonce }
     val requisitionsThrottler = RecordingThrottler()
     val fulfiller =
@@ -169,7 +171,7 @@ class TrusTeeMeasurementFulfillerTest {
   @Test
   fun `fulfillRequisition sends a TrusTeeV2 header for a TrusTeeV2 Requisition`() = runBlocking {
     val requisitionNonce = Random.Default.nextLong()
-    val sampledFrequencyVector = byteArrayOf(4, 5, 6)
+    val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
     val requisition = TRUSTEE_V2_REQUISITION.copy { this.nonce = requisitionNonce }
     val fulfiller =
       TrusTeeMeasurementFulfiller(
@@ -201,7 +203,7 @@ class TrusTeeMeasurementFulfillerTest {
   fun `fulfillRequisition throws on gRPC error`() {
     runBlocking {
       val requisitionNonce = Random.Default.nextLong()
-      val sampledFrequencyVector = byteArrayOf(4, 5, 6)
+      val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
       val stubWithError: RequisitionFulfillmentCoroutineStub = mock()
 
       whenever(stubWithError.fulfillRequisition(any(), any())).thenAnswer {
@@ -227,7 +229,7 @@ class TrusTeeMeasurementFulfillerTest {
   fun `fulfillRequisition does not throw on gRPC error for terminal state requisitions`() {
     runBlocking {
       val requisitionNonce = Random.Default.nextLong()
-      val sampledFrequencyVector = byteArrayOf(4, 5, 6)
+      val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
       val stubWithError: RequisitionFulfillmentCoroutineStub = mock()
       whenever(stubWithError.fulfillRequisition(any(), any())).thenAnswer {
         throw StatusException(Status.INTERNAL)
@@ -252,16 +254,22 @@ class TrusTeeMeasurementFulfillerTest {
   fun `fulfillRequisition with non-empty frequency vector with sufficient thresholds`() {
     runBlocking {
       val requisitionNonce = Random.Default.nextLong()
-      val frequencyData =
-        FrequencyVectorSampling(POPULATION_SPEC, MEASUREMENT_SPEC, null, null)
-          .sample(ByteArray(7) { if (it in 4..6) 1 else 0 })
+      val frequencyVectorBuilder =
+        FrequencyVectorBuilder(
+          measurementSpec = MEASUREMENT_SPEC,
+          populationSpec = POPULATION_SPEC,
+          overrideImpressionMaxFrequencyPerUser = null,
+          strict = false,
+        )
+      listOf(4, 5, 6).forEach { frequencyVectorBuilder.increment(it) }
       val requisition = TRUSTEE_REQUISITION.copy { this.nonce = requisitionNonce }
       val fulfiller =
         TrusTeeMeasurementFulfiller.buildThresholded(
           requisition,
           requisitionNonce,
           MEASUREMENT_SPEC,
-          frequencyData,
+          POPULATION_SPEC,
+          frequencyVectorBuilder,
           requisitionFulfillmentStubMap =
             mapOf(
               "duchies/worker1" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
@@ -299,16 +307,22 @@ class TrusTeeMeasurementFulfillerTest {
   fun `fulfillRequisition with empty frequency vector with insufficient thresholds`() {
     runBlocking {
       val requisitionNonce = Random.Default.nextLong()
-      val frequencyData =
-        FrequencyVectorSampling(POPULATION_SPEC, MEASUREMENT_SPEC, null, null)
-          .sample(ByteArray(7) { if (it in 4..6) 1 else 0 })
+      val frequencyVectorBuilder =
+        FrequencyVectorBuilder(
+          measurementSpec = MEASUREMENT_SPEC,
+          populationSpec = POPULATION_SPEC,
+          overrideImpressionMaxFrequencyPerUser = null,
+          strict = false,
+        )
+      listOf(4, 5, 6).forEach { frequencyVectorBuilder.increment(it) }
       val requisition = TRUSTEE_REQUISITION.copy { this.nonce = requisitionNonce }
       val fulfiller =
         TrusTeeMeasurementFulfiller.buildThresholded(
           requisition,
           requisitionNonce,
           MEASUREMENT_SPEC,
-          frequencyData,
+          POPULATION_SPEC,
+          frequencyVectorBuilder,
           requisitionFulfillmentStubMap =
             mapOf(
               "duchies/worker1" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
@@ -338,12 +352,7 @@ class TrusTeeMeasurementFulfillerTest {
         )
       assertThat(fulfilledRequisitions[0].header.hasTrusTee()).isTrue()
       val bodyData = fulfilledRequisitions[1].bodyChunk.data
-      assertThat(bodyData.toByteArray()).isEqualTo(EMPTY_FREQUENCY_VECTOR)
-      assertThat(frequencyData)
-        .isEqualTo(
-          FrequencyVectorSampling(POPULATION_SPEC, MEASUREMENT_SPEC, null, null)
-            .sample(ByteArray(7) { if (it in 4..6) 1 else 0 })
-        )
+      assertThat(bodyData.size()).isEqualTo(EMPTY_FREQUENCY_VECTOR.dataCount)
     }
   }
 
@@ -389,6 +398,12 @@ class TrusTeeMeasurementFulfillerTest {
     }
   }
 
-  private val EMPTY_FREQUENCY_VECTOR: ByteArray =
-    FrequencyVectorSampling(POPULATION_SPEC, MEASUREMENT_SPEC, null, null).sample(ByteArray(0))
+  private val EMPTY_FREQUENCY_VECTOR: FrequencyVector =
+    FrequencyVectorBuilder(
+        measurementSpec = MEASUREMENT_SPEC,
+        populationSpec = POPULATION_SPEC,
+        overrideImpressionMaxFrequencyPerUser = null,
+        strict = false,
+      )
+      .build()
 }

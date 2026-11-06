@@ -21,7 +21,6 @@ import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
-import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import java.security.GeneralSecurityException
@@ -33,11 +32,9 @@ import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCreden
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
-import org.wfanet.measurement.common.crypto.tink.WifCredentials
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
-import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.TransientErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeParams
@@ -46,7 +43,6 @@ import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeReachAndFreque
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeReachParams
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
-import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -101,27 +97,7 @@ class TrusTeeMill(
     clock = clock,
   ) {
 
-  // Reuse the clients' refreshable credentials across requisitions and computations. Creating a
-  // new provider for every requisition exhausts Confidential Space attestation quotas.
-  private val kmsClients =
-    object : LinkedHashMap<WifCredentials, KmsClient>(16, 0.75f, true) {
-      override fun removeEldestEntry(eldest: MutableMap.MutableEntry<WifCredentials, KmsClient>) =
-        size > MAX_CACHED_KMS_CLIENTS
-    }
-
-  private var initializationPriorityClaims = 0
-
   override val endingStage = Stage.COMPLETE.toProtocolStage()
-
-  override fun prioritizedStagesForClaim(): List<ComputationStage> {
-    // Periodically prefer ready computations so initialization cannot monopolize claims.
-    if (initializationPriorityClaims == INITIALIZATION_PRIORITY_BURST_SIZE) {
-      initializationPriorityClaims = 0
-      return listOf(Stage.COMPUTING.toProtocolStage())
-    }
-    initializationPriorityClaims++
-    return listOf(Stage.INITIALIZED.toProtocolStage())
-  }
 
   override suspend fun processComputationImpl(token: ComputationToken) {
     require(token.computationDetails.hasTrusTee()) {
@@ -269,7 +245,7 @@ class TrusTeeMill(
               region = awsConfig.region,
               audience = awsConfig.audience,
             )
-          getCachedKmsClient(confidentialSpaceToAwsKmsClientFactory, credentials)
+          confidentialSpaceToAwsKmsClientFactory.getKmsClient(credentials)
         } else {
           // Two-hop: GCP WIF + service-account impersonation mints the OIDC token for AWS STS.
           val credentials =
@@ -285,7 +261,7 @@ class TrusTeeMill(
               region = awsConfig.region,
               awsAudience = awsConfig.audience,
             )
-          getCachedKmsClient(gcloudToAwsKmsClientFactory, credentials)
+          gcloudToAwsKmsClientFactory.getKmsClient(credentials)
         }
       } else {
         val credentials =
@@ -297,28 +273,10 @@ class TrusTeeMill(
             serviceAccountImpersonationUrl =
               IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
           )
-        getCachedKmsClient(gcloudKmsClientFactory, credentials)
+        gcloudKmsClientFactory.getKmsClient(credentials)
       }
     } catch (e: GeneralSecurityException) {
-      throw keyAccessException("Failed to create KMS client", e)
-    }
-  }
-
-  private fun <T : WifCredentials> getCachedKmsClient(
-    factory: KmsClientFactory<T>,
-    credentials: T,
-  ): KmsClient =
-    synchronized(kmsClients) {
-      kmsClients.getOrPut(credentials) { factory.getKmsClient(credentials) }
-    }
-
-  private fun keyAccessException(message: String, cause: GeneralSecurityException): Exception {
-    // The launcher reports quota and transport failures as IOException. These do not imply an
-    // invalid encrypted keyset and should use the mill's bounded retry policy.
-    return if (generateSequence<Throwable>(cause) { it.cause }.any { it is IOException }) {
-      TransientErrorException(message, cause)
-    } else {
-      PermanentErrorException(message, cause)
+      throw PermanentErrorException("Failed to create KMS client", e)
     }
   }
 
@@ -334,7 +292,7 @@ class TrusTeeMill(
         kekAead,
       )
     } catch (e: GeneralSecurityException) {
-      throw keyAccessException("Failed to get DEK keyset", e)
+      throw PermanentErrorException("Failed to get DEK keyset due to a cryptographic error", e)
     }
   }
 
@@ -377,10 +335,6 @@ class TrusTeeMill(
     }
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    private const val MAX_CACHED_KMS_CLIENTS = 128
-
-    private const val INITIALIZATION_PRIORITY_BURST_SIZE = 3
 
     private const val OAUTH_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token"
     private const val GOOGLE_STS_TOKEN_URL = "https://sts.googleapis.com/v1/token"

@@ -280,7 +280,6 @@ class MeasurementsService(
         val pageToken =
           listMeasurementsPageToken.copy {
             lastMeasurement = previousPageEnd {
-              updateTime = results[results.lastIndex - 1].updateTime
               externalMeasurementId = results[results.lastIndex - 1].externalMeasurementId
             }
           }

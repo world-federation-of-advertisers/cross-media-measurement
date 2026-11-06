@@ -261,32 +261,14 @@ class BasicReportsReportsJob(
                       return@trace
                     }
 
-                  // Validate dimensions across the entire result set before any partial writes.
-                  require(
-                    reportingSetResultRequests
-                      .map { it.reportingSetResult.dimension }
-                      .toSet()
-                      .size == reportingSetResultRequests.size
-                  ) {
-                    "Report results contain duplicate dimensions"
-                  }
-                  val resultBatches =
-                    reportingSetResultRequests.chunked(REPORTING_SET_RESULT_BATCH_SIZE).ifEmpty {
-                      listOf(emptyList())
+                  reportResultsStub.batchCreateReportingSetResults(
+                    batchCreateReportingSetResultsRequest {
+                      this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+                      externalReportResultId = reportResult.externalReportResultId
+                      requests += reportingSetResultRequests
+                      externalBasicReportId = basicReport.externalBasicReportId
                     }
-                  for ((index, batch) in resultBatches.withIndex()) {
-                    reportResultsStub.batchCreateReportingSetResults(
-                      batchCreateReportingSetResultsRequest {
-                        this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-                        externalReportResultId = reportResult.externalReportResultId
-                        requests += batch
-                        // Only expose the report to processing after every preceding batch commits.
-                        if (index == resultBatches.lastIndex) {
-                          externalBasicReportId = basicReport.externalBasicReportId
-                        }
-                      }
-                    )
-                  }
+                  )
                   span.addEvent(
                     "reporting.basic_report.unprocessed_results_persisted",
                     Attributes.builder()
@@ -363,11 +345,6 @@ class BasicReportsReportsJob(
   }
 
   /**
-   * Resumes CREATED BasicReports carrying a frozen creation plan, and fails any CREATED BasicReport
-   * older than [maxCreatedBasicReportAge]. Legacy rows without plans retain their previous watchdog
-   * behavior.
-   */
-  /**
    * Resumes durable creation using immutable stored inputs and the original request ID. A transient
    * failure leaves the BasicReport pending for the next execution. The creation-age watchdog bounds
    * retries, including configuration failures that cannot be repaired promptly.
@@ -435,6 +412,11 @@ class BasicReportsReportsJob(
     }
   }
 
+  /**
+   * Resumes CREATED BasicReports carrying a frozen creation plan, and fails any CREATED BasicReport
+   * older than [maxCreatedBasicReportAge]. Legacy rows without plans retain their previous watchdog
+   * behavior.
+   */
   private suspend fun processCreatedBasicReports(
     cmmsMeasurementConsumerId: String,
     offlinePrincipal: String,
@@ -817,47 +799,23 @@ class BasicReportsReportsJob(
     cmmsMeasurementConsumerId: String,
     externalCampaignGroupId: String,
   ): Map<String, MetricCalculationSpecInfo> {
-    return buildMap {
-      internalMetricCalculationSpecsStub
-        .listResources { cursor: String ->
-          val response =
-            internalMetricCalculationSpecsStub.listMetricCalculationSpecs(
-              listMetricCalculationSpecsRequest {
-                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                filter =
-                  ListMetricCalculationSpecsRequestKt.filter {
-                    this.externalCampaignGroupId = externalCampaignGroupId
-                  }
-                limit = 1000
-                if (cursor.isNotEmpty()) {
-                  externalMetricCalculationSpecIdAfter = cursor
-                }
-              }
-            )
-          val nextCursor =
-            if (response.limited) {
-              response.metricCalculationSpecsList.last().externalMetricCalculationSpecId
-            } else {
-              ""
+    return internalMetricCalculationSpecsStub
+      .listMetricCalculationSpecs(
+        listMetricCalculationSpecsRequest {
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+          filter =
+            ListMetricCalculationSpecsRequestKt.filter {
+              this.externalCampaignGroupId = externalCampaignGroupId
             }
-          ResourceList(response.metricCalculationSpecsList, nextCursor)
+          limit = Int.MAX_VALUE
         }
-        .collect { page ->
-          for (spec in page.resources) {
-            put(
-              MetricCalculationSpecKey(
-                  spec.cmmsMeasurementConsumerId,
-                  spec.externalMetricCalculationSpecId,
-                )
-                .toName(),
-              MetricCalculationSpecInfo(
-                spec.details.metricFrequencySpec,
-                spec.details.hasTrailingWindow(),
-              ),
-            )
-          }
-        }
-    }
+      )
+      .metricCalculationSpecsList
+      .associate {
+        MetricCalculationSpecKey(it.cmmsMeasurementConsumerId, it.externalMetricCalculationSpecId)
+          .toName() to
+          MetricCalculationSpecInfo(it.details.metricFrequencySpec, it.details.hasTrailingWindow())
+      }
   }
 
   /** Transforms a [MetricCalculationSpec.MetricFrequencySpec] into [MetricFrequencySpec] */
@@ -1129,8 +1087,6 @@ class BasicReportsReportsJob(
   )
 
   companion object {
-    private const val REPORTING_SET_RESULT_BATCH_SIZE = 100
-
     private val logger: Logger = Logger.getLogger(BasicReportsReportsJob::class.java.name)
     private const val BATCH_SIZE = 10
   }

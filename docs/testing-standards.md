@@ -169,9 +169,6 @@ Database tests remain necessary to validate DDL execution and data migrations.
 
 ## See Also
 
-*   [Reporting scale test](operations/reporting-scale-test.md) — deployed
-    AMI/MRC report creation with adjustable geographic cardinality.
-
 *   [Code Style](code-style.md) — general testing guidance, assertion library
     choices, and test double recommendations
 *   [Dev Standards](dev-standards.md) — code review workflow and PR requirements

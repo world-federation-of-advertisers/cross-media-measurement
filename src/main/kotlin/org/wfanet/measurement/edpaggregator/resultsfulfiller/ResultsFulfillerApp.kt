@@ -80,8 +80,6 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *   methods without a dedicated per-method limit (`GetRequisition` and `ListRequisitions` each have
  *   their own).
  * @param metrics Metrics recorder for telemetry.
- * @param maxRequisitionsPerBatch Maximum requisitions whose frequency vectors are allocated
- *   together.
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
 class ResultsFulfillerApp(
@@ -103,7 +101,6 @@ class ResultsFulfillerApp(
   private val requisitionsThrottler: Throttler,
   private val kingdomThrottler: Throttler,
   private val metrics: ResultsFulfillerMetrics,
-  private val maxRequisitionsPerBatch: Int = 100,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -112,10 +109,6 @@ class ResultsFulfillerApp(
     workItemsStub = workItemsClient,
     workItemAttemptsStub = workItemAttemptsClient,
   ) {
-
-  init {
-    require(maxRequisitionsPerBatch > 0) { "maxRequisitionsPerBatch must be positive" }
-  }
 
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
@@ -132,7 +125,6 @@ class ResultsFulfillerApp(
     // Load grouped requisitions from storage
     val groupedRequisitions =
       loadGroupedRequisitions(requisitionsBlobUri, requisitionsStorageConfig)
-    require(groupedRequisitions.requisitionsCount > 0) { "Stored requisition group is empty" }
     val requisitionsStub = requisitionStubFactory.buildRequisitionsStub(fulfillerParams)
 
     val requisitionFulfillmentStubsMap =
@@ -262,33 +254,25 @@ class ResultsFulfillerApp(
         null
       }
 
-    val privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile)
-
-    // Existing stored groups may be larger than the fetcher's current limit. Keep each pass
-    // bounded so retries of those groups cannot allocate hundreds of full-population vectors.
-    for (batch in groupedRequisitions.requisitionsList.chunked(maxRequisitionsPerBatch)) {
-      val batchGroup =
-        groupedRequisitions.toBuilder().clearRequisitions().addAllRequisitions(batch).build()
-      ResultsFulfiller(
-          dataProvider = fulfillerParams.dataProvider,
-          requisitionMetadataStub = requisitionMetadataStub,
-          requisitionsStub = requisitionsStub,
-          requisitionsThrottler = requisitionsThrottler,
-          kingdomThrottler = kingdomThrottler,
-          privateEncryptionKey = privateEncryptionKey,
-          groupedRequisitions = batchGroup,
-          modelLineInfoMap = modelLineInfoMapWithAliases,
-          pipelineConfiguration = pipelineConfiguration,
-          impressionDataSourceProvider = impressionsDataSourceProvider,
-          impressionsStorageConfig = impressionsStorageConfig,
-          kmsClient = kmsClient,
-          fulfillerSelector = fulfillerSelector,
-          wholeBlobEntityTypes = fulfillerParams.wholeBlobEntityTypesList.toSet(),
-          eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
-          metrics = metrics,
-        )
-        .fulfillRequisitions()
-    }
+    ResultsFulfiller(
+        dataProvider = fulfillerParams.dataProvider,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = requisitionsThrottler,
+        kingdomThrottler = kingdomThrottler,
+        privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = modelLineInfoMapWithAliases,
+        pipelineConfiguration = pipelineConfiguration,
+        impressionDataSourceProvider = impressionsDataSourceProvider,
+        impressionsStorageConfig = impressionsStorageConfig,
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = fulfillerParams.wholeBlobEntityTypesList.toSet(),
+        eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
+        metrics = metrics,
+      )
+      .fulfillRequisitions()
   }
 
   /**

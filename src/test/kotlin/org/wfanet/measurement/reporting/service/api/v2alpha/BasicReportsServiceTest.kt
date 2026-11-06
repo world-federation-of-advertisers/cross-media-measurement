@@ -248,7 +248,7 @@ class BasicReportsServiceTest {
   val grpcTestServerRule = GrpcTestServerRule {
     val spannerDatabaseClient = spannerDatabase.databaseClient
     val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
-    val idGenerator = RandomIdGenerator(Clock.systemUTC(), Random.Default)
+    val idGenerator = RandomIdGenerator(Clock.systemUTC(), Random(1))
 
     addService(permissionsServiceMock)
     addService(reportsServiceMock)
