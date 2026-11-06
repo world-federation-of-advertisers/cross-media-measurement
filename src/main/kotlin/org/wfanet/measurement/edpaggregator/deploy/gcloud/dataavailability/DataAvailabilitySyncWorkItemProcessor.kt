@@ -23,6 +23,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 import java.util.logging.Level
@@ -40,6 +41,7 @@ import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseContext
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
@@ -49,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
@@ -66,6 +69,9 @@ internal data class DataAvailabilitySyncWorkItem(
   val appParams: DataAvailabilitySyncParams,
   val dataPathParams: WorkItem.WorkItemParams.DataPathParams,
 ) {
+  val isExternal: Boolean
+    get() = workItemParams.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)
+
   val workItemName: String
     get() = workItem.name
 
@@ -77,6 +83,9 @@ internal data class DataAvailabilitySyncWorkItem(
 
   val doneBlobGeneration: Long
     get() = dataPathParams.generation
+
+  val doneBlobCreateTime: Instant
+    get() = dataPathParams.createTime.toInstant()
 
   val eventDate: LocalDate
     get() =
@@ -104,31 +113,44 @@ internal data class DataAvailabilitySyncWorkItem(
           throw IllegalArgumentException("work_item_params cannot be unpacked", e)
         }
       require(workItemParams.hasAppParams()) { "app_params is required" }
-      require(workItemParams.appParams.`is`(DataAvailabilitySyncParams::class.java)) {
-        "app_params must contain DataAvailabilitySyncParams"
+      val isExternal = workItemParams.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)
+      require(isExternal || workItemParams.appParams.`is`(DataAvailabilitySyncParams::class.java)) {
+        "app_params must contain internal or external DataAvailabilitySyncParams"
       }
       val appParams =
         try {
-          workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
+          if (isExternal) {
+            DataAvailabilitySyncParams.newBuilder()
+              .setDataProvider(
+                workItemParams.appParams
+                  .unpack(ExternalDataAvailabilitySyncParams::class.java)
+                  .dataProvider
+              )
+              .build()
+          } else {
+            workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
+          }
         } catch (e: InvalidProtocolBufferException) {
           throw IllegalArgumentException("app_params cannot be unpacked", e)
         }
       requireNotNull(DataProviderKey.fromName(appParams.dataProvider)) {
         "data_provider must be a DataProvider resource name"
       }
-      requireNotNull(RawImpressionUploadKey.fromName(appParams.triggeringRawImpressionUpload)) {
-        "raw_impression_upload must be a RawImpressionUpload resource name"
+      if (!isExternal) {
+        requireNotNull(RawImpressionUploadKey.fromName(appParams.triggeringRawImpressionUpload)) {
+          "raw_impression_upload must be a RawImpressionUpload resource name"
+        }
+        requireNotNull(ModelLineKey.fromName(appParams.modelLine)) {
+          "model_line must be a ModelLine resource name"
+        }
+        requireNotNull(
+          RawImpressionUploadModelLineKey.fromName(appParams.rawImpressionUploadModelLine)
+        ) {
+          "raw_impression_upload_model_line must be a RawImpressionUploadModelLine resource name"
+        }
+        require(appParams.hasEventDate()) { "event_date is required" }
+        LocalDate.of(appParams.eventDate.year, appParams.eventDate.month, appParams.eventDate.day)
       }
-      requireNotNull(ModelLineKey.fromName(appParams.modelLine)) {
-        "model_line must be a ModelLine resource name"
-      }
-      requireNotNull(
-        RawImpressionUploadModelLineKey.fromName(appParams.rawImpressionUploadModelLine)
-      ) {
-        "raw_impression_upload_model_line must be a RawImpressionUploadModelLine resource name"
-      }
-      require(appParams.hasEventDate()) { "event_date is required" }
-      LocalDate.of(appParams.eventDate.year, appParams.eventDate.month, appParams.eventDate.day)
 
       require(workItemParams.hasDataPathParams()) { "data_path_params is required" }
       val dataPathParams = workItemParams.dataPathParams
@@ -136,6 +158,7 @@ internal data class DataAvailabilitySyncWorkItem(
       require(dataPathParams.hasGeneration() && dataPathParams.generation > 0L) {
         "data path generation must be positive"
       }
+      require(dataPathParams.hasCreateTime()) { "data path create_time is required" }
       require(
         dataPathParams.eventType ==
           WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
@@ -229,7 +252,7 @@ internal class DataAvailabilitySyncWorkItemProcessor(
                   result == DataAvailabilitySync.Outcome.NO_WORK
               ) {
                 lease()
-                markAvailabilitySynchronized(input)
+                if (!input.isExternal) markAvailabilitySynchronized(input)
               }
               result
             }

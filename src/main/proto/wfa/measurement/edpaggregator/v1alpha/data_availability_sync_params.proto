@@ -62,3 +62,14 @@ message DataAvailabilitySyncParams {
         "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
   ];
 }
+
+// Parameters for external labeled-output done events dispatched by DataWatcher.
+// The WorkItem data_path_params carries the done object URI and generation.
+// These tasks have no VID Labeler raw-upload resource or pipeline completion row.
+message ExternalDataAvailabilitySyncParams {
+  // Resource name of the DataProvider.
+  string data_provider = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
+  ];
+}

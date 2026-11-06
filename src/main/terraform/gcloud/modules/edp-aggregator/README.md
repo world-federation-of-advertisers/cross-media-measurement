@@ -39,3 +39,32 @@ reads the exact finalized generation. Update this URI when moving the input loca
 Set `event_group_sync_memory` to the existing environment allocation before redeployment.
 Leaving it unset preserves the existing deployment replacement keys; a new or redeployed
 function still uses the legacy `512MB` allocation unless overridden.
+
+## External data availability WorkItems
+
+External labeled-output `done` routes now enqueue `ExternalDataAvailabilitySyncParams` on
+`data-availability-sync-queue`. DataWatcher returns once the task is durably accepted. The
+existing consumer uses the same attempt lifecycle and per-provider synchronization lease as
+VID Labeler tasks, and records success after availability publication. Attempt renewal continues through completion
+bookkeeping and the final control-plane write. It discovers external
+sidecars by scanning the done object's folder and does not require internal raw-upload names
+or mark VID Labeler pipeline completion rows.
+
+Deploy the consumer and DataWatcher binary before switching route configuration. Drain legacy
+HTTP deliveries. External tasks use
+`${external_impression_path}/model-line/<line>/<date>/done`; when `external_impression_path` is
+empty they use `edp_impression_path`. Providers also using VID Labeler must configure separate
+prefixes. `edp_impression_path` must match the dispatcher and monitor's internal output prefix;
+internal tasks continue to be created by VID Labeler. The deployment validator rejects both
+HTTP and queued DataWatcher routes that match internal outputs.
+The consumer validates the external bucket, prefix, date, and finalized object generation.
+Both producers use the provider's `data-availability:<DataProvider>` ordering key and the
+existing provider lease. DataAvailabilitySync allows five single-request instances and a
+60-minute invocation timeout. A completed WorkItem skips redelivered work; an interrupted
+attempt remains retryable through the lease-aware control plane and DLQ listener.
+
+The supplied environment configs preserve the external upload paths and place VID Labeler
+outputs under their `vid-labeler` subdirectory. Before adopting this configuration, drain active
+VID Labeler and availability tasks and migrate dispatcher, monitor, and sync configs together.
+Keep previously published impression metadata; new tasks derive their outputs from the new
+internal prefix. External upload producers do not need to change their paths.
