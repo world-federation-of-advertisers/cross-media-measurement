@@ -129,12 +129,21 @@ Creation verification reads the persisted BasicReport and underlying Report plan
 then every referenced metric and its stored Kingdom measurement links. It checks
 those links against the signed measurement metadata and verifies each measurement's
 expected provider requisitions. Fresh and reused resources are counted separately.
-Requisition reads use each provider's synthetic TLS identity and pages of 500,
-rather than one request per measurement. Only requisitions belonging to the
-selected measurement IDs are retained; unrelated historical entries cannot
-satisfy the checks. Public requisition visibility requires duchy parameter setup,
-so this check allows 30 minutes for setup without requiring fulfillment.
-A metrics-and-measurements checkpoint is saved before waiting for public requisition visibility.
+Requisition verification reads internal Kingdom pages of 1,000, scoped to the
+MeasurementConsumer and a lower update-time bound from the oldest linked
+measurement. It retains exact measurement/provider pairs and discards encrypted
+payloads as each page is read. The cursor includes update time, provider ID and
+requisition ID. A requisition that changes state between creation-audit pages is
+deduplicated by its immutable ID; different requisitions for the same pair fail
+verification. Creation includes PENDING_PARAMS rows, and final verification
+requires every expected requisition to be FULFILLED. Verification no longer
+scans every EDP's complete public history.
+
+The creation gate waits up to 15 minutes for the persisted BasicReport's
+underlying Report association. That association is written after Report creation
+returns. A RUNNING API acknowledgement alone does not pass. The summary records
+the observed resource-ready timestamp and its upper-bound elapsed time separately
+from the HTTP response and exhaustive audit timings.
 Metrics and measurements may still be RUNNING at this gate.
 
 A failed create triggers a bounded read of the same resource without retrying
@@ -225,7 +234,6 @@ it can consume RPC deadlines during scaled creation.
 Creation verification reads the persisted internal Report plan because RUNNING public Reports
 do not yet include metric results. It also reads internal Kingdom requisitions so that
 PENDING_PARAMS rows can be verified before Duchy setup finishes. The controller opens temporary
-private API connections with a separate kubeconfig and closes them after the creation phase.
+private API connections with a separate kubeconfig and closes them after each phase.
 For direct Bazel runs, provide REPORTING_SCALE_INTERNAL_API_TARGET and
-REPORTING_SCALE_KINGDOM_INTERNAL_API_TARGET. Fulfillment still verifies the public metrics,
-measurements, and requisitions.
+REPORTING_SCALE_KINGDOM_INTERNAL_API_TARGET. Fulfillment verifies public metrics and measurements, plus the complete internal requisition set.

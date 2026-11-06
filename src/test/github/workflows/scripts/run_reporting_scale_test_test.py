@@ -54,13 +54,14 @@ class ReportingScaleControllerTest(unittest.TestCase):
                 self.assertEqual(state[0], "PAUSED")
                 self.assertEqual(environment["REPORTING_SCALE_EXISTING_BASIC_REPORT"], "")
                 self.assertEqual(environment["REPORTING_SCALE_CANCEL_FAILED_CREATION"], "true")
-                return create_code, [{"basic_report": REPORT, "creation_verified": creation_verified,
+                return create_code, [{"basic_report": REPORT, "report": "measurementConsumers/test/reports/underlying", "creation_verified": creation_verified,
                                       "outcome": "creation_succeeded" if creation_verified else "failed",
                                       "cleanup_complete": cleanup_complete,
                                       "create_http_status": 200 if verification_retryable else 500,
                                       "creation_verification_retryable": verification_retryable}]
             self.assertEqual(state[0], "ENABLED")
             self.assertEqual(environment["REPORTING_SCALE_CANCEL_FAILED_CREATION"], "false")
+            self.assertEqual(environment["REPORTING_SCALE_UNDERLYING_REPORT"], "measurementConsumers/test/reports/underlying")
             forwarded_reports.append(environment["REPORTING_SCALE_EXISTING_BASIC_REPORT"])
             return 0, [{"basic_report": REPORT, "outcome": "fulfilled_existing"}]
 
