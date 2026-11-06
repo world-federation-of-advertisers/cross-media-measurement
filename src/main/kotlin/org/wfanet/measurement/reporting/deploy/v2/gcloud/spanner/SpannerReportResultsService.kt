@@ -17,9 +17,12 @@
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
 import com.google.cloud.spanner.Options
+import com.google.protobuf.CodedOutputStream
 import com.google.protobuf.Empty
 import com.google.type.DateTime
 import io.grpc.Status
+import java.nio.ByteBuffer
+import java.security.MessageDigest
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -58,6 +61,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReport
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportingWindowResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readFullReportingSetResults
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readProcessedResultRequestFingerprint
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingSetResultIds
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingWindowResultIdsByReportingSetResult
@@ -69,6 +73,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSet
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingWindowResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToSucceeded
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToUnprocessedResultsReady
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setProcessedResultRequestFingerprint
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.upsertReportResultValues
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.internal.BasicReportStateInvalidException
@@ -547,9 +552,19 @@ class SpannerReportResultsService(
             }
           }
         }
-        Triple(measurementConsumerId, reportResultId, writes)
+        Triple(
+          measurementConsumerId,
+          reportResultId,
+          writes.sortedWith(
+            compareBy(
+              ProcessedResultWrite::reportingSetResultId,
+              ProcessedResultWrite::reportingWindowResultId,
+            )
+          ),
+        )
       }
 
+    val requestFingerprint: ByteArray = processedResultRequestFingerprint(writes)
     val filter =
       ListBasicReportsRequestKt.filter {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
@@ -570,6 +585,20 @@ class SpannerReportResultsService(
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           }
           basicReports += result
+        }
+        val storedFingerprint: ByteArray? =
+          txn.readProcessedResultRequestFingerprint(measurementConsumerId, reportResultId)
+        if (storedFingerprint == null) {
+          txn.setProcessedResultRequestFingerprint(
+            measurementConsumerId,
+            reportResultId,
+            requestFingerprint,
+          )
+        } else if (!storedFingerprint.contentEquals(requestFingerprint)) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "Corrected values differ from the request already claimed for this ReportResult"
+            )
+            .asRuntimeException()
         }
         for (write in batch) {
           txn.upsertReportResultValues(
@@ -598,6 +627,26 @@ class SpannerReportResultsService(
     val reportingWindowResultId: Long,
     val values: ReportingSetResult.ReportingWindowResult.ReportResultValues,
   )
+
+  private fun processedResultRequestFingerprint(writes: List<ProcessedResultWrite>): ByteArray {
+    val digest = MessageDigest.getInstance("SHA-256")
+    val header = ByteBuffer.allocate(Long.SIZE_BYTES * 2 + Int.SIZE_BYTES)
+    for (write in writes) {
+      val values = ByteArray(write.values.serializedSize)
+      val output = CodedOutputStream.newInstance(values)
+      output.useDeterministicSerialization()
+      write.values.writeTo(output)
+      output.checkNoSpaceLeft()
+      header.clear()
+      header
+        .putLong(write.reportingSetResultId)
+        .putLong(write.reportingWindowResultId)
+        .putInt(values.size)
+      digest.update(header.array())
+      digest.update(values)
+    }
+    return digest.digest()
+  }
 
   private fun validate(request: AddProcessedResultValuesRequest) {
     if (request.cmmsMeasurementConsumerId.isEmpty()) {
