@@ -127,12 +127,12 @@ class VidLabelerAppRunner :
             readCompiledModelBlob(modelStorageConfig, modelBlobUri)
           )
         },
-        buildImpressionConverter = { _, config ->
+        buildImpressionConverter = { modelLine, config ->
           val eventDescriptor = resolveEventDescriptor(config)
           ParquetImpressionConverter(
             eventDescriptor = eventDescriptor,
             populationAttributeWriter =
-              populationAttributeWriterLoader.getWriter(config, eventDescriptor),
+              populationAttributeWriterLoader.getWriter(modelLine, config, eventDescriptor),
           )
         },
         // Process-scoped: one cache shared across every WorkItem this container processes, so the
