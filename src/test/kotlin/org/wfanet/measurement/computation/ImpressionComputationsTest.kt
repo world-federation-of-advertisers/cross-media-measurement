@@ -228,7 +228,7 @@ class ImpressionComputationsTest {
         vidSamplingIntervalWidth = 1.0,
         noiser =
           DeterministicTruncatedLaplaceResultNoiser(
-            combinedFrequencyVector = seedVector,
+            combinedFrequencyVector = FrequencyData.from(seedVector),
             contributionCount = 1,
             maxFrequencyPerUser = MAX_FREQUENCY,
           ),
@@ -285,7 +285,7 @@ class ImpressionComputationsTest {
     // value for a vector holding one impression would leave the two distinguishable.
     val result =
       ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        frequencyVector = IntArray(100),
+        frequencyVector = FrequencyData.from(IntArray(100)),
         queryRho = COARSE_RHO,
         maxFrequency = VECTOR_MAX_FREQUENCY,
         noiseSource = { _, _, bar, l2Sensitivity, rho ->
@@ -397,6 +397,23 @@ class ImpressionComputationsTest {
     }
   }
 
+  @Test
+  fun `dynamically clipped byte frequencies preserve the integer result`() {
+    val frequencies =
+      ByteArray(DYNAMIC_FREQUENCY_VECTOR.size) { DYNAMIC_FREQUENCY_VECTOR[it].toByte() }
+    val result =
+      ImpressionComputations.computeDynamicallyClippedImpressionCount(
+        frequencyVector = FrequencyData.from(frequencies),
+        queryRho = PRECISE_RHO,
+        maxFrequency = VECTOR_MAX_FREQUENCY,
+        noiseSource = NO_NOISE,
+        vidSamplingIntervalWidth = 1.0,
+        resultMinimumThresholds = null,
+      )
+    assertThat(result).isEqualTo(dynamicallyClipped(PRECISE_RHO))
+    assertThat(result.value).isEqualTo(285L)
+  }
+
   private fun dynamicallyClipped(
     queryRho: Double,
     frequencyVector: IntArray = DYNAMIC_FREQUENCY_VECTOR,
@@ -404,7 +421,7 @@ class ImpressionComputationsTest {
     thresholds: ResultMinimumThresholds? = null,
   ) =
     ImpressionComputations.computeDynamicallyClippedImpressionCount(
-      frequencyVector = frequencyVector,
+      frequencyVector = FrequencyData.from(frequencyVector),
       queryRho = queryRho,
       maxFrequency = VECTOR_MAX_FREQUENCY,
       noiseSource = NO_NOISE,
@@ -414,7 +431,7 @@ class ImpressionComputationsTest {
 
   private fun deterministicNoiser(seedVector: IntArray = SEED_VECTOR) =
     DeterministicTruncatedLaplaceResultNoiser(
-      combinedFrequencyVector = seedVector,
+      combinedFrequencyVector = FrequencyData.from(seedVector),
       contributionCount = 1,
       maxFrequencyPerUser = MAX_FREQUENCY,
     )

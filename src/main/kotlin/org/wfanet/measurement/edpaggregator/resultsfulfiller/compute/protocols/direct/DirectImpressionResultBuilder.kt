@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.deterministicCount
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.DynamicallyClippedImpressions
+import org.wfanet.measurement.computation.FrequencyData
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
@@ -54,7 +55,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams
  */
 class DirectImpressionResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
-  private val frequencyData: IntArray,
+  private val frequencyData: ByteArray,
   private val privacyParams: CmmsDpParams,
   private val samplingRate: Float,
   private val directNoiseMechanism: DirectNoiseMechanism,
@@ -185,7 +186,7 @@ class DirectImpressionResultBuilder(
     } else {
       val histogram: LongArray =
         HistogramComputations.buildHistogram(
-          frequencyVector = frequencyData,
+          frequencyVector = FrequencyData.from(frequencyData),
           maxFrequency = effectiveMaxFrequency,
         )
       getImpressionValue(histogram, effectiveMaxFrequency)
@@ -199,7 +200,7 @@ class DirectImpressionResultBuilder(
    */
   private fun computeUncappedImpressionValue(): Long {
     if (resultMinimumThresholds != null) {
-      val reachValue = frequencyData.count { it != 0 }
+      val reachValue = frequencyData.count { it != 0.toByte() }
       return if (totalUncappedImpressions < resultMinimumThresholds.minImpressions) {
         0L
       } else if (reachValue < resultMinimumThresholds.minUsers) {
