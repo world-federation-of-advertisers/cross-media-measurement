@@ -104,7 +104,7 @@ object ImpressionComputations {
    * @param resultMinimumThresholds Optional result minimum thresholds.
    */
   fun computeDynamicallyClippedImpressionCount(
-    frequencyVector: IntArray,
+    frequencyVector: FrequencyData,
     queryRho: Double,
     maxFrequency: Int,
     noiseSource: DynamicClippingNoiseSource,
@@ -191,14 +191,18 @@ object ImpressionComputations {
    * single empty bar rather than skipping the search: releasing an exact zero here, beside a noised
    * value for a vector holding one impression, would leave the two distinguishable.
    */
-  private fun frequencyHistogram(frequencyVector: IntArray): Map<Long, Long> =
-    frequencyVector
-      .asSequence()
-      .filter { it > 0 }
-      .groupingBy { it.toLong() }
-      .eachCount()
-      .mapValues { it.value.toLong() }
+  private fun frequencyHistogram(frequencyVector: FrequencyData): Map<Long, Long> {
+    val counts = mutableMapOf<Int, LongArray>()
+    for (index in 0 until frequencyVector.size) {
+      val frequency = frequencyVector[index]
+      if (frequency > 0) {
+        counts.getOrPut(frequency) { LongArray(1) }[0]++
+      }
+    }
+    return counts.entries
+      .associate { (frequency, count) -> frequency.toLong() to count[0] }
       .ifEmpty { mapOf(1L to 0L) }
+  }
 
   private fun scaleAndClamp(count: Double, vidSamplingIntervalWidth: Double): Long =
     if (count < 0) 0L else (count / vidSamplingIntervalWidth).toLong()
