@@ -353,8 +353,9 @@ class BasicReportsReportsJobTest {
   @Test
   fun `execute stops on failed batch without sending report association`(): Unit = runBlocking {
     whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
-    whenever(reportResultsMock.batchCreateReportingSetResults(any()))
-      .thenThrow(Status.UNAVAILABLE.asException())
+    whenever(reportResultsMock.batchCreateReportingSetResults(any())).thenAnswer {
+      throw Status.UNAVAILABLE.asException()
+    }
     job.execute()
     val captor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
     verify(reportResultsMock).batchCreateReportingSetResults(captor.capture())
