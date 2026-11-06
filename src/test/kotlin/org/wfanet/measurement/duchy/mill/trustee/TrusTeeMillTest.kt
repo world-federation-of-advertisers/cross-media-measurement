@@ -34,6 +34,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
@@ -616,6 +617,112 @@ class TrusTeeMillTest {
     verify(mockConfidentialSpaceToAwsKmsClientFactory).getKmsClient(any())
     verify(mockGcloudToAwsKmsClientFactory, never()).getKmsClient(any())
   }
+
+  @Test
+  fun `computingPhase reuses refreshable Confidential Space credentials across computations`():
+    Unit = runBlocking {
+    writeRequisitionData()
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+    val mill = createMill()
+
+    for (localId in listOf(LOCAL_ID, LOCAL_ID + 1)) {
+      fakeComputationDb.addComputation(
+        localId,
+        Stage.COMPUTING.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE),
+      )
+
+      mill.claimAndProcessWork()
+
+      assertThat(fakeComputationDb[localId]!!.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+      fakeComputationDb.deleteComputation(localId)
+    }
+
+    verify(mockConfidentialSpaceToAwsKmsClientFactory, times(1)).getKmsClient(any())
+    verify(mockSystemComputations, times(2)).setComputationResult(any())
+  }
+
+  @Test
+  fun `computingPhase keeps different Confidential Space audiences separate`(): Unit = runBlocking {
+    writeRequisitionData()
+    val otherAudienceRequisition =
+      REQUISITION_2.copy {
+        details =
+          REQUISITION_CONFIDENTIAL_SPACE.details.copy {
+            protocol =
+              protocol.copy {
+                trusTee =
+                  trusTee.copy {
+                    encryptedDekCiphertext = DEK_KEYSET_HANDLE_2.toEncryptedByteString(KEK_AEAD_2)
+                    kmsKekUri = KEK_URI_2
+                    awsKmsParams = awsKmsParams.copy { audience = "https://other.example.com" }
+                  }
+              }
+          }
+      }
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE, otherAudienceRequisition),
+    )
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+
+    createMill().claimAndProcessWork()
+
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+    val credentials = argumentCaptor<ConfidentialSpaceToAwsWifCredentials>()
+    verify(mockConfidentialSpaceToAwsKmsClientFactory, times(2)).getKmsClient(credentials.capture())
+    assertThat(credentials.allValues.map { it.audience })
+      .containsExactly("https://example.com", "https://other.example.com")
+  }
+
+  @Test
+  fun `computingPhase retries attestation quota failures without failing the computation`(): Unit =
+    runBlocking {
+      writeRequisitionData()
+      fakeComputationDb.addComputation(
+        LOCAL_ID,
+        Stage.COMPUTING.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE),
+      )
+      val unavailableKmsClient: KmsClient = mock()
+      whenever(unavailableKmsClient.getAead(KEK_URI_1))
+        .thenThrow(
+          GeneralSecurityException(
+            "KMS operation failed",
+            GeneralSecurityException(
+              "Failed to obtain Confidential Space attestation token",
+              IOException("Launcher token request failed: CreateChallenge quota exceeded"),
+            ),
+          )
+        )
+        .thenReturn(KEK_AEAD_1)
+      whenever(mockConfidentialSpaceToAwsKmsClientFactory.getKmsClient(any()))
+        .thenReturn(unavailableKmsClient)
+      whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+
+      val mill = createMill()
+      mill.claimAndProcessWork()
+
+      val finalToken = fakeComputationDb[LOCAL_ID]!!
+      assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+      assertThat(finalToken.computationDetails.endingState)
+        .isNotEqualTo(ComputationDetails.CompletedReason.FAILED)
+      verify(mockComputationParticipants, never()).failComputationParticipant(any())
+      verify(mockSystemComputations, never()).setComputationResult(any())
+
+      mill.claimAndProcessWork()
+
+      assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+      verify(mockConfidentialSpaceToAwsKmsClientFactory, times(1)).getKmsClient(any())
+      verify(mockSystemComputations, times(1)).setComputationResult(any())
+    }
 
   @Test
   fun `computingPhase fails when requisition data is missing`(): Unit = runBlocking {
