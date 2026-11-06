@@ -18,7 +18,6 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
 import io.grpc.ClientInterceptors
@@ -36,6 +35,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
@@ -45,9 +45,6 @@ import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
-import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 
@@ -235,11 +232,7 @@ class DataWatcherFunction(
         getConfigAsProtoMessage(
           configBlobKey,
           DataWatcherConfig.getDefaultInstance(),
-          TypeRegistry.newBuilder()
-            .add(ResultsFulfillerParams.getDescriptor())
-            .add(EventGroupSyncParams.getDescriptor())
-            .add(ExternalDataAvailabilitySyncParams.getDescriptor())
-            .build(),
+          DataWatcherConfigTypes.registry,
         )
       }
     }
