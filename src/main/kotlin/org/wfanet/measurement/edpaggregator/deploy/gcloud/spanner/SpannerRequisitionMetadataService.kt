@@ -21,7 +21,9 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
+import java.time.Clock
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -35,9 +37,11 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RequisitionMetadataResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.batchCreateRequisitionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.fetchLatestCmmsCreateTime
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findReportRoutingDecision
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByCmmsRequisition
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByResourceId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertReportRoutingDecision
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRequisitionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRequisitionMetadataAction
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRequisitionMetadata
@@ -69,18 +73,72 @@ import org.wfanet.measurement.internal.edpaggregator.RegisterQueuedRequisitionMe
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
+import org.wfanet.measurement.internal.edpaggregator.ResolveReportRoutingDecisionRequest
+import org.wfanet.measurement.internal.edpaggregator.ResolveReportRoutingDecisionResponse
 import org.wfanet.measurement.internal.edpaggregator.StartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.registerQueuedRequisitionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.resolveReportRoutingDecisionResponse
 
 class SpannerRequisitionMetadataService(
   private val databaseClient: AsyncDatabaseClient,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val idGenerator: IdGenerator = IdGenerator.Default,
+  private val clock: Clock = Clock.systemUTC(),
 ) : RequisitionMetadataServiceCoroutineImplBase(coroutineContext) {
+  override suspend fun resolveReportRoutingDecision(
+    request: ResolveReportRoutingDecisionRequest
+  ): ResolveReportRoutingDecisionResponse {
+    val candidate = request.candidate
+    if (request.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (
+      candidate.report.isEmpty() ||
+        candidate.externalModelLine.isEmpty() ||
+        candidate.selectedModelLine.isEmpty() ||
+        !candidate.hasReportStartTime() ||
+        !Timestamps.isValid(candidate.reportStartTime)
+    ) {
+      throw InvalidFieldValueException("candidate")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val resolution =
+      databaseClient.readWriteTransaction(Options.tag("action=resolveReportRoutingDecision")).run {
+        txn ->
+        val existing =
+          txn.findReportRoutingDecision(request.dataProviderResourceId, candidate.report)
+        if (existing != null) {
+          if (
+            existing.reportStartTime != candidate.reportStartTime ||
+              existing.externalModelLine != candidate.externalModelLine
+          ) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "Report routing inputs disagree with the persisted decision for ${candidate.report}"
+              )
+              .asRuntimeException()
+          }
+          RoutingResolution(existing, created = false)
+        } else {
+          candidate
+            .copy {
+              dataProviderResourceId = request.dataProviderResourceId
+              createTime = Timestamps.fromMillis(clock.millis())
+            }
+            .also(txn::insertReportRoutingDecision)
+            .let { RoutingResolution(it, created = true) }
+        }
+      }
+    return resolveReportRoutingDecisionResponse {
+      reportRoutingDecision = resolution.decision
+      created = resolution.created
+    }
+  }
 
   override suspend fun createRequisitionMetadata(
     request: CreateRequisitionMetadataRequest
@@ -636,6 +694,11 @@ class SpannerRequisitionMetadataService(
   }
 
   companion object {
+    private data class RoutingResolution(
+      val decision: org.wfanet.measurement.internal.edpaggregator.ReportRoutingDecision,
+      val created: Boolean,
+    )
+
     private const val REQUISITION_METADATA_RESOURCE_ID_PREFIX = "req"
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50

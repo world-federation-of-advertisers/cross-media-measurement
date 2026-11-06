@@ -109,3 +109,6 @@ databaseChangeLog:
   - include:
       file: add-upload-healing-plan-format.sql
       relativeToChangeLogFile: true
+  - include:
+      file: create-report-routing-decision-schema.sql
+      relativeToChangeLogFile: true

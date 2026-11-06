@@ -59,7 +59,9 @@ import org.wfanet.measurement.internal.edpaggregator.markWithdrawnRequisitionMet
 import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.registerQueuedRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.reportRoutingDecision
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
+import org.wfanet.measurement.internal.edpaggregator.resolveReportRoutingDecisionRequest
 import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionMetadataRequest
 
 @RunWith(JUnit4::class)
@@ -1685,6 +1687,68 @@ abstract class RequisitionMetadataServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
         }
       )
+  }
+
+  @Test
+  fun `resolveReportRoutingDecision preserves first selection`() = runBlocking {
+    val historical = "modelProviders/provider/modelSuites/suite/modelLines/historical"
+    val replacement = "modelProviders/provider/modelSuites/suite/modelLines/replacement"
+    val candidate = reportRoutingDecision {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+      report = REPORT
+      reportStartTime = timestamp { seconds = 100 }
+      externalModelLine = historical
+      selectedModelLine = historical
+      cutoverTime = timestamp { seconds = 200 }
+    }
+
+    val first =
+      service.resolveReportRoutingDecision(
+        resolveReportRoutingDecisionRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          this.candidate = candidate
+        }
+      )
+    val second =
+      service.resolveReportRoutingDecision(
+        resolveReportRoutingDecisionRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          this.candidate = candidate.copy { selectedModelLine = replacement }
+        }
+      )
+
+    assertThat(first.created).isTrue()
+    assertThat(second.created).isFalse()
+    assertThat(second.reportRoutingDecision.selectedModelLine).isEqualTo(historical)
+  }
+
+  @Test
+  fun `resolveReportRoutingDecision rejects conflicting report start`() = runBlocking {
+    val candidate = reportRoutingDecision {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+      report = REPORT
+      reportStartTime = timestamp { seconds = 100 }
+      externalModelLine = "modelProviders/provider/modelSuites/suite/modelLines/external"
+      selectedModelLine = "modelProviders/provider/modelSuites/suite/modelLines/historical"
+    }
+    service.resolveReportRoutingDecision(
+      resolveReportRoutingDecisionRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        this.candidate = candidate
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.resolveReportRoutingDecision(
+          resolveReportRoutingDecisionRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            this.candidate = candidate.copy { reportStartTime = timestamp { seconds = 101 } }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   private suspend fun createRequisitionMetadata(

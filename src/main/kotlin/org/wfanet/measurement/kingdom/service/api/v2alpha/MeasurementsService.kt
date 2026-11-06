@@ -19,6 +19,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.util.Timestamps
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
@@ -874,6 +875,11 @@ private fun MeasurementSpec.validateReportingMetadata(parentKey: MeasurementCons
   }
   requireChildResource(metadata.report, "report") { ReportKey.fromName(it)?.parentKey }
   requireChildResource(metadata.metric, "metric") { MetricKey.fromName(it)?.parentKey }
+  if (metadata.hasReportStartTime()) {
+    grpcRequire(Timestamps.isValid(metadata.reportStartTime)) {
+      "measurement_spec.reporting_metadata.report_start_time is invalid"
+    }
+  }
 }
 
 private fun DifferentialPrivacyParams.hasValidEpsilonAndDelta(): Boolean {

@@ -106,4 +106,10 @@ message GroupedRequisitions {
   string basic_report = 6 [(google.api.resource_reference) = {
     type: "reporting.halo-cmm.org/BasicReport"
   }];
+
+  // Internal model line selected once for the complete Report.
+  string selected_model_line = 7 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
 }

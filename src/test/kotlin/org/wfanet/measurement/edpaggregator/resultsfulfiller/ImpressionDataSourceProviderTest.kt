@@ -106,6 +106,62 @@ class ImpressionDataSourceProviderTest {
   }
 
   @Test
+  fun `selected model line fails when matching metadata was deleted`(): Unit = runBlocking {
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+      if (request.showDeleted) {
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.DELETED
+            blobUri = "file:///meta-bucket/deleted-metadata"
+          }
+        }
+      } else {
+        listImpressionMetadataResponse {}
+      }
+    }
+    val date = LocalDate.of(2026, 10, 5)
+    val period = interval {
+      startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        createService()
+          .listImpressionDataSources(
+            modelLine,
+            listOf(referenceEventGroup("eg-deleted", period)),
+            failOnDeletedMetadata = true,
+          )
+      }
+
+    assertThat(exception).hasMessageThat().contains("deleted impression metadata")
+  }
+
+  @Test
+  fun `selected model line permits finalized zero impressions without metadata`(): Unit =
+    runBlocking {
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+      val date = LocalDate.of(2026, 10, 5)
+      val period = interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+
+      val sources =
+        createService()
+          .listImpressionDataSources(
+            modelLine,
+            listOf(referenceEventGroup("eg-zero", period)),
+            failOnDeletedMetadata = true,
+          )
+
+      assertThat(sources).isEmpty()
+    }
+
+  @Test
   fun `storage-backed returns one source for a single day`(): Unit = runBlocking {
     val svc = createService()
     val bucketName = "meta-bucket"
