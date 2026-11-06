@@ -71,6 +71,9 @@ message DataAvailabilitySyncConfig {
   // impression metadata.
   EventGroupActivityPublishingConfig event_group_activity_publishing = 8;
 
+  // How DataAvailabilitySync connects to the Secure Computation public API.
+  TransportLayerSecurityParams secure_computation_control_plane_connection = 10;
+
   // This publisher only appends activity. For the same DataProvider, a
   // `SyncEventGroupActivities` process may use PATCH mode for explicit APPEND
   // and DELETE operations. Do not use SYNC mode: it treats its input as
