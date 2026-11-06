@@ -704,7 +704,7 @@ class SpannerBasicReportsService(
         return emptyList()
       }
 
-      postgresReadContext = postgresClient.singleUse()
+      postgresReadContext = postgresClient.readTransaction()
 
       ReportingSetReader(postgresReadContext)
         .batchGetReportingSets(
@@ -726,7 +726,7 @@ class SpannerBasicReportsService(
   ): List<ReportingSet> {
     var postgresReadContext: ReadContext? = null
     return try {
-      postgresReadContext = postgresClient.singleUse()
+      postgresReadContext = postgresClient.readTransaction()
 
       ReportingSetReader(postgresReadContext)
         .readReportingSets(
@@ -742,9 +742,8 @@ class SpannerBasicReportsService(
         .withSerializableErrorRetries()
         .map { it.reportingSet }
         .toList()
-    } catch (e: Exception) {
+    } finally {
       postgresReadContext?.close()
-      throw e
     }
   }
 
