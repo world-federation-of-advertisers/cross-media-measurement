@@ -116,7 +116,7 @@ locals {
     ]
   ])
 
-  data_availability_sync_secrets_access = concat(
+  data_availability_service_secrets_access = concat(
     [
       "metadata_storage_root_ca",
       "trusted_root_ca_collection",
@@ -126,11 +126,19 @@ locals {
     local.edp_tls_keys
   )
 
+  data_availability_sync_secrets_access = concat(
+    local.data_availability_service_secrets_access,
+    [
+      "edpa_tee_app_tls_key",
+      "edpa_tee_app_tls_pem",
+    ]
+  )
+
   # Secrets access for data_watcher_delete (same as data_watcher)
   data_watcher_delete_secrets_access = local.data_watcher_secrets_access
 
-  # Secrets access for data_availability_cleanup (same as data_availability_sync)
-  data_availability_cleanup_secrets_access = local.data_availability_sync_secrets_access
+  # Cleanup does not call the Secure Computation control plane.
+  data_availability_cleanup_secrets_access = local.data_availability_service_secrets_access
 
   requisition_fetcher_secrets_access = concat(
     [
@@ -402,15 +410,16 @@ module "data_availability_sync_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.data_availability_sync.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_sync.uber_jar_path
-  secrets_to_access                        = [for key in local.data_availability_sync_secrets_access : local.all_secrets[key].secret_id]
+  secrets_to_access = [
+    for key in concat(local.data_availability_sync_secrets_access, ["secure_computation_root_ca"]) :
+    local.all_secrets[key].secret_id
+  ]
 
   # The RPC throttler is process-local. Bound service-wide concurrency to protect the shared
   # ImpressionMetadata service from completion-marker bursts.
-  max_instances = 5
-  concurrency   = 1
-
-  # Leave one minute of response headroom under DataWatcher's 540-second timeout.
-  timeout_seconds = 480
+  max_instances   = 5
+  concurrency     = 1
+  timeout_seconds = 540
 }
 
 module "data_availability_cleanup_cloud_function" {
@@ -691,6 +700,53 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
   }
 }
 
+module "data_availability_sync_work_item_queue" {
+  source = "../pubsub"
+
+  depends_on = [google_service_account_iam_member.data_availability_sync_work_item_token_creator]
+
+  topic_name                 = var.data_availability_sync_work_item_queue.topic_name
+  subscription_name          = var.data_availability_sync_work_item_queue.subscription_name
+  ack_deadline_seconds       = var.data_availability_sync_work_item_queue.ack_deadline_seconds
+  max_delivery_attempts      = var.data_availability_sync_work_item_queue.max_delivery_attempts
+  minimum_backoff            = var.data_availability_sync_work_item_queue.minimum_backoff
+  maximum_backoff            = var.data_availability_sync_work_item_queue.maximum_backoff
+  enable_message_ordering    = true
+  push_endpoint              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"
+  push_service_account_email = module.data_availability_sync_cloud_function.cloud_function_service_account.email
+  push_audience              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"
+}
+
+resource "google_pubsub_topic_iam_member" "data_availability_sync_work_item_publisher" {
+  topic  = module.data_availability_sync_work_item_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_topic_iam_member" "data_availability_sync_work_item_dead_letter_publisher" {
+  topic  = module.data_availability_sync_work_item_queue.dead_letter_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_subscription_iam_member" "data_availability_sync_work_item_dead_letter_subscriber" {
+  subscription = module.data_availability_sync_work_item_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
+resource "google_service_account_iam_member" "data_availability_sync_work_item_token_creator" {
+  service_account_id = module.data_availability_sync_cloud_function.cloud_function_service_account.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_cloud_run_service_iam_member" "data_availability_sync_work_item_invoker" {
+  depends_on = [module.data_availability_sync_cloud_function]
+  service    = var.data_availability_sync_function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+}
 resource "google_compute_address" "edp_aggregator_api_server" {
   name    = "edp-aggregator-system"
   address = var.edp_aggregator_api_server_ip_address
