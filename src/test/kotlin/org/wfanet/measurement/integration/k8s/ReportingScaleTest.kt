@@ -1329,7 +1329,9 @@ class ReportingScaleTest {
   /** Keeps reads within the synthetic consumer's five-request-per-second rate limit. */
   private suspend fun <T, R> mapBounded(items: List<T>, transform: suspend (T) -> R): List<R> =
     items.chunked(4).flatMap { batch ->
-      val result = coroutineScope { batch.map { item -> async { transform(item) } }.awaitAll() }
+      val result = coroutineScope {
+        batch.map { item -> async { retryRpc { transform(item) } } }.awaitAll()
+      }
       delay(1000)
       result
     }
