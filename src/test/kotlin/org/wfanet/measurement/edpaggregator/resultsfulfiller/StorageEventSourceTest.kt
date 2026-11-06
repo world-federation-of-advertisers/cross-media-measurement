@@ -86,6 +86,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -2466,6 +2467,730 @@ class StorageEventSourceTest {
     val referenceIdFilter =
       captor.allValues.single { it.filter.eventGroupReferenceIdsCount > 0 }.filter
     assertThat(referenceIdFilter.eventGroupReferenceIdsList).containsExactly("ref/123", "ref/456")
+  }
+
+  @Test
+  fun `getKekUri and generateEventBatches reject blob reference ID prefix mismatch`(): Unit =
+    runBlocking {
+      val source =
+        createMappingValidationSource(
+          referenceId = "wrong/123",
+          entityKeyGroups = emptyList(),
+          impressions = listOf(mappingValidationImpression("", emptyList())),
+          mapping = CAMPAIGN_MAPPING,
+        )
+
+      assertFailsWith<IllegalArgumentException> { source.getKekUri() }
+      assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+    }
+
+  @Test
+  fun `getKekUri and generateEventBatches reject mapped blob entity ID prefix mismatch`(): Unit =
+    runBlocking {
+      val source =
+        createMappingValidationSource(
+          referenceId = "ref/123",
+          entityKeyGroups =
+            listOf(
+              entityKeyGroup {
+                entityType = "campaign"
+                entityIds += listOf("entity/123", "wrong/456")
+              }
+            ),
+          impressions = listOf(mappingValidationImpression("", emptyList())),
+          mapping = CAMPAIGN_MAPPING,
+        )
+
+      assertFailsWith<IllegalArgumentException> { source.getKekUri() }
+      assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+    }
+
+  @Test
+  fun `generateEventBatches rejects impression reference ID prefix mismatch despite whole blob match`():
+    Unit = runBlocking {
+    val source =
+      createMappingValidationSource(
+        referenceId = "ref/123",
+        entityKeyGroups = emptyList(),
+        impressions = listOf(mappingValidationImpression("wrong/123", emptyList())),
+        mapping = CAMPAIGN_MAPPING,
+      )
+
+    assertThat(source.getKekUri()).isEqualTo(kekUri)
+    assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+  }
+
+  @Test
+  fun `generateEventBatches rejects impression entity ID prefix mismatch despite whole blob match`():
+    Unit = runBlocking {
+    val source =
+      createMappingValidationSource(
+        referenceId = "",
+        entityKeyGroups =
+          listOf(
+            entityKeyGroup {
+              entityType = "campaign"
+              entityIds += "entity/123"
+            }
+          ),
+        impressions =
+          listOf(
+            mappingValidationImpression(
+              "ref/123",
+              listOf(labeledImpressionEntityKey("campaign", "wrong/123")),
+            )
+          ),
+        mapping = CAMPAIGN_MAPPING,
+      )
+
+    assertThat(source.getKekUri()).isEqualTo(kekUri)
+    assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+  }
+
+  @Test
+  fun `generateEventBatches accepts all prefix and identifier presence combinations`() =
+    runBlocking {
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          val referenceId = referencePrefix + "123"
+          val entityKey = labeledImpressionEntityKey("campaign", entityPrefix + "123")
+          val entityKeyGroups =
+            listOf(
+              entityKeyGroup {
+                entityType = entityKey.entityType
+                entityIds += entityKey.entityId
+              }
+            )
+          val impressions =
+            listOf(
+              mappingValidationImpression("", emptyList()),
+              mappingValidationImpression(referenceId, emptyList()),
+              mappingValidationImpression("", listOf(entityKey)),
+              mappingValidationImpression(referenceId, listOf(entityKey)),
+              mappingValidationImpression("", listOf(labeledImpressionEntityKey("ad", "other/123"))),
+            )
+          for ((blobReferenceId, blobEntityKeys) in
+            listOf(
+              referenceId to emptyList(),
+              "" to entityKeyGroups,
+              referenceId to entityKeyGroups,
+            )) {
+            val source =
+              createMappingValidationSource(blobReferenceId, blobEntityKeys, impressions, mapping)
+
+            assertThat(source.getKekUri()).isEqualTo(kekUri)
+            val events = source.generateEventBatches().toList().flatMap { it.events }
+            assertThat(events).hasSize(impressions.size)
+            assertThat(events.map { it.entityKeys })
+              .containsExactlyElementsIn(impressions.map { it.entityKeysList })
+              .inOrder()
+          }
+        }
+      }
+    }
+
+  @Test
+  fun `generateEventBatches preserves unprefixed blob and impression IDs without mapping`() =
+    runBlocking {
+      val source =
+        createMappingValidationSource(
+          referenceId = "wrong/123",
+          entityKeyGroups =
+            listOf(
+              entityKeyGroup {
+                entityType = "campaign"
+                entityIds += "wrong/123"
+              }
+            ),
+          impressions =
+            listOf(
+              mappingValidationImpression(
+                "wrong/123",
+                listOf(labeledImpressionEntityKey("campaign", "wrong/123")),
+              )
+            ),
+          mapping = null,
+        )
+
+      assertThat(source.getKekUri()).isEqualTo(kekUri)
+      assertThat(source.generateEventBatches().toList().flatMap { it.events }).hasSize(1)
+    }
+
+  @Test
+  fun `blob identifiers that convert to blank fail before reading impressions`(): Unit =
+    runBlocking {
+      val referenceOnlyMapping = EventGroupReferenceIdEntityKeyMapping("campaign", "ref/", "")
+      val entityOnlyMapping = EventGroupReferenceIdEntityKeyMapping("campaign", "", "entity/")
+      for (referenceId in listOf("ref/", "ref/   ")) {
+        val source =
+          createMappingValidationSource(referenceId, emptyList(), emptyList(), referenceOnlyMapping)
+        assertFailsWith<IllegalArgumentException> { source.getKekUri() }
+        assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+      }
+      for (entityId in listOf("entity/", "entity/   ")) {
+        val source =
+          createMappingValidationSource(
+            "",
+            listOf(
+              entityKeyGroup {
+                entityType = "campaign"
+                entityIds += entityId
+              }
+            ),
+            emptyList(),
+            entityOnlyMapping,
+          )
+        assertFailsWith<IllegalArgumentException> { source.getKekUri() }
+        assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+      }
+    }
+
+  @Test
+  fun `impression identifiers that convert to blank fail despite whole blob match`(): Unit =
+    runBlocking {
+      val referenceOnlyMapping = EventGroupReferenceIdEntityKeyMapping("campaign", "ref/", "")
+      val entityOnlyMapping = EventGroupReferenceIdEntityKeyMapping("campaign", "", "entity/")
+      for (referenceId in listOf("ref/", "ref/   ")) {
+        val source =
+          createMappingValidationSource(
+            "ref/123",
+            emptyList(),
+            listOf(mappingValidationImpression(referenceId, emptyList())),
+            referenceOnlyMapping,
+          )
+        assertThat(source.getKekUri()).isEqualTo(kekUri)
+        assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+      }
+      for (entityId in listOf("entity/", "entity/   ")) {
+        val source =
+          createMappingValidationSource(
+            "123",
+            emptyList(),
+            listOf(
+              mappingValidationImpression(
+                "",
+                listOf(labeledImpressionEntityKey("campaign", entityId)),
+              )
+            ),
+            entityOnlyMapping,
+          )
+        assertThat(source.getKekUri()).isEqualTo(kekUri)
+        assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+      }
+    }
+
+  @Test
+  fun `blank mapped impression entity IDs fail even with an empty entity prefix`(): Unit =
+    runBlocking {
+      val mapping = EventGroupReferenceIdEntityKeyMapping("campaign", "ref/", "")
+      for (entityId in listOf("", "   ")) {
+        val source =
+          createMappingValidationSource(
+            "ref/123",
+            emptyList(),
+            listOf(
+              mappingValidationImpression(
+                "",
+                listOf(labeledImpressionEntityKey("campaign", entityId)),
+              )
+            ),
+            mapping,
+          )
+        assertThat(source.getKekUri()).isEqualTo(kekUri)
+        assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+      }
+    }
+
+  @Test
+  fun `getKekUri and generateEventBatches reject whitespace blob reference IDs`(): Unit =
+    runBlocking {
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          for (referenceId in listOf(" \t", "\u00a0")) {
+            val source =
+              createMappingValidationSource(
+                referenceId,
+                listOf(
+                  entityKeyGroup {
+                    entityType = "campaign"
+                    entityIds += entityPrefix + "123"
+                  }
+                ),
+                emptyList(),
+                mapping,
+              )
+            assertFailsWith<IllegalArgumentException> { source.getKekUri() }
+            assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+          }
+        }
+      }
+    }
+
+  @Test
+  fun `generateEventBatches rejects whitespace impression reference IDs`(): Unit = runBlocking {
+    for (referencePrefix in listOf("", "ref/")) {
+      for (entityPrefix in listOf("", "entity/")) {
+        val mapping =
+          EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+        for (referenceId in listOf(" \t", "\u00a0")) {
+          val source =
+            createMappingValidationSource(
+              referencePrefix + "123",
+              emptyList(),
+              listOf(
+                mappingValidationImpression(
+                  referenceId,
+                  listOf(labeledImpressionEntityKey("campaign", entityPrefix + "123")),
+                )
+              ),
+              mapping,
+            )
+          assertThat(source.getKekUri()).isEqualTo(kekUri)
+          assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+        }
+      }
+    }
+  }
+
+  @Test
+  fun `getKekUri and generateEventBatches reject non-equivalent blob identifiers`(): Unit =
+    runBlocking {
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          for (entityIds in
+            listOf(
+              listOf(entityPrefix + "456"),
+              listOf(entityPrefix + "456", entityPrefix + "789"),
+            )) {
+            val source =
+              createMappingValidationSource(
+                referencePrefix + "123",
+                listOf(
+                  entityKeyGroup {
+                    entityType = "campaign"
+                    this.entityIds += entityIds
+                  }
+                ),
+                emptyList(),
+                mapping,
+              )
+            val exception = assertFailsWith<IllegalArgumentException> { source.getKekUri() }
+            assertThat(exception).hasMessageThat().contains("equivalent")
+            assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+          }
+        }
+      }
+    }
+
+  @Test
+  fun `generateEventBatches rejects non-equivalent impression identifiers`(): Unit = runBlocking {
+    for (referencePrefix in listOf("", "ref/")) {
+      for (entityPrefix in listOf("", "entity/")) {
+        val mapping =
+          EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+        for (entityIds in
+          listOf(
+            listOf(entityPrefix + "456"),
+            listOf(entityPrefix + "456", entityPrefix + "789"),
+          )) {
+          val source =
+            createMappingValidationSource(
+              referencePrefix + "123",
+              emptyList(),
+              listOf(
+                mappingValidationImpression(
+                  referencePrefix + "123",
+                  entityIds.map { labeledImpressionEntityKey("campaign", it) },
+                )
+              ),
+              mapping,
+            )
+          assertThat(source.getKekUri()).isEqualTo(kekUri)
+          val exception =
+            assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+          assertThat(exception).hasMessageThat().contains("equivalent")
+        }
+      }
+    }
+  }
+
+  @Test
+  fun `generateEventBatches accepts a reference ID equivalent to one of multiple mapped entity IDs`() =
+    runBlocking {
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          val entityIds = listOf(entityPrefix + "456", entityPrefix + "123")
+          val source =
+            createMappingValidationSource(
+              referencePrefix + "123",
+              listOf(
+                entityKeyGroup {
+                  entityType = "campaign"
+                  this.entityIds += entityIds
+                }
+              ),
+              listOf(
+                mappingValidationImpression(
+                  referencePrefix + "123",
+                  listOf(labeledImpressionEntityKey("ad", "unrelated")) +
+                    entityIds.map { labeledImpressionEntityKey("campaign", it) },
+                )
+              ),
+              mapping,
+            )
+          assertThat(source.getKekUri()).isEqualTo(kekUri)
+          val batches = source.generateEventBatches().toList()
+          assertThat(batches.flatMap { it.events }).hasSize(1)
+          assertThat(batches.single().eventGroupIdentifier.eventGroupReferenceId).isNull()
+        }
+      }
+    }
+
+  @Test
+  fun `generateEventBatches preserves non-equivalent identifiers without mapping`() = runBlocking {
+    for (referenceId in listOf("ref/123", " \t", "\u00a0")) {
+      val source =
+        createMappingValidationSource(
+          referenceId,
+          listOf(
+            entityKeyGroup {
+              entityType = "campaign"
+              entityIds += "entity/456"
+            }
+          ),
+          listOf(
+            mappingValidationImpression(
+              referenceId,
+              listOf(labeledImpressionEntityKey("campaign", "entity/456")),
+            )
+          ),
+          mapping = null,
+        )
+      assertThat(source.getKekUri()).isEqualTo(kekUri)
+      assertThat(source.generateEventBatches().toList().flatMap { it.events }).hasSize(1)
+    }
+  }
+
+  @Test
+  fun `generateEventBatches preserves other-type blob and impression identifiers with mapping`() =
+    runBlocking {
+      val otherEntityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "creative-id"
+            entityIds += listOf("creative-1", "creative-2")
+          },
+          entityKeyGroup {
+            entityType = "ad-id"
+            entityIds += "ad-1"
+          },
+        )
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          for (referenceId in listOf("", "other/123")) {
+            val impressions =
+              listOf("creative-1", "creative-2").map { creativeId ->
+                mappingValidationImpression(
+                  referenceId,
+                  listOf(
+                    labeledImpressionEntityKey("creative-id", creativeId),
+                    labeledImpressionEntityKey("ad-id", "ad-1"),
+                  ),
+                )
+              }
+            val source =
+              createMappingValidationSource(referenceId, otherEntityKeyGroups, impressions, mapping)
+
+            assertThat(source.getKekUri()).isEqualTo(kekUri)
+            val events = source.generateEventBatches().toList().flatMap { it.events }
+            assertThat(events).hasSize(impressions.size)
+            assertThat(events.map { it.entityKeys })
+              .containsExactlyElementsIn(impressions.map { it.entityKeysList })
+              .inOrder()
+          }
+        }
+      }
+    }
+
+  @Test
+  fun `generateEventBatches preserves other-type impression identifiers in mapped blobs`() =
+    runBlocking {
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          val impressions =
+            listOf("", "other/123").map { referenceId ->
+              mappingValidationImpression(
+                referenceId,
+                listOf(labeledImpressionEntityKey("creative-id", "creative-1")),
+              )
+            }
+          val source =
+            createMappingValidationSource(
+              referencePrefix + "123",
+              listOf(
+                entityKeyGroup {
+                  entityType = "campaign"
+                  entityIds += entityPrefix + "123"
+                }
+              ),
+              impressions,
+              mapping,
+            )
+
+          assertThat(source.getKekUri()).isEqualTo(kekUri)
+          val events = source.generateEventBatches().toList().flatMap { it.events }
+          assertThat(events).hasSize(impressions.size)
+          assertThat(events.map { it.entityKeys })
+            .containsExactlyElementsIn(impressions.map { it.entityKeysList })
+            .inOrder()
+        }
+      }
+    }
+
+  @Test
+  fun `getKekUri rejects non-equivalent blob identifiers with mapped and other entity types`() =
+    runBlocking {
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          val source =
+            createMappingValidationSource(
+              referencePrefix + "123",
+              listOf(
+                entityKeyGroup {
+                  entityType = "creative-id"
+                  entityIds += "creative-1"
+                },
+                entityKeyGroup {
+                  entityType = "campaign"
+                  entityIds += entityPrefix + "456"
+                },
+              ),
+              emptyList(),
+              mapping,
+            )
+
+          val exception = assertFailsWith<IllegalArgumentException> { source.getKekUri() }
+          assertThat(exception).hasMessageThat().contains("equivalent")
+          assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+        }
+      }
+    }
+
+  @Test
+  fun `generateEventBatches validates mapped impression identifiers in other-type blobs`() =
+    runBlocking {
+      for (referencePrefix in listOf("", "ref/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          val source =
+            createMappingValidationSource(
+              "other/123",
+              listOf(
+                entityKeyGroup {
+                  entityType = "creative-id"
+                  entityIds += "creative-1"
+                }
+              ),
+              listOf(
+                mappingValidationImpression(
+                  referencePrefix + "123",
+                  listOf(
+                    labeledImpressionEntityKey("creative-id", "creative-1"),
+                    labeledImpressionEntityKey("campaign", entityPrefix + "456"),
+                  ),
+                )
+              ),
+              mapping,
+            )
+
+          assertThat(source.getKekUri()).isEqualTo(kekUri)
+          val exception =
+            assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+          assertThat(exception).hasMessageThat().contains("equivalent")
+        }
+      }
+    }
+
+  @Test
+  fun `generateEventBatches validates reference-only impressions in other-type blobs`(): Unit =
+    runBlocking {
+      val source =
+        createMappingValidationSource(
+          "other/123",
+          listOf(
+            entityKeyGroup {
+              entityType = "creative-id"
+              entityIds += "creative-1"
+            }
+          ),
+          listOf(mappingValidationImpression("other/123", emptyList())),
+          CAMPAIGN_MAPPING,
+        )
+
+      assertThat(source.getKekUri()).isEqualTo(kekUri)
+      assertFailsWith<IllegalArgumentException> { source.generateEventBatches().toList() }
+    }
+
+  @Test
+  fun `mapped hierarchy blobs validate references and preserve whole-blob campaign selectors`() =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val collectionInterval = interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+      for (referencePrefix in listOf("", "campaign/")) {
+        for (entityPrefix in listOf("", "entity/")) {
+          val mapping =
+            EventGroupReferenceIdEntityKeyMapping("campaign", referencePrefix, entityPrefix)
+          val campaignKey =
+            labeledImpressionEntityKey("campaign", entityPrefix + "blob-hierarchy-campaign")
+          val referenceId = referencePrefix + "blob-hierarchy-campaign"
+          val keysByStream =
+            listOf("a", "b").map { suffix ->
+              listOf(
+                campaignKey,
+                labeledImpressionEntityKey("adset-id", "blob-hierarchy-adset-$suffix"),
+                labeledImpressionEntityKey("ad-id", "blob-hierarchy-ad-$suffix"),
+                labeledImpressionEntityKey("creative-id", "blob-hierarchy-creative-$suffix"),
+              )
+            }
+          val entityKeys = keysByStream.flatten().toSet()
+          val entityKeyGroups =
+            entityKeys
+              .groupBy { it.entityType }
+              .map { (type, keys) ->
+                entityKeyGroup {
+                  entityType = type
+                  entityIds += keys.map { it.entityId }
+                }
+              }
+          val campaignFilter =
+            FilterSpec(
+              celExpression = "",
+              collectionInterval = collectionInterval,
+              eventGroupReferenceIds = setOf(referenceId),
+              entityKeys = setOf(campaignKey),
+            )
+          for (blobReferenceId in listOf("", referenceId)) {
+            val impressions =
+              keysByStream.mapIndexed { index, keys ->
+                mappingValidationImpression(if (index == 0) "" else referenceId, keys)
+              }
+            val source =
+              createMappingValidationSource(blobReferenceId, entityKeyGroups, impressions, mapping)
+
+            assertThat(source.getKekUri()).isEqualTo(kekUri)
+            val batch = source.generateEventBatches().toList().single()
+            assertThat(batch.events).hasSize(impressions.size)
+            assertThat(batch.events.map { it.entityKeys })
+              .containsExactlyElementsIn(keysByStream)
+              .inOrder()
+            val identifier = batch.eventGroupIdentifier
+            assertThat(identifier.entityKeys).containsExactlyElementsIn(entityKeys)
+            assertThat(identifier.eventGroupReferenceId)
+              .isEqualTo(blobReferenceId.takeIf { it.isNotEmpty() })
+            assertThat(identifier.wholeBlobEntityKeyGroups)
+              .containsExactly(
+                entityKeyGroup {
+                  entityType = "campaign"
+                  entityIds += campaignKey.entityId
+                }
+              )
+            assertThat(campaignFilter.matchBatch(identifier))
+              .isEqualTo(BatchMatchResult.MatchedAllEvents)
+            for (entityType in listOf("adset-id", "ad-id", "creative-id")) {
+              val lowerKeys = entityKeys.filter { it.entityType == entityType }.toSet()
+              val lowerFilter =
+                campaignFilter.copy(eventGroupReferenceIds = emptySet(), entityKeys = lowerKeys)
+              assertThat(lowerFilter.matchBatch(identifier))
+                .isEqualTo(BatchMatchResult.MatchedByEntityKeys(lowerKeys))
+            }
+          }
+          for (invalidReferenceId in setOf("blob-hierarchy", referencePrefix + "blob-hierarchy")) {
+            val source =
+              createMappingValidationSource(
+                invalidReferenceId,
+                entityKeyGroups,
+                emptyList(),
+                mapping,
+              )
+            assertFailsWith<IllegalArgumentException> { source.getKekUri() }
+          }
+        }
+      }
+    }
+
+  private suspend fun createMappingValidationSource(
+    referenceId: String,
+    entityKeyGroups: List<EntityKeyGroup>,
+    impressions: List<LabeledImpression>,
+    mapping: EventGroupReferenceIdEntityKeyMapping?,
+  ): StorageEventSource {
+    val date = LocalDate.of(2025, 1, 1)
+    val metadataTmpPath = tmp.newFolder()
+    val impressionsTmpPath = tmp.newFolder()
+    val sourceId = "mapping-validation"
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata +=
+            createImpressionMetadataList(listOf(date), sourceId, "meta-bucket", modelLine)
+        }
+      )
+    writeMetadataWithEntityKeys(metadataTmpPath, date, sourceId, entityKeyGroups, referenceId)
+    val bucketDir = File(impressionsTmpPath, "impressions")
+    Files.createDirectories(bucketDir.toPath())
+    MesosRecordIoStorageClient(FileSystemStorageClient(bucketDir))
+      .writeBlob("$date/$sourceId", flow { impressions.forEach { emit(it.toByteString()) } })
+    return StorageEventSource(
+      impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+      resolvedEventGroups =
+        resolveEventGroups(
+          eventGroupDetailsList =
+            listOf(
+              createEventGroupDetails(
+                mapping?.eventGroupReferenceIdPrefix.orEmpty() + "123",
+                date,
+                date.plusDays(1),
+                ZoneId.of("UTC"),
+              )
+            ),
+          mapping = mapping,
+          wholeBlobEntityTypes = setOf("campaign"),
+        ),
+      modelLine = modelLine,
+      kmsClient = null,
+      impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+      descriptor = TestEvent.getDescriptor(),
+      batchSize = 1000,
+    )
+  }
+
+  private fun mappingValidationImpression(
+    referenceId: String,
+    entityKeys: List<LabeledImpression.EntityKey>,
+  ): LabeledImpression = labeledImpression {
+    eventTime = LocalDate.of(2025, 1, 1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+    vid = 1L
+    event = TEST_EVENT.pack()
+    eventGroupReferenceId = referenceId
+    this.entityKeys += entityKeys
   }
 
   companion object {
