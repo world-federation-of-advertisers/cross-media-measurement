@@ -5,6 +5,7 @@ py_test(
     name = "solver_test",
     size = "small",
     srcs = ["solver_test.py"],
+    data = ["testdata/large_counts_qp.npz"],
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_post_processor_result_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/noiseninja",
