@@ -61,6 +61,19 @@ Key parameters include:
     number of Honest Majority Share Shuffle (HMSS) mills, as TrusTEE is more
     efficient.
 
+Each mill processes one work item at a time and immediately claims the next
+available item. `--polling-interval` controls the wait after an empty claim or
+an error.
+
+Mills prioritize initialization for three claims, then ready computation for
+one claim. Empty claims count toward this cycle. If the preferred stage has no
+available work, another stage can be selected.
+
+`duchy_aggregator_trustee_replicas` sets the MIG size and defaults to one; dev
+uses two. Each instance has a distinct mill ID and shares the existing work
+locks. Increasing the count adds VM cost and service load; compare queue waits,
+completion time, and worker utilization before increasing it further.
+
 The reference Terraform module also sets the following environment variables
 through Confidential Space instance metadata. Custom infrastructure must set
 equivalent values for telemetry export:
