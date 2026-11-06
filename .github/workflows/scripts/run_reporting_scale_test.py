@@ -14,11 +14,15 @@
 
 """Run each scale case with fetching paused until creation has been verified."""
 
+from contextlib import contextmanager, nullcontext
 import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import socket
+import tempfile
+import time
 import zipfile
 
 TARGET = "//src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingScaleTest"
@@ -35,6 +39,7 @@ TEST_ENVIRONMENT = (
     "REPORTING_SCALE_FULFILLMENT_TIMEOUT_SECONDS", "REPORTING_SCALE_DEADLINE_SECONDS",
     "REPORTING_SCALE_SEED", "REPORTING_SCALE_PHASE", "REPORTING_SCALE_CANCEL_FAILED_CREATION",
     "REPORTING_SCALE_EXISTING_BASIC_REPORT", "REPORTING_SCALE_EDP_TLS_NAMES",
+    "REPORTING_SCALE_INTERNAL_API_TARGET", "REPORTING_SCALE_KINGDOM_INTERNAL_API_TARGET",
 )
 
 
@@ -63,14 +68,81 @@ def collect(destination):
     return json.loads(summary.read_text()) if summary.exists() else []
 
 
-def run_phase(environment, destination):
-    result = subprocess.run(
-        ["bazel", "test", "--config=ci", "--test_output=streamed",
-         "--test_timeout=21000", "--cache_test_results=no"]
-        + ["--test_env=" + key for key in TEST_ENVIRONMENT] + [TARGET],
-        env=environment,
+@contextmanager
+def internal_api_targets(environment):
+    """Expose the persisted plan and requisitions for a read-only creation audit."""
+    targets = (
+        ("REPORTING_SCALE_INTERNAL_API_TARGET", "reporting-v2",
+         "postgres-internal-reporting-server-deployment"),
+        ("REPORTING_SCALE_KINGDOM_INTERNAL_API_TARGET", "kingdom",
+         "gcp-kingdom-data-server-deployment"),
     )
-    return result.returncode, collect(destination)
+    forwarded = environment.copy()
+    processes = []
+    with tempfile.TemporaryDirectory(prefix="reporting-scale-api-") as directory:
+        command_environment = environment.copy()
+        command_environment["KUBECONFIG"] = str(Path(directory) / "kubeconfig")
+        try:
+            for variable, cluster, deployment in targets:
+                if forwarded.get(variable):
+                    continue
+                project = environment["GCLOUD_PROJECT"]
+                zone = environment["GCLOUD_ZONE"]
+                subprocess.run(
+                    ["gcloud", "container", "clusters", "get-credentials", cluster,
+                     "--project=" + project, "--zone=" + zone],
+                    env=command_environment, check=True, capture_output=True,
+                )
+                with socket.socket() as listener:
+                    listener.bind(("127.0.0.1", 0))
+                    port = listener.getsockname()[1]
+                log = open(Path(directory) / (cluster + ".log"), "w+")
+                process = subprocess.Popen(
+                    ["kubectl", "--context=gke_" + project + "_" + zone + "_" + cluster,
+                     "port-forward", "deployment/" + deployment, f"{port}:8443",
+                     "--address=127.0.0.1"],
+                    env=command_environment, stdout=log, stderr=subprocess.STDOUT,
+                )
+                processes.append((process, log))
+                deadline = time.monotonic() + 30
+                while True:
+                    if process.poll() is not None:
+                        raise RuntimeError("Private API port forward exited for " + cluster)
+                    try:
+                        with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                            break
+                    except OSError:
+                        if time.monotonic() >= deadline:
+                            raise RuntimeError("Private API port forward was not ready for " + cluster)
+                        time.sleep(0.2)
+                forwarded[variable] = f"127.0.0.1:{port}"
+            yield forwarded
+        finally:
+            for process, log in reversed(processes):
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+                log.close()
+
+
+def run_phase(environment, destination):
+    connections = (
+        internal_api_targets(environment)
+        if environment.get("REPORTING_SCALE_PHASE") == "creation"
+        else nullcontext(environment)
+    )
+    with connections as test_environment:
+        result = subprocess.run(
+            ["bazel", "test", "--config=ci", "--test_output=streamed",
+             "--test_timeout=21000", "--cache_test_results=no"]
+            + ["--test_env=" + key for key in TEST_ENVIRONMENT] + [TARGET],
+            env=test_environment,
+        )
+        return result.returncode, collect(destination)
 
 
 def main():

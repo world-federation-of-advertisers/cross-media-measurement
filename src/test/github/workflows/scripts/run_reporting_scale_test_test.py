@@ -26,7 +26,8 @@ REPORT = "measurementConsumers/test/basicReports/reporting-scale-test"
 
 class ReportingScaleControllerTest(unittest.TestCase):
     def run_scenario(self, *, creation_verified=True, create_code=0,
-                     cleanup_complete=False, initial_state="ENABLED", reuse_pause=False):
+                     cleanup_complete=False, initial_state="ENABLED", reuse_pause=False,
+                     verification_retryable=False):
         spec = importlib.util.spec_from_file_location("reporting_scale_controller", SCRIPT)
         controller = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(controller)
@@ -55,7 +56,9 @@ class ReportingScaleControllerTest(unittest.TestCase):
                 self.assertEqual(environment["REPORTING_SCALE_CANCEL_FAILED_CREATION"], "true")
                 return create_code, [{"basic_report": REPORT, "creation_verified": creation_verified,
                                       "outcome": "creation_succeeded" if creation_verified else "failed",
-                                      "cleanup_complete": cleanup_complete}]
+                                      "cleanup_complete": cleanup_complete,
+                                      "create_http_status": 200 if verification_retryable else 500,
+                                      "creation_verification_retryable": verification_retryable}]
             self.assertEqual(state[0], "ENABLED")
             self.assertEqual(environment["REPORTING_SCALE_CANCEL_FAILED_CREATION"], "false")
             forwarded_reports.append(environment["REPORTING_SCALE_EXISTING_BASIC_REPORT"])
@@ -79,6 +82,21 @@ class ReportingScaleControllerTest(unittest.TestCase):
             recorded_state = json.loads(state_file.read_text())["state"] if state_file.exists() else None
         return events, state[0], forwarded_reports, error, recorded_state
 
+    def test_private_api_targets_reuses_explicit_connections(self):
+        spec = importlib.util.spec_from_file_location("reporting_scale_controller", SCRIPT)
+        controller = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(controller)
+        environment = {
+            "REPORTING_SCALE_INTERNAL_API_TARGET": "127.0.0.1:10001",
+            "REPORTING_SCALE_KINGDOM_INTERNAL_API_TARGET": "127.0.0.1:10002",
+        }
+        with patch.object(controller.subprocess, "run") as run, \
+             patch.object(controller.subprocess, "Popen") as popen:
+            with controller.internal_api_targets(environment) as forwarded:
+                self.assertEqual(forwarded, environment)
+            run.assert_not_called()
+            popen.assert_not_called()
+
     def test_main_resumes_fetching_after_creation_and_reuses_the_same_report(self):
         events, state, reports, error, recorded = self.run_scenario()
         self.assertIsNone(error)
@@ -92,6 +110,17 @@ class ReportingScaleControllerTest(unittest.TestCase):
     def test_main_keeps_fetching_paused_after_failed_creation_and_successful_cleanup(self):
         events, state, reports, error, recorded = self.run_scenario(
             creation_verified=False, create_code=1, cleanup_complete=True)
+        self.assertIsNotNone(error)
+        self.assertEqual(state, "PAUSED")
+        self.assertEqual(recorded, "PAUSED")
+        self.assertEqual(reports, [])
+        self.assertNotIn("resume", events)
+        self.assertNotIn("run", events)
+        self.assertNotIn("full", events)
+
+    def test_main_keeps_fetching_paused_when_a_successful_create_cannot_be_verified(self):
+        events, state, reports, error, recorded = self.run_scenario(
+            creation_verified=False, create_code=1, verification_retryable=True)
         self.assertIsNotNone(error)
         self.assertEqual(state, "PAUSED")
         self.assertEqual(recorded, "PAUSED")

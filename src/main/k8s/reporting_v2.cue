@@ -376,6 +376,8 @@ package k8s
 						"--health-port=8080",
 						"--pdp-name=\(_populationDataProviderName)",
 						"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
+						"--internal-api-timeout-seconds=\(Reporting._internalApiTimeoutSeconds)",
+						"--kingdom-api-timeout-seconds=\(Reporting._kingdomApiTimeoutSeconds)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
@@ -425,6 +427,8 @@ package k8s
 							"--pdp-name=\(_populationDataProviderName)",
 							"--max-created-basic-report-age=\(Reporting._maxCreatedBasicReportAge)",
 							"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
+							"--internal-api-timeout-seconds=\(Reporting._internalApiTimeoutSeconds)",
+							"--kingdom-api-timeout-seconds=\(Reporting._kingdomApiTimeoutSeconds)",
 						] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 					}
 				}

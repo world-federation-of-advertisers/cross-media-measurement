@@ -104,7 +104,7 @@ the creation gate passes.
 
 ## Server settings for capacity diagnostics
 
-The Reporting public API supports `--internal-api-timeout-seconds` and
+The Reporting public API, scheduler and BasicReports result assembly job support `--internal-api-timeout-seconds` and
 `--kingdom-api-timeout-seconds` (both default to 30 seconds), preserving the
 channel's existing retry policy. A longer HTTP deadline alone cannot override
 these gRPC channel deadlines. Dev currently uses 600 seconds for these calls and
@@ -158,6 +158,12 @@ correctness tests for numerical assertions. Report a postprocessing failure
 separately from an EDPA fulfillment failure, using the linked measurement and
 requisition evidence.
 
+A successful create followed by a transport failure during verification preserves
+the created report and leaves fetching paused. Retry verification on the same
+report with `REPORTING_SCALE_PHASE=creation` and
+`REPORTING_SCALE_EXISTING_BASIC_REPORT`; this records
+`creation_verified_existing` after the full creation gate passes.
+
 For read-only follow-up on a prior scale test from the dev VM, set
 `REPORTING_SCALE_EXISTING_BASIC_REPORT` to its full resource name and select one
 state count matching that report. This mode records `creation_reused: true` and
@@ -193,3 +199,12 @@ In dev, full gRPC payload logging is disabled on the two Reporting servers
 through `_verboseReportingGrpcServerLogging`. The logging interceptor formats
 batch payloads before delivering requests and sending responses, so enabling
 it can consume RPC deadlines during scaled creation.
+
+
+Creation verification reads the persisted internal Report plan because RUNNING public Reports
+do not yet include metric results. It also reads internal Kingdom requisitions so that
+PENDING_PARAMS rows can be verified before Duchy setup finishes. The controller opens temporary
+private API connections with a separate kubeconfig and closes them after the creation phase.
+For direct Bazel runs, provide REPORTING_SCALE_INTERNAL_API_TARGET and
+REPORTING_SCALE_KINGDOM_INTERNAL_API_TARGET. Fulfillment still verifies the public metrics,
+measurements, and requisitions.

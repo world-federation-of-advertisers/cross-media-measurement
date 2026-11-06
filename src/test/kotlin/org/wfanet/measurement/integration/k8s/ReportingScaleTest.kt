@@ -36,6 +36,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -65,8 +66,16 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
+import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
+import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.loadtest.reporting.BasicReportHttpClient
 import org.wfanet.measurement.loadtest.reporting.testing.ReportingScaleTestData
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -179,6 +188,35 @@ class ReportingScaleTest {
       val metricsClient =
         MetricsCoroutineStub(reportingChannel.withDefaultDeadline(Duration.ofMinutes(10)))
           .withMaxInboundMessageSize(64 * 1024 * 1024)
+      val verifiesCreation =
+        phase == "creation" ||
+          System.getenv("REPORTING_SCALE_EXISTING_BASIC_REPORT").isNullOrEmpty()
+      val internalReportsClient =
+        if (verifiesCreation) {
+          val channel =
+            buildMutualTlsChannel(
+                requiredEnvironmentVariable("REPORTING_SCALE_INTERNAL_API_TARGET"),
+                signingCerts("reporting_tls", "reporting_root"),
+                "localhost",
+                defaultServiceConfig = serviceConfigWithTimeout(600),
+                maxInboundMessageSize = 64 * 1024 * 1024,
+              )
+              .also(channels::add)
+          InternalReportsCoroutineStub(channel.withDefaultDeadline(Duration.ofMinutes(10)))
+        } else null
+      val internalRequisitionsClient =
+        if (verifiesCreation) {
+          val channel =
+            buildMutualTlsChannel(
+                requiredEnvironmentVariable("REPORTING_SCALE_KINGDOM_INTERNAL_API_TARGET"),
+                signingCerts("kingdom_tls", "kingdom_root"),
+                "localhost",
+                defaultServiceConfig = serviceConfigWithTimeout(600),
+                maxInboundMessageSize = 64 * 1024 * 1024,
+              )
+              .also(channels::add)
+          InternalRequisitionsCoroutineStub(channel.withDefaultDeadline(Duration.ofMinutes(10)))
+        } else null
       val httpClient = httpClient(deadline)
       val readClient =
         httpClient
@@ -246,24 +284,44 @@ class ReportingScaleTest {
               record,
               "get",
             )
-          awaitFulfillment(
-            existingReportName,
-            report.createTime.toInstant().minusSeconds(1),
-            fulfillmentTimeout,
-            dataProviders,
-            measurementsClient,
-            providerClients,
-            reportsClient,
-            metricsClient,
-            readClient,
-            endpoint,
-            accessToken,
-            output,
-            "existing-report",
-            record,
-            records,
-          )
-          record["outcome"] = "fulfilled_existing"
+          if (phase == "creation") {
+            record["stage"] = "verify_creation"
+            verifyCreation(
+              existingReportName,
+              report.createTime.toInstant().minusSeconds(1),
+              dataProviders,
+              measurementsClient,
+              checkNotNull(internalRequisitionsClient),
+              checkNotNull(internalReportsClient),
+              metricsClient,
+              output,
+              "existing-report",
+              record,
+            )
+            record["creation_verified"] = true
+            record["creation_verified_at"] = Instant.now().toString()
+            record["outcome"] = "creation_verified_existing"
+            record["stage"] = "complete"
+          } else {
+            awaitFulfillment(
+              existingReportName,
+              report.createTime.toInstant().minusSeconds(1),
+              fulfillmentTimeout,
+              dataProviders,
+              measurementsClient,
+              providerClients,
+              reportsClient,
+              metricsClient,
+              readClient,
+              endpoint,
+              accessToken,
+              output,
+              "existing-report",
+              record,
+              records,
+            )
+            record["outcome"] = "fulfilled_existing"
+          }
         } catch (e: Throwable) {
           record["outcome"] = "failed"
           record["error"] = "${e.javaClass.simpleName}: ${e.message}"
@@ -379,8 +437,8 @@ class ReportingScaleTest {
               Instant.parse(record.getValue("started_at") as String),
               dataProviders,
               measurementsClient,
-              providerClients,
-              reportsClient,
+              checkNotNull(internalRequisitionsClient),
+              checkNotNull(internalReportsClient),
               metricsClient,
               output,
               caseName,
@@ -441,7 +499,27 @@ class ReportingScaleTest {
                 record["after_failure_get_error"] = readError.message
               }
             }
-            if (cancelFailedCreation && record["creation_verified"] != true) {
+            val verificationInterrupted =
+              record["create_http_status"] == 200 &&
+                (e is java.io.IOException ||
+                  e is kotlinx.coroutines.TimeoutCancellationException ||
+                  Status.fromThrowable(e).code in
+                    setOf(
+                      Status.Code.UNAVAILABLE,
+                      Status.Code.DEADLINE_EXCEEDED,
+                      Status.Code.RESOURCE_EXHAUSTED,
+                      Status.Code.CANCELLED,
+                    ))
+            if (verificationInterrupted) {
+              record["creation_verification_retryable"] = true
+              record["cleanup_skipped"] =
+                "Create succeeded; verification was interrupted and can be retried on this report"
+            }
+            if (
+              cancelFailedCreation &&
+                record["creation_verified"] != true &&
+                !verificationInterrupted
+            ) {
               try {
                 record["cleanup_started_at"] = Instant.now().toString()
                 Files.writeString(output.resolve("summary.json"), Gson().toJson(records))
@@ -631,7 +709,7 @@ class ReportingScaleTest {
           "Report contains unfinished metrics"
         }
         val metrics =
-          mapBounded(metricNames.toList().chunked(100)) { names ->
+          mapBounded(metricNames.toList().chunked(500)) { names ->
               metricsClient
                 .batchGetMetrics(
                   batchGetMetricsRequest {
@@ -788,8 +866,8 @@ class ReportingScaleTest {
     startedAt: Instant,
     dataProviders: List<String>,
     measurementsClient: MeasurementsCoroutineStub,
-    providerClients: Map<String, RequisitionsCoroutineStub>,
-    reportsClient: ReportsCoroutineStub,
+    internalRequisitionsClient: InternalRequisitionsCoroutineStub,
+    internalReportsClient: InternalReportsCoroutineStub,
     metricsClient: MetricsCoroutineStub,
     output: Path,
     caseName: String,
@@ -804,21 +882,35 @@ class ReportingScaleTest {
     check(reportNames.size == 1 && reportNames.single().isNotEmpty()) {
       "Missing or inconsistent underlying Report link"
     }
-    val report = reportsClient.getReport(getReportRequest { name = reportNames.single() })
-    check(report.basicReport == basicReportName) {
+    val measurementConsumer = basicReportName.substringBefore("/basicReports/")
+    val reportName = reportNames.single()
+    // A RUNNING public Report intentionally omits metric results. Its persisted plan contains
+    // every requested metric, including metrics that have not yet finished.
+    val report =
+      internalReportsClient.getReport(
+        internalGetReportRequest {
+          cmmsMeasurementConsumerId = measurementConsumer.substringAfter("measurementConsumers/")
+          externalReportId = reportName.substringAfter("/reports/")
+        }
+      )
+    check(report.details.basicReport == basicReportName) {
       "Underlying Report belongs to another BasicReport"
     }
     Files.writeString(output.resolve("$caseName-report.json"), JsonFormat.printer().print(report))
     val metricNames =
-      report.metricCalculationResultsList
-        .flatMap { it.resultAttributesList }
-        .map { it.metric }
+      report.reportingMetricEntriesMap.values
+        .flatMap { it.metricCalculationSpecReportingMetricsList }
+        .flatMap { it.reportingMetricsList }
+        .map {
+          check(it.externalMetricId.isNotEmpty()) { "Planned metric was not created" }
+          "$measurementConsumer/metrics/${it.externalMetricId}"
+        }
         .toSet()
     check(metricNames.isNotEmpty() && metricNames.all(String::isNotEmpty)) {
       "Report has missing metric names"
     }
     val metrics =
-      mapBounded(metricNames.toList().chunked(100)) { names ->
+      mapBounded(metricNames.toList().chunked(500)) { names ->
           retryRpc {
             metricsClient
               .batchGetMetrics(
@@ -856,7 +948,7 @@ class ReportingScaleTest {
     }
     record["metric_count"] = metrics.size
     record["measurement_count"] = measurements.size
-    record["report"] = report.name
+    record["report"] = reportName
     record["expected_requisitions_per_data_provider"] =
       measurements
         .flatMap { it.dataProvidersList.map { entry -> entry.key } }
@@ -865,13 +957,14 @@ class ReportingScaleTest {
     record["metrics_and_measurements_creation_verified"] = true
     record["stage"] = "verify_creation_requisitions"
     Files.writeString(output.resolve("summary.json"), Gson().toJson(listOf(record)))
-    val requisitions = verifyRequisitions(measurements, providerClients, false)
+    val requisitions =
+      verifyCreatedRequisitions(measurements, startedAt, internalRequisitionsClient)
     val counts =
       requisitions
-        .groupingBy { it.dataProviderCertificate.substringBefore("/certificates/") }
+        .groupingBy { "dataProviders/${externalIdToApiId(it.externalDataProviderId)}" }
         .eachCount()
     check(dataProviders.all { (counts[it] ?: 0) > 0 }) { "An EDP has no requisitions" }
-    record["report"] = report.name
+    record["report"] = reportName
     record["metric_count"] = metrics.size
     record["metric_states"] = metrics.groupingBy { it.state.name }.eachCount()
     record["measurement_count"] = measurements.size
@@ -900,14 +993,80 @@ class ReportingScaleTest {
         .toJson(
           requisitions.map {
             mapOf(
-              "name" to it.name,
-              "measurement" to it.measurement,
-              "data_provider" to it.dataProviderCertificate.substringBefore("/certificates/"),
+              "name" to
+                "dataProviders/${externalIdToApiId(it.externalDataProviderId)}/requisitions/${externalIdToApiId(it.externalRequisitionId)}",
+              "measurement" to
+                "$measurementConsumer/measurements/${externalIdToApiId(it.externalMeasurementId)}",
+              "data_provider" to "dataProviders/${externalIdToApiId(it.externalDataProviderId)}",
               "state" to it.state.name,
             )
           }
         ),
     )
+  }
+
+  /** Verifies creation even before Duchy setup makes PENDING_PARAMS requisitions public. */
+  private suspend fun verifyCreatedRequisitions(
+    measurements: List<Measurement>,
+    startedAt: Instant,
+    client: InternalRequisitionsCoroutineStub,
+  ): List<InternalRequisition> {
+    val expected =
+      measurements
+        .flatMap { measurement ->
+          measurement.dataProvidersList.map {
+            apiIdToExternalId(measurement.name.substringAfter("/measurements/")) to
+              apiIdToExternalId(it.key.substringAfter("dataProviders/"))
+          }
+        }
+        .toSet()
+    val found = linkedMapOf<Pair<Long, Long>, InternalRequisition>()
+    val consumerId =
+      apiIdToExternalId(
+        measurements
+          .first()
+          .name
+          .substringBefore("/measurements/")
+          .substringAfter("measurementConsumers/")
+      )
+    client
+      .streamRequisitions(
+        streamRequisitionsRequest {
+          filter =
+            StreamRequisitionsRequestKt.filter {
+              externalMeasurementConsumerId = consumerId
+              updatedAfter = startedAt.toProtoTime()
+            }
+        }
+      )
+      .collect { requisition ->
+        val key = requisition.externalMeasurementId to requisition.externalDataProviderId
+        if (key in expected) {
+          check(key !in found) { "Duplicated measurement/provider requisition" }
+          check(
+            requisition.externalMeasurementConsumerId == consumerId &&
+              requisition.externalRequisitionId != 0L &&
+              requisition.state in
+                setOf(
+                  InternalRequisition.State.PENDING_PARAMS,
+                  InternalRequisition.State.UNFULFILLED,
+                  InternalRequisition.State.FULFILLED,
+                )
+          ) {
+            "Invalid or terminally unsuccessful requisition during creation"
+          }
+          // Discard encrypted payloads as the stream is read.
+          found[key] =
+            InternalRequisition.newBuilder()
+              .setExternalMeasurementId(requisition.externalMeasurementId)
+              .setExternalDataProviderId(requisition.externalDataProviderId)
+              .setExternalRequisitionId(requisition.externalRequisitionId)
+              .setState(requisition.state)
+              .build()
+        }
+      }
+    check(found.keys == expected) { "Missing created requisitions" }
+    return found.values.toList()
   }
 
   /** Lists 500 requisitions per provider call instead of one call per measurement. */
