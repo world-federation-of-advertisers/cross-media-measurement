@@ -112,6 +112,15 @@ object RequestIds {
   fun forMarkRawImpressionUploadModelLineLabeling(modelLineName: String): String =
     fromKey("markRawImpressionUploadModelLineLabeling:$modelLineName")
 
+  fun forMarkRawImpressionUploadModelLineAvailabilitySyncing(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLineAvailabilitySyncing:$modelLineName")
+
+  fun forMarkRawImpressionUploadModelLineAvailabilitySynchronized(
+    modelLineName: String,
+    eventDate: String,
+  ): String =
+    fromKey("markRawImpressionUploadModelLineAvailabilitySynchronized:$modelLineName:$eventDate")
+
   fun forMarkRawImpressionUploadModelLineCompleted(modelLineName: String): String =
     fromKey("markRawImpressionUploadModelLineCompleted:$modelLineName")
 
@@ -142,6 +151,14 @@ object RequestIds {
   /** `request_id` for retrying one version of an upload-healing operation. */
   fun forRetryUploadHealingOperation(operationName: String, etag: String): String =
     fromKey("retryUploadHealingOperation:$operationName:$etag")
+
+  /** `request_id` for acquiring an upload-eviction fence. */
+  fun forAcquireUploadEvictionFence(operationId: String, state: String): String =
+    fromKey("acquireUploadEvictionFence:$operationId:$state")
+
+  /** `request_id` for releasing an upload-eviction fence. */
+  fun forReleaseUploadEvictionFence(operationId: String, etag: String): String =
+    fromKey("releaseUploadEvictionFence:$operationId:$etag")
 
   /** `request_id` for recording one durable upload-healing checkpoint and its evidence. */
   fun forUploadHealingStep(stepName: String, checkpoint: String, evidence: String): String =

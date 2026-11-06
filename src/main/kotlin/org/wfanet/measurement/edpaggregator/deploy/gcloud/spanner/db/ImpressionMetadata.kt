@@ -55,6 +55,17 @@ import org.wfanet.measurement.internal.edpaggregator.entityKey
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
 
 private const val IMPRESSION_METADATA_RESOURCE_ID_PREFIX = "imp"
+private const val MAX_ENTITY_KEY_MUTATION_WEIGHT = 7_000
+
+private fun requireEntityKeyMutationBudget(entityKeyWeight: Int) {
+  if (entityKeyWeight > MAX_ENTITY_KEY_MUTATION_WEIGHT) {
+    throw Status.RESOURCE_EXHAUSTED.withDescription(
+        "ImpressionMetadata batch expands to $entityKeyWeight entity-key rows; " +
+          "maximum supported weight is $MAX_ENTITY_KEY_MUTATION_WEIGHT"
+      )
+      .asRuntimeException()
+  }
+}
 
 // Struct shape for binding the ImpressionMetadataEntityKeys filter as an array parameter.
 private val ENTITY_KEY_FILTER_STRUCT: Type =
@@ -347,34 +358,36 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata
       requests.map { it.impressionMetadata.blobUri },
     )
 
+  val newRequests =
+    requests.filter { !existingRequestIdToImpressionMetadata.containsKey(it.requestId) }
+  requireEntityKeyMutationBudget(newRequests.sumOf { it.impressionMetadata.entityKeysCount })
+
   val creations: List<ImpressionMetadata> =
-    requests
-      .filter { !existingRequestIdToImpressionMetadata.containsKey(it.requestId) }
-      .map { request ->
-        if (existingBlobUriToImpressionMetadata.containsKey(request.impressionMetadata.blobUri)) {
-          throw ImpressionMetadataAlreadyExistsException(request.impressionMetadata.blobUri)
-            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+    newRequests.map { request ->
+      if (existingBlobUriToImpressionMetadata.containsKey(request.impressionMetadata.blobUri)) {
+        throw ImpressionMetadataAlreadyExistsException(request.impressionMetadata.blobUri)
+          .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+      }
+
+      val impressionMetadataId =
+        IdGenerator.Default.generateNewId { id ->
+          impressionMetadataExists(request.impressionMetadata.dataProviderResourceId, id)
         }
 
-        val impressionMetadataId =
-          IdGenerator.Default.generateNewId { id ->
-            impressionMetadataExists(request.impressionMetadata.dataProviderResourceId, id)
-          }
+      val impressionMetadataResourceId =
+        request.impressionMetadata.impressionMetadataResourceId.ifBlank {
+          "$IMPRESSION_METADATA_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
+        }
 
-        val impressionMetadataResourceId =
-          request.impressionMetadata.impressionMetadataResourceId.ifBlank {
-            "$IMPRESSION_METADATA_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
-          }
+      val created =
+        request.impressionMetadata.copy {
+          this.impressionMetadataResourceId = impressionMetadataResourceId
+          state = State.IMPRESSION_METADATA_STATE_ACTIVE
+        }
 
-        val created =
-          request.impressionMetadata.copy {
-            this.impressionMetadataResourceId = impressionMetadataResourceId
-            state = State.IMPRESSION_METADATA_STATE_ACTIVE
-          }
-
-        insertImpressionMetadata(impressionMetadataId, created, request.requestId)
-        created
-      }
+      insertImpressionMetadata(impressionMetadataId, created, request.requestId)
+      created
+    }
 
   val newCreationIterator = creations.iterator()
 
@@ -688,6 +701,16 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
   val resourceIds = requests.map { it.impressionMetadata.impressionMetadataResourceId }
   val existingByResourceId: Map<String, ImpressionMetadataResult> =
     getImpressionMetadataByResourceIds(dataProviderResourceId, resourceIds)
+
+  requireEntityKeyMutationBudget(
+    requests
+      .filter { !existingByRequestId.containsKey(it.requestId) }
+      .sumOf { request ->
+        val existing = existingByResourceId[request.impressionMetadata.impressionMetadataResourceId]
+        (existing?.impressionMetadata?.entityKeysCount ?: 0) +
+          request.impressionMetadata.entityKeysCount
+      }
+  )
 
   return requests.map { request ->
     // 1. Idempotency: same request_id → return previous result

@@ -88,3 +88,5 @@
     - 'core::0131::synonyms'
     # User-specified IDs not supported.
     - 'core::0133::request-id-field'
+    # This API uses structured filters instead of AIP-160 filter strings.
+    - 'core::0160::filter-field-type'

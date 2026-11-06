@@ -147,6 +147,9 @@ jobs:
       - name: Run Cloud Function deployment retry test
         run: python3 -m unittest discover -s src/test/terraform/gcloud/modules/http-cloud-function -p '*_test.py'
 
+      - name: Run Kubernetes rollout diagnostics test
+        run: python3 -m unittest discover -s src/test/github/workflows/scripts -p '*_test.py'
+
       - name: Run tests
         id: run-tests
         run: bazel test //...

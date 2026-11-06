@@ -145,9 +145,9 @@ material.
 **Shared certificates:**
 
 * `securecomputation-root-ca` — root cert for verifying the Secure Computation API.
-* `edpa-tee-app-tls-key` / `edpa-tee-app-tls-pem` — TLS keypair used by the
-  ResultsFulfiller TEE app to authenticate to the Secure Computation API. Signed by
-  `securecomputation-root-ca`.
+* `edpa-tee-app-tls-key` / `edpa-tee-app-tls-pem` — TLS keypair used by VID-labeling functions,
+  the ResultsFulfiller TEE app, and DataAvailabilitySync to authenticate to the Secure Computation
+  API. Signed by `securecomputation-root-ca`.
 * `edpa-data-watcher-tls-key` / `edpa-data-watcher-tls-pem` — DataWatcher and
   DataWatcherDelete TLS keypair for the Secure Computation API. Signed by
   `securecomputation-root-ca`.
@@ -983,6 +983,7 @@ configs {
   data_availability_storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
   cmms_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   impression_metadata_storage_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
+  secure_computation_control_plane_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"   # optional today; required in a future release
   # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional

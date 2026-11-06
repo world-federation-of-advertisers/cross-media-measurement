@@ -576,6 +576,8 @@ class SpannerDataAvailabilitySyncLeaseServiceTest {
           .to(DATA_PROVIDER_ID)
           .set("EvictionOperationId")
           .to(EVICTION_OPERATION_ID)
+          .set("Etag")
+          .to(EVICTION_OPERATION_ID)
           .set("State")
           .to(state)
           .set("CreateTime")
