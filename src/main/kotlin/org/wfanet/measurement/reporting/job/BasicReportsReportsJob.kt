@@ -723,7 +723,7 @@ class BasicReportsReportsJob(
   ): Map<String, MetricCalculationSpecInfo> {
     return buildMap {
       internalMetricCalculationSpecsStub
-        .listResources { cursor: String? ->
+        .listResources { cursor: String ->
           val response =
             internalMetricCalculationSpecsStub.listMetricCalculationSpecs(
               listMetricCalculationSpecsRequest {
@@ -733,7 +733,7 @@ class BasicReportsReportsJob(
                     this.externalCampaignGroupId = externalCampaignGroupId
                   }
                 limit = 1000
-                if (cursor != null) {
+                if (cursor.isNotEmpty()) {
                   externalMetricCalculationSpecIdAfter = cursor
                 }
               }
@@ -742,7 +742,7 @@ class BasicReportsReportsJob(
             if (response.limited) {
               response.metricCalculationSpecsList.last().externalMetricCalculationSpecId
             } else {
-              null
+              ""
             }
           ResourceList(response.metricCalculationSpecsList, nextCursor)
         }

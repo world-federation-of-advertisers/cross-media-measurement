@@ -39,6 +39,7 @@ import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -671,7 +672,7 @@ class BasicReportsReportsJobTest {
 
       stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
 
-      job.execute()
+      withTimeout(5_000) { job.execute() }
 
       assertReportCreatedPageRequested()
 
