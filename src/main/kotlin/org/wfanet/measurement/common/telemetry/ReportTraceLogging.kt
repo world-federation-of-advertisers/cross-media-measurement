@@ -55,6 +55,7 @@ object ReportTraceLogging {
       ReportTraceAttributes.BASIC_REPORT_STATE_STRING,
       ReportTraceAttributes.REPORT_STATE_STRING,
       ReportTraceAttributes.METRIC_STATE_STRING,
+      ReportTraceAttributes.METRIC_COUNT_STRING,
       ReportTraceAttributes.MEASUREMENT_STATE_STRING,
       ReportTraceAttributes.REQUISITION_STATE_STRING,
       ReportTraceAttributes.ERROR_RETRYABLE_STRING,
