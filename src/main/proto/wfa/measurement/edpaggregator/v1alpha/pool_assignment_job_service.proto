@@ -236,6 +236,9 @@ message MarkPoolAssignmentJobSucceededRequest {
   // this DEK to the parent `RawImpressionUploadModelLine.encrypted_merged_dek`
   // so a retrying SubpoolAssigner's merge stays consistent with the
   // already-written merged blobs.
+  // (-- api-linter: core::0215::foreign-type-reference=disabled
+  //     aip.dev/not-precedent: Shared encryption key schema used by
+  //     impression processing and aggregation. --)
   wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 4
       [(google.api.field_behavior) = REQUIRED];
 

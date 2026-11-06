@@ -39,8 +39,8 @@ jobs:
 
     - uses: world-federation-of-advertisers/actions/setup-api-linter@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
       with:
-        version: 1.67.2
-        sha256: 260064fad8c38feae402595b6cefef51d70e72b0b5968359c79ee8f3ad33ab27
+        version: 2.4.1
+        sha256: adf6b94b01bf1d82723feb2790109b69fc74af65f9be334e418dcc9b9d9ddd03
 
     - name: Write auth.bazelrc
       env:
