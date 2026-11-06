@@ -17,9 +17,12 @@
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
 import com.google.cloud.spanner.Options
+import com.google.protobuf.CodedOutputStream
 import com.google.protobuf.Empty
 import com.google.type.DateTime
 import io.grpc.Status
+import java.nio.ByteBuffer
+import java.security.MessageDigest
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -54,14 +57,14 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicRepo
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasurementConsumerByCmmsMeasurementConsumerId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertNoisyReportResultValues
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportResult
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportResultValues
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportingSetResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportingWindowResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readFullReportingSetResults
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readProcessedResultRequestFingerprint
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingSetResultIds
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingWindowResultIds
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingWindowResultIdsByReportingSetResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readUnprocessedReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExistsWithExternalId
@@ -70,6 +73,8 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSet
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingWindowResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToSucceeded
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToUnprocessedResultsReady
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setProcessedResultRequestFingerprint
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.upsertReportResultValues
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.internal.BasicReportStateInvalidException
 import org.wfanet.measurement.reporting.service.internal.GroupingDimensions
@@ -89,12 +94,17 @@ class SpannerReportResultsService(
   private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   private val idGenerator: IdGenerator = RandomIdGenerator(),
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val processedResultBatchSize: Int = 1_000,
 ) : ReportResultsGrpcKt.ReportResultsCoroutineImplBase(coroutineContext) {
   private val eventMessageVersion =
     EventTemplates.getEventDescriptor(impressionQualificationFilterMapping.eventMessageDescriptor)
       .currentVersion
   private val groupingDimensions =
     GroupingDimensions(impressionQualificationFilterMapping.eventMessageDescriptor)
+
+  init {
+    require(processedResultBatchSize > 0)
+  }
 
   override suspend fun createReportResult(request: CreateReportResultRequest): ReportResult {
     try {
@@ -497,77 +507,145 @@ class SpannerReportResultsService(
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val txnRunner =
-      spannerClient.readWriteTransaction(Options.tag("action=addDenoisedResultValues"))
-    txnRunner.run { txn ->
-      val (measurementConsumerId, reportResultId, _) =
-        try {
-          txn.readReportResult(cmmsMeasurementConsumerId, externalReportResultId)
-        } catch (e: ReportResultNotFoundException) {
-          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    // Resolve and validate every target before committing any prefix. Unprocessed values
+    // remain unchanged so a post-processor retry can recompute the same request.
+    val (measurementConsumerId, reportResultId, writes) =
+      spannerClient.readOnlyTransaction().use { txn ->
+        val (measurementConsumerId, reportResultId, _) =
+          try {
+            txn.readReportResult(cmmsMeasurementConsumerId, externalReportResultId)
+          } catch (e: ReportResultNotFoundException) {
+            throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+          }
+        val reportingSetResultIds =
+          txn.readReportingSetResultIds(
+            measurementConsumerId,
+            reportResultId,
+            request.reportingSetResultsMap.keys,
+          )
+        val reportingWindowResultIds =
+          txn.readReportingWindowResultIdsByReportingSetResult(
+            measurementConsumerId,
+            reportResultId,
+          )
+        val writes = buildList {
+          for ((externalReportingSetResultId, denoisedResult) in request.reportingSetResultsMap) {
+            val reportingSetResultId =
+              reportingSetResultIds[externalReportingSetResultId]
+                ?: throw ReportingSetResultNotFoundException(
+                    cmmsMeasurementConsumerId,
+                    externalReportResultId,
+                    externalReportingSetResultId,
+                  )
+                  .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+            for (entry in denoisedResult.reportingWindowResultsList) {
+              val reportingWindowResultId =
+                reportingWindowResultIds[reportingSetResultId]?.get(entry.key)
+                  ?: throw ReportingWindowResultNotFoundException(
+                      cmmsMeasurementConsumerId,
+                      externalReportResultId,
+                      externalReportingSetResultId,
+                      entry.key,
+                    )
+                    .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+              add(ProcessedResultWrite(reportingSetResultId, reportingWindowResultId, entry.value))
+            }
+          }
         }
-      val reportingSetResultIds: Map<Long, Long> =
-        txn.readReportingSetResultIds(
+        Triple(
           measurementConsumerId,
           reportResultId,
-          request.reportingSetResultsMap.keys,
+          writes.sortedWith(
+            compareBy(
+              ProcessedResultWrite::reportingSetResultId,
+              ProcessedResultWrite::reportingWindowResultId,
+            )
+          ),
         )
-
-      for ((externalReportingSetResultId, denoisedResult) in request.reportingSetResultsMap) {
-        val reportingSetResultId: Long =
-          reportingSetResultIds[externalReportingSetResultId]
-            ?: throw ReportingSetResultNotFoundException(
-                cmmsMeasurementConsumerId,
-                externalReportResultId,
-                externalReportingSetResultId,
-              )
-              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-        val reportingWindowResultIds: Map<ReportingSetResult.ReportingWindow, Long> =
-          txn.readReportingWindowResultIds(
-            measurementConsumerId,
-            reportResultId,
-            reportingSetResultId,
-            denoisedResult.reportingWindowResultsList.map { it.key },
-          )
-
-        for (entry in denoisedResult.reportingWindowResultsList) {
-          val reportingWindow: ReportingSetResult.ReportingWindow = entry.key
-          val reportingWindowResultId: Long =
-            reportingWindowResultIds[reportingWindow]
-              ?: throw ReportingWindowResultNotFoundException(
-                  cmmsMeasurementConsumerId,
-                  externalReportResultId,
-                  externalReportingSetResultId,
-                  reportingWindow,
-                )
-                .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-          txn.insertReportResultValues(
-            measurementConsumerId,
-            reportResultId,
-            reportingSetResultId,
-            reportingWindowResultId,
-            entry.value,
-          )
-        }
       }
 
-      txn
-        .readBasicReports(
-          ListBasicReportsRequestKt.filter {
-            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-            this.externalReportResultId = externalReportResultId
+    val requestFingerprint: ByteArray = processedResultRequestFingerprint(writes)
+    val filter =
+      ListBasicReportsRequestKt.filter {
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+        this.externalReportResultId = externalReportResultId
+      }
+    val batches = writes.chunked(processedResultBatchSize).ifEmpty { listOf(emptyList()) }
+    for ((index, batch) in batches.withIndex()) {
+      spannerClient.readWriteTransaction(Options.tag("action=addDenoisedResultValues")).run { txn ->
+        // Read state in every write transaction. A completed report cannot be overwritten.
+        val basicReports = mutableListOf<BasicReportResult>()
+        txn.readBasicReports(filter).collect { result ->
+          if (result.basicReport.state != BasicReport.State.UNPROCESSED_RESULTS_READY) {
+            throw BasicReportStateInvalidException(
+                result.basicReport.cmmsMeasurementConsumerId,
+                result.basicReport.externalBasicReportId,
+                result.basicReport.state,
+              )
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           }
-        )
-        .collect { basicReportResult ->
-          try {
-            markBasicReportCompleted(txn, basicReportResult)
-          } catch (e: BasicReportStateInvalidException) {
-            throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          basicReports += result
+        }
+        val storedFingerprint: ByteArray? =
+          txn.readProcessedResultRequestFingerprint(measurementConsumerId, reportResultId)
+        if (storedFingerprint == null) {
+          txn.setProcessedResultRequestFingerprint(
+            measurementConsumerId,
+            reportResultId,
+            requestFingerprint,
+          )
+        } else if (!storedFingerprint.contentEquals(requestFingerprint)) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "Corrected values differ from the request already claimed for this ReportResult"
+            )
+            .asRuntimeException()
+        }
+        for (write in batch) {
+          txn.upsertReportResultValues(
+            measurementConsumerId,
+            reportResultId,
+            write.reportingSetResultId,
+            write.reportingWindowResultId,
+            write.values,
+          )
+        }
+        // Prefix commits are retryable upserts. Public results are published only when
+        // every batch has committed and the final transaction advances the BasicReport.
+        if (index == batches.lastIndex) {
+          for (basicReport in basicReports) {
+            markBasicReportCompleted(txn, basicReport)
           }
         }
+      }
     }
 
     return Empty.getDefaultInstance()
+  }
+
+  private data class ProcessedResultWrite(
+    val reportingSetResultId: Long,
+    val reportingWindowResultId: Long,
+    val values: ReportingSetResult.ReportingWindowResult.ReportResultValues,
+  )
+
+  private fun processedResultRequestFingerprint(writes: List<ProcessedResultWrite>): ByteArray {
+    val digest = MessageDigest.getInstance("SHA-256")
+    val header = ByteBuffer.allocate(Long.SIZE_BYTES * 2 + Int.SIZE_BYTES)
+    for (write in writes) {
+      val values = ByteArray(write.values.serializedSize)
+      val output = CodedOutputStream.newInstance(values)
+      output.useDeterministicSerialization()
+      write.values.writeTo(output)
+      output.checkNoSpaceLeft()
+      header.clear()
+      header
+        .putLong(write.reportingSetResultId)
+        .putLong(write.reportingWindowResultId)
+        .putInt(values.size)
+      digest.update(header.array())
+      digest.update(values)
+    }
+    return digest.digest()
   }
 
   private fun validate(request: AddProcessedResultValuesRequest) {
@@ -580,6 +658,14 @@ class SpannerReportResultsService(
 
     for ((externalReportingSetResultId, denoisedResults) in request.reportingSetResultsMap) {
       val reportingSetResultPath = "reporting_set_results[$externalReportingSetResultId]"
+      if (
+        denoisedResults.reportingWindowResultsList.map { it.key }.distinct().size !=
+          denoisedResults.reportingWindowResultsCount
+      ) {
+        throw InvalidFieldValueException("$reportingSetResultPath.reporting_window_results") {
+          "$it contains duplicate windows"
+        }
+      }
       denoisedResults.reportingWindowResultsList.mapIndexed { index, entry ->
         val windowEntryPath = "$reportingSetResultPath.reporting_window_results[$index]"
         if (entry.key.hasNonCumulativeStart() && !entry.value.hasNonCumulativeResults()) {

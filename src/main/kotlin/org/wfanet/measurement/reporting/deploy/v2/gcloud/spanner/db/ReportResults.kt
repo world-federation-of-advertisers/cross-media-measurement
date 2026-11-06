@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db
 
+import com.google.cloud.ByteArray as CloudByteArray
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
@@ -31,6 +32,7 @@ import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.reportResult
@@ -140,4 +142,34 @@ suspend fun AsyncDatabaseClient.ReadContext.readReportResult(
   }
 
   return ReportResultResult(measurementConsumerId, reportResultId, reportResult)
+}
+
+/** Reads the correction request claimed for a ReportResult. */
+suspend fun AsyncDatabaseClient.ReadContext.readProcessedResultRequestFingerprint(
+  measurementConsumerId: Long,
+  reportResultId: Long,
+): ByteArray? {
+  val row =
+    checkNotNull(
+      readRow(
+        "ReportResults",
+        Key.of(measurementConsumerId, reportResultId),
+        listOf("ProcessedResultRequestFingerprint"),
+      )
+    )
+  return if (row.isNull("ProcessedResultRequestFingerprint")) null
+  else row.getBytes("ProcessedResultRequestFingerprint").toByteArray()
+}
+
+/** Claims a correction payload in the same transaction as its first result batch. */
+fun AsyncDatabaseClient.TransactionContext.setProcessedResultRequestFingerprint(
+  measurementConsumerId: Long,
+  reportResultId: Long,
+  fingerprint: ByteArray,
+) {
+  bufferUpdateMutation("ReportResults") {
+    set("MeasurementConsumerId").to(measurementConsumerId)
+    set("ReportResultId").to(reportResultId)
+    set("ProcessedResultRequestFingerprint").to(CloudByteArray.copyFrom(fingerprint))
+  }
 }
