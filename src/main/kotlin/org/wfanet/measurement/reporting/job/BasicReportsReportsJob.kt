@@ -102,6 +102,7 @@ class BasicReportsReportsJob(
   private val clock: Clock,
   private val maxCreatedBasicReportAge: Duration,
 ) {
+  private val benchmarkBasicReportId = System.getenv("REPORTING_BENCHMARK_BASIC_REPORT_ID")
 
   /**
    * For every MeasurementConsumer, all BasicReports with State REPORT_CREATED are retrieved. For
@@ -150,6 +151,13 @@ class BasicReportsReportsJob(
 
       resourceLists.collect { resourceList ->
         for (basicReport in resourceList.resources) {
+          if (
+            benchmarkBasicReportId != null &&
+              basicReport.externalBasicReportId != benchmarkBasicReportId
+          ) {
+            continue
+          }
+
           val basicReportName =
             basicReport.externalBasicReportId.takeIf(String::isNotEmpty)?.let {
               BasicReportKey(basicReport.cmmsMeasurementConsumerId, it).toName()
@@ -157,6 +165,16 @@ class BasicReportsReportsJob(
           val reportName =
             ReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName()
           try {
+            if (benchmarkBasicReportId != null) {
+              ReportTraceLogging.log(
+                logger,
+                "reporting.basic_report.assembly_started",
+                ReportTraceAttributes.BASIC_REPORT_NAME_STRING to basicReportName,
+                ReportTraceAttributes.REPORT_NAME_STRING to reportName,
+                ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "report_result_assembly",
+                ReportTraceAttributes.OUTCOME_STRING to "in_progress",
+              )
+            }
             ReportTracing.traceSuspending(
               spanName = "reporting.basic_report.assemble_results",
               attributes =
@@ -460,6 +478,13 @@ class BasicReportsReportsJob(
 
     resourceLists.collect { resourceList ->
       for (basicReport in resourceList.resources) {
+        if (
+          benchmarkBasicReportId != null &&
+            basicReport.externalBasicReportId != benchmarkBasicReportId
+        ) {
+          continue
+        }
+
         if (basicReport.createTime.toInstant().isAfter(cutoff)) {
           if (basicReport.details.hasReportCreationPlan()) {
             materializeReport(basicReport, offlinePrincipal)

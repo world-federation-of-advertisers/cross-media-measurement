@@ -16,6 +16,7 @@
 from absl import logging
 from contextlib import contextmanager
 from contextvars import ContextVar
+import os
 import logging as stdlib_logging
 from typing import Iterable, Optional
 import grpc
@@ -484,6 +485,9 @@ class PostProcessReportResultJob:
 
             # Processes basic report in this page.
             for report in response.basic_reports:
+                benchmark_report_id = os.getenv("REPORTING_BENCHMARK_BASIC_REPORT_ID")
+                if benchmark_report_id and report.external_basic_report_id != benchmark_report_id:
+                    continue
                 if not self._process_basic_report(report):
                     job_succeeded = False
 
