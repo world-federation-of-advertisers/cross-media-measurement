@@ -522,6 +522,11 @@ variable "meta_impression_query_artifact_version" {
   default     = null
 }
 
+variable "meta_impression_query_ad_account_id_metadata_key" {
+  description = "Key in Meta's EventGroup entity_metadata that holds the entity's ad account, read by the Meta impression-query Cloud Function. The DataProvider defines it."
+  type        = string
+}
+
 variable "meta_impression_query_uber_jar_path" {
   description = "Path to the downloaded Meta impression-query Cloud Function uber jar. When unset, the function is not deployed."
   type        = string
