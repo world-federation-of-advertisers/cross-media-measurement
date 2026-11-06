@@ -19,6 +19,11 @@ configs {
     private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
     cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
   }
+  secure_computation_control_plane_connection {
+    cert_file_path: "/secrets/cert-control-plane/edpa_tee_app_tls.pem"
+    private_key_file_path: "/secrets/key-control-plane/edpa_tee_app_tls.key"
+    cert_collection_file_path: "/secrets/secure-computation-ca/secure_computation_root.pem"
+  }
   event_group_activity_publishing {
     market_time_zone { id: "UTC" }
     event_group_map_blob_uri: "gs://secure-computation-storage-qa-bucket/edp7/event-groups-map/edp7-event-group.binpb"
@@ -49,6 +54,11 @@ configs {
     private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
     cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
   }
+  secure_computation_control_plane_connection {
+    cert_file_path: "/secrets/cert-control-plane/edpa_tee_app_tls.pem"
+    private_key_file_path: "/secrets/key-control-plane/edpa_tee_app_tls.key"
+    cert_collection_file_path: "/secrets/secure-computation-ca/secure_computation_root.pem"
+  }
 }
 configs {
   data_provider: "dataProviders/FAROIT4Wkwc"
@@ -69,6 +79,11 @@ configs {
     private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
     cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
   }
+  secure_computation_control_plane_connection {
+    cert_file_path: "/secrets/cert-control-plane/edpa_tee_app_tls.pem"
+    private_key_file_path: "/secrets/key-control-plane/edpa_tee_app_tls.key"
+    cert_collection_file_path: "/secrets/secure-computation-ca/secure_computation_root.pem"
+  }
 }
 configs {
   data_provider: "dataProviders/YxARUD4Wzcg"
@@ -88,5 +103,10 @@ configs {
     cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
     private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
     cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
+  }
+  secure_computation_control_plane_connection {
+    cert_file_path: "/secrets/cert-control-plane/edpa_tee_app_tls.pem"
+    private_key_file_path: "/secrets/key-control-plane/edpa_tee_app_tls.key"
+    cert_collection_file_path: "/secrets/secure-computation-ca/secure_computation_root.pem"
   }
 }
