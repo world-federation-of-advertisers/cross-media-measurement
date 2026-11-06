@@ -583,6 +583,11 @@ variable "meta_impression_query_edp_display_name" {
   type        = string
 }
 
+variable "meta_impression_query_ad_account_id_metadata_key" {
+  description = "Key in Meta's EventGroup entity_metadata that holds the entity's ad account. The DataProvider defines it; the Meta impression-query Cloud Function reads it to attribute hidden entities."
+  type        = string
+}
+
 variable "kingdom_public_api_target" {
   description = "Target of the Kingdom public API, which the Meta impression-query Cloud Function calls to look up EventGroups."
   type        = string

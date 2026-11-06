@@ -1033,8 +1033,7 @@ module "meta_impression_query_cloud_function" {
     "TLS_CERT_FILE=${local.meta_impression_query_tls_cert_file}",
     "TLS_KEY_FILE=${local.meta_impression_query_tls_key_file}",
     "CERT_COLLECTION_FILE=${local.meta_impression_query_cert_collection_file}",
-    # Key in Meta's EventGroup entity_metadata that holds the entity's ad account.
-    "ENTITY_METADATA_AD_ACCOUNT_ID_KEY=ad_account_id",
+    "ENTITY_METADATA_AD_ACCOUNT_ID_KEY=${var.meta_impression_query_ad_account_id_metadata_key}",
   ])
   secret_mappings = join(",", [
     "META_ACCESS_TOKEN=meta-access-token:latest",
