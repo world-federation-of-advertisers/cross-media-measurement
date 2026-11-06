@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.mill.trustee
 
 import com.google.protobuf.ByteString
 import io.grpc.Channel
+import java.time.Clock
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -31,10 +32,11 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
-import org.wfanet.measurement.duchy.mill.MillWorkLoop
 import org.wfanet.measurement.duchy.mill.trustee.TrusTeeMill
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessorImpl
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
@@ -134,7 +136,9 @@ abstract class TrusTeeMillDaemon : Runnable {
 
     runBlocking {
       withContext(CoroutineName("Mill $millId")) {
-        MillWorkLoop.run(flags.pollingInterval) { mill.claimAndProcessWork() }
+        // DO_NOT_SUBMIT: Restore the previous scheduling policy for a controlled benchmark.
+        val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
+        throttler.loopOnReady { logAndSuppressExceptionSuspend { mill.claimAndProcessWork() } }
       }
     }
   }
