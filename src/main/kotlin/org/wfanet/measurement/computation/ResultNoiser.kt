@@ -101,7 +101,7 @@ class GaussianResultNoiser(
  * impression threshold uses [IMPRESSION_LABEL], and frequency bucket `f` uses `f`.
  */
 class DeterministicTruncatedLaplaceResultNoiser(
-  combinedFrequencyVector: IntArray,
+  combinedFrequencyVector: FrequencyData,
   contributionCount: Int,
   private val maxFrequencyPerUser: Int = 1,
 ) : ResultNoiser {
@@ -140,16 +140,25 @@ class DeterministicTruncatedLaplaceResultNoiser(
     private const val REACH_LABEL = 0
     private const val IMPRESSION_LABEL = -1
     private const val UNIT_SENSITIVITY = 1.0
+    private const val FINGERPRINT_BUFFER_SIZE_BYTES = 64 * 1024
 
     /**
      * The noise seed: SHA-256 over the combined frequency vector and [contributionCount], which is
      * the count after input suppression.
      */
-    fun fingerprint(combinedFrequencyVector: IntArray, contributionCount: Int): ByteArray {
-      val buffer = ByteBuffer.allocate((combinedFrequencyVector.size + 1) * Int.SIZE_BYTES)
+    fun fingerprint(combinedFrequencyVector: FrequencyData, contributionCount: Int): ByteArray {
+      val digest = MessageDigest.getInstance("SHA-256")
+      val buffer = ByteBuffer.allocate(FINGERPRINT_BUFFER_SIZE_BYTES)
       buffer.putInt(contributionCount)
-      buffer.asIntBuffer().put(combinedFrequencyVector)
-      return MessageDigest.getInstance("SHA-256").digest(buffer.array())
+      for (index in 0 until combinedFrequencyVector.size) {
+        if (buffer.remaining() < Int.SIZE_BYTES) {
+          digest.update(buffer.array(), 0, buffer.position())
+          buffer.clear()
+        }
+        buffer.putInt(combinedFrequencyVector[index])
+      }
+      digest.update(buffer.array(), 0, buffer.position())
+      return digest.digest()
     }
   }
 }
