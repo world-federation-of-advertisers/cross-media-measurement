@@ -44,6 +44,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
@@ -251,6 +252,7 @@ class ReplayDataAvailabilitySync : Runnable {
                 impressionMetadataBatchSize = impressionMetadataBatchSize,
                 modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
                 errorIfGapsExist = config.errorIfGapsExist,
+                modelLineCutovers = config.modelLineCutoversList.map(ModelLineCutover::from),
                 publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
               )
             val result = runBlocking {

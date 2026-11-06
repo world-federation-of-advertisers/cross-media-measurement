@@ -4401,6 +4401,7 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates CMMS measurements when no event filter at all`() = runBlocking {
+    val reportStartTime = timestamp { seconds = 1704096000 }
     val internalSinglePublisherReportingSet =
       INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.copy {
         clearFilter()
@@ -4430,7 +4431,11 @@ class MetricsServiceTest {
               details = InternalMeasurementKt.details { dataProviderCount = 1 }
             }
           }
-          details = InternalMetricKt.details { containingReport = CONTAINING_REPORT }
+          details =
+            InternalMetricKt.details {
+              containingReport = CONTAINING_REPORT
+              this.reportStartTime = reportStartTime
+            }
         }
       externalMetricId = METRIC_ID
     }
@@ -4450,7 +4455,11 @@ class MetricsServiceTest {
               }
             }
         }
-        details = InternalMetricKt.details { containingReport = CONTAINING_REPORT }
+        details =
+          InternalMetricKt.details {
+            containingReport = CONTAINING_REPORT
+            this.reportStartTime = reportStartTime
+          }
       }
 
     wheneverBlocking {
@@ -4475,7 +4484,11 @@ class MetricsServiceTest {
 
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
-      metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { filters.clear() }
+      metric =
+        REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          filters.clear()
+          this.reportStartTime = reportStartTime
+        }
       metricId = METRIC_ID
     }
 
@@ -4491,6 +4504,10 @@ class MetricsServiceTest {
     capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
       val dataProvidersList =
         createMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+      val measurementSpec: MeasurementSpec =
+        createMeasurementRequest.measurement.measurementSpec.unpack()
+      assertThat(measurementSpec.reportingMetadata.reportStartTime).isEqualTo(reportStartTime)
 
       val filters: List<String> =
         dataProvidersList.flatMap { dataProviderEntry ->
