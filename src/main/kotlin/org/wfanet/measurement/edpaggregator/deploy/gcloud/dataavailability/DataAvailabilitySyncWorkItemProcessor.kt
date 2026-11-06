@@ -205,28 +205,47 @@ internal class DataAvailabilitySyncWorkItemProcessor(
     try {
       val outcome =
         runWithAttemptLeaseRenewal(attempt) {
-          leaseRunner.run(input.appParams.dataProvider, claimed.synchronizationAttemptId) { lease ->
-            leaseName = lease.name
-            Span.current()
-              .setAttribute(
-                VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_LEASE_NAME,
-                lease.name,
-              )
-            verifyDoneObject(input)
-            synchronize(input, lease) { nextStage ->
-              stage = nextStage
+          val synchronized =
+            leaseRunner.run(input.appParams.dataProvider, claimed.synchronizationAttemptId) { lease
+              ->
+              leaseName = lease.name
               Span.current()
-                .setAttribute(VidLabelingTraceAttributes.PIPELINE_PHASE, nextStage.name.lowercase())
+                .setAttribute(
+                  VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_LEASE_NAME,
+                  lease.name,
+                )
+              verifyDoneObject(input)
+              val result =
+                synchronize(input, lease) { nextStage ->
+                  stage = nextStage
+                  Span.current()
+                    .setAttribute(
+                      VidLabelingTraceAttributes.PIPELINE_PHASE,
+                      nextStage.name.lowercase(),
+                    )
+                }
+              if (
+                result == DataAvailabilitySync.Outcome.PUBLISHED ||
+                  result == DataAvailabilitySync.Outcome.NO_WORK
+              ) {
+                lease()
+                markAvailabilitySynchronized(input)
+              }
+              result
             }
+          if (
+            synchronized == DataAvailabilitySync.Outcome.PUBLISHED ||
+              synchronized == DataAvailabilitySync.Outcome.NO_WORK
+          ) {
+            completeWorkItemAttempt(attempt)
           }
+          synchronized
         }
 
       if (
         outcome == DataAvailabilitySync.Outcome.PUBLISHED ||
           outcome == DataAvailabilitySync.Outcome.NO_WORK
       ) {
-        markAvailabilitySynchronized(input)
-        completeWorkItemAttempt(attempt)
         val traceOutcome =
           if (outcome == DataAvailabilitySync.Outcome.NO_WORK) "no_work" else "succeeded"
         Span.current().setAttribute(XmmTraceAttributes.OUTCOME, traceOutcome)

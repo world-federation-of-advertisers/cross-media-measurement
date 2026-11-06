@@ -60,19 +60,21 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAtt
 class DataAvailabilitySyncWorkItemProcessorTest {
   private val workItemsStub = mock<WorkItemsCoroutineStub>()
   private val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+  private val leaseClient = FakeLeaseClient()
   private val leaseRunner =
     DataAvailabilitySyncLeaseRunner(
-      FakeLeaseClient(),
+      leaseClient,
       uuidGenerator = { "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
     )
 
   @Test
-  fun `process completes attempt after synchronization is published`() = runBlocking {
+  fun `process holds synchronization lease through availability mark`() = runBlocking {
     stubAttemptCreation()
     var availabilityMarked = false
     whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doAnswer
       {
         check(availabilityMarked)
+        check(!leaseClient.active)
         workItemAttempt {
           name = ATTEMPT_NAME
           state = WorkItemAttempt.State.SUCCEEDED
@@ -81,7 +83,10 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     val processor =
       processor(
         synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.PUBLISHED },
-        markAvailabilitySynchronized = { availabilityMarked = true },
+        markAvailabilitySynchronized = {
+          check(leaseClient.active)
+          availabilityMarked = true
+        },
       )
 
     processor.process(input())
@@ -89,23 +94,35 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     verifyBlocking(workItemAttemptsStub) { completeWorkItemAttempt(any(), any<Metadata>()) }
     verifyBlocking(workItemAttemptsStub, never()) { failWorkItemAttempt(any(), any<Metadata>()) }
     verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+    assertThat(leaseClient.renewCount).isEqualTo(1)
+    assertThat(leaseClient.releaseCount).isEqualTo(1)
   }
 
   @Test
   fun `process completes attempt when upload produced no labeled output`() = runBlocking {
     stubAttemptCreation()
+    var availabilityMarked = false
     whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doReturn
       workItemAttempt {
         name = ATTEMPT_NAME
         state = WorkItemAttempt.State.SUCCEEDED
       }
-    val processor = processor(synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.NO_WORK })
+    val processor =
+      processor(
+        synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.NO_WORK },
+        markAvailabilitySynchronized = {
+          check(leaseClient.active)
+          availabilityMarked = true
+        },
+      )
 
     processor.process(input())
 
     verifyBlocking(workItemAttemptsStub) { completeWorkItemAttempt(any(), any<Metadata>()) }
     verifyBlocking(workItemAttemptsStub, never()) { failWorkItemAttempt(any(), any<Metadata>()) }
     verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+    assertThat(availabilityMarked).isTrue()
+    assertThat(leaseClient.active).isFalse()
   }
 
   @Test
@@ -162,11 +179,69 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     val processor =
       processor(
         synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.PUBLISHED },
-        markAvailabilitySynchronized = { throw Status.UNAVAILABLE.asException() },
+        markAvailabilitySynchronized = {
+          check(leaseClient.active)
+          throw Status.UNAVAILABLE.asException()
+        },
       )
 
     assertFailsWith<StatusException> { processor.process(input()) }
 
+    verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemAttemptsStub, never()) {
+      completeWorkItemAttempt(any(), any<Metadata>())
+    }
+    assertThat(leaseClient.active).isFalse()
+    assertThat(leaseClient.releaseCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `process does not mark when final synchronization lease renewal fails`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.FAILED
+      }
+    leaseClient.renewFailure = Status.UNAVAILABLE.asException()
+    var availabilityMarked = false
+    val processor =
+      processor(
+        synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.PUBLISHED },
+        markAvailabilitySynchronized = { availabilityMarked = true },
+      )
+
+    assertFailsWith<StatusException> { processor.process(input()) }
+
+    assertThat(availabilityMarked).isFalse()
+    assertThat(leaseClient.active).isFalse()
+    assertThat(leaseClient.releaseCount).isEqualTo(1)
+    verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemAttemptsStub, never()) {
+      completeWorkItemAttempt(any(), any<Metadata>())
+    }
+  }
+
+  @Test
+  fun `process retries when lease release fails after availability mark`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.FAILED
+      }
+    leaseClient.releaseFailure = Status.UNAVAILABLE.asException()
+    var markCount = 0
+    val processor =
+      processor(
+        synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.PUBLISHED },
+        markAvailabilitySynchronized = { markCount++ },
+      )
+
+    assertFailsWith<StatusException> { processor.process(input()) }
+
+    assertThat(markCount).isEqualTo(1)
+    assertThat(leaseClient.releaseCount).isEqualTo(1)
     verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
     verifyBlocking(workItemAttemptsStub, never()) {
       completeWorkItemAttempt(any(), any<Metadata>())
@@ -238,6 +313,44 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     processor.process(input())
 
     verifyBlocking(workItemAttemptsStub) { renewWorkItemAttempt(any(), any<Metadata>()) }
+  }
+
+  @Test
+  fun `process renews WorkItemAttempt while marking availability`() = runBlocking {
+    val markStarted = CompletableDeferred<Unit>()
+    val renewalCompleted = CompletableDeferred<Unit>()
+    stubAttemptCreation(withLease = true)
+    whenever(workItemAttemptsStub.renewWorkItemAttempt(any(), any<Metadata>())) doAnswer
+      {
+        renewalCompleted.complete(Unit)
+        workItemAttempt {
+          name = ATTEMPT_NAME
+          state = WorkItemAttempt.State.ACTIVE
+          leaseExpirationTime = timestamp { seconds = 1_800_000_000L }
+        }
+      }
+    whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.SUCCEEDED
+      }
+    var renewalDelayCalls = 0
+    val processor =
+      processor(
+        synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.PUBLISHED },
+        markAvailabilitySynchronized = {
+          markStarted.complete(Unit)
+          renewalCompleted.await()
+        },
+        attemptLeaseRenewalDelay = {
+          if (renewalDelayCalls++ == 0) markStarted.await() else awaitCancellation()
+        },
+      )
+
+    processor.process(input())
+
+    assertThat(renewalCompleted.isCompleted).isTrue()
+    verifyBlocking(workItemAttemptsStub) { completeWorkItemAttempt(any(), any<Metadata>()) }
   }
 
   @Test
@@ -326,20 +439,40 @@ class DataAvailabilitySyncWorkItemProcessorTest {
   }
 
   private class FakeLeaseClient : DataAvailabilitySyncLeaseClient {
+    var active: Boolean = false
+      private set
+
+    var renewCount: Int = 0
+      private set
+
+    var releaseCount: Int = 0
+      private set
+
+    var renewFailure: StatusException? = null
+    var releaseFailure: StatusException? = null
+
     override suspend fun acquire(
       parent: String,
       attemptId: String,
       requestId: String,
-    ): DataAvailabilitySyncLease = dataAvailabilitySyncLease {
-      name = "$parent/dataAvailabilitySyncLeases/$attemptId"
-      state = DataAvailabilitySyncLease.State.ACTIVE
-      etag = "etag"
+    ): DataAvailabilitySyncLease {
+      active = true
+      return dataAvailabilitySyncLease {
+        name = "$parent/dataAvailabilitySyncLeases/$attemptId"
+        state = DataAvailabilitySyncLease.State.ACTIVE
+        etag = "etag"
+      }
     }
 
     override suspend fun renew(
       lease: DataAvailabilitySyncLease,
       requestId: String,
-    ): DataAvailabilitySyncLease = lease
+    ): DataAvailabilitySyncLease {
+      check(active)
+      renewCount++
+      renewFailure?.let { throw it }
+      return lease
+    }
 
     override suspend fun validate(lease: DataAvailabilitySyncLease): DataAvailabilitySyncLease =
       lease
@@ -347,10 +480,19 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     override suspend fun release(
       lease: DataAvailabilitySyncLease,
       requestId: String,
-    ): DataAvailabilitySyncLease = dataAvailabilitySyncLease {
-      name = lease.name
-      state = DataAvailabilitySyncLease.State.RELEASED
-      etag = lease.etag
+    ): DataAvailabilitySyncLease {
+      check(active)
+      releaseCount++
+      releaseFailure?.let {
+        releaseFailure = null
+        throw it
+      }
+      active = false
+      return dataAvailabilitySyncLease {
+        name = lease.name
+        state = DataAvailabilitySyncLease.State.RELEASED
+        etag = lease.etag
+      }
     }
   }
 
