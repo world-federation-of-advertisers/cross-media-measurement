@@ -37,10 +37,9 @@ CREATE TABLE EventGroupHierarchies (
   -- https://google.aip.dev/122#resource-id-segments.
   ExternalEventGroupHierarchyId STRING(63) NOT NULL,
 
-  -- org.wfanet.measurement.internal.kingdom.EventGroupHierarchy.State
-  -- protobuf enum encoded as an integer. PENDING while paths and ancestors are
-  -- being derived; ACTIVE once complete. A PENDING EventGroupHierarchy is not
-  -- served.
+  -- Hierarchy activation state, encoded as an integer. PENDING while paths and
+  -- ancestors are being derived; ACTIVE once complete. A PENDING hierarchy is
+  -- not served.
   State INT64 NOT NULL,
 
   EventGroupHierarchyDetails `wfa.measurement.internal.kingdom.EventGroupHierarchyDetails`
@@ -54,9 +53,9 @@ CREATE TABLE EventGroupHierarchies (
 CREATE UNIQUE INDEX EventGroupHierarchiesByExternalId
   ON EventGroupHierarchies(DataProviderId, ExternalEventGroupHierarchyId);
 
--- True for a DataProvider-registered EventGroup, false for an ancestor derived
--- from a descendant's EntityMetadata. The default means existing rows need no
--- backfill.
+-- True for a leaf EventGroup, false for an ancestor with descendants. An
+-- ancestor reverts to TRUE when its last descendant is deleted. The default
+-- means existing rows need no backfill.
 ALTER TABLE EventGroups
   ADD COLUMN IsLeaf BOOL NOT NULL DEFAULT (TRUE);
 
