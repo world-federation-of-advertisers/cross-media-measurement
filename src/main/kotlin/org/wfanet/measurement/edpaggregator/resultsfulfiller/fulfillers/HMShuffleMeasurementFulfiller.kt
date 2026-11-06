@@ -101,7 +101,9 @@ class HMShuffleMeasurementFulfiller(
         // (safe because the block is idempotent, see above). Any other status is non-retryable and
         // fails the fulfillment.
         val retryable =
-          e.status.code == Status.Code.UNAVAILABLE || e.status.code == Status.Code.DEADLINE_EXCEEDED
+          e.status.code == Status.Code.UNAVAILABLE ||
+            e.status.code == Status.Code.DEADLINE_EXCEEDED ||
+            e.status.code == Status.Code.RESOURCE_EXHAUSTED
         if (!retryable || attempt >= retryMaxAttempts) {
           throw Exception("Error fulfilling requisition ${requisition.name}", e)
         }

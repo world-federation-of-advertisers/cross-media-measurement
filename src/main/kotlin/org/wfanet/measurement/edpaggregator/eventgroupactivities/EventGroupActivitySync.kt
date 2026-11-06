@@ -466,7 +466,9 @@ class EventGroupActivitySync(
      */
     private fun transientStatusCodeOf(e: Throwable): io.grpc.Status.Code? =
       e.grpcStatus()?.code?.takeIf {
-        it == io.grpc.Status.Code.UNAVAILABLE || it == io.grpc.Status.Code.DEADLINE_EXCEEDED
+        it == io.grpc.Status.Code.UNAVAILABLE ||
+          it == io.grpc.Status.Code.DEADLINE_EXCEEDED ||
+          it == io.grpc.Status.Code.RESOURCE_EXHAUSTED
       }
 
     /** Derives an `error_type` label for a failure: gRPC status code name, or exception class. */
