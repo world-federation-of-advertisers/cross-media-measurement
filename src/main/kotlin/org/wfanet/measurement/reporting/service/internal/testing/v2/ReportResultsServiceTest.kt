@@ -820,13 +820,14 @@ abstract class ReportResultsServiceTest {
           valid.reportingSetResultsMap.getValue(secondKey).copy {
             reportingWindowResults[0] =
               reportingWindowResults[0].copy {
-                key = reportingWindow {
-                  end = date {
-                    year = 2025
-                    month = 12
-                    day = 31
+                key =
+                  key.copy {
+                    end = date {
+                      year = 2025
+                      month = 12
+                      day = 31
+                    }
                   }
-                }
               }
           }
       }
