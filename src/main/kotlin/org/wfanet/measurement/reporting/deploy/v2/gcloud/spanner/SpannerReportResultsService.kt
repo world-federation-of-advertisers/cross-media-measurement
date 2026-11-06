@@ -70,7 +70,6 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExistsWithExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExistsByExternalId
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingWindowResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToSucceeded
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToUnprocessedResultsReady
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setProcessedResultRequestFingerprint
@@ -283,6 +282,7 @@ class SpannerReportResultsService(
               }
             }
 
+          val allocatedWindowIds = mutableSetOf<Long>()
           for (windowEntry in value.reportingWindowResultsList) {
             addUnprocessedWindowResults(
               txn,
@@ -290,6 +290,7 @@ class SpannerReportResultsService(
               reportResultId,
               reportingSetResultId,
               windowEntry,
+              allocatedWindowIds,
             )
           }
         }
@@ -418,16 +419,12 @@ class SpannerReportResultsService(
     reportResultId: Long,
     reportingSetResultId: Long,
     windowEntry: ReportingSetResult.ReportingWindowEntry,
+    allocatedWindowIds: MutableSet<Long>,
   ) {
-    val reportingWindowResultId =
-      idGenerator.generateNewId {
-        txn.reportingWindowResultExists(
-          measurementConsumerId,
-          reportResultId,
-          reportingSetResultId,
-          it,
-        )
-      }
+    // The parent ReportingSetResult was allocated in this transaction and does not
+    // yet have persisted children. Reserve IDs locally, including earlier buffered
+    // windows, instead of querying the database for each ID.
+    val reportingWindowResultId = idGenerator.generateNewId { !allocatedWindowIds.add(it) }
     txn.insertReportingWindowResult(
       measurementConsumerId,
       reportResultId,

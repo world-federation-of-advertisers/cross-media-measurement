@@ -59,6 +59,7 @@ import org.wfanet.measurement.reporting.service.internal.testing.v2.ReportResult
 import org.wfanet.measurement.reporting.service.internal.testing.v2.ReportResultsServiceTest.Companion.CREATE_REPORT_RESULT_REQUEST
 
 class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
+  private var duplicateGeneratedIds = false
   private val afterNextProcessedBatch = AtomicReference<(() -> Unit)?>(null)
 
   @get:Rule
@@ -87,11 +88,28 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
       .readWriteTransaction(any<Options.TransactionOption>())
     val postgresClient = postgresDatabaseProvider.createDatabase()
     val integerIdGenerator = org.wfanet.measurement.common.identity.RandomIdGenerator()
+    val reportResultsIdGenerator =
+      if (duplicateGeneratedIds) {
+        object : IdGenerator {
+          private var repeatedId: Long? = null
+
+          override fun generateId(): Long {
+            repeatedId?.let {
+              repeatedId = null
+              return it
+            }
+            return idGenerator.generateId().also { repeatedId = it }
+          }
+        }
+      } else {
+        idGenerator
+      }
+
     return listOf(
       SpannerReportResultsService(
         spannerClient,
         impressionQualificationFilterMapping,
-        idGenerator = idGenerator,
+        idGenerator = reportResultsIdGenerator,
         processedResultBatchSize = 2,
       ),
       SpannerBasicReportsService(
@@ -103,6 +121,12 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
       PostgresReportingSetsService(integerIdGenerator, postgresClient),
       PostgresMeasurementConsumersService(integerIdGenerator, postgresClient),
     )
+  }
+
+  @Test
+  fun `batch creation retries window ID collisions within the same transaction`() {
+    duplicateGeneratedIds = true
+    super.`batchCreateReportingSetResults creates ReportingSetResults`()
   }
 
   @Test
