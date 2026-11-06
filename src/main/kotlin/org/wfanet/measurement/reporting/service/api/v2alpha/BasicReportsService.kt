@@ -148,6 +148,7 @@ class BasicReportsService(
   private val enableReportingSetReportingUnitComponents: Boolean = false,
   private val emitCelNullGuardsForNestedMembers: Boolean = false,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val enableAsyncReportCreation: Boolean = false,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
 
@@ -359,6 +360,14 @@ class BasicReportsService(
 
     val requiredPermissionIds = buildSet {
       add(Permission.CREATE)
+      if (enableAsyncReportCreation) {
+        // These are otherwise checked by the inline Report/Metric creation calls.
+        add("reporting.reports.create")
+        add("reporting.metrics.create")
+        if (effectiveModelLine.type == ModelLine.Type.DEV) {
+          add("reporting.metrics.createWithDevModelLine")
+        }
+      }
 
       if (effectiveModelLine.type == ModelLine.Type.DEV) {
         add(Permission.CREATE_WITH_DEV_MODEL_LINE)
@@ -366,6 +375,16 @@ class BasicReportsService(
     }
 
     authorization.check(request.parent, requiredPermissionIds)
+
+    if (
+      enableAsyncReportCreation &&
+        measurementConsumerConfigs.configsMap[request.parent]?.offlinePrincipal.isNullOrEmpty()
+    ) {
+      throw Status.FAILED_PRECONDITION.withDescription(
+          "Durable report creation requires an offline principal"
+        )
+        .asRuntimeException()
+    }
 
     // Creates ReportingSets, so it must not run until the request is known to be valid and
     // authorized.
@@ -525,25 +544,58 @@ class BasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
+    val requestedBasicReportName =
+      BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName()
+    val preparedReport: Report? =
+      if (!enableAsyncReportCreation) null
+      else
+        try {
+          buildReport(
+            request.basicReport,
+            requestedBasicReportName,
+            campaignGroupResolution.campaignGroupKey,
+            reportingSetMaps.nameByReportingSetComposite,
+            reportingSetsMetricCalculationSpecDetailsMap,
+            effectiveModelLine.name,
+            effectiveReportStart,
+          )
+        } catch (e: ReportingSetNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        } catch (e: InternalReportingSetsException) {
+          throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
+        }
+
     val createdInternalBasicReport =
       try {
         internalBasicReportsStub.createBasicReport(
           createBasicReportRequest {
             basicReport =
-              request.basicReport.toInternal(
-                cmmsMeasurementConsumerId = parentKey.measurementConsumerId,
-                basicReportId = request.basicReportId,
-                campaignGroupId = campaignGroupResolution.campaignGroupKey.reportingSetId,
-                campaignGroupSynthesized = campaignGroupResolution.synthesized,
-                createReportRequestId = createReportRequestId,
-                reportingImpressionQualificationFilters =
-                  request.basicReport.impressionQualificationFiltersList,
-                effectiveReportingImpressionQualificationFilters =
-                  effectiveReportingImpressionQualificationFilters,
-                impressionQualificationFilterSpecsByName = impressionQualificationFilterSpecsByName,
-                effectiveModelLine = effectiveModelLine.name,
-                effectiveReportStart = effectiveReportStart,
-              )
+              request.basicReport
+                .toInternal(
+                  cmmsMeasurementConsumerId = parentKey.measurementConsumerId,
+                  basicReportId = request.basicReportId,
+                  campaignGroupId = campaignGroupResolution.campaignGroupKey.reportingSetId,
+                  campaignGroupSynthesized = campaignGroupResolution.synthesized,
+                  createReportRequestId = createReportRequestId,
+                  reportingImpressionQualificationFilters =
+                    request.basicReport.impressionQualificationFiltersList,
+                  effectiveReportingImpressionQualificationFilters =
+                    effectiveReportingImpressionQualificationFilters,
+                  impressionQualificationFilterSpecsByName =
+                    impressionQualificationFilterSpecsByName,
+                  effectiveModelLine = effectiveModelLine.name,
+                  effectiveReportStart = effectiveReportStart,
+                )
+                .let { internalReport ->
+                  if (preparedReport == null) internalReport
+                  else
+                    internalReport.copy {
+                      details =
+                        internalReport.details.copy {
+                          reportCreationPlan = preparedReport.toCreationPlan()
+                        }
+                    }
+                }
             requestId = request.requestId
           }
         )
@@ -578,7 +630,13 @@ class BasicReportsService(
     // already been advanced or failed.
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
     when (createdInternalBasicReport.state) {
-      InternalBasicReport.State.CREATED -> {}
+      InternalBasicReport.State.CREATED -> {
+        if (createdInternalBasicReport.details.hasReportCreationPlan()) {
+          return createdInternalBasicReport.toBasicReport(
+            populateDeprecatedReportingUnitEventGroupSummaries = false
+          )
+        }
+      }
       InternalBasicReport.State.REPORT_CREATED,
       InternalBasicReport.State.UNPROCESSED_RESULTS_READY,
       InternalBasicReport.State.SUCCEEDED ->
@@ -598,7 +656,11 @@ class BasicReportsService(
     }
 
     val basicReportName =
-      BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName()
+      BasicReportKey(
+          createdInternalBasicReport.cmmsMeasurementConsumerId,
+          createdInternalBasicReport.externalBasicReportId,
+        )
+        .toName()
     val report: Report =
       try {
         buildReport(
@@ -623,18 +685,21 @@ class BasicReportsService(
       reportId = "a${UUID.randomUUID()}"
     }
 
-    try {
-      reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
-    } catch (e: StatusException) {
-      throw Status.INTERNAL.withCause(e).asRuntimeException()
-    }
+    val createdReport =
+      try {
+        reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
+      } catch (e: StatusException) {
+        throw Status.INTERNAL.withCause(e).asRuntimeException()
+      }
+    val createdReportKey = checkNotNull(ReportKey.fromName(createdReport.name))
+    check(createdReportKey.cmmsMeasurementConsumerId == parentKey.measurementConsumerId)
 
     try {
       internalBasicReportsStub.setExternalReportId(
         setExternalReportIdRequest {
           cmmsMeasurementConsumerId = parentKey.measurementConsumerId
-          externalBasicReportId = request.basicReportId
-          externalReportId = createReportRequest.reportId
+          externalBasicReportId = createdInternalBasicReport.externalBasicReportId
+          externalReportId = createdReportKey.reportId
         }
       )
     } catch (e: StatusException) {
@@ -660,16 +725,12 @@ class BasicReportsService(
     }
 
     logger.info {
-      val reportName =
-        ReportKey(parentKey.measurementConsumerId, createReportRequest.reportId).toName()
+      val reportName = createdReport.name
       "Associated xmm.basic_report.name=$basicReportName xmm.report.name=$reportName"
     }
     Span.current()
       .setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
-      .setAttribute(
-        ReportTraceAttributes.REPORT_NAME,
-        ReportKey(parentKey.measurementConsumerId, createReportRequest.reportId).toName(),
-      )
+      .setAttribute(ReportTraceAttributes.REPORT_NAME, createdReport.name)
 
     return createdInternalBasicReport.toBasicReport(
       populateDeprecatedReportingUnitEventGroupSummaries = false

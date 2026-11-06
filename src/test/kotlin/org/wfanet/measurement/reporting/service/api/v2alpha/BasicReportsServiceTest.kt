@@ -106,6 +106,7 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequestKt
+import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt as InternalDimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
@@ -333,6 +334,169 @@ class BasicReportsServiceTest {
   fun cleanupTelemetry() {
     openTelemetry.close()
   }
+
+  private fun durableCreationService(offlinePrincipal: String = "principals/offline") =
+    BasicReportsService(
+      internalBasicReportsService,
+      internalImpressionQualificationFiltersService,
+      internalReportingSetsService,
+      internalMetricCalculationSpecsService,
+      reportsService,
+      modelLinesService,
+      TEST_EVENT_DESCRIPTOR,
+      METRIC_SPEC_CONFIG,
+      SecureRandom().asKotlinRandom(),
+      authorization,
+      MEASUREMENT_CONSUMER_CONFIGS.toBuilder()
+        .putConfigs(
+          MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID).toName(),
+          CONFIG.toBuilder().setOfflinePrincipal(offlinePrincipal).build(),
+        )
+        .build(),
+      defaultReportStartHour = null,
+      baseExternalImpressionQualificationFilterIds = emptyList(),
+      enableReportingSetReportingUnitComponents = true,
+      enableAsyncReportCreation = true,
+    )
+
+  private suspend fun durableCreationRequest(): CreateBasicReportRequest {
+    val consumer = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = consumer.measurementConsumerId }
+    )
+    val campaignKey = ReportingSetKey(consumer, "durable-campaign")
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = consumer.measurementConsumerId
+            externalCampaignGroupId = campaignKey.reportingSetId
+          }
+        externalReportingSetId = campaignKey.reportingSetId
+      }
+    )
+    return createBasicReportRequest {
+      parent = consumer.toName()
+      basicReportId = "durable-basic"
+      requestId = UUID.randomUUID().toString()
+      basicReport = basicReport {
+        title = "Durable report"
+        campaignGroup = campaignKey.toName()
+        reportingInterval = reportingInterval {
+          reportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2025
+            month = 7
+            day = 17
+          }
+        }
+        impressionQualificationFilters += reportingImpressionQualificationFilter {
+          impressionQualificationFilter =
+            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+              .toName()
+        }
+        resultGroupSpecs += resultGroupSpec {
+          title = "Reach"
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  fun `createBasicReport durably acknowledges without creating measurements inline`(): Unit =
+    runBlocking {
+      val request = durableCreationRequest()
+      val durableService = durableCreationService()
+      val scopes = SCOPES + setOf("reporting.reports.create", "reporting.metrics.create")
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, scopes) { durableService.createBasicReport(request) }
+      val stored =
+        internalBasicReportsService.getBasicReport(
+          internalGetBasicReportRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalBasicReportId = request.basicReportId
+          }
+        )
+      assertThat(response.state).isEqualTo(BasicReport.State.RUNNING)
+      assertThat(stored.state).isEqualTo(InternalBasicReport.State.CREATED)
+      assertThat(stored.details.hasReportCreationPlan()).isTrue()
+      val plan = stored.details.reportCreationPlan
+      assertThat(plan.reportingMetricEntriesCount).isAtLeast(1)
+      assertThat(
+          plan.reportingMetricEntriesList.flatMap { it.externalMetricCalculationSpecIdsList }
+        )
+        .isNotEmpty()
+      assertThat(plan.reportingInterval.reportStart)
+        .isEqualTo(response.reportingInterval.effectiveReportStart)
+      verify(reportsServiceMock, times(0)).createReport(any())
+      val repeated =
+        withPrincipalAndScopes(PRINCIPAL, scopes) { durableService.createBasicReport(request) }
+      val retriedStored =
+        internalBasicReportsService.getBasicReport(
+          internalGetBasicReportRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalBasicReportId = request.basicReportId
+          }
+        )
+      assertThat(repeated).isEqualTo(response)
+      assertThat(retriedStored.createReportRequestId).isEqualTo(stored.createReportRequestId)
+      assertThat(retriedStored.details.reportCreationPlan).isEqualTo(plan)
+      verify(reportsServiceMock, times(0)).createReport(any())
+    }
+
+  @Test
+  fun `createBasicReport requires offline credentials before persisting durable work`(): Unit =
+    runBlocking {
+      val request = durableCreationRequest()
+      val scopes = SCOPES + setOf("reporting.reports.create", "reporting.metrics.create")
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, scopes) {
+            durableCreationService("").createBasicReport(request)
+          }
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      val missing =
+        assertFailsWith<StatusException> {
+          internalBasicReportsService.getBasicReport(
+            internalGetBasicReportRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalBasicReportId = request.basicReportId
+            }
+          )
+        }
+      assertThat(missing.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      verify(reportsServiceMock, times(0)).createReport(any())
+    }
+
+  @Test
+  fun `createBasicReport preserves measurement creation authorization for durable work`(): Unit =
+    runBlocking {
+      val request = durableCreationRequest()
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES + "reporting.reports.create") {
+            durableCreationService().createBasicReport(request)
+          }
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+      verify(reportsServiceMock, times(0)).createReport(any())
+    }
 
   @Test
   fun `createBasicReport returns basic report`(): Unit = runBlocking {
