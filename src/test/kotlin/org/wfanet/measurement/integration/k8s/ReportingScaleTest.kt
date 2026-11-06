@@ -74,7 +74,11 @@ import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisitio
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest as internalBatchGetMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.loadtest.reporting.BasicReportHttpClient
 import org.wfanet.measurement.loadtest.reporting.testing.ReportingScaleTestData
@@ -90,6 +94,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineSt
 import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
+import org.wfanet.measurement.reporting.v2alpha.getReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
@@ -362,21 +367,42 @@ class ReportingScaleTest {
           try {
             record["stage"] = "campaign_group"
             val campaignId = "campaign-scale-$runId"
+            val reusedCampaign =
+              System.getenv("REPORTING_SCALE_CAMPAIGN_GROUP")?.takeIf(String::isNotBlank)
+            val previousReport =
+              System.getenv("REPORTING_SCALE_SYNC_REPORT")?.takeIf(String::isNotBlank)
+            if (previousReport != null) {
+              require(previousReport.startsWith("$measurementConsumer/reports/"))
+              // Update Reporting metric states from Kingdom before deciding which metrics can be
+              // reused. FAILED and cancelled measurements must not remain apparently RUNNING.
+              record["stage"] = "sync_previous_report"
+              record["previous_report_state"] =
+                reportsClient.getReport(getReportRequest { name = previousReport }).state.name
+            }
             val campaign =
-              reportingSetsClient.createReportingSet(
-                createReportingSetRequest {
-                  parent = measurementConsumer
-                  reportingSetId = campaignId
-                  reportingSet = reportingSet {
-                    displayName = "Reporting scale test $runId"
-                    primitive =
-                      ReportingSetKt.primitive {
-                        cmmsEventGroups += eventGroups.map(EventGroup::getCmmsEventGroup)
-                      }
-                    campaignGroup = "$measurementConsumer/reportingSets/$campaignId"
+              if (reusedCampaign != null) {
+                require(reusedCampaign.startsWith("$measurementConsumer/reportingSets/"))
+                reportingSetsClient.getReportingSet(
+                  getReportingSetRequest { name = reusedCampaign }
+                )
+              } else {
+                reportingSetsClient.createReportingSet(
+                  createReportingSetRequest {
+                    parent = measurementConsumer
+                    reportingSetId = campaignId
+                    reportingSet = reportingSet {
+                      displayName = "Reporting scale test $runId"
+                      primitive =
+                        ReportingSetKt.primitive {
+                          cmmsEventGroups += eventGroups.map(EventGroup::getCmmsEventGroup)
+                        }
+                      campaignGroup = "$measurementConsumer/reportingSets/$campaignId"
+                    }
                   }
-                }
-              )
+                )
+              }
+            record["campaign_group"] = campaign.name
+            record["campaign_reused"] = reusedCampaign != null
             val requestMessage =
               ReportingScaleTestData.buildReport(
                 campaignGroup = campaign.name,
@@ -595,15 +621,20 @@ class ReportingScaleTest {
         }
         record["measurement_listing_truncated"] = response.nextPageToken.isNotEmpty()
         record["observed_measurement_count"] = measurements.size
-        check(measurements.isNotEmpty()) { "Creation produced no linked Kingdom measurements" }
         val reportNames =
           measurements.values
             .map { it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report }
             .toSet()
-        check(reportNames.size == 1 && reportNames.single().isNotEmpty()) {
-          "Expected one underlying Report, got $reportNames"
+        val knownReportName =
+          (record["report"] as? String)
+            ?: System.getenv("REPORTING_SCALE_UNDERLYING_REPORT")?.takeIf(String::isNotBlank)
+        val reportName = knownReportName ?: reportNames.singleOrNull()
+        check(reportName != null && reportName.startsWith("$measurementConsumer/reports/")) {
+          "Expected a persisted underlying Report link"
         }
-        val reportName = reportNames.single()
+        check(reportNames.isEmpty() || reportNames == setOf(reportName)) {
+          "Fresh measurement Report links disagree with the persisted Report"
+        }
         record["report"] = reportName
         val pollingClient =
           BasicReportHttpClient(
@@ -721,13 +752,7 @@ class ReportingScaleTest {
             }
             .flatten()
         check(metrics.map { it.name }.toSet() == metricNames) { "Missing Report metrics" }
-        check(
-          metrics.all {
-            it.state == Metric.State.SUCCEEDED &&
-              it.hasResult() &&
-              it.basicReport == basicReportName
-          }
-        ) {
+        check(metrics.all { it.state == Metric.State.SUCCEEDED && it.hasResult() }) {
           "Unfinished, empty, or incorrectly linked metric"
         }
         val resultMeasurementNames = metrics.flatMap { it.result.cmmsMeasurementsList }.toSet()
@@ -758,10 +783,19 @@ class ReportingScaleTest {
           "Missing or unfinished Kingdom measurements"
         }
         measurements.clear()
+        val finalMetricsByName = metrics.associateBy { it.name }
         for (measurement in finalMeasurements) {
           val metadata = measurement.measurementSpec.unpack<MeasurementSpec>().reportingMetadata
-          check(metadata.basicReport == basicReportName && metadata.report == reportName) {
-            "Measurement belongs to another report"
+          val metric = finalMetricsByName[metadata.metric]
+          check(
+            metric != null &&
+              measurement.name in metric.result.cmmsMeasurementsList &&
+              metric.basicReport == metadata.basicReport
+          ) {
+            "Signed measurement does not match a referenced metric"
+          }
+          if (metadata.basicReport == basicReportName) {
+            check(metadata.report == reportName) { "Fresh measurement belongs to another Report" }
           }
           measurements[measurement.name] = measurement
         }
@@ -874,16 +908,21 @@ class ReportingScaleTest {
     record: MutableMap<String, Any?>,
   ) {
     val started = System.nanoTime()
-    val measurements = listReportMeasurements(basicReportName, startedAt, measurementsClient)
-    check(measurements.isNotEmpty()) { "Creation produced no linked Kingdom measurements" }
-    val metadata =
-      measurements.map { it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata }
-    val reportNames = metadata.map { it.report }.toSet()
-    check(reportNames.size == 1 && reportNames.single().isNotEmpty()) {
-      "Missing or inconsistent underlying Report link"
-    }
     val measurementConsumer = basicReportName.substringBefore("/basicReports/")
-    val reportName = reportNames.single()
+    val internalBasicReport =
+      InternalBasicReportsCoroutineStub(
+          internalReportsClient.channel.withDefaultDeadline(Duration.ofMinutes(10))
+        )
+        .getBasicReport(
+          internalGetBasicReportRequest {
+            cmmsMeasurementConsumerId = measurementConsumer.substringAfter("measurementConsumers/")
+            externalBasicReportId = basicReportName.substringAfter("/basicReports/")
+          }
+        )
+    check(internalBasicReport.externalReportId.isNotEmpty()) {
+      "BasicReport has no persisted underlying Report link"
+    }
+    val reportName = "$measurementConsumer/reports/${internalBasicReport.externalReportId}"
     // A RUNNING public Report intentionally omits metric results. Its persisted plan contains
     // every requested metric, including metrics that have not yet finished.
     val report =
@@ -926,19 +965,74 @@ class ReportingScaleTest {
     check(metrics.size == metricNames.size && metrics.map { it.name }.toSet() == metricNames) {
       "Report metrics were not all created"
     }
-    check(
-      metrics.all {
-        it.basicReport == basicReportName &&
-          it.state in setOf(Metric.State.RUNNING, Metric.State.SUCCEEDED)
-      }
-    ) {
-      "Metric creation failed or has an incorrect report link"
+    check(metrics.all { it.state in setOf(Metric.State.RUNNING, Metric.State.SUCCEEDED) }) {
+      "Metric creation failed"
     }
-    // Fresh campaign groups prevent reuse from another report. Each unique metric must have
-    // at least one signed Kingdom measurement link before fetching is resumed.
-    check(metadata.map { it.metric }.toSet() == metricNames) {
+    val storedMetrics =
+      mapBounded(metricNames.toList().chunked(500)) { names ->
+          InternalMetricsCoroutineStub(
+              internalReportsClient.channel.withDefaultDeadline(Duration.ofMinutes(10))
+            )
+            .batchGetMetrics(
+              internalBatchGetMetricsRequest {
+                cmmsMeasurementConsumerId =
+                  measurementConsumer.substringAfter("measurementConsumers/")
+                externalMetricIds += names.map { it.substringAfter("/metrics/") }
+              }
+            )
+            .metricsList
+        }
+        .flatten()
+    check(storedMetrics.size == metricNames.size) { "Missing persisted Report metrics" }
+    val metricNamesByMeasurement = linkedMapOf<String, MutableSet<String>>()
+    for (metric in storedMetrics) {
+      check(metric.weightedMeasurementsCount > 0) { "Metric has no measurements" }
+      for (weighted in metric.weightedMeasurementsList) {
+        check(weighted.measurement.cmmsMeasurementId.isNotEmpty()) {
+          "Metric measurement has no Kingdom ID"
+        }
+        val name = "$measurementConsumer/measurements/${weighted.measurement.cmmsMeasurementId}"
+        metricNamesByMeasurement.getOrPut(name) { linkedSetOf() } +=
+          "$measurementConsumer/metrics/${metric.externalMetricId}"
+      }
+    }
+    val measurements =
+      mapBounded(metricNamesByMeasurement.keys.toList().chunked(50)) { names ->
+          measurementsClient
+            .batchGetMeasurements(
+              batchGetMeasurementsRequest {
+                parent = measurementConsumer
+                this.names += names
+              }
+            )
+            .measurementsList
+        }
+        .flatten()
+    check(measurements.map { it.name }.toSet() == metricNamesByMeasurement.keys) {
       "Report metrics are missing Kingdom measurements"
     }
+    val metricsByName = metrics.associateBy { it.name }
+    for (measurement in measurements) {
+      val metadata = measurement.measurementSpec.unpack<MeasurementSpec>().reportingMetadata
+      check(metadata.metric in metricNamesByMeasurement.getValue(measurement.name)) {
+        "Signed measurement metric does not match the Report's persisted links"
+      }
+      check(metricsByName.getValue(metadata.metric).basicReport == metadata.basicReport) {
+        "Metric and signed measurement disagree on their originating BasicReport"
+      }
+      if (metadata.basicReport == basicReportName) {
+        check(metadata.report == reportName) { "Fresh measurement has the wrong Report link" }
+      }
+    }
+    val freshCount =
+      measurements.count {
+        it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.basicReport ==
+          basicReportName
+      }
+    record["new_measurement_count"] = freshCount
+    record["reused_measurement_count"] = measurements.size - freshCount
+    record["new_metric_count"] = metrics.count { it.basicReport == basicReportName }
+    record["reused_metric_count"] = metrics.count { it.basicReport != basicReportName }
     check(
       measurements.all {
         it.state != Measurement.State.FAILED && it.state != Measurement.State.CANCELLED
@@ -958,7 +1052,11 @@ class ReportingScaleTest {
     record["stage"] = "verify_creation_requisitions"
     Files.writeString(output.resolve("summary.json"), Gson().toJson(listOf(record)))
     val requisitions =
-      verifyCreatedRequisitions(measurements, startedAt, internalRequisitionsClient)
+      verifyCreatedRequisitions(
+        measurements,
+        measurements.minOf { it.createTime.toInstant() }.minusSeconds(1),
+        internalRequisitionsClient,
+      )
     val counts =
       requisitions
         .groupingBy { "dataProviders/${externalIdToApiId(it.externalDataProviderId)}" }

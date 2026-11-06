@@ -125,10 +125,10 @@ requisitions appear separately from the three EDPA EDPs. Artifacts include the
 request, create response, BasicReport, underlying Report, measurement states,
 requisition names and states, fixture references, and test log.
 
-Creation verification enumerates the fresh measurement creation window with
-pages of 1,000 and matches exact signed BasicReport metadata. It reads the
-underlying Report and every unique metric, checks each metric's signed Kingdom
-measurement link, and verifies each measurement's expected provider requisitions.
+Creation verification reads the persisted BasicReport and underlying Report plan,
+then every referenced metric and its stored Kingdom measurement links. It checks
+those links against the signed measurement metadata and verifies each measurement's
+expected provider requisitions. Fresh and reused resources are counted separately.
 Requisition reads use each provider's synthetic TLS identity and pages of 500,
 rather than one request per measurement. Only requisitions belonging to the
 selected measurement IDs are retained; unrelated historical entries cannot
@@ -179,6 +179,27 @@ environment configuration. A successful creation-only invocation records
 `creation_verified: true` and `creation_succeeded`; it does not claim fulfillment.
 Resume fetching only after that gate passes, then follow up with
 `REPORTING_SCALE_EXISTING_BASIC_REPORT` and `REPORTING_SCALE_PHASE=full`.
+
+### Recover using existing metrics
+
+For recovery from the dev VM, set `REPORTING_SCALE_CAMPAIGN_GROUP` to the
+previous campaign group and `REPORTING_SCALE_SYNC_REPORT` to its underlying
+Report. Keep the original dates, model, demographic fields, states and filters.
+The test reads the previous Report to sync metric states from Kingdom before
+creating a replacement BasicReport. Reporting reuses valid RUNNING and
+SUCCEEDED metrics and replaces FAILED or INVALID metrics. Failed and cancelled
+Kingdom measurements remain terminal; recovery creates replacement resources.
+
+Creation verification records new and reused metric and measurement counts.
+Set `REPORTING_SCALE_CANCEL_FAILED_CREATION=false` to preserve work during
+recovery. Pass the replacement's underlying Report name through
+`REPORTING_SCALE_UNDERLYING_REPORT` when following up. A recovery run measures
+the remaining work and cannot establish fresh full-workload creation latency.
+
+Results-fulfiller workers process stored requisition groups in sequential batches
+of at most 100. This also bounds retries of older groups that exceed the fetcher's
+current group limit. Each batch makes a separate pass over impression data;
+smaller batches reduce peak vector memory but can increase read and processing time.
 
 ### Reporting transport limits
 
