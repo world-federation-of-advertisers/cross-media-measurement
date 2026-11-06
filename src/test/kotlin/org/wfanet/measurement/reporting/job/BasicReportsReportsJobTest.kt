@@ -294,10 +294,10 @@ class BasicReportsReportsJobTest {
       )
   }
 
-  private fun manyReportingSetResultsReport(): Report =
+  private fun manyReportingSetResultsReport(windowCounts: List<Int>): Report =
     REPORT.copy {
       metricCalculationResults.clear()
-      for (index in 0..100) {
+      for ((index, windowCount) in windowCounts.withIndex()) {
         metricCalculationResults +=
           ReportKt.metricCalculationResult {
             metricCalculationSpec =
@@ -307,35 +307,38 @@ class BasicReportsReportsJobTest {
                 )
                 .toName()
             reportingSet = ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID, "set$index").toName()
-            resultAttributes +=
-              ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "banner_ad != null && banner_ad.viewable == true"
-                metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
-                timeInterval = interval {
-                  startTime = timestamp { seconds = 1736150400 }
-                  endTime = timestamp { seconds = 1736755200 }
+            for (windowIndex in 0 until windowCount) {
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  filter = "banner_ad != null && banner_ad.viewable == true"
+                  metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 1736150400L + 604800L * windowIndex }
+                    endTime = timestamp { seconds = 1736755200L + 604800L * windowIndex }
+                  }
+                  metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
                 }
-                metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
-              }
+            }
           }
       }
     }
 
   @Test
   fun `execute persists bounded batches and associates only the final batch`(): Unit = runBlocking {
-    whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(manyReportingSetResultsReport(List(1001) { 1 }))
     job.execute()
     val captor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
     verify(reportResultsMock, times(2)).batchCreateReportingSetResults(captor.capture())
-    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(100, 1).inOrder()
+    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(1000, 1).inOrder()
     assertThat(captor.firstValue.externalBasicReportId).isEmpty()
     assertThat(captor.secondValue.externalBasicReportId)
       .isEqualTo(INTERNAL_BASIC_REPORT.externalBasicReportId)
     val results = captor.allValues.flatMap { it.requestsList }.map { it.reportingSetResult }
     assertThat(results.map { it.dimension.externalReportingSetId }.toSet())
-      .containsExactlyElementsIn((0..100).map { "set$it" })
+      .containsExactlyElementsIn((0..1000).map { "set$it" })
     assertThat(results.map { it.reportingWindowResultsCount })
-      .containsExactlyElementsIn(List(101) { 1 })
+      .containsExactlyElementsIn(List(1001) { 1 })
     assertThat(
         results.map {
           it.reportingWindowResultsList
@@ -347,12 +350,53 @@ class BasicReportsReportsJobTest {
             .value
         }
       )
-      .containsExactlyElementsIn(List(101) { 1L })
+      .containsExactlyElementsIn(List(1001) { 1L })
+  }
+
+  @Test
+  fun `execute bounds write batches by varying window counts`(): Unit = runBlocking {
+    val windowCounts = List(501) { if (it % 2 == 0) 1 else 9 }
+    whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport(windowCounts))
+
+    job.execute()
+
+    val captor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
+    verify(reportResultsMock, times(2)).batchCreateReportingSetResults(captor.capture())
+    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(395, 106).inOrder()
+    val results = captor.allValues.flatMap { it.requestsList }.map { it.reportingSetResult }
+    assertThat(results.map { it.dimension.externalReportingSetId })
+      .containsExactlyElementsIn((0..500).map { "set$it" })
+      .inOrder()
+    assertThat(results.map { it.reportingWindowResultsCount })
+      .containsExactlyElementsIn(windowCounts)
+      .inOrder()
+    assertThat(
+        results
+          .flatMap { it.reportingWindowResultsList }
+          .map { it.value.unprocessedReportResultValues.nonCumulativeResults.reach.value }
+      )
+      .containsExactlyElementsIn(List(windowCounts.sum()) { 1L })
+    assertThat(captor.firstValue.externalBasicReportId).isEmpty()
+    assertThat(captor.secondValue.externalBasicReportId)
+      .isEqualTo(INTERNAL_BASIC_REPORT.externalBasicReportId)
+  }
+
+  @Test
+  fun `execute rejects a result exceeding the transaction window budget before writing batches`():
+    Unit = runBlocking {
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(manyReportingSetResultsReport(listOf(1, 4000)))
+
+    job.execute()
+
+    verify(reportResultsMock, never()).batchCreateReportingSetResults(any())
+    assertThat(reportAssemblyLog()).contains("xmm.outcome=failed")
   }
 
   @Test
   fun `execute stops on failed batch without sending report association`(): Unit = runBlocking {
-    whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(manyReportingSetResultsReport(List(1001) { 1 }))
     whenever(reportResultsMock.batchCreateReportingSetResults(any())).thenAnswer {
       throw Status.UNAVAILABLE.asException()
     }

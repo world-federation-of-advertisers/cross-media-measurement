@@ -44,6 +44,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.logging.Handler
+import java.util.logging.Level
 import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlin.math.ceil
@@ -9862,11 +9863,11 @@ class MetricsServiceTest {
         )
       assertThat(measurementLog).contains("xmm.measurement.state=SUCCEEDED")
       assertThat(measurementLog).contains("xmm.outcome=succeeded")
-      val metricLog = reportTraceLogMessages("reporting.metric.result_synchronized").single()
-      assertThat(metricLog)
-        .contains("xmm.metric.name=${SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name}")
+      val metricLog = reportTraceLogMessages("reporting.metrics.results_synchronized").single()
       assertThat(metricLog).contains("xmm.metric.state=SUCCEEDED")
+      assertThat(metricLog).contains("xmm.metric.count=1")
       assertThat(metricLog).contains("xmm.outcome=succeeded")
+      assertThat(reportTraceLogMessages("reporting.metric.result_synchronized")).isEmpty()
 
       // Verify proto argument of internal
       // MeasurementsCoroutineImplBase::batchSetMeasurementResults
@@ -12616,6 +12617,14 @@ class MetricsServiceTest {
           runBlocking { service.batchGetMetrics(request) }
         }
 
+      val summaries = reportTraceLogMessages("reporting.metrics.results_synchronized")
+      assertThat(summaries).hasSize(2)
+      assertThat(summaries.single { "xmm.metric.state=SUCCEEDED" in it })
+        .contains("xmm.metric.count=1")
+      assertThat(summaries.single { "xmm.metric.state=RUNNING" in it })
+        .contains("xmm.metric.count=1")
+      assertThat(reportTraceLogMessages("reporting.metric.result_synchronized")).isEmpty()
+
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
         argumentCaptor()
@@ -12657,6 +12666,74 @@ class MetricsServiceTest {
             metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
           }
         )
+    }
+
+  @Test
+  fun `batchGetMetrics retains metric details at FINE and summarizes each report separately`() =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+      val consumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      val basicReport = BasicReportKey(consumerId, "report-a").toName()
+      val firstReport = ReportKey(consumerId, "report-a").toName()
+      val secondReport = ReportKey(consumerId, "report-b").toName()
+      val internalMetrics =
+        List(3) { index ->
+          INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+            externalMetricId = "metric-$index"
+            details =
+              details.copy {
+                this.basicReport = basicReport
+                containingReport = if (index < 2) firstReport else secondReport
+              }
+          }
+        }
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(internalBatchGetMetricsResponse { metrics += internalMetrics })
+      val logger = Logger.getLogger(MetricsService::class.java.name)
+      val previousLevel = logger.level
+      val previousHandlerLevel = traceLogHandler.level
+      try {
+        logger.level = Level.FINE
+        traceLogHandler.level = Level.FINE
+        val result =
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+            runBlocking {
+              service.batchGetMetrics(
+                batchGetMetricsRequest {
+                  parent = MEASUREMENT_CONSUMERS.values.first().name
+                  names +=
+                    internalMetrics.map {
+                      MetricKey(it.cmmsMeasurementConsumerId, it.externalMetricId).toName()
+                    }
+                }
+              )
+            }
+          }
+        assertThat(result.metricsList).hasSize(3)
+        val summaries = reportTraceLogMessages("reporting.metrics.results_synchronized")
+        assertThat(summaries).hasSize(2)
+        assertThat(summaries.single { "xmm.report.name=$firstReport " in it })
+          .contains("xmm.metric.count=2")
+        assertThat(summaries.single { "xmm.report.name=$secondReport " in it })
+          .contains("xmm.metric.count=1")
+        for (summary in summaries) {
+          assertThat(summary).contains("xmm.basic_report.name=$basicReport")
+          assertThat(summary).contains("xmm.metric.state=SUCCEEDED")
+        }
+        val details =
+          traceLogRecords.filter { "event=reporting.metric.result_synchronized " in it.message }
+        assertThat(details).hasSize(3)
+        assertThat(details.map { it.level }).containsExactlyElementsIn(List(3) { Level.FINE })
+        for (metric in result.metricsList) {
+          assertThat(details.map { it.message }.joinToString("\n"))
+            .contains("xmm.metric.name=${metric.name}")
+        }
+      } finally {
+        logger.level = previousLevel
+        traceLogHandler.level = previousHandlerLevel
+      }
     }
 
   @Test

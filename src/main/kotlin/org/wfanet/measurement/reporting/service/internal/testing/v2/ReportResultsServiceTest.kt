@@ -31,6 +31,7 @@ import io.grpc.StatusException
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.testing.GrpcCleanupRule
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.assertFailsWith
 import org.junit.Rule
@@ -93,12 +94,13 @@ import org.wfanet.measurement.reporting.service.internal.ImpressionQualification
 
 @RunWith(JUnit4::class)
 abstract class ReportResultsServiceTest {
+  private val forcedIds = ConcurrentLinkedQueue<Long>()
   private val idGenerator =
     object : IdGenerator {
       private val nextId = AtomicLong(1)
 
       override fun generateId(): Long {
-        return nextId.getAndIncrement()
+        return forcedIds.poll() ?: nextId.getAndIncrement()
       }
     }
 
@@ -228,6 +230,100 @@ abstract class ReportResultsServiceTest {
           )
           .reportingSetResultsList
       )
+      .inOrder()
+  }
+
+  @Test
+  fun `batchCreateReportingSetResults retries persisted internal and external ID collisions`() {
+    ensureMeasurementConsumer()
+    val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val request =
+      BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+        reportResult.externalReportResultId
+      )
+    forcedIds.addAll(listOf(900_001L, 900_002L))
+    val existing =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          request.copy {
+            requests.clear()
+            requests += request.requestsList.first()
+          }
+        )
+        .reportingSetResultsList
+        .single()
+    assertThat(existing.externalReportingSetResultId).isEqualTo(900_002L)
+
+    forcedIds.addAll(listOf(900_001L, 900_002L, 900_003L, 900_004L))
+    val created =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          request.copy {
+            requests.clear()
+            requests += request.requestsList[1]
+          }
+        )
+        .reportingSetResultsList
+        .single()
+
+    assertThat(created.externalReportingSetResultId)
+      .isNotEqualTo(existing.externalReportingSetResultId)
+    assertThat(created.dimension).isEqualTo(request.requestsList[1].reportingSetResult.dimension)
+    assertWithMessage("Existing and new results retain their windows and values")
+      .about(ProtoTruth.protos())
+      .that(
+        reportResultsStub
+          .listReportingSetResults(
+            listReportingSetResultsRequest {
+              cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+              externalReportResultId = request.externalReportResultId
+            }
+          )
+          .reportingSetResultsList
+      )
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELDS)
+      .containsExactly(existing, created)
+  }
+
+  @Test
+  fun `batchCreateReportingSetResults retries duplicate IDs within the batch`() {
+    ensureMeasurementConsumer()
+    val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val request =
+      BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+          reportResult.externalReportResultId
+        )
+        .copy {
+          requests.clear()
+          requests +=
+            BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.requestsList.map {
+              it.copy {
+                reportingSetResult = reportingSetResult.copy { reportingWindowResults.clear() }
+              }
+            }
+        }
+    forcedIds.addAll(
+      listOf(
+        900_001L,
+        900_002L,
+        900_001L,
+        900_003L,
+        900_002L,
+        900_004L,
+        900_003L,
+        900_005L,
+        900_004L,
+        900_006L,
+      )
+    )
+
+    val response = reportResultsStub.batchCreateReportingSetResults(request)
+
+    assertThat(response.reportingSetResultsList.map { it.externalReportingSetResultId })
+      .containsNoDuplicates()
+    assertThat(response.reportingSetResultsList).hasSize(request.requestsCount)
+    assertThat(response.reportingSetResultsList.map { it.dimension })
+      .containsExactlyElementsIn(request.requestsList.map { it.reportingSetResult.dimension })
       .inOrder()
   }
 
