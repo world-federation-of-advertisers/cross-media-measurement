@@ -33,6 +33,7 @@ TOLERANCE = 1e-1
 HIGHS_SOLVER = "highs"
 OSQP_SOLVER = "osqp"
 MAX_ATTEMPTS = 10
+SOLVER_TIME_LIMIT_SECONDS = 30.0
 SEMAPHORE = Semaphore()
 
 
@@ -240,8 +241,14 @@ class Solver:
   def _solve_with_initial_value(self, solver_name: str,
       initial_values: np.array) -> Solution:
     problem = self._problem()
-    solution = solve_problem(problem, solver=solver_name,
-                             initvals=initial_values, verbose=False)
+    options = {"time_limit": SOLVER_TIME_LIMIT_SECONDS}
+    if solver_name == OSQP_SOLVER:
+      # Count constraints require an absolute residual bound. Relative solver
+      # tolerances permit large errors when reach or impression counts are large.
+      options.update(eps_abs=TOLERANCE / 10, eps_rel=0.0, max_iter=100000)
+    solution = solve_problem(
+        problem, solver=solver_name, initvals=initial_values, verbose=False,
+        **options)
     return solution
 
   def _problem(self):
@@ -290,9 +297,13 @@ class Solver:
       # The solver is not thread-safe in general. Synchronization mechanism is
       # needed when it is called concurrently (e.g. in a report processing
       # server).
-      SEMAPHORE.acquire()
-      solution = self._solve_with_initial_value(solver_name, self.base_value)
-      SEMAPHORE.release()
+      with SEMAPHORE:
+        solution = self._solve_with_initial_value(solver_name, self.base_value)
+
+      # Repeating a non-converging solve with the same inputs delays the
+      # fallback solver without providing a new starting point.
+      if not solution.found:
+        break
 
       if self._validate_solution(solution):
         primal_residual = solution.primal_residual()
