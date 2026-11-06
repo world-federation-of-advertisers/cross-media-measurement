@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 import io.grpc.BindableService
 import org.junit.ClassRule
 import org.junit.Rule
+import org.junit.Test
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
@@ -31,6 +32,8 @@ import org.wfanet.measurement.reporting.service.internal.ImpressionQualification
 import org.wfanet.measurement.reporting.service.internal.testing.v2.ReportResultsServiceTest
 
 class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
+  private var duplicateGeneratedIds = false
+
   @get:Rule
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.REPORTING_CHANGELOG_PATH)
@@ -42,11 +45,28 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
     val spannerClient = spannerDatabase.databaseClient
     val postgresClient = postgresDatabaseProvider.createDatabase()
     val integerIdGenerator = org.wfanet.measurement.common.identity.RandomIdGenerator()
+    val reportResultsIdGenerator =
+      if (duplicateGeneratedIds) {
+        object : IdGenerator {
+          private var repeatedId: Long? = null
+
+          override fun generateId(): Long {
+            repeatedId?.let {
+              repeatedId = null
+              return it
+            }
+            return idGenerator.generateId().also { repeatedId = it }
+          }
+        }
+      } else {
+        idGenerator
+      }
+
     return listOf(
       SpannerReportResultsService(
         spannerClient,
         impressionQualificationFilterMapping,
-        idGenerator = idGenerator,
+        idGenerator = reportResultsIdGenerator,
         processedResultBatchSize = 2,
       ),
       SpannerBasicReportsService(
@@ -58,6 +78,12 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
       PostgresReportingSetsService(integerIdGenerator, postgresClient),
       PostgresMeasurementConsumersService(integerIdGenerator, postgresClient),
     )
+  }
+
+  @Test
+  fun `batch creation retries window ID collisions within the same transaction`() {
+    duplicateGeneratedIds = true
+    super.`batchCreateReportingSetResults creates ReportingSetResults`()
   }
 
   companion object {
