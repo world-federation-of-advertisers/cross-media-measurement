@@ -653,7 +653,13 @@ class VidLabelerAppTest {
       }
     assertThat(doneLog.message).contains("xmm.gcs.object.generation=321")
     assertThat(doneLog.message).doesNotContain("gs://output-bucket")
-    val doneUri = "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
+    val doneUri =
+      LabeledImpressionsBlobKeys.forDoneUri(
+        "gs://output-bucket/labeled",
+        UPLOAD,
+        MODEL_LINE,
+        LocalDate.of(2026, 6, 30),
+      )
     val ordinaryLog = logRecords.single { it.message.startsWith("Wrote done marker path_hash=") }
     assertThat(ordinaryLog.message).contains(VidLabelingTraceAttributes.gcsObjectPathHash(doneUri))
     assertThat(ordinaryLog.message).contains("generation=321")
@@ -663,7 +669,13 @@ class VidLabelerAppTest {
   @Test
   fun `runWork omits done URI when object creation time is unavailable`() = runBlocking {
     stubLastOutWithEventDate()
-    val doneUri = "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
+    val doneUri =
+      LabeledImpressionsBlobKeys.forDoneUri(
+        "gs://output-bucket/labeled",
+        UPLOAD,
+        MODEL_LINE,
+        LocalDate.of(2026, 6, 30),
+      )
 
     val error =
       assertFailsWith<IllegalArgumentException> {
@@ -1404,7 +1416,13 @@ class VidLabelerAppTest {
         .runWork(buildMessage(taskParams()))
 
       assertThat(doneObjectWritten.get()).isTrue()
-      val doneUri = "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
+      val doneUri =
+        LabeledImpressionsBlobKeys.forDoneUri(
+          "gs://output-bucket/labeled",
+          UPLOAD,
+          MODEL_LINE,
+          LocalDate.of(2026, 6, 30),
+        )
       val replacementLog =
         logRecords.single { it.message.startsWith("Replacing done marker path_hash=") }
       assertThat(replacementLog.message)
