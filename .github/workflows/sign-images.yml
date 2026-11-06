@@ -118,7 +118,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -n "$IMAGE_NAME" ]]; then
-            [[ "$IMAGE_NAME" =~ ^[a-z][a-z0-9_]*$ ]]
+            bash .github/workflows/scripts/validate-selected-image.sh
             targets=("//src/main/docker:sign_$IMAGE_NAME")
           else
             targets=(

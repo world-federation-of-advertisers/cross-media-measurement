@@ -93,5 +93,5 @@ jobs:
           IMAGE_NAME: ${{ inputs.image-name }}
         run: |
           set -euo pipefail
-          [[ "$IMAGE_NAME" =~ ^[a-z][a-z0-9_]*$ ]]
+          bash .github/workflows/scripts/validate-selected-image.sh
           bazelisk run "//src/main/docker:push_$IMAGE_NAME"

@@ -138,7 +138,7 @@ container_push_all(
     ],
 )
 
-IMAGES_TO_SIGN = ALL_GKE_IMAGES + ALL_TEE_APP_GKE_IMAGES + ALL_EKS_IMAGES
+IMAGES_TO_SIGN = {image_spec.name: image_spec for image_spec in ALL_GKE_IMAGES + ALL_TEE_APP_GKE_IMAGES + ALL_EKS_IMAGES}.values()
 
 sign_all(
     name = "sign_all_images",
@@ -164,6 +164,5 @@ sign_all(
             "no-remote",
         ],
     )
-    for image_spec in PUSHABLE_IMAGES
-    if image_spec.name in {signed_image.name: True for signed_image in IMAGES_TO_SIGN}
+    for image_spec in IMAGES_TO_SIGN
 ]
