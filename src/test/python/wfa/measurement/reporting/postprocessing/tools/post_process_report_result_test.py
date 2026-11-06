@@ -71,6 +71,147 @@ class PostProcessReportResultTest(unittest.TestCase):
                 reporting_sets_service_pb2.BatchGetReportingSetsResponse(),
             )
 
+    def _empty_population_response(self):
+        response = report_results_service_pb2.ListReportingSetResultsResponse()
+        response.CopyFrom(self.mock_list_reporing_set_results_response)
+        for result in response.reporting_set_results:
+            result.population_size = 0
+            for window in result.reporting_window_results:
+                values = window.value.unprocessed_report_result_values
+                for field in ("cumulative_results", "non_cumulative_results"):
+                    if not values.HasField(field):
+                        continue
+                    metrics = getattr(values, field)
+                    if metrics.HasField("reach"):
+                        metrics.reach.value = 0
+                    if metrics.HasField("impression_count"):
+                        metrics.impression_count.value = 0
+                    for bin_result in metrics.frequency_histogram.bin_results.values(
+                    ):
+                        bin_result.value = 0
+        return response
+
+    def _configure_stubs(self, response):
+        self.mock_report_results_stub.ListReportingSetResults.return_value = response
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            self.mock_batch_get_reporting_set_response)
+
+    @patch(
+        "src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor"
+    )
+    def test_empty_cohorts_preserve_all_windows_and_zero_metrics(self, solver):
+        response = self._empty_population_response()
+        # Nonzero noisy values with uncertainty are corrected to the known zero.
+        noisy = response.reporting_set_results[0].reporting_window_results[
+            0].value.unprocessed_report_result_values
+        field = "cumulative_results" if noisy.HasField(
+            "cumulative_results") else "non_cumulative_results"
+        getattr(noisy, field).reach.value = 7
+        getattr(noisy,
+                field).reach.univariate_statistics.standard_deviation = 3
+        self._configure_stubs(response)
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+
+        request = processor.process(self.cmms_measurement_consumer_id,
+                                    self.external_report_result_id)
+
+        solver.assert_not_called()
+        self.assertEqual(request.cmms_measurement_consumer_id,
+                         self.cmms_measurement_consumer_id)
+        self.assertEqual(request.external_report_result_id,
+                         self.external_report_result_id)
+        self.assertEqual(
+            set(request.reporting_set_results),
+            {
+                result.external_reporting_set_result_id
+                for result in response.reporting_set_results
+            },
+        )
+        for result in response.reporting_set_results:
+            actual = request.reporting_set_results[
+                result.external_reporting_set_result_id]
+            self.assertEqual(len(actual.reporting_window_results),
+                             len(result.reporting_window_results))
+            for source, corrected in zip(result.reporting_window_results,
+                                         actual.reporting_window_results):
+                self.assertEqual(corrected.key, source.key)
+                values = source.value.unprocessed_report_result_values
+                for name in ("cumulative_results", "non_cumulative_results"):
+                    self.assertEqual(corrected.value.HasField(name),
+                                     values.HasField(name))
+                    if not values.HasField(name):
+                        continue
+                    bins = len(
+                        getattr(values, name).frequency_histogram.bin_results)
+                    self.assertEqual(
+                        getattr(corrected.value, name),
+                        BasicMetricSet(k_plus_reach=[0] * bins,
+                                       percent_k_plus_reach=[0.0] * bins),
+                    )
+
+    @patch(
+        "src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor"
+    )
+    def test_exact_nonzero_measurement_in_empty_cohort_is_rejected(
+            self, solver):
+        response = self._empty_population_response()
+        values = response.reporting_set_results[0].reporting_window_results[
+            0].value.unprocessed_report_result_values
+        name = "cumulative_results" if values.HasField(
+            "cumulative_results") else "non_cumulative_results"
+        getattr(values, name).reach.value = 1
+        getattr(values,
+                name).reach.univariate_statistics.standard_deviation = 0
+        self._configure_stubs(response)
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        with self.assertRaisesRegex(ValueError, "Exact nonzero"):
+            processor.process(self.cmms_measurement_consumer_id,
+                              self.external_report_result_id)
+        solver.assert_not_called()
+
+    @patch(
+        "src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor"
+    )
+    def test_empty_cohorts_do_not_change_positive_cohort_corrections(
+            self, solver):
+        result = MagicMock()
+        result.status.status_code = report_post_processor_result_pb2.ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS
+        result.updated_measurements = {}
+        result.large_corrections = []
+        solver.return_value.process.return_value = result
+        solver.return_value.pre_correction_constraint_violations = ()
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        original = self.mock_list_reporing_set_results_response
+        self._configure_stubs(original)
+        baseline = processor.process(self.cmms_measurement_consumer_id,
+                                     self.external_report_result_id)
+        calls = solver.call_count
+        solver.reset_mock()
+        mixed = report_results_service_pb2.ListReportingSetResultsResponse()
+        mixed.CopyFrom(original)
+        empties = self._empty_population_response()
+        for empty in empties.reporting_set_results:
+            empty.external_reporting_set_result_id += 1_000_000
+            empty.dimension.grouping.value_by_path[
+                "common.synthetic_cohort"].string_value = "empty"
+        mixed.reporting_set_results.extend(empties.reporting_set_results)
+        self._configure_stubs(mixed)
+
+        actual = processor.process(self.cmms_measurement_consumer_id,
+                                   self.external_report_result_id)
+
+        self.assertEqual(solver.call_count, calls)
+        for key, expected in baseline.reporting_set_results.items():
+            self.assertEqual(actual.reporting_set_results[key], expected)
+        self.assertEqual(
+            len(actual.reporting_set_results),
+            len(baseline.reporting_set_results) +
+            len(empties.reporting_set_results),
+        )
+
     def test_constructor_rejects_thresholds_without_edps(self):
         with self.assertRaisesRegex(ValueError, "configured together"):
             PostProcessReportResult(
