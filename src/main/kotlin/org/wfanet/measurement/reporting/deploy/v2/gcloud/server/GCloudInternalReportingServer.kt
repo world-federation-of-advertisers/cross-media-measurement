@@ -16,9 +16,15 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.server
 
+import io.r2dbc.pool.ConnectionPool
+import io.r2dbc.pool.ConnectionPoolConfiguration
+import java.time.Duration
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
@@ -45,55 +51,80 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
   @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
 
+  @CommandLine.Option(
+    names = ["--postgres-connection-pool-size"],
+    description = ["Maximum pooled PostgreSQL connections; zero disables pooling."],
+    defaultValue = "0",
+  )
+  private var postgresConnectionPoolSize: Int = 0
+
   override fun run() = runBlocking {
     validateCommandLine()
+    require(postgresConnectionPoolSize >= 0) { "PostgreSQL pool size must be nonnegative" }
     val idGenerator = RandomIdGenerator()
     val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
     val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
-    val postgresClient = PostgresDatabaseClient.fromConnectionFactory(factory)
-
-    if (basicReportsEnabled) {
-      val impressionQualificationFilterConfig =
-        parseTextProto(
-          impressionQualificationFilterConfigFile,
-          ImpressionQualificationFilterConfig.getDefaultInstance(),
+    val connectionPool =
+      if (postgresConnectionPoolSize > 0) {
+        ConnectionPool(
+          ConnectionPoolConfiguration.builder(factory)
+            .initialSize(0)
+            .maxSize(postgresConnectionPoolSize)
+            .maxIdleTime(Duration.ofMinutes(5))
+            .maxAcquireTime(Duration.ofSeconds(30))
+            .build()
         )
+      } else {
+        null
+      }
+    val postgresClient = PostgresDatabaseClient.fromConnectionFactory(connectionPool ?: factory)
 
-      val eventMessageDescriptor = getEventMessageDescriptor()
+    try {
+      if (basicReportsEnabled) {
+        val impressionQualificationFilterConfig =
+          parseTextProto(
+            impressionQualificationFilterConfigFile,
+            ImpressionQualificationFilterConfig.getDefaultInstance(),
+          )
 
-      val impressionQualificationFilterMapping =
-        ImpressionQualificationFilterMapping(
-          impressionQualificationFilterConfig,
-          eventMessageDescriptor,
-        )
+        val eventMessageDescriptor = getEventMessageDescriptor()
 
-      spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
-        val spannerClient = spanner.databaseClient
+        val impressionQualificationFilterMapping =
+          ImpressionQualificationFilterMapping(
+            impressionQualificationFilterConfig,
+            eventMessageDescriptor,
+          )
+
+        spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
+          val spannerClient = spanner.databaseClient
+          run(
+            DataServices.create(
+              idGenerator,
+              postgresClient,
+              spannerClient,
+              impressionQualificationFilterMapping,
+              eventMessageDescriptor,
+              disableMetricsReuse,
+              serviceDispatcher,
+            )
+          )
+        }
+      } else {
         run(
           DataServices.create(
             idGenerator,
             postgresClient,
-            spannerClient,
-            impressionQualificationFilterMapping,
-            eventMessageDescriptor,
+            spannerClient = null,
+            impressionQualificationFilterMapping = null,
+            eventMessageDescriptor = null,
             disableMetricsReuse,
             serviceDispatcher,
           )
         )
       }
-    } else {
-      run(
-        DataServices.create(
-          idGenerator,
-          postgresClient,
-          spannerClient = null,
-          impressionQualificationFilterMapping = null,
-          eventMessageDescriptor = null,
-          disableMetricsReuse,
-          serviceDispatcher,
-        )
-      )
+    } finally {
+      withContext(NonCancellable) { connectionPool?.disposeLater()?.awaitFirstOrNull() }
     }
   }
 }
