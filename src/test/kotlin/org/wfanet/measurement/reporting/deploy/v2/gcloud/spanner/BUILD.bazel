@@ -43,6 +43,39 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+    name = "PooledSpannerBasicReportsServiceTest",
+    srcs = ["PooledSpannerBasicReportsServiceTest.kt"],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.PooledSpannerBasicReportsServiceTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/postgresql:j2dbc",
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//imports/java/io/r2dbc/pool",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:basic_reports_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:report_results_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:basic_reports_service_test",
+        "@wfa_common_jvm//imports/java/io/r2dbc",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/org/testcontainers/postgresql",
+        "@wfa_common_jvm//imports/java/reactor:core",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/reactive",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/liquibase",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
     name = "SpannerReportResultsServiceTest",
     srcs = ["SpannerReportResultsServiceTest.kt"],
     tags = [
