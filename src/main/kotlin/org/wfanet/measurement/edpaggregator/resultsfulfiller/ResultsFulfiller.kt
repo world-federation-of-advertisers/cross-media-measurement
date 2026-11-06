@@ -312,7 +312,10 @@ class ResultsFulfiller(
       }
     val modelLineKey = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLineKey)
-    val modelLine = modelInfo.localAlias ?: modelLineKey
+    val modelLine =
+      groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)
+        ?: modelInfo.localAlias
+        ?: modelLineKey
     val eventDescriptor = modelInfo.eventDescriptor
 
     val populationSpec = modelInfo.populationSpec
@@ -323,6 +326,7 @@ class ResultsFulfiller(
         impressionDataSourceProvider = impressionDataSourceProvider,
         resolvedEventGroups = resolvedEventGroups,
         modelLine = modelLine,
+        failOnDeletedMetadata = groupedRequisitions.selectedModelLine.isNotEmpty(),
         kmsClient = kmsClient,
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,

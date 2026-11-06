@@ -1,0 +1,60 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.edpaggregator;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
+import "google/type/date.proto";
+
+option java_package = "org.wfanet.measurement.config.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "ModelLineCutoverConfigProto";
+
+// Configuration for selecting one internal model line for a Report.
+message ModelLineCutoverConfig {
+  // Advertiser-visible model line used in Requisitions and availability.
+  string external_model_line = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // Internal model line selected for Reports starting before `cutover_date`.
+  string historical_model_line = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // Internal model line selected for Reports starting on or after
+  // `cutover_date`.
+  string replacement_model_line = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // First UTC Report start date selecting `replacement_model_line`.
+  google.type.Date cutover_date = 4 [(google.api.field_behavior) = REQUIRED];
+
+  // Last UTC date for which `historical_model_line` gates availability.
+  google.type.Date legacy_required_through_date = 5
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Maximum duration of a Report. The historical line must remain required for
+  // at least this long after `cutover_date`.
+  google.protobuf.Duration maximum_report_duration = 6
+      [(google.api.field_behavior) = REQUIRED];
+}

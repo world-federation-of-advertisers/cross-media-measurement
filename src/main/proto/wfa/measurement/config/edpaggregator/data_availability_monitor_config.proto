@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.config.edpaggregator;
 
 import "google/protobuf/duration.proto";
+import "wfa/measurement/config/edpaggregator/model_line_cutover_config.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
@@ -70,6 +71,10 @@ message DataAvailabilityMonitorConfig {
   // date is flagged as having an unprocessed done blob (DataAvailabilitySync
   // did not stamp it). If unset, defaults to 24h.
   google.protobuf.Duration unprocessed_done_threshold = 9;
+
+  // Report cutovers whose historical and replacement model lines are both
+  // monitored over their required rollout windows.
+  repeated ModelLineCutoverConfig model_line_cutovers = 10;
 }
 
 // Wrapper containing monitor configurations. Loaded at startup from the

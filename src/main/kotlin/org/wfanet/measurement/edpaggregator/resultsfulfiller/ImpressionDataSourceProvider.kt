@@ -75,6 +75,7 @@ class ImpressionDataSourceProvider(
   suspend fun listImpressionDataSources(
     modelLine: String,
     eventGroups: Collection<ResolvedEventGroup>,
+    failOnDeletedMetadata: Boolean = false,
   ): List<ImpressionDataSource> {
     val eventGroupsByInterval: Map<Interval, List<ResolvedEventGroup>> =
       eventGroups
@@ -84,6 +85,15 @@ class ImpressionDataSourceProvider(
         .groupBy({ it.first }, { it.second })
     val metadata = mutableListOf<ImpressionMetadata>()
     for ((interval, intervalEventGroups) in eventGroupsByInterval) {
+      if (failOnDeletedMetadata) {
+        requireNoDeletedMetadata(
+          modelLine,
+          ListImpressionMetadataRequestKt.filter {
+            this.modelLine = modelLine
+            intervalOverlaps = interval
+          },
+        )
+      }
       val entityKeys: Set<EntityKey> =
         intervalEventGroups
           .mapNotNull { eventGroup ->
@@ -95,29 +105,25 @@ class ImpressionDataSourceProvider(
           }
           .toSet()
       if (entityKeys.isNotEmpty()) {
-        metadata +=
-          getImpressionsMetadata(
-              ListImpressionMetadataRequestKt.filter {
-                this.modelLine = modelLine
-                this.entityKeys += entityKeys
-                intervalOverlaps = interval
-              }
-            )
-            .toList()
+        val filter =
+          ListImpressionMetadataRequestKt.filter {
+            this.modelLine = modelLine
+            this.entityKeys += entityKeys
+            intervalOverlaps = interval
+          }
+        metadata += getImpressionsMetadata(filter).toList()
       }
 
       val referenceIds: Set<String> =
         intervalEventGroups.mapNotNull { it.eventGroupReferenceId }.toSet()
       if (referenceIds.isNotEmpty()) {
-        metadata +=
-          getImpressionsMetadata(
-              ListImpressionMetadataRequestKt.filter {
-                this.modelLine = modelLine
-                eventGroupReferenceIds += referenceIds
-                intervalOverlaps = interval
-              }
-            )
-            .toList()
+        val filter =
+          ListImpressionMetadataRequestKt.filter {
+            this.modelLine = modelLine
+            eventGroupReferenceIds += referenceIds
+            intervalOverlaps = interval
+          }
+        metadata += getImpressionsMetadata(filter).toList()
       }
     }
 
@@ -138,7 +144,8 @@ class ImpressionDataSourceProvider(
   /** Queries impression metadata using [filter]. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private fun getImpressionsMetadata(
-    filter: ListImpressionMetadataRequest.Filter
+    filter: ListImpressionMetadataRequest.Filter,
+    showDeleted: Boolean = false,
   ): Flow<ImpressionMetadata> {
     logger.info("Resolving path for impression metadata: $filter")
 
@@ -161,6 +168,7 @@ class ImpressionDataSourceProvider(
               listImpressionMetadataRequest {
                 parent = dataProvider
                 this.filter = filter
+                this.showDeleted = showDeleted
                 this.pageSize = pageSize
                 this.pageToken = pageToken
               }
@@ -201,6 +209,18 @@ class ImpressionDataSourceProvider(
         listPage(pageToken, pageSize)
       }
       .flattenConcat()
+  }
+
+  private suspend fun requireNoDeletedMetadata(
+    modelLine: String,
+    filter: ListImpressionMetadataRequest.Filter,
+  ) {
+    val deletedFilter = filter.toBuilder().setState(ImpressionMetadata.State.DELETED).build()
+    val deleted = getImpressionsMetadata(deletedFilter, showDeleted = true).toList()
+    check(deleted.isEmpty()) {
+      "Selected model line $modelLine has deleted impression metadata overlapping the requested " +
+        "interval: ${deleted.map { it.blobUri }}"
+    }
   }
 
   /**

@@ -50,6 +50,7 @@ import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionWorkItemDispatchConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
@@ -308,6 +309,8 @@ class RequisitionFetcherFunction : HttpFunction {
       workItemDispatcher = workItemDispatcher,
       requisitionRefusalDuration = requisitionRefusalDuration,
       clock = Clock.systemUTC(),
+      modelLineCutovers = dispatchConfig.modelLineCutoversList.map(ModelLineCutover::from),
+      legacyModelLineMap = dispatchConfig.resultsFulfillerParams.modelLineMapMap,
       responsePageSize = pageSize,
       flushInterval = flushInterval,
       maxTotalBufferedBytes = maxTotalBufferedBytes,
