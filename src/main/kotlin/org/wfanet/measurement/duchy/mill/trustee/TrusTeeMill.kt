@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.mill.trustee
 
+import com.google.api.client.http.HttpResponseException
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
@@ -21,6 +22,7 @@ import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import java.security.GeneralSecurityException
@@ -32,9 +34,11 @@ import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCreden
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
+import org.wfanet.measurement.common.crypto.tink.WifCredentials
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
+import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.TransientErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeParams
@@ -97,6 +101,14 @@ class TrusTeeMill(
     maximumAttempts = maximumAttempts,
     clock = clock,
   ) {
+
+  // Reuse the clients' refreshable credentials across requisitions and computations. Creating a
+  // new provider for every requisition exhausts Confidential Space attestation quotas.
+  private val kmsClients =
+    object : LinkedHashMap<WifCredentials, KmsClient>(16, 0.75f, true) {
+      override fun removeEldestEntry(eldest: MutableMap.MutableEntry<WifCredentials, KmsClient>) =
+        size > MAX_CACHED_KMS_CLIENTS
+    }
 
   private var initializationPriorityClaims = 0
 
@@ -258,7 +270,7 @@ class TrusTeeMill(
               region = awsConfig.region,
               audience = awsConfig.audience,
             )
-          confidentialSpaceToAwsKmsClientFactory.getKmsClient(credentials)
+          getCachedKmsClient(confidentialSpaceToAwsKmsClientFactory, credentials)
         } else {
           // Two-hop: GCP WIF + service-account impersonation mints the OIDC token for AWS STS.
           val credentials =
@@ -274,7 +286,7 @@ class TrusTeeMill(
               region = awsConfig.region,
               awsAudience = awsConfig.audience,
             )
-          gcloudToAwsKmsClientFactory.getKmsClient(credentials)
+          getCachedKmsClient(gcloudToAwsKmsClientFactory, credentials)
         }
       } else {
         val credentials =
@@ -286,10 +298,40 @@ class TrusTeeMill(
             serviceAccountImpersonationUrl =
               IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
           )
-        gcloudKmsClientFactory.getKmsClient(credentials)
+        getCachedKmsClient(gcloudKmsClientFactory, credentials)
       }
     } catch (e: GeneralSecurityException) {
-      throw PermanentErrorException("Failed to create KMS client", e)
+      throw keyAccessException("Failed to create KMS client", e)
+    }
+  }
+
+  private fun <T : WifCredentials> getCachedKmsClient(
+    factory: KmsClientFactory<T>,
+    credentials: T,
+  ): KmsClient =
+    synchronized(kmsClients) {
+      kmsClients.getOrPut(credentials) { factory.getKmsClient(credentials) }
+    }
+
+  private fun keyAccessException(message: String, cause: GeneralSecurityException): Exception {
+    // HTTP errors also extend IOException. Classify their status before treating other I/O
+    // failures, including launcher quota failures, as retryable transport errors.
+    val httpFailure =
+      generateSequence<Throwable>(cause) { it.cause }
+        .filterIsInstance<HttpResponseException>()
+        .firstOrNull()
+    val retryable =
+      if (httpFailure != null) {
+        httpFailure.statusCode == 408 ||
+          httpFailure.statusCode == 429 ||
+          httpFailure.statusCode in 500..599
+      } else {
+        generateSequence<Throwable>(cause) { it.cause }.any { it is IOException }
+      }
+    return if (retryable) {
+      TransientErrorException(message, cause)
+    } else {
+      PermanentErrorException(message, cause)
     }
   }
 
@@ -305,7 +347,7 @@ class TrusTeeMill(
         kekAead,
       )
     } catch (e: GeneralSecurityException) {
-      throw PermanentErrorException("Failed to get DEK keyset due to a cryptographic error", e)
+      throw keyAccessException("Failed to get DEK keyset", e)
     }
   }
 
@@ -348,6 +390,8 @@ class TrusTeeMill(
     }
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private const val MAX_CACHED_KMS_CLIENTS = 128
 
     private const val INITIALIZATION_PRIORITY_BURST_SIZE = 3
 

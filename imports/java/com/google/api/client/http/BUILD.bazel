@@ -1,0 +1,9 @@
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:__pkg__",
+    "//src/test/kotlin/org/wfanet/measurement/duchy/mill/trustee:__pkg__",
+])
+
+alias(
+    name = "http",
+    actual = "@maven//:com_google_http_client_google_http_client",
+)

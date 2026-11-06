@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.duchy.mill.trustee
 
+import com.google.api.client.http.HttpHeaders
+import com.google.api.client.http.HttpResponseException
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
@@ -34,6 +36,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
@@ -615,6 +618,204 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
     verify(mockConfidentialSpaceToAwsKmsClientFactory).getKmsClient(any())
     verify(mockGcloudToAwsKmsClientFactory, never()).getKmsClient(any())
+  }
+
+  @Test
+  fun `computingPhase reuses refreshable Confidential Space credentials across computations`():
+    Unit = runBlocking {
+    writeRequisitionData()
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+    val mill = createMill()
+
+    for (localId in listOf(LOCAL_ID, LOCAL_ID + 1)) {
+      fakeComputationDb.addComputation(
+        localId,
+        Stage.COMPUTING.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE),
+      )
+
+      mill.claimAndProcessWork()
+
+      assertThat(fakeComputationDb[localId]!!.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+      fakeComputationDb.deleteComputation(localId)
+    }
+
+    verify(mockConfidentialSpaceToAwsKmsClientFactory, times(1)).getKmsClient(any())
+    verify(mockSystemComputations, times(2)).setComputationResult(any())
+  }
+
+  @Test
+  fun `computingPhase keeps different Confidential Space audiences separate`(): Unit = runBlocking {
+    writeRequisitionData()
+    val otherAudienceRequisition =
+      REQUISITION_2.copy {
+        details =
+          REQUISITION_CONFIDENTIAL_SPACE.details.copy {
+            protocol =
+              protocol.copy {
+                trusTee =
+                  trusTee.copy {
+                    encryptedDekCiphertext = DEK_KEYSET_HANDLE_2.toEncryptedByteString(KEK_AEAD_2)
+                    kmsKekUri = KEK_URI_2
+                    awsKmsParams = awsKmsParams.copy { audience = "https://other.example.com" }
+                  }
+              }
+          }
+      }
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE, otherAudienceRequisition),
+    )
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+
+    createMill().claimAndProcessWork()
+
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+    val credentials = argumentCaptor<ConfidentialSpaceToAwsWifCredentials>()
+    verify(mockConfidentialSpaceToAwsKmsClientFactory, times(2)).getKmsClient(credentials.capture())
+    assertThat(credentials.allValues.map { it.audience })
+      .containsExactly("https://example.com", "https://other.example.com")
+  }
+
+  @Test
+  fun `computingPhase retries attestation quota failures without failing the computation`(): Unit =
+    runBlocking {
+      writeRequisitionData()
+      fakeComputationDb.addComputation(
+        LOCAL_ID,
+        Stage.COMPUTING.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE),
+      )
+      val unavailableKmsClient: KmsClient = mock()
+      whenever(unavailableKmsClient.getAead(KEK_URI_1))
+        .thenThrow(
+          GeneralSecurityException(
+            "KMS operation failed",
+            GeneralSecurityException(
+              "Failed to obtain Confidential Space attestation token",
+              IOException("Launcher token request failed: CreateChallenge quota exceeded"),
+            ),
+          )
+        )
+        .thenReturn(KEK_AEAD_1)
+      whenever(mockConfidentialSpaceToAwsKmsClientFactory.getKmsClient(any()))
+        .thenReturn(unavailableKmsClient)
+      whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+
+      val mill = createMill()
+      mill.claimAndProcessWork()
+
+      val finalToken = fakeComputationDb[LOCAL_ID]!!
+      assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+      assertThat(finalToken.computationDetails.endingState)
+        .isNotEqualTo(ComputationDetails.CompletedReason.FAILED)
+      verify(mockComputationParticipants, never()).failComputationParticipant(any())
+      verify(mockSystemComputations, never()).setComputationResult(any())
+
+      mill.claimAndProcessWork()
+
+      assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+      verify(mockConfidentialSpaceToAwsKmsClientFactory, times(1)).getKmsClient(any())
+      verify(mockSystemComputations, times(1)).setComputationResult(any())
+    }
+
+  @Test
+  fun `computingPhase fails permanently for invalid ciphertext HTTP 400`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 400, retryable = false)
+  }
+
+  @Test
+  fun `computingPhase fails permanently for unauthenticated HTTP 401`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 401, retryable = false)
+  }
+
+  @Test
+  fun `computingPhase fails permanently for permission denied HTTP 403`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 403, retryable = false)
+  }
+
+  @Test
+  fun `computingPhase fails permanently for missing KMS key HTTP 404`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 404, retryable = false)
+  }
+
+  @Test
+  fun `computingPhase retries request timeout HTTP 408`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 408, retryable = true)
+  }
+
+  @Test
+  fun `computingPhase retries quota exceeded HTTP 429`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 429, retryable = true)
+  }
+
+  @Test
+  fun `computingPhase retries internal server error HTTP 500`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 500, retryable = true)
+  }
+
+  @Test
+  fun `computingPhase retries service unavailable HTTP 503`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 503, retryable = true)
+  }
+
+  private suspend fun assertHttpKeyDecryptionFailure(statusCode: Int, retryable: Boolean) {
+    writeRequisitionData()
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_1),
+    )
+    val kekAead: Aead = mock()
+    // Match the HTTP exception wrapped by Tink's GCP KMS decryption operation.
+    whenever(kekAead.decrypt(any(), any()))
+      .thenThrow(
+        GeneralSecurityException(
+          "decryption failed",
+          HttpResponseException.Builder(statusCode, "KMS request failed", HttpHeaders()).build(),
+        )
+      )
+      .thenAnswer { invocation ->
+        KEK_AEAD_1.decrypt(invocation.getArgument(0), invocation.getArgument(1))
+      }
+    val kmsClient: KmsClient = mock()
+    whenever(kmsClient.getAead(KEK_URI_1)).thenReturn(kekAead)
+    whenever(mockGcloudKmsClientFactory.getKmsClient(any())).thenReturn(kmsClient)
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+
+    val mill = createMill()
+    mill.claimAndProcessWork()
+
+    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).computeResult()
+    verify(mockSystemComputations, never()).setComputationResult(any())
+    val token = fakeComputationDb[LOCAL_ID]!!
+    if (retryable) {
+      assertThat(token.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+      assertThat(token.computationDetails.endingState)
+        .isNotEqualTo(ComputationDetails.CompletedReason.FAILED)
+      verify(mockComputationParticipants, never()).failComputationParticipant(any())
+
+      mill.claimAndProcessWork()
+
+      assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+      verify(mockSystemComputations, times(1)).setComputationResult(any())
+    } else {
+      assertThat(token.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+      assertThat(token.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+      verify(mockComputationParticipants, times(1)).failComputationParticipant(any())
+    }
+    verify(mockGcloudKmsClientFactory, times(1)).getKmsClient(any())
   }
 
   @Test
