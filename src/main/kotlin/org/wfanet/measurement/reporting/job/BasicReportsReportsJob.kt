@@ -252,14 +252,32 @@ class BasicReportsReportsJob(
                       return@trace
                     }
 
-                  reportResultsStub.batchCreateReportingSetResults(
-                    batchCreateReportingSetResultsRequest {
-                      this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-                      externalReportResultId = reportResult.externalReportResultId
-                      requests += reportingSetResultRequests
-                      externalBasicReportId = basicReport.externalBasicReportId
+                  // Validate dimensions across the entire result set before any partial writes.
+                  require(
+                    reportingSetResultRequests
+                      .map { it.reportingSetResult.dimension }
+                      .toSet()
+                      .size == reportingSetResultRequests.size
+                  ) {
+                    "Report results contain duplicate dimensions"
+                  }
+                  val resultBatches =
+                    reportingSetResultRequests.chunked(REPORTING_SET_RESULT_BATCH_SIZE).ifEmpty {
+                      listOf(emptyList())
                     }
-                  )
+                  for ((index, batch) in resultBatches.withIndex()) {
+                    reportResultsStub.batchCreateReportingSetResults(
+                      batchCreateReportingSetResultsRequest {
+                        this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+                        externalReportResultId = reportResult.externalReportResultId
+                        requests += batch
+                        // Only expose the report to processing after every preceding batch commits.
+                        if (index == resultBatches.lastIndex) {
+                          externalBasicReportId = basicReport.externalBasicReportId
+                        }
+                      }
+                    )
+                  }
                   span.addEvent(
                     "reporting.basic_report.unprocessed_results_persisted",
                     Attributes.builder()
@@ -1033,6 +1051,8 @@ class BasicReportsReportsJob(
   )
 
   companion object {
+    private const val REPORTING_SET_RESULT_BATCH_SIZE = 100
+
     private val logger: Logger = Logger.getLogger(BasicReportsReportsJob::class.java.name)
     private const val BATCH_SIZE = 10
   }
