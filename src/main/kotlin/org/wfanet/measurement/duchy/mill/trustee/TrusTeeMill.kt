@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.mill.trustee
 
+import com.google.api.client.http.HttpResponseException
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
@@ -313,9 +314,21 @@ class TrusTeeMill(
     }
 
   private fun keyAccessException(message: String, cause: GeneralSecurityException): Exception {
-    // The launcher reports quota and transport failures as IOException. These do not imply an
-    // invalid encrypted keyset and should use the mill's bounded retry policy.
-    return if (generateSequence<Throwable>(cause) { it.cause }.any { it is IOException }) {
+    // HTTP errors also extend IOException. Classify their status before treating other I/O
+    // failures, including launcher quota failures, as retryable transport errors.
+    val httpFailure =
+      generateSequence<Throwable>(cause) { it.cause }
+        .filterIsInstance<HttpResponseException>()
+        .firstOrNull()
+    val retryable =
+      if (httpFailure != null) {
+        httpFailure.statusCode == 408 ||
+          httpFailure.statusCode == 429 ||
+          httpFailure.statusCode in 500..599
+      } else {
+        generateSequence<Throwable>(cause) { it.cause }.any { it is IOException }
+      }
+    return if (retryable) {
       TransientErrorException(message, cause)
     } else {
       PermanentErrorException(message, cause)

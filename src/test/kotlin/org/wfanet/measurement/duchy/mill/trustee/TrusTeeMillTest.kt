@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.duchy.mill.trustee
 
+import com.google.api.client.http.HttpHeaders
+import com.google.api.client.http.HttpResponseException
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
@@ -723,6 +725,98 @@ class TrusTeeMillTest {
       verify(mockConfidentialSpaceToAwsKmsClientFactory, times(1)).getKmsClient(any())
       verify(mockSystemComputations, times(1)).setComputationResult(any())
     }
+
+  @Test
+  fun `computingPhase fails permanently for invalid ciphertext HTTP 400`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 400, retryable = false)
+  }
+
+  @Test
+  fun `computingPhase fails permanently for unauthenticated HTTP 401`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 401, retryable = false)
+  }
+
+  @Test
+  fun `computingPhase fails permanently for permission denied HTTP 403`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 403, retryable = false)
+  }
+
+  @Test
+  fun `computingPhase fails permanently for missing KMS key HTTP 404`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 404, retryable = false)
+  }
+
+  @Test
+  fun `computingPhase retries request timeout HTTP 408`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 408, retryable = true)
+  }
+
+  @Test
+  fun `computingPhase retries quota exceeded HTTP 429`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 429, retryable = true)
+  }
+
+  @Test
+  fun `computingPhase retries internal server error HTTP 500`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 500, retryable = true)
+  }
+
+  @Test
+  fun `computingPhase retries service unavailable HTTP 503`(): Unit = runBlocking {
+    assertHttpKeyDecryptionFailure(statusCode = 503, retryable = true)
+  }
+
+  private suspend fun assertHttpKeyDecryptionFailure(statusCode: Int, retryable: Boolean) {
+    writeRequisitionData()
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_1),
+    )
+    val kekAead: Aead = mock()
+    // Match the HTTP exception wrapped by Tink's GCP KMS decryption operation.
+    whenever(kekAead.decrypt(any(), any()))
+      .thenThrow(
+        GeneralSecurityException(
+          "decryption failed",
+          HttpResponseException.Builder(statusCode, "KMS request failed", HttpHeaders()).build(),
+        )
+      )
+      .thenAnswer { invocation ->
+        KEK_AEAD_1.decrypt(invocation.getArgument(0), invocation.getArgument(1))
+      }
+    val kmsClient: KmsClient = mock()
+    whenever(kmsClient.getAead(KEK_URI_1)).thenReturn(kekAead)
+    whenever(mockGcloudKmsClientFactory.getKmsClient(any())).thenReturn(kmsClient)
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+
+    val mill = createMill()
+    mill.claimAndProcessWork()
+
+    verify(mockProcessor, never()).addFrequencyVector(any())
+    verify(mockProcessor, never()).computeResult()
+    verify(mockSystemComputations, never()).setComputationResult(any())
+    val token = fakeComputationDb[LOCAL_ID]!!
+    if (retryable) {
+      assertThat(token.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+      assertThat(token.computationDetails.endingState)
+        .isNotEqualTo(ComputationDetails.CompletedReason.FAILED)
+      verify(mockComputationParticipants, never()).failComputationParticipant(any())
+
+      mill.claimAndProcessWork()
+
+      assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+      verify(mockSystemComputations, times(1)).setComputationResult(any())
+    } else {
+      assertThat(token.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+      assertThat(token.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+      verify(mockComputationParticipants, times(1)).failComputationParticipant(any())
+    }
+    verify(mockGcloudKmsClientFactory, times(1)).getKmsClient(any())
+  }
 
   @Test
   fun `computingPhase fails when requisition data is missing`(): Unit = runBlocking {
