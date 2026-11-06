@@ -233,8 +233,11 @@ class BasicReportsServiceTest {
   }
 
   private val reportsServiceMock: ReportsCoroutineImplBase = mockService {
-    onBlocking { createReport(any()) }
-      .thenReturn(report { name = ReportKey("a1234", "a1234").toName() })
+    onBlocking { createReport(any()) } doAnswer
+      { invocation ->
+        val request: CreateReportRequest = invocation.getArgument(0)
+        report { name = "${request.parent}/reports/${request.reportId}" }
+      }
   }
 
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
@@ -403,6 +406,7 @@ class BasicReportsServiceTest {
         }
         resultGroupSpecs += resultGroupSpec {
           title = "Reach"
+          dimensionSpec = dimensionSpec {}
           reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
           resultGroupMetricSpec = resultGroupMetricSpec {

@@ -284,7 +284,7 @@ class BasicReportsReportsJobTest {
   private fun assertReportCreatedPageRequested() {
     val requests: List<ListBasicReportsRequest> =
       verifyAndCapture(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports, times(2))
-    assertThat(requests.first())
+    assertThat(requests.single { it.filter.state == BasicReport.State.REPORT_CREATED })
       .isEqualTo(
         listBasicReportsRequest {
           filter =
@@ -300,6 +300,7 @@ class BasicReportsReportsJobTest {
   private fun pendingCreationReport(): BasicReport =
     INTERNAL_BASIC_REPORT.copy {
       state = BasicReport.State.CREATED
+      externalBasicReportId = "pending-basic"
       createTime = timestamp { seconds = NOW.minusSeconds(30).epochSecond }
       createReportRequestId = "78b9facb-5a64-4026-8735-a5153b46cf62"
       details = details.copy { reportCreationPlan = REPORT.toCreationPlan() }
@@ -333,7 +334,7 @@ class BasicReportsReportsJobTest {
       val pending = pendingCreationReport()
       stubListCreatedBasicReports(listOf(pending))
       whenever(reportsMock.createReport(any()))
-        .thenThrow(Status.UNAVAILABLE.asException())
+        .thenAnswer { throw Status.UNAVAILABLE.asException() }
         .thenReturn(
           report { name = ReportKey(CMMS_MEASUREMENT_CONSUMER_ID, "returned-id").toName() }
         )
@@ -351,7 +352,9 @@ class BasicReportsReportsJobTest {
   fun `execute fails a permanent creation error`(): Unit = runBlocking {
     val pending = pendingCreationReport()
     stubListCreatedBasicReports(listOf(pending))
-    whenever(reportsMock.createReport(any())).thenThrow(Status.FAILED_PRECONDITION.asException())
+    whenever(reportsMock.createReport(any())).thenAnswer {
+      throw Status.FAILED_PRECONDITION.asException()
+    }
     withTimeout(5_000) { job.execute() }
     verify(basicReportsMock).failBasicReport(any())
     verify(basicReportsMock, times(0)).setExternalReportId(any())
@@ -430,8 +433,9 @@ class BasicReportsReportsJobTest {
   @Test
   fun `execute stops on failed batch without sending report association`(): Unit = runBlocking {
     whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
-    whenever(reportResultsMock.batchCreateReportingSetResults(any()))
-      .thenThrow(Status.UNAVAILABLE.asException())
+    whenever(reportResultsMock.batchCreateReportingSetResults(any())).thenAnswer {
+      throw Status.UNAVAILABLE.asException()
+    }
     job.execute()
     val captor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
     verify(reportResultsMock).batchCreateReportingSetResults(captor.capture())
@@ -3024,15 +3028,19 @@ class BasicReportsReportsJobTest {
           }
       }
 
-      whenever(basicReportsMock.listBasicReports(any()))
-        .thenReturn(
-          listBasicReportsResponse {
-            basicReports += page1Reports
-            nextPageToken = pageToken
-          }
-        )
-        .thenReturn(listBasicReportsResponse { basicReports += page2Reports })
-        .thenReturn(ListBasicReportsResponse.getDefaultInstance())
+      whenever(basicReportsMock.listBasicReports(any())).thenAnswer { invocation ->
+        val request: ListBasicReportsRequest = invocation.getArgument(0)
+        when {
+          request.filter.state != BasicReport.State.REPORT_CREATED ->
+            ListBasicReportsResponse.getDefaultInstance()
+          request.hasPageToken() -> listBasicReportsResponse { basicReports += page2Reports }
+          else ->
+            listBasicReportsResponse {
+              basicReports += page1Reports
+              nextPageToken = pageToken
+            }
+        }
+      }
 
       job.execute()
 
