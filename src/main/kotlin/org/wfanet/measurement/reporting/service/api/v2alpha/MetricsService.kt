@@ -63,6 +63,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
 import org.jetbrains.annotations.NonBlockingExecutor
@@ -121,6 +123,7 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.mapConcurrently
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTraceLogging
@@ -279,6 +282,8 @@ class MetricsService(
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   kingdomMeasurementBatchConcurrency: Int,
+  measurementPreparationConcurrency: Int = 1,
+  measurementPreparationContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
 ) : MetricsCoroutineImplBase(coroutineContext) {
   private data class DataProviderInfo(
     val dataProviderName: String,
@@ -303,6 +308,8 @@ class MetricsService(
       cacheLoaderContext,
       populationDataProvider,
       kingdomMeasurementBatchConcurrency,
+      measurementPreparationConcurrency,
+      measurementPreparationContext,
     )
 
   private class MeasurementSupplier(
@@ -321,7 +328,11 @@ class MetricsService(
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
     private val populationDataProvider: String,
     private val kingdomMeasurementBatchConcurrency: Int,
+    private val measurementPreparationConcurrency: Int,
+    private val measurementPreparationContext: @NonBlockingExecutor CoroutineContext,
   ) {
+    private val preparationPermits = Semaphore(measurementPreparationConcurrency)
+
     data class RunningMetric(
       val internalMetric: InternalMetric,
       val effectiveModelLineName: String,
@@ -423,29 +434,39 @@ class MetricsService(
         }
 
       val pendingCmmsMeasurements: Flow<PendingCmmsMeasurement> = flow {
-        for ((internalMeasurement, runningMetric) in pendingMeasurements) {
-          emit(
-            PendingCmmsMeasurement(
-              request =
-                ReportTracing.traceSuspending(
-                  spanName = "reporting.measurement.prepare",
-                  attributes =
-                    measurementCreationTraceAttributes(internalMeasurement, runningMetric),
-                ) {
-                  buildCreateMeasurementRequest(
-                      internalMeasurement,
-                      runningMetric,
-                      internalPrimitiveReportingSetMap,
-                      preparation.measurementConsumer,
-                      measurementConsumerCreds,
-                      preparation.dataProviderInfoMap,
-                      preparation.measurementConsumerSigningKey,
-                    )
-                    .also { Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared") }
-                },
-              requestMetricFieldPath = runningMetric.requestMetricFieldPath,
-            )
-          )
+        coroutineScope {
+          pendingMeasurements
+            .asFlow()
+            .mapConcurrently(this, measurementPreparationConcurrency) {
+              (internalMeasurement, runningMetric) ->
+              preparationPermits.withPermit {
+                withContext(measurementPreparationContext) {
+                  PendingCmmsMeasurement(
+                    request =
+                      ReportTracing.traceSuspending(
+                        spanName = "reporting.measurement.prepare",
+                        attributes =
+                          measurementCreationTraceAttributes(internalMeasurement, runningMetric),
+                      ) {
+                        buildCreateMeasurementRequest(
+                            internalMeasurement,
+                            runningMetric,
+                            internalPrimitiveReportingSetMap,
+                            preparation.measurementConsumer,
+                            measurementConsumerCreds,
+                            preparation.dataProviderInfoMap,
+                            preparation.measurementConsumerSigningKey,
+                          )
+                          .also {
+                            Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared")
+                          }
+                      },
+                    requestMetricFieldPath = runningMetric.requestMetricFieldPath,
+                  )
+                }
+              }
+            }
+            .collect { emit(it) }
         }
       }
 
