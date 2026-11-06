@@ -969,6 +969,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
   modelLineName: String,
   containingReportResourceName: String,
   basicReportResourceName: String,
+  reportStartTime: com.google.protobuf.Timestamp?,
 ): CreateMetricRequest {
   val source = this
   return createMetricRequest {
@@ -983,6 +984,9 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
       filters += (source.details.groupingPredicatesList + filter).filter { it.isNotBlank() }
       containingReport = containingReportResourceName
       basicReport = basicReportResourceName
+      if (reportStartTime != null) {
+        this.reportStartTime = reportStartTime
+      }
     }
     requestId = source.createMetricRequestId
     metricId = "a" + source.createMetricRequestId

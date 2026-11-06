@@ -126,3 +126,39 @@ message RequisitionMetadata {
   // Etag for resource freshness validation.
   string etag = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
+
+// Immutable model-line choice for one Report and DataProvider.
+message ReportRoutingDecision {
+  // Resource name of the `Report`.
+  string report = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" }
+  ];
+
+  // Original start time of the Report.
+  google.protobuf.Timestamp report_start_time = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Advertiser-visible model line in the Requisitions.
+  string external_model_line = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // Internal model line selected for all WorkItems of the Report.
+  string selected_model_line = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // UTC instant at which the configured cutover takes effect.
+  google.protobuf.Timestamp cutover_time = 5
+      [(google.api.field_behavior) = IMMUTABLE];
+
+  // Time when the decision was persisted.
+  google.protobuf.Timestamp create_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}

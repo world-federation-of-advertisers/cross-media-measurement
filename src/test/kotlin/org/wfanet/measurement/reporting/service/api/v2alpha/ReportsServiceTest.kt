@@ -85,6 +85,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
@@ -4540,6 +4541,7 @@ class ReportsServiceTest {
               this.filters += predicate
               this.filters += filter
               containingReport = internalPendingReport.resourceName
+              reportStartTime = reportingInterval.reportStart.toTimestamp()
             }
           }
         }

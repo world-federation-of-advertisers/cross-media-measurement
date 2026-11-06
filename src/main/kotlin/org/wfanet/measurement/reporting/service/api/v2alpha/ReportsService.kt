@@ -62,6 +62,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
@@ -541,6 +542,7 @@ class ReportsService(
                 ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
                   .toName(),
               basicReportResourceName = internalReport.details.basicReport,
+              reportStartTime = internalReport.reportStartTime(),
             )
           }
         }
@@ -1125,6 +1127,16 @@ private fun validateTime(report: Report) {
 private fun Date.isBefore(other: Date): Boolean {
   return LocalDate.of(this.year, this.month, this.day)
     .isBefore(LocalDate.of(other.year, other.month, other.day))
+}
+
+private fun InternalReport.reportStartTime(): Timestamp? {
+  val configuredStart = details.reportingInterval.reportStart
+  if (
+    configuredStart.timeOffsetCase == com.google.type.DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
+  ) {
+    return null
+  }
+  return configuredStart.toTimestamp()
 }
 
 /**

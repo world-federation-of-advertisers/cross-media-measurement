@@ -45,6 +45,10 @@ service RequisitionMetadataService {
       RegisterQueuedRequisitionMetadataRequest)
       returns (RegisterQueuedRequisitionMetadataResponse) {}
 
+  // Resolves the immutable model-line choice for a Report.
+  rpc ResolveReportRoutingDecision(ResolveReportRoutingDecisionRequest)
+      returns (ResolveReportRoutingDecisionResponse) {}
+
   // Retrieves a specific RequisitionMetadata entry by its resource name.
   rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
       returns (RequisitionMetadata) {}
@@ -183,6 +187,27 @@ message RegisterQueuedRequisitionMetadataRequest {
 message RegisterQueuedRequisitionMetadataResponse {
   // The registered RequisitionMetadata resources, in request order.
   repeated RequisitionMetadata requisition_metadata = 1;
+}
+
+// Request message for `ResolveReportRoutingDecision`.
+message ResolveReportRoutingDecisionRequest {
+  // Parent DataProvider resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
+  ];
+
+  // Candidate used when no decision exists. An existing decision is immutable.
+  ReportRoutingDecision candidate = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for `ResolveReportRoutingDecision`.
+message ResolveReportRoutingDecisionResponse {
+  // Persisted decision.
+  ReportRoutingDecision report_routing_decision = 1;
+
+  // Whether this call created the decision.
+  bool created = 2;
 }
 
 // Request message for the `GetRequisitionMetadata` method.
