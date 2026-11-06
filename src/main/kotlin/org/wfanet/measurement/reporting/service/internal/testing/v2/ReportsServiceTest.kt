@@ -737,6 +737,8 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       details =
         ReportKt.details {
           tags.putAll(REPORT_TAGS)
+          basicReport =
+            "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID/basicReports/first-report"
           timeIntervals = timeIntervals { this.timeIntervals += intervals }
         }
     }
@@ -765,12 +767,23 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
             val externalMetricId = "externalMetricId$metricIndex"
             metricIndex++
             buildCreateMetricRequest(
-              createdReport.cmmsMeasurementConsumerId,
-              externalMetricId,
-              reportingSet,
-              reportingMetric,
-              metricCalculationSpecFilter,
-            )
+                createdReport.cmmsMeasurementConsumerId,
+                externalMetricId,
+                reportingSet,
+                reportingMetric,
+                metricCalculationSpecFilter,
+              )
+              .copy {
+                metric =
+                  metric.copy {
+                    details =
+                      details.copy {
+                        containingReport =
+                          "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID/reports/${createdReport.externalReportId}"
+                        basicReport = createdReport.details.basicReport
+                      }
+                  }
+              }
           }
         }
       }
@@ -793,7 +806,14 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     val createdReportReusingMetrics =
       service.createReport(
         createReportRequest {
-          this.report = report
+          this.report =
+            report.copy {
+              details =
+                details.copy {
+                  basicReport =
+                    "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID/basicReports/second-report"
+                }
+            }
           externalReportId = "external-report-id2"
         }
       )
