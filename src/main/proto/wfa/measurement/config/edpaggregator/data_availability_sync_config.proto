@@ -19,6 +19,7 @@ package wfa.measurement.config.edpaggregator;
 import "google/api/resource.proto";
 import "google/api/field_behavior.proto";
 import "google/type/datetime.proto";
+import "wfa/measurement/config/edpaggregator/model_line_cutover_config.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
@@ -93,6 +94,9 @@ message DataAvailabilitySyncConfig {
     // Storage containing the EventGroup map.
     StorageParams event_group_map_storage = 3;
   }
+
+  // Report-level cutovers projected onto advertiser-visible availability.
+  repeated ModelLineCutoverConfig model_line_cutovers = 9;
 
   // List of model lines to use for a single mapping entry.
   message ModelLineList {

@@ -23,6 +23,8 @@ import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionWorkItemDispatchConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.StoragePathPrefixes
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerParamsValidator
@@ -167,6 +169,10 @@ object RequisitionFetcherConfigValidator {
       "Missing 'results_fulfiller_params' in direct-dispatch config for data provider: $dataProvider."
     }
     ResultsFulfillerParamsValidator.validate(dispatchConfig.resultsFulfillerParams, dataProvider)
+    ModelLineCutoverValidator.validate(
+      dispatchConfig.modelLineCutoversList.map(ModelLineCutover::from),
+      dispatchConfig.resultsFulfillerParams.modelLineMapMap.keys,
+    )
     require(dispatchConfig.hasControlPlaneConnection()) {
       "Missing 'control_plane_connection' in direct-dispatch config for data provider: $dataProvider."
     }
