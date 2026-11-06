@@ -74,8 +74,10 @@ kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name
 	_spannerConfig: database: "kingdom"
 
-	_verboseGrpcServerLogging: true
-	_trusTeeEnabled:           true
+	_verboseGrpcServerLogging:            true
+	_verboseInternalApiGrpcServerLogging: false
+	_verbosePublicApiGrpcServerLogging:   false
+	_trusTeeEnabled:                      true
 
 	_imageSuffixes: [string]: string
 	_imageSuffixes: {
@@ -122,6 +124,16 @@ kingdom: #Kingdom & {
 			}
 		}
 		"v2alpha-public-api-server": {
+			_container: {
+				_javaOptions: {
+					maxHeapSize:     "1G"
+					initialHeapSize: "256M"
+				}
+				resources: {
+					requests: {cpu: "500m", memory: "1Gi"}
+					limits: memory: "2Gi"
+				}
+			}
 			_rateLimitConfigPath: "/etc/\(#AppName)/config-files/rate_limit_config.textproto"
 		}
 	}

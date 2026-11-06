@@ -26,6 +26,12 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -595,6 +601,54 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         database.enqueue(token, 0, "WrongOwner")
       }
     }
+
+  @Test
+  fun `concurrent workers claim distinct ready computations in one poll`() = runBlocking {
+    val count = 4
+    val mutations =
+      (0 until count).flatMap { index ->
+        testClock.tickSeconds("queued-$index")
+        val timestamp = testClock.last().toGcloudTimestamp()
+        listOf(
+          computationMutations.insertComputation(
+            localId = 1000L + index,
+            globalId = "claim-$index",
+            protocol = FakeProtocol.ZERO,
+            stage = A,
+            creationTime = timestamp,
+            updateTime = timestamp,
+            lockOwner = WRITE_NULL_STRING,
+            lockExpirationTime = timestamp,
+            details = FAKE_COMPUTATION_DETAILS,
+          ),
+          computationMutations.insertComputationStage(
+            localId = 1000L + index,
+            stage = A,
+            nextAttempt = 1,
+            creationTime = timestamp,
+            details = computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS),
+          ),
+        )
+      }
+    databaseClient.write(mutations)
+    val claimed = coroutineScope {
+      val ready = Channel<Unit>(Channel.UNLIMITED)
+      val start = CompletableDeferred<Unit>()
+      val workers =
+        (0 until count).map { index ->
+          async(Dispatchers.IO) {
+            ready.send(Unit)
+            start.await()
+            database.claimTask(FakeProtocol.ZERO, "worker-$index", DEFAULT_LOCK_DURATION)
+          }
+        }
+      repeat(count) { ready.receive() }
+      start.complete(Unit)
+      workers.awaitAll()
+    }
+    assertThat(claimed).containsExactlyElementsIn((0 until count).map { "claim-$it" })
+    assertNull(database.claimTask(FakeProtocol.ZERO, "extra-worker", DEFAULT_LOCK_DURATION))
+  }
 
   @Test
   fun claimTask() = runBlocking {

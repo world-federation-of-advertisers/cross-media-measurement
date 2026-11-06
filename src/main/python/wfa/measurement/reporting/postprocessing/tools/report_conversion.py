@@ -150,8 +150,8 @@ def _validate_report_result(
             )
 
         # Validates the population.
-        if reporting_set_result.population_size <= 0:
-            raise ValueError("Population size must have a positive value.")
+        if reporting_set_result.population_size < 0:
+            raise ValueError("Population size must have a non-negative value.")
 
         # Validates that each reporting window result has the required fields.
         for window_entry in reporting_set_result.reporting_window_results:

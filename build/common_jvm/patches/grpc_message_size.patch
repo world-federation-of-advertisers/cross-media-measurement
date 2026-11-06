@@ -1,0 +1,81 @@
+diff --git a/src/main/kotlin/org/wfanet/measurement/common/grpc/CommonServer.kt b/src/main/kotlin/org/wfanet/measurement/common/grpc/CommonServer.kt
+--- a/src/main/kotlin/org/wfanet/measurement/common/grpc/CommonServer.kt
++++ b/src/main/kotlin/org/wfanet/measurement/common/grpc/CommonServer.kt
+@@ -42,6 +42,7 @@
+   verboseGrpcLogging: Boolean,
+   services: Iterable<ServerServiceDefinition>,
+   sslContext: SslContext?,
++  maxInboundMessageSize: Int,
+ ) : AutoCloseable {
+   private val healthStatusManager = HealthStatusManager()
+   private val started = AtomicBoolean(false)
+@@ -58,6 +59,7 @@
+     }
+ 
+     NettyServerBuilder.forPort(port)
++      .maxInboundMessageSize(maxInboundMessageSize)
+       .apply {
+         directExecutor()
+         if (sslContext != null) {
+@@ -199,6 +201,14 @@
+       private set
+ 
+     @set:CommandLine.Option(
++      names = ["--max-inbound-message-size"],
++      description = ["Maximum inbound gRPC message size in bytes."],
++      defaultValue = DEFAULT_MAX_INBOUND_MESSAGE_SIZE.toString(),
++    )
++    var maxInboundMessageSize by Delegates.notNull<Int>()
++      private set
++
++    @set:CommandLine.Option(
+       names = ["--health-port"],
+       description = ["TCP port for the non-TLS health server."],
+       defaultValue = "8080",
+@@ -227,6 +237,8 @@
+     private val logger = Logger.getLogger(this::class.java.name)
+ 
+     const val DEFAULT_SHUTDOWN_GRACE_PERIOD_SECONDS = 25
++
++    const val DEFAULT_MAX_INBOUND_MESSAGE_SIZE = 4 * 1024 * 1024
+ 
+     /** Constructs a [CommonServer] from parameters. */
+     fun fromParameters(
+@@ -238,6 +250,7 @@
+       port: Int = 0,
+       healthPort: Int = 0,
+       shutdownGracePeriodSeconds: Int = DEFAULT_SHUTDOWN_GRACE_PERIOD_SECONDS,
++      maxInboundMessageSize: Int = DEFAULT_MAX_INBOUND_MESSAGE_SIZE,
+     ): CommonServer {
+       return CommonServer(
+         nameForLogging,
+@@ -247,6 +260,7 @@
+         verboseGrpcLogging,
+         services,
+         certs?.toServerTlsContext(clientAuth),
++        maxInboundMessageSize,
+       )
+     }
+ 
+@@ -265,6 +279,7 @@
+         flags.port,
+         flags.healthPort,
+         flags.shutdownGracePeriodSeconds,
++        flags.maxInboundMessageSize,
+       )
+     }
+ 
+diff --git a/src/main/kotlin/org/wfanet/measurement/common/grpc/Channel.kt b/src/main/kotlin/org/wfanet/measurement/common/grpc/Channel.kt
+--- a/src/main/kotlin/org/wfanet/measurement/common/grpc/Channel.kt
++++ b/src/main/kotlin/org/wfanet/measurement/common/grpc/Channel.kt
+@@ -35,8 +35,10 @@
+   clientCerts: SigningCerts,
+   hostName: String? = null,
+   defaultServiceConfig: ServiceConfig = ProtobufServiceConfig.DEFAULT,
++  maxInboundMessageSize: Int = CommonServer.DEFAULT_MAX_INBOUND_MESSAGE_SIZE,
+ ): ManagedChannel {
+   return NettyChannelBuilder.forTarget(target)
++    .maxInboundMessageSize(maxInboundMessageSize)
+     .apply {
+       directExecutor() // See https://github.com/grpc/grpc-kotlin/issues/263
+       sslContext(clientCerts.toClientTlsContext())

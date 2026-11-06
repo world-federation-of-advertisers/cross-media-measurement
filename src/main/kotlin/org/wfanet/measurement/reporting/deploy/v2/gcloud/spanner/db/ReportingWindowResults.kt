@@ -114,6 +114,39 @@ suspend fun AsyncDatabaseClient.ReadContext.readReportingWindowResultIds(
   }
 }
 
+/** Resolves all window IDs in a report with one query, including windows with null starts. */
+suspend fun AsyncDatabaseClient.ReadContext.readReportingWindowResultIdsByReportingSetResult(
+  measurementConsumerId: Long,
+  reportResultId: Long,
+): Map<Long, Map<ReportingSetResult.ReportingWindow, Long>> {
+  val query =
+    statement(
+      """
+    SELECT ReportingSetResultId, ReportingWindowResultId,
+      ReportingWindowStartDate, ReportingWindowEndDate
+    FROM ReportingWindowResults
+    WHERE MeasurementConsumerId = @measurementConsumerId AND ReportResultId = @reportResultId
+    """
+        .trimIndent()
+    ) {
+      bind("measurementConsumerId").to(measurementConsumerId)
+      bind("reportResultId").to(reportResultId)
+    }
+  val result = mutableMapOf<Long, MutableMap<ReportingSetResult.ReportingWindow, Long>>()
+  executeQuery(query, Options.tag("action=readProcessedResultTargets")).collect { row ->
+    val window =
+      ReportingSetResultKt.reportingWindow {
+        if (!row.isNull("ReportingWindowStartDate")) {
+          nonCumulativeStart = row.getDate("ReportingWindowStartDate").toProtoDate()
+        }
+        end = row.getDate("ReportingWindowEndDate").toProtoDate()
+      }
+    result.getOrPut(row.getLong("ReportingSetResultId")) { mutableMapOf() }[window] =
+      row.getLong("ReportingWindowResultId")
+  }
+  return result
+}
+
 fun AsyncDatabaseClient.TransactionContext.insertReportingWindowResult(
   measurementConsumerId: Long,
   reportResultId: Long,

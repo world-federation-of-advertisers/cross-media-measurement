@@ -18,6 +18,7 @@ import org.wfanet.measurement.computation.DeterministicDynamicClippingNoiseSourc
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.DynamicallyClippedImpressions
+import org.wfanet.measurement.computation.FrequencyData
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingNoiseSource
@@ -55,7 +56,7 @@ object DirectDynamicClipping {
    * This is the composition the clip search was written against.
    */
   fun computeImpressions(
-    frequencyData: IntArray,
+    frequencyData: ByteArray,
     dpParams: DpParams,
     vidSamplingIntervalWidth: Double,
     resultMinimumThresholds: ResultMinimumThresholds?,
@@ -81,7 +82,7 @@ object DirectDynamicClipping {
   // than
   // a distribution, and the draws here are Gaussian by design.
   fun computeDeterministicImpressions(
-    frequencyData: IntArray,
+    frequencyData: ByteArray,
     vidSamplingIntervalWidth: Double,
     resultMinimumThresholds: ResultMinimumThresholds?,
   ): DynamicallyClippedImpressions =
@@ -95,7 +96,7 @@ object DirectDynamicClipping {
       noiseSource =
         DeterministicDynamicClippingNoiseSource(
           DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-            frequencyData,
+            FrequencyData.from(frequencyData),
             DIRECT_CONTRIBUTION_COUNT,
           )
         ),
@@ -104,14 +105,14 @@ object DirectDynamicClipping {
     )
 
   private fun clipDynamically(
-    frequencyData: IntArray,
+    frequencyData: ByteArray,
     queryDpParams: DpParams,
     noiseSource: DynamicClippingNoiseSource,
     vidSamplingIntervalWidth: Double,
     resultMinimumThresholds: ResultMinimumThresholds?,
   ): DynamicallyClippedImpressions =
     ImpressionComputations.computeDynamicallyClippedImpressionCount(
-      frequencyVector = frequencyData,
+      frequencyVector = FrequencyData.from(frequencyData),
       queryRho = AcdpParamsConverter.getDirectAcdpCharge(queryDpParams, BAR_SENSITIVITY).rho,
       maxFrequency = MAX_REPRESENTABLE_FREQUENCY,
       noiseSource = noiseSource,

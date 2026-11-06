@@ -330,6 +330,90 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `createReport persists more than 65535 SQL parameters of reporting metrics`() = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet =
+      createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService, "scale-reporting-set")
+    val spec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val baseReport = createReportForRequest(reportingSet, spec)
+    val baseEntry =
+      baseReport.reportingMetricEntriesMap.getValue(reportingSet.externalReportingSetId)
+    val baseSpec = baseEntry.metricCalculationSpecReportingMetricsList.single()
+    val baseMetric = baseSpec.reportingMetricsList.single()
+    // Each persisted row binds eight parameters; 8192 rows cross the protocol limit.
+    val rowCount = 8192
+    val input =
+      baseReport.copy {
+        reportingMetricEntries[reportingSet.externalReportingSetId] =
+          baseEntry.copy {
+            metricCalculationSpecReportingMetrics.clear()
+            metricCalculationSpecReportingMetrics +=
+              baseSpec.copy {
+                reportingMetrics.clear()
+                reportingMetrics +=
+                  (0 until rowCount).map { index ->
+                    baseMetric.copy {
+                      details =
+                        details.copy {
+                          groupingPredicates.clear()
+                          groupingPredicates += "cell == $index"
+                        }
+                    }
+                  }
+              }
+          }
+      }
+    val created =
+      service.createReport(
+        createReportRequest {
+          report = input
+          externalReportId = "scale-report"
+          requestId = "scale-report-request"
+        }
+      )
+    val retrieved =
+      service.getReport(
+        getReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportId = created.externalReportId
+        }
+      )
+    assertThat(retrieved)
+      .ignoringFields(Report.REPORTING_METRIC_ENTRIES_FIELD_NUMBER)
+      .isEqualTo(created)
+    val rows =
+      retrieved.reportingMetricEntriesMap.values
+        .flatMap { it.metricCalculationSpecReportingMetricsList }
+        .flatMap { it.reportingMetricsList }
+    assertThat(rows).hasSize(rowCount)
+    assertThat(rows.map { it.createMetricRequestId }.toSet()).hasSize(rowCount)
+    assertThat(rows.flatMap { it.details.groupingPredicatesList }.toSet())
+      .containsExactlyElementsIn((0 until rowCount).map { "cell == $it" })
+    val createdRows =
+      created.reportingMetricEntriesMap.values
+        .flatMap { it.metricCalculationSpecReportingMetricsList }
+        .flatMap { it.reportingMetricsList }
+    assertThat(rows.associate { it.createMetricRequestId to it.details })
+      .isEqualTo(createdRows.associate { it.createMetricRequestId to it.details })
+    // Idempotent replay preserves every linked row, including rows in later batches.
+    val replay =
+      service.createReport(
+        createReportRequest {
+          report = input
+          externalReportId = "scale-report"
+          requestId = "scale-report-request"
+        }
+      )
+    val replayRows =
+      replay.reportingMetricEntriesMap.values
+        .flatMap { it.metricCalculationSpecReportingMetricsList }
+        .flatMap { it.reportingMetricsList }
+    assertThat(replayRows.associate { it.createMetricRequestId to it.details })
+      .isEqualTo(createdRows.associate { it.createMetricRequestId to it.details })
+  }
+
+  @Test
   fun `createReport succeeds when multiple reporting metrics in one entry`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReportingSet =
@@ -653,6 +737,8 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       details =
         ReportKt.details {
           tags.putAll(REPORT_TAGS)
+          basicReport =
+            "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID/basicReports/first-report"
           timeIntervals = timeIntervals { this.timeIntervals += intervals }
         }
     }
@@ -681,12 +767,23 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
             val externalMetricId = "externalMetricId$metricIndex"
             metricIndex++
             buildCreateMetricRequest(
-              createdReport.cmmsMeasurementConsumerId,
-              externalMetricId,
-              reportingSet,
-              reportingMetric,
-              metricCalculationSpecFilter,
-            )
+                createdReport.cmmsMeasurementConsumerId,
+                externalMetricId,
+                reportingSet,
+                reportingMetric,
+                metricCalculationSpecFilter,
+              )
+              .copy {
+                metric =
+                  metric.copy {
+                    details =
+                      details.copy {
+                        containingReport =
+                          "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID/reports/${createdReport.externalReportId}"
+                        basicReport = createdReport.details.basicReport
+                      }
+                  }
+              }
           }
         }
       }
@@ -709,7 +806,14 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     val createdReportReusingMetrics =
       service.createReport(
         createReportRequest {
-          this.report = report
+          this.report =
+            report.copy {
+              details =
+                details.copy {
+                  basicReport =
+                    "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID/basicReports/second-report"
+                }
+            }
           externalReportId = "external-report-id2"
         }
       )

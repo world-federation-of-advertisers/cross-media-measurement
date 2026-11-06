@@ -39,7 +39,7 @@ class DirectMeasurementResultFactoryTest {
   fun `buildMeasurementResult returns reach and frequency result for REACH_AND_FREQUENCY measurement type`() =
     runBlocking {
       // Setup
-      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
 
       val measurementSpec = measurementSpec {
         reachAndFrequency =
@@ -88,7 +88,7 @@ class DirectMeasurementResultFactoryTest {
   @Test
   fun `buildMeasurementResult returns reach result for REACH measurement type`() = runBlocking {
     // Setup
-    val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
+    val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
 
     val measurementSpec = measurementSpec {
       reach = MeasurementSpecKt.reach { privacyParams = REACH_PRIVACY_PARAMS }
@@ -124,7 +124,7 @@ class DirectMeasurementResultFactoryTest {
   fun `buildMeasurementResult returns impression result for IMPRESSION measurement type`() =
     runBlocking {
       // Setup
-      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
 
       val measurementSpec = measurementSpec {
         impression =
@@ -257,7 +257,7 @@ class DirectMeasurementResultFactoryTest {
                 width = SAMPLING_RATE
               }
           },
-        frequencyData = IntArray(100) { if (it < 90) 1 else 2 },
+        frequencyData = ByteArray(100) { if (it < 90) 1 else 2 },
         maxPopulation = null,
         resultMinimumThresholds = null,
         impressionMaxFrequencyPerUser = null,
@@ -290,7 +290,7 @@ class DirectMeasurementResultFactoryTest {
       directProtocolConfig = DIRECT_PROTOCOL,
       directNoiseMechanism = DirectNoiseMechanism.NONE,
       measurementSpec = measurementSpec,
-      frequencyData = IntArray(100) { if (it < 90) 1 else 2 },
+      frequencyData = ByteArray(100) { if (it < 90) 1 else 2 },
       maxPopulation = null,
       resultMinimumThresholds = null,
       impressionMaxFrequencyPerUser = impressionMaxFrequencyPerUser,

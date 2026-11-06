@@ -32,6 +32,16 @@ _INTERNAL_API_TARGET = flags.DEFINE_string(
     required=True,
 )
 flags.DEFINE_alias("internal-api-target", "internal_api_target")
+_INTERNAL_API_MAX_INBOUND_MESSAGE_SIZE = flags.DEFINE_integer(
+    "internal_api_max_inbound_message_size",
+    64 * 1024 * 1024,
+    "Maximum inbound Reporting internal API response size in bytes.",
+    lower_bound=1,
+)
+flags.DEFINE_alias(
+    "internal-api-max-inbound-message-size",
+    "internal_api_max_inbound_message_size",
+)
 _INTERNAL_API_CERT_HOST = flags.DEFINE_string(
     "internal_api_cert_host",
     None,
@@ -216,7 +226,10 @@ def main(argv):
         raise ValueError(
             f"The cert collection file not found at {cert_collection_file}")
 
-    channel_options = []
+    channel_options = [
+        ("grpc.max_receive_message_length",
+         _INTERNAL_API_MAX_INBOUND_MESSAGE_SIZE.value),
+    ]
     internal_api_cert_host = _INTERNAL_API_CERT_HOST.value
     if internal_api_cert_host:
         channel_options.append(

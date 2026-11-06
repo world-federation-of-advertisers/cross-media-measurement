@@ -15,8 +15,9 @@
 package k8s
 
 #Reporting: Reporting={
-	_verboseGrpcServerLogging: bool | *false
-	_verboseGrpcClientLogging: bool | *false
+	_verboseGrpcServerLogging:          bool | *false
+	_verboseReportingGrpcServerLogging: bool | *_verboseGrpcServerLogging
+	_verboseGrpcClientLogging:          bool | *false
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
 	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
@@ -35,6 +36,7 @@ package k8s
 
 	_maxCreatedBasicReportAge:           string | *"15m"
 	_kingdomMeasurementBatchConcurrency: string | *"8"
+	_reportMetricBatchConcurrency:       int | *3
 
 	_postgresConfig:         #PostgresConfig
 	_reportingSpannerConfig: #SpannerConfig & {
@@ -72,6 +74,9 @@ package k8s
 		targetOption:          "--reporting-public-api-target"
 		certificateHostOption: "--reporting-public-api-cert-host"
 	}
+
+	_internalApiTimeoutSeconds: int | *30
+	_kingdomApiTimeoutSeconds:  int | *30
 
 	_imageSuffixes: [_=string]: string
 	_imageSuffixes: {
@@ -125,6 +130,7 @@ package k8s
 	_basicReportMetricSpecConfigFileFlag:         "--basic-report-metric-spec-config-file=/etc/\(#AppName)/config-files/basic_report_metric_spec_config.textproto"
 	_debugVerboseGrpcClientLoggingFlag:           "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag:           "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
+	_debugVerboseReportingGrpcServerLoggingFlag:  "--debug-verbose-grpc-server-logging=\(_verboseReportingGrpcServerLogging)"
 
 	services: [Name=_]: #Service & {
 		metadata: {
@@ -170,8 +176,9 @@ package k8s
 	deployments: {
 		"postgres-internal-reporting-server": #ServerDeployment & {
 			_container: args: [
+						"--max-inbound-message-size=67108864",
 						_reportingCertCollectionFileFlag,
-						_debugVerboseGrpcServerLoggingFlag,
+						_debugVerboseReportingGrpcServerLoggingFlag,
 						"--port=8443",
 						"--health-port=8080",
 						"--basic-reports-enabled=" + Reporting._basicReportsEnabled,
@@ -204,8 +211,11 @@ package k8s
 
 		"reporting-v2alpha-public-api-server": #ServerDeployment & {
 			_container: args: [
+						"--internal-api-timeout-seconds=\(_internalApiTimeoutSeconds)",
+						"--kingdom-api-timeout-seconds=\(_kingdomApiTimeoutSeconds)",
+						"--max-inbound-message-size=67108864",
 						_debugVerboseGrpcClientLoggingFlag,
-						_debugVerboseGrpcServerLoggingFlag,
+						_debugVerboseReportingGrpcServerLoggingFlag,
 						_reportingCertCollectionFileFlag,
 						_akidToPrincipalMapFileFlag,
 						_measurementConsumerConfigFileFlag,
@@ -226,6 +236,7 @@ package k8s
 						"--default-report-start-hour=6",
 						"--enable-reporting-set-reporting-unit-components=\(_reportingSetReportingUnitComponentsEnabled)",
 						"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
+						"--report-metric-batch-concurrency=\(Reporting._reportMetricBatchConcurrency)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
@@ -243,6 +254,7 @@ package k8s
 		"reporting-grpc-gateway": {
 			_container: {
 				args: [
+					"--reporting-public-api-max-inbound-message-size=67108864",
 					"--port=8443",
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
 				] + _tlsArgs + _reportingApiTarget.args
@@ -364,6 +376,8 @@ package k8s
 						"--health-port=8080",
 						"--pdp-name=\(_populationDataProviderName)",
 						"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
+						"--internal-api-timeout-seconds=\(Reporting._internalApiTimeoutSeconds)",
+						"--kingdom-api-timeout-seconds=\(Reporting._kingdomApiTimeoutSeconds)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
@@ -413,6 +427,8 @@ package k8s
 							"--pdp-name=\(_populationDataProviderName)",
 							"--max-created-basic-report-age=\(Reporting._maxCreatedBasicReportAge)",
 							"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
+							"--internal-api-timeout-seconds=\(Reporting._internalApiTimeoutSeconds)",
+							"--kingdom-api-timeout-seconds=\(Reporting._kingdomApiTimeoutSeconds)",
 						] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 					}
 				}

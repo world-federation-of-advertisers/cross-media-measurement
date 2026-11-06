@@ -67,6 +67,15 @@ _accessPublicApiAddressName:                          "access-public"
 	}
 }
 
+// The scaled report assembles tens of thousands of metric results in one process.
+#ReportResultProcessorResourceRequirements: #ResourceRequirements & {
+	requests: {
+		cpu:    "500m"
+		memory: "1Gi"
+	}
+	limits: memory: "2Gi"
+}
+
 // External exposure for the MCP server (Option B): a GKE Ingress terminates
 // HTTPS with a Google-managed certificate and forwards HTTP to the in-cluster
 // plain-HTTP MCP service, so the server itself stays unchanged.
@@ -141,11 +150,17 @@ reporting: #Reporting & {
 	_postgresConfig: {
 		iamUserLocal:     "reporting-v2-internal"
 		database:         "reporting-v2"
-		statementTimeout: "60s"
+		statementTimeout: "600s"
 	}
 
+	_internalApiTimeoutSeconds:    600
+	_reportMetricBatchConcurrency: 1
+	_kingdomApiTimeoutSeconds:     600
+
 	_verboseGrpcServerLogging: true
-	_logNoiseCorrectionValues: true
+	// Full batch payload logging runs before gRPC sendMessage and can consume RPC deadlines.
+	_verboseReportingGrpcServerLogging: false
+	_logNoiseCorrectionValues:          true
 
 	serviceAccounts: {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
@@ -223,10 +238,15 @@ reporting: #Reporting & {
 		}
 		"report-result-post-processor": {
 			_container: {
-				resources: #CronJobResourceRequirements
+				resources: #ReportResultProcessorResourceRequirements
 			}
 			spec: jobTemplate: spec: template: spec: _initContainers: "basic-reports-reports": {
-				resources: #CronJobResourceRequirements
+				_javaOptions: {
+					maxHeapSize:         "1G"
+					initialHeapSize:     "256M"
+					maxDirectMemorySize: "256M"
+				}
+				resources: #ReportResultProcessorResourceRequirements
 			}
 		}
 	}

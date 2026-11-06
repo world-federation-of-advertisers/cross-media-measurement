@@ -7,6 +7,7 @@ kt_jvm_test(
     srcs = ["ImpressionComputationsTest.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/computation:differential_privacy_params",
+        "//src/main/kotlin/org/wfanet/measurement/computation:frequency_data",
         "//src/main/kotlin/org/wfanet/measurement/computation:impression_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping",
@@ -70,6 +71,7 @@ kt_jvm_test(
     name = "DeterministicTruncatedLaplaceResultNoiserTest",
     srcs = ["DeterministicTruncatedLaplaceResultNoiserTest.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:frequency_data",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
     ],
@@ -79,6 +81,7 @@ kt_jvm_test(
     name = "HistogramComputationsTest",
     srcs = ["HistogramComputationsTest.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:frequency_data",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",

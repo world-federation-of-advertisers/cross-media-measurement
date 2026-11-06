@@ -70,7 +70,7 @@ class DirectResultNoisersTest {
 
   @Test
   fun `deterministic noiser draws differ for a different frequency vector`() {
-    fun reachDrawFor(frequencyData: IntArray) =
+    fun reachDrawFor(frequencyData: ByteArray) =
       buildDirectResultNoiser(
           directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
           frequencyData = frequencyData,
@@ -80,7 +80,7 @@ class DirectResultNoisersTest {
         )
         .noiseReach(1_000L)
 
-    assertThat(reachDrawFor(IntArray(100) { 1 })).isNotEqualTo(reachDrawFor(FREQUENCY_DATA))
+    assertThat(reachDrawFor(ByteArray(100) { 1 })).isNotEqualTo(reachDrawFor(FREQUENCY_DATA))
   }
 
   @Test
@@ -122,7 +122,7 @@ class DirectResultNoisersTest {
     private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 1.0, delta = 1e-9)
     /** ceil of the compiled unit-sensitivity bound, 6.7571. */
     private const val UNIT_SENSITIVITY_BOUND = 7L
-    private val FREQUENCY_DATA = IntArray(100) { if (it < 90) 1 else 2 }
+    private val FREQUENCY_DATA = ByteArray(100) { if (it < 90) 1 else 2 }
     private val HISTOGRAM = longArrayOf(90L, 10L)
   }
 }

@@ -17,6 +17,10 @@ name: Sign container images
 on:
   workflow_call:
     inputs:
+      image-name:
+        description: "Single Bazel image name to sign; empty signs all images"
+        type: string
+        default: ""
       image-tag:
         description: "Tag of container images"
         type: string
@@ -100,6 +104,7 @@ jobs:
           echo "encoded_pub_key=${encoded_pub_key}" >> "$GITHUB_OUTPUT"
 
       - name: Build image signing script
+        if: inputs.image-name == ''
         run: >
           bazelisk build 
           //src/main/docker:sign_all_images
@@ -109,12 +114,18 @@ jobs:
         env:
           GCP_KMS_KEY_FOR_SIGNING: "gcpkms://${{ inputs.kms-key-resource-name }}"
           PUBLIC_KEY: ${{ steps.get-public-key.outputs.encoded_pub_key }}
+          IMAGE_NAME: ${{ inputs.image-name }}
         run: |
           set -euo pipefail
-          targets=(
-            "//src/main/docker:sign_all_images"
-            "//src/main/docker/panel_exchange_client:sign_all_images"
-          )
+          if [[ -n "$IMAGE_NAME" ]]; then
+            [[ "$IMAGE_NAME" =~ ^[a-z][a-z0-9_]*$ ]]
+            targets=("//src/main/docker:sign_$IMAGE_NAME")
+          else
+            targets=(
+              "//src/main/docker:sign_all_images"
+              "//src/main/docker/panel_exchange_client:sign_all_images"
+            )
+          fi
           common_flags=(
             "--tlog-upload=false"
             "--key=$GCP_KMS_KEY_FOR_SIGNING"

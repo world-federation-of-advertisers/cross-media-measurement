@@ -118,7 +118,12 @@ class ReportsService(
   private val secureRandom: Random,
   private val allowSamplingIntervalWrapping: Boolean = false,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val metricBatchConcurrency: Int = 3,
 ) : ReportsCoroutineImplBase(coroutineContext) {
+  init {
+    require(metricBatchConcurrency > 0) { "metricBatchConcurrency must be greater than 0" }
+  }
+
   private data class CreateReportInfo(
     val parent: String,
     val requestId: String,
@@ -550,14 +555,13 @@ class ReportsService(
       batchCreateMetrics(request.parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
-      // Each chunk already fans out to Kingdom with its own concurrency via
-      // kingdomMeasurementBatchConcurrency, so raising concurrency at this outer layer too
-      // would multiply Kingdom's effective concurrent load rather than add to it.
+      // Each batch also fans out to Kingdom. Keep this independently configurable so deployments
+      // can limit both database transaction contention and the aggregate Kingdom request load.
       submitBatchRequests(
           createMetricRequests,
           BATCH_CREATE_METRICS_LIMIT,
           callRpc,
-          concurrency = 3,
+          concurrency = metricBatchConcurrency,
         ) { response ->
           response.metricsList
         }
