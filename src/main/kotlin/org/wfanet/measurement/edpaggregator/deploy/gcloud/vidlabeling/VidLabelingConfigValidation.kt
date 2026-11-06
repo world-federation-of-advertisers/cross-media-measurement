@@ -146,23 +146,10 @@ object VidLabelingStorageConfigValidator {
           vidConfig.dataProvider
       }
 
-      val availabilityRoutes =
-        dataWatcherConfig.watchedPathsList.filter { watchedPath ->
-          watchedPath.hasHttpEndpointSink() &&
-            watchedPath.httpEndpointSink.appParams.fieldsMap["dataProvider"]?.stringValue ==
-              vidConfig.dataProvider
-        }
-      val labeledOutputPrefix = "$vidLabelingStorageRoot/${vidConfig.edpImpressionPath}"
-      val labeledOutputExamples =
-        listOf(
-          labeledOutputPrefix,
-          "$labeledOutputPrefix/",
-          "$labeledOutputPrefix/model-line/example/2000-01-01/done",
-        )
+      val labeledOutputPrefix = "$vidLabelingStorageRoot/${vidConfig.edpImpressionPath}/"
       require(
-        availabilityRoutes.none { watchedPath ->
-          val regex = watchedPath.sourcePathRegex.toRegex()
-          labeledOutputExamples.any(regex::matches)
+        dataWatcherConfig.watchedPathsList.none { watchedPath ->
+          sourceRegexMayMatchPrefix(watchedPath.sourcePathRegex, labeledOutputPrefix)
         }
       ) {
         "DataWatcher matches the VidLabeler-managed output path for ${vidConfig.dataProvider}"
@@ -188,4 +175,60 @@ object VidLabelingStorageConfigValidator {
       "$owner edp_impression_path must not start or end with '/' for $dataProvider"
     }
   }
+
+  /**
+   * Returns whether [sourcePathRegex] can match a path under [managedPrefix].
+   *
+   * The maximal literal prefix is a conservative proof boundary: disjoint literal prefixes prove
+   * that the languages cannot overlap, while an ancestor, descendant, or regex beginning before the
+   * paths diverge is rejected. This intentionally rejects ambiguous regexes instead of trying
+   * finitely many example paths.
+   */
+  private fun sourceRegexMayMatchPrefix(sourcePathRegex: String, managedPrefix: String): Boolean {
+    val sourceLiteralPrefix = maximalLiteralPrefix(sourcePathRegex)
+    return sourceLiteralPrefix.startsWith(managedPrefix) ||
+      managedPrefix.startsWith(sourceLiteralPrefix)
+  }
+
+  private fun maximalLiteralPrefix(regex: String): String {
+    if (hasUnescapedAlternation(regex)) return ""
+    val prefix = StringBuilder()
+    var index = if (regex.startsWith('^')) 1 else 0
+    while (index < regex.length) {
+      val character = regex[index]
+      when {
+        character == '\\' -> {
+          if (index + 1 >= regex.length) return prefix.toString()
+          val escaped = regex[index + 1]
+          if (escaped !in ESCAPED_LITERAL_CHARACTERS) return prefix.toString()
+          prefix.append(escaped)
+          index += 2
+        }
+        character in REGEX_QUANTIFIERS -> {
+          if (prefix.isNotEmpty()) prefix.deleteCharAt(prefix.lastIndex)
+          return prefix.toString()
+        }
+        character in REGEX_META_CHARACTERS -> return prefix.toString()
+        else -> {
+          prefix.append(character)
+          index++
+        }
+      }
+    }
+    return prefix.toString()
+  }
+
+  private fun hasUnescapedAlternation(regex: String): Boolean {
+    var precedingBackslashes = 0
+    for (character in regex) {
+      if (character == '|' && precedingBackslashes % 2 == 0) return true
+      precedingBackslashes = if (character == '\\') precedingBackslashes + 1 else 0
+    }
+    return false
+  }
+
+  private val ESCAPED_LITERAL_CHARACTERS =
+    setOf('\\', '.', '^', '$', '|', '?', '*', '+', '(', ')', '[', ']', '{', '}')
+  private val REGEX_QUANTIFIERS = setOf('?', '*', '+', '{')
+  private val REGEX_META_CHARACTERS = setOf('.', '^', '$', '|', '(', ')', '[', ']', '}')
 }

@@ -624,6 +624,33 @@ class VidLabelerAppTest {
       }
     assertThat(doneLog.message).contains("xmm.gcs.object.generation=321")
     assertThat(doneLog.message).doesNotContain("gs://output-bucket")
+    val doneUri = "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
+    val ordinaryLog = logRecords.single { it.message.startsWith("Wrote done marker path_hash=") }
+    assertThat(ordinaryLog.message).contains(VidLabelingTraceAttributes.gcsObjectPathHash(doneUri))
+    assertThat(ordinaryLog.message).contains("generation=321")
+    assertThat(logRecords.any { doneUri in it.message }).isFalse()
+  }
+
+  @Test
+  fun `runWork omits done URI when object creation time is unavailable`() = runBlocking {
+    stubLastOutWithEventDate()
+    val doneUri = "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        createApp(
+            writeGcsObject = { _, _, _ -> 321L },
+            getGcsObjectCreateTime = { _, _, _, _ -> null },
+          )
+          .runWork(buildMessage(taskParams()))
+      }
+
+    assertThat(error).hasMessageThat().contains("generation 321")
+    assertThat(error)
+      .hasMessageThat()
+      .contains(VidLabelingTraceAttributes.gcsObjectPathHash(doneUri))
+    assertThat(error).hasMessageThat().doesNotContain(doneUri)
+    assertThat(logRecords.any { doneUri in it.message }).isFalse()
   }
 
   @Test
@@ -1161,6 +1188,13 @@ class VidLabelerAppTest {
         .runWork(buildMessage(taskParams()))
 
       assertThat(doneObjectWritten.get()).isTrue()
+      val doneUri = "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
+      val replacementLog =
+        logRecords.single { it.message.startsWith("Replacing done marker path_hash=") }
+      assertThat(replacementLog.message)
+        .contains(VidLabelingTraceAttributes.gcsObjectPathHash(doneUri))
+      assertThat(replacementLog.message).contains("generation=321")
+      assertThat(logRecords.any { doneUri in it.message }).isFalse()
       val request = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsService) { createWorkItem(request.capture()) }
       val params =

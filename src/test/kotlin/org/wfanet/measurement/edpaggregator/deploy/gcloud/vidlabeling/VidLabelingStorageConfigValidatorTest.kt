@@ -32,6 +32,7 @@ import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.vidLabelingConfigs
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpointSink
 import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
 import org.wfanet.measurement.config.securecomputation.watchedPath
@@ -82,6 +83,145 @@ class VidLabelingStorageConfigValidatorTest {
   }
 
   @Test
+  fun `validate rejects exact internal child excluded by sample matching`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcherConfig("^gs://bucket/$LABELED_OUTPUT_PATH/model-line/foo/2026-01-01/done$"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects broad ancestor route`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcherConfig("^gs://bucket/edp/.*"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects overlap hidden by an optional literal`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcherConfig("^gs://bucket/edp/vidX?-labeler/model-line/[^/]+/[^/]+/done$"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects overlap hidden by alternation`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcherConfig(
+            "^gs://bucket/edp/external/.*|" + "^gs://bucket/$LABELED_OUTPUT_PATH/model-line/.*"
+          ),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects overlapping route for a different data provider`() {
+    val watcher = dataWatcherConfig {
+      watchedPaths +=
+        availabilityRoute(
+          "gs://bucket/$LABELED_OUTPUT_PATH/model-line/.*/.*/done",
+          dataProvider = "dataProviders/other",
+        )
+    }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcher,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects overlapping route with no data provider`() {
+    val watcher = dataWatcherConfig {
+      watchedPaths += watchedPath {
+        sourcePathRegex = "gs://bucket/$LABELED_OUTPUT_PATH/model-line/.*/.*/done"
+        httpEndpointSink = httpEndpointSink { endpointUri = "https://example.test/sync" }
+      }
+    }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcher,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects overlapping control plane route`() {
+    val watcher = dataWatcherConfig {
+      watchedPaths += watchedPath {
+        sourcePathRegex = "gs://bucket/$LABELED_OUTPUT_PATH/model-line/.*/.*/done"
+        controlPlaneQueueSink = controlPlaneQueueSink { queue = "availability-queue" }
+      }
+    }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcher,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate accepts a regex with a provably disjoint literal prefix`() {
+    VidLabelingStorageConfigValidator.validate(
+      vidConfigs(LABELED_OUTPUT_PATH),
+      vidConfigs(LABELED_OUTPUT_PATH),
+      syncConfigs(LABELED_OUTPUT_PATH),
+      watcherConfig("^gs://bucket/edp/external/model-line/.*/.*/done$"),
+    )
+  }
+
+  @Test
   fun `CLI validates deployment textprotos`() {
     val vidConfigFile = temporaryFolder.newFile("vid-labeling.textproto")
     vidConfigFile.writeText(TextFormat.printer().printToString(vidConfigs(LABELED_OUTPUT_PATH)))
@@ -126,11 +266,11 @@ class VidLabelingStorageConfigValidatorTest {
     watchedPaths += availabilityRoute(regex)
   }
 
-  private fun availabilityRoute(regex: String) = watchedPath {
+  private fun availabilityRoute(regex: String, dataProvider: String = DATA_PROVIDER) = watchedPath {
     sourcePathRegex = regex
     httpEndpointSink = httpEndpointSink {
       endpointUri = "https://example.test/sync"
-      appParams = struct { fields["dataProvider"] = value { stringValue = DATA_PROVIDER } }
+      appParams = struct { fields["dataProvider"] = value { stringValue = dataProvider } }
     }
   }
 
