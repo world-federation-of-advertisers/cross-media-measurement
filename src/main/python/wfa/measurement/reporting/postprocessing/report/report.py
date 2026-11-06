@@ -704,7 +704,7 @@ class Report:
         self._index_to_measurement_name[measurement_index] = measurement.name
         self._measurement_name_to_measurement[measurement.name] = measurement
         self._max_standard_deviation = max(self._max_standard_deviation,
-                                           measurement.sigma)
+                                           measurement.sigma or 0.0)
         measurement_index += 1
 
       # Assigns an index for cumulative reaches.
@@ -718,7 +718,7 @@ class Report:
           self._index_to_measurement_name[measurement_index] = measurement.name
           self._measurement_name_to_measurement[measurement.name] = measurement
           self._max_standard_deviation = max(self._max_standard_deviation,
-                                             measurement.sigma)
+                                             measurement.sigma or 0.0)
           measurement_index += 1
 
       # Assign an index for whole campaign k_reach.
@@ -732,7 +732,7 @@ class Report:
           self._index_to_measurement_name[measurement_index] = measurement.name
           self._measurement_name_to_measurement[measurement.name] = measurement
           self._max_standard_deviation = max(self._max_standard_deviation,
-                                             measurement.sigma)
+                                             measurement.sigma or 0.0)
           measurement_index += 1
 
       # Assigns an index for whole campaign impressions.
@@ -745,7 +745,7 @@ class Report:
         self._index_to_measurement_name[measurement_index] = measurement.name
         self._measurement_name_to_measurement[measurement.name] = measurement
         self._max_standard_deviation = max(self._max_standard_deviation,
-                                           measurement.sigma)
+                                           measurement.sigma or 0.0)
         measurement_index += 1
 
       # Assign an index for weekly non cumulative reach.
@@ -759,7 +759,7 @@ class Report:
           self._index_to_measurement_name[measurement_index] = measurement.name
           self._measurement_name_to_measurement[measurement.name] = measurement
           self._max_standard_deviation = max(self._max_standard_deviation,
-                                             measurement.sigma)
+                                             measurement.sigma or 0.0)
           measurement_index += 1
 
       # Assign an index for weekly non cumulative k-reach.
@@ -774,7 +774,7 @@ class Report:
             self._index_to_measurement_name[measurement_index] = measurement.name
             self._measurement_name_to_measurement[measurement.name] = measurement
             self._max_standard_deviation = max(self._max_standard_deviation,
-                                               measurement.sigma)
+                                               measurement.sigma or 0.0)
             measurement_index += 1
 
       # Assign an index for weekly non cumulative impression.
@@ -788,7 +788,7 @@ class Report:
           self._index_to_measurement_name[measurement_index] = measurement.name
           self._measurement_name_to_measurement[measurement.name] = measurement
           self._max_standard_deviation = max(self._max_standard_deviation,
-                                             measurement.sigma)
+                                             measurement.sigma or 0.0)
           measurement_index += 1
 
     self._num_vars = measurement_index
@@ -838,6 +838,9 @@ class Report:
             measurement_name
         )
         if measurement is None or corrected_measurement is None:
+          continue
+        # Unobserved bins have no standard deviation for a correction test.
+        if measurement.sigma is None:
           continue
 
         difference = abs(corrected_measurement.value - measurement.value)
@@ -1765,16 +1768,19 @@ class Report:
     logging.info(
         "Finished adding the measurements to the set measurement spec.")
 
-  def _normalized_sigma(self, sigma: float) -> float:
+  def _normalized_sigma(self, sigma: Optional[float]) -> Optional[float]:
     """Normalizes the standard deviation.
 
     Args:
       sigma: The standard deviation to normalize.
 
     Returns:
-      The normalized standard deviation, capped at
-      MIN_STANDARD_VARIATION_RATIO.
+      None for an unobserved value; otherwise the normalized standard deviation,
+      capped at MIN_STANDARD_VARIATION_RATIO.
     """
+
+    if sigma is None:
+      return None
 
     # Zero value for sigma means that this measurement will not be corrected,
     # thus the normalized value of zero is not capped at
@@ -1970,7 +1976,7 @@ class Report:
     Returns:
         True or False.
     """
-    standard_deviations: list[float] = []
+    standard_deviations: list[Optional[float]] = []
     for metric in self._metric_reports.keys():
       metric_report = self._metric_reports[metric]
       if edp_combination in metric_report.get_weekly_cumulative_reach_edp_combinations():

@@ -605,6 +605,12 @@ Direct-protocol measurements skip S5 (the result is available at fulfillment).
 Only BasicReports go through the S6 post-processor; a plain Report is "done" when
 all its metrics succeed.
 
+A frequency bin with unavailable variance is unobserved during noise correction:
+its value is inferred from the report's reach, frequency, and impression
+constraints. This differs from a bin with a known zero standard deviation, whose
+value remains exact. The large-correction check still applies to observed
+measurements.
+
 ## State enums
 
 **Kingdom `Measurement.State`** (`internal/kingdom/measurement.proto`):

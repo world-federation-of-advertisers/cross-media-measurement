@@ -15,6 +15,8 @@
 
 import unittest
 
+from tools.post_process_report_summary_v2 import ReportSummaryV2Processor
+
 from google.protobuf import text_format
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.report_conversion import (
     _create_report_summary_for_group,
@@ -66,6 +68,98 @@ class ReportConversionTest(unittest.TestCase):
                 'dataProviders/edp3',
             ],
         }
+
+    def test_missing_frequency_uncertainty_does_not_force_publisher_reach_to_zero(self):
+        for missing_bins in ({1, 2}, {2}):
+            with self.subTest(missing_bins=missing_bins):
+                summary = self._zero_reach_summary(missing_bins)
+                result = ReportSummaryV2Processor(summary, []).process()
+
+                self.assertFalse(result.large_corrections)
+                values = result.updated_measurements
+                publisher_reach = values["reach_1_cumulative_2025_01_08"]
+                union_reach = values["reach_2_cumulative_2025_01_08"]
+                self.assertGreater(publisher_reach, 75)
+                self.assertGreaterEqual(union_reach, publisher_reach)
+                self.assertEqual(
+                    values["frequency_2_cumulative_2025_01_08-bin-1"]
+                    + values["frequency_2_cumulative_2025_01_08-bin-2"],
+                    union_reach,
+                )
+                if missing_bins == {2}:
+                    self.assertEqual(
+                        values["frequency_2_cumulative_2025_01_08-bin-1"], 0
+                    )
+
+    def test_known_zero_frequency_uncertainty_remains_exact(self):
+        summary = self._zero_reach_summary(set())
+        result = ReportSummaryV2Processor(summary, []).process()
+
+        self.assertEqual(
+            result.updated_measurements["reach_1_cumulative_2025_01_08"], 0
+        )
+        self.assertEqual(
+            result.updated_measurements["reach_2_cumulative_2025_01_08"], 0
+        )
+        self.assertTrue(result.large_corrections)
+
+    def _zero_reach_summary(self, missing_bins):
+        results = []
+        for result_id, reporting_set, reach, sigma in (
+            (1, "publisher-one", 80, 1),
+            (2, "combined", 0, 50),
+        ):
+            result = text_format.Parse(
+                f"""
+                cmms_measurement_consumer_id: "test-consumer"
+                external_report_result_id: 123
+                external_reporting_set_result_id: {result_id}
+                population_size: 10000
+                dimension {{
+                  external_reporting_set_id: "{reporting_set}"
+                  venn_diagram_region_type: UNION
+                  external_impression_qualification_filter_id: "ami"
+                  metric_frequency_spec {{ total: true }}
+                }}
+                reporting_window_results {{
+                  key {{
+                    non_cumulative_start {{ year: 2025 month: 1 day: 1 }}
+                    end {{ year: 2025 month: 1 day: 8 }}
+                  }}
+                  value {{
+                    unprocessed_report_result_values {{
+                      cumulative_results {{
+                        reach {{
+                          value: {reach}
+                          univariate_statistics {{ standard_deviation: {sigma} }}
+                        }}
+                      }}
+                    }}
+                  }}
+                }}
+                """,
+                report_result_pb2.ReportingSetResult(),
+            )
+            if result_id == 2:
+                metrics = (
+                    result.reporting_window_results[0]
+                    .value.unprocessed_report_result_values.cumulative_results
+                )
+                metrics.impression_count.value = 1000
+                metrics.impression_count.univariate_statistics.standard_deviation = 10
+                for frequency in (1, 2):
+                    bin_result = metrics.frequency_histogram.bin_results[frequency]
+                    bin_result.value = 0
+                    if frequency not in missing_bins:
+                        bin_result.univariate_statistics.SetInParent()
+            results.append(result)
+        return report_summaries_from_reporting_set_results(
+            results,
+            {
+                "publisher-one": ["dataProviders/one"],
+                "combined": ["dataProviders/one", "dataProviders/two"],
+            },
+        )[0]
 
     def test_create_report_summary_for_group_with_empty_results_raises_error(
             self):
@@ -433,7 +527,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 2500 }
+                  value { value: 2500 standard_deviation_unknown: true }
                 }
                 metric: "frequency_1_cumulative_2025_10_15"
               }
@@ -518,7 +612,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 2500 }
+                  value { value: 2500 standard_deviation_unknown: true }
                 }
                 metric: "frequency_1_cumulative_2025_10_15"
               }
@@ -620,7 +714,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 1000 }
+                  value { value: 1000 standard_deviation_unknown: true }
                 }
                 metric: "frequency_1_non_cumulative_2025_10_08"
               }
@@ -642,7 +736,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 1500 }
+                  value { value: 1500 standard_deviation_unknown: true }
                 }
                 metric: "frequency_1_non_cumulative_2025_10_15"
               }
@@ -775,7 +869,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 1000 }
+                  value { value: 1000 standard_deviation_unknown: true }
                 }
                 metric: "frequency_1_non_cumulative_2025_10_08"
               }
@@ -797,7 +891,7 @@ class ReportConversionTest(unittest.TestCase):
               frequency {
                 bins {
                   key: 1
-                  value { value: 1500 }
+                  value { value: 1500 standard_deviation_unknown: true }
                 }
                 metric: "frequency_1_non_cumulative_2025_10_15"
               }

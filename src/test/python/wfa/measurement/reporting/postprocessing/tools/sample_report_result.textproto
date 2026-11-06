@@ -1867,23 +1867,23 @@ reporting_set_results {
           frequency_histogram {
             bin_results: {
               key: 1
-              value: { value: 412903 }
+              value: { value: 412903 univariate_statistics { standard_deviation: 0 } }
             }
             bin_results: {
               key: 2
-              value: { value: 206452 }
+              value: { value: 206452 univariate_statistics { standard_deviation: 0 } }
             }
             bin_results: {
               key: 3
-              value: { value: 103226 }
+              value: { value: 103226 univariate_statistics { standard_deviation: 0 } }
             }
             bin_results: {
               key: 4
-              value: { value: 51613 }
+              value: { value: 51613 univariate_statistics { standard_deviation: 0 } }
             }
             bin_results: {
               key: 5
-              value: { value: 25806 }
+              value: { value: 25806 univariate_statistics { standard_deviation: 0 } }
             }
           }
         }
@@ -1914,23 +1914,23 @@ reporting_set_results {
           frequency_histogram {
             bin_results: {
               key: 1
-              value: { value: 104749 }
+              value: { value: 104749 univariate_statistics { standard_deviation: 0 } }
             }
             bin_results: {
               key: 2
-              value: { value: 52375 }
+              value: { value: 52375 univariate_statistics { standard_deviation: 0 } }
             }
             bin_results: {
               key: 3
-              value: { value: 26188 }
+              value: { value: 26188 univariate_statistics { standard_deviation: 0 } }
             }
             bin_results: {
               key: 4
-              value: { value: 13094 }
+              value: { value: 13094 univariate_statistics { standard_deviation: 0 } }
             }
             bin_results: {
               key: 5
-              value: { value: 6546 }
+              value: { value: 6546 univariate_statistics { standard_deviation: 0 } }
             }
           }
         }

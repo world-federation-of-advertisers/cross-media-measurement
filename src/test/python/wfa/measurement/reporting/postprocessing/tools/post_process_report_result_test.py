@@ -746,6 +746,51 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertEqual(contexts[0].threshold_min_users, 100)
         self.assertEqual(contexts[0].threshold_min_impressions, 1000)
 
+    @patch(PostProcessReportResult.__module__ + '.ReportSummaryV2Processor')
+    def test_frequency_diagnostics_distinguish_unknown_and_zero_uncertainty(
+        self, mock_processor_class
+    ):
+        set_result = next(
+            result
+            for result in self.mock_list_reporing_set_results_response.reporting_set_results
+            if result.external_reporting_set_result_id == 22
+        )
+        metrics = (
+            set_result.reporting_window_results[0]
+            .value.unprocessed_report_result_values.non_cumulative_results
+        )
+        bin_result = metrics.frequency_histogram.bin_results[1]
+        for known in (False, True):
+            with self.subTest(known=known):
+                bin_result.ClearField("univariate_statistics")
+                if known:
+                    bin_result.univariate_statistics.SetInParent()
+                processor, _, _ = self._set_up_failed_post_processor(
+                    mock_processor_class
+                )
+                with noise_correction_value_logging.measurement_value_logging(True):
+                    with self.assertRaises(NoiseCorrectionFailure) as raised:
+                        processor.process(
+                            self.cmms_measurement_consumer_id,
+                            self.external_report_result_id,
+                            [],
+                        )
+                context = next(
+                    context
+                    for result in raised.exception.summary_results
+                    for context in result.measurement_contexts
+                    if context.external_reporting_set_result_id == 22
+                    and context.window_end_date == "2025-10-08"
+                    and not context.is_cumulative
+                )
+                bucket = next(
+                    bucket for bucket in context.frequency_buckets
+                    if bucket.frequency == 1
+                )
+                self.assertEqual(
+                    bucket.standard_deviation, 0.0 if known else None
+                )
+
     def _set_up_failed_post_processor(self, mock_processor_class):
         self.mock_report_results_stub.ListReportingSetResults.return_value = (
             self.mock_list_reporing_set_results_response
