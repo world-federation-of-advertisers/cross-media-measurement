@@ -721,23 +721,47 @@ class BasicReportsReportsJob(
     cmmsMeasurementConsumerId: String,
     externalCampaignGroupId: String,
   ): Map<String, MetricCalculationSpecInfo> {
-    return internalMetricCalculationSpecsStub
-      .listMetricCalculationSpecs(
-        listMetricCalculationSpecsRequest {
-          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-          filter =
-            ListMetricCalculationSpecsRequestKt.filter {
-              this.externalCampaignGroupId = externalCampaignGroupId
+    return buildMap {
+      internalMetricCalculationSpecsStub
+        .listResources { cursor: String? ->
+          val response =
+            internalMetricCalculationSpecsStub.listMetricCalculationSpecs(
+              listMetricCalculationSpecsRequest {
+                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                filter =
+                  ListMetricCalculationSpecsRequestKt.filter {
+                    this.externalCampaignGroupId = externalCampaignGroupId
+                  }
+                limit = 1000
+                if (cursor != null) {
+                  externalMetricCalculationSpecIdAfter = cursor
+                }
+              }
+            )
+          val nextCursor =
+            if (response.limited) {
+              response.metricCalculationSpecsList.last().externalMetricCalculationSpecId
+            } else {
+              null
             }
-          limit = Int.MAX_VALUE
+          ResourceList(response.metricCalculationSpecsList, nextCursor)
         }
-      )
-      .metricCalculationSpecsList
-      .associate {
-        MetricCalculationSpecKey(it.cmmsMeasurementConsumerId, it.externalMetricCalculationSpecId)
-          .toName() to
-          MetricCalculationSpecInfo(it.details.metricFrequencySpec, it.details.hasTrailingWindow())
-      }
+        .collect { page ->
+          for (spec in page.resources) {
+            put(
+              MetricCalculationSpecKey(
+                  spec.cmmsMeasurementConsumerId,
+                  spec.externalMetricCalculationSpecId,
+                )
+                .toName(),
+              MetricCalculationSpecInfo(
+                spec.details.metricFrequencySpec,
+                spec.details.hasTrailingWindow(),
+              ),
+            )
+          }
+        }
+    }
   }
 
   /** Transforms a [MetricCalculationSpec.MetricFrequencySpec] into [MetricFrequencySpec] */
