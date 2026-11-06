@@ -1265,6 +1265,11 @@ Once the Kingdom measurements SUCCEED:
   These diagnostics do not add raw pre-noise inputs to application logs. Enable
   them only where log access and retention policies permit the values.
 
+  A noisy reach of zero can still have nonzero uncertainty. The Reporting API
+  retains frequency-bin statistics for zero reach when the measurement
+  methodology supports variance calculation; zero-valued bins are not
+  necessarily exact observations.
+
   Check `report-result-post-processor-container` (cluster `reporting-v2`). Failure
   modes:
 
