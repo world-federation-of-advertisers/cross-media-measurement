@@ -13,18 +13,23 @@
 # limitations under the License.
 
 import unittest
+from pathlib import Path
 import numpy as np
 
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
+from qpsolvers import Problem
 from qpsolvers import Solution
+from qpsolvers import solve_problem as native_solve_problem
 
 from noiseninja import noise_correction_value_logging
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import MAX_ATTEMPTS
+from noiseninja.solver import SEMAPHORE
+from noiseninja.solver import SOLVER_TIME_LIMIT_SECONDS
 from noiseninja.solver import Solver
 from wfa.measurement.internal.reporting.postprocessing import (
     report_post_processor_result_pb2)
@@ -37,6 +42,87 @@ TOLERANCE = 1e-1
 
 
 class SolverTest(unittest.TestCase):
+
+    def test_large_counts_osqp_solution_has_small_absolute_residual(self):
+        # Anonymous matrices from the synthetic high-overlap scale fixture.
+        # Default relative OSQP tolerances produced a negative count and a
+        # primal residual of 47 on this problem.
+        fixture = Path(__file__).parent / "testdata" / "large_counts_qp.npz"
+        with np.load(fixture, allow_pickle=False) as data:
+            problem = Problem(
+                *[data[name] for name in ("P", "q", "G", "h", "A", "b")])
+            initial_values = data["initvals"]
+
+        spec = SetMeasurementsSpec()
+        spec.add_measurement(1, Measurement(1, 1, "measurement_01"))
+        solver = Solver(spec)
+        with patch.object(solver, "_problem", return_value=problem):
+            solution = solver._solve_with_initial_value("osqp", initial_values)
+
+        self.assertTrue(solution.found)
+        self.assertGreaterEqual(float(np.min(solution.x)), -TOLERANCE)
+        self.assertLess(solution.primal_residual(), TOLERANCE)
+
+    def test_solver_attempts_have_time_limits(self):
+        spec = SetMeasurementsSpec()
+        spec.add_measurement(1, Measurement(50, 1, "measurement_01"))
+        solver = Solver(spec)
+
+        with patch("noiseninja.solver.solve_problem") as solve_problem:
+            solver._solve_with_initial_value("highs", solver.base_value)
+            solver._solve_with_initial_value("osqp", solver.base_value)
+
+        self.assertEqual(solve_problem.call_count, 2)
+        for call in solve_problem.call_args_list:
+            self.assertEqual(call.kwargs["time_limit"],
+                             SOLVER_TIME_LIMIT_SECONDS)
+
+    def test_native_highs_time_limit_falls_back_without_repeating(self):
+        spec = SetMeasurementsSpec()
+        spec.add_subset_relation(1, 2)
+        spec.add_subset_relation(1, 3)
+        spec.add_cover(1, [2, 3])
+        spec.add_measurement(1, Measurement(51, 1, "measurement_01"))
+        spec.add_measurement(2, Measurement(48, 0, "measurement_02"))
+        spec.add_measurement(3, Measurement(1, 1, "measurement_03"))
+        solver = Solver(spec)
+
+        def bounded_native_solve(problem, **kwargs):
+            if kwargs["solver"] == "highs":
+                kwargs["time_limit"] = 1e-9
+            return native_solve_problem(problem, **kwargs)
+
+        with patch("noiseninja.solver.solve_problem",
+                   side_effect=bounded_native_solve) as solve_problem:
+            values, status = solver.solve_and_translate()
+
+        self.assertEqual(
+            [call.kwargs["solver"] for call in solve_problem.call_args_list],
+            ["highs", "osqp"],
+        )
+        self.assertEqual(status.status_code,
+                         StatusCode.SOLUTION_FOUND_WITH_OSQP)
+        self.assertAlmostEqual(values[1], 50, places=2)
+        self.assertAlmostEqual(values[2], 48, places=2)
+        self.assertAlmostEqual(values[3], 2, places=2)
+        self.assertLess(status.primal_inequality_residual, TOLERANCE)
+
+    def test_solver_exception_releases_semaphore(self):
+        spec = SetMeasurementsSpec()
+        spec.add_measurement(1, Measurement(50, 1, "measurement_01"))
+        solver = Solver(spec)
+
+        with patch.object(solver,
+                          "_solve_with_initial_value",
+                          side_effect=RuntimeError("solver")):
+            with self.assertRaisesRegex(RuntimeError, "solver"):
+                solver._solve("highs")
+
+        acquired = SEMAPHORE.acquire(blocking=False)
+        # Release the acquired permit, or repair the old leaking behavior so a
+        # failed regression does not hang the remaining tests.
+        SEMAPHORE.release()
+        self.assertTrue(acquired)
 
     @patch("noiseninja.solver.logging.debug")
     def test_base_vector_values_are_logged_only_when_enabled(self, mock_debug):
