@@ -934,6 +934,8 @@ class PostProcessReportResult:
                 cmms_measurement_consumer_id=cmms_measurement_consumer_id,
                 external_report_result_id=external_report_result_id,
             )
+        if request is None:
+            return None
         if empty_population_results:
             _append_empty_population_results(request, empty_population_results)
 
