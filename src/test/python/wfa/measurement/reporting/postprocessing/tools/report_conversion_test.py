@@ -67,6 +67,20 @@ class ReportConversionTest(unittest.TestCase):
             ],
         }
 
+    def test_zero_population_cohorts_are_converted(self):
+        for result in self.reporting_set_results:
+            result.population_size = 0
+        summaries = report_summaries_from_reporting_set_results(
+            self.reporting_set_results, self.edp_combinations)
+        self.assertTrue(summaries)
+        self.assertTrue(all(summary.population == 0 for summary in summaries))
+
+    def test_negative_population_is_rejected(self):
+        self.reporting_set_results[0].population_size = -1
+        with self.assertRaisesRegex(ValueError, "non-negative"):
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, self.edp_combinations)
+
     def test_create_report_summary_for_group_with_empty_results_raises_error(
             self):
         with self.assertRaisesRegex(ValueError, "No results found for group"):
