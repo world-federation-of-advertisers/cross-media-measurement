@@ -12,5 +12,5 @@ edpa_model_line_population_spec_blob_uris = {
 }
 vid_labeler_population_spec_file_path            = "../../../proto/wfa/measurement/loadtest/dataprovider/hashonly_model_population_spec.textproto"
 vid_labeler_population_spec_blob_uri             = "gs://edpa-configs-storage-head-bucket/vid-labeler-population-spec.textproto"
-meta_impression_query_artifact_version           = "0.2.0"
+meta_impression_query_artifact_version           = "0.3.0"
 meta_impression_query_ad_account_id_metadata_key = "ad_account_id"
