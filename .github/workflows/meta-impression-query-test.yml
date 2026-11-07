@@ -90,6 +90,9 @@ jobs:
             echo "META_TEST_START_EPOCH_SECONDS=$(read_field start_epoch_seconds)"
             echo "META_TEST_END_EPOCH_SECONDS=$(read_field end_epoch_seconds)"
             echo "META_TEST_EXPECTED_IMPRESSIONS=$expected"
+            # Optional: the EventGroup of the lookup-test campaign, which enables the EventGroup
+            # lookup test. The Kingdom assigns its ID, so it differs per environment.
+            echo "META_TEST_EVENT_GROUP=$(jq -r '.test.event_group // empty' <<<"$CONFIG_CONTENT")"
           } >> "$GITHUB_ENV"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
@@ -140,6 +143,7 @@ jobs:
             --impersonate-service-account="results-fulfiller-sa@${GCLOUD_PROJECT}.iam.gserviceaccount.com" \
             --audiences="$META_TEST_FUNCTION_URL" --include-email)"
           echo "::add-mask::$META_TEST_ID_TOKEN"
+          echo "META_TEST_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
           bazel test //src/test/kotlin/org/wfanet/measurement/edpcomponents/meta:DeployedFunctionTest \
             --test_env=META_TEST_FUNCTION_URL \
             --test_env=META_TEST_ID_TOKEN \
@@ -148,5 +152,41 @@ jobs:
             --test_env=META_TEST_START_EPOCH_SECONDS \
             --test_env=META_TEST_END_EPOCH_SECONDS \
             --test_env=META_TEST_EXPECTED_IMPRESSIONS \
+            --test_env=META_TEST_EVENT_GROUP \
             --test_output=errors \
             --nocache_test_results
+
+      # DeployedFunctionTest only sees the response, which is the same whether or not the EventGroup
+      # lookup succeeded. A successful lookup records the fixture's ad account as inaccessible, at
+      # the time of the query, in meta.account_access.last_observed.
+      - name: Check that the EventGroup lookup resolved the ad account
+        if: steps.target.outputs.skip == 'false' && env.META_TEST_EVENT_GROUP != ''
+        env:
+          GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
+          # The ad_account_id, without its act_ prefix, of the lookup-test EventGroup in every
+          # environment.
+          LOOKUP_TEST_AD_ACCOUNT_ID: "9000000000000001"
+        run: |
+          set -euo pipefail
+          filter="metric.type=\"workload.googleapis.com/meta.account_access.last_observed\""
+          filter+=" AND metric.labels.account_id=\"$LOOKUP_TEST_AD_ACCOUNT_ID\""
+          filter+=" AND metric.labels.result=\"inaccessible\""
+          start="$(date -u -d "@$META_TEST_STARTED_AT" +%Y-%m-%dT%H:%M:%SZ)"
+          # Cloud Monitoring can take a few minutes to make a point queryable.
+          for attempt in $(seq 1 20); do
+            observed="$(curl -sS --fail-with-body -G \
+              -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+              "https://monitoring.googleapis.com/v3/projects/$GCLOUD_PROJECT/timeSeries" \
+              --data-urlencode "filter=$filter" \
+              --data-urlencode "interval.startTime=$start" \
+              --data-urlencode "interval.endTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              | jq '[.timeSeries[]?.points[]?.value.int64Value | tonumber] | max // 0')"
+            if (( observed >= META_TEST_STARTED_AT )); then
+              echo "The lookup recorded ad account $LOOKUP_TEST_AD_ACCOUNT_ID as inaccessible"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "No meta.account_access.last_observed point for the lookup-test ad account since" \
+            "the test started: the EventGroup lookup did not resolve it" >&2
+          exit 1
