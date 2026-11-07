@@ -133,8 +133,6 @@ message CreateRequisitionMetadataRequest {
 }
 
 // Request message for the `BatchCreateRequisitionMetadata` method.
-// (-- api-linter: core::0233::request-requests-field=disabled
-//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
 message BatchCreateRequisitionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -151,8 +149,6 @@ message BatchCreateRequisitionMetadataRequest {
 }
 
 // Response message for the `BatchCreateRequisitionMetadata` method.
-// (-- api-linter: core::0233::response-resource-field=disabled
-//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
 message BatchCreateRequisitionMetadataResponse {
   // The list of newly created RequisitionMetadata, in the same order as the
   // request.
@@ -160,8 +156,6 @@ message BatchCreateRequisitionMetadataResponse {
 }
 
 // Request message for the `RegisterQueuedRequisitionMetadata` method.
-// (-- api-linter: core::0233::request-requests-field=disabled
-//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
 message RegisterQueuedRequisitionMetadataRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -186,8 +180,6 @@ message RegisterQueuedRequisitionMetadataRequest {
 }
 
 // Response message for the `RegisterQueuedRequisitionMetadata` method.
-// (-- api-linter: core::0233::response-resource-field=disabled
-//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
 message RegisterQueuedRequisitionMetadataResponse {
   // The registered RequisitionMetadata resources, in request order.
   repeated RequisitionMetadata requisition_metadata = 1;

@@ -59,7 +59,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/k8s:client",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:port_forwarder",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:processes",
-        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:population_setup",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
@@ -74,6 +73,7 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
     ],
 )
 
@@ -84,7 +84,6 @@ kt_jvm_library(
         ":abstract_correctness_test",
         "//imports/java/okhttp3",
         "//imports/java/okhttp3/tls",
-        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:population_setup",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:synthetic_generation_specs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:vid_sampling",
@@ -95,6 +94,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
     ],
 )
 
@@ -372,7 +372,6 @@ kt_jvm_library(
     deps = [
         ":abstract_edp_aggregator_correctness_test",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
-        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:labeler_input_mapper",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_assigner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
@@ -421,6 +420,7 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
         "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
