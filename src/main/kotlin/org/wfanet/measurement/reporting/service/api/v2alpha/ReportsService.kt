@@ -118,7 +118,12 @@ class ReportsService(
   private val secureRandom: Random,
   private val allowSamplingIntervalWrapping: Boolean = false,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val metricBatchConcurrency: Int = 3,
 ) : ReportsCoroutineImplBase(coroutineContext) {
+  init {
+    require(metricBatchConcurrency > 0) { "metricBatchConcurrency must be greater than 0" }
+  }
+
   private data class CreateReportInfo(
     val parent: String,
     val requestId: String,
@@ -557,7 +562,7 @@ class ReportsService(
           createMetricRequests,
           BATCH_CREATE_METRICS_LIMIT,
           callRpc,
-          concurrency = 3,
+          concurrency = metricBatchConcurrency,
         ) { response ->
           response.metricsList
         }

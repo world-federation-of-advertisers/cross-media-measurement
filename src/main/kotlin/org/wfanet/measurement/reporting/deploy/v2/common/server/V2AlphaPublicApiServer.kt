@@ -274,6 +274,8 @@ private object V2AlphaPublicApiServer {
         populationDataProvider = reportingApiServerFlags.populationDataProvider,
         kingdomMeasurementBatchConcurrency =
           reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
+        measurementPreparationConcurrency =
+          reportingApiServerFlags.measurementPreparationConcurrency,
       )
 
     startInProcessServerWithService(
@@ -298,6 +300,7 @@ private object V2AlphaPublicApiServer {
         SecureRandom().asKotlinRandom(),
         reportingApiServerFlags.allowSamplingIntervalWrapping,
         serviceDispatcher,
+        metricBatchConcurrency = reportingApiServerFlags.reportMetricBatchConcurrency,
       )
 
     startInProcessServerWithService(
