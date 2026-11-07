@@ -107,28 +107,29 @@ class HighOverlapImpressionsWriter(
     }
 
     val shardsByDate =
-      mutableMapOf<LocalDate, MutableList<EntityKeysWithLabeledEvents<TestEvent>>>()
-    for (entityKeySpec in eventGroup.entityKeySpecsList) {
-      val entityKey = EntityKey(entityKeySpec.entityType, entityKeySpec.entityId)
-      val events =
-        SyntheticDataGeneration.generateEvents(
-          TestEvent.getDefaultInstance(),
-          populationSpec,
-          ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(
-            entityKeySpec.dataSpecResourcePath
-          ),
-        )
-      for (shard in events) {
-        // onEach is lazy, so each event reaches the exporter as the impressions writer pulls it.
-        val labeledEvents =
-          shard.labeledEvents.onEach {
-            exporter.add(eventGroup.edpName, eventGroup.eventGroupReferenceId, entityKey, it)
+      buildMap<LocalDate, MutableList<EntityKeysWithLabeledEvents<TestEvent>>> {
+        for (entityKeySpec in eventGroup.entityKeySpecsList) {
+          val entityKey = EntityKey(entityKeySpec.entityType, entityKeySpec.entityId)
+          val events =
+            SyntheticDataGeneration.generateEvents(
+              TestEvent.getDefaultInstance(),
+              populationSpec,
+              ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(
+                entityKeySpec.dataSpecResourcePath
+              ),
+            )
+          for (shard in events) {
+            // onEach is lazy, so each event reaches the exporter as the impressions writer pulls
+            // it.
+            val labeledEvents =
+              shard.labeledEvents.onEach {
+                exporter.add(eventGroup.edpName, eventGroup.eventGroupReferenceId, entityKey, it)
+              }
+            getOrPut(shard.localDate) { mutableListOf() }
+              .add(EntityKeysWithLabeledEvents(listOf(entityKey), labeledEvents))
           }
-        shardsByDate
-          .getOrPut(shard.localDate) { mutableListOf() }
-          .add(EntityKeysWithLabeledEvents(listOf(entityKey), labeledEvents))
+        }
       }
-    }
     return shardsByDate.entries
       .asSequence()
       .sortedBy { it.key }

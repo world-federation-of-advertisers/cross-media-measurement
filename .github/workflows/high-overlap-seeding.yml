@@ -106,13 +106,6 @@ jobs:
           echo "AWS_WEB_IDENTITY_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
 
       - name: Seed the dataset
-        env:
-          SECURE_COMPUTATION_STORAGE_BUCKET: ${{ fromJSON(steps.cmms-config.outputs.config).SECURE_COMPUTATION_STORAGE_BUCKET }}
-          EDP7_KEK_URI: ${{ fromJSON(steps.cmms-config.outputs.config).EDP7_KEK_URI }}
-          EDPA_META_KEK_URI: ${{ fromJSON(steps.cmms-config.outputs.config).EDPA_META_KEK_URI }}
-          EDPA_META_AWS_ROLE_ARN: ${{ fromJSON(steps.cmms-config.outputs.config).EDPA_META_AWS_ROLE_ARN }}
-          EDPA_META_AWS_REGION: ${{ fromJSON(steps.cmms-config.outputs.config).EDPA_META_AWS_REGION }}
-          HIGH_OVERLAP_MODEL_LINE: ${{ fromJSON(steps.cmms-config.outputs.config).HIGH_OVERLAP_MODEL_LINE }}
         run: |
           set -euo pipefail
           secret_files="$GITHUB_WORKSPACE/src/main/k8s/testing/secretfiles"
