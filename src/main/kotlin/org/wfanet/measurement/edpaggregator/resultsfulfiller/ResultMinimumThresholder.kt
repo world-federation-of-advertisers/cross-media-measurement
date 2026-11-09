@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.computation.FrequencyData
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.NoNoise
@@ -68,7 +67,7 @@ object ResultMinimumThresholder {
   ): FrequencyVector {
     if (
       isBelowThreshold(
-        FrequencyData.from(frequencyVectorBuilder.frequencyDataArray),
+        frequencyVectorBuilder.frequencyDataArray,
         measurementSpec.vidSamplingInterval.width.toDouble(),
         resultMinimumThresholds,
         maxPopulation,
@@ -92,12 +91,54 @@ object ResultMinimumThresholder {
 
   /** Whether this contribution requires suppression before multi-party aggregation. */
   fun isBelowThreshold(
-    frequencyData: FrequencyData,
+    frequencyData: IntArray,
     vidSamplingIntervalWidth: Double,
     resultMinimumThresholds: ResultMinimumThresholds,
     maxPopulation: Int?,
     protocolMinUsers: Int,
     protocolMinImpressions: Int,
+  ): Boolean =
+    isBelowThreshold(
+      vidSamplingIntervalWidth,
+      resultMinimumThresholds,
+      maxPopulation,
+      protocolMinUsers,
+      protocolMinImpressions,
+    ) {
+      HistogramComputations.buildHistogram(
+        frequencyData,
+        resultMinimumThresholds.reachMaxFrequencyPerUser,
+      )
+    }
+
+  fun isBelowThreshold(
+    frequencyData: ByteArray,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds,
+    maxPopulation: Int?,
+    protocolMinUsers: Int,
+    protocolMinImpressions: Int,
+  ): Boolean =
+    isBelowThreshold(
+      vidSamplingIntervalWidth,
+      resultMinimumThresholds,
+      maxPopulation,
+      protocolMinUsers,
+      protocolMinImpressions,
+    ) {
+      HistogramComputations.buildHistogram(
+        frequencyData,
+        resultMinimumThresholds.reachMaxFrequencyPerUser,
+      )
+    }
+
+  private inline fun isBelowThreshold(
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds,
+    maxPopulation: Int?,
+    protocolMinUsers: Int,
+    protocolMinImpressions: Int,
+    buildHistogram: () -> LongArray,
   ): Boolean {
     if (
       protocolMinUsers >= resultMinimumThresholds.minUsers &&
@@ -105,11 +146,7 @@ object ResultMinimumThresholder {
     ) {
       return false
     }
-    val histogram =
-      HistogramComputations.buildHistogram(
-        frequencyData,
-        resultMinimumThresholds.reachMaxFrequencyPerUser,
-      )
+    val histogram = buildHistogram()
     val scaledReach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram = histogram,

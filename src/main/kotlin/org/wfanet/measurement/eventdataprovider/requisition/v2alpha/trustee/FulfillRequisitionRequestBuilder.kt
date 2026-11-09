@@ -24,6 +24,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.UnsafeByteOperations
 import com.google.protobuf.kotlin.toByteString
 import java.io.ByteArrayOutputStream
+import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
@@ -67,6 +68,20 @@ class FulfillRequisitionRequestBuilder(
   private val fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? =
     null,
 ) {
+  constructor(
+    requisition: Requisition,
+    requisitionNonce: Long,
+    frequencyVector: FrequencyVector,
+    encryptionParams: EncryptionParams?,
+    fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
+  ) : this(
+    requisition,
+    requisitionNonce,
+    frequencyVectorBytes(frequencyVector),
+    encryptionParams,
+    fulfillmentDetails,
+  )
+
   /**
    * Parameters for optional encryption
    *
@@ -244,6 +259,13 @@ class FulfillRequisitionRequestBuilder(
   }
 
   companion object {
+    private fun frequencyVectorBytes(frequencyVector: FrequencyVector): ByteArray =
+      ByteArray(frequencyVector.dataCount) { index ->
+        val frequency = frequencyVector.getData(index)
+        require(frequency in 0..255) { "FrequencyVector value must be between 0 and 255" }
+        frequency.toByte()
+      }
+
     private const val KEY_TEMPLATE = "AES256_GCM_HKDF_1MB"
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
     // The details are held in a single field rather than streamed, so the chunk size only bounds
@@ -256,6 +278,21 @@ class FulfillRequisitionRequestBuilder(
     }
 
     /** Builds a sequence of requests with an encrypted payload. */
+    fun buildEncrypted(
+      requisition: Requisition,
+      requisitionNonce: Long,
+      frequencyVector: FrequencyVector,
+      encryptionParams: EncryptionParams,
+      fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
+    ): Sequence<FulfillRequisitionRequest> =
+      buildEncrypted(
+        requisition,
+        requisitionNonce,
+        frequencyVectorBytes(frequencyVector),
+        encryptionParams,
+        fulfillmentDetails,
+      )
+
     fun buildEncrypted(
       requisition: Requisition,
       requisitionNonce: Long,
@@ -274,6 +311,19 @@ class FulfillRequisitionRequestBuilder(
     }
 
     /** Builds a sequence of requests with an unencrypted payload. */
+    fun buildUnencrypted(
+      requisition: Requisition,
+      requisitionNonce: Long,
+      frequencyVector: FrequencyVector,
+      fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
+    ): Sequence<FulfillRequisitionRequest> =
+      buildUnencrypted(
+        requisition,
+        requisitionNonce,
+        frequencyVectorBytes(frequencyVector),
+        fulfillmentDetails,
+      )
+
     fun buildUnencrypted(
       requisition: Requisition,
       requisitionNonce: Long,

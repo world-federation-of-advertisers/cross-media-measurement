@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
@@ -39,7 +40,7 @@ class DirectMeasurementResultFactoryTest {
   fun `buildMeasurementResult returns reach and frequency result for REACH_AND_FREQUENCY measurement type`() =
     runBlocking {
       // Setup
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val measurementSpec = measurementSpec {
         reachAndFrequency =
@@ -88,7 +89,7 @@ class DirectMeasurementResultFactoryTest {
   @Test
   fun `buildMeasurementResult returns reach result for REACH measurement type`() = runBlocking {
     // Setup
-    val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+    val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
     val measurementSpec = measurementSpec {
       reach = MeasurementSpecKt.reach { privacyParams = REACH_PRIVACY_PARAMS }
@@ -124,7 +125,7 @@ class DirectMeasurementResultFactoryTest {
   fun `buildMeasurementResult returns impression result for IMPRESSION measurement type`() =
     runBlocking {
       // Setup
-      val frequencyData = ByteArray(100) { if (it < 90) 1 else 2 }
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
 
       val measurementSpec = measurementSpec {
         impression =
@@ -257,7 +258,7 @@ class DirectMeasurementResultFactoryTest {
                 width = SAMPLING_RATE
               }
           },
-        frequencyData = ByteArray(100) { if (it < 90) 1 else 2 },
+        frequencyData = IntArray(100) { if (it < 90) 1 else 2 },
         maxPopulation = null,
         resultMinimumThresholds = null,
         impressionMaxFrequencyPerUser = null,
@@ -290,13 +291,104 @@ class DirectMeasurementResultFactoryTest {
       directProtocolConfig = DIRECT_PROTOCOL,
       directNoiseMechanism = DirectNoiseMechanism.NONE,
       measurementSpec = measurementSpec,
-      frequencyData = ByteArray(100) { if (it < 90) 1 else 2 },
+      frequencyData = IntArray(100) { if (it < 90) 1 else 2 },
       maxPopulation = null,
       resultMinimumThresholds = null,
       impressionMaxFrequencyPerUser = impressionMaxFrequencyPerUser,
       totalUncappedImpressions = TOTAL_UNCAPPED_IMPRESSIONS,
       impressionCapMode = impressionCapMode,
     )
+  }
+
+  @Test
+  fun `byte overload matches integer results for each supported measurement and cap mode`() =
+    runBlocking {
+      val bytes = byteArrayOf(0, 1, 127, 128.toByte(), 200.toByte(), 255.toByte())
+      val integers = IntArray(bytes.size) { bytes[it].toInt() and 0xFF }
+      val reach = measurementSpec {
+        this.reach = MeasurementSpecKt.reach { privacyParams = REACH_PRIVACY_PARAMS }
+        vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
+      }
+      val reachAndFrequency = measurementSpec {
+        this.reachAndFrequency =
+          MeasurementSpecKt.reachAndFrequency {
+            reachPrivacyParams = REACH_PRIVACY_PARAMS
+            frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS
+            maximumFrequency = 255
+          }
+        vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
+      }
+      val impression = measurementSpec {
+        this.impression =
+          MeasurementSpecKt.impression {
+            privacyParams = IMPRESSION_PRIVACY_PARAMS
+            maximumFrequencyPerUser = 255
+          }
+        vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
+      }
+      for (spec in listOf(reach, reachAndFrequency, impression)) {
+        for (mode in
+          listOf(
+            ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP,
+            ImpressionCapMode.CUSTOM_CAP,
+            ImpressionCapMode.UNCAPPED,
+            ImpressionCapMode.DYNAMIC,
+          )) {
+          for (thresholds in
+            listOf(null, ResultMinimumThresholds(minUsers = 10, minImpressions = 100))) {
+            val expected =
+              DirectMeasurementResultFactory.buildMeasurementResult(
+                DIRECT_PROTOCOL,
+                DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+                spec,
+                integers,
+                null,
+                thresholds,
+                100,
+                711L,
+                mode,
+              )
+            val actual =
+              DirectMeasurementResultFactory.buildMeasurementResult(
+                DIRECT_PROTOCOL,
+                DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+                spec,
+                bytes,
+                null,
+                thresholds,
+                100,
+                711L,
+                mode,
+              )
+            assertThat(actual).isEqualTo(expected)
+          }
+        }
+      }
+    }
+
+  @Test
+  fun `integer overload preserves frequencies greater than 255`() = runBlocking {
+    val spec = measurementSpec {
+      impression =
+        MeasurementSpecKt.impression {
+          privacyParams = IMPRESSION_PRIVACY_PARAMS
+          maximumFrequencyPerUser = 1000
+        }
+      vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
+    }
+    val result =
+      DirectMeasurementResultFactory.buildMeasurementResult(
+        DIRECT_PROTOCOL,
+        DirectNoiseMechanism.NONE,
+        spec,
+        intArrayOf(256, 1000),
+        null,
+        null,
+        null,
+        1256L,
+        ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP,
+      )
+    assertThat(result.impression.value).isEqualTo(1256L)
   }
 
   companion object {

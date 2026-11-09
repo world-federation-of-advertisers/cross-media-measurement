@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
@@ -35,7 +36,7 @@ object DirectMeasurementResultFactory {
    * @param directProtocolConfig The direct protocol configuration.
    * @param directNoiseMechanism The direct noise mechanism to use.
    * @param measurementSpec The measurement specification.
-   * @param frequencyData Per-VID frequencies encoded as unsigned bytes.
+   * @param frequencyData The per-VID frequencies.
    * @param maxPopulation Optional parameter of the max result that should be returned.
    * @param resultMinimumThresholds Optional small-cell suppression parameters.
    * @param impressionMaxFrequencyPerUser Optional override for max frequency per user. -1 means no
@@ -48,72 +49,129 @@ object DirectMeasurementResultFactory {
     directProtocolConfig: ProtocolConfig.Direct,
     directNoiseMechanism: DirectNoiseMechanism,
     measurementSpec: MeasurementSpec,
+    frequencyData: IntArray,
+    maxPopulation: Int?,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+    impressionMaxFrequencyPerUser: Int?,
+    totalUncappedImpressions: Long,
+    impressionCapMode: ImpressionCapMode,
+  ): Measurement.Result =
+    buildMeasurementResult(
+      measurementSpec,
+      {
+        DirectReachAndFrequencyResultBuilder(
+          directProtocolConfig,
+          frequencyData,
+          measurementSpec.reachAndFrequency.maximumFrequency,
+          measurementSpec.reachAndFrequency.reachPrivacyParams,
+          measurementSpec.reachAndFrequency.frequencyPrivacyParams,
+          measurementSpec.vidSamplingInterval.width,
+          directNoiseMechanism,
+          maxPopulation,
+          resultMinimumThresholds,
+        )
+      },
+      {
+        DirectImpressionResultBuilder(
+          directProtocolConfig,
+          frequencyData,
+          measurementSpec.impression.privacyParams,
+          measurementSpec.vidSamplingInterval.width,
+          directNoiseMechanism,
+          maxPopulation,
+          measurementSpec.impression.maximumFrequencyPerUser,
+          resultMinimumThresholds,
+          impressionMaxFrequencyPerUser,
+          totalUncappedImpressions,
+          impressionCapMode,
+        )
+      },
+      {
+        DirectReachResultBuilder(
+          directProtocolConfig,
+          frequencyData,
+          measurementSpec.reach.privacyParams,
+          measurementSpec.vidSamplingInterval.width,
+          directNoiseMechanism,
+          maxPopulation,
+          resultMinimumThresholds = resultMinimumThresholds,
+        )
+      },
+    )
+
+  suspend fun buildMeasurementResult(
+    directProtocolConfig: ProtocolConfig.Direct,
+    directNoiseMechanism: DirectNoiseMechanism,
+    measurementSpec: MeasurementSpec,
     frequencyData: ByteArray,
     maxPopulation: Int?,
     resultMinimumThresholds: ResultMinimumThresholds?,
     impressionMaxFrequencyPerUser: Int?,
     totalUncappedImpressions: Long,
     impressionCapMode: ImpressionCapMode,
+  ): Measurement.Result =
+    buildMeasurementResult(
+      measurementSpec,
+      {
+        DirectReachAndFrequencyResultBuilder(
+          directProtocolConfig,
+          frequencyData,
+          measurementSpec.reachAndFrequency.maximumFrequency,
+          measurementSpec.reachAndFrequency.reachPrivacyParams,
+          measurementSpec.reachAndFrequency.frequencyPrivacyParams,
+          measurementSpec.vidSamplingInterval.width,
+          directNoiseMechanism,
+          maxPopulation,
+          resultMinimumThresholds,
+        )
+      },
+      {
+        DirectImpressionResultBuilder(
+          directProtocolConfig,
+          frequencyData,
+          measurementSpec.impression.privacyParams,
+          measurementSpec.vidSamplingInterval.width,
+          directNoiseMechanism,
+          maxPopulation,
+          measurementSpec.impression.maximumFrequencyPerUser,
+          resultMinimumThresholds,
+          impressionMaxFrequencyPerUser,
+          totalUncappedImpressions,
+          impressionCapMode,
+        )
+      },
+      {
+        DirectReachResultBuilder(
+          directProtocolConfig,
+          frequencyData,
+          measurementSpec.reach.privacyParams,
+          measurementSpec.vidSamplingInterval.width,
+          directNoiseMechanism,
+          maxPopulation,
+          resultMinimumThresholds = resultMinimumThresholds,
+        )
+      },
+    )
+
+  private suspend inline fun buildMeasurementResult(
+    measurementSpec: MeasurementSpec,
+    reachAndFrequencyBuilder: () -> MeasurementResultBuilder,
+    impressionBuilder: () -> MeasurementResultBuilder,
+    reachBuilder: () -> MeasurementResultBuilder,
   ): Measurement.Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
-      MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-        val reachAndFrequencyResultBuilder =
-          DirectReachAndFrequencyResultBuilder(
-            directProtocolConfig,
-            frequencyData,
-            measurementSpec.reachAndFrequency.maximumFrequency,
-            measurementSpec.reachAndFrequency.reachPrivacyParams,
-            measurementSpec.reachAndFrequency.frequencyPrivacyParams,
-            measurementSpec.vidSamplingInterval.width,
-            directNoiseMechanism,
-            maxPopulation,
-            resultMinimumThresholds,
-          )
-        reachAndFrequencyResultBuilder.buildMeasurementResult()
-      }
-      MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
-        val impressionResultBuilder =
-          DirectImpressionResultBuilder(
-            directProtocolConfig,
-            frequencyData,
-            measurementSpec.impression.privacyParams,
-            measurementSpec.vidSamplingInterval.width,
-            directNoiseMechanism,
-            maxPopulation,
-            measurementSpec.impression.maximumFrequencyPerUser,
-            resultMinimumThresholds,
-            impressionMaxFrequencyPerUser,
-            totalUncappedImpressions,
-            impressionCapMode,
-          )
-        impressionResultBuilder.buildMeasurementResult()
-      }
-      MeasurementSpec.MeasurementTypeCase.DURATION -> {
+      MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+        reachAndFrequencyBuilder().buildMeasurementResult()
+      MeasurementSpec.MeasurementTypeCase.IMPRESSION -> impressionBuilder().buildMeasurementResult()
+      MeasurementSpec.MeasurementTypeCase.REACH -> reachBuilder().buildMeasurementResult()
+      MeasurementSpec.MeasurementTypeCase.DURATION ->
         MeasurementKt.result { TODO("Not yet implemented") }
-      }
-      MeasurementSpec.MeasurementTypeCase.POPULATION -> {
+      MeasurementSpec.MeasurementTypeCase.POPULATION ->
         MeasurementKt.result { TODO("Not yet implemented") }
-      }
-      MeasurementSpec.MeasurementTypeCase.REACH -> {
-        val reachAndFrequencyResultBuilder =
-          DirectReachResultBuilder(
-            directProtocolConfig,
-            frequencyData,
-            measurementSpec.reach.privacyParams,
-            measurementSpec.vidSamplingInterval.width,
-            directNoiseMechanism,
-            maxPopulation,
-            resultMinimumThresholds = resultMinimumThresholds,
-          )
-        reachAndFrequencyResultBuilder.buildMeasurementResult()
-      }
-      MeasurementSpec.MeasurementTypeCase.MULTI -> {
-        error("Multi measurements are not supported.")
-      }
-      MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
+      MeasurementSpec.MeasurementTypeCase.MULTI -> error("Multi measurements are not supported.")
+      MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
         error("Measurement type not set.")
-      }
     }
   }
 }

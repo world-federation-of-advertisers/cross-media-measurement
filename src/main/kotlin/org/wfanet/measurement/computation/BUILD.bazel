@@ -17,11 +17,6 @@ _DEFAULT_VISIBILITY = [
 package(default_visibility = _DEFAULT_VISIBILITY)
 
 kt_jvm_library(
-    name = "frequency_data",
-    srcs = ["FrequencyData.kt"],
-)
-
-kt_jvm_library(
     name = "computation_params",
     srcs = ["ComputationParams.kt"],
 )
@@ -88,7 +83,6 @@ kt_jvm_library(
     name = "impression_computations",
     srcs = ["ImpressionComputations.kt"],
     deps = [
-        ":frequency_data",
         ":result_minimum_thresholds",
         ":result_noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping",
@@ -106,7 +100,6 @@ kt_jvm_library(
 kt_jvm_library(
     name = "histogram_computations",
     srcs = ["HistogramComputations.kt"],
-    deps = [":frequency_data"],
 )
 
 kt_jvm_library(
@@ -121,7 +114,6 @@ kt_jvm_library(
         ":deterministic_truncated_laplace_noise_sampler",
         ":deterministic_truncated_laplace_params",
         ":differential_privacy_params",
-        ":frequency_data",
         "//imports/java/com/google/privacy:differential_privacy",
     ],
 )

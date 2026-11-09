@@ -16,7 +16,6 @@ package org.wfanet.measurement.duchy.mill.trustee.processor
 
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
-import org.wfanet.measurement.computation.FrequencyData
 import org.wfanet.measurement.computation.GaussianResultNoiser
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.NoNoise
@@ -122,8 +121,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       "addFrequencyVectorBytes must be called before computeResult."
     }
     val frequencyVector = aggregatedFrequencyVector
-    val rawHistogram =
-      HistogramComputations.buildHistogram(FrequencyData.from(frequencyVector), maxFrequency)
+    val rawHistogram = HistogramComputations.buildHistogram(frequencyVector, maxFrequency)
     val sampledReachAndFrequency = ReachAndFrequency(rawHistogram.sum(), rawHistogram)
 
     return when (val params = trusTeeParams) {
@@ -178,7 +176,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     if (isDeterministicTruncatedLaplace) {
       // Privacy params are compiled into the attested image, not taken from the measurement spec.
       return DeterministicTruncatedLaplaceResultNoiser(
-        FrequencyData.from(frequencyVector),
+        frequencyVector,
         contributionCount,
         maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
       )

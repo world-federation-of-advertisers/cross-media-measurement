@@ -228,7 +228,7 @@ class ImpressionComputationsTest {
         vidSamplingIntervalWidth = 1.0,
         noiser =
           DeterministicTruncatedLaplaceResultNoiser(
-            combinedFrequencyVector = FrequencyData.from(seedVector),
+            combinedFrequencyVector = seedVector,
             contributionCount = 1,
             maxFrequencyPerUser = MAX_FREQUENCY,
           ),
@@ -285,7 +285,7 @@ class ImpressionComputationsTest {
     // value for a vector holding one impression would leave the two distinguishable.
     val result =
       ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        frequencyVector = FrequencyData.from(IntArray(100)),
+        frequencyVector = IntArray(100),
         queryRho = COARSE_RHO,
         maxFrequency = VECTOR_MAX_FREQUENCY,
         noiseSource = { _, _, bar, l2Sensitivity, rho ->
@@ -403,7 +403,7 @@ class ImpressionComputationsTest {
       ByteArray(DYNAMIC_FREQUENCY_VECTOR.size) { DYNAMIC_FREQUENCY_VECTOR[it].toByte() }
     val result =
       ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        frequencyVector = FrequencyData.from(frequencies),
+        frequencyVector = frequencies,
         queryRho = PRECISE_RHO,
         maxFrequency = VECTOR_MAX_FREQUENCY,
         noiseSource = NO_NOISE,
@@ -421,7 +421,7 @@ class ImpressionComputationsTest {
     thresholds: ResultMinimumThresholds? = null,
   ) =
     ImpressionComputations.computeDynamicallyClippedImpressionCount(
-      frequencyVector = FrequencyData.from(frequencyVector),
+      frequencyVector = frequencyVector,
       queryRho = queryRho,
       maxFrequency = VECTOR_MAX_FREQUENCY,
       noiseSource = NO_NOISE,
@@ -431,7 +431,7 @@ class ImpressionComputationsTest {
 
   private fun deterministicNoiser(seedVector: IntArray = SEED_VECTOR) =
     DeterministicTruncatedLaplaceResultNoiser(
-      combinedFrequencyVector = FrequencyData.from(seedVector),
+      combinedFrequencyVector = seedVector,
       contributionCount = 1,
       maxFrequencyPerUser = MAX_FREQUENCY,
     )

@@ -27,7 +27,7 @@ class DirectDynamicClippingTest {
   fun `the clip never exceeds what the frequency vector can represent`() {
     // Every VID saturated. StripedByteFrequencyVector cannot hold more, so no clip above this
     // bounds anything.
-    val frequencyData = ByteArray(200) { BYTE_CEILING.toByte() }
+    val frequencyData = IntArray(200) { BYTE_CEILING }
 
     // A bound, so it holds for the stochastic mechanism too, whatever the draws come out as.
     assertThat(stochasticClip(frequencyData).clip).isAtMost(BYTE_CEILING)
@@ -36,7 +36,7 @@ class DirectDynamicClippingTest {
 
   @Test
   fun `the deterministic mechanism yields the same clip and count for the same vector`() {
-    val frequencyData = ByteArray(200) { (it % 40).toByte() }
+    val frequencyData = IntArray(200) { it % 40 }
 
     val first = deterministicClip(frequencyData)
     val second = deterministicClip(frequencyData)
@@ -44,7 +44,7 @@ class DirectDynamicClippingTest {
     assertThat(second).isEqualTo(first)
   }
 
-  private fun stochasticClip(frequencyData: ByteArray) =
+  private fun stochasticClip(frequencyData: IntArray) =
     DirectDynamicClipping.computeImpressions(
       frequencyData = frequencyData,
       dpParams = DP_PARAMS,
@@ -52,7 +52,7 @@ class DirectDynamicClippingTest {
       resultMinimumThresholds = null,
     )
 
-  private fun deterministicClip(frequencyData: ByteArray) =
+  private fun deterministicClip(frequencyData: IntArray) =
     DirectDynamicClipping.computeDeterministicImpressions(
       frequencyData = frequencyData,
       vidSamplingIntervalWidth = 1.0,

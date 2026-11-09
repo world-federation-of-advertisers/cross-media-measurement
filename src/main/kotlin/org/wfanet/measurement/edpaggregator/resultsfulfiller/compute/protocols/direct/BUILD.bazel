@@ -11,7 +11,6 @@ kt_jvm_library(
     name = "direct_result_noisers",
     srcs = ["DirectResultNoisers.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/computation:frequency_data",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
@@ -25,6 +24,7 @@ kt_jvm_library(
         ":direct_impression_result_builder",
         ":direct_reach_and_frequency_result_builder",
         ":direct_reach_result_builder",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute:measurement_result_builder",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
@@ -40,7 +40,6 @@ kt_jvm_library(
     deps = [
         ":direct_result_noisers",
         "//imports/java/org/apache/commons/math3",
-        "//src/main/kotlin/org/wfanet/measurement/computation:frequency_data",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
@@ -62,7 +61,6 @@ kt_jvm_library(
     deps = [
         ":direct_result_noisers",
         "//imports/java/org/apache/commons/math3",
-        "//src/main/kotlin/org/wfanet/measurement/computation:frequency_data",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
@@ -84,7 +82,6 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_dynamic_clipping_noise_source",
         "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_params",
-        "//src/main/kotlin/org/wfanet/measurement/computation:frequency_data",
         "//src/main/kotlin/org/wfanet/measurement/computation:impression_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
@@ -101,9 +98,9 @@ kt_jvm_library(
         ":direct_dynamic_clipping",
         ":direct_result_noisers",
         "//imports/java/org/apache/commons/math3",
-        "//src/main/kotlin/org/wfanet/measurement/computation:frequency_data",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:impression_computations",
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:measurement_results",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute:measurement_result_builder",

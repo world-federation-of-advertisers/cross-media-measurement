@@ -28,10 +28,10 @@ import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.deterministicCount
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.DynamicallyClippedImpressions
-import org.wfanet.measurement.computation.FrequencyData
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.computation.ResultNoiser
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
@@ -53,9 +53,17 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams
  * @param totalUncappedImpressions Total impression count without frequency capping.
  * @param impressionCapMode How the per-user cap is chosen.
  */
-class DirectImpressionResultBuilder(
+class DirectImpressionResultBuilder
+private constructor(
   private val directProtocolConfig: ProtocolConfig.Direct,
-  private val frequencyData: ByteArray,
+  private val histogramBuilder: (Int) -> LongArray,
+  private val noiserBuilder:
+    (DifferentialPrivacyParams, DifferentialPrivacyParams, Int) -> ResultNoiser,
+  private val userCount: () -> Int,
+  private val dynamicImpressions:
+    (DpParams, Double, ResultMinimumThresholds?) -> DynamicallyClippedImpressions,
+  private val deterministicImpressions:
+    (Double, ResultMinimumThresholds?) -> DynamicallyClippedImpressions,
   private val privacyParams: CmmsDpParams,
   private val samplingRate: Float,
   private val directNoiseMechanism: DirectNoiseMechanism,
@@ -64,8 +72,95 @@ class DirectImpressionResultBuilder(
   private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val impressionMaxFrequencyPerUser: Int?,
   private val totalUncappedImpressions: Long,
-  private val impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
+  private val impressionCapMode: ImpressionCapMode,
 ) : MeasurementResultBuilder {
+  constructor(
+    directProtocolConfig: ProtocolConfig.Direct,
+    frequencyData: IntArray,
+    privacyParams: CmmsDpParams,
+    samplingRate: Float,
+    directNoiseMechanism: DirectNoiseMechanism,
+    maxPopulation: Int?,
+    maxFrequencyFromSpec: Int,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+    impressionMaxFrequencyPerUser: Int?,
+    totalUncappedImpressions: Long,
+    impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
+  ) : this(
+    directProtocolConfig = directProtocolConfig,
+    histogramBuilder = { maxFrequency ->
+      HistogramComputations.buildHistogram(frequencyData, maxFrequency)
+    },
+    noiserBuilder = { reachDpParams, frequencyDpParams, maxFrequencyPerUser ->
+      buildDirectResultNoiser(
+        directNoiseMechanism,
+        frequencyData,
+        reachDpParams,
+        frequencyDpParams,
+        maxFrequencyPerUser,
+      )
+    },
+    userCount = { frequencyData.count { it != 0 } },
+    dynamicImpressions = { dpParams, width, thresholds ->
+      DirectDynamicClipping.computeImpressions(frequencyData, dpParams, width, thresholds)
+    },
+    deterministicImpressions = { width, thresholds ->
+      DirectDynamicClipping.computeDeterministicImpressions(frequencyData, width, thresholds)
+    },
+    privacyParams = privacyParams,
+    samplingRate = samplingRate,
+    directNoiseMechanism = directNoiseMechanism,
+    maxPopulation = maxPopulation,
+    maxFrequencyFromSpec = maxFrequencyFromSpec,
+    resultMinimumThresholds = resultMinimumThresholds,
+    impressionMaxFrequencyPerUser = impressionMaxFrequencyPerUser,
+    totalUncappedImpressions = totalUncappedImpressions,
+    impressionCapMode = impressionCapMode,
+  )
+
+  constructor(
+    directProtocolConfig: ProtocolConfig.Direct,
+    frequencyData: ByteArray,
+    privacyParams: CmmsDpParams,
+    samplingRate: Float,
+    directNoiseMechanism: DirectNoiseMechanism,
+    maxPopulation: Int?,
+    maxFrequencyFromSpec: Int,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+    impressionMaxFrequencyPerUser: Int?,
+    totalUncappedImpressions: Long,
+    impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
+  ) : this(
+    directProtocolConfig = directProtocolConfig,
+    histogramBuilder = { maxFrequency ->
+      HistogramComputations.buildHistogram(frequencyData, maxFrequency)
+    },
+    noiserBuilder = { reachDpParams, frequencyDpParams, maxFrequencyPerUser ->
+      buildDirectResultNoiser(
+        directNoiseMechanism,
+        frequencyData,
+        reachDpParams,
+        frequencyDpParams,
+        maxFrequencyPerUser,
+      )
+    },
+    userCount = { frequencyData.count { it != 0.toByte() } },
+    dynamicImpressions = { dpParams, width, thresholds ->
+      DirectDynamicClipping.computeImpressions(frequencyData, dpParams, width, thresholds)
+    },
+    deterministicImpressions = { width, thresholds ->
+      DirectDynamicClipping.computeDeterministicImpressions(frequencyData, width, thresholds)
+    },
+    privacyParams = privacyParams,
+    samplingRate = samplingRate,
+    directNoiseMechanism = directNoiseMechanism,
+    maxPopulation = maxPopulation,
+    maxFrequencyFromSpec = maxFrequencyFromSpec,
+    resultMinimumThresholds = resultMinimumThresholds,
+    impressionMaxFrequencyPerUser = impressionMaxFrequencyPerUser,
+    totalUncappedImpressions = totalUncappedImpressions,
+    impressionCapMode = impressionCapMode,
+  )
 
   /**
    * Whether the count is released without a per-user cap.
@@ -144,17 +239,12 @@ class DirectImpressionResultBuilder(
 
     val clipped: DynamicallyClippedImpressions =
       if (directNoiseMechanism == DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) {
-        DirectDynamicClipping.computeDeterministicImpressions(
-          frequencyData = frequencyData,
-          vidSamplingIntervalWidth = samplingRate.toDouble(),
-          resultMinimumThresholds = resultMinimumThresholds,
-        )
+        deterministicImpressions(samplingRate.toDouble(), resultMinimumThresholds)
       } else {
-        DirectDynamicClipping.computeImpressions(
-          frequencyData = frequencyData,
-          dpParams = DpParams(privacyParams.epsilon, privacyParams.delta),
-          vidSamplingIntervalWidth = samplingRate.toDouble(),
-          resultMinimumThresholds = resultMinimumThresholds,
+        dynamicImpressions(
+          DpParams(privacyParams.epsilon, privacyParams.delta),
+          samplingRate.toDouble(),
+          resultMinimumThresholds,
         )
       }
     logger.info("Dynamic impression clip chosen: ${clipped.clip}")
@@ -184,11 +274,7 @@ class DirectImpressionResultBuilder(
     return if (releaseUncapped) {
       computeUncappedImpressionValue()
     } else {
-      val histogram: LongArray =
-        HistogramComputations.buildHistogram(
-          frequencyVector = FrequencyData.from(frequencyData),
-          maxFrequency = effectiveMaxFrequency,
-        )
+      val histogram: LongArray = histogramBuilder(effectiveMaxFrequency)
       getImpressionValue(histogram, effectiveMaxFrequency)
     }
   }
@@ -200,7 +286,7 @@ class DirectImpressionResultBuilder(
    */
   private fun computeUncappedImpressionValue(): Long {
     if (resultMinimumThresholds != null) {
-      val reachValue = frequencyData.count { it != 0.toByte() }
+      val reachValue = userCount()
       return if (totalUncappedImpressions < resultMinimumThresholds.minImpressions) {
         0L
       } else if (reachValue < resultMinimumThresholds.minUsers) {
@@ -220,14 +306,7 @@ class DirectImpressionResultBuilder(
       DifferentialPrivacyParams(epsilon = privacyParams.epsilon, delta = privacyParams.delta)
     return ImpressionComputations.computeImpressionCount(
       rawHistogram = histogram,
-      noiser =
-        buildDirectResultNoiser(
-          directNoiseMechanism = directNoiseMechanism,
-          frequencyData = frequencyData,
-          reachDpParams = dpParams,
-          frequencyDpParams = dpParams,
-          maxFrequencyPerUser = maxFrequency,
-        ),
+      noiser = noiserBuilder(dpParams, dpParams, maxFrequency),
       vidSamplingIntervalWidth = samplingRate.toDouble(),
       resultMinimumThresholds = resultMinimumThresholds,
     )

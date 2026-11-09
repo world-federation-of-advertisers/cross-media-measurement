@@ -100,12 +100,21 @@ class GaussianResultNoiser(
  * Each draw is a pure function of the seed and an output label. Reach uses [REACH_LABEL], the
  * impression threshold uses [IMPRESSION_LABEL], and frequency bucket `f` uses `f`.
  */
-class DeterministicTruncatedLaplaceResultNoiser(
-  combinedFrequencyVector: FrequencyData,
-  contributionCount: Int,
-  private val maxFrequencyPerUser: Int = 1,
-) : ResultNoiser {
-  private val fingerprint: ByteArray = fingerprint(combinedFrequencyVector, contributionCount)
+class DeterministicTruncatedLaplaceResultNoiser
+private constructor(private val fingerprint: ByteArray, private val maxFrequencyPerUser: Int) :
+  ResultNoiser {
+  constructor(
+    combinedFrequencyVector: IntArray,
+    contributionCount: Int,
+    maxFrequencyPerUser: Int = 1,
+  ) : this(fingerprint(combinedFrequencyVector, contributionCount), maxFrequencyPerUser)
+
+  /** Seeds deterministic noise from per-VID frequencies encoded as unsigned bytes. */
+  constructor(
+    combinedFrequencyVector: ByteArray,
+    contributionCount: Int,
+    maxFrequencyPerUser: Int = 1,
+  ) : this(fingerprint(combinedFrequencyVector, contributionCount), maxFrequencyPerUser)
 
   // One sampler per released quantity, each calibrated to that quantity's L1 sensitivity: reach and
   // each frequency bucket move by 1 per VID, the capped impression count by maxFrequencyPerUser.
@@ -146,16 +155,29 @@ class DeterministicTruncatedLaplaceResultNoiser(
      * The noise seed: SHA-256 over the combined frequency vector and [contributionCount], which is
      * the count after input suppression.
      */
-    fun fingerprint(combinedFrequencyVector: FrequencyData, contributionCount: Int): ByteArray {
+    fun fingerprint(combinedFrequencyVector: IntArray, contributionCount: Int): ByteArray =
+      fingerprint(combinedFrequencyVector.size, contributionCount) { combinedFrequencyVector[it] }
+
+    /** Hashes unsigned byte frequencies using the same four-byte integer encoding. */
+    fun fingerprint(combinedFrequencyVector: ByteArray, contributionCount: Int): ByteArray =
+      fingerprint(combinedFrequencyVector.size, contributionCount) {
+        combinedFrequencyVector[it].toInt() and 0xFF
+      }
+
+    private inline fun fingerprint(
+      size: Int,
+      contributionCount: Int,
+      frequencyAt: (Int) -> Int,
+    ): ByteArray {
       val digest = MessageDigest.getInstance("SHA-256")
       val buffer = ByteBuffer.allocate(FINGERPRINT_BUFFER_SIZE_BYTES)
       buffer.putInt(contributionCount)
-      for (index in 0 until combinedFrequencyVector.size) {
+      for (index in 0 until size) {
         if (buffer.remaining() < Int.SIZE_BYTES) {
           digest.update(buffer.array(), 0, buffer.position())
           buffer.clear()
         }
-        buffer.putInt(combinedFrequencyVector[index])
+        buffer.putInt(frequencyAt(index))
       }
       digest.update(buffer.array(), 0, buffer.position())
       return digest.digest()

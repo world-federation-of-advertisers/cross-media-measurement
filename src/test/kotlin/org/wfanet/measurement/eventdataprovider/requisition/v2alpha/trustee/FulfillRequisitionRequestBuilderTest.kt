@@ -33,6 +33,8 @@ import org.junit.runners.JUnit4
 import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
+import org.wfanet.frequencycount.FrequencyVector
+import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -96,11 +98,39 @@ class FulfillRequisitionRequestBuilderTest {
         FulfillRequisitionRequestBuilder.buildEncrypted(
           REQUISITION,
           NONCE,
-          byteArrayOf(),
+          FrequencyVector.getDefaultInstance(),
           ENCRYPTED_PARAMS,
         )
       }
     assertThat(exception.message).contains("must have size")
+  }
+
+  @Test
+  fun `buildEncrypted fails when frequency vector has negative value`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FulfillRequisitionRequestBuilder.buildEncrypted(
+          REQUISITION,
+          NONCE,
+          frequencyVector { data += -1 },
+          ENCRYPTED_PARAMS,
+        )
+      }
+    assertThat(exception.message).contains("FrequencyVector value")
+  }
+
+  @Test
+  fun `buildEncrypted fails when frequency vector has value over 255`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FulfillRequisitionRequestBuilder.buildEncrypted(
+          REQUISITION,
+          NONCE,
+          frequencyVector { data += 256 },
+          ENCRYPTED_PARAMS,
+        )
+      }
+    assertThat(exception.message).contains("FrequencyVector value")
   }
 
   @Test
@@ -164,7 +194,7 @@ class FulfillRequisitionRequestBuilderTest {
 
   @Test
   fun `buildEncrypted returns requests with correctly encrypted payload`() {
-    val inputFrequencyVector = byteArrayOf(1, 8, 27)
+    val inputFrequencyVector = frequencyVector { data += listOf(1, 8, 27) }
 
     val requests =
       FulfillRequisitionRequestBuilder.buildEncrypted(
@@ -209,7 +239,7 @@ class FulfillRequisitionRequestBuilderTest {
       }
 
     val decryptedIntegers = bytesToIntegers(decryptedFrequencyVectorData)
-    assertThat(decryptedIntegers).isEqualTo(inputFrequencyVector.map { it.toInt() and 0xFF })
+    assertThat(decryptedIntegers).isEqualTo(inputFrequencyVector.dataList)
   }
 
   @Test
@@ -228,7 +258,7 @@ class FulfillRequisitionRequestBuilderTest {
 
   @Test
   fun `buildUnencrypted returns requests with unencrypted payload`() {
-    val inputFrequencyVector = byteArrayOf(1, 8, 27)
+    val inputFrequencyVector = frequencyVector { data += listOf(1, 8, 27) }
     val requests =
       FulfillRequisitionRequestBuilder.buildUnencrypted(REQUISITION, NONCE, inputFrequencyVector)
         .toList()
@@ -252,7 +282,7 @@ class FulfillRequisitionRequestBuilderTest {
 
     val payload = bodyRequest.bodyChunk.data
     val payloadIntegers = bytesToIntegers(payload.toByteArray())
-    assertThat(payloadIntegers).isEqualTo(inputFrequencyVector.map { it.toInt() and 0xFF })
+    assertThat(payloadIntegers).isEqualTo(inputFrequencyVector.dataList)
   }
 
   @Test
@@ -271,7 +301,7 @@ class FulfillRequisitionRequestBuilderTest {
 
   @Test
   fun `buildUnencrypted produces same payload for TrusTee and TrusTeeV2`() {
-    val inputFrequencyVector = byteArrayOf(1, 8, 27)
+    val inputFrequencyVector = frequencyVector { data += listOf(1, 8, 27) }
 
     val v1Requests =
       FulfillRequisitionRequestBuilder.buildUnencrypted(REQUISITION, NONCE, inputFrequencyVector)
@@ -444,33 +474,66 @@ class FulfillRequisitionRequestBuilderTest {
   fun `buildEncrypted preserves bytes across encryption segments for both versions`() {
     val frequencies = ByteArray(2 * 1024 * 1024 + 17) { (it % 128).toByte() }
     for (requisition in listOf(REQUISITION, V2_REQUISITION)) {
-      val requests =
-        FulfillRequisitionRequestBuilder.buildEncrypted(
-            requisition,
-            NONCE,
-            frequencies,
-            ENCRYPTED_PARAMS,
+      for (useBytes in listOf(false, true)) {
+        val requests =
+          if (useBytes) {
+            FulfillRequisitionRequestBuilder.buildEncrypted(
+                requisition,
+                NONCE,
+                frequencies,
+                ENCRYPTED_PARAMS,
+              )
+              .toList()
+          } else {
+            val vector = frequencyVector { data += frequencies.map { it.toInt() and 0xFF } }
+            FulfillRequisitionRequestBuilder.buildEncrypted(
+                requisition,
+                NONCE,
+                vector,
+                ENCRYPTED_PARAMS,
+              )
+              .toList()
+          }
+        val header = requests.first().header
+        val trusTee = if (header.hasTrusTeeV2()) header.trusTeeV2.trusTee else header.trusTee
+        val dek =
+          KeysetHandle.read(
+            BinaryKeysetReader.withInputStream(
+              trusTee.envelopeEncryption.encryptedDek.data.newInput()
+            ),
+            KMS_CLIENT.getAead(KEK_URI),
           )
-          .toList()
-      val header = requests.first().header
-      val trusTee = if (header.hasTrusTeeV2()) header.trusTeeV2.trusTee else header.trusTee
-      val dek =
-        KeysetHandle.read(
-          BinaryKeysetReader.withInputStream(
-            trusTee.envelopeEncryption.encryptedDek.data.newInput()
-          ),
-          KMS_CLIENT.getAead(KEK_URI),
+        val chunks = requests.filter { it.hasBodyChunk() }.map { it.bodyChunk.data }
+        assertThat(chunks.size).isGreaterThan(64)
+        assertThat(chunks.all { it.size() <= 32 * 1024 }).isTrue()
+        val ciphertext = chunks.fold(ByteString.EMPTY) { bytes, chunk -> bytes.concat(chunk) }
+        val plaintext =
+          dek
+            .getPrimitive(StreamingAead::class.java)
+            .newDecryptingStream(ciphertext.newInput(), byteArrayOf())
+            .use { it.readAllBytes() }
+        assertThat(plaintext).isEqualTo(frequencies)
+      }
+    }
+  }
+
+  @Test
+  fun `proto and byte overloads produce identical unencrypted requests`() {
+    val bytes = ByteArray(32 * 1024 + 17) { (it % 256).toByte() }
+    val vector = frequencyVector { data += bytes.map { it.toInt() and 0xFF } }
+    for (requisition in listOf(REQUISITION, V2_REQUISITION)) {
+      val expected =
+        FulfillRequisitionRequestBuilder.buildUnencrypted(requisition, NONCE, vector).toList()
+      assertThat(
+          FulfillRequisitionRequestBuilder.buildUnencrypted(requisition, NONCE, bytes).toList()
         )
-      val chunks = requests.filter { it.hasBodyChunk() }.map { it.bodyChunk.data }
-      assertThat(chunks.size).isGreaterThan(64)
-      assertThat(chunks.all { it.size() <= 32 * 1024 }).isTrue()
-      val ciphertext = chunks.fold(ByteString.EMPTY) { bytes, chunk -> bytes.concat(chunk) }
-      val plaintext =
-        dek
-          .getPrimitive(StreamingAead::class.java)
-          .newDecryptingStream(ciphertext.newInput(), byteArrayOf())
-          .use { it.readAllBytes() }
-      assertThat(plaintext).isEqualTo(frequencies)
+        .isEqualTo(expected)
+      assertThat(
+          FulfillRequisitionRequestBuilder(requisition, NONCE, vector, null).build().toList()
+        )
+        .isEqualTo(expected)
+      assertThat(FulfillRequisitionRequestBuilder(requisition, NONCE, bytes, null).build().toList())
+        .isEqualTo(expected)
     }
   }
 
@@ -490,7 +553,7 @@ class FulfillRequisitionRequestBuilderTest {
     private const val NONCE = 12345L
     private const val WORKLOAD_ID_PROVIDER = "workload-id-provider"
     private const val IMPERSONATED_SERVICE_ACCOUNT = "impersonated-sa"
-    private val FREQUENCY_VECTOR = byteArrayOf(1)
+    private val FREQUENCY_VECTOR = frequencyVector { data += 1 }
     private val REQUISITION = requisition {
       name = "requisitions/test"
       protocolConfig = protocolConfig {

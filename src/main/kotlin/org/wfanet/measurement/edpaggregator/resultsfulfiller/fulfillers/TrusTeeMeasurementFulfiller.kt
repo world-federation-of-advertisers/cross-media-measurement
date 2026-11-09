@@ -20,29 +20,97 @@ import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.computation.FrequencyData
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultMinimumThresholder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder
 
-class TrusTeeMeasurementFulfiller(
+class TrusTeeMeasurementFulfiller
+private constructor(
   private val requisition: Requisition,
-  private val requisitionNonce: Long,
-  private val sampledFrequencyVector: ByteArray,
+  private val buildRequests: () -> Sequence<FulfillRequisitionRequest>,
   private val requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionsThrottler: Throttler,
-  private val encryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams?,
-  private val fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? =
-    null,
 ) : MeasurementFulfiller {
+  constructor(
+    requisition: Requisition,
+    requisitionNonce: Long,
+    sampledFrequencyVector: FrequencyVector,
+    requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
+    requisitionsStub: RequisitionsCoroutineStub,
+    requisitionsThrottler: Throttler,
+    encryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams?,
+    fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
+  ) : this(
+    requisition = requisition,
+    buildRequests = {
+      if (encryptionParams != null) {
+        FulfillRequisitionRequestBuilder.buildEncrypted(
+          requisition,
+          requisitionNonce,
+          sampledFrequencyVector,
+          encryptionParams,
+          fulfillmentDetails,
+        )
+      } else {
+        FulfillRequisitionRequestBuilder.buildUnencrypted(
+          requisition,
+          requisitionNonce,
+          sampledFrequencyVector,
+          fulfillmentDetails,
+        )
+      }
+    },
+    requisitionFulfillmentStubMap = requisitionFulfillmentStubMap,
+    requisitionsStub = requisitionsStub,
+    requisitionsThrottler = requisitionsThrottler,
+  )
+
+  /** Borrows [sampledFrequencyVector]; keep it unchanged until fulfillment completes. */
+  constructor(
+    requisition: Requisition,
+    requisitionNonce: Long,
+    sampledFrequencyVector: ByteArray,
+    requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
+    requisitionsStub: RequisitionsCoroutineStub,
+    requisitionsThrottler: Throttler,
+    encryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams?,
+    fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
+  ) : this(
+    requisition = requisition,
+    buildRequests = {
+      if (encryptionParams != null) {
+        FulfillRequisitionRequestBuilder.buildEncrypted(
+          requisition,
+          requisitionNonce,
+          sampledFrequencyVector,
+          encryptionParams,
+          fulfillmentDetails,
+        )
+      } else {
+        FulfillRequisitionRequestBuilder.buildUnencrypted(
+          requisition,
+          requisitionNonce,
+          sampledFrequencyVector,
+          fulfillmentDetails,
+        )
+      }
+    },
+    requisitionFulfillmentStubMap = requisitionFulfillmentStubMap,
+    requisitionsStub = requisitionsStub,
+    requisitionsThrottler = requisitionsThrottler,
+  )
+
   override suspend fun fulfillRequisition() {
     logger.info("Fulfilling requisition ${requisition.name}...")
     val duchyId = getAggregatorDuchy(requisition)
@@ -53,25 +121,7 @@ class TrusTeeMeasurementFulfiller(
           requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
         }
       if (getRequisitionResponse.state === Requisition.State.UNFULFILLED) {
-        val requests: Flow<FulfillRequisitionRequest> =
-          if (encryptionParams != null) {
-            FulfillRequisitionRequestBuilder.buildEncrypted(
-                requisition,
-                requisitionNonce,
-                sampledFrequencyVector,
-                encryptionParams,
-                fulfillmentDetails,
-              )
-              .asFlow()
-          } else {
-            FulfillRequisitionRequestBuilder.buildUnencrypted(
-                requisition,
-                requisitionNonce,
-                sampledFrequencyVector,
-                fulfillmentDetails,
-              )
-              .asFlow()
-          }
+        val requests: Flow<FulfillRequisitionRequest> = buildRequests().asFlow()
         requisitionFulfillmentStub.fulfillRequisition(requests)
         logger.info("Successfully fulfilled TrusTee requisition ${requisition.name}")
       } else {
@@ -97,6 +147,43 @@ class TrusTeeMeasurementFulfiller(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
+    /** Constructs a [TrusTeeMeasurementFulfiller] with a thresholded FrequencyVector. */
+    fun buildThresholded(
+      requisition: Requisition,
+      requisitionNonce: Long,
+      measurementSpec: MeasurementSpec,
+      populationSpec: PopulationSpec,
+      frequencyVectorBuilder: FrequencyVectorBuilder,
+      requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
+      requisitionsStub: RequisitionsCoroutineStub,
+      requisitionsThrottler: Throttler,
+      resultMinimumThresholds: ResultMinimumThresholds,
+      protocolMinUsers: Int,
+      protocolMinImpressions: Int,
+      maxPopulation: Int?,
+      encryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams?,
+    ): TrusTeeMeasurementFulfiller {
+      val thresholdedFrequencyVector =
+        ResultMinimumThresholder.applyThresholds(
+          measurementSpec,
+          populationSpec,
+          frequencyVectorBuilder,
+          resultMinimumThresholds,
+          maxPopulation,
+          protocolMinUsers,
+          protocolMinImpressions,
+        )
+      return TrusTeeMeasurementFulfiller(
+        requisition,
+        requisitionNonce,
+        thresholdedFrequencyVector,
+        requisitionFulfillmentStubMap,
+        requisitionsStub,
+        requisitionsThrottler,
+        encryptionParams,
+      )
+    }
+
     /** Constructs a [TrusTeeMeasurementFulfiller] with a thresholded byte vector. */
     fun buildThresholded(
       requisition: Requisition,
@@ -115,7 +202,7 @@ class TrusTeeMeasurementFulfiller(
       val thresholdedFrequencyVector =
         if (
           ResultMinimumThresholder.isBelowThreshold(
-            FrequencyData.from(frequencyData),
+            frequencyData,
             measurementSpec.vidSamplingInterval.width.toDouble(),
             resultMinimumThresholds,
             maxPopulation,

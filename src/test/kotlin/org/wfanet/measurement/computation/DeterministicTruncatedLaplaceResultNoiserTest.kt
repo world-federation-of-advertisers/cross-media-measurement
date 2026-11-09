@@ -65,17 +65,9 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
     // Same aggregate vector, different contribution count: reseeds. This is what closes the
     // fully-contained-contribution differencing case, where the aggregate is byte-identical.
     // Asserted on the seed, not a draw: draws round into a small integer range and collide.
-    assertThat(
-        DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-          FrequencyData.from(COMBINED),
-          CONTRIBUTION_COUNT,
-        )
-      )
+    assertThat(DeterministicTruncatedLaplaceResultNoiser.fingerprint(COMBINED, CONTRIBUTION_COUNT))
       .isNotEqualTo(
-        DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-          FrequencyData.from(COMBINED),
-          CONTRIBUTION_COUNT + 1,
-        )
+        DeterministicTruncatedLaplaceResultNoiser.fingerprint(COMBINED, CONTRIBUTION_COUNT + 1)
       )
   }
 
@@ -84,11 +76,7 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
     // Golden digest over BE32(count) || BE32(vector). Pins the encoding: a change to the field
     // order, width or endianness reseeds every deployed measurement.
     assertThat(
-        DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-            FrequencyData.from(COMBINED),
-            CONTRIBUTION_COUNT,
-          )
-          .toHex()
+        DeterministicTruncatedLaplaceResultNoiser.fingerprint(COMBINED, CONTRIBUTION_COUNT).toHex()
       )
       .isEqualTo("ddff6bed977d8001cf37dd15dc88025d1c4f264c82263af73b2f8ced93cf2312")
   }
@@ -97,13 +85,13 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   fun `fingerprint changes with vector contents`() {
     assertThat(
         DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-          FrequencyData.from(intArrayOf(1, 2, 3)),
+          intArrayOf(1, 2, 3),
           CONTRIBUTION_COUNT,
         )
       )
       .isNotEqualTo(
         DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-          FrequencyData.from(intArrayOf(1, 2, 4)),
+          intArrayOf(1, 2, 4),
           CONTRIBUTION_COUNT,
         )
       )
@@ -111,7 +99,7 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
 
   @Test
   fun `byte frequencies preserve the existing fingerprint and noise draws`() {
-    val frequencies = FrequencyData.from(byteArrayOf(0, 1, 2, 1, 3, 0, 2))
+    val frequencies = byteArrayOf(0, 1, 2, 1, 3, 0, 2)
     assertThat(DeterministicTruncatedLaplaceResultNoiser.fingerprint(frequencies, 3).toHex())
       .isEqualTo("ddff6bed977d8001cf37dd15dc88025d1c4f264c82263af73b2f8ced93cf2312")
     val noiser = DeterministicTruncatedLaplaceResultNoiser(frequencies, 3, 3)
@@ -124,10 +112,7 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   @Test
   fun `fingerprint encodes unsigned byte frequencies as four-byte integers`() {
     val frequencies = byteArrayOf(0, 1, 127, 128.toByte(), 200.toByte(), 255.toByte())
-    assertThat(
-        DeterministicTruncatedLaplaceResultNoiser.fingerprint(FrequencyData.from(frequencies), 3)
-          .toHex()
-      )
+    assertThat(DeterministicTruncatedLaplaceResultNoiser.fingerprint(frequencies, 3).toHex())
       .isEqualTo("27b36ae7773260e5f3104e665f195aaea38fd924782016e687e0f8f1d4c14c54")
   }
 
@@ -142,10 +127,7 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
       )
     for ((size, expected) in goldens) {
       val frequencies = ByteArray(size) { (it % 256).toByte() }
-      assertThat(
-          DeterministicTruncatedLaplaceResultNoiser.fingerprint(FrequencyData.from(frequencies), 3)
-            .toHex()
-        )
+      assertThat(DeterministicTruncatedLaplaceResultNoiser.fingerprint(frequencies, 3).toHex())
         .isEqualTo(expected)
     }
   }
@@ -154,16 +136,39 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   fun `fingerprint uses bounded working memory for a large byte vector`() {
     val bean = ManagementFactory.getThreadMXBean() as ThreadMXBean
     bean.isThreadAllocatedMemoryEnabled = true
-    DeterministicTruncatedLaplaceResultNoiser.fingerprint(FrequencyData.from(byteArrayOf(1)), 1)
+    DeterministicTruncatedLaplaceResultNoiser.fingerprint(byteArrayOf(1), 1)
     val frequencies = ByteArray(16777216) { 1 }
     val threadId = Thread.currentThread().id
     val before = bean.getThreadAllocatedBytes(threadId)
-    val actual =
-      DeterministicTruncatedLaplaceResultNoiser.fingerprint(FrequencyData.from(frequencies), 1)
+    val actual = DeterministicTruncatedLaplaceResultNoiser.fingerprint(frequencies, 1)
     val allocated = bean.getThreadAllocatedBytes(threadId) - before
     assertThat(actual.toHex())
       .isEqualTo("f6465292b75c48188b576e9b332f6ac4b064c1ce3bc75335b2f3044c8cb505ed")
     assertThat(allocated).isLessThan(1024 * 1024L)
+  }
+
+  @Test
+  fun `fingerprint preserves integer frequencies outside the byte range`() {
+    val frequencies = intArrayOf(0, 1, 256, 65536, Int.MAX_VALUE, -1)
+    assertThat(DeterministicTruncatedLaplaceResultNoiser.fingerprint(frequencies, 3).toHex())
+      .isEqualTo("6f134664a620e69cc8eaaea410e605634252eb49eb00682ee1cc1a5537c950fb")
+  }
+
+  @Test
+  fun `array overloads produce identical fingerprints and noise draws`() {
+    val bytes = byteArrayOf(0, 1, 127, 128.toByte(), 200.toByte(), 255.toByte())
+    val integers = IntArray(bytes.size) { bytes[it].toInt() and 0xFF }
+    assertThat(DeterministicTruncatedLaplaceResultNoiser.fingerprint(bytes, 3))
+      .isEqualTo(DeterministicTruncatedLaplaceResultNoiser.fingerprint(integers, 3))
+    val byteNoiser = DeterministicTruncatedLaplaceResultNoiser(bytes, 3)
+    val intNoiser = DeterministicTruncatedLaplaceResultNoiser(integers, 3)
+    assertThat(byteNoiser.noiseReach(123)).isEqualTo(intNoiser.noiseReach(123))
+    assertThat(byteNoiser.noiseImpressionsFromFrequencyHistogram(longArrayOf(1, 2, 3)))
+      .isEqualTo(intNoiser.noiseImpressionsFromFrequencyHistogram(longArrayOf(1, 2, 3)))
+    for (bucket in 0..4) {
+      assertThat(byteNoiser.noiseFrequencyBucket(bucket, 12))
+        .isEqualTo(intNoiser.noiseFrequencyBucket(bucket, 12))
+    }
   }
 
   companion object {
@@ -173,7 +178,7 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
 
     private fun noiser() =
       DeterministicTruncatedLaplaceResultNoiser(
-        FrequencyData.from(COMBINED),
+        COMBINED,
         CONTRIBUTION_COUNT,
         MAX_FREQUENCY_PER_USER,
       )

@@ -24,7 +24,6 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.deterministicCount
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
-import org.wfanet.measurement.computation.FrequencyData
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectDynamicClipping
@@ -72,7 +71,7 @@ object TrusTeeV2ImpressionCount {
             }
           maxFrequencyPerUser != null -> {
             val clip: Int = maxFrequencyPerUser
-            val perVidFrequencies: FrequencyData = FrequencyData.from(frequencyData)
+            val perVidFrequencies: ByteArray = frequencyData
             val histogram: LongArray =
               HistogramComputations.buildHistogram(
                 frequencyVector = perVidFrequencies,

@@ -18,7 +18,6 @@ import org.wfanet.measurement.computation.DeterministicDynamicClippingNoiseSourc
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.DynamicallyClippedImpressions
-import org.wfanet.measurement.computation.FrequencyData
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingNoiseSource
@@ -56,6 +55,20 @@ object DirectDynamicClipping {
    * This is the composition the clip search was written against.
    */
   fun computeImpressions(
+    frequencyData: IntArray,
+    dpParams: DpParams,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): DynamicallyClippedImpressions =
+    clipDynamically(
+      frequencyData = frequencyData,
+      queryDpParams = dpParams,
+      noiseSource = StochasticStandardNormalNoiseSource(),
+      vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+      resultMinimumThresholds = resultMinimumThresholds,
+    )
+
+  fun computeImpressions(
     frequencyData: ByteArray,
     dpParams: DpParams,
     vidSamplingIntervalWidth: Double,
@@ -82,6 +95,29 @@ object DirectDynamicClipping {
   // than
   // a distribution, and the draws here are Gaussian by design.
   fun computeDeterministicImpressions(
+    frequencyData: IntArray,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): DynamicallyClippedImpressions =
+    clipDynamically(
+      frequencyData = frequencyData,
+      queryDpParams =
+        DpParams(
+          DeterministicTruncatedLaplaceParams.EPSILON,
+          DeterministicTruncatedLaplaceParams.DELTA,
+        ),
+      noiseSource =
+        DeterministicDynamicClippingNoiseSource(
+          DeterministicTruncatedLaplaceResultNoiser.fingerprint(
+            frequencyData,
+            DIRECT_CONTRIBUTION_COUNT,
+          )
+        ),
+      vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+      resultMinimumThresholds = resultMinimumThresholds,
+    )
+
+  fun computeDeterministicImpressions(
     frequencyData: ByteArray,
     vidSamplingIntervalWidth: Double,
     resultMinimumThresholds: ResultMinimumThresholds?,
@@ -96,10 +132,26 @@ object DirectDynamicClipping {
       noiseSource =
         DeterministicDynamicClippingNoiseSource(
           DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-            FrequencyData.from(frequencyData),
+            frequencyData,
             DIRECT_CONTRIBUTION_COUNT,
           )
         ),
+      vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+      resultMinimumThresholds = resultMinimumThresholds,
+    )
+
+  private fun clipDynamically(
+    frequencyData: IntArray,
+    queryDpParams: DpParams,
+    noiseSource: DynamicClippingNoiseSource,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): DynamicallyClippedImpressions =
+    ImpressionComputations.computeDynamicallyClippedImpressionCount(
+      frequencyVector = frequencyData,
+      queryRho = AcdpParamsConverter.getDirectAcdpCharge(queryDpParams, BAR_SENSITIVITY).rho,
+      maxFrequency = MAX_REPRESENTABLE_FREQUENCY,
+      noiseSource = noiseSource,
       vidSamplingIntervalWidth = vidSamplingIntervalWidth,
       resultMinimumThresholds = resultMinimumThresholds,
     )
@@ -112,7 +164,7 @@ object DirectDynamicClipping {
     resultMinimumThresholds: ResultMinimumThresholds?,
   ): DynamicallyClippedImpressions =
     ImpressionComputations.computeDynamicallyClippedImpressionCount(
-      frequencyVector = FrequencyData.from(frequencyData),
+      frequencyVector = frequencyData,
       queryRho = AcdpParamsConverter.getDirectAcdpCharge(queryDpParams, BAR_SENSITIVITY).rho,
       maxFrequency = MAX_REPRESENTABLE_FREQUENCY,
       noiseSource = noiseSource,

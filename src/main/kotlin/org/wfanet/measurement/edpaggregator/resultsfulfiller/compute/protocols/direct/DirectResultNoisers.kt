@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
-import org.wfanet.measurement.computation.FrequencyData
 import org.wfanet.measurement.computation.GaussianResultNoiser
 import org.wfanet.measurement.computation.NoNoise
 import org.wfanet.measurement.computation.ResultNoiser
@@ -42,21 +41,56 @@ private const val DIRECT_CONTRIBUTION_COUNT = 1
  */
 fun buildDirectResultNoiser(
   directNoiseMechanism: DirectNoiseMechanism,
+  frequencyData: IntArray,
+  reachDpParams: DifferentialPrivacyParams,
+  frequencyDpParams: DifferentialPrivacyParams,
+  maxFrequencyPerUser: Int,
+): ResultNoiser =
+  buildDirectResultNoiser(
+    directNoiseMechanism,
+    reachDpParams,
+    frequencyDpParams,
+    maxFrequencyPerUser,
+  ) {
+    DeterministicTruncatedLaplaceResultNoiser(
+      combinedFrequencyVector = frequencyData,
+      contributionCount = DIRECT_CONTRIBUTION_COUNT,
+      maxFrequencyPerUser = maxFrequencyPerUser,
+    )
+  }
+
+fun buildDirectResultNoiser(
+  directNoiseMechanism: DirectNoiseMechanism,
   frequencyData: ByteArray,
   reachDpParams: DifferentialPrivacyParams,
   frequencyDpParams: DifferentialPrivacyParams,
   maxFrequencyPerUser: Int,
 ): ResultNoiser =
+  buildDirectResultNoiser(
+    directNoiseMechanism,
+    reachDpParams,
+    frequencyDpParams,
+    maxFrequencyPerUser,
+  ) {
+    DeterministicTruncatedLaplaceResultNoiser(
+      combinedFrequencyVector = frequencyData,
+      contributionCount = DIRECT_CONTRIBUTION_COUNT,
+      maxFrequencyPerUser = maxFrequencyPerUser,
+    )
+  }
+
+private inline fun buildDirectResultNoiser(
+  directNoiseMechanism: DirectNoiseMechanism,
+  reachDpParams: DifferentialPrivacyParams,
+  frequencyDpParams: DifferentialPrivacyParams,
+  maxFrequencyPerUser: Int,
+  deterministicNoiser: () -> ResultNoiser,
+): ResultNoiser =
   when (directNoiseMechanism) {
     DirectNoiseMechanism.NONE -> NoNoise
     DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
       GaussianResultNoiser(reachDpParams, frequencyDpParams, maxFrequencyPerUser)
-    DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
-      DeterministicTruncatedLaplaceResultNoiser(
-        combinedFrequencyVector = FrequencyData.from(frequencyData),
-        contributionCount = DIRECT_CONTRIBUTION_COUNT,
-        maxFrequencyPerUser = maxFrequencyPerUser,
-      )
+    DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE -> deterministicNoiser()
     DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
       throw IllegalArgumentException("$directNoiseMechanism is not supported for Direct results")
   }
