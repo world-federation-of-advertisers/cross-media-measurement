@@ -74,11 +74,9 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
         insertMutation("UploadHealingOperation") {
           set("DataProviderResourceId").to(TEST_DATA_PROVIDER_ID)
           set("UploadHealingOperationId").to(EVICTION_OPERATION_ID)
-          set("CreateRequestId").to(UUID.randomUUID().toString())
+          set("ReconcileRequestId").to(UUID.randomUUID().toString())
           set("Reason").to("test")
           set("LabeledImpressionsBlobPrefix").to("gs://output/vid")
-          set("BadRawImpressionUploadResourceIds").toStringArray(listOf("bad-upload"))
-          set("CutoffTime").to(com.google.cloud.Timestamp.ofTimeSecondsAndNanos(1L, 0))
           set("State")
             .to(
               UploadHealingOperation.State
