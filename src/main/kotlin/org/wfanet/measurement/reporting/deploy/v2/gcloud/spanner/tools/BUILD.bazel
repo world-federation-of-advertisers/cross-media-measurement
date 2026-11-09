@@ -110,7 +110,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:cloud_telemetry",
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
-        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:spanner_flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:basic_reports",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/readers",
@@ -149,7 +148,6 @@ kt_jvm_library(
     visibility = ["//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:cloud_telemetry",
-        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",
@@ -188,6 +186,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
