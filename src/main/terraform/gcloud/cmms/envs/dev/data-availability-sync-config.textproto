@@ -40,6 +40,7 @@ configs {
 configs {
   data_provider: "dataProviders/J3-pzhqS9Lo"
   edp_impression_path: "edp/edpa_meta"
+  external_impression_path: "edp/edpa_meta"
   vid_labeled_impression_path: "vid-labeled-impressions/edp/edpa_meta"
   data_availability_storage {
     gcs {
@@ -66,6 +67,7 @@ configs {
 configs {
   data_provider: "dataProviders/KYq_ciWaP94"
   edp_impression_path: "edp/edpa_video_pub"
+  external_impression_path: "edp/edpa_video_pub"
   data_availability_storage {
     gcs {
       project_id: "halo-cmm-dev"
@@ -91,6 +93,7 @@ configs {
 configs {
   data_provider: "dataProviders/bvIQ5SrPwhk"
   edp_impression_path: "edp/edpa_retail_pub"
+  external_impression_path: "edp/edpa_retail_pub"
   data_availability_storage {
     gcs {
       project_id: "halo-cmm-dev"
