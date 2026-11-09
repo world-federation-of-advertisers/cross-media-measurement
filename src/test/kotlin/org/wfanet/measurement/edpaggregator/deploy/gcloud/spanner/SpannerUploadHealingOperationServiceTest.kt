@@ -250,6 +250,7 @@ class SpannerUploadHealingOperationServiceTest {
   private suspend fun checkpointRecoveryWithDeferredRevision(
     replacementOperationId: String
   ): Pair<SpannerUploadHealingOperationService, UploadHealingStep> {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
     insertUploadGraph(
       replacementUploadState = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
       replacementModelLineState =
@@ -257,7 +258,7 @@ class SpannerUploadHealingOperationServiceTest {
           .RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
     )
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
-    val created = service.createUploadHealingOperation(createRequest(memoized = false))
+    val created = activateOperation(service, createRequest(memoized = false))
     val waiting =
       service.advanceUploadHealingStep(
         advanceUploadHealingStepRequest {
@@ -281,7 +282,7 @@ class SpannerUploadHealingOperationServiceTest {
         dataProviderResourceId = DATA_PROVIDER_ID
         uploadHealingOperationId = OPERATION_ID
         etag = operation.etag
-        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING
+        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING
         requestId = UUID.randomUUID().toString()
       }
     )
@@ -1737,7 +1738,7 @@ class SpannerUploadHealingOperationServiceTest {
       blobs += LabeledOutputManifestKt.blobVersion { blobUri = "gs://output/source/data" }
     }
     val created =
-      service.createUploadHealingOperation(
+      service.reconcileUploadHealingOperation(
         draftRequest(
             listOf(CANDIDATE_IDS[0]),
             listOf(planStep(1L, SOURCE_UPLOAD_ID).copy { labeledOutputManifest = provisional }),
