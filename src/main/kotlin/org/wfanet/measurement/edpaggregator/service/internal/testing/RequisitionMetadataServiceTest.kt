@@ -21,6 +21,8 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
+import com.google.type.copy
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -1696,7 +1698,10 @@ abstract class RequisitionMetadataServiceTest {
     val candidate = reportRoutingDecision {
       dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
       report = REPORT
-      reportStartTime = timestamp { seconds = 100 }
+      reportInterval = interval {
+        startTime = timestamp { seconds = 100 }
+        endTime = timestamp { seconds = 150 }
+      }
       externalModelLine = historical
       selectedModelLine = historical
       cutoverTime = timestamp { seconds = 200 }
@@ -1723,11 +1728,35 @@ abstract class RequisitionMetadataServiceTest {
   }
 
   @Test
-  fun `resolveReportRoutingDecision rejects conflicting report start`() = runBlocking {
+  fun `resolveReportRoutingDecision rejects interval without end`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.resolveReportRoutingDecision(
+          resolveReportRoutingDecisionRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            candidate = reportRoutingDecision {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              report = REPORT
+              reportInterval = interval { startTime = timestamp { seconds = 100 } }
+              externalModelLine = "modelProviders/provider/modelSuites/suite/modelLines/external"
+              selectedModelLine = "modelProviders/provider/modelSuites/suite/modelLines/historical"
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `resolveReportRoutingDecision rejects conflicting report interval`() = runBlocking {
     val candidate = reportRoutingDecision {
       dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
       report = REPORT
-      reportStartTime = timestamp { seconds = 100 }
+      reportInterval = interval {
+        startTime = timestamp { seconds = 100 }
+        endTime = timestamp { seconds = 150 }
+      }
       externalModelLine = "modelProviders/provider/modelSuites/suite/modelLines/external"
       selectedModelLine = "modelProviders/provider/modelSuites/suite/modelLines/historical"
     }
@@ -1743,7 +1772,10 @@ abstract class RequisitionMetadataServiceTest {
         service.resolveReportRoutingDecision(
           resolveReportRoutingDecisionRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-            this.candidate = candidate.copy { reportStartTime = timestamp { seconds = 101 } }
+            this.candidate =
+              candidate.copy {
+                reportInterval = reportInterval.copy { endTime = timestamp { seconds = 151 } }
+              }
           }
         )
       }

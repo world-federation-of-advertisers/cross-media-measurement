@@ -1104,7 +1104,7 @@ selects one internal model line from the immutable Report start and persists tha
 dispatching the first WorkItem. Every later batch and retry for that Report reuses the persisted
 choice. Do not enable the cutover until the `ReportRoutingDecision` schema migration is deployed and
 pre-cutover WorkItems and unfulfilled Requisitions whose signed MeasurementSpec lacks
-`report_start_time` have drained.
+`report_interval` have drained.
 
 `maximum_report_duration` must be a positive whole number of days.
 `legacy_required_through_date` must be at least `cutover_date + maximum_report_duration`, ensuring

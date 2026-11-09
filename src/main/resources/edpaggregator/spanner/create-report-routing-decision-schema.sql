@@ -23,8 +23,9 @@ CREATE TABLE ReportRoutingDecision (
   DataProviderResourceId STRING(63) NOT NULL,
   -- Full Reporting Report resource name.
   Report STRING(512) NOT NULL,
-  -- Immutable original start time of the Report.
-  ReportStartTime TIMESTAMP NOT NULL,
+  -- Immutable original closed-open bounding interval of the Report.
+  ReportIntervalStartTime TIMESTAMP NOT NULL,
+  ReportIntervalEndTime TIMESTAMP NOT NULL,
   -- Advertiser-visible model line in the Report's Requisitions.
   ExternalModelLine STRING(512) NOT NULL,
   -- Internal model line selected for every WorkItem of the Report.
