@@ -401,7 +401,10 @@ module "event_group_sync_cloud_function" {
 module "data_availability_sync_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_data_availability_sync_config,
+  ]
 
   http_cloud_function_service_account_name = var.data_availability_sync_service_account_name
   terraform_service_account                = var.terraform_service_account
@@ -425,7 +428,10 @@ module "data_availability_sync_cloud_function" {
 module "data_availability_cleanup_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_data_availability_sync_config,
+  ]
 
   http_cloud_function_service_account_name = var.data_availability_cleanup_service_account_name
   terraform_service_account                = var.terraform_service_account

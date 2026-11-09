@@ -141,12 +141,28 @@ object VidLabelingStorageConfigValidator {
       require(vidLabelingStorageRoot == dataAvailabilityStorageRoot) {
         "VID labeling and DataAvailabilitySync buckets differ for ${vidConfig.dataProvider}"
       }
-      require(vidConfig.edpImpressionPath == syncConfig.edpImpressionPath) {
+      val syncImpressionPath =
+        syncConfig.vidLabeledImpressionPath.ifEmpty { syncConfig.edpImpressionPath }
+      requireValidPath(
+        syncImpressionPath,
+        "DataAvailabilitySync VID labeling",
+        vidConfig.dataProvider,
+      )
+      require(vidConfig.edpImpressionPath == syncImpressionPath) {
         "VID labeling and DataAvailabilitySync edp_impression_path values differ for " +
           vidConfig.dataProvider
       }
 
       val labeledOutputPrefix = "$vidLabelingStorageRoot/${vidConfig.edpImpressionPath}/"
+      if (syncConfig.vidLabeledImpressionPath.isNotEmpty()) {
+        val externalOutputPrefix = "$dataAvailabilityStorageRoot/${syncConfig.edpImpressionPath}/"
+        require(
+          !labeledOutputPrefix.startsWith(externalOutputPrefix) &&
+            !externalOutputPrefix.startsWith(labeledOutputPrefix)
+        ) {
+          "External and VID-labeled impression paths overlap for ${vidConfig.dataProvider}"
+        }
+      }
       require(
         dataWatcherConfig.watchedPathsList.none { watchedPath ->
           sourceRegexMayMatchPrefix(watchedPath.sourcePathRegex, labeledOutputPrefix)

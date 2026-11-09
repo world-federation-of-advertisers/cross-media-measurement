@@ -27,7 +27,9 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
+import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingStorageConfigValidator
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
 @RunWith(JUnit4::class)
@@ -48,6 +50,22 @@ class DataAvailabilityWatcherConfigTest {
           resolveRunfile("$configDirectory/data-availability-sync-config.textproto").toFile(),
           DataAvailabilitySyncConfigs.getDefaultInstance(),
         )
+      val dispatcherConfigs =
+        parseTextProto(
+          resolveRunfile("$configDirectory/vid-labeling-dispatcher-config.textproto").toFile(),
+          VidLabelingConfigs.getDefaultInstance(),
+        )
+      val monitorConfigs =
+        parseTextProto(
+          resolveRunfile("$configDirectory/vid-labeling-monitor-config.textproto").toFile(),
+          VidLabelingConfigs.getDefaultInstance(),
+        )
+      VidLabelingStorageConfigValidator.validate(
+        dispatcherConfigs,
+        monitorConfigs,
+        runtimeConfigs,
+        watcherConfig,
+      )
       val runtimeConfigsByDataProvider = runtimeConfigs.configsList.associateBy { it.dataProvider }
       val dataAvailabilityWatchedPaths =
         watcherConfig.watchedPathsList.filter { it.identifier == DATA_AVAILABILITY_IDENTIFIER }

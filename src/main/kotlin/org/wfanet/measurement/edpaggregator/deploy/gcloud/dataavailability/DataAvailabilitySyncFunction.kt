@@ -53,6 +53,7 @@ import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.config.edpaggregator.copy
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
@@ -214,8 +215,17 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
   private fun serviceWorkItem(request: HttpRequest) {
     val input = DataAvailabilitySyncWorkItem.parse(WorkItem.parseFrom(request.inputStream))
-    val config =
+    val providerConfig =
       runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
+    val internalPath = providerConfig.vidLabeledImpressionPath
+    val doneBlobKey = SelectedStorageClient.parseBlobUri(input.doneBlobUri).key
+    val config =
+      if (internalPath.isNotEmpty() && doneBlobKey.startsWith("$internalPath/")) {
+        providerConfig.copy { edpImpressionPath = internalPath }
+      } else {
+        // Queued WorkItems retain the output path encoded before a prefix cutover.
+        providerConfig
+      }
     val grpcChannels = getOrCreateSharedChannels(config)
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
     val instrumentedMetadataChannel =

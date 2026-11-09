@@ -27,6 +27,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage
+import org.wfanet.measurement.config.edpaggregator.copy
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.storageParams
@@ -50,6 +51,45 @@ class VidLabelingStorageConfigValidatorTest {
       syncConfigs(LABELED_OUTPUT_PATH),
       watcherConfig("gs://bucket/edp/event-groups/.*"),
     )
+  }
+
+  @Test
+  fun `validate accepts separate internal and external paths for one provider`() {
+    val syncConfigs = dataAvailabilitySyncConfigs {
+      configs +=
+        syncConfigs(OTHER_OUTPUT_PATH).configsList.single().copy {
+          vidLabeledImpressionPath = LABELED_OUTPUT_PATH
+        }
+    }
+
+    VidLabelingStorageConfigValidator.validate(
+      vidConfigs(LABELED_OUTPUT_PATH),
+      vidConfigs(LABELED_OUTPUT_PATH),
+      syncConfigs,
+      watcherConfig("gs://bucket/$OTHER_OUTPUT_PATH/model-line/.*/.*/done"),
+    )
+  }
+
+  @Test
+  fun `validate rejects overlapping internal and external paths`() {
+    val syncConfigs = dataAvailabilitySyncConfigs {
+      configs +=
+        syncConfigs(LABELED_OUTPUT_PATH).configsList.single().copy {
+          vidLabeledImpressionPath = "$LABELED_OUTPUT_PATH/internal"
+        }
+    }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs("$LABELED_OUTPUT_PATH/internal"),
+          vidConfigs("$LABELED_OUTPUT_PATH/internal"),
+          syncConfigs,
+          watcherConfig("gs://bucket/edp/event-groups/.*"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("paths overlap")
   }
 
   @Test

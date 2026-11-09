@@ -74,6 +74,10 @@ message DataAvailabilitySyncConfig {
   // How DataAvailabilitySync connects to the Secure Computation public API.
   TransportLayerSecurityParams secure_computation_control_plane_connection = 10;
 
+  // Output path for internally produced VidLabeler impressions in the same
+  // storage bucket. When omitted, uses `edp_impression_path`.
+  string vid_labeled_impression_path = 11;
+
   // This publisher only appends activity. For the same DataProvider, a
   // `SyncEventGroupActivities` process may use PATCH mode for explicit APPEND
   // and DELETE operations. Do not use SYNC mode: it treats its input as

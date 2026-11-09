@@ -26,3 +26,29 @@ configs {
   max_stale_days: 3
   time_zone: "UTC"
 }
+configs {
+  storage {
+    gcs {
+      bucket_name: "secure-computation-storage-qa-bucket"
+    }
+  }
+  edp_impression_path: "vid-labeled-impressions/edp/edp7"
+  model_line_configs {
+    model_line: "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/PFUW1Lwcnyo"
+  }
+  max_stale_days: 3
+  time_zone: "UTC"
+}
+configs {
+  storage {
+    gcs {
+      bucket_name: "secure-computation-storage-qa-bucket"
+    }
+  }
+  edp_impression_path: "vid-labeled-impressions/edp/edpa_meta"
+  model_line_configs {
+    model_line: "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/PFUW1Lwcnyo"
+  }
+  max_stale_days: 3
+  time_zone: "UTC"
+}

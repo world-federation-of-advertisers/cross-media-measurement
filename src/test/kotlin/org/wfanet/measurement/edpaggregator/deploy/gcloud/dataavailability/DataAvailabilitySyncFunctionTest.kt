@@ -74,6 +74,7 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigKt.modelLineList
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
+import org.wfanet.measurement.config.edpaggregator.copy
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.storageParams
@@ -562,24 +563,30 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `WorkItem synchronizes only deterministic outputs for its raw upload`() {
+  fun `WorkItem selects internal path and synchronizes only its raw upload outputs`() {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     File(configBucketDir, "config.textproto")
       .writeText(
         TextFormat.printer()
           .printToString(
-            dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
+            dataAvailabilitySyncConfigs {
+              configs +=
+                fileSystemDataAvailabilitySyncConfig().copy {
+                  vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
+                }
+            }
           )
       )
-    val outputDirectory = "edp/edp_name/model-line/some-model-line/2025-01-05"
+    val outputDirectory =
+      "vid-labeled-impressions/edp/edp_name/model-line/some-model-line/2025-01-05"
     File(tempFolder.root, outputDirectory).mkdirs()
     val workItemEventDate = LocalDate.of(2025, 1, 5)
     val expectedOutputKey =
-      "edp/edp_name/" +
+      "vid-labeled-impressions/edp/edp_name/" +
         LabeledImpressionsBlobKeys.forInput(RAW_INPUT_BLOB_URI, MODEL_LINE, workItemEventDate)
     val otherDateOutputKey =
-      "edp/edp_name/" +
+      "vid-labeled-impressions/edp/edp_name/" +
         LabeledImpressionsBlobKeys.forInput(
           OTHER_DATE_RAW_INPUT_BLOB_URI,
           MODEL_LINE,
@@ -760,7 +767,12 @@ class DataAvailabilitySyncFunctionTest {
       .writeText(
         TextFormat.printer()
           .printToString(
-            dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
+            dataAvailabilitySyncConfigs {
+              configs +=
+                fileSystemDataAvailabilitySyncConfig().copy {
+                  vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
+                }
+            }
           )
       )
     val eventDate = LocalDate.of(2025, 1, 5)
@@ -1114,7 +1126,10 @@ class DataAvailabilitySyncFunctionTest {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     val runtimeConfig = dataAvailabilitySyncConfigs {
-      configs += fileSystemDataAvailabilitySyncConfig()
+      configs +=
+        fileSystemDataAvailabilitySyncConfig().copy {
+          vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
+        }
     }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
