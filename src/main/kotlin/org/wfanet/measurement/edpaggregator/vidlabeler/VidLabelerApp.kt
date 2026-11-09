@@ -18,6 +18,8 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
+import com.google.cloud.storage.Storage
+import com.google.cloud.storage.StorageException
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
@@ -102,9 +104,10 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * `RankIndexBlobService`, derives each VID from its memoized rank (the labeler hashes any overflow
  * / unseen fingerprint), writes the encrypted labeled output, marks the `VidLabelingJob`
  * `SUCCEEDED`, and — when this call was the last job out for a model line — transitions the parent
- * `RawImpressionUploadModelLine` to `AVAILABILITY_SYNCING`, writes its dated `done` markers, and
- * ensures the downstream availability WorkItems. The parent reaches `COMPLETED` only after every
- * date-level availability handoff succeeds.
+ * `RawImpressionUploadModelLine` to `AVAILABILITY_SYNCING` after resolving its dated `done`
+ * markers. Ordinary handoffs are ensured before this transition. During healing it records a
+ * pending checkpoint, and the controller ensures WorkItems after releasing its fence. The parent
+ * reaches `COMPLETED` only after every date-level availability handoff succeeds.
  *
  * Failure model: [runWork] does NOT mark the job `FAILED` itself. A transient failure propagates
  * out of [runWork] so the TEE framework retains the delivery while another attempt owns the
@@ -134,7 +137,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *   threaded with the per-EDP [KmsClient] for PME decryption.
  * @param buildVidRankMapStorageClient builds a [ConditionalOperationStorageClient] for the
  *   vid-rank-map storage read by [RankIndexStore].
- * @param writeGcsObject atomically creates a GCS object and returns its immutable generation.
+ * @param writeGcsObject conditionally writes a GCS object and returns its immutable generation.
  * @param loadAssigner loads the compiled VID model (C++/JNI) for a model blob URI into a
  *   [VidAssigner].
  * @param buildImpressionConverter builds the per-(WorkItem, model line) [ImpressionConverter],
@@ -167,12 +170,14 @@ class VidLabelerApp(
     suspend (modelLine: String, config: VidLabelerParams.ModelLineConfig) -> ImpressionConverter,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val writeGcsObject:
-    suspend (projectId: String?, blobInfo: BlobInfo, content: ByteArray) -> Long =
-    { projectId, blobInfo, content ->
+    suspend (
+      projectId: String?, blobInfo: BlobInfo, content: ByteArray, expectedGeneration: Long,
+    ) -> Long =
+    { projectId, blobInfo, content, expectedGeneration ->
       withContext(Dispatchers.IO) {
         GcsStorageRetryConfig.DEFAULT.buildStorageOptions(projectId = projectId)
           .service
-          .create(blobInfo, content)
+          .create(blobInfo, content, Storage.BlobTargetOption.generationMatch(expectedGeneration))
           .generation
       }
     },
@@ -971,32 +976,35 @@ class VidLabelerApp(
         continue
       }
       val doneObjects = mutableMapOf<LocalDate, DoneObject>()
-      // Persist every dated done marker before exposing the availability phase.
       for (eventDate in eventDates.sorted()) {
-        val doneObject =
-          findReusableDoneObject(
+        doneObjects[eventDate] =
+          resolveDoneObject(
             dataProvider,
             upload,
             parent.name,
             params.vidLabeledImpressionsStorageParams,
             completedModelLine,
             eventDate,
-            allowMissingWorkItem =
-              parent.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            params,
           )
-            ?: writeDoneBlob(
-              params.vidLabeledImpressionsStorageParams,
-              upload,
-              completedModelLine,
-              eventDate,
-              dataProvider,
-              params,
-            )
-        doneObjects[eventDate] = doneObject
         doneObjectsWritten++
       }
-      if (doneObjects.isEmpty()) {
-        continue
+      if (doneObjects.isEmpty()) continue
+      val availabilityDeferred = isAvailabilityDeferredForHealing(upload, parent)
+      // Healing records a pending checkpoint before its fence can be released. Its controller
+      // ensures every dated handoff after release and before completing availability publication.
+      if (!availabilityDeferred) {
+        for ((eventDate, doneObject) in doneObjects) {
+          ensureDataAvailabilitySyncWorkItem(
+            dataProvider,
+            upload,
+            parent.name,
+            completedModelLine,
+            eventDate,
+            doneObject,
+            params,
+          )
+        }
       }
       val parentTransition =
         try {
@@ -1040,25 +1048,10 @@ class VidLabelerApp(
         VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME_STRING to parent.name,
         VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to completedModelLine,
       )
-      val availabilityDeferred =
-        isAvailabilityDeferredForHealing(upload, parentTransition.modelLine)
       if (availabilityDeferred) {
         logger.info(
           "Deferring Data Availability WorkItems for $upload model line $completedModelLine " +
             "until its upload-healing operation completes"
-        )
-        continue
-      }
-      // Publish the durable handoffs only after DataAvailabilitySync can acknowledge their dates.
-      for ((eventDate, doneObject) in doneObjects) {
-        ensureDataAvailabilitySyncWorkItem(
-          dataProvider,
-          upload,
-          parent.name,
-          completedModelLine,
-          eventDate,
-          doneObject,
-          params,
         )
       }
     }
@@ -1310,7 +1303,7 @@ class VidLabelerApp(
    * [VidLabelingSink] wrote this model line's labeled output to, so `DataAvailabilitySync`
    * finalizes that upload, model line, and date without another upload replacing its marker.
    *
-   * The marker is replaced when no existing object generation can be recovered.
+   * The write succeeds only while the observed object generation remains current.
    */
   private suspend fun writeDoneBlob(
     outputStorageParams: VidLabelerParams.StorageParams,
@@ -1319,6 +1312,7 @@ class VidLabelerApp(
     eventDate: LocalDate,
     dataProvider: String,
     params: VidLabelerParams,
+    expectedGeneration: Long,
   ): DoneObject {
     val storageConfig = getStorageConfig(outputStorageParams)
     val doneUri =
@@ -1338,6 +1332,7 @@ class VidLabelerApp(
               storageConfig.projectId,
               BlobInfo.newBuilder(bucket, doneBlobUri.key).build(),
               ByteArray(0),
+              expectedGeneration,
             )
           val createTime =
             requireNotNull(
@@ -1403,19 +1398,81 @@ class VidLabelerApp(
     return doneObject
   }
 
-  /**
-   * Returns the live done object when its WorkItem belongs to this exact handoff, or when the
-   * parent already durably records that availability publication is pending.
-   */
-  private suspend fun findReusableDoneObject(
+  private enum class DoneWorkItemIdentity {
+    MISSING,
+    MATCHING,
+    DIFFERENT,
+  }
+
+  private data class DoneObjectState(
+    val doneObject: DoneObject?,
+    val workItemIdentity: DoneWorkItemIdentity,
+  )
+
+  /** Resolves one generation without overwriting a concurrent publication. */
+  private suspend fun resolveDoneObject(
     dataProvider: String,
     rawImpressionUpload: String,
     rawImpressionUploadModelLine: String,
     outputStorageParams: VidLabelerParams.StorageParams,
     modelLine: String,
     eventDate: LocalDate,
-    allowMissingWorkItem: Boolean,
-  ): DoneObject? {
+    params: VidLabelerParams,
+  ): DoneObject {
+    val observed =
+      readDoneObjectState(
+        dataProvider,
+        rawImpressionUpload,
+        rawImpressionUploadModelLine,
+        outputStorageParams,
+        modelLine,
+        eventDate,
+      )
+    // A per-upload marker with no WorkItem is a resumable publication. Its deterministic task
+    // is checked before ordinary publication or after the healing fence releases.
+    if (
+      observed.doneObject != null && observed.workItemIdentity != DoneWorkItemIdentity.DIFFERENT
+    ) {
+      return observed.doneObject
+    }
+    val expectedGeneration = observed.doneObject?.generation ?: 0L
+    return try {
+      writeDoneBlob(
+        outputStorageParams,
+        rawImpressionUpload,
+        modelLine,
+        eventDate,
+        dataProvider,
+        params,
+        expectedGeneration,
+      )
+    } catch (e: StorageException) {
+      if (e.code != 412) throw e
+      val winner =
+        readDoneObjectState(
+          dataProvider,
+          rawImpressionUpload,
+          rawImpressionUploadModelLine,
+          outputStorageParams,
+          modelLine,
+          eventDate,
+        )
+      check(winner.workItemIdentity == DoneWorkItemIdentity.MATCHING) {
+        "Concurrent done-marker publication has no matching durable availability WorkItem"
+      }
+      checkNotNull(winner.doneObject)
+    }
+  }
+
+  /** Reads the live marker and the exact immutable identity of its deterministic WorkItem. */
+  private suspend fun readDoneObjectState(
+    dataProvider: String,
+    rawImpressionUpload: String,
+    rawImpressionUploadModelLine: String,
+    outputStorageParams: VidLabelerParams.StorageParams,
+    modelLine: String,
+    eventDate: LocalDate,
+  ): DoneObjectState {
     val storageConfig = getStorageConfig(outputStorageParams)
     val doneUri =
       LabeledImpressionsBlobKeys.forDoneUri(
@@ -1425,12 +1482,17 @@ class VidLabelerApp(
         eventDate,
       )
     val parsed = SelectedStorageClient.parseBlobUri(doneUri)
-    if (parsed.scheme != "gs") return null
+    if (parsed.scheme != "gs") return DoneObjectState(null, DoneWorkItemIdentity.MISSING)
     val bucket = checkNotNull(parsed.bucket)
     val generation =
-      getGcsObjectGeneration(storageConfig.projectId, bucket, parsed.key) ?: return null
+      getGcsObjectGeneration(storageConfig.projectId, bucket, parsed.key)
+        ?: return DoneObjectState(null, DoneWorkItemIdentity.MISSING)
     val createTime =
-      getGcsObjectCreateTime(storageConfig.projectId, bucket, parsed.key, generation) ?: return null
+      checkNotNull(
+        getGcsObjectCreateTime(storageConfig.projectId, bucket, parsed.key, generation)
+      ) {
+        "Observed done-marker generation is no longer available"
+      }
     val doneObject = DoneObject(doneUri, generation, createTime)
     val request =
       DataAvailabilitySyncWorkItems.createRequest(
@@ -1453,19 +1515,22 @@ class VidLabelerApp(
         }
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.NOT_FOUND) {
-          return if (allowMissingWorkItem) doneObject else null
+          return DoneObjectState(doneObject, DoneWorkItemIdentity.MISSING)
         }
         throw e
       }
-    if (!DataAvailabilitySyncWorkItems.hasSameIdentity(existing, request)) {
-      val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneUri)
-      logger.info(
-        "Replacing done marker path_hash=$pathHash generation=$generation because its WorkItem " +
-          "belongs to another availability handoff"
-      )
-      return null
-    }
-    return doneObject
+    val identity =
+      if (DataAvailabilitySyncWorkItems.hasSameIdentity(existing, request)) {
+        DoneWorkItemIdentity.MATCHING
+      } else {
+        val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneUri)
+        logger.info(
+          "Replacing done marker path_hash=$pathHash generation=$generation because its WorkItem " +
+            "belongs to another availability handoff"
+        )
+        DoneWorkItemIdentity.DIFFERENT
+      }
+    return DoneObjectState(doneObject, identity)
   }
 
   private suspend fun ensureDataAvailabilitySyncWorkItem(
