@@ -52,7 +52,6 @@ import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
@@ -62,12 +61,12 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.Dimension
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.ReportingWindowResult.NoisyReportResultValues.NoisyMetricSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
-import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
@@ -431,11 +430,7 @@ class BasicReportsReportsJob(
       populationCountByPopulationResultKey: Map<PopulationResultKey, Long>,
       reportingSetResultInfoByReportingSetResultInfoKey:
         Map<ReportingSetResultInfoKey, ReportingSetResultInfo>) =
-      buildReportResultInfo(
-        report,
-        basicReport.cmmsMeasurementConsumerId,
-        basicReport.externalCampaignGroupId,
-      )
+      buildReportResultInfo(report, basicReport.cmmsMeasurementConsumerId)
     val filterInfoByFilter: Map<String, FilterInfo> =
       buildFilterInfoByFilterString(basicReport, eventTemplateFieldsByPath)
 
@@ -562,19 +557,17 @@ class BasicReportsReportsJob(
    *
    * @param report [Report]
    * @param cmmsMeasurementConsumerId CmmsMeasurementConsumerId
-   * @param externalCampaignGroupId ExternalReportingSetId for CampaignGroup
    */
   private suspend fun buildReportResultInfo(
     report: Report,
     cmmsMeasurementConsumerId: String,
-    externalCampaignGroupId: String,
   ): ReportResultInfo {
     val reportStart = report.reportingInterval.reportStart
 
     val metricCalculationSpecInfoByName: Map<String, MetricCalculationSpecInfo> =
       buildMetricCalculationSpecInfoByNameMap(
+        report = report,
         cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-        externalCampaignGroupId = externalCampaignGroupId,
       )
 
     val populationCountByPopulationResultKey: MutableMap<PopulationResultKey, Long> = mutableMapOf()
@@ -710,57 +703,44 @@ class BasicReportsReportsJob(
     )
   }
 
-  /**
-   * Builds Map of [MetricCalculationSpec] name to [MetricCalculationSpecInfo]
-   *
-   * @param cmmsMeasurementConsumerId CmmsMeasurementConsumerId
-   * @param externalCampaignGroupId ExternalCampaignGroupId from [BasicReport]
-   * @return Map of [MetricCalculationSpec] name to [MetricCalculationSpecInfo]
-   */
+  /** Builds the calculation specification lookup for the results in [report]. */
   private suspend fun buildMetricCalculationSpecInfoByNameMap(
+    report: Report,
     cmmsMeasurementConsumerId: String,
-    externalCampaignGroupId: String,
   ): Map<String, MetricCalculationSpecInfo> {
-    return buildMap {
-      internalMetricCalculationSpecsStub
-        .listResources { cursor: String ->
-          val response =
-            internalMetricCalculationSpecsStub.listMetricCalculationSpecs(
-              listMetricCalculationSpecsRequest {
-                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                filter =
-                  ListMetricCalculationSpecsRequestKt.filter {
-                    this.externalCampaignGroupId = externalCampaignGroupId
-                  }
-                limit = 1000
-                if (cursor.isNotEmpty()) {
-                  externalMetricCalculationSpecIdAfter = cursor
-                }
-              }
-            )
-          val nextCursor =
-            if (response.limited) {
-              response.metricCalculationSpecsList.last().externalMetricCalculationSpecId
-            } else {
-              ""
-            }
-          ResourceList(response.metricCalculationSpecsList, nextCursor)
-        }
-        .collect { page ->
-          for (spec in page.resources) {
-            put(
-              MetricCalculationSpecKey(
-                  spec.cmmsMeasurementConsumerId,
-                  spec.externalMetricCalculationSpecId,
-                )
-                .toName(),
-              MetricCalculationSpecInfo(
-                spec.details.metricFrequencySpec,
-                spec.details.hasTrailingWindow(),
-              ),
-            )
+    val externalMetricCalculationSpecIds =
+      report.metricCalculationResultsList
+        .map {
+          val key = requireNotNull(MetricCalculationSpecKey.fromName(it.metricCalculationSpec))
+          require(key.cmmsMeasurementConsumerId == cmmsMeasurementConsumerId) {
+            "MetricCalculationSpec belongs to a different MeasurementConsumer"
           }
+          key.metricCalculationSpecId
         }
+        .toSet()
+    return buildMap {
+      for (batch in externalMetricCalculationSpecIds.chunked(METRIC_CALCULATION_SPEC_BATCH_SIZE)) {
+        val response =
+          internalMetricCalculationSpecsStub.batchGetMetricCalculationSpecs(
+            batchGetMetricCalculationSpecsRequest {
+              this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+              this.externalMetricCalculationSpecIds += batch
+            }
+          )
+        for (spec in response.metricCalculationSpecsList) {
+          put(
+            MetricCalculationSpecKey(
+                spec.cmmsMeasurementConsumerId,
+                spec.externalMetricCalculationSpecId,
+              )
+              .toName(),
+            MetricCalculationSpecInfo(
+              spec.details.metricFrequencySpec,
+              spec.details.hasTrailingWindow(),
+            ),
+          )
+        }
+      }
     }
   }
 
@@ -1035,5 +1015,6 @@ class BasicReportsReportsJob(
   companion object {
     private val logger: Logger = Logger.getLogger(BasicReportsReportsJob::class.java.name)
     private const val BATCH_SIZE = 10
+    private const val METRIC_CALCULATION_SPEC_BATCH_SIZE = 1000
   }
 }

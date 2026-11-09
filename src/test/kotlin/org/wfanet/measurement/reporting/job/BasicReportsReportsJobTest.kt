@@ -39,7 +39,6 @@ import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -69,6 +68,7 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
@@ -78,7 +78,6 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
-import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
@@ -92,6 +91,8 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
@@ -103,7 +104,6 @@ import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilte
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
-import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
@@ -142,15 +142,22 @@ class BasicReportsReportsJobTest {
   }
 
   private val metricCalculationSpecsMock: MetricCalculationSpecsCoroutineImplBase = mockService {
-    onBlocking { listMetricCalculationSpecs(any()) }
-      .thenReturn(
-        listMetricCalculationSpecsResponse {
-          metricCalculationSpecs += NON_CUMULATIVE_METRIC_CALCULATION_SPEC
-          metricCalculationSpecs += CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC
-          metricCalculationSpecs += TOTAL_METRIC_CALCULATION_SPEC
-          metricCalculationSpecs += POPULATION_METRIC_CALCULATION_SPEC
+    onBlocking { batchGetMetricCalculationSpecs(any()) }
+      .thenAnswer { invocation ->
+        val request: BatchGetMetricCalculationSpecsRequest = invocation.getArgument(0)
+        val requestedIds = request.externalMetricCalculationSpecIdsList.toSet()
+        batchGetMetricCalculationSpecsResponse {
+          metricCalculationSpecs +=
+            listOf(
+                NON_CUMULATIVE_METRIC_CALCULATION_SPEC,
+                CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC,
+                TOTAL_METRIC_CALCULATION_SPEC,
+                POPULATION_METRIC_CALCULATION_SPEC,
+              )
+              .filter { it.externalMetricCalculationSpecId in requestedIds }
+              .reversed()
         }
-      )
+      }
   }
 
   private val reportResultsMock: ReportResultsCoroutineImplBase = mockService {
@@ -295,25 +302,8 @@ class BasicReportsReportsJobTest {
   }
 
   @Test
-  fun `execute transforms and persists results across calculation specification pages`(): Unit =
+  fun `execute transforms and persists results when report for basic report is SUCCEEDED`(): Unit =
     runBlocking {
-      val specs =
-        listOf(
-            NON_CUMULATIVE_METRIC_CALCULATION_SPEC,
-            CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC,
-            TOTAL_METRIC_CALCULATION_SPEC,
-            POPULATION_METRIC_CALCULATION_SPEC,
-          )
-          .sortedBy { it.externalMetricCalculationSpecId }
-      whenever(metricCalculationSpecsMock.listMetricCalculationSpecs(any()))
-        .thenReturn(
-          listMetricCalculationSpecsResponse {
-            metricCalculationSpecs += specs.first()
-            limited = true
-          }
-        )
-        .thenReturn(listMetricCalculationSpecsResponse { metricCalculationSpecs += specs.drop(1) })
-
       val report =
         REPORT.copy {
           state = Report.State.SUCCEEDED
@@ -672,7 +662,7 @@ class BasicReportsReportsJobTest {
 
       stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
 
-      withTimeout(5_000) { job.execute() }
+      job.execute()
 
       assertReportCreatedPageRequested()
 
@@ -925,24 +915,96 @@ class BasicReportsReportsJobTest {
           }
         )
 
-      val specCaptor = argumentCaptor<ListMetricCalculationSpecsRequest>()
-      verifyBlocking(metricCalculationSpecsMock, times(2)) {
-        listMetricCalculationSpecs(specCaptor.capture())
-      }
-      val specRequests = specCaptor.allValues
-      assertThat(specRequests[0].externalMetricCalculationSpecIdAfter).isEmpty()
-      assertThat(specRequests[1].externalMetricCalculationSpecIdAfter)
-        .isEqualTo(specs.first().externalMetricCalculationSpecId)
-      assertThat(specRequests.map { it.cmmsMeasurementConsumerId }.toSet())
-        .containsExactly(CMMS_MEASUREMENT_CONSUMER_ID)
-      assertThat(specRequests.map { it.filter.externalCampaignGroupId }.toSet())
-        .containsExactly(INTERNAL_BASIC_REPORT.externalCampaignGroupId)
-      assertThat(specRequests.all { it.limit in 1..1000 }).isTrue()
-
       val traceLog = reportAssemblyLog()
       assertThat(traceLog).contains("event=reporting.basic_report.assemble_results")
       assertThat(traceLog).contains("xmm.report.state=SUCCEEDED")
       assertThat(traceLog).contains("xmm.outcome=succeeded")
+    }
+
+  @Test
+  fun `execute assembles results from bounded calculation specification batches`(): Unit =
+    runBlocking {
+      val specIds = (0..1000).map { "referenced-spec-$it" }
+      val report =
+        REPORT.copy {
+          metricCalculationResults +=
+            specIds.map { specId ->
+              ReportKt.metricCalculationResult {
+                metricCalculationSpec =
+                  MetricCalculationSpecKey(CMMS_MEASUREMENT_CONSUMER_ID, specId).toName()
+                reportingSet = COMPOSITE_REPORTING_SET_NAME
+                resultAttributes +=
+                  ReportKt.MetricCalculationResultKt.resultAttribute {
+                    filter = "banner_ad != null && banner_ad.viewable == true"
+                    metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
+                    timeInterval = interval {
+                      startTime = timestamp { seconds = 1736150400 }
+                      endTime = timestamp { seconds = 1736755200 }
+                    }
+                    metricResult = metricResult {
+                      reach = MetricResultKt.reachResult { value = 1L }
+                    }
+                  }
+              }
+            }
+          metricCalculationResults += metricCalculationResults.first()
+        }
+      whenever(reportsMock.getReport(any())).thenReturn(report)
+      whenever(metricCalculationSpecsMock.batchGetMetricCalculationSpecs(any())).thenAnswer {
+        invocation ->
+        val request: BatchGetMetricCalculationSpecsRequest = invocation.getArgument(0)
+        batchGetMetricCalculationSpecsResponse {
+          metricCalculationSpecs +=
+            request.externalMetricCalculationSpecIdsList.reversed().map { specId ->
+              CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC.copy {
+                externalMetricCalculationSpecId = specId
+              }
+            }
+        }
+      }
+
+      job.execute()
+
+      val specCaptor = argumentCaptor<BatchGetMetricCalculationSpecsRequest>()
+      verifyBlocking(metricCalculationSpecsMock, times(2)) {
+        batchGetMetricCalculationSpecs(specCaptor.capture())
+      }
+      assertThat(specCaptor.allValues.map { it.externalMetricCalculationSpecIdsCount })
+        .containsExactly(1000, 1)
+        .inOrder()
+      assertThat(specCaptor.allValues.flatMap { it.externalMetricCalculationSpecIdsList })
+        .containsExactlyElementsIn(specIds)
+        .inOrder()
+      assertThat(specCaptor.allValues.map { it.cmmsMeasurementConsumerId }.toSet())
+        .containsExactly(CMMS_MEASUREMENT_CONSUMER_ID)
+      verify(metricCalculationSpecsMock, times(0)).listMetricCalculationSpecs(any())
+      verify(basicReportsMock, times(0)).failBasicReport(any())
+      val resultCaptor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
+      verifyBlocking(reportResultsMock, times(1)) {
+        batchCreateReportingSetResults(resultCaptor.capture())
+      }
+      assertThat(
+          resultCaptor.firstValue.requestsList
+            .single()
+            .reportingSetResult
+            .dimension
+            .metricFrequencySpec
+        )
+        .isEqualTo(metricFrequencySpec { weekly = DayOfWeek.MONDAY })
+    }
+
+  @Test
+  fun `execute skips calculation specification lookup when report has no results`(): Unit =
+    runBlocking {
+      val basicReport = INTERNAL_BASIC_REPORT.copy { externalBasicReportId = "empty-results" }
+      stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+
+      job.execute()
+
+      verify(metricCalculationSpecsMock, times(0)).batchGetMetricCalculationSpecs(any())
+      verify(metricCalculationSpecsMock, times(0)).listMetricCalculationSpecs(any())
+      verify(reportResultsMock, times(1)).createReportResult(any())
+      assertReportAssemblySpan(basicReport, "succeeded", null, null)
     }
 
   @Test
@@ -1503,11 +1565,25 @@ class BasicReportsReportsJobTest {
                   metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
                 }
             }
+          metricCalculationResults += metricCalculationResults.single()
         }
 
       whenever(reportsMock.getReport(any())).thenReturn(report)
 
       job.execute()
+
+      verifyProtoArgument(
+          metricCalculationSpecsMock,
+          MetricCalculationSpecsCoroutineImplBase::batchGetMetricCalculationSpecs,
+        )
+        .isEqualTo(
+          batchGetMetricCalculationSpecsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricCalculationSpecIds +=
+              CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId
+          }
+        )
+      verify(metricCalculationSpecsMock, times(0)).listMetricCalculationSpecs(any())
 
       val requestCaptor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
       verifyBlocking(reportResultsMock, times(1)) {
