@@ -38,7 +38,13 @@ object RequestIds {
     doneBlobPath: String,
     generation: Long,
     operationId: String,
-  ): String = fromKey("rawImpressionUploadRecovery:$doneBlobPath:$generation:$operationId")
+    sourceUpload: String? = null,
+  ): String =
+    if (sourceUpload == null) {
+      fromKey("rawImpressionUploadRecovery:$doneBlobPath:$generation:$operationId")
+    } else {
+      fromKey("rawImpressionUploadRecovery:$doneBlobPath:$generation:$operationId:$sourceUpload")
+    }
 
   /** Resource ID for a correction candidate detected from one done-object generation. */
   fun forRawImpressionUploadCorrectionCandidate(doneBlobPath: String, generation: Long): String =

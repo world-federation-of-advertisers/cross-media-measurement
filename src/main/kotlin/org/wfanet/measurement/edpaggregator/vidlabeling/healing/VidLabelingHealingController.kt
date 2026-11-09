@@ -318,21 +318,12 @@ class VidLabelingHealingController(
     val plan =
       try {
         val candidates = summaries.map { getCandidate(it.name) }
-        val ownerNames =
-          candidates
-            .flatMap { candidate ->
-              candidate.manifestDifferencesList.mapNotNull { difference ->
-                difference.priorOutputSourceRawImpressionUpload.takeIf { it.isNotEmpty() }
-              }
-            }
-            .distinct()
+        val ownersByCandidate = candidates.associate { it.name to currentOwnerNames(it) }
+        val ownerNames = ownersByCandidate.values.flatten().distinct()
         val owners = ownerNames.associateWith { getUpload(it) }
         val plannerCandidates =
           candidates.map { candidate ->
-            val historicalOwnerNames =
-              candidate.manifestDifferencesList
-                .mapNotNull { it.priorOutputSourceRawImpressionUpload.takeIf(String::isNotEmpty) }
-                .distinct()
+            val historicalOwnerNames = ownersByCandidate.getValue(candidate.name)
             val historicalOwners =
               historicalOwnerNames.map { ownerName ->
                 RawImpressionUploadCorrectionPlanner.HistoricalOwner(
@@ -399,6 +390,57 @@ class VidLabelingHealingController(
         reconciled.name,
       )
     )
+  }
+
+  private suspend fun currentOwnerNames(
+    candidate: RawImpressionUploadCorrectionCandidate
+  ): List<String> {
+    val detectedOwners =
+      candidate.manifestDifferencesList
+        .mapNotNull { it.priorOutputSourceRawImpressionUpload.takeIf { name -> name.isNotEmpty() } }
+        .distinct()
+    val upload = getUpload(candidate.rawImpressionUpload)
+    val parent = requireNotNull(RawImpressionUploadKey.fromName(upload.name)).parentKey.toName()
+    val revisions = listUploads(parent, upload.doneBlobUri)
+    val completedOperations = mutableMapOf<String, UploadHealingOperation>()
+    var replacementCompleted = false
+    for (revision in revisions.filter { it.uploadHealingOperation.isNotEmpty() }) {
+      val operation =
+        completedOperations.getOrPut(revision.uploadHealingOperation) {
+          getOperation(revision.uploadHealingOperation)
+        }
+      if (
+        operation.state == UploadHealingOperation.State.COMPLETE &&
+          operation.stepsList.any {
+            it.state == UploadHealingStep.State.COMPLETE &&
+              it.replacementRawImpressionUpload == revision.name
+          }
+      )
+        replacementCompleted = true
+    }
+    if (!replacementCompleted) return detectedOwners
+
+    val ownersByOutput = mutableMapOf<Pair<String, String>, RawImpressionUpload>()
+    for (revision in revisions.filter { it.name != upload.name && it.registrationComplete }) {
+      val completedModelLines =
+        listModelLines(revision.name).filter {
+          it.state == RawImpressionUploadModelLine.State.COMPLETED
+        }
+      if (completedModelLines.isEmpty()) continue
+      for (file in listPersistedFiles(revision.name)) {
+        for (modelLine in completedModelLines) {
+          val key = file.blobUri to modelLine.cmmsModelLine
+          val existing = ownersByOutput[key]
+          if (
+            existing == null ||
+              Timestamps.compare(revision.createTime, existing.createTime) > 0 ||
+              revision.createTime == existing.createTime && revision.name > existing.name
+          )
+            ownersByOutput[key] = revision
+        }
+      }
+    }
+    return ownersByOutput.values.map { it.name }.distinct().sorted().ifEmpty { detectedOwners }
   }
 
   private suspend fun advanceActiveOperation(
@@ -585,12 +627,8 @@ class VidLabelingHealingController(
         )
         operation = getOperation(operation.name)
       }
-      val source = group.first().sourceRawImpressionUpload
-      val action = group.first().recoveryAction
-      group =
-        operation.stepsList.filter {
-          it.sourceRawImpressionUpload == source && it.recoveryAction == action && it.recoveryTarget
-        }
+      val stepNames = group.mapTo(mutableSetOf()) { it.name }
+      group = operation.stepsList.filter { it.name in stepNames }
       operation = confirmReplacement(operation, group, replacement.name)
       if (operation.state != UploadHealingOperation.State.COMPLETE) {
         advanceToNextRecoveryPhase(operation)
@@ -845,7 +883,17 @@ class VidLabelingHealingController(
   private fun nextRecoveryGroup(operation: UploadHealingOperation): List<UploadHealingStep>? =
     operation.stepsList
       .filter { it.recoveryTarget }
-      .groupBy { it.sourceRawImpressionUpload to it.recoveryAction }
+      .groupBy {
+        val scope =
+          if (
+            it.recoveryAction ==
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION &&
+              it.rawImpressionUploadCorrectionCandidate.isNotEmpty()
+          )
+            it.rawImpressionUploadCorrectionCandidate
+          else it.sourceRawImpressionUpload
+        scope to it.recoveryAction
+      }
       .values
       .filterNot { steps -> steps.all { it.state == UploadHealingStep.State.COMPLETE } }
       .minByOrNull { steps -> steps.minOf { it.sequenceNumber } }
@@ -1123,7 +1171,8 @@ class VidLabelingHealingController(
         (approvedUpload == null || it.name == approvedUpload) &&
           (recordedGeneration == null || it.doneBlobGeneration == recordedGeneration) &&
           (approvedUpload != null || recordedGeneration != null) &&
-          it.uploadHealingOperation == operation.name
+          it.uploadHealingOperation == operation.name &&
+          (approvedUpload != null || it.replacesRawImpressionUpload == sourceName)
       }
     val latest = exactReplacement ?: findLatestUpload(revisions) ?: return null
     val inPlaceRecovery =

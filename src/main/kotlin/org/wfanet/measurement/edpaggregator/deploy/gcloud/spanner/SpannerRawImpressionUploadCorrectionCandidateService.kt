@@ -52,6 +52,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readExpiredRawImpressionUploadCorrectionCandidates
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readProcessingDeferredRawImpressionUploadIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadCorrectionCandidates
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.reparentQuarantinedRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.transferVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
@@ -172,14 +173,20 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
           }
         if (
           candidateSteps.isEmpty() ||
+            candidateSteps.none {
+              it.sourceRawImpressionUploadResourceId == request.sourceRawImpressionUploadResourceId
+            } ||
             candidateSteps.any {
-              it.sourceRawImpressionUploadResourceId !=
-                request.sourceRawImpressionUploadResourceId ||
-                it.recoveryAction !=
-                  RawImpressionUploadModelLineRecoveryAction
-                    .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION ||
-                it.state !=
-                  UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT
+              it.recoveryAction !=
+                RawImpressionUploadModelLineRecoveryAction
+                  .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION ||
+                it.state !in
+                  setOf(
+                    UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT,
+                    UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED,
+                  ) ||
+                it.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED &&
+                  it.recoveryDoneBlobGeneration != upload.doneBlobGeneration
             }
         ) {
           throw Status.FAILED_PRECONDITION.withDescription(
@@ -200,18 +207,73 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
             )
             .asRuntimeException()
         }
+        val sources =
+          candidateSteps
+            .map { it.sourceRawImpressionUploadResourceId }
+            .distinct()
+            .map {
+              txn
+                .getRawImpressionUploadByResourceId(request.dataProviderResourceId, it)
+                .rawImpressionUpload
+            }
+        if (sources.any { it.doneBlobUri != upload.doneBlobUri }) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "Planned correction sources do not share the candidate directory"
+            )
+            .asRuntimeException()
+        }
+        val currentSource =
+          sources.maxWithOrNull { left, right ->
+            Timestamps.compare(left.createTime, right.createTime)
+          } ?: error("Candidate has no planned source")
+        if (
+          sources.any {
+            it.rawImpressionUploadResourceId != currentSource.rawImpressionUploadResourceId &&
+              !replacesUpload(
+                txn,
+                request.dataProviderResourceId,
+                currentSource,
+                it.rawImpressionUploadResourceId,
+              )
+          }
+        ) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "Planned correction sources do not form one upload lineage"
+            )
+            .asRuntimeException()
+        }
         if (
           !replacesUpload(
             txn,
             request.dataProviderResourceId,
             upload,
             request.sourceRawImpressionUploadResourceId,
-          )
+          ) &&
+            !sharesCompletedRecoveryLineage(
+              txn,
+              request.dataProviderResourceId,
+              upload,
+              currentSource,
+            )
         ) {
           throw Status.FAILED_PRECONDITION.withDescription(
               "Quarantined upload does not replace the requested source upload"
             )
             .asRuntimeException()
+        }
+        if (
+          !replacesUpload(
+            txn,
+            request.dataProviderResourceId,
+            upload,
+            currentSource.rawImpressionUploadResourceId,
+          )
+        ) {
+          txn.reparentQuarantinedRawImpressionUpload(
+            request.dataProviderResourceId,
+            uploadResult.rawImpressionUploadId,
+            currentSource.rawImpressionUploadResourceId,
+          )
         }
         if (upload.evictionOperationId.isEmpty()) {
           if (
@@ -247,6 +309,42 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
     }
   }
 
+  private suspend fun sharesCompletedRecoveryLineage(
+    txn: AsyncDatabaseClient.TransactionContext,
+    dataProviderResourceId: String,
+    candidateUpload: RawImpressionUpload,
+    source: RawImpressionUpload,
+  ): Boolean {
+    if (source.evictionOperationId.isEmpty()) return false
+    val previousOperation =
+      txn
+        .findUploadHealingOperation(dataProviderResourceId, source.evictionOperationId)
+        ?.uploadHealingOperation ?: return false
+    if (
+      previousOperation.state !=
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE ||
+        previousOperation.stepsList.none {
+          it.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE &&
+            it.replacementRawImpressionUploadResourceId == source.rawImpressionUploadResourceId
+        } ||
+        !candidateUpload.hasDoneBlobCreateTime() ||
+        !source.hasDoneBlobCreateTime() ||
+        Timestamps.compare(candidateUpload.doneBlobCreateTime, source.doneBlobCreateTime) <= 0
+    )
+      return false
+    val visited = mutableSetOf<String>()
+    var ancestorId = source.replacesRawImpressionUploadResourceId
+    while (ancestorId.isNotEmpty() && visited.add(ancestorId)) {
+      if (replacesUpload(txn, dataProviderResourceId, candidateUpload, ancestorId)) return true
+      ancestorId =
+        txn
+          .getRawImpressionUploadByResourceId(dataProviderResourceId, ancestorId)
+          .rawImpressionUpload
+          .replacesRawImpressionUploadResourceId
+    }
+    return false
+  }
+
   private suspend fun replacesUpload(
     txn: AsyncDatabaseClient.TransactionContext,
     dataProviderResourceId: String,
@@ -264,6 +362,40 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
           .replacesRawImpressionUploadResourceId
     }
     return false
+  }
+
+  private suspend fun ownsCommittedPlan(
+    txn: AsyncDatabaseClient.TransactionContext,
+    candidate: RawImpressionUploadCorrectionCandidate,
+  ): Boolean {
+    if (
+      candidate.uploadHealingOperationId.isEmpty() ||
+        candidate.decision == RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED
+    )
+      return false
+    val operation =
+      txn
+        .findUploadHealingOperation(
+          candidate.dataProviderResourceId,
+          candidate.uploadHealingOperationId,
+        )
+        ?.uploadHealingOperation ?: return false
+    if (
+      candidate.rawImpressionUploadCorrectionCandidateId !in
+        operation.rawImpressionUploadCorrectionCandidateIdsList
+    )
+      return false
+    val committedStates =
+      setOf(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING,
+      )
+    return operation.state in committedStates ||
+      operation.state ==
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION &&
+        operation.resumeState in committedStates
   }
 
   override suspend fun registerDetectedRawImpressionUploadCorrectionCandidate(
@@ -315,6 +447,32 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
                   request.rawImpressionUploadCorrectionCandidateId
             ) {
               return@run false
+            }
+            if (superseded != null && ownsCommittedPlan(txn, superseded)) {
+              val priorUpload =
+                txn
+                  .getRawImpressionUploadByResourceId(
+                    request.dataProviderResourceId,
+                    superseded.rawImpressionUploadResourceId,
+                  )
+                  .rawImpressionUpload
+              val existingUpload =
+                txn
+                  .getRawImpressionUploadByResourceId(
+                    request.dataProviderResourceId,
+                    existing.rawImpressionUploadCorrectionCandidate.rawImpressionUploadResourceId,
+                  )
+                  .rawImpressionUpload
+              if (
+                priorUpload.doneBlobUri == existingUpload.doneBlobUri &&
+                  priorUpload.hasDoneBlobCreateTime() &&
+                  existingUpload.hasDoneBlobCreateTime() &&
+                  Timestamps.compare(
+                    existingUpload.doneBlobCreateTime,
+                    priorUpload.doneBlobCreateTime,
+                  ) > 0
+              )
+                return@run false
             }
           }
           throw alreadyExists(request.rawImpressionUploadCorrectionCandidateId)
@@ -398,7 +556,7 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
               )
               .asRuntimeException()
           }
-          if (!alreadyResolved) {
+          if (!alreadyResolved && !ownsCommittedPlan(txn, superseded)) {
             txn.updateRawImpressionUploadCorrectionCandidate(
               superseded.copy {
                 state = RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED
