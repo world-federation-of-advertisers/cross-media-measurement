@@ -203,6 +203,17 @@ class RecoverMissingImpressionMetadata : Runnable {
     }
     require(config.edpImpressionPath.isNotEmpty()) { "edp_impression_path must be set" }
     require(config.dataProvider.isNotEmpty()) { "data_provider must be set" }
+    val configuredPaths =
+      listOf(config.edpImpressionPath, config.vidLabeledImpressionPath)
+        .filter(String::isNotEmpty)
+        .distinct()
+    require(
+      configuredPaths.none { path ->
+        configuredPaths.any { other -> other != path && other.startsWith("$path/") }
+      }
+    ) {
+      "Configured impression paths must not overlap"
+    }
     require(!publishEventGroupActivities || config.hasEventGroupActivityPublishing()) {
       "event_group_activity_publishing must be set when publishing EventGroup activity"
     }
@@ -313,48 +324,51 @@ class RecoverMissingImpressionMetadata : Runnable {
           )
         )
       )
-    val result =
+    val results =
       try {
         runBlocking {
           dataAvailabilitySyncLeaseRunner.run(config.dataProvider) { lease ->
-            MissingImpressionMetadataRecovery(
-                storageClient = storageClient,
-                storageRootUri =
-                  BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = ""),
-                edpImpressionPath = config.edpImpressionPath,
-                impressionMetadataStub = impressionMetadataStub,
-                dataProviderName = config.dataProvider,
-                throttler = throttler,
-                impressionMetadataBatchSize = impressionMetadataBatchSize,
-                dateSelection = recoveryDateSelection,
-                dataAvailabilitySyncLease = lease.name,
-                ensureLeaseActive = lease::invoke,
-                sync = { doneBlobUri, metadataBlobKeys ->
-                  val filteringStorageClient =
-                    FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys)
-                  DataAvailabilitySync(
-                      edpImpressionPath = config.edpImpressionPath,
-                      storageClient = filteringStorageClient,
-                      dataProvidersStub = dataProvidersStub,
-                      impressionMetadataServiceStub = impressionMetadataStub,
-                      dataProviderName = config.dataProvider,
-                      throttler = throttler,
-                      impressionMetadataBatchSize = impressionMetadataBatchSize,
-                      modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
-                      errorIfGapsExist = config.errorIfGapsExist,
-                      publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
-                    )
-                    .sync(
-                      doneBlobUri,
-                      lease.name,
-                      DoneBlobGenerationResolver.resolve(storage, doneBlobUri),
-                      ensureLeaseActive = lease::invoke,
-                    )
-                  filteringStorageClient.processedMetadataBlobKeys
-                },
-                metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),
-              )
-              .recover()
+            configuredPaths.map { impressionPath ->
+              MissingImpressionMetadataRecovery(
+                  storageClient = storageClient,
+                  storageRootUri =
+                    BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = ""),
+                  edpImpressionPath = impressionPath,
+                  impressionMetadataStub = impressionMetadataStub,
+                  dataProviderName = config.dataProvider,
+                  throttler = throttler,
+                  impressionMetadataBatchSize = impressionMetadataBatchSize,
+                  dateSelection = recoveryDateSelection,
+                  dataAvailabilitySyncLease = lease.name,
+                  ensureLeaseActive = lease::invoke,
+                  sync = { doneBlobUri, metadataBlobKeys ->
+                    val filteringStorageClient =
+                      FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys)
+                    DataAvailabilitySync(
+                        edpImpressionPath = impressionPath,
+                        storageClient = filteringStorageClient,
+                        dataProvidersStub = dataProvidersStub,
+                        impressionMetadataServiceStub = impressionMetadataStub,
+                        dataProviderName = config.dataProvider,
+                        throttler = throttler,
+                        impressionMetadataBatchSize = impressionMetadataBatchSize,
+                        modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
+                        errorIfGapsExist = config.errorIfGapsExist,
+                        publishEventGroupActivities =
+                          eventGroupActivityPublisher?.let { it::publish },
+                      )
+                      .sync(
+                        doneBlobUri,
+                        lease.name,
+                        DoneBlobGenerationResolver.resolve(storage, doneBlobUri),
+                        ensureLeaseActive = lease::invoke,
+                      )
+                    filteringStorageClient.processedMetadataBlobKeys
+                  },
+                  metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),
+                )
+                .recover()
+            }
           }
         }
       } finally {
@@ -364,21 +378,21 @@ class RecoverMissingImpressionMetadata : Runnable {
 
     logger.info(
       "Recovery result: " +
-        "finalizedMetadataBlobs=${result.finalizedMetadataBlobs}, " +
-        "missingBlobs=${result.missingBlobs}, " +
-        "deletedRecordsWithBlobs=${result.deletedRecordsWithBlobs}, " +
-        "undeletedRecords=${result.undeletedRecords}, " +
-        "failedUndeletes=${result.failedUndeletes}, " +
-        "recoveredBlobs=${result.recoveredBlobs}, " +
-        "failedBlobs=${result.failedBlobs}, " +
-        "dateFoldersResynced=${result.dateFoldersResynced}, " +
-        "incompleteFullSyncFolders=${result.incompleteFullSyncFolders}"
+        "finalizedMetadataBlobs=${results.sumOf { it.finalizedMetadataBlobs }}, " +
+        "missingBlobs=${results.sumOf { it.missingBlobs }}, " +
+        "deletedRecordsWithBlobs=${results.sumOf { it.deletedRecordsWithBlobs }}, " +
+        "undeletedRecords=${results.sumOf { it.undeletedRecords }}, " +
+        "failedUndeletes=${results.sumOf { it.failedUndeletes }}, " +
+        "recoveredBlobs=${results.sumOf { it.recoveredBlobs }}, " +
+        "failedBlobs=${results.sumOf { it.failedBlobs }}, " +
+        "dateFoldersResynced=${results.sumOf { it.dateFoldersResynced }}, " +
+        "incompleteFullSyncFolders=${results.sumOf { it.incompleteFullSyncFolders }}"
     )
-    for (error in result.errors) {
+    for (error in results.flatMap { it.errors }) {
       logger.warning("Recovery error [${error.target}]: ${error.message}")
     }
 
-    if (result.errors.isNotEmpty()) {
+    if (results.any { it.errors.isNotEmpty() }) {
       exitProcess(1)
     }
   }

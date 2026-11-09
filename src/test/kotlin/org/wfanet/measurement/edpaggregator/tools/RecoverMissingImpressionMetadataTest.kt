@@ -58,6 +58,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata.State.ACT
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RenewDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ValidateDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
@@ -79,6 +80,15 @@ class RecoverMissingImpressionMetadataTest {
           name = request.name
           state = DataAvailabilitySyncLease.State.ACTIVE
           etag = "etag"
+        }
+      }
+    onBlocking { renewDataAvailabilitySyncLease(any<RenewDataAvailabilitySyncLeaseRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<RenewDataAvailabilitySyncLeaseRequest>(0)
+        dataAvailabilitySyncLease {
+          name = request.name
+          state = DataAvailabilitySyncLease.State.ACTIVE
+          etag = "renewed-etag"
         }
       }
     onBlocking {
@@ -407,18 +417,30 @@ class RecoverMissingImpressionMetadataTest {
   }
 
   @Test
-  fun `recovery registers metadata with the exact done generation`() {
+  fun `recovery registers both configured paths with exact done generations`() {
     val recoveredMetadata = mutableListOf<ImpressionMetadata>()
     val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
-        .thenAnswer { listImpressionMetadataResponse { impressionMetadata += recoveredMetadata } }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+          listImpressionMetadataResponse {
+            impressionMetadata +=
+              recoveredMetadata.filter {
+                (request.filter.blobUriPrefix.isEmpty() ||
+                  it.blobUri.startsWith(request.filter.blobUriPrefix)) &&
+                  (request.filter.blobUrisList.isEmpty() ||
+                    it.blobUri in request.filter.blobUrisList)
+              }
+          }
+        }
       onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
           val created =
             request.requestsList.mapIndexed { index, createRequest ->
               createRequest.impressionMetadata.copy {
-                name = "${request.parent}/impressionMetadata/recovered-$index"
+                name =
+                  "${request.parent}/impressionMetadata/recovered-${recoveredMetadata.size + index}"
                 state = ACTIVE
               }
             }
@@ -454,31 +476,39 @@ class RecoverMissingImpressionMetadataTest {
         .start()
     storageEmulator.createBucket(BUCKET_NAME)
     try {
-      val impressionsKey = "$DATE_FOLDER_PREFIX/impressions"
-      val metadataKey = "$impressionsKey.metadata.binpb"
-      storageEmulator.storage.create(
-        BlobInfo.newBuilder(BUCKET_NAME, impressionsKey).build(),
-        byteArrayOf(),
-      )
-      storageEmulator.storage.create(
-        BlobInfo.newBuilder(BUCKET_NAME, metadataKey).build(),
-        blobDetails {
-            blobUri = "gs://$BUCKET_NAME/$impressionsKey"
-            eventGroupReferenceId = "event-group"
-            modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
-            interval = interval {
-              startTime = timestamp { seconds = 1 }
-              endTime = timestamp { seconds = 2 }
-            }
-          }
-          .toByteArray(),
-      )
-      val doneBlob =
-        storageEmulator.storage.create(
-          BlobInfo.newBuilder(BUCKET_NAME, "$DATE_FOLDER_PREFIX/done").build(),
-          byteArrayOf(),
+      val doneGenerations =
+        listOf(EDP_IMPRESSION_PATH, INTERNAL_IMPRESSION_PATH).associate { path ->
+          val folder = "$path/model-line/model-line-1/2000-01-01"
+          val impressionsKey = "$folder/impressions"
+          val metadataKey = "$impressionsKey.metadata.binpb"
+          storageEmulator.storage.create(
+            BlobInfo.newBuilder(BUCKET_NAME, impressionsKey).build(),
+            byteArrayOf(),
+          )
+          storageEmulator.storage.create(
+            BlobInfo.newBuilder(BUCKET_NAME, metadataKey).build(),
+            blobDetails {
+                blobUri = "gs://$BUCKET_NAME/$impressionsKey"
+                eventGroupReferenceId = "event-group"
+                modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+                interval = interval {
+                  startTime = timestamp { seconds = 1 }
+                  endTime = timestamp { seconds = 2 }
+                }
+              }
+              .toByteArray(),
+          )
+          val doneBlob =
+            storageEmulator.storage.create(
+              BlobInfo.newBuilder(BUCKET_NAME, "$folder/done").build(),
+              byteArrayOf(),
+            )
+          "gs://$BUCKET_NAME/$metadataKey" to doneBlob.generation
+        }
+      val configFile =
+        writeConfigFile(
+          validConfig() + "\nvid_labeled_impression_path: \"$INTERNAL_IMPRESSION_PATH\"\n"
         )
-      val configFile = writeConfigFile(validConfig())
 
       val capturedOutput =
         CommandLineTesting.capturingOutput(
@@ -493,13 +523,87 @@ class RecoverMissingImpressionMetadataTest {
 
       CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
       val request = argumentCaptor<BatchCreateImpressionMetadataRequest>()
-      verifyBlocking(impressionMetadataServiceMock) {
+      verifyBlocking(impressionMetadataServiceMock, times(2)) {
         batchCreateImpressionMetadata(request.capture())
       }
-      assertThat(
-          request.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+      val createdMetadata =
+        request.allValues.flatMap { it.requestsList }.map { it.impressionMetadata }
+      assertThat(createdMetadata.map { it.blobUri }).containsExactlyElementsIn(doneGenerations.keys)
+      for (metadata in createdMetadata) {
+        assertThat(metadata.outputDoneBlobGeneration)
+          .isEqualTo(doneGenerations.getValue(metadata.blobUri))
+      }
+      val acquired = argumentCaptor<AcquireDataAvailabilitySyncLeaseRequest>()
+      verifyBlocking(leaseServiceMock, times(1)) {
+        acquireDataAvailabilitySyncLease(acquired.capture())
+      }
+      val released = argumentCaptor<ReleaseDataAvailabilitySyncLeaseRequest>()
+      verifyBlocking(leaseServiceMock, times(1)) {
+        releaseDataAvailabilitySyncLease(released.capture())
+      }
+      assertThat(released.firstValue.name).isEqualTo(acquired.firstValue.name)
+      assertThat(request.allValues.map { it.dataAvailabilitySyncLease }.distinct())
+        .containsExactly(acquired.firstValue.name)
+    } finally {
+      server.shutdown()
+      server.awaitTermination(1, SECONDS)
+      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
+  }
+
+  @Test
+  fun `main reports internal recovery failure after scanning both paths`() {
+    val metadataService: ImpressionMetadataServiceCoroutineImplBase = mockService {
+      onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
+        .thenReturn(listImpressionMetadataResponse {})
+    }
+    val server =
+      NettyServerBuilder.forPort(0)
+        .sslContext(serverCerts.toServerTlsContext())
+        .addService(metadataService)
+        .addService(leaseServiceMock)
+        .build()
+        .start()
+    storageEmulator.createBucket(BUCKET_NAME)
+    try {
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, "$DATE_FOLDER_PREFIX/placeholder").build(),
+        byteArrayOf(),
+      )
+      val internalFolder = "$INTERNAL_IMPRESSION_PATH/model-line/model-line-1/2000-01-01"
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, "$internalFolder/metadata-invalid.json").build(),
+        "{".toByteArray(),
+      )
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, "$internalFolder/done").build(),
+        byteArrayOf(),
+      )
+      val configFile =
+        writeConfigFile(
+          validConfig() + "\nvid_labeled_impression_path: \"$INTERNAL_IMPRESSION_PATH\"\n"
         )
-        .isEqualTo(doneBlob.generation)
+      val output =
+        CommandLineTesting.capturingOutput(
+          connectionArgs(configFile, "localhost:${server.port}") +
+            arrayOf(
+              "--data-date=2000-01-01",
+              "--throttler-minimum-interval=0s",
+              "--storage-api-endpoint=${storageEmulator.storage.options.host}",
+            ),
+          ::main,
+        )
+      CommandLineTesting.assertThat(output).status().isNotEqualTo(0)
+      val requests = argumentCaptor<ListImpressionMetadataRequest>()
+      verifyBlocking(metadataService, times(2)) { listImpressionMetadata(requests.capture()) }
+      for (path in listOf(EDP_IMPRESSION_PATH, INTERNAL_IMPRESSION_PATH)) {
+        assertThat(
+            requests.allValues.any {
+              it.filter.blobUriPrefix.startsWith("gs://$BUCKET_NAME/$path/")
+            }
+          )
+          .isTrue()
+      }
     } finally {
       server.shutdown()
       server.awaitTermination(1, SECONDS)
@@ -570,6 +674,7 @@ class RecoverMissingImpressionMetadataTest {
     private const val MODULE_REPO_NAME = "wfa_measurement_system"
     private const val BUCKET_NAME = "recovery-test"
     private const val EDP_IMPRESSION_PATH = "edp/test/vid-labeled-impressions"
+    private const val INTERNAL_IMPRESSION_PATH = "vid-labeled-impressions/edp/test"
     private const val DATE_FOLDER_PREFIX = "$EDP_IMPRESSION_PATH/model-line/model-line-1/2000-01-01"
     private val SECRETS_DIR: Path =
       getRuntimePath(Paths.get(MODULE_REPO_NAME, "src", "main", "k8s", "testing", "secretfiles"))!!

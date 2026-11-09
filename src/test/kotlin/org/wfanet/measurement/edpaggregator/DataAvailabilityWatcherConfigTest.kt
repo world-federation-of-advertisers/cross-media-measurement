@@ -26,6 +26,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
@@ -66,6 +67,16 @@ class DataAvailabilityWatcherConfigTest {
         runtimeConfigs,
         watcherConfig,
       )
+      val deleteConfig =
+        parseTextProto(
+          resolveRunfile("$configDirectory/data-watcher-delete-config.textproto").toFile(),
+          DataWatcherConfig.getDefaultInstance(),
+        )
+      val availabilityMonitorConfigs =
+        parseTextProto(
+          resolveRunfile("$configDirectory/data-availability-monitor-config.textproto").toFile(),
+          DataAvailabilityMonitorConfigs.getDefaultInstance(),
+        )
       val runtimeConfigsByDataProvider = runtimeConfigs.configsList.associateBy { it.dataProvider }
       val dataAvailabilityWatchedPaths =
         watcherConfig.watchedPathsList.filter { it.identifier == DATA_AVAILABILITY_IDENTIFIER }
@@ -104,6 +115,81 @@ class DataAvailabilityWatcherConfigTest {
           .endsWith("/secure_computation_root.pem")
         assertThat(selectedConfig.secureComputationControlPlaneConnection)
           .isNotEqualTo(selectedConfig.impressionMetadataStorageConnection)
+      }
+
+      for (config in runtimeConfigs.configsList) {
+        val bucket = config.dataAvailabilityStorage.gcs.bucketName
+        val externalDoneUri =
+          "gs://$bucket/${config.edpImpressionPath}/model-line/test-model-line/2000-01-01/done"
+        val createRoutes =
+          dataAvailabilityWatchedPaths.filter { Regex(it.sourcePathRegex).matches(externalDoneUri) }
+        assertWithMessage("$environment create route for ${config.dataProvider}")
+          .that(createRoutes)
+          .hasSize(1)
+        assertThat(
+            createRoutes
+              .single()
+              .httpEndpointSink
+              .appParams
+              .fieldsMap
+              .getValue(DATA_PROVIDER_FIELD)
+              .stringValue
+          )
+          .isEqualTo(config.dataProvider)
+        assertThat(createRoutes.single().httpEndpointSink.endpointUri)
+          .endsWith("/data-availability-sync")
+
+        if (config.vidLabeledImpressionPath.isEmpty()) continue
+        val internalDoneUri =
+          "gs://$bucket/${config.vidLabeledImpressionPath}/model-line/test-model-line/2000-01-01/done"
+        assertWithMessage("$environment excludes internal create events for ${config.dataProvider}")
+          .that(
+            watcherConfig.watchedPathsList.none {
+              Regex(it.sourcePathRegex).matches(internalDoneUri)
+            }
+          )
+          .isTrue()
+        val vidConfig =
+          dispatcherConfigs.configsList.single { it.dataProvider == config.dataProvider }
+        val vidMonitorConfig =
+          monitorConfigs.configsList.single { it.dataProvider == config.dataProvider }
+        assertThat(vidConfig.edpImpressionPath).isEqualTo(config.vidLabeledImpressionPath)
+        assertThat(vidMonitorConfig.edpImpressionPath).isEqualTo(config.vidLabeledImpressionPath)
+        assertThat(vidConfig.vidLabeledImpressionsStorageParams.gcs.bucketName).isEqualTo(bucket)
+        assertThat(vidMonitorConfig.vidLabeledImpressionsStorageParams.gcs.bucketName)
+          .isEqualTo(bucket)
+
+        for (path in listOf(config.edpImpressionPath, config.vidLabeledImpressionPath)) {
+          val deletedUri = "gs://$bucket/$path/model-line/test-model-line/2000-01-01/impressions"
+          val routes =
+            deleteConfig.watchedPathsList.filter { Regex(it.sourcePathRegex).matches(deletedUri) }
+          assertWithMessage("$environment delete route for $path").that(routes).hasSize(1)
+          val route = routes.single()
+          assertThat(route.identifier).isEqualTo("data-availability-cleanup")
+          assertThat(route.httpEndpointSink.endpointUri).endsWith("/data-availability-cleanup")
+          val cleanupConfig =
+            ConfigLoader.buildDataAvailabilitySyncConfig(
+              JsonFormat.printer().print(route.httpEndpointSink.appParams),
+              runtimeConfigs.configsList,
+            )
+          assertThat(cleanupConfig.dataProvider).isEqualTo(config.dataProvider)
+          assertThat(cleanupConfig.dataAvailabilityStorage.gcs.bucketName).isEqualTo(bucket)
+          assertThat(
+              deleteConfig.watchedPathsList.none {
+                Regex(it.sourcePathRegex)
+                  .matches(
+                    "gs://unconfigured-test-bucket/$path/model-line/test-model-line/2000-01-01/impressions"
+                  )
+              }
+            )
+            .isTrue()
+          val pathMonitors =
+            availabilityMonitorConfigs.configsList.filter { it.edpImpressionPath == path }
+          assertWithMessage("$environment availability monitor for $path")
+            .that(pathMonitors)
+            .hasSize(1)
+          assertThat(pathMonitors.single().storage.gcs.bucketName).isEqualTo(bucket)
+        }
       }
     }
   }

@@ -34,7 +34,10 @@ exits nonzero so the folder remains retryable after the gap is corrected.
 ## Run the CLI
 
 The config file is a `DataAvailabilitySyncConfig` textproto. Its GCS bucket, data provider,
-impression path, model-line mapping, and TLS file paths are reused by the recovery command.
+model-line mapping, and TLS file paths are reused by the recovery command. Recovery scans
+`edp_impression_path` and, when set, `vid_labeled_impression_path`. These paths must not overlap.
+Both scans share the provider's renewable synchronization lease and request throttler. A config
+without `vid_labeled_impression_path` continues scanning only `edp_impression_path`.
 
 ```shell
 bazel run \
@@ -97,7 +100,8 @@ not identify the folder to recover. The date attribute is present on monitor-emi
 statuses that identify date folders. It is omitted from healthy-date totals,
 legitimate-deletion counts, and points emitted by `DataAvailabilitySync`.
 
-The command exits nonzero when any folder scan, resynchronization, verification, or undelete fails.
+The command exits nonzero when any folder scan, resynchronization, verification, or undelete fails
+under either configured path.
 A successfully repaired inconsistency does not cause a nonzero exit.
 
 ## Weekly Kubernetes CronJob
@@ -120,7 +124,8 @@ their metadata during synchronization.
 
 The deployment workflow derives the job's single-EDP config from the `edp/edp7` entry in the
 selected environment's `data-availability-sync-config.textproto` under
-`src/main/terraform/gcloud/cmms/envs/` and rewrites its TLS paths for the Kubernetes mounts. The
+`src/main/terraform/gcloud/cmms/envs/`, preserving both impression paths and rewriting its TLS paths
+for the Kubernetes mounts. The
 expected Cloud Function TLS paths must remain present in that source config so the workflow can
 validate and replace each one explicitly.
 

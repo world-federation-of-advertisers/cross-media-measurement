@@ -20,7 +20,7 @@ The required `--mode` flag makes the scope explicit:
 
 Prepare a textproto containing one `DataAvailabilitySyncConfig`, not the
 `DataAvailabilitySyncConfigs` wrapper used by the deployed Cloud Function. Use the same
-DataProvider, storage, impression path, TLS, model-line, and EventGroup activity settings as the
+DataProvider, storage, impression paths, TLS, model-line, and EventGroup activity settings as the
 deployed configuration. See the
 [EDP Aggregator deployment guide](../edpaggregator/deployment-guide.md#dataavailabilitysync-config-dataavailabilitysyncconfigs)
 for the full configuration.
@@ -44,10 +44,15 @@ The runtime identity needs:
 Choose exactly one selection mode:
 
 * `--blob-prefix` accepts a `gs://` URI or bucket-relative prefix. It recursively finds blobs whose
-  basename is exactly `done`. The prefix must be the configured `edp_impression_path` or one of its
-  descendants.
+  basename is exactly `done`. The prefix must be `edp_impression_path`,
+  `vid_labeled_impression_path` when configured, or a descendant of either. A URI must use the
+  configured bucket.
 * Repeat `--done-blob-uri` to replay an explicit set of `gs://.../done` blobs. Every URI must use
-  the configured bucket and be below the configured `edp_impression_path`.
+  the configured bucket and be below either configured impression path. A list may contain blobs
+  from both paths; synchronization selects the matching path for each blob.
+
+The configured paths must not overlap. A config without `vid_labeled_impression_path` continues
+accepting only `edp_impression_path`.
 
 To backfill EventGroup activity below an impression prefix without changing metadata or data
 availability:
@@ -60,7 +65,7 @@ bazel run \
   --config-file=/absolute/path/to/data-availability-sync-config.textproto \
   --kingdom-public-api-target=KINGDOM_HOST:8443 \
   --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
-  --blob-prefix=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/vid-labeled-impressions
+  --blob-prefix=gs://EDPA_STORAGE_BUCKET/vid-labeled-impressions/edp/EDP_ID
 ```
 
 To replay data availability for named completion blobs without publishing EventGroup activity:
@@ -73,8 +78,8 @@ bazel run \
   --config-file=/absolute/path/to/data-availability-sync-config.textproto \
   --kingdom-public-api-target=KINGDOM_HOST:8443 \
   --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
-  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/vid-labeled-impressions/2026-09-12/done \
-  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/vid-labeled-impressions/2026-09-15/done
+  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/model-line/MODEL_LINE_ID/2026-09-12/done \
+  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/vid-labeled-impressions/edp/EDP_ID/model-line/MODEL_LINE_ID/2026-09-15/done
 ```
 
 Optional flags:

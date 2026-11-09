@@ -163,6 +163,17 @@ class ReplayDataAvailabilitySync : Runnable {
     }
     require(config.edpImpressionPath.isNotEmpty()) { "edp_impression_path must be set" }
     require(config.dataProvider.isNotEmpty()) { "data_provider must be set" }
+    val configuredPaths =
+      listOf(config.edpImpressionPath, config.vidLabeledImpressionPath)
+        .filter(String::isNotEmpty)
+        .distinct()
+    require(
+      configuredPaths.none { path ->
+        configuredPaths.any { other -> other != path && other.startsWith("$path/") }
+      }
+    ) {
+      "Configured impression paths must not overlap"
+    }
     if (mode == Mode.EVENT_GROUP_ACTIVITY_ONLY) {
       require(config.hasEventGroupActivityPublishing()) {
         "event_group_activity_publishing must be set in EVENT_GROUP_ACTIVITY_ONLY mode"
@@ -171,7 +182,7 @@ class ReplayDataAvailabilitySync : Runnable {
 
     val storageConfig = config.dataAvailabilityStorage.gcs
     require(storageConfig.bucketName.isNotEmpty()) { "GCS bucket_name must be set" }
-    val selection = buildReplaySelection(config.edpImpressionPath, storageConfig.bucketName)
+    val selection = buildReplaySelection(configuredPaths, storageConfig.bucketName)
     val storageApiEndpoint = storageApiEndpoint
     val storage =
       StorageOptions.newBuilder()
@@ -240,25 +251,28 @@ class ReplayDataAvailabilitySync : Runnable {
           }
           Mode.DATA_AVAILABILITY_ONLY,
           Mode.FULL_SYNC -> {
-            val dataAvailabilitySync =
-              DataAvailabilitySync(
-                edpImpressionPath = config.edpImpressionPath,
-                storageClient = storageClient,
-                dataProvidersStub = DataProvidersCoroutineStub(instrumentedKingdomChannel),
-                impressionMetadataServiceStub = impressionMetadataStub,
-                dataProviderName = config.dataProvider,
-                throttler = throttler,
-                impressionMetadataBatchSize = impressionMetadataBatchSize,
-                modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
-                errorIfGapsExist = config.errorIfGapsExist,
-                publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
-              )
             val result = runBlocking {
               DataAvailabilitySyncReplay(
                   storageClient = storageClient,
                   storageRootUri = storageRootUri,
                   selection = selection,
                   sync = { doneBlobUri ->
+                    val blobKey = SelectedStorageClient.parseBlobUri(doneBlobUri).key
+                    val impressionPath = configuredPaths.single { blobKey.startsWith("$it/") }
+                    val dataAvailabilitySync =
+                      DataAvailabilitySync(
+                        edpImpressionPath = impressionPath,
+                        storageClient = storageClient,
+                        dataProvidersStub = DataProvidersCoroutineStub(instrumentedKingdomChannel),
+                        impressionMetadataServiceStub = impressionMetadataStub,
+                        dataProviderName = config.dataProvider,
+                        throttler = throttler,
+                        impressionMetadataBatchSize = impressionMetadataBatchSize,
+                        modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
+                        errorIfGapsExist = config.errorIfGapsExist,
+                        publishEventGroupActivities =
+                          eventGroupActivityPublisher?.let { it::publish },
+                      )
                     leaseRunner.run(config.dataProvider) { lease ->
                       dataAvailabilitySync.sync(
                         doneBlobPath = doneBlobUri,
@@ -327,7 +341,7 @@ class ReplayDataAvailabilitySync : Runnable {
   }
 
   private fun buildReplaySelection(
-    edpImpressionPath: String,
+    configuredPaths: List<String>,
     bucketName: String,
   ): DataAvailabilitySyncReplay.Selection {
     if (replaySelection.hasBlobPrefix()) {
@@ -343,10 +357,11 @@ class ReplayDataAvailabilitySync : Runnable {
           suppliedBlobPrefix
         }
       require(
-        normalizedBlobPrefix == edpImpressionPath ||
-          normalizedBlobPrefix.startsWith("$edpImpressionPath/")
+        configuredPaths.any { path ->
+          normalizedBlobPrefix == path || normalizedBlobPrefix.startsWith("$path/")
+        }
       ) {
-        "blob-prefix must be the configured edp_impression_path or one of its descendants"
+        "blob-prefix must be a configured impression path or one of its descendants"
       }
       return DataAvailabilitySyncReplay.Selection.BlobPrefix(normalizedBlobPrefix)
     }
@@ -361,8 +376,8 @@ class ReplayDataAvailabilitySync : Runnable {
       require(parsedUri.key.substringAfterLast('/') == DONE_BLOB_FILE_NAME) {
         "done-blob-uri must identify a done blob: $doneBlobUri"
       }
-      require(parsedUri.key.startsWith("$edpImpressionPath/")) {
-        "done-blob-uri must be below the configured edp_impression_path: $doneBlobUri"
+      require(configuredPaths.any { parsedUri.key.startsWith("$it/") }) {
+        "done-blob-uri must be below a configured impression path: $doneBlobUri"
       }
     }
     return DataAvailabilitySyncReplay.Selection.DoneBlobUris(doneBlobUris)
