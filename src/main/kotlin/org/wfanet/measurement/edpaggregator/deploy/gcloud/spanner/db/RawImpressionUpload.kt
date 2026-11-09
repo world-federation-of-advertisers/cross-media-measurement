@@ -538,6 +538,19 @@ fun AsyncDatabaseClient.TransactionContext.clearRawImpressionUploadCorrectionCan
   }
 }
 
+/** Binds a queued correction to the processed lineage captured by its approved plan. */
+fun AsyncDatabaseClient.TransactionContext.reparentQuarantinedRawImpressionUpload(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  predecessorResourceId: String,
+) {
+  bufferUpdateMutation("RawImpressionUpload") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("RawImpressionUploadId").to(rawImpressionUploadId)
+    set("ReplacesRawImpressionUploadResourceId").to(predecessorResourceId)
+  }
+}
+
 /** Makes an approved quarantined upload resumable without replacing its persisted files. */
 fun AsyncDatabaseClient.TransactionContext.activateQuarantinedRawImpressionUpload(
   dataProviderResourceId: String,

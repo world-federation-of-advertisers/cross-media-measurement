@@ -90,10 +90,16 @@ class RecoverUploader(
       latest != null &&
         latest.replacesRawImpressionUpload == source.name &&
         !isRegistrationComplete(latest)
-    require(latest?.name == source.name || isResumableIncompleteRecovery) {
+    require(
+      latest?.name == source.name ||
+        isResumableIncompleteRecovery ||
+        (latest != null &&
+          latest.processingDeferred &&
+          latest.state in
+            setOf(RawImpressionUpload.State.CREATED, RawImpressionUpload.State.CORRECTION_REQUIRED))
+    ) {
       "$sourceUploadName has been superseded by ${latest?.name}; recover the latest revision"
     }
-
     val rowsByCmmsModelLine = listModelLines(sourceUploadName).associateBy { it.cmmsModelLine }
     val missing = cmmsModelLines.filter { it !in rowsByCmmsModelLine }
     require(missing.isEmpty()) { "$sourceUploadName has no model-line rows for: $missing" }
@@ -120,6 +126,36 @@ class RecoverUploader(
     require(evictionOperationIds.size == 1 && evictionOperationIds.single().isNotEmpty()) {
       "all requested model lines must belong to one eviction operation"
     }
+    val operationName =
+      sourceKey.parentKey.toName() + "/uploadHealingOperations/" + evictionOperationIds.single()
+    val operation = getHealingOperation(operationName)
+    val laterDeferredSource =
+      latest != null &&
+        latest.name != source.name &&
+        latest.processingDeferred &&
+        latest.state in
+          setOf(RawImpressionUpload.State.CREATED, RawImpressionUpload.State.CORRECTION_REQUIRED) &&
+        operation?.name == operationName &&
+        operation.state == UploadHealingOperation.State.RECOVERING
+    if (laterDeferredSource) {
+      val planned =
+        checkNotNull(operation).stepsList.filter {
+          it.recoveryTarget && it.sourceRawImpressionUpload == source.name
+        }
+      require(
+        planned.map { it.cmmsModelLine }.toSet() == cmmsModelLines.toSet() &&
+          planned.all {
+            it.state == UploadHealingStep.State.WAITING_FOR_REPLACEMENT &&
+              it.recoveryAction ==
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+          }
+      ) {
+        "Deferred-source recovery does not match the approved operation"
+      }
+    }
+    require(latest?.name == source.name || isResumableIncompleteRecovery || laterDeferredSource) {
+      "$sourceUploadName has been superseded by ${latest?.name}; recover the latest revision"
+    }
     for (row in requestedRows) {
       requireRecoveryPredecessorReady(sourceKey.parentKey.toName(), row)
     }
@@ -144,8 +180,10 @@ class RecoverUploader(
         WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to source.name,
         WatchedBlobs.EVICTION_OPERATION_ID_KEY to evictionOperationIds.single(),
       )
-    val generation = rewriteDoneBlob(source.doneBlobUri, source.doneBlobGeneration, metadata)
-    require(generation > 0L && generation != source.doneBlobGeneration) {
+    val generation =
+      if (laterDeferredSource) source.doneBlobGeneration
+      else rewriteDoneBlob(source.doneBlobUri, source.doneBlobGeneration, metadata)
+    require(generation > 0L && (generation != source.doneBlobGeneration || laterDeferredSource)) {
       "rewriting ${source.doneBlobUri} did not create a distinct valid generation: $generation"
     }
     return Result(source.name, source.doneBlobUri, generation, cmmsModelLines)

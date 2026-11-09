@@ -182,6 +182,42 @@ class RecoverUploaderTest {
     }
 
   @Test
+  fun `recover retains the source marker when a newer source revision is deferred`() = runBlocking {
+    val deferred = rawImpressionUpload {
+      name = REPLACEMENT_UPLOAD
+      doneBlobUri = DONE_BLOB_URI
+      doneBlobGeneration = NEW_GENERATION
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+      replacesRawImpressionUpload = UPLOAD
+      processingDeferred = true
+      state = RawImpressionUpload.State.CORRECTION_REQUIRED
+    }
+    stubSourceUpload(deferred)
+    stubModelLine(RawImpressionUploadModelLine.State.FAILED, recoveryPredecessorUpload = "")
+    stubSnapshot()
+    val operation = uploadHealingOperation {
+      name = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
+      state = UploadHealingOperation.State.RECOVERING
+      steps += uploadHealingStep {
+        sourceRawImpressionUpload = UPLOAD
+        cmmsModelLine = MODEL_LINE
+        recoveryTarget = true
+        state = UploadHealingStep.State.WAITING_FOR_REPLACEMENT
+        recoveryAction =
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+      }
+    }
+    val uploader =
+      recoverUploader(
+        getHealingOperation = { operation },
+        rewriteDoneBlob = { _, _, _ -> error("A newer EDP marker must be preserved") },
+      )
+
+    assertThat(uploader.recover(UPLOAD, listOf(MODEL_LINE)).doneBlobGeneration)
+      .isEqualTo(GENERATION)
+  }
+
+  @Test
   fun `recover rejects a superseded upload`() = runBlocking {
     stubSourceUpload(
       rawImpressionUpload {
