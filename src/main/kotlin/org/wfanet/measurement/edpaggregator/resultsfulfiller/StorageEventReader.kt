@@ -104,12 +104,14 @@ class StorageEventReader(
           impressionsStorageConfig.projectId,
         )
 
+      val generationMatchedStorageClient =
+        GenerationMatchedStorageClient(selectedStorageClient, blobDetails.blobGeneration)
       val impressionsStorage =
         if (kmsClient == null) {
-          MesosRecordIoStorageClient(selectedStorageClient)
+          MesosRecordIoStorageClient(generationMatchedStorageClient)
         } else {
           EncryptedStorage.buildEncryptedMesosStorageClient(
-            selectedStorageClient,
+            generationMatchedStorageClient,
             kekUri = encryptedDek.kekUri,
             kmsClient = kmsClient,
             encryptedDek = encryptedDek,

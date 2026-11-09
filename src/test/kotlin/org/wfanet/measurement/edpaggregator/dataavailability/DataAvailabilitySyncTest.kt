@@ -463,6 +463,18 @@ class DataAvailabilitySyncTest {
         }
         assertThat(createRequest.firstValue.requestsList.map { it.impressionMetadata.blobUri })
           .containsExactly("$bucket/$metadataAKey", "$bucket/$metadataBKey")
+        val registered =
+          createRequest.firstValue.requestsList
+            .map { it.impressionMetadata }
+            .associateBy { it.blobUri }
+        assertThat(registered.getValue("$bucket/$metadataAKey").metadataBlobGeneration)
+          .isEqualTo(storageClient.currentGeneration(metadataAKey))
+        assertThat(registered.getValue("$bucket/$metadataAKey").impressionsBlobGeneration)
+          .isEqualTo(storageClient.currentGeneration(dataAKey))
+        assertThat(registered.getValue("$bucket/$metadataBKey").metadataBlobGeneration)
+          .isEqualTo(storageClient.currentGeneration(metadataBKey))
+        assertThat(registered.getValue("$bucket/$metadataBKey").impressionsBlobGeneration)
+          .isEqualTo(storageClient.currentGeneration(dataBKey))
         verifyBlocking(dataProvidersServiceMock) { replaceDataAvailabilityIntervals(any()) }
         assertThat(storageClient.metadataUpdates.map { it.generation }.distinct())
           .containsExactly(

@@ -85,4 +85,8 @@ message BlobDetails {
   // individual impression need not be associated with all of them.
   repeated EntityKeyGroup entity_keys = 6
       [(google.api.field_behavior) = REQUIRED];
+
+  // Generation of the encrypted data object. Positive when set. Readers reject
+  // a different generation; unset retains legacy reads of the current object.
+  int64 blob_generation = 7 [(google.api.field_behavior) = OPTIONAL];
 }
