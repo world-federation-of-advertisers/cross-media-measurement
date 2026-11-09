@@ -242,6 +242,13 @@ WorkItems created directly by VID Labeler. DataWatcher returns after durable tas
 External tasks scan the finalized date folder; internal tasks use their raw-upload contract.
 Both publish metadata and Kingdom availability under the provider synchronization lease and
 record durable attempt completion. External tasks do not update VID Labeler pipeline rows.
+
+External WorkItems retain the metadata and impression object generations finalized by `done`.
+Fulfillment rejects an overwritten object instead of following unfinalized contents. Legacy
+records without these generations retain current-object reads. Apply the
+`add-impression-metadata-blob-generations.sql` migration and deploy the updated metadata service,
+DataAvailabilitySync, and fulfillment consumers before enabling external WorkItem routes.
+Write a new `done` marker after an intentional overwrite to register the new snapshot.
 Legacy HTTP invocation remains supported for external folders.
 When `event_group_activity_publishing` is configured, the same sync also derives
 positive EventGroup activity from the finalized metadata and appends it in the Kingdom.

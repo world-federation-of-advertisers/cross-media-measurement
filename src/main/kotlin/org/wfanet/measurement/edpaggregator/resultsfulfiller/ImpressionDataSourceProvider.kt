@@ -38,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -122,17 +123,21 @@ class ImpressionDataSourceProvider(
     }
 
     return metadata
-      .distinctBy { it.blobUri }
+      .distinctBy { Triple(it.blobUri, it.metadataBlobGeneration, it.impressionsBlobGeneration) }
       .map { metadata ->
         logger.info("Processing impression metadata: $metadata")
-        val blobDetails = readBlobDetails(metadata.blobUri)
+        val blobDetails =
+          readBlobDetails(metadata.blobUri, metadata.metadataBlobGeneration).let { details ->
+            if (metadata.impressionsBlobGeneration == 0L) details
+            else details.copy { blobGeneration = metadata.impressionsBlobGeneration }
+          }
         ImpressionDataSource(
           modelLine = modelLine,
           interval = metadata.interval,
           blobDetails = blobDetails,
         )
       }
-      .distinctBy { it.blobDetails.blobUri }
+      .distinctBy { it.blobDetails.blobUri to it.blobDetails.blobGeneration }
   }
 
   /** Queries impression metadata using [filter]. */
@@ -207,13 +212,14 @@ class ImpressionDataSourceProvider(
    * Reads `BlobDetails` from a metadata blob.
    *
    * @param metadataPath blob URI for the metadata (e.g., `file:///bucket/key`).
+   * @param generation finalized metadata generation, or zero for a legacy current-object read.
    * @return parsed [BlobDetails].
    * @throws ImpressionReadException with [ImpressionReadException.Code.BLOB_NOT_FOUND] when the
    *   blob is missing.
    * @throws com.google.protobuf.InvalidProtocolBufferException if parsing fails due to invalid
    *   metadata contents.
    */
-  private suspend fun readBlobDetails(metadataPath: String): BlobDetails {
+  private suspend fun readBlobDetails(metadataPath: String, generation: Long): BlobDetails {
     val storageClientUri = SelectedStorageClient.parseBlobUri(metadataPath)
     val storageClient =
       SelectedStorageClient(
@@ -223,7 +229,7 @@ class ImpressionDataSourceProvider(
       )
     logger.info("Reading impression metadata from $metadataPath")
     val blob =
-      storageClient.getBlob(storageClientUri.key)
+      GenerationMatchedStorageClient(storageClient, generation).getBlob(storageClientUri.key)
         ?: throw ImpressionReadException(
           metadataPath,
           ImpressionReadException.Code.BLOB_NOT_FOUND,

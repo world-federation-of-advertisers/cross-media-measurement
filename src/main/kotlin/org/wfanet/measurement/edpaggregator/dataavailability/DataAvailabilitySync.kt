@@ -818,6 +818,8 @@ class DataAvailabilitySync(
               ImpressionMetadataWithBlobKey(
                 impressionMetadata = scanned,
                 impressionsBlobKey = item.impressionsBlobKey,
+                metadataBlob = item.metadataBlob,
+                impressionsBlob = item.impressionsBlob,
               )
             )
           }
@@ -1292,6 +1294,8 @@ class DataAvailabilitySync(
             this.rawImpressionUpload = rawImpressionUpload
           }
           outputDoneBlobGeneration = doneBlobGeneration
+          metadataBlobGeneration = candidate.capturedBlob?.generation ?: 0L
+          impressionsBlobGeneration = capturedImpressionBlob?.generation ?: 0L
           interval = blobDetails.interval
           entityKeys += blobDetails.entityKeysList.flatMap { it.toEntityKeys() }
         }
@@ -1314,15 +1318,7 @@ class DataAvailabilitySync(
     return impressionMetadataMap
   }
 
-  /**
-   * Generates a deterministic UUID string from the content-bearing fields of an
-   * [ImpressionMetadata].
-   *
-   * The hash includes blob_uri, model_line, interval, event_group_reference_id, and entity_keys
-   * (sorted for determinism). This ensures the same request_id is produced when the content is
-   * identical, enabling idempotent skipping. When any field changes (e.g., entity_keys are added),
-   * a new request_id is generated, signaling the server to apply the update.
-   */
+  /** Returns a deterministic request ID for metadata contents and captured generations. */
   private fun contentAwareRequestId(metadata: ImpressionMetadata): String {
     val canonicalParts = buildString {
       append(metadata.blobUri)
@@ -1342,6 +1338,10 @@ class DataAvailabilitySync(
       append(metadata.rawImpressionUpload)
       append(FIELD_SEPARATOR)
       append(metadata.outputDoneBlobGeneration)
+      append(FIELD_SEPARATOR)
+      append(metadata.metadataBlobGeneration)
+      append(FIELD_SEPARATOR)
+      append(metadata.impressionsBlobGeneration)
       append(FIELD_SEPARATOR)
       val sortedKeys =
         metadata.entityKeysList.map { "${it.entityType}$FIELD_SEPARATOR${it.entityId}" }.sorted()
