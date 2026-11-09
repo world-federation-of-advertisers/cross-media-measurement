@@ -1116,11 +1116,18 @@ abstract class VidLabelingPipelineTestHarness(
         }
       )
     val blobUri = "gs://synthetic-$dataProviderResourceId/raw/input.parquet"
+    val eventDate =
+      com.google.type.date {
+        year = EVENT_DATE.year
+        month = EVENT_DATE.monthValue
+        day = EVENT_DATE.dayOfMonth
+      }
     val prior =
       org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateKt
         .manifestEntry {
           this.blobUri = blobUri
           blobGeneration = 1L
+          this.eventDate = eventDate
           outputSourceRawImpressionUploadResourceId = "prior-$candidateId"
         }
     val current =
@@ -1128,6 +1135,7 @@ abstract class VidLabelingPipelineTestHarness(
         .manifestEntry {
           this.blobUri = blobUri
           blobGeneration = 2L
+          this.eventDate = eventDate
           outputSourceRawImpressionUploadResourceId = quarantined.rawImpressionUploadResourceId
         }
     val comparison =
@@ -1152,10 +1160,10 @@ abstract class VidLabelingPipelineTestHarness(
           classification = InternalCandidate.Classification.CLASSIFICATION_EDITED
           priorManifestDigest =
             RawImpressionUploadManifestClassifier()
-              .digest(listOf(RawImpressionUploadManifestClassifier.File(blobUri, 1L)))
+              .digest(listOf(RawImpressionUploadManifestClassifier.File(blobUri, 1L, eventDate)))
           currentManifestDigest =
             RawImpressionUploadManifestClassifier()
-              .digest(listOf(RawImpressionUploadManifestClassifier.File(blobUri, 2L)))
+              .digest(listOf(RawImpressionUploadManifestClassifier.File(blobUri, 2L, eventDate)))
           manifestComparison = comparison
           expireTime = Clock.systemUTC().instant().plus(Duration.ofDays(1)).toProtoTime()
         }
