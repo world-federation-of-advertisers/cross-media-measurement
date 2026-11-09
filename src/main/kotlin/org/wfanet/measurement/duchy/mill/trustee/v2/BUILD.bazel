@@ -30,3 +30,15 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
+
+kt_jvm_library(
+    name = "hash_rank_subpopulation_index",
+    srcs = ["HashRankSubpopulationIndex.kt"],
+    deps = [
+        ":query_evaluator",
+        ":subpopulation_attributes",
+        "//imports/it/unimi/dsi/fastutil",
+        "//src/main/kotlin/org/wfanet/measurement/common:vid_hashing",
+        "//src/main/proto/wfa/measurement/internal/duchy:population_spec_kt_jvm_proto",
+    ],
+)
