@@ -106,69 +106,75 @@ class ImpressionDataSourceProviderTest {
   }
 
   @Test
-  fun `storage-backed returns one source for a single day`(): Unit = runBlocking {
-    val svc = createService()
-    val bucketName = "meta-bucket"
-    val bucketDir = File(tmp.root, bucketName)
-    bucketDir.mkdirs()
+  fun `storage-backed retains distinct output generations at the same metadata URI`(): Unit =
+    runBlocking {
+      val svc = createService()
+      val bucketName = "meta-bucket"
+      val bucketDir = File(tmp.root, bucketName)
+      bucketDir.mkdirs()
 
-    // Write BlobDetails at the resolved metadata path key within the bucket.
-    val date = LocalDate.of(2025, 1, 15)
-    val eventGroupRef = "eg-1"
-    val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
-    val blobDetailsBytes =
-      blobDetails {
-          blobUri = "file:///impressions/$date/$eventGroupRef"
-          encryptedDek = EncryptedDek.getDefaultInstance()
-        }
-        .toByteString()
-    val fs = FileSystemStorageClient(bucketDir)
-    fs.writeBlob(key, blobDetailsBytes)
+      // Write BlobDetails at the resolved metadata path key within the bucket.
+      val date = LocalDate.of(2025, 1, 15)
+      val eventGroupRef = "eg-1"
+      val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+      val blobDetailsBytes =
+        blobDetails {
+            blobUri = "file:///impressions/$date/$eventGroupRef"
+            encryptedDek = EncryptedDek.getDefaultInstance()
+          }
+          .toByteString()
+      val fs = FileSystemStorageClient(bucketDir)
+      fs.writeBlob(key, blobDetailsBytes)
 
-    val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
-    val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
 
-    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
-      .thenReturn(
-        listImpressionMetadataResponse {
-          impressionMetadata += impressionMetadata {
-            state = ImpressionMetadata.State.ACTIVE
-            blobUri = "file:///$bucketName/$key"
-            interval = interval {
-              startTime = timestamp {
-                seconds = start.epochSecond
-                nanos = start.nano
-              }
-              endTime = timestamp {
-                seconds = end.epochSecond
-                nanos = end.nano
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(
+          listImpressionMetadataResponse {
+            for (generation in listOf(7L, 8L)) {
+              impressionMetadata += impressionMetadata {
+                state = ImpressionMetadata.State.ACTIVE
+                impressionsBlobGeneration = generation
+                blobUri = "file:///$bucketName/$key"
+                interval = interval {
+                  startTime = timestamp {
+                    seconds = start.epochSecond
+                    nanos = start.nano
+                  }
+                  endTime = timestamp {
+                    seconds = end.epochSecond
+                    nanos = end.nano
+                  }
+                }
               }
             }
           }
+        )
+
+      val period = interval {
+        startTime = timestamp {
+          seconds = start.epochSecond
+          nanos = start.nano
         }
-      )
+        endTime = timestamp {
+          seconds = end.epochSecond
+          nanos = end.nano
+        }
+      }
+      val sources =
+        svc.listImpressionDataSources(
+          modelLine = modelLine,
+          eventGroups = listOf(referenceEventGroup(eventGroupRef, period)),
+        )
 
-    val period = interval {
-      startTime = timestamp {
-        seconds = start.epochSecond
-        nanos = start.nano
-      }
-      endTime = timestamp {
-        seconds = end.epochSecond
-        nanos = end.nano
-      }
+      assertThat(sources).hasSize(2)
+      assertThat(sources.map { it.blobDetails.blobGeneration }).containsExactly(7L, 8L)
+      assertThat(sources[0].blobDetails.blobUri)
+        .isEqualTo("file:///impressions/$date/$eventGroupRef")
+      assertThat(sources[0].interval.startTime).isEqualTo(start.toProtoTime())
+      assertThat(sources[0].interval.endTime).isEqualTo(end.toProtoTime())
     }
-    val sources =
-      svc.listImpressionDataSources(
-        modelLine = modelLine,
-        eventGroups = listOf(referenceEventGroup(eventGroupRef, period)),
-      )
-
-    assertThat(sources).hasSize(1)
-    assertThat(sources[0].blobDetails.blobUri).isEqualTo("file:///impressions/$date/$eventGroupRef")
-    assertThat(sources[0].interval.startTime).isEqualTo(start.toProtoTime())
-    assertThat(sources[0].interval.endTime).isEqualTo(end.toProtoTime())
-  }
 
   @Test
   fun `storage-backed throws when metadata is missing`(): Unit = runBlocking {

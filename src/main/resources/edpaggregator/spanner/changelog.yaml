@@ -121,3 +121,6 @@ databaseChangeLog:
   - include:
       file: remove-obsolete-upload-healing-fields.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-impression-metadata-blob-generations.sql
+      relativeToChangeLogFile: true
