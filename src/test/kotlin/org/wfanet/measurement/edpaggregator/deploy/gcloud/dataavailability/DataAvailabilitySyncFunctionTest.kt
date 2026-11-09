@@ -773,7 +773,7 @@ class DataAvailabilitySyncFunctionTest {
         HttpRequest.newBuilder()
           .uri(URI.create("http://localhost:$port"))
           .header("Content-Type", "application/octet-stream")
-          .POST(HttpRequest.BodyPublishers.ofByteArray(item.toByteArray()))
+          .POST(HttpRequest.BodyPublishers.ofByteArray(publishedWorkItem(item).toByteArray()))
           .build(),
         HttpResponse.BodyHandlers.ofString(),
       )
