@@ -115,6 +115,79 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `create and update preserve captured blob generations`() = runBlocking {
+    val created =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              metadataBlobGeneration = 41L
+              impressionsBlobGeneration = 42L
+            }
+        }
+      )
+    val fetched =
+      service.getImpressionMetadata(getImpressionMetadataRequest { name = created.name })
+    assertThat(fetched.metadataBlobGeneration).isEqualTo(41L)
+    assertThat(fetched.impressionsBlobGeneration).isEqualTo(42L)
+
+    val updated =
+      service.updateImpressionMetadata(
+        updateImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+          impressionMetadata =
+            created.copy {
+              metadataBlobGeneration = 43L
+              impressionsBlobGeneration = 44L
+            }
+        }
+      )
+    val refetched =
+      service.getImpressionMetadata(getImpressionMetadataRequest { name = updated.name })
+    assertThat(refetched.metadataBlobGeneration).isEqualTo(43L)
+    assertThat(refetched.impressionsBlobGeneration).isEqualTo(44L)
+  }
+
+  @Test
+  fun `create rejects a negative metadata blob generation`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+            impressionMetadata = IMPRESSION_METADATA.copy { metadataBlobGeneration = -1L }
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `update rejects a negative impressions blob generation`() = runBlocking {
+    val created =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+          impressionMetadata = IMPRESSION_METADATA
+        }
+      )
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.updateImpressionMetadata(
+          updateImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+            impressionMetadata = created.copy { impressionsBlobGeneration = -1L }
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `createImpressionMetadata requires synchronization lease`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
