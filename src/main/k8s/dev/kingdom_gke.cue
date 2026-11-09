@@ -68,7 +68,20 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
-objectSets: [defaultNetworkPolicies] + [ for objectSet in kingdom {objectSet}]
+objectSets: [defaultNetworkPolicies, [_internalApiDisruptionBudget]] + [
+		for objectSet in kingdom {objectSet},
+]
+
+_internalApiDisruptionBudget: #PodDisruptionBudget & {
+	metadata: {
+		_component: "kingdom"
+		name:       "gcp-kingdom-data-server"
+	}
+	spec: {
+		minAvailable: 1
+		selector:     kingdom.deployments["gcp-kingdom-data-server"].spec.selector
+	}
+}
 
 kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name
@@ -112,8 +125,17 @@ kingdom: #Kingdom & {
 				resources:           #InternalServerResourceRequirements
 				_javaOptions: maxHeapSize: #InternalServerMaxHeapSize
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
+			spec: {
+				replicas: 2
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+					topologySpreadConstraints: [{
+						maxSkew:           1
+						topologyKey:       "kubernetes.io/hostname"
+						whenUnsatisfiable: "ScheduleAnyway"
+						labelSelector:     kingdom.deployments["gcp-kingdom-data-server"].spec.selector
+					}]
+				}
 			}
 		}
 		"system-api-server": {

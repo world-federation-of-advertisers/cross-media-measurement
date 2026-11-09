@@ -3,6 +3,14 @@
 Configuration for Halo-managed cloud environments. This configuration can be
 adapted and used as the basis for other environments.
 
+## Kingdom internal API availability
+
+The GKE Kingdom deployment runs two internal data-server replicas and prefers
+placing them on different hostnames. A PodDisruptionBudget retains one available
+replica during voluntary node drains. Provide capacity for the second replica
+and for a replacement before a planned drain. The budget does not prevent
+involuntary node loss.
+
 ## Access internal API availability
 
 The development Reporting deployment runs two Access internal API replicas and
