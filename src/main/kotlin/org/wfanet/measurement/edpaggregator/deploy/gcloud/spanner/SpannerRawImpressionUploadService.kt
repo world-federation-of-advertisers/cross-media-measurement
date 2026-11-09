@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
@@ -41,6 +42,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.deleteVidLa
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findLatestUploadByDoneBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByMarkRegistrationCompleteRequestId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadHealingOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingEvictionFenceMutation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
@@ -85,6 +87,8 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceG
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.ReleaseRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.ReleaseRawImpressionUploadEvictionFenceResponse
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
@@ -178,13 +182,16 @@ class SpannerRawImpressionUploadService(
             return@run existing.rawImpressionUpload
           }
 
-          val previous =
+          val latest =
             txn.findLatestUploadByDoneBlobUri(
               request.dataProviderResourceId,
               request.rawImpressionUpload.doneBlobUri,
             )
+          val committedSource = findCommittedRecoverySource(txn, request)
+          val previous = committedSource ?: latest
           if (
-            previous != null &&
+            committedSource == null &&
+              previous != null &&
               (!request.rawImpressionUpload.hasDoneBlobCreateTime() ||
                 (previous.rawImpressionUpload.hasDoneBlobCreateTime() &&
                   Timestamps.compare(
@@ -822,6 +829,93 @@ class SpannerRawImpressionUploadService(
     } else {
       result
     }
+  }
+
+  private suspend fun findCommittedRecoverySource(
+    txn: AsyncDatabaseClient.TransactionContext,
+    request: CreateRawImpressionUploadRequest,
+  ): RawImpressionUploadResult? {
+    if (request.evictionOperationId.isEmpty()) return null
+    val operation =
+      txn
+        .findUploadHealingOperation(request.dataProviderResourceId, request.evictionOperationId)
+        ?.uploadHealingOperation ?: return null
+    val steps =
+      operation.stepsList.filter {
+        it.recoveryTarget &&
+          it.recoveryDoneBlobGeneration > 0L &&
+          it.recoveryDoneBlobGeneration == request.rawImpressionUpload.doneBlobGeneration
+      }
+    if (steps.isEmpty()) return null
+    val sources =
+      steps
+        .map { it.sourceRawImpressionUploadResourceId }
+        .distinct()
+        .map { txn.getRawImpressionUploadByResourceId(request.dataProviderResourceId, it) }
+        .filter { it.rawImpressionUpload.doneBlobUri == request.rawImpressionUpload.doneBlobUri }
+    if (sources.size != 1) {
+      throw Status.FAILED_PRECONDITION.withDescription(
+          "Recovery object does not identify one approved source"
+        )
+        .asRuntimeException()
+    }
+    val source = sources.single()
+    val matchingSteps =
+      steps.filter {
+        it.sourceRawImpressionUploadResourceId ==
+          source.rawImpressionUpload.rawImpressionUploadResourceId
+      }
+    if (
+      !(operation.state in
+        setOf(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+        ) &&
+        matchingSteps.all {
+          it.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED
+        })
+    ) {
+      throw Status.FAILED_PRECONDITION.withDescription("The recovery checkpoint is not active")
+        .asRuntimeException()
+    }
+    val revisions =
+      txn
+        .readRawImpressionUploads(
+          request.dataProviderResourceId,
+          org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRequestKt.filter {
+            doneBlobUri = request.rawImpressionUpload.doneBlobUri
+          },
+          Int.MAX_VALUE,
+        )
+        .toList()
+        .map { it.rawImpressionUpload }
+    if (
+      !(revisions
+        .filter {
+          it.rawImpressionUploadResourceId !=
+            source.rawImpressionUpload.rawImpressionUploadResourceId &&
+            it.evictionOperationId != request.evictionOperationId &&
+            Timestamps.compare(
+              if (it.hasDoneBlobCreateTime()) it.doneBlobCreateTime else it.createTime,
+              source.rawImpressionUpload.doneBlobCreateTime,
+            ) >= 0
+        }
+        .all {
+          it.processingDeferred &&
+            it.state !in
+              setOf(
+                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
+                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
+                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+              )
+        })
+    ) {
+      throw Status.FAILED_PRECONDITION.withDescription(
+          "A newer source revision already owns processed output"
+        )
+        .asRuntimeException()
+    }
+    return source
   }
 
   override suspend fun getRawImpressionUpload(

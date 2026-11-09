@@ -36,12 +36,16 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 
 @RunWith(JUnit4::class)
@@ -122,6 +126,60 @@ class RecoverUploaderTest {
 
     assertThat(error).hasMessageThat().contains("distinct valid generation")
   }
+
+  @Test
+  fun `recover uses the completed planned predecessor before a newer deferred revision`() =
+    runBlocking {
+      val operationName = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
+      val deferred = rawImpressionUpload {
+        name = "$DATA_PROVIDER/rawImpressionUploads/later-predecessor"
+        doneBlobUri = PREDECESSOR_DONE_BLOB_URI
+        doneBlobGeneration = GENERATION + 1
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+        replacesRawImpressionUpload = PREDECESSOR_REPLACEMENT_UPLOAD
+        state = RawImpressionUpload.State.CREATED
+        processingDeferred = true
+        registrationComplete = true
+      }
+      stubSourceUpload(deferred)
+      stubModelLine(
+        RawImpressionUploadModelLine.State.FAILED,
+        predecessorState = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+        blockedUpload = deferred.name,
+      )
+      stubSnapshot()
+      val operation = uploadHealingOperation {
+        name = operationName
+        state = UploadHealingOperation.State.RECOVERING
+        steps += uploadHealingStep {
+          sourceRawImpressionUpload = PREDECESSOR_UPLOAD
+          cmmsModelLine = MODEL_LINE
+          recoveryTarget = true
+          state = UploadHealingStep.State.COMPLETE
+          replacementRawImpressionUpload = PREDECESSOR_REPLACEMENT_UPLOAD
+        }
+        steps += uploadHealingStep {
+          sourceRawImpressionUpload = UPLOAD
+          rawImpressionUploadModelLine = "$UPLOAD/rawImpressionUploadModelLines/rml1"
+          cmmsModelLine = MODEL_LINE
+          recoveryTarget = true
+          recoveryAction =
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+          state = UploadHealingStep.State.WAITING_FOR_REPLACEMENT
+          recoveryPredecessorRawImpressionUpload = PREDECESSOR_UPLOAD
+        }
+      }
+      val recoverUploader =
+        recoverUploader(
+          getHealingOperation = { operation },
+          rewriteDoneBlob = { _, _, _ -> NEW_GENERATION },
+        )
+
+      val result = recoverUploader.recover(UPLOAD, listOf(MODEL_LINE))
+
+      assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
+      assertThat(deferred.processingDeferred).isTrue()
+    }
 
   @Test
   fun `recover rejects a superseded upload`() = runBlocking {
@@ -333,7 +391,8 @@ class RecoverUploaderTest {
   }
 
   private fun recoverUploader(
-    rewriteDoneBlob: suspend (String, Long, Map<String, String>) -> Long
+    getHealingOperation: suspend (String) -> UploadHealingOperation? = { null },
+    rewriteDoneBlob: suspend (String, Long, Map<String, String>) -> Long,
   ): RecoverUploader {
     val channel = grpcTestServerRule.channel
     return RecoverUploader(
@@ -343,6 +402,7 @@ class RecoverUploaderTest {
       ),
       RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel),
       rewriteDoneBlob,
+      getHealingOperation,
     )
   }
 
@@ -366,6 +426,7 @@ class RecoverUploaderTest {
       doneBlobGeneration = GENERATION - 1
       doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
       replacesRawImpressionUpload = PREDECESSOR_UPLOAD
+      uploadHealingOperation = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
     }
     whenever(uploadsService.getRawImpressionUpload(any())).thenAnswer { invocation ->
       val request =
@@ -391,9 +452,11 @@ class RecoverUploaderTest {
         if (request.filter.doneBlobUri == PREDECESSOR_DONE_BLOB_URI) {
           rawImpressionUploads += predecessor
           rawImpressionUploads += predecessorReplacement
+          rawImpressionUploads +=
+            additionalUploads.filter { it.doneBlobUri == PREDECESSOR_DONE_BLOB_URI }
         } else {
           rawImpressionUploads += source
-          for (upload in additionalUploads) {
+          for (upload in additionalUploads.filter { it.doneBlobUri != PREDECESSOR_DONE_BLOB_URI }) {
             rawImpressionUploads += upload
           }
         }
@@ -408,6 +471,7 @@ class RecoverUploaderTest {
     recoveryAction: RawImpressionUploadModelLine.RecoveryAction =
       RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
     recoveryPredecessorUpload: String = PREDECESSOR_UPLOAD,
+    blockedUpload: String = "",
   ) {
     whenever(modelLinesService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
       val request =
@@ -420,7 +484,12 @@ class RecoverUploaderTest {
         rawImpressionUploadModelLines += rawImpressionUploadModelLine {
           name = "${request.parent}/rawImpressionUploadModelLines/rml1"
           cmmsModelLine = MODEL_LINE
-          this.state = if (request.parent == UPLOAD) state else predecessorState
+          this.state =
+            when (request.parent) {
+              UPLOAD -> state
+              blockedUpload -> RawImpressionUploadModelLine.State.CREATED
+              else -> predecessorState
+            }
           if (request.parent == UPLOAD) {
             failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
             this.recoveryAction = recoveryAction

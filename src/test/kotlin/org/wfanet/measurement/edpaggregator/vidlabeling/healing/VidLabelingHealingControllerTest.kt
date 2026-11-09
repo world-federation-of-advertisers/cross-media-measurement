@@ -646,6 +646,111 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
+  fun `run confirms its exact replacement while a newer revision is deferred`() = runBlocking {
+    var operation =
+      EVICTING_OPERATION.copy {
+        state = UploadHealingOperation.State.REPLAYING
+        steps[0] =
+          steps[0].copy {
+            state = UploadHealingStep.State.RECOVERY_STARTED
+            recoveryDoneBlobGeneration = CANDIDATE_UPLOAD.doneBlobGeneration
+          }
+      }
+    val replacement =
+      CANDIDATE_UPLOAD.copy {
+        state = RawImpressionUpload.State.COMPLETED
+        registrationComplete = true
+        uploadHealingOperation = OPERATION_NAME
+      }
+    val deferred = rawImpressionUpload {
+      name = "$DATA_PROVIDER/rawImpressionUploads/newer"
+      doneBlobUri = replacement.doneBlobUri
+      doneBlobGeneration = 3L
+      createTime = timestamp { seconds = 400L }
+      replacesRawImpressionUpload = replacement.name
+      state = RawImpressionUpload.State.CREATED
+      registrationComplete = true
+      processingDeferred = true
+    }
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+        >(
+          0
+        )
+      listUploadHealingOperationsResponse {
+        if (operation.state in request.filter.stateInList) uploadHealingOperations += operation
+      }
+    }
+    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+      .thenReturn(
+        CANDIDATE.copy {
+          state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED
+          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+          uploadHealingOperation = OPERATION_NAME
+        }
+      )
+    whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(SOURCE_UPLOAD)
+    whenever(uploadsService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += listOf(SOURCE_UPLOAD, replacement, deferred)
+        }
+      )
+    whenever(modelLinesService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+      val parent =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+          >(
+            0
+          )
+          .parent
+      listRawImpressionUploadModelLinesResponse {
+        if (parent == replacement.name) {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "${replacement.name}/rawImpressionUploadModelLines/ml"
+            cmmsModelLine = CMMS_MODEL_LINE
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+        }
+      }
+    }
+    whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+        >(
+          0
+        )
+      assertThat(request.replacementRawImpressionUpload).isEqualTo(replacement.name)
+      val completed =
+        operation.stepsList.single().copy {
+          state = UploadHealingStep.State.COMPLETE
+          replacementRawImpressionUpload = replacement.name
+        }
+      operation =
+        operation.copy {
+          state = UploadHealingOperation.State.COMPLETE
+          steps[0] = completed
+          etag = "completed"
+        }
+      completed
+    }
+    val replayer = org.mockito.kotlin.mock<DoneBlobReplayer>()
+
+    newController(doneBlobReplayer = replayer).run()
+
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertThat(operation.stepsList.single().replacementRawImpressionUpload)
+      .isEqualTo(replacement.name)
+    assertThat(deferred.processingDeferred).isTrue()
+    verify(replayer, never()).replay(any())
+  }
+
+  @Test
   fun `run leaves transient failures resumable`() = runBlocking {
     whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =

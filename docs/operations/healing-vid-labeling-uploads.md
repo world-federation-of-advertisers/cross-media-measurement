@@ -212,3 +212,12 @@ Before replacement processing begins, the eviction operation is safe to repeat a
 failure. It skips rows already marked `FAILED`, already-deleted metadata, and output blobs that are
 already absent. Do not repeat eviction after corrected output has been generated at the same
 deterministic URI.
+
+## New revisions during an approved repair
+
+A repair becomes committed when its operation enters `EVICTING`. Later raw-upload revisions
+remain quarantined or deferred and cannot cancel that running plan. Recovery processes the
+retained approved object generations and verifies the replacements recorded by that operation.
+After the repair completes, newer corrections are planned against the current output owners and
+require a new operator approval. If a retained object version is unavailable, the operation needs
+attention; current directory contents are not substituted for the approved data.
