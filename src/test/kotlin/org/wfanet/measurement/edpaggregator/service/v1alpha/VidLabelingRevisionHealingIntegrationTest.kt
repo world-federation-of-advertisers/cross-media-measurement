@@ -1542,6 +1542,122 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
   }
 
   @Test
+  fun `committed healing completes before newer source and cascade revisions`() = runBlocking {
+    retainRawObjectVersions()
+    setVisibleModelLines(MEMOIZED_MODEL_LINE)
+    val originals = linkedMapOf<LocalDate, RawImpressionUpload>()
+    for (offset in 0L..1L) {
+      val date = EVENT_DATE.plusDays(offset)
+      setToday(date)
+      writeRawFile("committed-race/day-$offset", "input.parquet", listOf("original-$offset"), date)
+      val generation = finalizeRawUpload("committed-race/day-$offset")
+      awaitPipelineIdle()
+      originals[date] = listUploads().single { it.doneBlobGeneration == generation }
+    }
+    val firstOutput = snapshotOutputArtifact(listMetadata().first())
+    writeRawFile("committed-race/day-0", "input.parquet", listOf("approved-repair"), EVENT_DATE)
+    val approvedGeneration = finalizeRawUpload("committed-race/day-0")
+    workItemTransport.awaitIdle()
+    val approvedInput = listUploads().single { it.doneBlobGeneration == approvedGeneration }
+    val controller = buildHealingController()
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    val draft = listHealingOperations().single()
+    approveHealingOperation(
+      draft,
+      RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE,
+    )
+    val newerGenerations = linkedMapOf<LocalDate, Long>()
+    var queuedAppendName = ""
+    beforeEviction {
+      assertThat(listHealingOperations().single { it.name == draft.name }.state)
+        .isEqualTo(UploadHealingOperation.State.EVICTING)
+      writeRawFile(
+        "committed-race/day-1",
+        "extra.parquet",
+        listOf("queued-append"),
+        EVENT_DATE.plusDays(1),
+      )
+      val generation = finalizeRawUpload("committed-race/day-1")
+      val append = listUploads().single { it.doneBlobGeneration == generation }
+      queuedAppendName = append.name
+      assertThat(append.replacesRawImpressionUpload)
+        .isEqualTo(originals.getValue(EVENT_DATE.plusDays(1)).name)
+      assertThat(listUploadFiles(append.name).map { it.blobUri.substringAfterLast('/') })
+        .containsExactly("extra.parquet")
+    }
+    beforeOutputDelete(firstOutput.dataUri) {
+      assertThat(listHealingOperations().single { it.name == draft.name }.state)
+        .isEqualTo(UploadHealingOperation.State.EVICTING)
+      for (offset in 0L..1L) {
+        val date = EVENT_DATE.plusDays(offset)
+        if (offset == 1L) {
+          checkNotNull(
+              fileStorage.getBlob(blobKey("$rawPrefix/committed-race/day-1/extra.parquet"))
+            )
+            .delete()
+        }
+        writeRawFile("committed-race/day-$offset", "input.parquet", listOf("newer-$offset"), date)
+        newerGenerations[date] = finalizeRawUpload("committed-race/day-$offset")
+      }
+      workItemTransport.awaitIdle()
+    }
+
+    advanceHealingUntilComplete(buildHealingController(), draft.name)
+    awaitPipelineIdle()
+    assertThat(newerGenerations).hasSize(2)
+    val completed = listHealingOperations().single { it.name == draft.name }
+    assertThat(completed.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertThat(
+        completed.stepsList.filter { it.recoveryTarget }.map { it.replacementRawImpressionUpload }
+      )
+      .contains(approvedInput.name)
+    val cascadeReplacement =
+      completed.stepsList
+        .single {
+          it.recoveryTarget &&
+            it.sourceRawImpressionUpload == originals.getValue(EVENT_DATE.plusDays(1)).name
+        }
+        .replacementRawImpressionUpload
+    assertThat(listUploads().single { it.name == queuedAppendName }.replacesRawImpressionUpload)
+      .isEqualTo(cascadeReplacement)
+    assertThat(readLabeledPeople(MEMOIZED_MODEL_LINE).map { it.personId })
+      .containsExactly("approved-repair", "original-1")
+
+    val queued = listUploads().filter { it.doneBlobGeneration in newerGenerations.values }
+    assertThat(queued).hasSize(2)
+    for (revision in queued) {
+      assertThat(revision.processingDeferred).isTrue()
+      assertThat(listModelLines(revision.name)).isEmpty()
+      assertThat(poolAssignmentParamsFor(revision.name)).isEmpty()
+      assertThat(generationOf(revision.doneBlobUri)).isEqualTo(revision.doneBlobGeneration)
+    }
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    val next =
+      listHealingOperations().single { it.state == UploadHealingOperation.State.APPROVAL_REQUIRED }
+    val firstReplacements =
+      completed.stepsList
+        .filter { it.recoveryTarget }
+        .map { it.replacementRawImpressionUpload }
+        .toSet()
+    assertThat(
+        next.stepsList.filter { it.recoveryTarget }.map { it.sourceRawImpressionUpload }.toSet()
+      )
+      .containsExactlyElementsIn(firstReplacements)
+    approveHealingOperation(
+      next,
+      next.rawImpressionUploadCorrectionCandidatesList.associateWith {
+        RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+      },
+      requestId = "123e4567-e89b-42d3-a456-426614174299",
+    )
+    advanceHealingUntilComplete(buildHealingController(), next.name)
+    awaitPipelineIdle()
+    assertThat(readLabeledPeople(MEMOIZED_MODEL_LINE).map { it.personId })
+      .containsExactly("newer-0", "newer-1")
+    Unit
+  }
+
+  @Test
   fun `newer output generation survives eviction of the planned generation`() = runBlocking {
     writeRawFile("output-race", "input.parquet", listOf("original"))
     finalizeRawUpload("output-race")

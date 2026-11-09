@@ -463,7 +463,8 @@ abstract class VidLabelingPipelineTestHarness(
     externalOutputPrefix = "gs://$fileBucket/$rootKey/output/external"
     modelBlobUri = "file:///$fileBucket/$rootKey/models/model.riegeli"
     kekUri = "fake-kms://vid-labeling/$rootKey"
-    fileStorage = GenerationEnforcingStorageClient(FileSystemStorageClient(fileStorageRoot))
+    fileStorage =
+      GenerationEnforcingStorageClient(FileSystemStorageClient(fileStorageRoot), fileStorageRoot)
     mapStorage = UriNormalizingStorageClient(fileStorage)
     metadataStorage = RecordingBlobMetadataStorageClient(fileStorage)
     kmsClient = TestEncryptedStorage.buildFakeKmsClient(kekUri, keyTemplate = "AES128_GCM")
@@ -565,6 +566,9 @@ abstract class VidLabelingPipelineTestHarness(
         modelLineConfigs = modelLineFixtures.associate { it.name to modelLineConfig },
         readEventDate = { uri -> readEventDate(uri) },
         readBlobMetadata = { key -> blobMetadata(key) },
+        readBlobVersionMetadata = { key, generation -> blobVersionMetadata(key, generation) },
+        getHealingOperation = { name -> readHealingOperation(name) },
+        getCorrectionCandidate = { name -> getCorrectionCandidate(name) },
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
         clock = Clock.fixed(NOW, ZoneOffset.UTC),
       )
@@ -782,10 +786,12 @@ abstract class VidLabelingPipelineTestHarness(
         ),
       )
     val recoverUploader =
-      RecoverUploader(uploadsStub, modelLineRowsStub, rankIndexBlobsStub) {
-        doneBlobUri,
-        expectedGeneration,
-        metadata ->
+      RecoverUploader(
+        uploadsStub,
+        modelLineRowsStub,
+        rankIndexBlobsStub,
+        getHealingOperation = { name -> readHealingOperation(name) },
+      ) { doneBlobUri, expectedGeneration, metadata ->
         val key = blobKey(doneBlobUri)
         check(fileStorage.getFreshnessToken(key)?.toLong() == expectedGeneration)
         val blob = fileStorage.writeBlob(key, flowOf(ByteString.EMPTY))
@@ -820,35 +826,68 @@ abstract class VidLabelingPipelineTestHarness(
           }
         )
       },
-      evictionExecutorFactory = { evictUploader },
-      manifestReader = { doneBlobUri, doneBlobGeneration, persistedManifest ->
-        val doneKey = blobKey(doneBlobUri)
-        check(generationOf(doneBlobUri) == doneBlobGeneration)
-        val prefix =
-          doneKey.substringBeforeLast('/', missingDelimiterValue = "").let {
-            if (it.isEmpty()) "" else "$it/"
+      evictionExecutorFactory = {
+        object :
+          org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictionExecutor by evictUploader {
+          override suspend fun evict(
+            plan: EvictUploader.EvictionPlan,
+            reason: String,
+            onEntryEvicted: suspend (EvictUploader.CascadeEntry) -> Unit,
+          ): EvictUploader.EvictionResult {
+            beforeEvictionHook.getAndSet(null)?.invoke()
+            return evictUploader.evict(plan, reason, onEntryEvicted)
           }
-        val persistedByIdentity = persistedManifest.associateBy { it.blobUri to it.blobGeneration }
-        val manifest =
-          fileStorage
-            .listBlobs(prefix)
-            .toList()
-            .filterNot { it.blobKey.substringAfterLast('/').equals("done", ignoreCase = true) }
-            .map { blob ->
-              val blobUri = "gs://$fileBucket/${blob.blobKey}"
-              val generation =
-                checkNotNull((blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken)
-                  .toLong()
-              RawImpressionUploadManifestClassifier.File(
-                blobUri,
-                generation,
-                persistedByIdentity[blobUri to generation]?.eventDate
-                  ?: com.google.type.Date.getDefaultInstance(),
-              )
-            }
-        check(generationOf(doneBlobUri) == doneBlobGeneration)
-        manifest
+        }
       },
+      manifestReader =
+        object : org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManifestReader {
+          override suspend fun read(
+            doneBlobUri: String,
+            doneBlobGeneration: Long,
+            persistedManifest: Collection<RawImpressionUploadManifestClassifier.File>,
+          ): Collection<RawImpressionUploadManifestClassifier.File> {
+            val doneKey = blobKey(doneBlobUri)
+            check(generationOf(doneBlobUri) == doneBlobGeneration)
+            val prefix =
+              doneKey.substringBeforeLast('/', missingDelimiterValue = "").let {
+                if (it.isEmpty()) "" else "$it/"
+              }
+            val persistedByIdentity =
+              persistedManifest.associateBy { it.blobUri to it.blobGeneration }
+            val manifest =
+              fileStorage
+                .listBlobs(prefix)
+                .toList()
+                .filterNot { it.blobKey.substringAfterLast('/').equals("done", ignoreCase = true) }
+                .map { blob ->
+                  val blobUri = "gs://$fileBucket/${blob.blobKey}"
+                  val generation =
+                    checkNotNull((blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken)
+                      .toLong()
+                  RawImpressionUploadManifestClassifier.File(
+                    blobUri,
+                    generation,
+                    persistedByIdentity[blobUri to generation]?.eventDate
+                      ?: com.google.type.Date.getDefaultInstance(),
+                  )
+                }
+            check(generationOf(doneBlobUri) == doneBlobGeneration)
+            return manifest
+          }
+
+          override suspend fun readPersisted(
+            doneBlobUri: String,
+            doneBlobGeneration: Long,
+            persistedManifest: Collection<RawImpressionUploadManifestClassifier.File>,
+          ): Collection<RawImpressionUploadManifestClassifier.File> {
+            val marker = blobVersionMetadata(blobKey(doneBlobUri), doneBlobGeneration)
+            for (file in persistedManifest) {
+              val version = blobVersionMetadata(blobKey(file.blobUri), file.blobGeneration)
+              check(version.createTime <= marker.createTime)
+            }
+            return persistedManifest
+          }
+        },
       doneBlobReplayerFactory = {
         DoneBlobReplayer { request ->
           val operationId = request.uploadHealingOperation.substringAfterLast('/')
@@ -883,6 +922,12 @@ abstract class VidLabelingPipelineTestHarness(
 
   protected fun beforeOutputDelete(blobUri: String, block: suspend () -> Unit) {
     check(outputDeleteHook.compareAndSet(null, OutputDeleteHook(blobUri, block)))
+  }
+
+  private val beforeEvictionHook = AtomicReference<(suspend () -> Unit)?>(null)
+
+  protected fun beforeEviction(block: suspend () -> Unit) {
+    check(beforeEvictionHook.compareAndSet(null, block))
   }
 
   protected fun buildVidLabelingMonitor(
@@ -1343,6 +1388,7 @@ abstract class VidLabelingPipelineTestHarness(
     require(eventDates.size == 1) { "one Parquet file must have exactly one event date" }
     val eventDate = eventDates.single()
     val key = "$rootKey/raw/$folder/$fileName"
+    GenerationMatchedTestHadoopFileSystem.retainVersion(File(fileStorageRoot, key))
     val eventTimeMicros = eventDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() * 1_000L
     parquetClient(kmsClient)
       .writeBlob(
@@ -1363,6 +1409,7 @@ abstract class VidLabelingPipelineTestHarness(
         },
         mapOf(RawImpressionFileMetadata.EVENT_DATE_KEY to eventDate.toString()),
       )
+    GenerationMatchedTestHadoopFileSystem.retainVersion(File(fileStorageRoot, key))
     return "gs://$fileBucket/$key"
   }
 
@@ -1491,6 +1538,38 @@ abstract class VidLabelingPipelineTestHarness(
     // Each FileSystem overwrite is a new logical object generation. Its update time therefore
     // models GCS's per-generation create time rather than the inode's original create time.
     return RawImpressionBlobMetadata(generation, blob.size, blob.updateTime)
+  }
+
+  protected fun retainRawObjectVersions() {
+    GenerationMatchedTestHadoopFileSystem.enableRetention(tempFolder.newFolder("retained-versions"))
+  }
+
+  private suspend fun readHealingOperation(name: String): UploadHealingOperation? {
+    return try {
+      operationsStub.getUploadHealingOperation(
+        org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest {
+          this.name = name
+        }
+      )
+    } catch (e: io.grpc.StatusException) {
+      if (e.status.code == io.grpc.Status.Code.NOT_FOUND) null else throw e
+    }
+  }
+
+  protected suspend fun blobVersionMetadata(
+    key: String,
+    generation: Long,
+  ): RawImpressionBlobMetadata {
+    val current = fileStorage.getBlob(key)
+    if (
+      (current as? ConditionalOperationStorageClient.Blob)?.freshnessToken?.toLong() == generation
+    ) {
+      return RawImpressionBlobMetadata(generation, current.size, current.updateTime)
+    }
+    val version =
+      GenerationMatchedTestHadoopFileSystem.retainedVersion(File(fileStorageRoot, key), generation)
+        ?: throw IOException("Retained object version is missing: $key#$generation")
+    return RawImpressionBlobMetadata(generation, version.length(), Instant.ofEpochMilli(generation))
   }
 
   protected suspend fun generationOf(blobUri: String): Long =
@@ -2175,7 +2254,8 @@ abstract class VidLabelingPipelineTestHarness(
 
   /** Adds generation-precondition semantics to the single-process filesystem test backend. */
   protected class GenerationEnforcingStorageClient(
-    private val delegate: ConditionalOperationStorageClient
+    private val delegate: ConditionalOperationStorageClient,
+    private val rootDirectory: File,
   ) : ConditionalOperationStorageClient {
     private val failNextDeletes = ConcurrentHashMap.newKeySet<String>()
 
@@ -2183,8 +2263,12 @@ abstract class VidLabelingPipelineTestHarness(
       check(failNextDeletes.add(blobKey)) { "Delete failure already armed for $blobKey" }
     }
 
-    override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob =
-      wrap(delegate.writeBlob(blobKey, content))
+    override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
+      delegate.getBlob(blobKey)?.let {
+        GenerationMatchedTestHadoopFileSystem.retainVersion(File(rootDirectory, it.blobKey))
+      }
+      return wrap(delegate.writeBlob(blobKey, content))
+    }
 
     override suspend fun getBlob(blobKey: String): StorageClient.Blob? =
       delegate.getBlob(blobKey)?.let { wrap(it) }
@@ -2902,10 +2986,13 @@ class GenerationMatchedTestHadoopFileSystem : RawLocalFileSystem() {
     }
     val blobUri = "gs://${checkNotNull(uri.authority)}/$objectPath"
     generationReads.computeIfAbsent(blobUri) { ConcurrentHashMap.newKeySet() }.add(generation)
-    val file = File("/${checkNotNull(uri.authority)}/${objectPath.trimStart('/')}")
-    if (file.lastModified() != generation) {
+    val currentFile = File("/${checkNotNull(uri.authority)}/${objectPath.trimStart('/')}")
+    val file =
+      if (currentFile.lastModified() == generation) currentFile
+      else retainedVersion(currentFile, generation)
+    if (file == null || file.lastModified() != generation) {
       throw IOException(
-        "Raw-impression object $file no longer matches its registered generation $generation"
+        "Raw-impression object $currentFile no longer matches its registered generation $generation"
       )
     }
     return Path(file.toURI())
@@ -2913,9 +3000,33 @@ class GenerationMatchedTestHadoopFileSystem : RawLocalFileSystem() {
 
   companion object {
     private val generationReads = ConcurrentHashMap<String, MutableSet<Long>>()
+    private val retainedVersions = ConcurrentHashMap<Pair<String, Long>, File>()
+    private var retentionRoot: File? = null
+
+    fun enableRetention(root: File) {
+      retentionRoot = root
+    }
+
+    fun retainVersion(file: File) {
+      val root = retentionRoot ?: return
+      if (!file.isFile) return
+      val generation = file.lastModified()
+      val key = file.absolutePath to generation
+      retainedVersions.computeIfAbsent(key) {
+        File.createTempFile("generation-", ".blob", root).also { version ->
+          file.copyTo(version, overwrite = true)
+          check(version.setLastModified(generation))
+        }
+      }
+    }
+
+    fun retainedVersion(file: File, generation: Long): File? =
+      retainedVersions[file.absolutePath to generation]
 
     fun resetRecordedReads() {
       generationReads.clear()
+      retainedVersions.clear()
+      retentionRoot = null
     }
 
     fun recordedGenerations(blobUri: String): Set<Long> = generationReads[blobUri].orEmpty()
