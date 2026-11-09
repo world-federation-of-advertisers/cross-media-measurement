@@ -20,6 +20,7 @@ import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
@@ -40,6 +41,9 @@ class ValidateVidLabelingStorageConfig : Runnable {
   @CommandLine.Option(names = ["--data-availability-sync-config"], required = true)
   private lateinit var dataAvailabilitySyncConfigFile: File
 
+  @CommandLine.Option(names = ["--data-availability-monitor-config"], required = true)
+  private lateinit var dataAvailabilityMonitorConfigFile: File
+
   @CommandLine.Option(names = ["--data-watcher-config"], required = true)
   private lateinit var dataWatcherConfigFile: File
 
@@ -52,6 +56,11 @@ class ValidateVidLabelingStorageConfig : Runnable {
       parseTextProto(
         dataAvailabilitySyncConfigFile,
         DataAvailabilitySyncConfigs.getDefaultInstance(),
+      )
+    val dataAvailabilityMonitorConfigs =
+      parseTextProto(
+        dataAvailabilityMonitorConfigFile,
+        DataAvailabilityMonitorConfigs.getDefaultInstance(),
       )
     val typeRegistry =
       TypeRegistry.newBuilder()
@@ -66,6 +75,7 @@ class ValidateVidLabelingStorageConfig : Runnable {
       monitorConfigs,
       syncConfigs,
       watcherConfig,
+      dataAvailabilityMonitorConfigs,
     )
   }
 

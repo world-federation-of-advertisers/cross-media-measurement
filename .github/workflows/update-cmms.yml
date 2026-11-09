@@ -140,6 +140,7 @@ jobs:
           --vid-labeling-config="$CONFIG_DIR/vid-labeling-dispatcher-config.textproto" \
           --vid-labeling-monitor-config="$CONFIG_DIR/vid-labeling-monitor-config.textproto" \
           --data-availability-sync-config="$CONFIG_DIR/data-availability-sync-config.textproto" \
+          --data-availability-monitor-config="$CONFIG_DIR/data-availability-monitor-config.textproto" \
           --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto"
 
   update-secure-computation-dlq-paused:
