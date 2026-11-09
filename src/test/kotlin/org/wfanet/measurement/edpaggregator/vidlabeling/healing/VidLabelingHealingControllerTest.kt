@@ -784,12 +784,7 @@ class VidLabelingHealingControllerTest {
       }
     }
     whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
-        >(
-          0
-        )
+      val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
       assertThat(request.replacementRawImpressionUpload).isEqualTo(replacement.name)
       val completed =
         operation.stepsList.single().copy {
