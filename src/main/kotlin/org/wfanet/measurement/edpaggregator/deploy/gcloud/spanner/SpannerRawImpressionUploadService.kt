@@ -61,6 +61,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readDispatc
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readProcessingDeferredRawImpressionUploadIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadCorrectionCandidates
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.reparentQuarantinedRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadRegistrationComplete
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
@@ -349,6 +350,50 @@ class SpannerRawImpressionUploadService(
             processingDeferred,
             request.correctionCandidateId.takeIf { it.isNotEmpty() },
           )
+
+          if (
+            committedSource != null &&
+              txn
+                .findUploadHealingOperation(
+                  request.dataProviderResourceId,
+                  request.evictionOperationId,
+                )
+                ?.uploadHealingOperation
+                ?.state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING
+          ) {
+            // Preserve the recovered base manifest beneath revisions queued before this
+            // replacement.
+            txn
+              .readRawImpressionUploads(
+                request.dataProviderResourceId,
+                org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRequestKt
+                  .filter { doneBlobUri = request.rawImpressionUpload.doneBlobUri },
+                Int.MAX_VALUE,
+              )
+              .collect { queued ->
+                val revision = queued.rawImpressionUpload
+                if (
+                  revision.processingDeferred &&
+                    revision.state in
+                      setOf(
+                        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
+                        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+                      ) &&
+                    revision.replacesRawImpressionUploadResourceId == replacesResourceId &&
+                    revision.hasDoneBlobCreateTime() &&
+                    Timestamps.compare(
+                      revision.doneBlobCreateTime,
+                      request.rawImpressionUpload.doneBlobCreateTime,
+                    ) > 0
+                ) {
+                  txn.reparentQuarantinedRawImpressionUpload(
+                    request.dataProviderResourceId,
+                    queued.rawImpressionUploadId,
+                    resolvedResourceId,
+                  )
+                }
+              }
+          }
 
           rawImpressionUpload {
             dataProviderResourceId = request.dataProviderResourceId
