@@ -176,8 +176,6 @@ jobs:
         coords[data-availability-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-sync:$ARTIFACT_VERSION:jar"
         coords[data-availability-cleanup]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-cleanup:$ARTIFACT_VERSION:jar"
         coords[data-availability-monitor]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-monitor:$ARTIFACT_VERSION:jar"
-        # TODO(@marcopremier): requires the function jars to be published to GitHub Packages
-        # (vid-labeling-dispatcher is on main; vid-labeling-monitor needs PR #4020 merged).
         coords[vid-labeling-dispatcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-dispatcher:$ARTIFACT_VERSION:jar"
         coords[vid-labeling-monitor]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-monitor:$ARTIFACT_VERSION:jar"
         coords[dashboard-compliance-check]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools:dashboard-compliance-check:$ARTIFACT_VERSION:jar"
@@ -185,6 +183,7 @@ jobs:
         for key in "${!coords[@]}"; do
           dest_dir="$TEMP_DIR/$key"
           mkdir -p "$dest_dir"
+          # Uber JARs already contain their runtime dependencies.
           mvn -B -U -Dmaven.repo.local="$LOCAL_REPO" \
             org.apache.maven.plugins:maven-dependency-plugin:3.11.0:get \
             -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
@@ -193,6 +192,7 @@ jobs:
         
           IFS=':' read -r groupId artifactId version type <<<"${coords[$key]}"
           jar_dir="$LOCAL_REPO/${groupId//./\/}/$artifactId/$version"
+          # Maven installs timestamped SNAPSHOTs with the base-version filename.
           jar_path="$jar_dir/$artifactId-$version.jar"
           filename="${version}-function.jar"
           cp "$jar_path" "$dest_dir/$filename"
