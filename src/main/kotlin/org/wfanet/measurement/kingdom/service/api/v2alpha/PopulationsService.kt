@@ -119,6 +119,7 @@ class PopulationsService(
       } catch (e: StatusException) {
         throw when (e.status.code) {
           Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
           else -> Status.INTERNAL
         }.toExternalStatusRuntimeException(e)
       }

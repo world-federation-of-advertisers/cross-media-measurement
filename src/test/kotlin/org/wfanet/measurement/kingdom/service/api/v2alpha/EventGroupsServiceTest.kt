@@ -33,6 +33,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -1336,6 +1337,28 @@ class EventGroupsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listEventGroups throws UNAVAILABLE when internal service is unavailable`() {
+    internalEventGroupsMock.stub {
+      onBlocking { streamEventGroups(any()) }
+        .thenReturn(
+          flow {
+            emit(INTERNAL_EVENT_GROUP)
+            throw Status.UNAVAILABLE.asRuntimeException()
+          }
+        )
+    }
+    val request = listEventGroupsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listEventGroups(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
   }
 
   @Test
