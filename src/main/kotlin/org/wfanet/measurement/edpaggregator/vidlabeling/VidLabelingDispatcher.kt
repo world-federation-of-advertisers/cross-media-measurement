@@ -773,16 +773,13 @@ class VidLabelingDispatcher(
     findLatestUpload(listUploadsByDoneBlob(doneBlobPath))
 
   private fun findLatestUpload(uploads: List<RawImpressionUpload>): RawImpressionUpload? {
-    val replacedNames = uploads.mapTo(mutableSetOf()) { it.replacesRawImpressionUpload }
-    val leaves = uploads.filter { it.name !in replacedNames }
-    check(uploads.isEmpty() || leaves.isNotEmpty()) { "Upload revision chain contains a cycle" }
-    val timestamped = leaves.filter { it.hasDoneBlobCreateTime() }
+    val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
     return if (timestamped.isNotEmpty()) {
       timestamped.maxWithOrNull { left, right ->
         Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
       }
     } else {
-      leaves.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
+      uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
     }
   }
 
