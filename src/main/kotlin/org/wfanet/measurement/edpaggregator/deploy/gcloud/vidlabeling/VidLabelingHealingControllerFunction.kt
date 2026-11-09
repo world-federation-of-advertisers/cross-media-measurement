@@ -47,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItemPublisher
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManifestReader
@@ -168,7 +169,17 @@ class VidLabelingHealingControllerFunction(
             )
         }
       val recoverUploader =
-        RecoverUploader(uploads, modelLines, ranks, GcsDoneBlobRecoveryWriter(storage)::rewrite)
+        RecoverUploader(
+          uploads,
+          modelLines,
+          ranks,
+          getHealingOperation = { name ->
+            operations.getUploadHealingOperation(
+              getUploadHealingOperationRequest { this.name = name }
+            )
+          },
+          rewriteDoneBlob = GcsDoneBlobRecoveryWriter(storage)::rewrite,
+        )
       return@lazy VidLabelingHealingController(
         vidLabelingConfigs.map {
           VidLabelingHealingController.DataProviderConfig(
@@ -277,32 +288,81 @@ internal class GcsCorrectionManifestReader(private val storage: Storage) :
   override suspend fun read(
     doneBlobUri: String,
     doneBlobGeneration: Long,
-  ): Collection<RawImpressionUploadManifestClassifier.File> {
-    val done = GcsUri.parse(doneBlobUri)
-    val current = checkNotNull(storage.get(done.bucket, done.key)) { "$doneBlobUri does not exist" }
-    check(current.generation == doneBlobGeneration) { "$doneBlobUri generation changed" }
-    val prefix =
-      done.key.substringBeforeLast('/', missingDelimiterValue = "").let {
-        if (it.isEmpty()) "" else "$it/"
-      }
-    val manifest =
-      storage
-        .list(done.bucket, Storage.BlobListOption.prefix(prefix))
-        .iterateAll()
-        .asSequence()
-        .filterNot { it.name.substringAfterLast('/').equals("done", ignoreCase = true) }
-        .map {
-          RawImpressionUploadManifestClassifier.File(
-            "gs://${done.bucket}/${it.name}",
-            it.generation,
-          )
+    persistedManifest: Collection<RawImpressionUploadManifestClassifier.File>,
+  ): Collection<RawImpressionUploadManifestClassifier.File> =
+    withContext(Dispatchers.IO) {
+      val done = GcsUri.parse(doneBlobUri)
+      val current =
+        checkNotNull(storage.get(done.bucket, done.key)) { "$doneBlobUri does not exist" }
+      check(current.generation == doneBlobGeneration) { "$doneBlobUri generation changed" }
+      val prefix =
+        done.key.substringBeforeLast('/', missingDelimiterValue = "").let {
+          if (it.isEmpty()) "" else "$it/"
         }
-        .toList()
-    val rechecked =
-      checkNotNull(storage.get(done.bucket, done.key)) { "$doneBlobUri does not exist" }
-    check(rechecked.generation == doneBlobGeneration) { "$doneBlobUri generation changed" }
-    return manifest
-  }
+      val persistedByIdentity = persistedManifest.associateBy { it.blobUri to it.blobGeneration }
+      val manifest =
+        storage
+          .list(done.bucket, Storage.BlobListOption.prefix(prefix))
+          .iterateAll()
+          .asSequence()
+          .filterNot { it.name.substringAfterLast('/').equals("done", ignoreCase = true) }
+          .map {
+            val blobUri = "gs://${done.bucket}/${it.name}"
+            RawImpressionUploadManifestClassifier.File(
+              blobUri,
+              it.generation,
+              persistedByIdentity[blobUri to it.generation]?.eventDate
+                ?: com.google.type.Date.getDefaultInstance(),
+            )
+          }
+          .toList()
+      val rechecked =
+        checkNotNull(storage.get(done.bucket, done.key)) { "$doneBlobUri does not exist" }
+      check(rechecked.generation == doneBlobGeneration) { "$doneBlobUri generation changed" }
+      manifest
+    }
+
+  override suspend fun readPersisted(
+    doneBlobUri: String,
+    doneBlobGeneration: Long,
+    persistedManifest: Collection<RawImpressionUploadManifestClassifier.File>,
+  ): Collection<RawImpressionUploadManifestClassifier.File> =
+    withContext(Dispatchers.IO) {
+      val done = GcsUri.parse(doneBlobUri)
+      val marker =
+        checkNotNull(storage.get(BlobId.of(done.bucket, done.key, doneBlobGeneration))) {
+          "The approved done-object version is unavailable"
+        }
+      check(marker.generation == doneBlobGeneration) { "Approved done-object identity changed" }
+      val markerCreateTime = checkNotNull(marker.createTimeOffsetDateTime).toInstant()
+      val prefix =
+        done.key.substringBeforeLast('/', missingDelimiterValue = "").let {
+          if (it.isEmpty()) "" else "$it/"
+        }
+      check(persistedManifest.map { it.blobUri }.distinct().size == persistedManifest.size) {
+        "The approved manifest contains duplicate object URIs"
+      }
+      for (file in persistedManifest) {
+        val uri = GcsUri.parse(file.blobUri)
+        require(
+          file.blobGeneration > 0L &&
+            uri.bucket == done.bucket &&
+            uri.key.startsWith(prefix) &&
+            uri.key != done.key
+        ) {
+          "Approved input does not identify one version in the source directory"
+        }
+        val blob =
+          checkNotNull(storage.get(BlobId.of(uri.bucket, uri.key, file.blobGeneration))) {
+            "An approved raw-object version is unavailable"
+          }
+        check(blob.generation == file.blobGeneration) { "Approved raw-object identity changed" }
+        check(checkNotNull(blob.createTimeOffsetDateTime).toInstant() <= markerCreateTime) {
+          "An approved raw object is newer than its done marker"
+        }
+      }
+      persistedManifest
+    }
 }
 
 internal class DataWatcherDoneBlobReplayer(private val dataWatcher: DataWatcher) :
