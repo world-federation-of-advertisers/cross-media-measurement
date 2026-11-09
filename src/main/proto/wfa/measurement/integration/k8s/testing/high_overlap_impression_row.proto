@@ -58,13 +58,13 @@ message HighOverlapImpressionRow {
   // `Common.UsState` enum name.
   string us_state = 11;
 
-  bool signed_in = 12;
+  optional bool signed_in = 12;
 
-  float video_completed_fraction = 13;
+  optional float video_completed_fraction = 13;
 
-  float video_viewable_fraction = 14;
+  optional float video_viewable_fraction = 14;
 
-  float display_viewable_fraction = 15;
+  optional float display_viewable_fraction = 15;
 
   // Media type of the impression, restricted to `VIDEO` or `DISPLAY` according
   // to which sub-message is present in the source `TestEvent`.

@@ -39,10 +39,6 @@ message HighOverlapDatasetManifest {
   string spec_fingerprint = 1;
 
   // EDPs that were seeded, by `edp_name`.
-  //
-  // Checked separately from `spec_fingerprint` because adding an EDP leaves the
-  // specs untouched: the dataset already describes every EDP, and which of them
-  // get written is the seeder's input.
   repeated string seeded_edps = 2;
 
   // ModelLine the impressions were stamped with.
@@ -53,4 +49,11 @@ message HighOverlapDatasetManifest {
 
   // Impression rows exported to BigQuery.
   int64 impression_row_count = 5;
+}
+
+// Output paths retained across reseeding attempts, independently of the success
+// manifest. Written before cleanup so a retry can find partially deleted data.
+message HighOverlapDatasetCleanupState {
+  // Output base paths relative to the storage bucket.
+  repeated string impression_paths = 1;
 }

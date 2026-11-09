@@ -23,6 +23,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.measurement.integration.k8s.testing.highOverlapDatasetCleanupState
+import org.measurement.integration.k8s.testing.highOverlapDatasetManifest
 import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageException
@@ -30,6 +32,58 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class HighOverlapDatasetCleanupTest {
+  @Test
+  fun `prepareForReseeding removes paths from the previous dataset absent from the new config`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      val removedPath = "edp/removed-edp"
+      val renamedPath = "previous/output"
+      storage.writeBlob(
+        CLEANUP_STATE_KEY,
+        highOverlapDatasetCleanupState { impressionPaths += listOf(removedPath, renamedPath) }
+          .toByteString(),
+      )
+      val staleKeys =
+        listOf(removedPath, renamedPath).flatMap { path ->
+          listOf("impressions.binpb", "metadata.binpb", "done").map {
+            "$path/model-line/$MODEL_LINE_ID/2026-04-01/$it"
+          }
+        }
+      writeBlobs(storage, staleKeys)
+
+      HighOverlapDatasetCleanup(storage, MODEL_LINE_ID).prepareForReseeding(setOf(IMPRESSION_PATH))
+
+      assertThat(storage.contents.keys).containsNoneIn(staleKeys)
+    }
+
+  @Test
+  fun `prepareForReseeding discovers legacy paths from the previous manifest`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      storage.writeBlob(
+        MANIFEST_KEY,
+        highOverlapDatasetManifest { seededEdps += "removed-edp" }.toByteString(),
+      )
+      val staleKey = "edp/removed-edp/model-line/$MODEL_LINE_ID/2026-04-01/done"
+      writeBlobs(storage, listOf(staleKey))
+
+      HighOverlapDatasetCleanup(storage, MODEL_LINE_ID).prepareForReseeding(setOf(IMPRESSION_PATH))
+
+      assertThat(storage.contents.keys).doesNotContain(staleKey)
+    }
+
+  @Test
+  fun `prepareForReseeding remembers partially seeded paths after config changes`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      HighOverlapDatasetCleanup(storage, MODEL_LINE_ID).prepareForReseeding(setOf(IMPRESSION_PATH))
+      writeBlobs(storage, listOf(IMPRESSION_KEY))
+
+      HighOverlapDatasetCleanup(storage, MODEL_LINE_ID).prepareForReseeding(setOf("new/output"))
+
+      assertThat(storage.contents.keys).doesNotContain(IMPRESSION_KEY)
+    }
+
   @Test
   fun `prepareForReseeding removes every date and blob under selected prefixes`() =
     runBlocking<Unit> {
@@ -49,7 +103,7 @@ class HighOverlapDatasetCleanupTest {
 
       HighOverlapDatasetCleanup(storage, MODEL_LINE_ID).prepareForReseeding(impressionPaths)
 
-      assertThat(storage.contents).isEmpty()
+      assertThat(storage.contents.keys).containsExactly(CLEANUP_STATE_KEY)
     }
 
   @Test
@@ -64,12 +118,13 @@ class HighOverlapDatasetCleanupTest {
           "$IMPRESSION_PATH/raw-impressions/2026-04-01/done",
           "test-edp/event-groups-map/test-edp-event-group.binpb",
           HighOverlapDataset.manifestBlobKey("other-line"),
+          "high-overlap/other-line/cleanup-state.binpb",
         )
       writeBlobs(storage, preservedKeys + listOf(MANIFEST_KEY, IMPRESSION_KEY))
 
       HighOverlapDatasetCleanup(storage, MODEL_LINE_ID).prepareForReseeding(setOf(IMPRESSION_PATH))
 
-      assertThat(storage.contents.keys).containsExactlyElementsIn(preservedKeys)
+      assertThat(storage.contents.keys).containsExactlyElementsIn(preservedKeys + CLEANUP_STATE_KEY)
     }
 
   @Test
@@ -79,7 +134,7 @@ class HighOverlapDatasetCleanupTest {
 
       HighOverlapDatasetCleanup(storage, MODEL_LINE_ID).prepareForReseeding(setOf(IMPRESSION_PATH))
 
-      assertThat(storage.contents).isEmpty()
+      assertThat(storage.contents.keys).containsExactly(CLEANUP_STATE_KEY)
     }
 
   @Test
@@ -93,7 +148,7 @@ class HighOverlapDatasetCleanupTest {
 
       HighOverlapDatasetCleanup(storage, MODEL_LINE_ID).prepareForReseeding(setOf(IMPRESSION_PATH))
 
-      assertThat(storage.contents).isEmpty()
+      assertThat(storage.contents.keys).containsExactly(CLEANUP_STATE_KEY)
     }
 
   @Test
@@ -117,7 +172,7 @@ class HighOverlapDatasetCleanupTest {
         }
 
       assertThat(exception).isSameInstanceAs(failure)
-      assertThat(delegate.contents.keys).containsExactly(IMPRESSION_KEY)
+      assertThat(delegate.contents.keys).containsExactly(IMPRESSION_KEY, CLEANUP_STATE_KEY)
     }
 
   @Test
@@ -148,7 +203,8 @@ class HighOverlapDatasetCleanupTest {
         }
 
       assertThat(exception).isSameInstanceAs(failure)
-      assertThat(delegate.contents.keys).containsExactly(MANIFEST_KEY, IMPRESSION_KEY)
+      assertThat(delegate.contents.keys)
+        .containsExactly(MANIFEST_KEY, IMPRESSION_KEY, CLEANUP_STATE_KEY)
     }
 
   @Test
@@ -177,7 +233,46 @@ class HighOverlapDatasetCleanupTest {
         }
 
       assertThat(exception).isSameInstanceAs(failure)
-      assertThat(delegate.contents.keys).containsExactly(IMPRESSION_KEY)
+      assertThat(delegate.contents.keys).containsExactly(IMPRESSION_KEY, CLEANUP_STATE_KEY)
+
+      HighOverlapDatasetCleanup(delegate, MODEL_LINE_ID).prepareForReseeding(setOf("new/output"))
+
+      assertThat(delegate.contents.keys).containsExactly(CLEANUP_STATE_KEY)
+    }
+
+  @Test
+  fun `prepareForReseeding preserves manifest and data when saving cleanup state fails`() =
+    runBlocking<Unit> {
+      val delegate = InMemoryStorageClient()
+      writeBlobs(delegate, listOf(MANIFEST_KEY, IMPRESSION_KEY))
+      val failure = StorageException("Cannot save cleanup state")
+      val storage =
+        object : StorageClient by delegate {
+          override suspend fun writeBlob(blobKey: String, content: ByteString): StorageClient.Blob {
+            throw failure
+          }
+        }
+
+      val exception =
+        assertFailsWith<StorageException> {
+          HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+            .prepareForReseeding(setOf(IMPRESSION_PATH))
+        }
+
+      assertThat(exception).isSameInstanceAs(failure)
+      assertThat(delegate.contents.keys).containsExactly(MANIFEST_KEY, IMPRESSION_KEY)
+    }
+
+  @Test
+  fun `prepareForReseeding removes previous data when all event groups are removed`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      HighOverlapDatasetCleanup(storage, MODEL_LINE_ID).prepareForReseeding(setOf(IMPRESSION_PATH))
+      writeBlobs(storage, listOf(IMPRESSION_KEY))
+
+      HighOverlapDatasetCleanup(storage, MODEL_LINE_ID).prepareForReseeding(emptySet())
+
+      assertThat(storage.contents.keys).containsExactly(CLEANUP_STATE_KEY)
     }
 
   private suspend fun writeBlobs(storage: StorageClient, keys: Iterable<String>) {
@@ -192,5 +287,6 @@ class HighOverlapDatasetCleanupTest {
     private const val IMPRESSION_KEY =
       "$IMPRESSION_PATH/model-line/$MODEL_LINE_ID/2026-04-01/impressions.binpb"
     private val MANIFEST_KEY = HighOverlapDataset.manifestBlobKey(MODEL_LINE_ID)
+    private const val CLEANUP_STATE_KEY = "high-overlap/$MODEL_LINE_ID/cleanup-state.binpb"
   }
 }

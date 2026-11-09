@@ -15,6 +15,10 @@
 package org.wfanet.measurement.loadtest.edpaggregator.tools
 
 import kotlinx.coroutines.flow.collect
+import org.measurement.integration.k8s.testing.HighOverlapDatasetCleanupState
+import org.measurement.integration.k8s.testing.HighOverlapDatasetManifest
+import org.measurement.integration.k8s.testing.highOverlapDatasetCleanupState
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.storage.StorageClient
 
@@ -23,12 +27,38 @@ class HighOverlapDatasetCleanup(
   private val storageClient: StorageClient,
   private val modelLineId: String,
 ) {
-  /** Invalidates the manifest before removing data under the selected impression paths. */
+  private val cleanupStateKey = "high-overlap/$modelLineId/cleanup-state.binpb"
+
+  /** Invalidates the manifest and removes data under both previous and new impression paths. */
   suspend fun prepareForReseeding(impressionPaths: Set<String>) {
-    storageClient.getBlob(HighOverlapDataset.manifestBlobKey(modelLineId))?.delete()
-    for (impressionPath in impressionPaths) {
+    val manifestBlob = storageClient.getBlob(HighOverlapDataset.manifestBlobKey(modelLineId))
+    val cleanupStateBlob = storageClient.getBlob(cleanupStateKey)
+    val previousPaths: List<String> =
+      if (cleanupStateBlob != null) {
+        HighOverlapDatasetCleanupState.parseFrom(cleanupStateBlob.read().flatten())
+          .impressionPathsList
+      } else if (manifestBlob != null) {
+        // Seeds written before cleanup state used the fixed edp/<name> layout.
+        HighOverlapDatasetManifest.parseFrom(manifestBlob.read().flatten()).seededEdpsList.map {
+          "edp/$it"
+        }
+      } else {
+        emptyList()
+      }
+    val pathsToClean: Set<String> = previousPaths.toSet() + impressionPaths
+    writeCleanupState(pathsToClean)
+    manifestBlob?.delete()
+    for (impressionPath in pathsToClean) {
       val prefix = "$impressionPath/model-line/$modelLineId/"
       storageClient.listBlobs(prefix).collect { blob -> blob.delete() }
     }
+    writeCleanupState(impressionPaths)
+  }
+
+  private suspend fun writeCleanupState(paths: Set<String>) {
+    storageClient.writeBlob(
+      cleanupStateKey,
+      highOverlapDatasetCleanupState { impressionPaths += paths.sorted() }.toByteString(),
+    )
   }
 }

@@ -243,25 +243,20 @@ class SeedHighOverlapDataset : Runnable {
   }
 
   override fun run() {
-    val fullConfig: ImpressionTestDataConfig =
+    val config: ImpressionTestDataConfig =
       parseTextProto(
         ImpressionTestDataConfigs.resolveSpecPath(HighOverlapDataset.CONFIG_RESOURCE_PATH),
         ImpressionTestDataConfig.getDefaultInstance(),
       )
     val populationSpec: PopulationSpec =
       parseTextProto(
-        ImpressionTestDataConfigs.resolveSpecPath(fullConfig.populationSpecResourcePath),
+        ImpressionTestDataConfigs.resolveSpecPath(config.populationSpecResourcePath),
         PopulationSpec.getDefaultInstance(),
         TypeRegistry.newBuilder().add(Common.getDescriptor()).build(),
       )
-    val kekClientsByEdp: Map<String, HighOverlapImpressionsWriter.KekClient> = buildKekClients()
-    val config: ImpressionTestDataConfig =
-      fullConfig
-        .toBuilder()
-        .clearEventGroups()
-        .addAllEventGroups(fullConfig.eventGroupsList.filter { it.edpName in kekClientsByEdp })
-        .build()
     val seededEdps: Set<String> = config.eventGroupsList.map { it.edpName }.toSortedSet()
+    val kekClientsByEdp: Map<String, HighOverlapImpressionsWriter.KekClient> =
+      buildKekClients(seededEdps)
     val datesByImpressionPath: Map<String, Set<LocalDate>> =
       HighOverlapDataset.datesByImpressionPath(config)
     val specFingerprint: String =
@@ -322,7 +317,14 @@ class SeedHighOverlapDataset : Runnable {
     }
   }
 
-  private fun buildKekClients(): Map<String, HighOverlapImpressionsWriter.KekClient> {
+  private fun buildKekClients(
+    requiredEdps: Set<String>
+  ): Map<String, HighOverlapImpressionsWriter.KekClient> {
+    val configuredEdps: Set<String> =
+      GOOGLE_CLOUD_KMS_EDPS + if (awsKmsFlags != null) AWS_KMS_EDPS else emptySet()
+    val missingEdps: Set<String> = requiredEdps - configuredEdps
+    require(missingEdps.isEmpty()) { "No KMS configuration for high overlap EDP(s) $missingEdps" }
+
     // A single Google Cloud KMS KEK is shared by these EDPs to avoid a separate KMS for each.
     val googleCloudKmsClient: KmsClient = GcpKmsClient().withDefaultCredentials()
     val googleCloudKekClient =

@@ -64,6 +64,7 @@ kt_jvm_proto_library(
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:__pkg__",
     ],
     deps = [":high_overlap_dataset_manifest_proto"],
 )

@@ -29,6 +29,7 @@ class HighOverlapImpressionRowMapper(
 ) {
   /**
    * Returns a row with a timestamp in microseconds and media type determined by message presence.
+   * Signed-in status and engagement values are unset when their source template is absent.
    *
    * @throws IllegalArgumentException if the impression does not contain exactly one of video or
    *   display.
@@ -55,11 +56,17 @@ class HighOverlapImpressionRowMapper(
       gender = event.message.common.gender.name
       ageGroup = event.message.common.ageGroup.name
       usState = event.message.common.usState.name
-      signedIn = event.message.common.signedIn
-      videoCompletedFraction = event.message.video.completedFraction
-      videoViewableFraction = event.message.video.viewableFraction
-      displayViewableFraction = event.message.display.viewableFraction
-      mediaType = if (event.message.hasVideo()) "VIDEO" else "DISPLAY"
+      if (event.message.hasCommon()) {
+        signedIn = event.message.common.signedIn
+      }
+      if (event.message.hasVideo()) {
+        videoCompletedFraction = event.message.video.completedFraction
+        videoViewableFraction = event.message.video.viewableFraction
+        mediaType = "VIDEO"
+      } else {
+        displayViewableFraction = event.message.display.viewableFraction
+        mediaType = "DISPLAY"
+      }
     }
   }
 

@@ -59,7 +59,6 @@ class HighOverlapImpressionRowMapperTest {
           signedIn = true
           videoCompletedFraction = 0.75F
           videoViewableFraction = 0.5F
-          displayViewableFraction = 0.0F
           mediaType = "VIDEO"
         }
       )
@@ -76,8 +75,8 @@ class HighOverlapImpressionRowMapperTest {
 
     assertThat(row.mediaType).isEqualTo("DISPLAY")
     assertThat(row.displayViewableFraction).isEqualTo(0.25F)
-    assertThat(row.videoCompletedFraction).isEqualTo(0.0F)
-    assertThat(row.videoViewableFraction).isEqualTo(0.0F)
+    assertThat(row.hasVideoCompletedFraction()).isFalse()
+    assertThat(row.hasVideoViewableFraction()).isFalse()
   }
 
   @Test
@@ -85,8 +84,11 @@ class HighOverlapImpressionRowMapperTest {
     val row = mapRow(VIDEO_EVENT.copy { video = video {} })
 
     assertThat(row.mediaType).isEqualTo("VIDEO")
+    assertThat(row.hasDisplayViewableFraction()).isFalse()
     assertThat(row.videoCompletedFraction).isEqualTo(0.0F)
     assertThat(row.videoViewableFraction).isEqualTo(0.0F)
+    assertThat(row.hasVideoCompletedFraction()).isTrue()
+    assertThat(row.hasVideoViewableFraction()).isTrue()
   }
 
   @Test
@@ -95,6 +97,16 @@ class HighOverlapImpressionRowMapperTest {
 
     assertThat(row.mediaType).isEqualTo("DISPLAY")
     assertThat(row.displayViewableFraction).isEqualTo(0.0F)
+    assertThat(row.hasDisplayViewableFraction()).isTrue()
+  }
+
+  @Test
+  fun `map preserves false signed in through serialization`() {
+    val mapped = mapRow(VIDEO_EVENT.copy { common = common { signedIn = false } })
+    val row = HighOverlapImpressionRow.parseFrom(mapped.toByteString())
+
+    assertThat(row.signedIn).isFalse()
+    assertThat(row.hasSignedIn()).isTrue()
   }
 
   @Test
@@ -118,7 +130,7 @@ class HighOverlapImpressionRowMapperTest {
     assertThat(row.gender).isEqualTo("GENDER_UNSPECIFIED")
     assertThat(row.ageGroup).isEqualTo("AGE_GROUP_UNSPECIFIED")
     assertThat(row.usState).isEqualTo("US_STATE_UNSPECIFIED")
-    assertThat(row.signedIn).isFalse()
+    assertThat(row.hasSignedIn()).isFalse()
   }
 
   @Test
