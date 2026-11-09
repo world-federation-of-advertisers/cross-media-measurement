@@ -946,6 +946,29 @@ class VidLabelingDispatcher(
 
   private suspend fun RawImpressionUpload.toManifestRevision():
     RawImpressionUploadManifestClassifier.Revision {
+    val committedCandidate =
+      if (state == RawImpressionUpload.State.CORRECTION_REQUIRED) {
+        val candidateName =
+          "$dataProviderName/rawImpressionUploadCorrectionCandidates/" +
+            RequestIds.forRawImpressionUploadCorrectionCandidate(doneBlobUri, doneBlobGeneration)
+        val candidate = getCorrectionCandidate(candidateName)
+        candidate
+          ?.takeIf {
+            it.state == RawImpressionUploadCorrectionCandidate.State.ASSIGNED &&
+              it.decision ==
+                RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE &&
+              it.uploadHealingOperation.isNotEmpty()
+          }
+          ?.takeIf {
+            getHealingOperation(it.uploadHealingOperation)?.state in
+              setOf(
+                UploadHealingOperation.State.EVICTING,
+                UploadHealingOperation.State.REPLAYING,
+                UploadHealingOperation.State.RECOVERING,
+                UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING,
+              )
+          }
+      } else null
     return RawImpressionUploadManifestClassifier.Revision(
       rawImpressionUpload = name,
       doneBlobUri = doneBlobUri,
@@ -953,10 +976,11 @@ class VidLabelingDispatcher(
       doneBlobCreateTime = if (hasDoneBlobCreateTime()) doneBlobCreateTime.toInstant() else null,
       createTime = createTime.toInstant(),
       replacesRawImpressionUpload = replacesRawImpressionUpload,
-      uploadHealingOperation = uploadHealingOperation,
+      uploadHealingOperation = committedCandidate?.uploadHealingOperation ?: uploadHealingOperation,
       registrationComplete = registrationComplete,
       failed = state == RawImpressionUpload.State.FAILED,
-      quarantined = state == RawImpressionUpload.State.CORRECTION_REQUIRED,
+      quarantined =
+        state == RawImpressionUpload.State.CORRECTION_REQUIRED && committedCandidate == null,
       manifestBoundary = state == RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT,
       files = listManifestFiles(name),
     )
