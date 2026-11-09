@@ -355,7 +355,7 @@ class TrusTeeMillTest {
   }
 
   @Test
-  fun `claimAndProcessWork prioritizes computation after the initialization burst`() = runBlocking {
+  fun `claimAndProcessWork initializes all queued work before ready computation`() = runBlocking {
     writeRequisitionData()
     whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
     fakeComputationDb.addComputation(
@@ -364,7 +364,7 @@ class TrusTeeMillTest {
       computationDetails = COMPUTATION_DETAILS,
       requisitions = REQUISITIONS,
     )
-    for (localId in 1L..4L) {
+    for (localId in 1L..6L) {
       fakeComputationDb.addComputation(
         localId,
         Stage.INITIALIZED.toProtocolStage(),
@@ -374,45 +374,22 @@ class TrusTeeMillTest {
     }
     val mill = createMill()
 
-    repeat(3) { assertThat(mill.claimAndProcessWork()).isTrue() }
-
-    assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
-      .isEqualTo(Stage.COMPUTING.toProtocolStage())
-    assertThat(fakeComputationDb[4]!!.computationStage)
-      .isEqualTo(Stage.INITIALIZED.toProtocolStage())
+    repeat(6) {
+      assertThat(mill.claimAndProcessWork()).isTrue()
+      assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
+        .isEqualTo(Stage.COMPUTING.toProtocolStage())
+    }
+    for (localId in 1L..6L) {
+      assertThat(fakeComputationDb[localId]!!.computationStage)
+        .isEqualTo(Stage.WAIT_TO_START.toProtocolStage())
+    }
 
     assertThat(mill.claimAndProcessWork()).isTrue()
-
     assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
       .isEqualTo(Stage.COMPLETE.toProtocolStage())
     assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
       .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
-    assertThat(fakeComputationDb[4]!!.computationStage)
-      .isEqualTo(Stage.INITIALIZED.toProtocolStage())
-
-    assertThat(mill.claimAndProcessWork()).isTrue()
-
-    assertThat(fakeComputationDb[4]!!.computationStage)
-      .isEqualTo(Stage.WAIT_TO_START.toProtocolStage())
   }
-
-  @Test
-  fun `claimAndProcessWork falls back to initialization when no computation is ready`() =
-    runBlocking {
-      val mill = createMill()
-      repeat(3) { assertThat(mill.claimAndProcessWork()).isFalse() }
-      fakeComputationDb.addComputation(
-        LOCAL_ID,
-        Stage.INITIALIZED.toProtocolStage(),
-        computationDetails = COMPUTATION_DETAILS,
-        requisitions = REQUISITIONS,
-      )
-
-      assertThat(mill.claimAndProcessWork()).isTrue()
-
-      assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
-        .isEqualTo(Stage.WAIT_TO_START.toProtocolStage())
-    }
 
   @Test
   fun `initializationPhase sends params to Kingdom and advance stage`() = runBlocking {

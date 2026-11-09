@@ -62,12 +62,10 @@ Key parameters include:
     efficient.
 
 Each mill processes one work item at a time and immediately claims the next
-available item. `--polling-interval` controls the wait after an empty claim or
-an error.
-
-Mills prioritize initialization for three claims, then ready computation for
-one claim. Empty claims count toward this cycle. If the preferred stage has no
-available work, another stage can be selected.
+available item. Initialization has priority; ready computations are selected
+when no initialization work is available. `--polling-interval` controls the
+wait after an empty claim or an exception escaping the claim/processing call.
+Handled computation failures retain their existing retry scheduling.
 
 `duchy_aggregator_trustee_replicas` sets the MIG size and defaults to one; dev
 uses two. Each instance has a distinct mill ID and shares the existing work

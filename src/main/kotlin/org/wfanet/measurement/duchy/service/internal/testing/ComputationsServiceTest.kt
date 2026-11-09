@@ -25,6 +25,8 @@ import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
@@ -883,19 +885,24 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `claimWork grants only one lock when mills compete for the same computation`() = runBlocking {
     val token = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
 
-    val responses =
-      listOf("mill-1", "mill-2")
-        .map { owner ->
-          async {
-            service.claimWork(
-              DEFAULT_CLAIM_WORK_REQUEST.copy {
-                this.owner = owner
-                lockDuration = Durations.fromSeconds(600)
-              }
-            )
-          }
+    val startClaims = CompletableDeferred<Unit>()
+    val ready = List(2) { CompletableDeferred<Unit>() }
+    val claims =
+      listOf("mill-1", "mill-2").mapIndexed { index, owner ->
+        async(Dispatchers.Default) {
+          ready[index].complete(Unit)
+          startClaims.await()
+          service.claimWork(
+            DEFAULT_CLAIM_WORK_REQUEST.copy {
+              this.owner = owner
+              lockDuration = Durations.fromSeconds(600)
+            }
+          )
         }
-        .awaitAll()
+      }
+    ready.forEach { it.await() }
+    startClaims.complete(Unit)
+    val responses = claims.awaitAll()
 
     val claimedTokens = responses.filter { it.hasToken() }.map { it.token }
     assertThat(claimedTokens).hasSize(1)
