@@ -186,6 +186,154 @@ class SpannerUploadHealingOperationServiceTest {
   }
 
   @Test
+  fun `completion accepts its recorded replacement before a newer deferred revision`() =
+    runBlocking {
+      val (service, started) = checkpointRecoveryWithDeferredRevision(OPERATION_ID)
+
+      val completed =
+        service.advanceUploadHealingStep(
+          advanceUploadHealingStepRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            uploadHealingStepId = 1L
+            etag = started.etag
+            action = AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
+            replacementRawImpressionUploadResourceId = REPLACEMENT_UPLOAD_ID
+            requestId = COMPLETE_REQUEST_ID
+          }
+        )
+
+      assertThat(completed.state)
+        .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE)
+      assertThat(completed.replacementRawImpressionUploadResourceId)
+        .isEqualTo(REPLACEMENT_UPLOAD_ID)
+      val deferred =
+        spannerDatabase.databaseClient.singleUse().use {
+          it
+            .getRawImpressionUploadByResourceId(DATA_PROVIDER_ID, "deferred-next")
+            .rawImpressionUpload
+        }
+      assertThat(deferred.processingDeferred).isTrue()
+      assertThat(deferred.state)
+        .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED)
+    }
+
+  @Test
+  fun `completion rejects another operations replacement behind a deferred revision`() =
+    runBlocking {
+      val (service, started) = checkpointRecoveryWithDeferredRevision(UUID.randomUUID().toString())
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.advanceUploadHealingStep(
+            advanceUploadHealingStepRequest {
+              dataProviderResourceId = DATA_PROVIDER_ID
+              uploadHealingOperationId = OPERATION_ID
+              uploadHealingStepId = 1L
+              etag = started.etag
+              action = AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
+              replacementRawImpressionUploadResourceId = REPLACEMENT_UPLOAD_ID
+              requestId = COMPLETE_REQUEST_ID
+            }
+          )
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(error).hasMessageThat().contains("latest")
+    }
+
+  private suspend fun checkpointRecoveryWithDeferredRevision(
+    replacementOperationId: String
+  ): Pair<SpannerUploadHealingOperationService, UploadHealingStep> {
+    insertUploadGraph(
+      replacementUploadState = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
+      replacementModelLineState =
+        RawImpressionUploadModelLineState
+          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
+    )
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val created = service.createUploadHealingOperation(createRequest(memoized = false))
+    val waiting =
+      service.advanceUploadHealingStep(
+        advanceUploadHealingStepRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          uploadHealingStepId = 1L
+          etag = created.stepsList.single().etag
+          action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+          requestId = WAITING_REQUEST_ID
+        }
+      )
+    val operation =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+    service.advanceUploadHealingOperation(
+      advanceUploadHealingOperationRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        etag = operation.etag
+        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+    val started =
+      service.advanceUploadHealingStep(
+        advanceUploadHealingStepRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          uploadHealingStepId = 1L
+          etag = waiting.etag
+          action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
+          recoveryDoneBlobGeneration = RECOVERY_GENERATION
+          requestId = STARTED_REQUEST_ID
+        }
+      )
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadId")
+          .to(2L)
+          .set("EvictionOperationId")
+          .to(replacementOperationId)
+          .build(),
+        Mutation.newInsertBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadId")
+          .to(3L)
+          .set("RawImpressionUploadResourceId")
+          .to("deferred-next")
+          .set("DoneBlobUri")
+          .to(DONE_BLOB_URI)
+          .set("DoneBlobGeneration")
+          .to(RECOVERY_GENERATION + 1)
+          .set("DoneBlobCreateTime")
+          .to(com.google.cloud.Timestamp.ofTimeSecondsAndNanos(3L, 0))
+          .set("ReplacesRawImpressionUploadResourceId")
+          .to(REPLACEMENT_UPLOAD_ID)
+          .set("RegistrationComplete")
+          .to(true)
+          .set("ProcessingDeferred")
+          .to(true)
+          .set("State")
+          .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED))
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build(),
+      )
+    )
+    return service to started
+  }
+
+  @Test
   fun `pending handoff releases rather than transfers the fence`() = runBlocking {
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     insertUploadGraph()
@@ -1566,6 +1714,108 @@ class SpannerUploadHealingOperationServiceTest {
     assertThat(finalized.stepsList.map { it.labeledOutputManifest })
       .containsExactly(finalizedManifest, finalizedManifest)
     assertThat(replayed).isEqualTo(finalized)
+  }
+
+  @Test
+  fun `finalization rejects a candidate superseded after manifest inspection`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val provisional = labeledOutputManifest {
+      blobs += LabeledOutputManifestKt.blobVersion { blobUri = "gs://output/source/data" }
+    }
+    val created =
+      service.createUploadHealingOperation(
+        draftRequest(
+            listOf(CANDIDATE_IDS[0]),
+            listOf(planStep(1L, SOURCE_UPLOAD_ID).copy { labeledOutputManifest = provisional }),
+          )
+          .copy {
+            uploadHealingOperation =
+              uploadHealingOperation.copy {
+                planFormatVersion = 2
+                outputManifestState =
+                  UploadHealingOperation.OutputManifestState
+                    .UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_PROVISIONAL
+              }
+          }
+      )
+    val draining =
+      service.approveUploadHealingOperation(
+        approveUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = created.etag
+          candidateDecisions +=
+            approvalDecision(
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+            )
+          requestId = APPROVE_REQUEST_ID
+        }
+      )
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUploadCorrectionCandidate")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadCorrectionCandidateId")
+          .to(CANDIDATE_IDS[0])
+          .set("State")
+          .to(Value.protoEnum(RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED))
+          .set("SupersedingRawImpressionUploadCorrectionCandidateId")
+          .to(CANDIDATE_IDS[1])
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build(),
+        Mutation.newUpdateBuilder("VidLabelingEvictionFence")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("State")
+          .to(
+            Value.protoEnum(
+              org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+                .VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            )
+          )
+          .set("Etag")
+          .to("evicting-etag")
+          .build(),
+      )
+    )
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.finalizeUploadHealingOperation(
+          finalizeUploadHealingOperationRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            etag = draining.etag
+            stepManifests +=
+              FinalizeUploadHealingOperationRequestKt.stepManifest {
+                uploadHealingStepId = 1L
+                labeledOutputManifest = labeledOutputManifest {
+                  blobs +=
+                    LabeledOutputManifestKt.blobVersion {
+                      blobUri = "gs://output/source/data"
+                      generation = 101L
+                    }
+                }
+              }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(error).hasMessageThat().contains("superseded")
+    val unchanged =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+    assertThat(unchanged.state)
+      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING)
   }
 
   @Test

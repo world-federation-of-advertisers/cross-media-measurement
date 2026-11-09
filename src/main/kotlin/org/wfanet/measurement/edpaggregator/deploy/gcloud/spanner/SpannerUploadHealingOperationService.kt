@@ -50,6 +50,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readProcess
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRankIndexBlobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadCorrectionCandidates
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadModelLines
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readUploadHealingOperations
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.recordUploadHealingOperationMutation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.reopenRawImpressionUploadCorrectionCandidate
@@ -703,6 +704,7 @@ class SpannerUploadHealingOperationService(
         throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
           .asRuntimeException()
       }
+      requireNoSupersededPlanCandidates(txn, operation)
       val fence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
       precondition(
         fence?.evictionOperationId == request.uploadHealingOperationId &&
@@ -1710,8 +1712,53 @@ class SpannerUploadHealingOperationService(
       txn
         .findLatestUploadByDoneBlobUri(request.dataProviderResourceId, source.doneBlobUri)
         ?.rawImpressionUpload
+    val exactOperationRecovery =
+      replacement.evictionOperationId == operation.uploadHealingOperationId &&
+        current.recoveryDoneBlobGeneration > 0L &&
+        replacement.doneBlobGeneration == current.recoveryDoneBlobGeneration &&
+        operation.state in
+          setOf(
+            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+          )
+    val onlyDeferredLaterRevisions =
+      if (
+        exactOperationRecovery &&
+          latest?.rawImpressionUploadResourceId != request.replacementRawImpressionUploadResourceId
+      ) {
+        txn
+          .readRawImpressionUploads(
+            request.dataProviderResourceId,
+            org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRequestKt.filter {
+              doneBlobUri = source.doneBlobUri
+            },
+            Int.MAX_VALUE,
+          )
+          .toList()
+          .map { it.rawImpressionUpload }
+          .filter {
+            it.rawImpressionUploadResourceId != replacement.rawImpressionUploadResourceId &&
+              Timestamps.compare(
+                if (it.hasDoneBlobCreateTime()) it.doneBlobCreateTime else it.createTime,
+                if (replacement.hasDoneBlobCreateTime()) replacement.doneBlobCreateTime
+                else replacement.createTime,
+              ) >= 0
+          }
+          .all {
+            it.processingDeferred &&
+              it.state !in
+                setOf(
+                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
+                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
+                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+                )
+          }
+      } else {
+        false
+      }
     precondition(
-      latest?.rawImpressionUploadResourceId == request.replacementRawImpressionUploadResourceId
+      latest?.rawImpressionUploadResourceId == request.replacementRawImpressionUploadResourceId ||
+        onlyDeferredLaterRevisions
     ) {
       "replacement is not the latest upload revision"
     }

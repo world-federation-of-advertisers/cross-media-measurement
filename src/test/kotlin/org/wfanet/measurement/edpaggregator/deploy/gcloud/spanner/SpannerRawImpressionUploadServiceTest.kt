@@ -106,6 +106,63 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
     assertThat(upload.processingDeferred).isTrue()
   }
 
+  @Test
+  fun `create follows a completed replay even when its marker predates its predecessor`() =
+    runBlocking {
+      val doneUri = "gs://bucket/replayed/done"
+      spannerDatabase.databaseClient.write(
+        listOf(
+            Triple("original", 1L, ""),
+            Triple("approved-replay", 2L, "controller-recovery"),
+            Triple("controller-recovery", 3L, "original"),
+          )
+          .map { (resourceId, generation, predecessor) ->
+            insertMutation("RawImpressionUpload") {
+              set("DataProviderResourceId").to(TEST_DATA_PROVIDER_ID)
+              set("RawImpressionUploadId").to(generation)
+              set("RawImpressionUploadResourceId").to(resourceId)
+              set("DoneBlobUri").to(doneUri)
+              set("DoneBlobGeneration").to(generation)
+              set("DoneBlobCreateTime")
+                .to(com.google.cloud.Timestamp.ofTimeSecondsAndNanos(generation, 0))
+              set("RegistrationComplete").to(true)
+              set("ProcessingDeferred").to(false)
+              set("State")
+                .to(
+                  Value.protoEnum(
+                    if (resourceId == "approved-replay") {
+                      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED
+                    } else {
+                      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED
+                    }
+                  )
+                )
+              if (predecessor.isNotEmpty()) {
+                set("ReplacesRawImpressionUploadResourceId").to(predecessor)
+              }
+              set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+              set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+            }
+          }
+      )
+      val service = SpannerRawImpressionUploadService(spannerDatabase.databaseClient)
+
+      val next =
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            dataProviderResourceId = TEST_DATA_PROVIDER_ID
+            rawImpressionUpload = rawImpressionUpload {
+              doneBlobUri = doneUri
+              doneBlobGeneration = 4L
+              doneBlobCreateTime = com.google.protobuf.timestamp { seconds = 4L }
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      assertThat(next.replacesRawImpressionUploadResourceId).isEqualTo("approved-replay")
+    }
+
   private suspend fun insertAvailabilitySyncingModelLine() {
     insertModelLine(
       TEST_DATA_PROVIDER_ID,

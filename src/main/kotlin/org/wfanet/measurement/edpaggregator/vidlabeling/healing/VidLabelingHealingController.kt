@@ -88,6 +88,15 @@ fun interface CorrectionManifestReader {
     doneBlobUri: String,
     doneBlobGeneration: Long,
   ): Collection<RawImpressionUploadManifestClassifier.File>
+
+  /** Verifies retained versions without including later directory revisions. */
+  suspend fun readPersisted(
+    doneBlobUri: String,
+    doneBlobGeneration: Long,
+    persistedManifest: Collection<RawImpressionUploadManifestClassifier.File>,
+  ): Collection<RawImpressionUploadManifestClassifier.File> {
+    return read(doneBlobUri, doneBlobGeneration)
+  }
 }
 
 /** Replays one exact done-object generation through the raw-upload watcher. */
@@ -498,6 +507,7 @@ class VidLabelingHealingController(
         }
       )
     }
+    verifyExactCandidateManifests(operation)
     val evictionExecutor =
       evictionExecutorFactory(dataProviderConfigs.getValue(key.parentKey.toName()))
     val finalizedPlan = evictionExecutor.finalizeOutputManifests(operation.toEvictionPlan())
@@ -551,7 +561,7 @@ class VidLabelingHealingController(
   }
 
   private suspend fun evict(config: DataProviderConfig, initial: UploadHealingOperation) {
-    verifyExactCandidateManifests(initial)
+    verifyExactCandidateManifests(initial, retainedVersions = true)
     var operation = initial
     evictionExecutorFactory(config).evict(operation.toEvictionPlan(), operation.reason) { entry ->
       val step =
@@ -569,7 +579,7 @@ class VidLabelingHealingController(
   private suspend fun advanceRecovery(config: DataProviderConfig, initial: UploadHealingOperation) {
     var operation = initial
     var group = nextRecoveryGroup(operation) ?: return
-    val replacement = findReadyReplacement(group)
+    val replacement = findReadyReplacement(operation, group)
     if (replacement != null) {
       for (step in group.filter { it.state == UploadHealingStep.State.WAITING_FOR_REPLACEMENT }) {
         checkpoint(
@@ -605,79 +615,71 @@ class VidLabelingHealingController(
         operation = getOperation(operation.name)
         group = operation.stepsList.filter { it.name in stepNames }
       }
-      if (
-        group.first().recoveryAction ==
-          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
-      ) {
+      val source = getUpload(group.first().sourceRawImpressionUpload)
+      doneBlobReplayerFactory(config)
+        .replay(
+          DoneBlobReplayer.Request(
+            source.doneBlobUri,
+            generation,
+            source.name,
+            group.map { it.cmmsModelLine }.distinct(),
+            operation.name,
+          )
+        )
+      return
+    }
+    when (group.first().recoveryAction) {
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION -> {
+        verifyExactCandidateManifests(operation, retainedVersions = true)
+        val replay = correctionReplay(operation, group)
+        for (step in group) {
+          checkpoint(
+            step,
+            AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
+            recoveryDoneBlobGeneration = replay.doneBlobGeneration,
+          )
+        }
+        doneBlobReplayerFactory(config).replay(replay)
+        return
+      }
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY -> {
         val source = getUpload(group.first().sourceRawImpressionUpload)
+        val recovery =
+          recoveryExecutorFactory(config)
+            .recover(source.name, group.map { it.cmmsModelLine }.distinct())
+        verifyExactUploadManifest(
+          source,
+          completeSnapshot = false,
+          doneBlobGeneration = recovery.doneBlobGeneration,
+          retainedVersions = true,
+        )
+        val stepNames = group.mapTo(mutableSetOf()) { it.name }
+        for (step in group) {
+          checkpoint(
+            step,
+            AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
+            recoveryDoneBlobGeneration = recovery.doneBlobGeneration,
+          )
+          operation = getOperation(operation.name)
+          group = operation.stepsList.filter { it.name in stepNames }
+        }
         doneBlobReplayerFactory(config)
           .replay(
             DoneBlobReplayer.Request(
-              source.doneBlobUri,
-              generation,
-              source.name,
-              group.map { it.cmmsModelLine }.distinct(),
+              recovery.doneBlobUri,
+              recovery.doneBlobGeneration,
+              recovery.sourceUpload,
+              recovery.modelLines,
               operation.name,
             )
           )
+        return
       }
-      return
-    }
-    val recoveryDoneBlobGeneration =
-      when (group.first().recoveryAction) {
-        RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION -> {
-          verifyExactCandidateManifests(operation)
-          val replay = correctionReplay(operation, group)
-          doneBlobReplayerFactory(config).replay(replay)
-          replay.doneBlobGeneration
-        }
-        RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY -> {
-          val source = getUpload(group.first().sourceRawImpressionUpload)
-          val recovery =
-            recoveryExecutorFactory(config)
-              .recover(source.name, group.map { it.cmmsModelLine }.distinct())
-          verifyExactUploadManifest(
-            source,
-            completeSnapshot = false,
-            doneBlobGeneration = recovery.doneBlobGeneration,
-          )
-          val stepNames = group.mapTo(mutableSetOf()) { it.name }
-          for (step in group) {
-            checkpoint(
-              step,
-              AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
-              recoveryDoneBlobGeneration = recovery.doneBlobGeneration,
-            )
-            operation = getOperation(operation.name)
-            group = operation.stepsList.filter { it.name in stepNames }
-          }
-          doneBlobReplayerFactory(config)
-            .replay(
-              DoneBlobReplayer.Request(
-                recovery.doneBlobUri,
-                recovery.doneBlobGeneration,
-                recovery.sourceUpload,
-                recovery.modelLines,
-                operation.name,
-              )
-            )
-          return
-        }
-        RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT ->
-          error("A no-replacement step cannot be a recovery target")
-        RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED,
-        RawImpressionUploadModelLine.RecoveryAction.UNRECOGNIZED ->
-          error("Healing step has no recovery action")
-      }
-    val stepNames = group.mapTo(mutableSetOf()) { it.name }
-    for (step in group) {
-      checkpoint(
-        step,
-        AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
-        recoveryDoneBlobGeneration = recoveryDoneBlobGeneration,
-      )
-      operation = getOperation(operation.name)
-      group = operation.stepsList.filter { it.name in stepNames }
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT ->
+        error("A no-replacement step cannot be a recovery target")
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED,
+      RawImpressionUploadModelLine.RecoveryAction.UNRECOGNIZED ->
+        error("Healing step has no recovery action")
     }
   }
 
@@ -822,11 +824,19 @@ class VidLabelingHealingController(
       .filterNot { steps -> steps.all { it.state == UploadHealingStep.State.COMPLETE } }
       .minByOrNull { steps -> steps.minOf { it.sequenceNumber } }
 
-  private suspend fun verifyExactCandidateManifests(operation: UploadHealingOperation) {
+  private suspend fun verifyExactCandidateManifests(
+    operation: UploadHealingOperation,
+    retainedVersions: Boolean = false,
+  ) {
     for (candidateName in operation.rawImpressionUploadCorrectionCandidatesList) {
       val candidate = getCandidate(candidateName)
       val upload = getUpload(candidate.rawImpressionUpload)
-      val liveDigest = verifyExactUploadManifest(upload, completeSnapshot = true)
+      val liveDigest =
+        verifyExactUploadManifest(
+          upload,
+          completeSnapshot = true,
+          retainedVersions = retainedVersions,
+        )
       if (liveDigest != candidate.currentManifestDigest) {
         throw ManifestMismatchException("Live manifest no longer matches $candidateName")
       }
@@ -837,6 +847,7 @@ class VidLabelingHealingController(
     upload: RawImpressionUpload,
     completeSnapshot: Boolean,
     doneBlobGeneration: Long = upload.doneBlobGeneration,
+    retainedVersions: Boolean = false,
   ): ByteString {
     val persistedDigest =
       if (completeSnapshot) {
@@ -845,7 +856,19 @@ class VidLabelingHealingController(
         digestEffectivePersistedManifest(upload)
       }
     val liveDigest =
-      manifestClassifier.digest(manifestReader.read(upload.doneBlobUri, doneBlobGeneration))
+      manifestClassifier.digest(
+        if (retainedVersions) {
+          val persistedManifest =
+            if (completeSnapshot) {
+              listPersistedFiles(upload.name)
+            } else {
+              effectivePersistedManifest(upload)
+            }
+          manifestReader.readPersisted(upload.doneBlobUri, doneBlobGeneration, persistedManifest)
+        } else {
+          manifestReader.read(upload.doneBlobUri, doneBlobGeneration)
+        }
+      )
     if (liveDigest != persistedDigest) {
       throw ManifestMismatchException("Live manifest no longer matches ${upload.name}")
     }
@@ -853,6 +876,12 @@ class VidLabelingHealingController(
   }
 
   private suspend fun digestEffectivePersistedManifest(upload: RawImpressionUpload): ByteString {
+    return manifestClassifier.digest(effectivePersistedManifest(upload))
+  }
+
+  private suspend fun effectivePersistedManifest(
+    upload: RawImpressionUpload
+  ): List<RawImpressionUploadManifestClassifier.File> {
     val parent = requireNotNull(RawImpressionUploadKey.fromName(upload.name)).parentKey.toName()
     val revisions =
       listUploads(parent, upload.doneBlobUri).map { revision ->
@@ -874,15 +903,13 @@ class VidLabelingHealingController(
           files = listPersistedFiles(revision.name),
         )
       }
-    return manifestClassifier.digest(
-      manifestClassifier
-        .reconstructEffectiveManifest(
-          requireNotNull(revisions.singleOrNull { it.rawImpressionUpload == upload.name }),
-          revisions,
-        )
-        .values
-        .map { it.file }
-    )
+    return manifestClassifier
+      .reconstructEffectiveManifest(
+        requireNotNull(revisions.singleOrNull { it.rawImpressionUpload == upload.name }),
+        revisions,
+      )
+      .values
+      .map { it.file }
   }
 
   private suspend fun digestPersistedManifest(uploadName: String): ByteString {
@@ -1043,12 +1070,38 @@ class VidLabelingHealingController(
     return operations
   }
 
-  private suspend fun findReadyReplacement(steps: List<UploadHealingStep>): RawImpressionUpload? {
+  private suspend fun findReadyReplacement(
+    operation: UploadHealingOperation,
+    steps: List<UploadHealingStep>,
+  ): RawImpressionUpload? {
     val sourceName = steps.first().sourceRawImpressionUpload
     val source = getUpload(sourceName)
     val sourceKey = requireNotNull(RawImpressionUploadKey.fromName(sourceName))
     val revisions = listUploads(sourceKey.parentKey.toName(), source.doneBlobUri)
-    val latest = findLatestUpload(revisions) ?: return null
+    val recordedGeneration =
+      steps.map { it.recoveryDoneBlobGeneration }.filter { it > 0L }.distinct().singleOrNull()
+    val approvedUpload =
+      if (
+        steps.first().recoveryAction ==
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+      ) {
+        steps
+          .map { it.rawImpressionUploadCorrectionCandidate }
+          .filter { it.isNotEmpty() }
+          .distinct()
+          .singleOrNull()
+          ?.let { getCandidate(it).rawImpressionUpload }
+      } else {
+        null
+      }
+    val exactReplacement =
+      revisions.singleOrNull {
+        (approvedUpload == null || it.name == approvedUpload) &&
+          (recordedGeneration == null || it.doneBlobGeneration == recordedGeneration) &&
+          (approvedUpload != null || recordedGeneration != null) &&
+          it.uploadHealingOperation == operation.name
+      }
+    val latest = exactReplacement ?: findLatestUpload(revisions) ?: return null
     val inPlaceRecovery =
       latest.name == sourceName &&
         steps.all {
@@ -1151,13 +1204,16 @@ class VidLabelingHealingController(
   }
 
   private fun findLatestUpload(uploads: List<RawImpressionUpload>): RawImpressionUpload? {
-    val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
+    val replacedNames = uploads.mapTo(mutableSetOf()) { it.replacesRawImpressionUpload }
+    val leaves = uploads.filter { it.name !in replacedNames }
+    check(uploads.isEmpty() || leaves.isNotEmpty()) { "Upload revision chain contains a cycle" }
+    val timestamped = leaves.filter { it.hasDoneBlobCreateTime() }
     return if (timestamped.isNotEmpty()) {
       timestamped.maxWithOrNull { left, right ->
         Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
       }
     } else {
-      uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
+      leaves.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
     }
   }
 

@@ -567,11 +567,11 @@ class DataAvailabilitySyncTest {
       val oldRawImpressionUpload = "dataProviders/dataProvider123/rawImpressionUploads/upload-old"
       storageClient.writeBlob(outputKey, ByteString.copyFromUtf8("labeled"))
       writeVidLabelerMetadata(storageClient, metadataKey, outputUri, eventDate)
-      writeVidLabelerDone(storageClient, eventDate)
+      writeVidLabelerDone(storageClient, eventDate, oldRawImpressionUpload)
       val dataAvailabilitySync = newDataAvailabilitySync(storageClient)
 
       dataAvailabilitySync.sync(
-        "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+        vidLabelerDoneUri(eventDate, oldRawImpressionUpload),
         TestDataAvailabilitySyncLease.NAME,
         doneBlobGeneration = 76L,
         discoveryMode =
@@ -596,8 +596,9 @@ class DataAvailabilitySyncTest {
         }
         .thenReturn(listImpressionMetadataResponse { impressionMetadata += existing })
 
+      writeVidLabelerDone(storageClient, eventDate)
       dataAvailabilitySync.sync(
-        "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+        vidLabelerDoneUri(eventDate),
         TestDataAvailabilitySyncLease.NAME,
         doneBlobGeneration = 77L,
         discoveryMode =
@@ -776,12 +777,16 @@ class DataAvailabilitySyncTest {
   private fun vidLabelerOutputKey(rawBlobUri: String, eventDate: LocalDate): String =
     "edp/edpa_edp/" + LabeledImpressionsBlobKeys.forInput(rawBlobUri, MODEL_LINE, eventDate)
 
-  private fun vidLabelerDoneKey(eventDate: LocalDate): String =
-    "edp/edpa_edp/" +
-      LabeledImpressionsBlobKeys.forDone(RAW_IMPRESSION_UPLOAD, MODEL_LINE, eventDate)
+  private fun vidLabelerDoneKey(
+    eventDate: LocalDate,
+    rawImpressionUpload: String = RAW_IMPRESSION_UPLOAD,
+  ): String =
+    "edp/edpa_edp/" + LabeledImpressionsBlobKeys.forDone(rawImpressionUpload, MODEL_LINE, eventDate)
 
-  private fun vidLabelerDoneUri(eventDate: LocalDate): String =
-    "$bucket/${vidLabelerDoneKey(eventDate)}"
+  private fun vidLabelerDoneUri(
+    eventDate: LocalDate,
+    rawImpressionUpload: String = RAW_IMPRESSION_UPLOAD,
+  ): String = "$bucket/${vidLabelerDoneKey(eventDate, rawImpressionUpload)}"
 
   private suspend fun writeVidLabelerMetadata(
     storageClient: StorageClient,
@@ -805,8 +810,12 @@ class DataAvailabilitySyncTest {
     )
   }
 
-  private suspend fun writeVidLabelerDone(storageClient: StorageClient, eventDate: LocalDate) {
-    storageClient.writeBlob(vidLabelerDoneKey(eventDate), ByteString.EMPTY)
+  private suspend fun writeVidLabelerDone(
+    storageClient: StorageClient,
+    eventDate: LocalDate,
+    rawImpressionUpload: String = RAW_IMPRESSION_UPLOAD,
+  ) {
+    storageClient.writeBlob(vidLabelerDoneKey(eventDate, rawImpressionUpload), ByteString.EMPTY)
   }
 
   @Test

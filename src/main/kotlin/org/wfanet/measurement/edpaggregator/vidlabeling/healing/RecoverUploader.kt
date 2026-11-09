@@ -27,6 +27,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
@@ -51,6 +53,7 @@ class RecoverUploader(
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
   private val rewriteDoneBlob:
     suspend (doneBlobUri: String, expectedGeneration: Long, metadata: Map<String, String>) -> Long,
+  private val getHealingOperation: suspend (name: String) -> UploadHealingOperation? = { null },
 ) : RecoveryExecutor {
   data class Result(
     val sourceUpload: String,
@@ -167,13 +170,16 @@ class RecoverUploader(
   }
 
   private fun findLatestUpload(uploads: List<RawImpressionUpload>): RawImpressionUpload? {
-    val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
+    val replacedNames = uploads.mapTo(mutableSetOf()) { it.replacesRawImpressionUpload }
+    val leaves = uploads.filter { it.name !in replacedNames }
+    check(uploads.isEmpty() || leaves.isNotEmpty()) { "Upload revision chain contains a cycle" }
+    val timestamped = leaves.filter { it.hasDoneBlobCreateTime() }
     return if (timestamped.isNotEmpty()) {
       timestamped.maxWithOrNull { left, right ->
         Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
       }
     } else {
-      uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
+      leaves.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
     }
   }
 
@@ -190,10 +196,69 @@ class RecoverUploader(
     val predecessor =
       uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = predecessorName })
     val revisions = listUploads(dataProviderName, predecessor.doneBlobUri)
-    val latest =
-      requireNotNull(findLatestUpload(revisions)) {
-        "No upload revision found for recovery predecessor $predecessorName"
+    val operationName = "$dataProviderName/uploadHealingOperations/" + row.evictionOperationId
+    val operation = getHealingOperation(operationName)
+    if (operation != null) {
+      require(operation.name == operationName) { "Recovery operation identity does not match" }
+      require(
+        operation.state in
+          setOf(UploadHealingOperation.State.REPLAYING, UploadHealingOperation.State.RECOVERING)
+      ) {
+        "Recovery operation is not executing its approved plan"
       }
+      require(
+        operation.stepsList.any {
+          it.rawImpressionUploadModelLine == row.name &&
+            it.cmmsModelLine == row.cmmsModelLine &&
+            it.recoveryTarget &&
+            it.recoveryAction ==
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
+      ) {
+        "Recovery model line is not part of the active operation"
+      }
+    }
+    val plannedPredecessor =
+      operation?.stepsList?.singleOrNull {
+        it.sourceRawImpressionUpload == predecessorName &&
+          it.cmmsModelLine == row.cmmsModelLine &&
+          it.recoveryTarget &&
+          it.state == UploadHealingStep.State.COMPLETE
+      }
+    if (
+      operation?.stepsList?.any {
+        it.sourceRawImpressionUpload == predecessorName && it.cmmsModelLine == row.cmmsModelLine
+      } == true
+    ) {
+      require(plannedPredecessor != null) { "The planned recovery predecessor has not completed" }
+    }
+    val latest =
+      plannedPredecessor
+        ?.replacementRawImpressionUpload
+        ?.takeIf { it.isNotEmpty() }
+        ?.let { replacementName ->
+          checkNotNull(revisions.singleOrNull { it.name == replacementName }) {
+              "Planned recovery predecessor replacement is missing"
+            }
+            .also {
+              require(it.uploadHealingOperation == operationName) {
+                "Planned predecessor replacement belongs to another operation"
+              }
+            }
+        }
+        ?: requireNotNull(
+          findLatestUpload(
+            if (operation != null) {
+              revisions.filter {
+                it.registrationComplete && it.state == RawImpressionUpload.State.COMPLETED
+              }
+            } else {
+              revisions
+            }
+          )
+        ) {
+          "No upload revision found for recovery predecessor $predecessorName"
+        }
     require(
       latest.name == predecessorName || replacesUpload(latest.name, predecessorName, revisions)
     ) {

@@ -204,6 +204,13 @@ suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
     WHERE DataProviderResourceId = @dataProviderResourceId
       AND DoneBlobUri = @doneBlobUri
       AND DoneBlobCreateTime IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM RawImpressionUpload AS Child
+        WHERE Child.DataProviderResourceId = @dataProviderResourceId
+          AND Child.DoneBlobUri = @doneBlobUri
+          AND Child.ReplacesRawImpressionUploadResourceId =
+            RawImpressionUpload.RawImpressionUploadResourceId
+      )
     ORDER BY DoneBlobCreateTime DESC
     LIMIT 1
     """
@@ -240,6 +247,13 @@ suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
     WHERE DataProviderResourceId = @dataProviderResourceId
       AND DoneBlobUri = @doneBlobUri
       AND DoneBlobCreateTime IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM RawImpressionUpload AS Child
+        WHERE Child.DataProviderResourceId = @dataProviderResourceId
+          AND Child.DoneBlobUri = @doneBlobUri
+          AND Child.ReplacesRawImpressionUploadResourceId =
+            RawImpressionUpload.RawImpressionUploadResourceId
+      )
     ORDER BY CreateTime DESC
     LIMIT 1
     """
