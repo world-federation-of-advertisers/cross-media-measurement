@@ -335,6 +335,11 @@ class VidLabelingDispatcherTest {
     metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     footerReadConcurrency: Int = VidLabelingDispatcher.DEFAULT_FOOTER_READ_CONCURRENCY,
+    getHealingOperation:
+      suspend (String) -> org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation? =
+      {
+        null
+      },
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
       storageClient = storageClient,
@@ -363,6 +368,7 @@ class VidLabelingDispatcherTest {
       footerReadConcurrency = footerReadConcurrency,
       clock = fixedClock,
       metrics = metrics,
+      getHealingOperation = getHealingOperation,
     )
   }
 
@@ -1807,6 +1813,146 @@ class VidLabelingDispatcherTest {
       }
       assertThat(request.firstValue.rawImpressionUploadResourceId).isEqualTo("candidate-upload")
       assertThat(request.firstValue.sourceRawImpressionUploadResourceId).isEqualTo("source-upload")
+    }
+
+  @Test
+  fun `committed recovery rejects mismatched scope and checkpoint before registration`() =
+    runBlocking {
+      val source = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+        state = RawImpressionUpload.State.FAILED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 100
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+      }
+      val deferred = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/deferred"
+        state = RawImpressionUpload.State.CREATED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 1
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+        processingDeferred = true
+        replacesRawImpressionUpload = source.name
+      }
+      stubRecoverySource(
+        source,
+        latestSourceRevision = deferred,
+        intermediateSourceRevisions = listOf(source),
+        recoveryPredecessorUpload = "",
+      )
+      val operation =
+        org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+          name = "$DATA_PROVIDER_NAME/uploadHealingOperations/$EVICTION_OPERATION_ID"
+          state =
+            org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+          rawImpressionUploadCorrectionCandidates +=
+            "$DATA_PROVIDER_NAME/rawImpressionUploadCorrectionCandidates/approved"
+          steps +=
+            org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+              sourceRawImpressionUpload = source.name
+              rawImpressionUploadModelLine = "${source.name}/rawImpressionUploadModelLines/rml1"
+              cmmsModelLine = MODEL_LINE_1
+              recoveryTarget = true
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+              state =
+                org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State
+                  .RECOVERY_STARTED
+              recoveryDoneBlobGeneration = DONE_BLOB_GENERATION
+            }
+        }
+      for (invalidScope in
+        listOf(
+          "source",
+          "operation",
+          "provider",
+          "empty-models",
+          "extra-model",
+          "duplicate-model",
+        )) {
+        val suppliedOperation =
+          operation
+            .toBuilder()
+            .apply {
+              if (invalidScope == "operation")
+                name = "$DATA_PROVIDER_NAME/uploadHealingOperations/other"
+              if (invalidScope == "provider")
+                name = "dataProviders/other/uploadHealingOperations/$EVICTION_OPERATION_ID"
+            }
+            .build()
+        val models =
+          when (invalidScope) {
+            "empty-models" -> emptyList()
+            "extra-model" -> listOf(MODEL_LINE_1, MODEL_LINE_2)
+            "duplicate-model" -> listOf(MODEL_LINE_1, MODEL_LINE_1)
+            else -> listOf(MODEL_LINE_1)
+          }
+        assertFailsWith<IllegalArgumentException> {
+          createDispatcher(
+              overrideModelLines = models,
+              recoverySourceUpload =
+                if (invalidScope == "source") "$DATA_PROVIDER_NAME/rawImpressionUploads/other"
+                else source.name,
+              recoveryOperationId = EVICTION_OPERATION_ID,
+              getHealingOperation = { suppliedOperation },
+            )
+            .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+        }
+      }
+      for (invalidCheckpoint in listOf("generation", "unrecorded", "action")) {
+        val suppliedOperation =
+          operation
+            .toBuilder()
+            .apply {
+              if (invalidCheckpoint == "unrecorded")
+                setSteps(
+                  0,
+                  stepsList
+                    .single()
+                    .toBuilder()
+                    .setState(
+                      org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State
+                        .WAITING_FOR_REPLACEMENT
+                    ),
+                )
+              if (invalidCheckpoint == "action")
+                setSteps(
+                  0,
+                  stepsList
+                    .single()
+                    .toBuilder()
+                    .setRecoveryAction(
+                      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+                    ),
+                )
+            }
+            .build()
+        val error =
+          assertFailsWith<java.io.IOException> {
+            createDispatcher(
+                overrideModelLines = listOf(MODEL_LINE_1),
+                recoverySourceUpload = source.name,
+                recoveryOperationId = EVICTION_OPERATION_ID,
+                getHealingOperation = { suppliedOperation },
+              )
+              .upload(
+                DONE_BLOB_PATH,
+                DONE_BLOB_GENERATION + if (invalidCheckpoint == "generation") 1L else 0L,
+              )
+          }
+        assertThat(error).hasMessageThat().contains("checkpoint is not ready")
+      }
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        batchCreateRawImpressionUploadFiles(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+      verifyBlocking(correctionCandidateService, never()) {
+        activateQuarantinedRawImpressionUpload(any())
+      }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
     }
 
   @Test
