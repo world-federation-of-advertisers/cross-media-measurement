@@ -166,7 +166,8 @@ jobs:
         set -euo pipefail
         TEMP_DIR="${RUNNER_TEMP}/uber-jars"
         mkdir -p "$TEMP_DIR"
-        echo "Maven repo: $(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)"
+        LOCAL_REPO="$RUNNER_TEMP/maven-repository"
+        echo "Maven repo: $LOCAL_REPO"
 
         declare -A coords
         coords[data-watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$ARTIFACT_VERSION:jar"
@@ -181,18 +182,18 @@ jobs:
         coords[vid-labeling-monitor]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-monitor:$ARTIFACT_VERSION:jar"
         coords[dashboard-compliance-check]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools:dashboard-compliance-check:$ARTIFACT_VERSION:jar"
         
-        LOCAL_REPO=$(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)
-
         for key in "${!coords[@]}"; do
           dest_dir="$TEMP_DIR/$key"
           mkdir -p "$dest_dir"
-          mvn -U dependency:get \
+          mvn -B -U -Dmaven.repo.local="$LOCAL_REPO" \
+            org.apache.maven.plugins:maven-dependency-plugin:3.11.0:get \
             -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
-            -Dartifact="${coords[$key]}" 
+            -Dartifact="${coords[$key]}" \
+            -Dtransitive=false
         
           IFS=':' read -r groupId artifactId version type <<<"${coords[$key]}"
           jar_dir="$LOCAL_REPO/${groupId//./\/}/$artifactId/$version"
-          jar_path=$(find "$jar_dir" -maxdepth 1 -type f -name "$artifactId-*.jar" ! -name "*sources*" | head -n1)
+          jar_path="$jar_dir/$artifactId-$version.jar"
           filename="${version}-function.jar"
           cp "$jar_path" "$dest_dir/$filename"
           
