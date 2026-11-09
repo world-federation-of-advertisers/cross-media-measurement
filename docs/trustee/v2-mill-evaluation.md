@@ -2,8 +2,8 @@
 
 This document describes how the TrusTEE v2 mill evaluates a multimeasurement:
 the inputs it reads, how it maps frequency vector positions to population
-attributes, the single pass that evaluates every query, and how the result
-reaches the Kingdom.
+attributes, the pass that evaluates every query, the corrective pass that
+small-cell suppression may require, and how the result reaches the Kingdom.
 
 ## Overview
 
@@ -22,8 +22,11 @@ flowchart LR
   H --> M["Mill (TEE)"]
   B --> M
   M --> I["Subpopulation index<br/>position → subpopulation"]
-  I --> E["Query evaluation<br/>one pass, all queries"]
-  E --> N["Noise and suppression"]
+  I --> E["First pass<br/>all queries"]
+  E --> S["Slice test<br/>per cell, per DataProvider"]
+  S -- "a slice dropped" --> C["Corrective pass<br/>affected cells only"]
+  S -- "all or none dropped" --> N["Noise"]
+  C --> N
   N --> R["MultimeasurementResult<br/>to the Kingdom"]
 ```
 
@@ -102,9 +105,9 @@ Before reading any vector data, the mill compiles each query:
 Attribute filters and grouping therefore cost one table lookup per position,
 not per-VID attribute resolution.
 
-### Single pass
+### First pass
 
-The mill reads the N vectors once, as aligned chunks covering the same positions
+The first pass reads the N vectors as aligned chunks covering the same positions
 in every vector, and applies every query at each position:
 
 ```
@@ -133,13 +136,43 @@ and the subpopulation table, so the vectors never need to be held whole.
 The result of evaluation is one unnoised cell per query per group that some VID
 reached, with reach as the sum of the histogram.
 
-## Noise and suppression
+## Suppression and the corrective pass
 
 The attested image fixes the noise mechanism and the small-cell suppression
-thresholds, so neither travels with the computation. After evaluation, the mill
-noises each cell and suppresses the cells that fall under the thresholds, which
-it tests against the per-`DataProvider` slice reach recorded during evaluation.
-This step also scales impressions and computes each cell's variance.
+thresholds, so neither travels with the computation.
+
+A cell's slice for a `DataProvider` is the VIDs in the cell that the
+`DataProvider`'s summand vectors reached, counted once per VID. After the first
+pass, each slice of each cell takes the noised minimum-reach test:
+
+*   If every slice passes, the cell is emitted from the histogram it already
+    holds.
+*   If no slice passes, the cell is dropped.
+*   If some slices fail, the cell is rebuilt in a corrective pass that sums only
+    the surviving `DataProviders`' summands. The first-pass histogram cannot be
+    corrected in place, because a VID's frequency is a sum across slices that
+    the histogram does not separate.
+
+The mill evaluates at most two passes. A slice's test reads only that slice's
+reach, so dropping one slice cannot change another's verdict, and the survivors
+are final after the first pass. The corrective pass walks the vectors again but
+evaluates only the cells that lost a slice. Reports with many thin cells, deep
+breakdowns or short windows drop slices most often and come closest to two full
+passes.
+
+A `DataProvider` that reports an impression count over the population can be
+dropped before the first pass. The count bounds that `DataProvider`'s reach in
+every cell, so a count that cannot clear the threshold removes its slice from
+every cell before any histogram is allocated. A count the `DataProvider` noised
+is compared to the threshold directly. An exact count is pruned only when it
+falls short of the threshold by more than the noise truncation bound, so that
+the prune fires only where the noised test would fail anyway.
+
+## Noise
+
+Each emitted cell is noised deterministically, so that rerunning the same
+computation returns the same figures. This step also scales impressions to any
+reported impression count and computes each cell's variance.
 
 ## Result
 
@@ -171,6 +204,6 @@ completes the `Measurement`.
 
 1.  The evaluation library: query evaluation, subpopulation attributes, and the
     subpopulation index, with the shared VID hash.
-2.  Noise and suppression over the evaluated cells.
+2.  Suppression with the corrective pass, and noise, over the evaluated cells.
 3.  The mill: read the requisition blobs in chunks, run 1 and 2, and set the
     result. This adds the VID sampling interval to `ComputationDetails`.
