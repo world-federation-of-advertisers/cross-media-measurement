@@ -225,7 +225,6 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate as InternalCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalUploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.createQuarantinedRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadCorrectionCandidate as internalCandidate
@@ -552,7 +551,7 @@ abstract class VidLabelingPipelineTestHarness(
         storageClient = fileStorage,
         rawImpressionUploadStub = uploadsStub,
         rawImpressionUploadFilesStub = filesStub,
-        correctionDetectionStub = correctionDetectionStub,
+        correctionDetectionStub = correctionCandidatesStub,
         rawImpressionUploadModelLineStub = modelLineRowsStub,
         rankIndexBlobStub = rankIndexBlobsStub,
         modelLinesStub = ModelLinesGrpcKt.ModelLinesCoroutineStub(edpaPublicServer.channel),
@@ -777,13 +776,12 @@ abstract class VidLabelingPipelineTestHarness(
             }
           }
         },
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
     val operationStore =
       GrpcHealingOperationStore(
         operationsStub,
-        InternalUploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
-          edpaInternalServer.channel
-        ),
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
     val recoverUploader =
       RecoverUploader(
@@ -791,6 +789,7 @@ abstract class VidLabelingPipelineTestHarness(
         modelLineRowsStub,
         rankIndexBlobsStub,
         getHealingOperation = { name -> readHealingOperation(name) },
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       ) { doneBlobUri, expectedGeneration, metadata ->
         val key = blobKey(doneBlobUri)
         check(fileStorage.getFreshnessToken(key)?.toLong() == expectedGeneration)
@@ -813,7 +812,10 @@ abstract class VidLabelingPipelineTestHarness(
         )
       },
       correctionCandidatesStub,
-      GrpcCorrectionCandidateCleaner(correctionDetectionStub),
+      GrpcCorrectionCandidateCleaner(
+        correctionCandidatesStub,
+        VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+      ),
       operationStore,
       uploadsStub,
       filesStub,
@@ -917,6 +919,7 @@ abstract class VidLabelingPipelineTestHarness(
             checkNotNull((blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken).toLong()
           DoneObjectMetadata(generation, blob.updateTime)
         },
+      rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
   }
 
@@ -1116,11 +1119,18 @@ abstract class VidLabelingPipelineTestHarness(
         }
       )
     val blobUri = "gs://synthetic-$dataProviderResourceId/raw/input.parquet"
+    val eventDate =
+      com.google.type.date {
+        year = EVENT_DATE.year
+        month = EVENT_DATE.monthValue
+        day = EVENT_DATE.dayOfMonth
+      }
     val prior =
       org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateKt
         .manifestEntry {
           this.blobUri = blobUri
           blobGeneration = 1L
+          this.eventDate = eventDate
           outputSourceRawImpressionUploadResourceId = "prior-$candidateId"
         }
     val current =
@@ -1128,6 +1138,7 @@ abstract class VidLabelingPipelineTestHarness(
         .manifestEntry {
           this.blobUri = blobUri
           blobGeneration = 2L
+          this.eventDate = eventDate
           outputSourceRawImpressionUploadResourceId = quarantined.rawImpressionUploadResourceId
         }
     val comparison =
@@ -1152,10 +1163,10 @@ abstract class VidLabelingPipelineTestHarness(
           classification = InternalCandidate.Classification.CLASSIFICATION_EDITED
           priorManifestDigest =
             RawImpressionUploadManifestClassifier()
-              .digest(listOf(RawImpressionUploadManifestClassifier.File(blobUri, 1L)))
+              .digest(listOf(RawImpressionUploadManifestClassifier.File(blobUri, 1L, eventDate)))
           currentManifestDigest =
             RawImpressionUploadManifestClassifier()
-              .digest(listOf(RawImpressionUploadManifestClassifier.File(blobUri, 2L)))
+              .digest(listOf(RawImpressionUploadManifestClassifier.File(blobUri, 2L, eventDate)))
           manifestComparison = comparison
           expireTime = Clock.systemUTC().instant().plus(Duration.ofDays(1)).toProtoTime()
         }
