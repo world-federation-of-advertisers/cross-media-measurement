@@ -270,6 +270,7 @@ maven.install(
         "it.unimi.dsi:fastutil:8.5.12",
 
         # Google Cloud
+        "com.google.auth:google-auth-library-credentials",
         "com.google.http-client:google-http-client",
         "com.google.cloud:google-cloud-bigquery:2.51.0",
         "com.google.apis:google-api-services-bigquery:v2-rev20250511-2.0.0",

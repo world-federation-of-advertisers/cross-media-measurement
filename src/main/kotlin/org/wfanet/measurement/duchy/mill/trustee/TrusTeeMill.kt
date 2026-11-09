@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.mill.trustee
 
 import com.google.api.client.http.HttpResponseException
+import com.google.auth.Retryable
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
@@ -301,19 +302,21 @@ class TrusTeeMill(
     }
 
   private fun keyAccessException(message: String, cause: GeneralSecurityException): Exception {
-    // HTTP errors also extend IOException. Classify their status before treating other I/O
-    // failures, including launcher quota failures, as retryable transport errors.
+    // HTTP status and authentication retry hints take precedence over generic I/O failures.
     val httpFailure =
       generateSequence<Throwable>(cause) { it.cause }
         .filterIsInstance<HttpResponseException>()
         .firstOrNull()
+    val authFailure =
+      generateSequence<Throwable>(cause) { it.cause }.filterIsInstance<Retryable>().firstOrNull()
     val retryable =
-      if (httpFailure != null) {
-        httpFailure.statusCode == 408 ||
-          httpFailure.statusCode == 429 ||
-          httpFailure.statusCode in 500..599
-      } else {
-        generateSequence<Throwable>(cause) { it.cause }.any { it is IOException }
+      when {
+        httpFailure != null ->
+          httpFailure.statusCode == 408 ||
+            httpFailure.statusCode == 429 ||
+            httpFailure.statusCode in 500..599
+        authFailure != null -> authFailure.isRetryable
+        else -> generateSequence<Throwable>(cause) { it.cause }.any { it is IOException }
       }
     return if (retryable) {
       TransientErrorException(message, cause)

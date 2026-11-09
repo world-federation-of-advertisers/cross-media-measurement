@@ -8,6 +8,7 @@ kt_jvm_library(
     srcs = ["TrusTeeMillTest.kt"],
     deps = [
         "//imports/java/com/google/api/client/http",
+        "//imports/java/com/google/auth:credentials",
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",

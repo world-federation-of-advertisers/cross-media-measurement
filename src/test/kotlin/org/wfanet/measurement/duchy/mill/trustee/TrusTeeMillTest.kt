@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.mill.trustee
 
 import com.google.api.client.http.HttpHeaders
 import com.google.api.client.http.HttpResponseException
+import com.google.auth.Retryable
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
@@ -743,7 +744,33 @@ class TrusTeeMillTest {
     assertHttpKeyDecryptionFailure(statusCode = 503, retryable = true)
   }
 
+  @Test
+  fun `computingPhase fails permanently for nonretryable authentication without HTTP cause`():
+    Unit = runBlocking {
+    assertKeyDecryptionFailure(AuthIOException(retryable = false), retryable = false)
+  }
+
+  @Test
+  fun `computingPhase retries authentication failures marked retryable without HTTP cause`(): Unit =
+    runBlocking {
+      assertKeyDecryptionFailure(AuthIOException(retryable = true), retryable = true)
+    }
+
+  private class AuthIOException(private val retryable: Boolean) :
+    IOException("Token exchange failed"), Retryable {
+    override fun isRetryable(): Boolean = retryable
+
+    override fun getRetryCount(): Int = 0
+  }
+
   private suspend fun assertHttpKeyDecryptionFailure(statusCode: Int, retryable: Boolean) {
+    assertKeyDecryptionFailure(
+      HttpResponseException.Builder(statusCode, "KMS request failed", HttpHeaders()).build(),
+      retryable,
+    )
+  }
+
+  private suspend fun assertKeyDecryptionFailure(cause: Throwable, retryable: Boolean) {
     writeRequisitionData()
     fakeComputationDb.addComputation(
       LOCAL_ID,
@@ -752,14 +779,8 @@ class TrusTeeMillTest {
       requisitions = listOf(REQUISITION_1),
     )
     val kekAead: Aead = mock()
-    // Match the HTTP exception wrapped by Tink's GCP KMS decryption operation.
     whenever(kekAead.decrypt(any(), any()))
-      .thenThrow(
-        GeneralSecurityException(
-          "decryption failed",
-          HttpResponseException.Builder(statusCode, "KMS request failed", HttpHeaders()).build(),
-        )
-      )
+      .thenThrow(GeneralSecurityException("decryption failed", cause))
       .thenAnswer { invocation ->
         KEK_AEAD_1.decrypt(invocation.getArgument(0), invocation.getArgument(1))
       }
