@@ -1767,6 +1767,7 @@ class SpannerUploadHealingOperationService(
           .map { it.rawImpressionUpload }
           .filter {
             it.rawImpressionUploadResourceId != replacement.rawImpressionUploadResourceId &&
+              it.doneBlobGeneration != replacement.doneBlobGeneration &&
               Timestamps.compare(
                 if (it.hasDoneBlobCreateTime()) it.doneBlobCreateTime else it.createTime,
                 if (replacement.hasDoneBlobCreateTime()) replacement.doneBlobCreateTime
@@ -1775,12 +1776,13 @@ class SpannerUploadHealingOperationService(
           }
           .all {
             it.processingDeferred &&
-              it.state !in
+              (it.state in
                 setOf(
-                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
-                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
-                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
-                )
+                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
+                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+                ) ||
+                it.state == RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED &&
+                  !it.registrationComplete)
           }
       } else {
         false

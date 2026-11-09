@@ -144,6 +144,15 @@ class VidLabelingDispatcherFunctionTest {
     }
 
   private val rankIndexBlobServiceMock: RankIndexBlobServiceCoroutineImplBase = mockService()
+  private val healingOperationService =
+    object :
+      org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase() {
+      override suspend fun getUploadHealingOperation(
+        request: org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
+      ): org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation {
+        throw io.grpc.Status.NOT_FOUND.asException()
+      }
+    }
 
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
     onBlocking { listModelLines(any()) }
@@ -195,6 +204,7 @@ class VidLabelingDispatcherFunctionTest {
               rawImpressionUploadFileServiceMock.bindService(),
               rawImpressionUploadModelLineServiceMock.bindService(),
               rankIndexBlobServiceMock.bindService(),
+              healingOperationService.bindService(),
               modelLinesServiceMock.bindService(),
               modelRolloutsServiceMock.bindService(),
               modelShardsServiceMock.bindService(),

@@ -70,6 +70,7 @@ import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueEx
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.AcquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.AcquireRawImpressionUploadEvictionFenceResponse
@@ -214,7 +215,9 @@ class SpannerRawImpressionUploadService(
               previous.rawImpressionUpload.doneBlobCreateTime ==
                 request.rawImpressionUpload.doneBlobCreateTime
           if (
-            committedSource == null && previous != null && !exactRecoveryReplay &&
+            committedSource == null &&
+              previous != null &&
+              !exactRecoveryReplay &&
               (!request.rawImpressionUpload.hasDoneBlobCreateTime() ||
                 (previous.rawImpressionUpload.hasDoneBlobCreateTime() &&
                   Timestamps.compare(
@@ -911,13 +914,27 @@ class SpannerRawImpressionUploadService(
         .distinct()
         .map { txn.getRawImpressionUploadByResourceId(request.dataProviderResourceId, it) }
         .filter { it.rawImpressionUpload.doneBlobUri == request.rawImpressionUpload.doneBlobUri }
-    if (sources.size != 1) {
+    val requestedSources =
+      sources.filter {
+        val sourceName =
+          "dataProviders/" +
+            request.dataProviderResourceId +
+            "/rawImpressionUploads/" +
+            it.rawImpressionUpload.rawImpressionUploadResourceId
+        RequestIds.forRawImpressionUploadRecovery(
+          request.rawImpressionUpload.doneBlobUri,
+          request.rawImpressionUpload.doneBlobGeneration,
+          request.evictionOperationId,
+          sourceName,
+        ) == request.requestId
+      }
+    val source = requestedSources.singleOrNull() ?: sources.singleOrNull()
+    if (source == null) {
       throw Status.FAILED_PRECONDITION.withDescription(
           "Recovery object does not identify one approved source"
         )
         .asRuntimeException()
     }
-    val source = sources.single()
     val matchingSteps =
       steps.filter {
         it.sourceRawImpressionUploadResourceId ==
@@ -950,8 +967,9 @@ class SpannerRawImpressionUploadService(
     if (
       !(revisions
         .filter {
-          it.rawImpressionUploadResourceId !=
-            source.rawImpressionUpload.rawImpressionUploadResourceId &&
+          it.doneBlobGeneration != request.rawImpressionUpload.doneBlobGeneration &&
+            it.rawImpressionUploadResourceId !=
+              source.rawImpressionUpload.rawImpressionUploadResourceId &&
             it.evictionOperationId != request.evictionOperationId &&
             Timestamps.compare(
               if (it.hasDoneBlobCreateTime()) it.doneBlobCreateTime else it.createTime,
@@ -964,7 +982,6 @@ class SpannerRawImpressionUploadService(
               setOf(
                 RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
                 RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
-                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
               )
         })
     ) {
