@@ -223,6 +223,7 @@ class DataAvailabilityWatcherConfigTest {
         ),
         runtimeConfigs,
         watcherConfig,
+        availabilityMonitorConfigs,
       )
     }
   }
