@@ -68,7 +68,8 @@ class VidLabelingHealingControllerFunctionTest {
       whenever(storage.list(eq("raw"), any<Storage.BlobListOption>())).thenReturn(page)
       whenever(page.iterateAll()).thenReturn(listOf(first, done, second, nestedDone))
 
-      val manifest = GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L)
+      val manifest =
+        GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, emptyList())
 
       assertThat(manifest)
         .containsExactly(
@@ -86,7 +87,9 @@ class VidLabelingHealingControllerFunctionTest {
 
     val error =
       kotlin.test.assertFailsWith<IllegalStateException> {
-        runBlocking { GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L) }
+        runBlocking {
+          GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, emptyList())
+        }
       }
 
     assertThat(error).hasMessageThat().contains("generation changed")
@@ -104,7 +107,9 @@ class VidLabelingHealingControllerFunctionTest {
 
     val error =
       kotlin.test.assertFailsWith<IllegalStateException> {
-        runBlocking { GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L) }
+        runBlocking {
+          GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, emptyList())
+        }
       }
 
     assertThat(error).hasMessageThat().contains("generation changed")
@@ -215,4 +220,52 @@ class VidLabelingHealingControllerFunctionTest {
       whenever(it.generation).thenReturn(generation)
     }
   }
+
+  @Test
+  fun `manifest reader verifies retained versions without listing newer directory contents`() =
+    runBlocking {
+      val storage = mock<Storage>()
+      val marker = blob("day/done", 11L)
+      val input = blob("day/input.parquet", 21L)
+      val createTime = Instant.parse("2026-11-01T00:00:00Z")
+      whenever(marker.createTimeOffsetDateTime).thenReturn(createTime.atOffset(ZoneOffset.UTC))
+      whenever(input.createTimeOffsetDateTime)
+        .thenReturn(createTime.minusSeconds(1).atOffset(ZoneOffset.UTC))
+      whenever(storage.get(BlobId.of("raw", "day/done", 11L))).thenReturn(marker)
+      whenever(storage.get(BlobId.of("raw", "day/input.parquet", 21L))).thenReturn(input)
+      val expected =
+        listOf(RawImpressionUploadManifestClassifier.File("gs://raw/day/input.parquet", 21L))
+
+      val result =
+        GcsCorrectionManifestReader(storage).readPersisted("gs://raw/day/done", 11L, expected)
+
+      assertThat(result).containsExactlyElementsIn(expected)
+      verify(storage, never()).get("raw", "day/done")
+      verify(storage, never()).list(any<String>(), any<Storage.BlobListOption>())
+      Unit
+    }
+
+  @Test
+  fun `manifest reader rejects a missing retained input instead of reading its live version`() =
+    runBlocking {
+      val storage = mock<Storage>()
+      val marker = blob("day/done", 11L)
+      whenever(marker.createTimeOffsetDateTime)
+        .thenReturn(Instant.parse("2026-11-01T00:00:00Z").atOffset(ZoneOffset.UTC))
+      whenever(storage.get(BlobId.of("raw", "day/done", 11L))).thenReturn(marker)
+
+      val error =
+        kotlin.test.assertFailsWith<IllegalStateException> {
+          GcsCorrectionManifestReader(storage)
+            .readPersisted(
+              "gs://raw/day/done",
+              11L,
+              listOf(RawImpressionUploadManifestClassifier.File("gs://raw/day/input.parquet", 21L)),
+            )
+        }
+
+      assertThat(error).hasMessageThat().contains("approved raw-object version")
+      verify(storage, never()).get("raw", "day/input.parquet")
+      Unit
+    }
 }
