@@ -28,7 +28,9 @@ ALTER PROTO BUNDLE INSERT (
 );
 
 -- An ordered nesting of entity types for a DataProvider's EventGroups. Supplied
--- by operator configuration and applied by EventGroupHierarchyActivationJob.
+-- by operator configuration.
+-- TODO(world-federation-of-advertisers/cross-media-measurement#4546): Implement
+-- EventGroupHierarchyActivationJob to apply the configuration.
 CREATE TABLE EventGroupHierarchies (
   DataProviderId INT64 NOT NULL,
   EventGroupHierarchyId INT64 NOT NULL,
@@ -75,8 +77,8 @@ ALTER TABLE EventGroups
 -- column. This cannot be a generated column: EntityMetadata is a
 -- google.protobuf.Struct, and GoogleSQL has no PROTO-to-JSON conversion. The
 -- two representations are written in the same transaction.
--- Backfill existing rows after deploying dual writes and before enabling
--- searches on this column.
+-- TODO(world-federation-of-advertisers/cross-media-measurement#4543): Add the
+-- EntityMetadataJson backfill tool; run after dual writes and before search.
 --
 -- Stored as JSON rather than flattened text so that no custom serialization
 -- format has to be defined and maintained, and so that a TOKENIZE_JSON column
