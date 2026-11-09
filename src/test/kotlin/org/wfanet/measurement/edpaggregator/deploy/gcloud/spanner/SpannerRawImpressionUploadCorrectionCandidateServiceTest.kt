@@ -2067,6 +2067,8 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
           )
           .set("Reason")
           .to("correction")
+          .set("LabeledImpressionsBlobPrefix")
+          .to("gs://output/vid")
           .set("RawImpressionUploadCorrectionCandidateIds")
           .toStringArray(candidateIds)
           .set("MutationRequestIds")
