@@ -837,7 +837,7 @@ watched_paths {
 # 2) External data availability -> DataAvailabilitySync (durable WorkItem)
 watched_paths {
   identifier: "data-availability"
-  source_path_regex: "^gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/model-line/[^/]+/[0-9]{4}-[0-9]{2}-[0-9]{2}/done$"
+  source_path_regex: "^gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/model-line/[^/]+/[^/]+/done$"
   control_plane_queue_sink {
     queue: "data-availability-sync-queue"
     serialization_key: "data-availability:dataProviders/DATA_PROVIDER_ID"
@@ -1109,11 +1109,14 @@ configs {
 }
 ```
 
-For providers using both external uploads and VID Labeler, keep the external route outside
-the internal output namespace. The deployment validator checks HTTP and queued external
-routes for overlap. Drain active tasks before migrating dispatcher, monitor, and sync configs
-together. Keep historical impression metadata. When `external_impression_path` is empty,
-external and legacy HTTP syncs use `edp_impression_path`.
+For providers using both external uploads and VID Labeler, keep the two prefixes distinct and
+ensure the external DataWatcher route cannot match the internal output prefix. VidLabelingMonitor
+and WorkItem reconciliation own the internal `edp_impression_path`; DataAvailabilityMonitor owns
+the external `external_impression_path`. The deployment validator checks both ownership paths,
+their storage roots, and HTTP or queued external routes. Drain active tasks before migrating
+dispatcher, monitor, and sync configs together. Keep historical impression metadata. When
+`external_impression_path` is empty, external and legacy HTTP syncs use
+`edp_impression_path`.
 
 `event_group_activity_publishing` is optional. When present, `DataAvailabilitySync`:
 
@@ -1164,16 +1167,21 @@ One `configs` entry per monitored impression path.
 # proto-message: wfa.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 configs {
   storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
-  edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"
+  edp_impression_path: "edp/<edp-id>"
   model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/ML" }
   max_stale_days: 3                       # optional (default 3)
   time_zone: "UTC"
-  data_provider_name: "dataProviders/DATA_PROVIDER_ID"          # required for the spurious-deletion check
+  data_provider_name: "dataProviders/DATA_PROVIDER_ID"
   impression_metadata_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   # spurious_deletion_lookback_days: 7    # optional; > 0 enables the spurious-deletion check
   # unprocessed_done_threshold { seconds: 86400 }   # optional (default 24h)
 }
 ```
+
+For every nonempty DataAvailabilitySync `external_impression_path`, configure the same
+`data_provider_name`, storage backend and root, and normalized `edp_impression_path` here.
+`data_provider_name` is also required when the spurious-deletion check is enabled. Do not add the
+internal VID Labeler output to this monitor; VidLabelingMonitor owns that prefix.
 
 ### EDP config (`event_data_provider_configs`)
 
