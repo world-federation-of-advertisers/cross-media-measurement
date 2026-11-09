@@ -268,7 +268,12 @@ class VidLabelingHealingControllerIntegrationTest {
       updated
     }
     val recoverUploader =
-      RecoverUploader(uploadsStub, modelLinesStub, rankIndexBlobsStub, ::rewriteDoneBlob)
+      RecoverUploader(
+        uploadsStub,
+        modelLinesStub,
+        rankIndexBlobsStub,
+        rewriteDoneBlob = ::rewriteDoneBlob,
+      )
     var replayed: DoneBlobReplayer.Request? = null
     val controller =
       VidLabelingHealingController(
@@ -543,7 +548,7 @@ class VidLabelingHealingControllerIntegrationTest {
   }
 
   private fun manifestReader(source: UploadFixture): CorrectionManifestReader =
-    CorrectionManifestReader { doneBlobUri, doneBlobGeneration ->
+    CorrectionManifestReader { doneBlobUri, doneBlobGeneration, _ ->
       check(doneBlobUri == source.upload.doneBlobUri)
       check(blobMetadata.getValue(source.doneKey).generation == doneBlobGeneration)
       listOf(

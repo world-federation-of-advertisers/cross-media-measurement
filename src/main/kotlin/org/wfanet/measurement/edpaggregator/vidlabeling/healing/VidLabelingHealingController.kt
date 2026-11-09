@@ -87,6 +87,7 @@ fun interface CorrectionManifestReader {
   suspend fun read(
     doneBlobUri: String,
     doneBlobGeneration: Long,
+    persistedManifest: Collection<RawImpressionUploadManifestClassifier.File>,
   ): Collection<RawImpressionUploadManifestClassifier.File>
 
   /** Verifies retained versions without including later directory revisions. */
@@ -95,7 +96,7 @@ fun interface CorrectionManifestReader {
     doneBlobGeneration: Long,
     persistedManifest: Collection<RawImpressionUploadManifestClassifier.File>,
   ): Collection<RawImpressionUploadManifestClassifier.File> {
-    return read(doneBlobUri, doneBlobGeneration)
+    return read(doneBlobUri, doneBlobGeneration, persistedManifest)
   }
 }
 
@@ -849,34 +850,25 @@ class VidLabelingHealingController(
     doneBlobGeneration: Long = upload.doneBlobGeneration,
     retainedVersions: Boolean = false,
   ): ByteString {
-    val persistedDigest =
+    val persistedManifest =
       if (completeSnapshot) {
-        digestPersistedManifest(upload.name)
+        listPersistedFiles(upload.name)
       } else {
-        digestEffectivePersistedManifest(upload)
+        effectivePersistedManifest(upload)
       }
+    val persistedDigest = manifestClassifier.digest(persistedManifest)
     val liveDigest =
       manifestClassifier.digest(
         if (retainedVersions) {
-          val persistedManifest =
-            if (completeSnapshot) {
-              listPersistedFiles(upload.name)
-            } else {
-              effectivePersistedManifest(upload)
-            }
           manifestReader.readPersisted(upload.doneBlobUri, doneBlobGeneration, persistedManifest)
         } else {
-          manifestReader.read(upload.doneBlobUri, doneBlobGeneration)
+          manifestReader.read(upload.doneBlobUri, doneBlobGeneration, persistedManifest)
         }
       )
     if (liveDigest != persistedDigest) {
       throw ManifestMismatchException("Live manifest no longer matches ${upload.name}")
     }
     return liveDigest
-  }
-
-  private suspend fun digestEffectivePersistedManifest(upload: RawImpressionUpload): ByteString {
-    return manifestClassifier.digest(effectivePersistedManifest(upload))
   }
 
   private suspend fun effectivePersistedManifest(
@@ -910,10 +902,6 @@ class VidLabelingHealingController(
       )
       .values
       .map { it.file }
-  }
-
-  private suspend fun digestPersistedManifest(uploadName: String): ByteString {
-    return manifestClassifier.digest(listPersistedFiles(uploadName))
   }
 
   private suspend fun listPersistedFiles(
@@ -1204,16 +1192,13 @@ class VidLabelingHealingController(
   }
 
   private fun findLatestUpload(uploads: List<RawImpressionUpload>): RawImpressionUpload? {
-    val replacedNames = uploads.mapTo(mutableSetOf()) { it.replacesRawImpressionUpload }
-    val leaves = uploads.filter { it.name !in replacedNames }
-    check(uploads.isEmpty() || leaves.isNotEmpty()) { "Upload revision chain contains a cycle" }
-    val timestamped = leaves.filter { it.hasDoneBlobCreateTime() }
+    val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
     return if (timestamped.isNotEmpty()) {
       timestamped.maxWithOrNull { left, right ->
         Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
       }
     } else {
-      leaves.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
+      uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
     }
   }
 

@@ -419,7 +419,7 @@ class VidLabelingHealingControllerTest {
     newController(
         evictionExecutor = evictionExecutor,
         manifestReader =
-          CorrectionManifestReader { _, _ ->
+          CorrectionManifestReader { _, _, _ ->
             listOf(RawImpressionUploadManifestClassifier.File("gs://raw/changed", 9L))
           },
         eventSink = VidLabelingHealingControllerEventSink(events::add),
@@ -926,7 +926,7 @@ class VidLabelingHealingControllerTest {
     }
     val replayer = DoneBlobReplayer { replayed += it }
     var verifiedGeneration = 0L
-    val manifestReader = CorrectionManifestReader { _, generation ->
+    val manifestReader = CorrectionManifestReader { _, generation, _ ->
       verifiedGeneration = generation
       emptyList()
     }
@@ -1917,7 +1917,7 @@ class VidLabelingHealingControllerTest {
     evictionExecutor: EvictionExecutor = testEvictionExecutor { _, _, _ ->
       EvictUploader.EvictionResult(emptyList(), 0, 0, 0)
     },
-    manifestReader: CorrectionManifestReader = CorrectionManifestReader { _, _ -> emptyList() },
+    manifestReader: CorrectionManifestReader = CorrectionManifestReader { _, _, _ -> emptyList() },
     doneBlobReplayer: DoneBlobReplayer = DoneBlobReplayer { _ -> },
     recoveryExecutor: RecoveryExecutor = RecoveryExecutor { _, _ -> error("unexpected recovery") },
     dataAvailabilitySyncWorkItemPublisher: DataAvailabilitySyncWorkItemPublisher =

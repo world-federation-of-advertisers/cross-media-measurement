@@ -51,9 +51,9 @@ class RecoverUploader(
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
+  private val getHealingOperation: suspend (name: String) -> UploadHealingOperation? = { null },
   private val rewriteDoneBlob:
     suspend (doneBlobUri: String, expectedGeneration: Long, metadata: Map<String, String>) -> Long,
-  private val getHealingOperation: suspend (name: String) -> UploadHealingOperation? = { null },
 ) : RecoveryExecutor {
   data class Result(
     val sourceUpload: String,
@@ -170,16 +170,13 @@ class RecoverUploader(
   }
 
   private fun findLatestUpload(uploads: List<RawImpressionUpload>): RawImpressionUpload? {
-    val replacedNames = uploads.mapTo(mutableSetOf()) { it.replacesRawImpressionUpload }
-    val leaves = uploads.filter { it.name !in replacedNames }
-    check(uploads.isEmpty() || leaves.isNotEmpty()) { "Upload revision chain contains a cycle" }
-    val timestamped = leaves.filter { it.hasDoneBlobCreateTime() }
+    val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
     return if (timestamped.isNotEmpty()) {
       timestamped.maxWithOrNull { left, right ->
         Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
       }
     } else {
-      leaves.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
+      uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
     }
   }
 

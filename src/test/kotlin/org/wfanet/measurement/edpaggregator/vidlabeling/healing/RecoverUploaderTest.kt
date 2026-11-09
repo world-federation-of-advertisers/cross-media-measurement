@@ -401,8 +401,8 @@ class RecoverUploaderTest {
         channel
       ),
       RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel),
-      rewriteDoneBlob,
-      getHealingOperation,
+      getHealingOperation = getHealingOperation,
+      rewriteDoneBlob = rewriteDoneBlob,
     )
   }
 
