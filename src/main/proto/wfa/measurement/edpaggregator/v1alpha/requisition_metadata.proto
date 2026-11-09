@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -136,8 +137,8 @@ message ReportRoutingDecision {
     (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" }
   ];
 
-  // Original start time of the Report.
-  google.protobuf.Timestamp report_start_time = 2 [
+  // Original closed-open bounding interval of the Report.
+  google.type.Interval report_interval = 2 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];

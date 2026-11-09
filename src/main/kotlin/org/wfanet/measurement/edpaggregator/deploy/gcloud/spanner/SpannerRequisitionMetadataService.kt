@@ -101,8 +101,13 @@ class SpannerRequisitionMetadataService(
       candidate.report.isEmpty() ||
         candidate.externalModelLine.isEmpty() ||
         candidate.selectedModelLine.isEmpty() ||
-        !candidate.hasReportStartTime() ||
-        !Timestamps.isValid(candidate.reportStartTime)
+        !candidate.hasReportInterval() ||
+        !candidate.reportInterval.hasStartTime() ||
+        !candidate.reportInterval.hasEndTime() ||
+        !Timestamps.isValid(candidate.reportInterval.startTime) ||
+        !Timestamps.isValid(candidate.reportInterval.endTime) ||
+        Timestamps.compare(candidate.reportInterval.startTime, candidate.reportInterval.endTime) >=
+          0
     ) {
       throw InvalidFieldValueException("candidate")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -115,7 +120,7 @@ class SpannerRequisitionMetadataService(
           txn.findReportRoutingDecision(request.dataProviderResourceId, candidate.report)
         if (existing != null) {
           if (
-            existing.reportStartTime != candidate.reportStartTime ||
+            existing.reportInterval != candidate.reportInterval ||
               existing.externalModelLine != candidate.externalModelLine
           ) {
             throw Status.FAILED_PRECONDITION.withDescription(
