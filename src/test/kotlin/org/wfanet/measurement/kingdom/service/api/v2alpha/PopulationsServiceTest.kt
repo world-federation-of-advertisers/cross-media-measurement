@@ -211,6 +211,26 @@ class PopulationsServiceTest {
   }
 
   @Test
+  fun `createPopulation throws UNAVAILABLE when internal service is unavailable`() {
+    internalPopulationsMock.stub {
+      onBlocking { createPopulation(any()) }.thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    }
+    val request = createPopulationRequest {
+      parent = DATA_PROVIDER_NAME
+      population = POPULATION
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.createPopulation(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+  }
+
+  @Test
   fun `createPopulation throws PERMISSION_DENIED with measurement consumer principal`() {
     val request = createPopulationRequest {
       parent = DATA_PROVIDER_NAME

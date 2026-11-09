@@ -610,6 +610,26 @@ class MeasurementConsumersServiceTest {
   }
 
   @Test
+  fun `getMeasurementConsumer throws UNAVAILABLE when internal service is unavailable`() {
+    internalServiceMock.stub {
+      onBlocking { getMeasurementConsumer(any()) }
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.getMeasurementConsumer(
+              getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+  }
+
+  @Test
   fun `getMeasurementConsumer throws NOT_FOUND with measurement consumer name when measurement consumer not found`() {
     internalServiceMock.stub {
       onBlocking { getMeasurementConsumer(any()) }

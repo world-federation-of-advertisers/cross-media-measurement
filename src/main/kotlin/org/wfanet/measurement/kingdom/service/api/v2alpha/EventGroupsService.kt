@@ -505,6 +505,7 @@ class EventGroupsService(
       } catch (e: StatusException) {
         throw when (e.status.code) {
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
           else -> Status.UNKNOWN
         }.toExternalStatusRuntimeException(e)
       }
