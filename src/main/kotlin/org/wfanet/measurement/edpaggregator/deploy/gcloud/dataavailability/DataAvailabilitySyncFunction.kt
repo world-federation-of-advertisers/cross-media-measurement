@@ -20,9 +20,6 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.BlobId
-import com.google.cloud.storage.BlobInfo
-import com.google.cloud.storage.Storage
-import com.google.cloud.storage.StorageException as GcsStorageException
 import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
@@ -35,16 +32,11 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant
-import java.time.OffsetDateTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.common.EnvVars
@@ -67,7 +59,6 @@ import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActiv
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
-import org.wfanet.measurement.edpaggregator.dataavailability.ExternalDataAvailabilitySnapshotChangedException
 import org.wfanet.measurement.edpaggregator.dataavailability.GenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
@@ -549,49 +540,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     }
   }
 
-  private class GcsGenerationMatchedBlobMetadataUpdater(
-    private val storage: Storage,
-    private val bucketName: String,
-  ) : GenerationMatchedBlobMetadataUpdater {
-    override suspend fun update(
-      blobKey: String,
-      generation: Long,
-      customCreateTime: Instant?,
-      metadata: Map<String, String>,
-    ) {
-      require(customCreateTime != null || metadata.isNotEmpty()) {
-        "At least one of customCreateTime or metadata must be specified"
-      }
-      withContext(Dispatchers.IO) {
-        try {
-          val blobInfo =
-            BlobInfo.newBuilder(BlobId.of(bucketName, blobKey))
-              .apply {
-                if (customCreateTime != null) {
-                  setCustomTimeOffsetDateTime(
-                    OffsetDateTime.ofInstant(customCreateTime, ZoneOffset.UTC)
-                  )
-                }
-                if (metadata.isNotEmpty()) {
-                  setMetadata(metadata)
-                }
-              }
-              .build()
-          storage.update(blobInfo, Storage.BlobTargetOption.generationMatch(generation))
-            ?: throw ExternalDataAvailabilitySnapshotChangedException()
-        } catch (e: GcsStorageException) {
-          if (e.code == HTTP_PRECONDITION_FAILED || e.code == HTTP_NOT_FOUND) {
-            throw ExternalDataAvailabilitySnapshotChangedException(cause = e)
-          }
-          throw e
-        }
-      }
-    }
-  }
-
   companion object {
-    private const val HTTP_NOT_FOUND = 404
-    private const val HTTP_PRECONDITION_FAILED = 412
     private val RETRYABLE_GRPC_STATUS_CODES =
       setOf(
         Status.Code.ABORTED,

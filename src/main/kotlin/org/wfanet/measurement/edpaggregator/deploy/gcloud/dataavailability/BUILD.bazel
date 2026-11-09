@@ -13,6 +13,7 @@ kt_jvm_library(
         "DataAvailabilitySyncWorkItemProcessor.kt",
     ],
     deps = [
+        ":gcs_generation_matched_blob_metadata_updater",
         "//imports/java/io/opentelemetry/api",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/extension:kotlin",
@@ -125,4 +126,14 @@ java_binary(
     name = "DataAvailabilityMonitorFunction",
     main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityMonitorFunction",
     runtime_deps = [":data_availability_monitor_function"],
+)
+
+kt_jvm_library(
+    name = "gcs_generation_matched_blob_metadata_updater",
+    srcs = ["GcsGenerationMatchedBlobMetadataUpdater.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
 )
