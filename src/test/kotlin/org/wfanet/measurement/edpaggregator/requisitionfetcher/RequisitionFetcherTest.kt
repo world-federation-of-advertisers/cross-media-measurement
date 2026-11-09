@@ -2304,49 +2304,61 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `same report with conflicting report start refuses conflicting requisition`() = runBlocking {
-    fun requisitionWithReportStart(name: String, reportStart: Instant): Requisition {
-      val measurementSpec =
-        TestRequisitionData.MEASUREMENT_SPEC.copy {
-          reportingMetadata =
-            this.reportingMetadata.copy { reportStartTime = reportStart.toProtoTime() }
+  fun `same report with conflicting report interval refuses conflicting requisition`() =
+    runBlocking {
+      fun requisitionWithReportInterval(
+        name: String,
+        reportStart: Instant,
+        reportEnd: Instant,
+      ): Requisition {
+        val measurementSpec =
+          TestRequisitionData.MEASUREMENT_SPEC.copy {
+            reportingMetadata =
+              this.reportingMetadata.copy {
+                reportInterval = interval {
+                  startTime = reportStart.toProtoTime()
+                  endTime = reportEnd.toProtoTime()
+                }
+              }
+          }
+        return TestRequisitionData.REQUISITION.copy {
+          this.name = name
+          this.measurementSpec =
+            signMeasurementSpec(measurementSpec, TestRequisitionData.MC_SIGNING_KEY)
         }
-      return TestRequisitionData.REQUISITION.copy {
-        this.name = name
-        this.measurementSpec =
-          signMeasurementSpec(measurementSpec, TestRequisitionData.MC_SIGNING_KEY)
       }
-    }
-    val first =
-      requisitionWithReportStart(
-        TestRequisitionData.REQUISITION.name,
-        Instant.parse("2026-10-01T00:00:00Z"),
-      )
-    val conflicting =
-      requisitionWithReportStart(
-        "${TestRequisitionData.EDP_NAME}/requisitions/foo2",
-        Instant.parse("2026-10-02T00:00:00Z"),
-      )
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(listRequisitionsResponse { requisitions += listOf(first, conflicting) })
-    whenever(requisitionMetadataServiceMock.resolveReportRoutingDecision(any())).thenAnswer {
-      invocation ->
-      val request = invocation.getArgument<ResolveReportRoutingDecisionRequest>(0)
-      resolveReportRoutingDecisionResponse {
-        reportRoutingDecision = request.candidate
-        created = true
+      val first =
+        requisitionWithReportInterval(
+          TestRequisitionData.REQUISITION.name,
+          Instant.parse("2026-10-01T00:00:00Z"),
+          Instant.parse("2026-10-31T00:00:00Z"),
+        )
+      val conflicting =
+        requisitionWithReportInterval(
+          "${TestRequisitionData.EDP_NAME}/requisitions/foo2",
+          Instant.parse("2026-10-01T00:00:00Z"),
+          Instant.parse("2026-11-01T00:00:00Z"),
+        )
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += listOf(first, conflicting) })
+      whenever(requisitionMetadataServiceMock.resolveReportRoutingDecision(any())).thenAnswer {
+        invocation ->
+        val request = invocation.getArgument<ResolveReportRoutingDecisionRequest>(0)
+        resolveReportRoutingDecisionResponse {
+          reportRoutingDecision = request.candidate
+          created = true
+        }
       }
+
+      createFetcher().fetchAndStoreRequisitions()
+
+      assertThat(blobsList()).hasLength(1)
+      assertThat(createRequisitionMetadataRequests.map { it.requisitionMetadata.cmmsRequisition })
+        .containsExactly(first.name)
+      assertThat(refuseRequisitionRequests.map { it.name }).containsExactly(conflicting.name)
+      assertThat(refuseRequisitionRequests.single().refusal.justification)
+        .isEqualTo(Requisition.Refusal.Justification.SPEC_INVALID)
     }
-
-    createFetcher().fetchAndStoreRequisitions()
-
-    assertThat(blobsList()).hasLength(1)
-    assertThat(createRequisitionMetadataRequests.map { it.requisitionMetadata.cmmsRequisition })
-      .containsExactly(first.name)
-    assertThat(refuseRequisitionRequests.map { it.name }).containsExactly(conflicting.name)
-    assertThat(refuseRequisitionRequests.single().refusal.justification)
-      .isEqualTo(Requisition.Refusal.Justification.SPEC_INVALID)
-  }
 
   @Test
   fun `differing updateTimes for same report still produce a single blob`() = runBlocking {
@@ -3577,7 +3589,12 @@ class RequisitionFetcherTest {
       TestRequisitionData.MEASUREMENT_SPEC.copy {
         modelLine = externalModelLine
         reportingMetadata =
-          this.reportingMetadata.copy { reportStartTime = reportStart.toProtoTime() }
+          this.reportingMetadata.copy {
+            reportInterval = interval {
+              startTime = reportStart.toProtoTime()
+              endTime = reportStart.plus(Duration.ofDays(30)).toProtoTime()
+            }
+          }
       }
     val signedMeasurementSpec =
       signMeasurementSpec(measurementSpec, TestRequisitionData.MC_SIGNING_KEY)

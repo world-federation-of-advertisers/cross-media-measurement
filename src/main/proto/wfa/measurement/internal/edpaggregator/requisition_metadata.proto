@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/requisition_metadata_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -96,7 +97,7 @@ message RequisitionMetadataAction {
 message ReportRoutingDecision {
   string data_provider_resource_id = 1;
   string report = 2;
-  google.protobuf.Timestamp report_start_time = 3;
+  google.type.Interval report_interval = 3;
   string external_model_line = 4;
   string selected_model_line = 5;
   google.protobuf.Timestamp cutover_time = 6;

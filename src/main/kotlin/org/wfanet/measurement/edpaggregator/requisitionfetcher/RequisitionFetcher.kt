@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
 import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
@@ -187,7 +188,7 @@ class RequisitionFetcher(
   private data class ReportIdentifiers(
     val reportName: String,
     val basicReportName: String,
-    val reportStart: Instant?,
+    val reportInterval: Interval?,
     val externalModelLine: String,
   )
 
@@ -457,7 +458,7 @@ class RequisitionFetcher(
             if (existing == null) {
               openBuffers[reportId] =
                 OpenBuffer(identifiers = identifiers, requisitions = mutableListOf(requisition))
-            } else if (existing.identifiers.reportStart != identifiers.reportStart) {
+            } else if (existing.identifiers.reportInterval != identifiers.reportInterval) {
               identifiersConflict = true
             } else {
               existing.requisitions.add(requisition)
@@ -1007,13 +1008,13 @@ class RequisitionFetcher(
       if (cutover == null) {
         legacyModelLineMap[identifiers.externalModelLine] ?: identifiers.externalModelLine
       } else {
-        val reportStart =
-          requireNotNull(identifiers.reportStart) {
-            "Report ${identifiers.reportName} is missing reporting_metadata.report_start_time"
+        val reportInterval =
+          requireNotNull(identifiers.reportInterval) {
+            "Report ${identifiers.reportName} is missing reporting_metadata.report_interval"
           }
-        cutover.selectModelLine(reportStart)
+        cutover.selectModelLine(reportInterval.startTime.toInstant())
       }
-    val reportStart = identifiers.reportStart ?: return selectedModelLine
+    val reportInterval = identifiers.reportInterval ?: return selectedModelLine
 
     val response =
       metadataThrottler.onReady {
@@ -1022,7 +1023,7 @@ class RequisitionFetcher(
             parent = dataProviderName
             candidate = reportRoutingDecision {
               report = identifiers.reportName
-              reportStartTime = reportStart.toProtoTime()
+              this.reportInterval = reportInterval
               externalModelLine = identifiers.externalModelLine
               this.selectedModelLine = selectedModelLine
               if (cutover != null) {
@@ -1054,14 +1055,19 @@ class RequisitionFetcher(
     return if (metadata.report.isBlank()) {
       null
     } else {
-      val reportStart =
-        metadata.reportStartTime
-          .takeIf { metadata.hasReportStartTime() && Timestamps.isValid(it) }
-          ?.toInstant()
+      val reportInterval =
+        metadata.reportInterval.takeIf {
+          metadata.hasReportInterval() &&
+            it.hasStartTime() &&
+            it.hasEndTime() &&
+            Timestamps.isValid(it.startTime) &&
+            Timestamps.isValid(it.endTime) &&
+            Timestamps.compare(it.startTime, it.endTime) < 0
+        }
       ReportIdentifiers(
         metadata.report,
         metadata.basicReport,
-        reportStart,
+        reportInterval,
         measurementSpec.modelLine,
       )
     }

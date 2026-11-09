@@ -44,7 +44,8 @@ fun AsyncDatabaseClient.TransactionContext.insertReportRoutingDecision(
   bufferInsertMutation("ReportRoutingDecision") {
     set("DataProviderResourceId").to(decision.dataProviderResourceId)
     set("Report").to(decision.report)
-    set("ReportStartTime").to(decision.reportStartTime.toGcloudTimestamp())
+    set("ReportIntervalStartTime").to(decision.reportInterval.startTime.toGcloudTimestamp())
+    set("ReportIntervalEndTime").to(decision.reportInterval.endTime.toGcloudTimestamp())
     set("ExternalModelLine").to(decision.externalModelLine)
     set("SelectedModelLine").to(decision.selectedModelLine)
     if (decision.hasCutoverTime()) {
@@ -59,7 +60,11 @@ fun AsyncDatabaseClient.TransactionContext.insertReportRoutingDecision(
 private fun buildReportRoutingDecision(row: Struct): ReportRoutingDecision = reportRoutingDecision {
   dataProviderResourceId = row.getString("DataProviderResourceId")
   report = row.getString("Report")
-  reportStartTime = row.getTimestamp("ReportStartTime").toProto()
+  reportInterval =
+    com.google.type.interval {
+      startTime = row.getTimestamp("ReportIntervalStartTime").toProto()
+      endTime = row.getTimestamp("ReportIntervalEndTime").toProto()
+    }
   externalModelLine = row.getString("ExternalModelLine")
   selectedModelLine = row.getString("SelectedModelLine")
   if (!row.isNull("CutoverTime")) {
@@ -72,7 +77,8 @@ private val REPORT_ROUTING_DECISION_COLUMNS =
   listOf(
     "DataProviderResourceId",
     "Report",
-    "ReportStartTime",
+    "ReportIntervalStartTime",
+    "ReportIntervalEndTime",
     "ExternalModelLine",
     "SelectedModelLine",
     "CutoverTime",

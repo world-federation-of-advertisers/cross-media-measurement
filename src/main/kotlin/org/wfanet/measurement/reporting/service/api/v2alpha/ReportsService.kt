@@ -542,7 +542,7 @@ class ReportsService(
                 ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
                   .toName(),
               basicReportResourceName = internalReport.details.basicReport,
-              reportStartTime = internalReport.reportStartTime(),
+              reportInterval = internalReport.reportInterval(),
             )
           }
         }
@@ -1129,15 +1129,30 @@ private fun Date.isBefore(other: Date): Boolean {
     .isBefore(LocalDate.of(other.year, other.month, other.day))
 }
 
-private fun InternalReport.reportStartTime(): Timestamp? {
-  val configuredStart = details.reportingInterval.reportStart
+private fun InternalReport.reportInterval(): Interval? {
+  if (details.hasTimeIntervals()) {
+    val intervals = details.timeIntervals.timeIntervalsList
+    if (intervals.isEmpty()) return null
+    return interval {
+      startTime = intervals.minWith(TIMESTAMP_INTERVAL_START_COMPARATOR).startTime
+      endTime = intervals.maxWith(TIMESTAMP_INTERVAL_END_COMPARATOR).endTime
+    }
+  }
+  if (!details.hasReportingInterval()) return null
+  val reportingInterval = details.reportingInterval
   if (
-    configuredStart.timeOffsetCase == com.google.type.DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
+    reportingInterval.reportStart.timeOffsetCase ==
+      com.google.type.DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
   ) {
     return null
   }
-  return configuredStart.toTimestamp()
+  return generateTimeIntervals(reportingInterval.toReportingInterval(), null).single()
 }
+
+private val TIMESTAMP_INTERVAL_START_COMPARATOR =
+  compareBy<Interval>({ it.startTime.seconds }, { it.startTime.nanos })
+private val TIMESTAMP_INTERVAL_END_COMPARATOR =
+  compareBy<Interval>({ it.endTime.seconds }, { it.endTime.nanos })
 
 /**
  * Generate a list of time intervals using the [Report.ReportingInterval], the

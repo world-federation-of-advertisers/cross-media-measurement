@@ -128,6 +128,16 @@ object ModelLineCutoverValidator {
     require(duplicateExternalModelLines.isEmpty()) {
       "Duplicate model-line cutover(s) for: $duplicateExternalModelLines"
     }
+    val duplicateContributorModelLines =
+      cutovers
+        .flatMap { listOf(it.historicalModelLine, it.replacementModelLine) }
+        .groupingBy { it }
+        .eachCount()
+        .filterValues { it > 1 }
+        .keys
+    require(duplicateContributorModelLines.isEmpty()) {
+      "Model lines may contribute to only one cutover: $duplicateContributorModelLines"
+    }
     for (cutover in cutovers) {
       require(cutover.externalModelLine !in legacyExternalModelLines) {
         "Model line ${cutover.externalModelLine} is configured in both model_line_map and " +
