@@ -27,6 +27,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
@@ -53,6 +54,11 @@ class DataAvailabilityWatcherConfigTest {
         parseTextProto(
           resolveRunfile("$configDirectory/data-availability-sync-config.textproto").toFile(),
           DataAvailabilitySyncConfigs.getDefaultInstance(),
+        )
+      val monitorConfigs =
+        parseTextProto(
+          resolveRunfile("$configDirectory/data-availability-monitor-config.textproto").toFile(),
+          DataAvailabilityMonitorConfigs.getDefaultInstance(),
         )
       val runtimeConfigsByDataProvider = runtimeConfigs.configsList.associateBy { it.dataProvider }
       val dataAvailabilityWatchedPaths =
@@ -120,6 +126,7 @@ class DataAvailabilityWatcherConfigTest {
         ),
         runtimeConfigs,
         watcherConfig,
+        monitorConfigs,
       )
     }
   }

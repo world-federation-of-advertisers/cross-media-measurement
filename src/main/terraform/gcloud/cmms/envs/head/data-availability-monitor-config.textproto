@@ -1,6 +1,7 @@
 # proto-file: wfa/measurement/config/edpaggregator/data_availability_monitor_config.proto
 # proto-message: wfa.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 configs {
+  data_provider_name: "dataProviders/Z1YwJJmvvN8"
   storage {
     gcs {
       bucket_name: "secure-computation-storage-head-bucket"
@@ -14,12 +15,13 @@ configs {
   time_zone: "UTC"
 }
 configs {
+  data_provider_name: "dataProviders/YpCPT-x89j4"
   storage {
     gcs {
       bucket_name: "secure-computation-storage-head-bucket"
     }
   }
-  edp_impression_path: "edp/edp_meta"
+  edp_impression_path: "edp/edpa_meta"
   model_line_configs {
     model_line: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/T0gzKmadWLc"
   }
