@@ -875,9 +875,16 @@ private fun MeasurementSpec.validateReportingMetadata(parentKey: MeasurementCons
   }
   requireChildResource(metadata.report, "report") { ReportKey.fromName(it)?.parentKey }
   requireChildResource(metadata.metric, "metric") { MetricKey.fromName(it)?.parentKey }
-  if (metadata.hasReportStartTime()) {
-    grpcRequire(Timestamps.isValid(metadata.reportStartTime)) {
-      "measurement_spec.reporting_metadata.report_start_time is invalid"
+  if (metadata.hasReportInterval()) {
+    val reportInterval = metadata.reportInterval
+    grpcRequire(
+      reportInterval.hasStartTime() &&
+        reportInterval.hasEndTime() &&
+        Timestamps.isValid(reportInterval.startTime) &&
+        Timestamps.isValid(reportInterval.endTime) &&
+        Timestamps.compare(reportInterval.startTime, reportInterval.endTime) < 0
+    ) {
+      "measurement_spec.reporting_metadata.report_interval is invalid"
     }
   }
 }

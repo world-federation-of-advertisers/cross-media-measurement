@@ -450,8 +450,8 @@ message Metric {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // Start time of the `Report` in `containing_report`.
-  google.protobuf.Timestamp report_start_time = 13 [
+  // Closed-open bounding interval of the `Report` in `containing_report`.
+  google.type.Interval report_interval = 13 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = IMMUTABLE
   ];

@@ -74,6 +74,24 @@ class ModelLineCutoverTest {
     assertThat(exception).hasMessageThat().contains(EXTERNAL_MODEL_LINE)
   }
 
+  @Test
+  fun `validate rejects contributor shared by cutovers`() {
+    val first = newCutover()
+    val second =
+      newCutover()
+        .copy(
+          externalModelLine = OTHER_EXTERNAL_MODEL_LINE,
+          replacementModelLine = OTHER_REPLACEMENT_MODEL_LINE,
+        )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ModelLineCutoverValidator.validate(listOf(first, second))
+      }
+
+    assertThat(exception).hasMessageThat().contains(HISTORICAL_MODEL_LINE)
+  }
+
   private fun newCutover(): ModelLineCutover =
     ModelLineCutover.from(
       modelLineCutoverConfig {
@@ -101,5 +119,9 @@ class ModelLineCutoverTest {
       "modelProviders/provider/modelSuites/suite/modelLines/historical"
     private const val REPLACEMENT_MODEL_LINE =
       "modelProviders/provider/modelSuites/suite/modelLines/replacement"
+    private const val OTHER_EXTERNAL_MODEL_LINE =
+      "modelProviders/provider/modelSuites/suite/modelLines/other-external"
+    private const val OTHER_REPLACEMENT_MODEL_LINE =
+      "modelProviders/provider/modelSuites/suite/modelLines/other-replacement"
   }
 }

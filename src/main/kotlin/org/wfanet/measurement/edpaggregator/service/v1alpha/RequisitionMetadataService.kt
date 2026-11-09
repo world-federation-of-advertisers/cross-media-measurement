@@ -110,8 +110,16 @@ class RequisitionMetadataService(
     ReportKey.fromName(candidate.report)
       ?: throw InvalidFieldValueException("candidate.report")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    if (!candidate.hasReportStartTime() || !Timestamps.isValid(candidate.reportStartTime)) {
-      throw InvalidFieldValueException("candidate.report_start_time")
+    if (
+      !candidate.hasReportInterval() ||
+        !candidate.reportInterval.hasStartTime() ||
+        !candidate.reportInterval.hasEndTime() ||
+        !Timestamps.isValid(candidate.reportInterval.startTime) ||
+        !Timestamps.isValid(candidate.reportInterval.endTime) ||
+        Timestamps.compare(candidate.reportInterval.startTime, candidate.reportInterval.endTime) >=
+          0
+    ) {
+      throw InvalidFieldValueException("candidate.report_interval")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (ModelLineKey.fromName(candidate.externalModelLine) == null) {
@@ -134,7 +142,7 @@ class RequisitionMetadataService(
             dataProviderResourceId = parentKey.dataProviderId
             this.candidate = internalReportRoutingDecision {
               report = candidate.report
-              reportStartTime = candidate.reportStartTime
+              reportInterval = candidate.reportInterval
               externalModelLine = candidate.externalModelLine
               selectedModelLine = candidate.selectedModelLine
               if (candidate.hasCutoverTime()) {
@@ -155,7 +163,7 @@ class RequisitionMetadataService(
 
   private fun InternalReportRoutingDecision.toPublic() = reportRoutingDecision {
     report = this@toPublic.report
-    reportStartTime = this@toPublic.reportStartTime
+    reportInterval = this@toPublic.reportInterval
     externalModelLine = this@toPublic.externalModelLine
     selectedModelLine = this@toPublic.selectedModelLine
     if (this@toPublic.hasCutoverTime()) {

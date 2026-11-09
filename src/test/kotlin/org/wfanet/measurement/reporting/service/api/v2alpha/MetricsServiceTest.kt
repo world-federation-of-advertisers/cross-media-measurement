@@ -4405,7 +4405,7 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates CMMS measurements when no event filter at all`() = runBlocking {
-    val reportStartTime = timestamp { seconds = 1704096000 }
+    val reportInterval = TIME_INTERVAL
     val internalSinglePublisherReportingSet =
       INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.copy {
         clearFilter()
@@ -4438,7 +4438,7 @@ class MetricsServiceTest {
           details =
             InternalMetricKt.details {
               containingReport = CONTAINING_REPORT
-              this.reportStartTime = reportStartTime
+              this.reportInterval = reportInterval
             }
         }
       externalMetricId = METRIC_ID
@@ -4462,7 +4462,7 @@ class MetricsServiceTest {
         details =
           InternalMetricKt.details {
             containingReport = CONTAINING_REPORT
-            this.reportStartTime = reportStartTime
+            this.reportInterval = reportInterval
           }
       }
 
@@ -4491,7 +4491,7 @@ class MetricsServiceTest {
       metric =
         REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
           filters.clear()
-          this.reportStartTime = reportStartTime
+          this.reportInterval = reportInterval
         }
       metricId = METRIC_ID
     }
@@ -4511,7 +4511,7 @@ class MetricsServiceTest {
 
       val measurementSpec: MeasurementSpec =
         createMeasurementRequest.measurement.measurementSpec.unpack()
-      assertThat(measurementSpec.reportingMetadata.reportStartTime).isEqualTo(reportStartTime)
+      assertThat(measurementSpec.reportingMetadata.reportInterval).isEqualTo(reportInterval)
 
       val filters: List<String> =
         dataProvidersList.flatMap { dataProviderEntry ->
@@ -5079,6 +5079,55 @@ class MetricsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when ReportInterval endTime is unspecified`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          reportInterval = interval { startTime = timestamp { seconds = 5 } }
+        }
+      metricId = METRIC_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Report interval in metric is invalid.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when Metric starts before ReportInterval`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    val metric = REQUESTING_INCREMENTAL_REACH_METRIC
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      this.metric =
+        metric.copy {
+          reportInterval = interval {
+            startTime = timestamp { seconds = metric.timeInterval.startTime.seconds + 1 }
+            endTime = metric.timeInterval.endTime
+          }
+        }
+      metricId = METRIC_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Metric time interval must be within the Report interval.")
   }
 
   @Test
