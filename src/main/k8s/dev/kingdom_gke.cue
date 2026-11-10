@@ -68,20 +68,7 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
-objectSets: [defaultNetworkPolicies, [_internalApiDisruptionBudget]] + [
-		for objectSet in kingdom {objectSet},
-]
-
-_internalApiDisruptionBudget: #PodDisruptionBudget & {
-	metadata: {
-		_component: "kingdom"
-		name:       "gcp-kingdom-data-server"
-	}
-	spec: {
-		minAvailable: 1
-		selector:     kingdom.deployments["gcp-kingdom-data-server"].spec.selector
-	}
-}
+objectSets: [defaultNetworkPolicies] + [ for objectSet in kingdom {objectSet}]
 
 kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name
@@ -117,6 +104,10 @@ kingdom: #Kingdom & {
 	}
 
 	configMaps: "java": #JavaConfigMap
+
+	deploymentPodDisruptionBudgets: {
+		"gcp-kingdom-data-server": spec: minAvailable: 1
+	}
 
 	deployments: {
 		"gcp-kingdom-data-server": {
