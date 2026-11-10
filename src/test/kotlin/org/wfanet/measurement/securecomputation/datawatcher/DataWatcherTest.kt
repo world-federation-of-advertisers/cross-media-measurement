@@ -938,7 +938,7 @@ class DataWatcherTest() {
       assertThat(combinedLogs).doesNotContain(path)
       assertThat(combinedLogs).doesNotContain("returned 500")
       assertThat(combinedLogs).contains(VidLabelingTraceAttributes.gcsObjectPathHash(path))
-      assertThat(combinedLogs).contains("errorCode=500")
+      assertThat(combinedLogs).contains("errorCode=400")
     }
   }
 
