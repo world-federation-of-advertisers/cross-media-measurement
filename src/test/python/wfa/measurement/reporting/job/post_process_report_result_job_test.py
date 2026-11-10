@@ -36,6 +36,36 @@ BasicReport = basic_report_pb2.BasicReport
 
 class PostProcessReportResultJobTest(unittest.TestCase):
 
+    def test_assembly_only_writes_processed_results(self):
+        job = post_process_report_result_job.PostProcessReportResultJob(
+            mock.create_autospec(grpc.Channel),
+            log_noise_correction_values=False,
+            enable_validation=False,
+            enable_correction=False,
+        )
+        request = report_results_service_pb2.AddProcessedResultValuesRequest(
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101
+        )
+        self.mock_post_processor.process.return_value = request
+        basic_report = BasicReport(
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101
+        )
+
+        self.assertTrue(job._process_basic_report(basic_report))
+
+        self.assertFalse(
+            self.mock_post_processor_class.call_args.kwargs["enable_validation"]
+        )
+        self.assertFalse(
+            self.mock_post_processor_class.call_args.kwargs["enable_correction"]
+        )
+        self.mock_report_results_stub.AddProcessedResultValues.assert_called_once_with(
+            request
+        )
+        self.mock_basic_reports_stub.FailBasicReport.assert_not_called()
+
     def test_report_trace_filter_adds_basic_report_and_report_names(self):
         basic_report = BasicReport(
             cmms_measurement_consumer_id="mc_id_1",
@@ -136,6 +166,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.job = post_process_report_result_job.PostProcessReportResultJob(
             mock_channel,
             log_noise_correction_values=False,
+            enable_validation=True,
+            enable_correction=True,
         )
 
     def tearDown(self):
@@ -148,6 +180,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         job = post_process_report_result_job.PostProcessReportResultJob(
             mock_channel,
             log_noise_correction_values=True,
+            enable_validation=True,
+            enable_correction=True,
         )
         basic_report = BasicReport(
             cmms_measurement_consumer_id="mc_id_1",
@@ -219,6 +253,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
                     "dataProviders/edp1",
                     "dataProviders/edp2",
                 ],
+                enable_validation=True,
+                enable_correction=True,
             )
         )
         mock_report = BasicReport(
@@ -259,11 +295,15 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             log_noise_correction_values=False,
             potential_direct_result_minimum_thresholds=thresholds,
             potential_direct_thresholding_edps=["dataProviders/edp1"],
+            enable_validation=True,
+            enable_correction=True,
         )
 
         self.mock_post_processor_class.assert_called_with(
             self.mock_report_results_stub,
             self.mock_reporting_sets_stub,
+            enable_validation=True,
+            enable_correction=True,
             potential_direct_result_minimum_thresholds=thresholds,
             potential_direct_thresholding_edps=["dataProviders/edp1"],
         )
@@ -548,6 +588,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         job = post_process_report_result_job.PostProcessReportResultJob(
             mock_channel,
             log_noise_correction_values=True,
+            enable_validation=True,
+            enable_correction=True,
         )
         basic_report = BasicReport(
             external_basic_report_id="basic_report_1",

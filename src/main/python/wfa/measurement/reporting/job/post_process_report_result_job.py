@@ -200,6 +200,9 @@ class PostProcessReportResultJob:
             PotentialDirectResultMinimumThresholds | None
         ) = None,
         potential_direct_thresholding_edps: Iterable[str] | None = None,
+        *,
+        enable_validation: bool,
+        enable_correction: bool,
     ):
         """Initializes the job with the necessary gRPC stubs.
 
@@ -208,6 +211,8 @@ class PostProcessReportResultJob:
                 server.
             log_noise_correction_values: Whether to log post-noise,
                 pre-correction report-result values and corrected values.
+            enable_validation: Whether to run report quality and large-correction checks.
+            enable_correction: Whether to correct measurements before assembling results.
             ami_mrc_exempted_edps: The list of EDPs resource name for which the
                 AMI >= MRC consistency checks are disabled.
             potential_direct_result_minimum_thresholds: Conservative upper
@@ -235,6 +240,8 @@ class PostProcessReportResultJob:
             post_process_report_result.PostProcessReportResult(
                 self._report_results_stub,
                 self._reporting_sets_stub,
+                enable_validation=enable_validation,
+                enable_correction=enable_correction,
                 potential_direct_result_minimum_thresholds=(
                     potential_direct_result_minimum_thresholds
                 ),
