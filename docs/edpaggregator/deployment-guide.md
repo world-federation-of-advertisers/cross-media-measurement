@@ -1035,7 +1035,7 @@ One `configs` entry per EDP (each `data_provider` must be unique).
 # proto-message: wfa.measurement.config.edpaggregator.EventGroupSyncConfigs
 configs {
   data_provider: "dataProviders/DATA_PROVIDER_ID"
-  # Queued GCS sources must be in this object's bucket and directory.
+  # Queued GCS sources must be beneath this object's bucket and directory, including subfolders.
   event_groups_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups/event_groups.json"
   event_group_map_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb"
   cmms_connection {
