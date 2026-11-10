@@ -485,6 +485,18 @@ object VidLabelingStorageConfigValidator {
         .unpack(ExternalDataAvailabilitySyncParams::class.java)
         .dataProvider == syncConfig.dataProvider
     }
+    if (!watchedPath.hasHttpEndpointSink()) return false
+    val fields = watchedPath.httpEndpointSink.appParams.fieldsMap
+    // A provider-only HTTP payload also belongs to raw-upload dispatchers. Availability routes
+    // declare their identifier, a typed payload, or the legacy full sync configuration.
+    if (
+      watchedPath.identifier != DATA_AVAILABILITY_WATCHER_IDENTIFIER &&
+        "@type" !in fields &&
+        "edpImpressionPath" !in fields &&
+        "edp_impression_path" !in fields
+    ) {
+      return false
+    }
     return resolveHttpDataAvailabilityConfig(watchedPath, listOf(syncConfig))?.dataProvider ==
       syncConfig.dataProvider
   }
