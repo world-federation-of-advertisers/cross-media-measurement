@@ -409,10 +409,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       // drops an edp7 `done` for them too.
       private val EDP7_PIPELINED_DATES: Set<LocalDate> = Edp7PipelinedDates.DATES
 
-      // Per-EDP folder segment for VID-labeled impressions. MUST match each EDP's
-      // `output_base_path` (impression_test_data_config.textproto), the `edp_impression_path` in
-      // the deployed VidLabeling dispatcher/monitor + DataAvailabilitySync configs, and the
-      // data-watcher `data-availability` regex.
+      // External fixture paths match GenerateSyntheticData, DataAvailabilitySync's external
+      // configuration, and DataWatcher. The deployed VidLabeler uses its separate internal path.
       private const val EDP7_IMPRESSION_PATH = "edp/edp7"
       private const val EDPA_META_IMPRESSION_PATH = "edp/edpa_meta"
 

@@ -45,11 +45,11 @@ message EventGroupHierarchyDetails {
     repeated string entity_metadata_keys = 3;
   }
 
-  // The levels of this hierarchy, outermost first.
+  // The levels of this hierarchy, least granular first.
   //
-  // A level may be added at the innermost end. Paths at existing levels stay
+  // A level may be added at the most granular end. Existing paths stay
   // unchanged; EventGroups.EntityPath is backfilled for existing EventGroups
   // of the new type during activation. Levels are never reordered, removed,
-  // or added at the outermost end.
+  // or added at the least granular end.
   repeated Level levels = 1;
 }

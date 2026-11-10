@@ -125,6 +125,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @property publishEventGroupActivities Optional function for publishing positive EventGroup
  *   activity derived from finalized impression metadata.
  * @property kingdomPublicationTimeout Deadline for publishing availability to the Kingdom.
+ * @property availabilityImpressionPaths All impression roots checked for provider-wide date gaps.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
@@ -140,6 +141,7 @@ class DataAvailabilitySync(
   private val publishEventGroupActivities: (suspend (Collection<ImpressionMetadata>) -> Int)?,
   private val kingdomPublicationTimeout: Duration = DEFAULT_KINGDOM_PUBLICATION_TIMEOUT,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
+  private val availabilityImpressionPaths: List<String> = listOf(edpImpressionPath),
 ) {
   enum class Outcome {
     NO_WORK,
@@ -395,12 +397,15 @@ class DataAvailabilitySync(
       onStage(Stage.GAP_POLICY)
       val blockedDetails = mutableListOf<String>()
       for (modelLineKey in impressionMetadataMap.keys) {
-        val modelLinePrefix =
-          if (edpImpressionPath.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
-          else "$edpImpressionPath/model-line/${modelLineKey.modelLineId}/"
-        val enumerated = DataAvailabilityBlobs.enumerateDateInfo(storageClient, modelLinePrefix)
-        val finalized = enumerated.datesWithDoneBlob.keys
-        val unfinalized = enumerated.datesWithoutDoneBlob
+        val enumerated =
+          availabilityImpressionPaths.distinct().map { impressionPath ->
+            val modelLinePrefix =
+              if (impressionPath.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
+              else "$impressionPath/model-line/${modelLineKey.modelLineId}/"
+            DataAvailabilityBlobs.enumerateDateInfo(storageClient, modelLinePrefix)
+          }
+        val finalized = enumerated.flatMap { it.datesWithDoneBlob.keys }.toSet()
+        val unfinalized = enumerated.flatMap { it.datesWithoutDoneBlob }.toSet()
         val gaps = DataAvailabilityBlobs.findGaps(finalized + unfinalized)
         val earliest = finalized.minOrNull()
         val latest = finalized.maxOrNull()

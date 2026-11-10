@@ -137,6 +137,47 @@ class DataAvailabilityCleanupTest {
   }
 
   @Test
+  fun `cleanup of internal output deletes metadata by exact URI`() = runBlocking {
+    val uri =
+      "gs://bucket/vid-labeled-impressions/edp/test/model-line/model-line-1/2000-01-01/metadata.binpb"
+    val cleanup =
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+
+    val result = cleanup.cleanup(uri, null)
+
+    assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
+    val lookup = argumentCaptor<ListImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) { listImpressionMetadata(lookup.capture()) }
+    assertThat(lookup.firstValue.parent).isEqualTo(DATA_PROVIDER_NAME)
+    assertThat(lookup.firstValue.filter.blobUrisList).containsExactly(uri)
+    val delete = argumentCaptor<DeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) { deleteImpressionMetadata(delete.capture()) }
+    assertThat(delete.firstValue.name).isEqualTo(RESOURCE_ID)
+  }
+
+  @Test
+  fun `cleanup keeps internal metadata when a live object version remains`() = runBlocking {
+    val key = "vid-labeled-impressions/edp/test/model-line/model-line-1/2000-01-01/metadata.binpb"
+    val root = tempFolder.newFolder("internal-live-version")
+    File(root, key).apply {
+      parentFile.mkdirs()
+      writeBytes(byteArrayOf(1))
+    }
+    val cleanup =
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        FileSystemStorageClient(root),
+      )
+
+    val result = cleanup.cleanup("gs://bucket/$key", RESOURCE_ID)
+
+    assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
+    verifyBlocking(impressionMetadataServiceMock, never()) { listImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, never()) { deleteImpressionMetadata(any()) }
+  }
+
+  @Test
   fun `cleanup with resource ID deletes directly without lookup`() = runBlocking {
     val dataAvailabilityCleanup =
       DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)

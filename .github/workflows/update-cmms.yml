@@ -119,7 +119,16 @@ jobs:
         common --config=ci
         EOF
 
-    - name: Validate RequisitionFetcher and DataWatcher configuration
+    - name: Validate DataWatcher configuration
+      env:
+        CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
+      run: |
+        bazelisk run \
+          //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:ValidateDataWatcherConfig \
+          -- \
+          --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto"
+
+    - name: Validate direct RequisitionFetcher dispatch configuration
       env:
         CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
       run: |
@@ -129,6 +138,18 @@ jobs:
           --requisition-fetcher-config="$CONFIG_DIR/requisition-fetcher-config.textproto" \
           --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto" \
           --control-plane-target="$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+
+    - name: Validate VID labeling storage routing
+      env:
+        CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
+      run: |
+        bazelisk run \
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:ValidateVidLabelingStorageConfig \
+          -- \
+          --vid-labeling-config="$CONFIG_DIR/vid-labeling-dispatcher-config.textproto" \
+          --vid-labeling-monitor-config="$CONFIG_DIR/vid-labeling-monitor-config.textproto" \
+          --data-availability-sync-config="$CONFIG_DIR/data-availability-sync-config.textproto" \
+          --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto"
 
   update-secure-computation-dlq-paused:
     uses: ./.github/workflows/configure-secure-computation-control-plane.yml
@@ -415,7 +436,7 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
 
-  # Provisions the high overlap dataset and reports over it.
+  # Reports over the high overlap dataset.
   run-edpa-reporting-integration-test:
     if: inputs.run-tests
     needs: [

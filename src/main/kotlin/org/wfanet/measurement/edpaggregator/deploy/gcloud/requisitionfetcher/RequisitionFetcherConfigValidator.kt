@@ -33,8 +33,8 @@ object RequisitionFetcherConfigValidator {
    * Validates [config].
    *
    * Every configured DataProvider must have a complete direct-dispatch block, [controlPlaneTarget]
-   * must be set, and [dataWatcherConfig] must prove that no legacy object-name filter matches a
-   * representative object in a direct namespace.
+   * must be set, and [dataWatcherConfig] must not match a representative object in a direct
+   * namespace.
    */
   fun validate(
     config: RequisitionFetcherConfig,
@@ -54,13 +54,6 @@ object RequisitionFetcherConfigValidator {
           }
         validateDataProvider(dataProviderConfig, dispatchConfig, controlPlaneTarget)
         val root = storageUriPrefix(dataProviderConfig).removeSuffix("/")
-        add(
-          StoragePathPrefixes.Namespace(
-            root,
-            dataProviderConfig.storagePathPrefix,
-            "legacy DataWatcher path for ${dataProviderConfig.dataProvider}",
-          )
-        )
         add(
           StoragePathPrefixes.Namespace(
             root,
@@ -111,13 +104,8 @@ object RequisitionFetcherConfigValidator {
         "Missing GCS 'bucket_name' for data provider: $dataProvider."
       }
     }
-    require(dataProviderConfig.storagePathPrefix.isNotBlank()) {
-      "Missing 'storage_path_prefix' for data provider: $dataProvider."
-    }
-    require(
-      dataProviderConfig.storagePathPrefix == dataProviderConfig.storagePathPrefix.trim('/')
-    ) {
-      "'storage_path_prefix' must not start or end with '/' for data provider: $dataProvider."
+    require(deprecatedStoragePathPrefix(dataProviderConfig).isEmpty()) {
+      "Deprecated top-level 'storage_path_prefix' must not be set for data provider: $dataProvider."
     }
     require(dataProviderConfig.edpPrivateKeyPath.isNotBlank()) {
       "Missing 'edp_private_key_path' for data provider: $dataProvider."
@@ -150,15 +138,6 @@ object RequisitionFetcherConfigValidator {
     require(dispatchConfig.storagePathPrefix == dispatchConfig.storagePathPrefix.trim('/')) {
       "Direct-dispatch 'storage_path_prefix' must not start or end with '/' for data provider: " +
         dataProvider
-    }
-    require(
-      !StoragePathPrefixes.overlap(
-        dispatchConfig.storagePathPrefix,
-        dataProviderConfig.storagePathPrefix,
-      )
-    ) {
-      "Direct-dispatch storage_path_prefix overlaps the legacy storage_path_prefix for data " +
-        "provider: $dataProvider."
     }
     require(dispatchConfig.queue.isNotBlank()) {
       "Missing 'queue' in direct-dispatch config for data provider: $dataProvider."
@@ -211,4 +190,10 @@ object RequisitionFetcherConfigValidator {
         throw IllegalArgumentException("Requisition storage is not configured")
     }
   }
+
+  private fun deprecatedStoragePathPrefix(config: DataProviderRequisitionConfig): String =
+    config.getField(DEPRECATED_STORAGE_PATH_PREFIX_FIELD) as String
+
+  private val DEPRECATED_STORAGE_PATH_PREFIX_FIELD =
+    checkNotNull(DataProviderRequisitionConfig.getDescriptor().findFieldByNumber(3))
 }
