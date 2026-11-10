@@ -53,10 +53,12 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyn
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityBackfill
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine.ArgGroup
@@ -266,6 +268,18 @@ class ReplayDataAvailabilitySync : Runnable {
                         requireNotNull(resolveCompletionPath(blobUri.key, completionPaths)) {
                           "Completion blob is outside the configured impression paths: $doneBlobUri"
                         }
+                      val doneBlob =
+                        requireNotNull(storageClient.getBlob(blobUri.key)) {
+                          "Completion blob does not exist"
+                        }
+                      val doneGeneration =
+                        requireNotNull(
+                          (doneBlob as? ConditionalOperationStorageClient.Blob)
+                            ?.freshnessToken
+                            ?.toLongOrNull()
+                        ) {
+                          "Completion blob has no numeric generation"
+                        }
                       DataAvailabilitySync(
                           edpImpressionPath = completionPath.path,
                           storageClient = storageClient,
@@ -281,12 +295,21 @@ class ReplayDataAvailabilitySync : Runnable {
                           availabilityImpressionPaths = configuredPaths,
                           publishEventGroupActivities =
                             eventGroupActivityPublisher?.let { it::publish },
+                          generationMatchedMetadataUpdater =
+                            GcsGenerationMatchedBlobMetadataUpdater(
+                              storage,
+                              storageConfig.bucketName,
+                            ),
+                          availabilityImpressionPaths = completionPaths.map { it.path },
                         )
                         .sync(
                           doneBlobPath = doneBlobUri,
                           dataAvailabilitySyncLease = lease.name,
-                          doneBlobGeneration =
-                            DoneBlobGenerationResolver.resolve(storage, doneBlobUri),
+                          doneBlobGeneration = doneGeneration,
+                          externalDoneBlobCreateTime =
+                            doneBlob.createTime.takeIf {
+                              completionPath.type == CompletionBlobType.EXTERNAL
+                            },
                           discoveryMode = DataAvailabilitySync.DiscoveryMode.FolderScan,
                           ensureLeaseActive = lease::invoke,
                         )

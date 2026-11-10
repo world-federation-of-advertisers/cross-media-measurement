@@ -157,7 +157,10 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         ConfigLoader.buildDataAvailabilitySyncConfig(requestBody, runtimeConfigs.configsList)
 
       val dataAvailabilitySync =
-        buildDataAvailabilitySync(externalSyncConfig(dataAvailabilitySyncConfig))
+        buildDataAvailabilitySync(
+          externalSyncConfig(dataAvailabilitySyncConfig),
+          availabilityImpressionPaths(dataAvailabilitySyncConfig),
+        )
 
       Tracing.withW3CTraceContext(request) {
         val generation =
@@ -286,11 +289,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             }
           buildDataAvailabilitySync(
               if (workItem.isExternal) externalSyncConfig(config) else config,
-              availabilityImpressionPaths =
-                listOfNotNull(
-                  providerConfig.edpImpressionPath,
-                  internalPath.takeIf(String::isNotEmpty),
-                ),
+              availabilityImpressionPaths = availabilityImpressionPaths(providerConfig),
             )
             .sync(
               workItem.doneBlobUri,
@@ -398,13 +397,16 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     if (config.externalImpressionPath.isEmpty()) config
     else config.toBuilder().setEdpImpressionPath(config.externalImpressionPath).build()
 
+  private fun availabilityImpressionPaths(config: DataAvailabilitySyncConfig): List<String> =
+    listOfNotNull(
+        config.externalImpressionPath.ifEmpty { config.edpImpressionPath },
+        config.vidLabeledImpressionPath.takeIf(String::isNotEmpty),
+      )
+      .distinct()
+
   private fun buildDataAvailabilitySync(
     dataAvailabilitySyncConfig: DataAvailabilitySyncConfig,
-    availabilityImpressionPaths: List<String> =
-      listOfNotNull(
-        dataAvailabilitySyncConfig.edpImpressionPath,
-        dataAvailabilitySyncConfig.vidLabeledImpressionPath.takeIf(String::isNotEmpty),
-      ),
+    availabilityImpressionPaths: List<String>,
   ): DataAvailabilitySync {
     val storageAccess = createStorageAccess(dataAvailabilitySyncConfig)
     val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
@@ -470,6 +472,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
       availabilityImpressionPaths = availabilityImpressionPaths,
       generationMatchedMetadataUpdater = storageAccess.generationMatchedMetadataUpdater,
+      availabilityImpressionPaths = availabilityImpressionPaths,
     )
   }
 

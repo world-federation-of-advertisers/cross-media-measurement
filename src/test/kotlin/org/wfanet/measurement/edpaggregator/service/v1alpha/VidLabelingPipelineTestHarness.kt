@@ -619,6 +619,11 @@ abstract class VidLabelingPipelineTestHarness(
         modelLineMap = emptyMap(),
         errorIfGapsExist = false,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths =
+          listOf(
+            SelectedStorageClient.parseBlobUri(outputPrefix).key,
+            SelectedStorageClient.parseBlobUri(externalOutputPrefix).key,
+          ),
       )
     val externalDataAvailabilitySync =
       DataAvailabilitySync(
@@ -634,6 +639,11 @@ abstract class VidLabelingPipelineTestHarness(
         errorIfGapsExist = false,
         publishEventGroupActivities = null,
         generationMatchedMetadataUpdater = metadataStorage.generationMatchedMetadataUpdater,
+        availabilityImpressionPaths =
+          listOf(
+            SelectedStorageClient.parseBlobUri(outputPrefix).key,
+            SelectedStorageClient.parseBlobUri(externalOutputPrefix).key,
+          ),
       )
 
     httpServer = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -1884,6 +1894,7 @@ abstract class VidLabelingPipelineTestHarness(
         )
       val impressions =
         StorageEventReader(
+            blobGeneration = 0L,
             blobDetails = details,
             kmsClient = kmsClient,
             impressionsStorageConfig = StorageConfig(rootDirectory = File("/")),
@@ -1975,6 +1986,7 @@ abstract class VidLabelingPipelineTestHarness(
         val details =
           BlobDetails.parseFrom(checkNotNull(fileStorage.getBlob(sidecarKey)).read().flatten())
         StorageEventReader(
+            blobGeneration = 0L,
             blobDetails = details,
             kmsClient = kmsClient,
             impressionsStorageConfig = StorageConfig(rootDirectory = File("/")),

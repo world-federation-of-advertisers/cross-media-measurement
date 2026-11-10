@@ -39,6 +39,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * is present, data is decrypted using the DEK in [blobDetails].
  *
  * @property blobDetails metadata describing how to access and decrypt the blob.
+ * @property blobGeneration finalized impressions generation, or zero for legacy reads.
  * @property kmsClient KMS client for DEK decryption. If null, reads unencrypted data.
  * @property impressionsStorageConfig configuration for accessing impression blobs.
  * @property descriptor protobuf descriptor for dynamic parsing of the embedded event.
@@ -49,6 +50,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  */
 class StorageEventReader(
   private val blobDetails: BlobDetails,
+  private val blobGeneration: Long,
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val descriptor: Descriptors.Descriptor,
@@ -105,7 +107,7 @@ class StorageEventReader(
         )
 
       val generationMatchedStorageClient =
-        GenerationMatchedStorageClient(selectedStorageClient, blobDetails.blobGeneration)
+        GenerationMatchedStorageClient(selectedStorageClient, blobGeneration)
       val impressionsStorage =
         if (kmsClient == null) {
           MesosRecordIoStorageClient(generationMatchedStorageClient)

@@ -157,6 +157,7 @@ class DataAvailabilitySync(
   private val modelLineMap: Map<String, List<String>>,
   private val errorIfGapsExist: Boolean,
   private val publishEventGroupActivities: (suspend (Collection<ImpressionMetadata>) -> Int)?,
+  private val availabilityImpressionPaths: List<String>,
   private val kingdomPublicationTimeout: Duration = DEFAULT_KINGDOM_PUBLICATION_TIMEOUT,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
   private val availabilityImpressionPaths: List<String> = listOf(edpImpressionPath),
@@ -272,6 +273,15 @@ class DataAvailabilitySync(
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
     require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
+    require(availabilityImpressionPaths.isNotEmpty()) {
+      "availabilityImpressionPaths must not be empty"
+    }
+    require(edpImpressionPath in availabilityImpressionPaths) {
+      "availabilityImpressionPaths must include the discovery root"
+    }
+    require(availabilityImpressionPaths.all { !it.startsWith("/") && !it.endsWith("/") }) {
+      "availabilityImpressionPaths must not start or end with a slash"
+    }
     require(impressionMetadataBatchSize > 0) {
       "impressionMetadataBatchSize must be greater than zero"
     }
@@ -803,6 +813,14 @@ class DataAvailabilitySync(
         if (existing == null) {
           toCreate.add(item)
         } else {
+          check(
+            (existing.metadataBlobGeneration == 0L ||
+              item.impressionMetadata.metadataBlobGeneration > 0L) &&
+              (existing.impressionsBlobGeneration == 0L ||
+                item.impressionMetadata.impressionsBlobGeneration > 0L)
+          ) {
+            "Version-pinned metadata requires snapshot-aware synchronization"
+          }
           if (existing.state == ImpressionMetadata.State.DELETED) {
             toRestore.add(existing)
           }
@@ -1274,7 +1292,8 @@ class DataAvailabilitySync(
       logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
       val capturedImpressionBlob = externalSnapshot?.getReferencedBlob(impressionBlobUri.key)
       val impressionBlob =
-        capturedImpressionBlob?.blob ?: storageClient.getBlob(impressionBlobUri.key)
+        if (externalSnapshot != null) capturedImpressionBlob?.blob
+        else storageClient.getBlob(impressionBlobUri.key)
       if (impressionBlob == null) {
         val eventDate =
           blobDetails.interval.startTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate()

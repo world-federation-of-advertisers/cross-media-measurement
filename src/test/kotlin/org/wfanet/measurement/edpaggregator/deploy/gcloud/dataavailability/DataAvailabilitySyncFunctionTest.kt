@@ -1679,7 +1679,7 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `sync returns error when date gaps are detected`() {
+  fun `sync blocks a gap between external and internal output roots`() {
     val modelLineResourceName = "modelProviders/mp1/modelSuites/ms1/modelLines/modelLine1"
     val modelLineId = "modelLine1"
     val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
@@ -1715,7 +1715,8 @@ class DataAvailabilitySyncFunctionTest {
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
-      edpImpressionPath = "edp/edp_name"
+      edpImpressionPath = "edp/edp_name/vid-labeler"
+      externalImpressionPath = "edp/edp_name"
       modelLineMap[modelLineResourceName] = modelLineList { modelLines += "some-model-line-mapped" }
       errorIfGapsExist = true
     }
@@ -1730,12 +1731,13 @@ class DataAvailabilitySyncFunctionTest {
     // Set up model-line date paths with a gap (missing 2026-03-14)
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     for (date in listOf("2026-03-13", "2026-03-15")) {
-      val donePath = "edp/edp_name/model-line/$modelLineId/$date/done"
+      val outputPath = if (date == "2026-03-13") "edp/edp_name" else "edp/edp_name/vid-labeler"
+      val donePath = "$outputPath/model-line/$modelLineId/$date/done"
       File(tempFolder.root, donePath).parentFile.mkdirs()
       runBlocking {
         storageClient.writeBlob(donePath, emptyFlow())
         storageClient.writeBlob(
-          "edp/edp_name/model-line/$modelLineId/$date/data_campaign_1",
+          "$outputPath/model-line/$modelLineId/$date/data_campaign_1",
           emptyFlow(),
         )
       }

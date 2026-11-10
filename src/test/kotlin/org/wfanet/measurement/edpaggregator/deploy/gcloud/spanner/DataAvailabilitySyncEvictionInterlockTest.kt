@@ -173,6 +173,7 @@ class DataAvailabilitySyncEvictionInterlockTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf(""),
       )
     val ids = REQUEST_IDS.iterator()
     val leaseClient = InternalLeaseClient(leaseService)
