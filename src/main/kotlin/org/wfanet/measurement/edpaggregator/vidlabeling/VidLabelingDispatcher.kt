@@ -1584,7 +1584,8 @@ class VidLabelingDispatcher(
     val revisions = listUploadsByDoneBlob(doneBlobPath)
     val laterRevisions =
       revisions.filter {
-        it.doneBlobGeneration != doneBlobGeneration &&
+        it.name != source.name &&
+          it.doneBlobGeneration != doneBlobGeneration &&
           it.hasDoneBlobCreateTime() &&
           Timestamps.compare(it.doneBlobCreateTime, input.doneBlobCreateTime) >= 0 &&
           it.uploadHealingOperation != operationName

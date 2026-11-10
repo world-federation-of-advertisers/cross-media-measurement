@@ -55,8 +55,8 @@ kt_jvm_library(
 kt_jvm_library(
     name = "vid_labeling_healing_controller",
     srcs = [
-        "HealingOperationStore.kt",
         "CorrectionCandidateCleaner.kt",
+        "HealingOperationStore.kt",
         "VidLabelingHealingController.kt",
     ],
     deps = [

@@ -110,6 +110,7 @@ class VidLabelingDispatcherFunctionTest {
           val request = invocation.getArgument<CreateRawImpressionUploadRequest>(0)
           RawImpressionUpload.newBuilder()
             .setName("${request.parent}/rawImpressionUploads/upload-1")
+            .setUploadHealingOperation(request.rawImpressionUpload.uploadHealingOperation)
             .setDoneBlobUri("file:////edp/edp_name/timestamp/done")
             .setEtag(UPLOAD_ETAG)
             .build()
