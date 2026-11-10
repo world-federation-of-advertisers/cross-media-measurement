@@ -74,6 +74,7 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigKt.modelLineList
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
+import org.wfanet.measurement.config.edpaggregator.copy
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.storageParams
@@ -562,24 +563,93 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `WorkItem synchronizes only deterministic outputs for its raw upload`() {
+  fun `WorkItem selects internal path and synchronizes only its raw upload outputs`() {
+    runInternalPathWorkItem()
+  }
+
+  @Test
+  fun `WorkItem blocks a missing date across both impression paths`() {
+    runInternalPathWorkItem(blockedByGaps = true)
+  }
+
+  @Test
+  fun `WorkItem rejects a missing internal path before creating an attempt`() {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     File(configBucketDir, "config.textproto")
       .writeText(
         TextFormat.printer()
           .printToString(
-            dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
+            dataAvailabilitySyncConfigs {
+              configs +=
+                fileSystemDataAvailabilitySyncConfig().copy { vidLabeledImpressionPath = "" }
+            }
           )
       )
-    val outputDirectory = "edp/edp_name/model-line/some-model-line/2025-01-05"
+    val port = startFunction(configBucketDir)
+    val workItem = availabilityWorkItem(RAW_UPLOAD, RAW_MODEL_LINE, LocalDate.of(2025, 1, 5), 123L)
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("Content-Type", "application/octet-stream")
+        .POST(HttpRequest.BodyPublishers.ofByteArray(workItem.toByteArray()))
+        .build()
+
+    val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { createWorkItemAttempt(any()) }
+    verifyBlocking(rawImpressionUploadFileServiceMock, times(0)) {
+      listRawImpressionUploadFiles(any())
+    }
+  }
+
+  private fun startFunction(configBucketDir: File): Int = runBlocking {
+    functionProcess.start(
+      mapOf(
+        "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+        "KINGDOM_CERT_HOST" to "localhost",
+        "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+        "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+        "IMPRESSION_METADATA_CERT_HOST" to "localhost",
+        "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+        "SECURE_COMPUTATION_CERT_HOST" to "localhost",
+        "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+        "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+        "CONFIG_BLOB_KEY" to "config.textproto",
+        "OTEL_METRICS_EXPORTER" to "none",
+        "OTEL_TRACES_EXPORTER" to "none",
+        "OTEL_LOGS_EXPORTER" to "none",
+        "OTEL_PROPAGATORS" to "tracecontext,baggage",
+      )
+    )
+  }
+
+  private fun runInternalPathWorkItem(blockedByGaps: Boolean = false) {
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    File(configBucketDir, "config.textproto")
+      .writeText(
+        TextFormat.printer()
+          .printToString(
+            dataAvailabilitySyncConfigs {
+              configs +=
+                fileSystemDataAvailabilitySyncConfig().copy {
+                  vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
+                  errorIfGapsExist = blockedByGaps
+                }
+            }
+          )
+      )
+    val outputDirectory =
+      "vid-labeled-impressions/edp/edp_name/model-line/some-model-line/2025-01-05"
     File(tempFolder.root, outputDirectory).mkdirs()
     val workItemEventDate = LocalDate.of(2025, 1, 5)
     val expectedOutputKey =
-      "edp/edp_name/" +
+      "vid-labeled-impressions/edp/edp_name/" +
         LabeledImpressionsBlobKeys.forInput(RAW_INPUT_BLOB_URI, MODEL_LINE, workItemEventDate)
     val otherDateOutputKey =
-      "edp/edp_name/" +
+      "vid-labeled-impressions/edp/edp_name/" +
         LabeledImpressionsBlobKeys.forInput(
           OTHER_DATE_RAW_INPUT_BLOB_URI,
           MODEL_LINE,
@@ -626,26 +696,14 @@ class DataAvailabilitySyncFunctionTest {
         ),
       )
     }
-    val port = runBlocking {
-      functionProcess.start(
-        mapOf(
-          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
-          "KINGDOM_CERT_HOST" to "localhost",
-          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
-          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
-          "IMPRESSION_METADATA_CERT_HOST" to "localhost",
-          "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
-          "SECURE_COMPUTATION_CERT_HOST" to "localhost",
-          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
-          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
-          "CONFIG_BLOB_KEY" to "config.textproto",
-          "OTEL_METRICS_EXPORTER" to "none",
-          "OTEL_TRACES_EXPORTER" to "none",
-          "OTEL_LOGS_EXPORTER" to "none",
-          "OTEL_PROPAGATORS" to "tracecontext,baggage",
-        )
-      )
+    if (blockedByGaps) {
+      val externalDone =
+        File(tempFolder.root, "edp/edp_name/model-line/some-model-line/2025-01-03/done")
+      externalDone.parentFile.mkdirs()
+      externalDone.writeBytes(byteArrayOf())
+      File(tempFolder.root, "$outputDirectory/done").writeBytes(byteArrayOf())
     }
+    val port = startFunction(configBucketDir)
     val workItem = workItem {
       name = WORK_ITEM_NAME
       queue = "data-availability-sync-queue"
@@ -698,6 +756,19 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(createAttempt.firstValue.parent).isEqualTo(WORK_ITEM_NAME)
     assertThat(createAttempt.firstValue.expectedWorkItemGeneration).isEqualTo(1L)
     assertThat(createAttempt.firstValue.supportsAttemptLease).isTrue()
+    if (blockedByGaps) {
+      verifyBlocking(impressionMetadataServiceMock) { batchCreateImpressionMetadata(any()) }
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+      verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+      val failedAttempt = argumentCaptor<FailWorkItemAttemptRequest>()
+      verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(failedAttempt.capture()) }
+      assertThat(failedAttempt.firstValue.errorMessage).contains("GAP_POLICY")
+      verifyBlocking(workItemsServiceMock) { failWorkItem(any()) }
+      verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+        markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+      }
+      return
+    }
     verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
     verifyBlocking(workItemAttemptsServiceMock, times(0)) { failWorkItemAttempt(any()) }
     verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
@@ -760,7 +831,12 @@ class DataAvailabilitySyncFunctionTest {
       .writeText(
         TextFormat.printer()
           .printToString(
-            dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
+            dataAvailabilitySyncConfigs {
+              configs +=
+                fileSystemDataAvailabilitySyncConfig().copy {
+                  vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
+                }
+            }
           )
       )
     val eventDate = LocalDate.of(2025, 1, 5)
@@ -1114,7 +1190,10 @@ class DataAvailabilitySyncFunctionTest {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     val runtimeConfig = dataAvailabilitySyncConfigs {
-      configs += fileSystemDataAvailabilitySyncConfig()
+      configs +=
+        fileSystemDataAvailabilitySyncConfig().copy {
+          vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
+        }
     }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
@@ -1473,6 +1552,7 @@ class DataAvailabilitySyncFunctionTest {
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"
+      vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
       modelLineMap["modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"] =
         modelLineList {
           modelLines += "some-model-line-mapped"

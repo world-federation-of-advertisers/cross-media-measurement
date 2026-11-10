@@ -199,6 +199,16 @@ module "edp_aggregator_bucket" {
       prefix         = "edp/edp_meta/"
       retention_days = 3650 # 10 years
     },
+    {
+      name           = "vid_labeled_edp7"
+      prefix         = "vid-labeled-impressions/edp/edp7/"
+      retention_days = 3650 # 10 years
+    },
+    {
+      name           = "vid_labeled_edpa_meta"
+      prefix         = "vid-labeled-impressions/edp/edpa_meta/"
+      retention_days = 3650 # 10 years
+    },
   ]
 }
 
@@ -333,6 +343,7 @@ module "data_watcher_delete_cloud_function" {
   secrets_to_access                           = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "deleted"
   retry_on_failure                            = true
+  uploaded_config_generation                  = google_storage_bucket_object.upload_data_watcher_delete_config.generation
 }
 
 module "requisition_fetcher_cloud_function" {
@@ -401,7 +412,10 @@ module "event_group_sync_cloud_function" {
 module "data_availability_sync_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_data_availability_sync_config,
+  ]
 
   http_cloud_function_service_account_name = var.data_availability_sync_service_account_name
   terraform_service_account                = var.terraform_service_account
@@ -410,6 +424,7 @@ module "data_availability_sync_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.data_availability_sync.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_sync.uber_jar_path
+  config_path                              = var.data_availability_sync_config.local_path
   secrets_to_access = [
     for key in concat(local.data_availability_sync_secrets_access, ["secure_computation_root_ca"]) :
     local.all_secrets[key].secret_id
@@ -425,7 +440,10 @@ module "data_availability_sync_cloud_function" {
 module "data_availability_cleanup_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_data_availability_sync_config,
+  ]
 
   http_cloud_function_service_account_name = var.data_availability_cleanup_service_account_name
   terraform_service_account                = var.terraform_service_account
@@ -434,6 +452,7 @@ module "data_availability_cleanup_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.data_availability_cleanup.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_cleanup.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_cleanup.uber_jar_path
+  config_path                              = var.data_availability_sync_config.local_path
   secrets_to_access                        = [for key in local.data_availability_cleanup_secrets_access : local.all_secrets[key].secret_id]
 }
 
@@ -794,6 +813,7 @@ module "data_availability_monitor_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.data_availability_monitor.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_monitor.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_monitor.uber_jar_path
+  config_path                              = var.data_availability_monitor_config.local_path
 }
 
 module "data_availability_monitor_cloud_scheduler" {
@@ -972,6 +992,7 @@ module "vid_labeling_dispatcher_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.vid_labeling_dispatcher.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.vid_labeling_dispatcher.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_dispatcher.uber_jar_path
+  config_path                              = var.vid_labeling_dispatcher_config.local_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
 
   # The dispatcher and monitor authenticate to Kingdom as the same EDP. One instance of each
@@ -1026,6 +1047,7 @@ module "vid_labeling_monitor_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.vid_labeling_monitor.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.vid_labeling_monitor.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_monitor.uber_jar_path
+  config_path                              = var.vid_labeling_monitor_config.local_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
 
   # See the dispatcher cap above. Together the two functions can run at most two 2-QPS clients.
