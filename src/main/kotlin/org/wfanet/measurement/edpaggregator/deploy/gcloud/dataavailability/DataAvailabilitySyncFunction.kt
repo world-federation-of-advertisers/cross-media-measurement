@@ -289,7 +289,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             }
           buildDataAvailabilitySync(
               if (workItem.isExternal) externalSyncConfig(config) else config,
-              availabilityImpressionPaths = availabilityImpressionPaths(providerConfig),
+              availabilityImpressionPaths =
+                (availabilityImpressionPaths(providerConfig) + config.edpImpressionPath).distinct(),
             )
             .sync(
               workItem.doneBlobUri,
@@ -472,7 +473,6 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
       availabilityImpressionPaths = availabilityImpressionPaths,
       generationMatchedMetadataUpdater = storageAccess.generationMatchedMetadataUpdater,
-      availabilityImpressionPaths = availabilityImpressionPaths,
     )
   }
 

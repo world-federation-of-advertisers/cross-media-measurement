@@ -59,7 +59,7 @@ class VidLabelingStorageConfigValidatorTest {
 
   @Test
   fun `validate accepts matching output paths not watched by DataWatcher`() {
-    validate(
+    VidLabelingStorageConfigValidator.validate(
       vidConfigs(LABELED_OUTPUT_PATH),
       vidConfigs(LABELED_OUTPUT_PATH),
       syncConfigs(LABELED_OUTPUT_PATH),
@@ -98,7 +98,7 @@ class VidLabelingStorageConfigValidatorTest {
       }
     }
 
-    validate(
+    VidLabelingStorageConfigValidator.validate(
       vidConfigs(LABELED_OUTPUT_PATH),
       vidConfigs(LABELED_OUTPUT_PATH),
       syncConfigs(LABELED_OUTPUT_PATH, EXTERNAL_OUTPUT_PATH),
@@ -134,7 +134,7 @@ class VidLabelingStorageConfigValidatorTest {
   fun `validate rejects different VID labeling and DataAvailabilitySync paths`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
-        validate(
+        VidLabelingStorageConfigValidator.validate(
           vidConfigs(LABELED_OUTPUT_PATH),
           vidConfigs(LABELED_OUTPUT_PATH),
           syncConfigs(OTHER_OUTPUT_PATH),
@@ -149,7 +149,7 @@ class VidLabelingStorageConfigValidatorTest {
   fun `validate rejects different dispatcher and monitor raw prefixes`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
-        validate(
+        VidLabelingStorageConfigValidator.validate(
           vidConfigs(LABELED_OUTPUT_PATH),
           vidConfigs(LABELED_OUTPUT_PATH, rawPrefix = "raw/other"),
           syncConfigs(LABELED_OUTPUT_PATH),
@@ -164,7 +164,7 @@ class VidLabelingStorageConfigValidatorTest {
   fun `validate allows configured labeled descendant of raw root`() {
     val overlappingConfigs = vidConfigs(LABELED_OUTPUT_PATH, rawPrefix = "edp")
 
-    validate(
+    VidLabelingStorageConfigValidator.validate(
       overlappingConfigs,
       overlappingConfigs,
       syncConfigs(LABELED_OUTPUT_PATH),
@@ -178,7 +178,7 @@ class VidLabelingStorageConfigValidatorTest {
 
     val error =
       assertFailsWith<IllegalArgumentException> {
-        validate(
+        VidLabelingStorageConfigValidator.validate(
           overlappingConfigs,
           overlappingConfigs,
           syncConfigs(LABELED_OUTPUT_PATH),
@@ -193,7 +193,7 @@ class VidLabelingStorageConfigValidatorTest {
   fun `validate rejects DataWatcher route matching VidLabeler-managed output`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
-        validate(
+        VidLabelingStorageConfigValidator.validate(
           vidConfigs(LABELED_OUTPUT_PATH),
           vidConfigs(LABELED_OUTPUT_PATH),
           syncConfigs(LABELED_OUTPUT_PATH),
@@ -208,7 +208,7 @@ class VidLabelingStorageConfigValidatorTest {
   fun `validate rejects exact internal child excluded by sample matching`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
-        validate(
+        VidLabelingStorageConfigValidator.validate(
           vidConfigs(LABELED_OUTPUT_PATH),
           vidConfigs(LABELED_OUTPUT_PATH),
           syncConfigs(LABELED_OUTPUT_PATH),
@@ -223,7 +223,7 @@ class VidLabelingStorageConfigValidatorTest {
   fun `validate rejects broad ancestor route`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
-        validate(
+        VidLabelingStorageConfigValidator.validate(
           vidConfigs(LABELED_OUTPUT_PATH),
           vidConfigs(LABELED_OUTPUT_PATH),
           syncConfigs(LABELED_OUTPUT_PATH),
@@ -238,7 +238,7 @@ class VidLabelingStorageConfigValidatorTest {
   fun `validate rejects overlap hidden by an optional literal`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
-        validate(
+        VidLabelingStorageConfigValidator.validate(
           vidConfigs(LABELED_OUTPUT_PATH),
           vidConfigs(LABELED_OUTPUT_PATH),
           syncConfigs(LABELED_OUTPUT_PATH),
@@ -253,7 +253,7 @@ class VidLabelingStorageConfigValidatorTest {
   fun `validate rejects overlap hidden by alternation`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
-        validate(
+        VidLabelingStorageConfigValidator.validate(
           vidConfigs(LABELED_OUTPUT_PATH),
           vidConfigs(LABELED_OUTPUT_PATH),
           syncConfigs(LABELED_OUTPUT_PATH),
@@ -301,7 +301,7 @@ class VidLabelingStorageConfigValidatorTest {
 
     val error =
       assertFailsWith<IllegalArgumentException> {
-        validate(
+        VidLabelingStorageConfigValidator.validate(
           vidConfigs(LABELED_OUTPUT_PATH),
           vidConfigs(LABELED_OUTPUT_PATH),
           syncConfigs(LABELED_OUTPUT_PATH),
@@ -323,7 +323,7 @@ class VidLabelingStorageConfigValidatorTest {
 
     val error =
       assertFailsWith<IllegalArgumentException> {
-        validate(
+        VidLabelingStorageConfigValidator.validate(
           vidConfigs(LABELED_OUTPUT_PATH),
           vidConfigs(LABELED_OUTPUT_PATH),
           syncConfigs(LABELED_OUTPUT_PATH),
@@ -336,11 +336,22 @@ class VidLabelingStorageConfigValidatorTest {
 
   @Test
   fun `validate accepts a regex with a provably disjoint literal prefix`() {
-    validate(
+    VidLabelingStorageConfigValidator.validate(
       vidConfigs(LABELED_OUTPUT_PATH),
       vidConfigs(LABELED_OUTPUT_PATH),
       syncConfigs(LABELED_OUTPUT_PATH),
       watcherConfig("^gs://bucket/edp/external/model-line/.*/.*/done$"),
+    )
+  }
+
+  @Test
+  fun `validate accepts a labeling provider with the optional external alias omitted`() {
+    validate(
+      vidConfigs(LABELED_OUTPUT_PATH),
+      vidConfigs(LABELED_OUTPUT_PATH),
+      syncConfigs(LABELED_OUTPUT_PATH),
+      availabilityWatcherConfig("^gs://bucket/$OTHER_OUTPUT_PATH/model-line/[^/]+/[^/]+/done$"),
+      monitoringConfigs(OTHER_OUTPUT_PATH),
     )
   }
 
@@ -1199,7 +1210,7 @@ class VidLabelingStorageConfigValidatorTest {
           dataAvailabilitySyncConfigs {
             configs +=
               syncConfigs(LABELED_OUTPUT_PATH).configsList.single().copy {
-                edpImpressionPath = LABELED_OUTPUT_PATH
+                edpImpressionPath = OTHER_OUTPUT_PATH
                 vidLabeledImpressionPath = ""
               }
           }
@@ -1207,9 +1218,16 @@ class VidLabelingStorageConfigValidatorTest {
     )
     val watcherConfigFile = temporaryFolder.newFile("data-watcher.textproto")
     watcherConfigFile.writeText(
-      TextFormat.printer().printToString(watcherConfig("gs://bucket/edp/event-groups/.*"))
+      TextFormat.printer()
+        .printToString(
+          availabilityWatcherConfig("^gs://bucket/$OTHER_OUTPUT_PATH/model-line/[^/]+/[^/]+/done$")
+        )
     )
 
+    val availabilityMonitorConfigFile = temporaryFolder.newFile("availability-monitor.textproto")
+    availabilityMonitorConfigFile.writeText(
+      TextFormat.printer().printToString(monitoringConfigs(OTHER_OUTPUT_PATH))
+    )
     val exitCode =
       CommandLine(ValidateVidLabelingStorageConfig())
         .execute(
@@ -1217,6 +1235,7 @@ class VidLabelingStorageConfigValidatorTest {
           "--vid-labeling-monitor-config=${vidConfigFile.path}",
           "--data-availability-sync-config=${syncConfigFile.path}",
           "--data-watcher-config=${watcherConfigFile.path}",
+          "--data-availability-monitor-config=${availabilityMonitorConfigFile.path}",
         )
 
     assertThat(exitCode).isEqualTo(1)
@@ -1269,9 +1288,11 @@ class VidLabelingStorageConfigValidatorTest {
   fun `queued external route on a separate prefix is accepted`() {
     val watcher = dataWatcherConfig {
       watchedPaths += watchedPath {
-        sourcePathRegex = "gs://bucket/edp/external/model-line/.*/.*/done"
+        identifier = "data-availability"
+        sourcePathRegex = externalDoneRegex()
         controlPlaneQueueSink = controlPlaneQueueSink {
           queue = "data-availability-sync-queue"
+          serializationKey = "data-availability:$DATA_PROVIDER"
           appParams = Any.pack(externalDataAvailabilitySyncParams { dataProvider = DATA_PROVIDER })
         }
       }
@@ -1279,8 +1300,9 @@ class VidLabelingStorageConfigValidatorTest {
     validate(
       vidConfigs(LABELED_OUTPUT_PATH),
       vidConfigs(LABELED_OUTPUT_PATH),
-      syncConfigs(LABELED_OUTPUT_PATH),
+      syncConfigs(LABELED_OUTPUT_PATH, EXTERNAL_OUTPUT_PATH),
       watcher,
+      monitoringConfigs(EXTERNAL_OUTPUT_PATH),
     )
   }
 
@@ -1303,7 +1325,7 @@ class VidLabelingStorageConfigValidatorTest {
   ) = dataAvailabilitySyncConfigs {
     configs += dataAvailabilitySyncConfig {
       this.dataProvider = dataProvider
-      edpImpressionPath = externalPath.ifEmpty { OTHER_OUTPUT_PATH }
+      edpImpressionPath = OTHER_OUTPUT_PATH
       vidLabeledImpressionPath = path
       externalImpressionPath = externalPath
       dataAvailabilityStorage = storageParams { gcs = gcsStorage { bucketName = "bucket" } }

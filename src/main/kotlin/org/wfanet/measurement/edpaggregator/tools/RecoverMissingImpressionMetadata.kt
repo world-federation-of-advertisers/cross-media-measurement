@@ -80,7 +80,7 @@ private class FilteringBlobMetadataStorageClient(
   override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
     // Keep model-line scans complete for provider-wide gap checks.
     val blobs = delegate.listBlobs(prefix)
-    return if (prefix == metadataFolderPrefix) {
+    return if (prefix?.trimEnd('/') == metadataFolderPrefix.trimEnd('/')) {
       blobs.filter { it.blobKey in includedBlobKeys }
     } else {
       blobs
@@ -210,7 +210,7 @@ class RecoverMissingImpressionMetadata : Runnable {
     }
     require(config.edpImpressionPath.isNotEmpty()) { "edp_impression_path must be set" }
     require(config.dataProvider.isNotEmpty()) { "data_provider must be set" }
-    val externalPath = config.edpImpressionPath
+    val externalPath = config.externalImpressionPath.ifEmpty { config.edpImpressionPath }
     val internalPath = config.vidLabeledImpressionPath
     require(
       internalPath.isEmpty() ||

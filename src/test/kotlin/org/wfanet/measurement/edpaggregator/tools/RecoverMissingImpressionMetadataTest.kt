@@ -47,6 +47,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.v1alpha.AcquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
@@ -65,6 +66,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.gcloud.gcs.testing.StorageEmulatorRule
 
@@ -443,8 +445,28 @@ class RecoverMissingImpressionMetadataTest {
     runRecoveryAcrossConfiguredPaths(blockedByGaps = true)
   }
 
-  private fun runRecoveryAcrossConfiguredPaths(blockedByGaps: Boolean = false) {
+  @Test
+  fun `recovery leaves synchronized generation-pinned neighbours unchanged`() {
+    runRecoveryAcrossConfiguredPaths(includeRegisteredNeighbour = true)
+  }
+
+  @Test
+  fun `recovery scans an external override and the internal root`() {
+    runRecoveryAcrossConfiguredPaths(externalOverride = true)
+  }
+
+  @Test
+  fun `recovery checks gaps across an external override and the internal root`() {
+    runRecoveryAcrossConfiguredPaths(blockedByGaps = true, externalOverride = true)
+  }
+
+  private fun runRecoveryAcrossConfiguredPaths(
+    blockedByGaps: Boolean = false,
+    includeRegisteredNeighbour: Boolean = false,
+    externalOverride: Boolean = false,
+  ) {
     val recoveredMetadata = mutableListOf<ImpressionMetadata>()
+    val registeredNeighbours = mutableListOf<ImpressionMetadata>()
     val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
@@ -526,16 +548,81 @@ class RecoverMissingImpressionMetadataTest {
               }
               .toByteArray(),
           )
+          val neighbourData =
+            if (includeRegisteredNeighbour) {
+              storageEmulator.storage.create(
+                BlobInfo.newBuilder(BUCKET_NAME, "$folder/registered-impressions").build(),
+                byteArrayOf(1),
+              )
+            } else null
+          val neighbourMetadata =
+            neighbourData?.let { data ->
+              storageEmulator.storage.create(
+                BlobInfo.newBuilder(BUCKET_NAME, "${data.name}.metadata.binpb")
+                  .setMetadata(
+                    mapOf(
+                      DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE
+                    )
+                  )
+                  .build(),
+                blobDetails {
+                    blobUri = "gs://$BUCKET_NAME/${data.name}"
+                    eventGroupReferenceId = "event-group"
+                    modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+                    interval = interval {
+                      startTime = timestamp { seconds = 1 }
+                      endTime = timestamp { seconds = 2 }
+                    }
+                  }
+                  .toByteArray(),
+              )
+            }
           val doneBlob =
             storageEmulator.storage.create(
-              BlobInfo.newBuilder(BUCKET_NAME, "$folder/done").build(),
+              BlobInfo.newBuilder(BUCKET_NAME, "$folder/done")
+                .setMetadata(
+                  if (includeRegisteredNeighbour)
+                    mapOf(
+                      DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+                      DataAvailabilityBlobs.SYNC_ID_KEY to "original-sync",
+                      DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to "original-sync",
+                    )
+                  else emptyMap()
+                )
+                .build(),
               byteArrayOf(),
             )
+          if (neighbourMetadata != null) {
+            val existing = impressionMetadata {
+              name =
+                "dataProviders/test-provider/impressionMetadata/registered-${registeredNeighbours.size}"
+              blobUri = "gs://$BUCKET_NAME/${neighbourMetadata.name}"
+              blobTypeUrl = "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.BlobDetails"
+              eventGroupReferenceId = "event-group"
+              modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+              interval = interval {
+                startTime = timestamp { seconds = 1 }
+                endTime = timestamp { seconds = 2 }
+              }
+              state = ACTIVE
+              metadataBlobGeneration = neighbourMetadata.generation
+              impressionsBlobGeneration = checkNotNull(neighbourData).generation
+              outputDoneBlobGeneration = doneBlob.generation
+            }
+            registeredNeighbours += existing
+            recoveredMetadata += existing
+          }
           "gs://$BUCKET_NAME/$metadataKey" to doneBlob.generation
         }
       val configFile =
         writeConfigFile(
-          validConfig() +
+          (if (externalOverride) {
+            validConfig()
+              .replace(
+                "edp_impression_path: \"$EDP_IMPRESSION_PATH\"",
+                "edp_impression_path: \"unused/external\"",
+              ) + "\nexternal_impression_path: \"$EDP_IMPRESSION_PATH\"\n"
+          } else validConfig()) +
             "\nvid_labeled_impression_path: \"$INTERNAL_IMPRESSION_PATH\"\n" +
             "\nerror_if_gaps_exist: $blockedByGaps\n"
         )
@@ -566,6 +653,12 @@ class RecoverMissingImpressionMetadataTest {
       for (metadata in createdMetadata) {
         assertThat(metadata.outputDoneBlobGeneration)
           .isEqualTo(doneGenerations.getValue(metadata.blobUri))
+      }
+      for (existing in registeredNeighbours) {
+        assertThat(recoveredMetadata.single { it.name == existing.name }).isEqualTo(existing)
+      }
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchUpdateImpressionMetadata(any())
       }
       val acquired = argumentCaptor<AcquireDataAvailabilitySyncLeaseRequest>()
       verifyBlocking(leaseServiceMock, times(1)) {

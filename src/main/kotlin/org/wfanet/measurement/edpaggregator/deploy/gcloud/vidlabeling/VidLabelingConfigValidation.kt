@@ -298,9 +298,13 @@ object VidLabelingStorageConfigValidator {
     vidLabelingDataProviders: Set<String>,
   ) {
     for (syncConfig in syncConfigs.configsList) {
-      val externalPath = syncConfig.externalImpressionPath
-      if (externalPath.isEmpty()) continue
       val dataProvider = syncConfig.dataProvider
+      val externalPath = syncConfig.externalImpressionPath.ifEmpty { syncConfig.edpImpressionPath }
+      if (
+        syncConfig.externalImpressionPath.isEmpty() && dataProvider !in vidLabelingDataProviders
+      ) {
+        continue
+      }
       require(dataProvider.isNotEmpty()) {
         "DataAvailabilitySyncConfig.data_provider is missing for external_impression_path"
       }
@@ -363,12 +367,7 @@ object VidLabelingStorageConfigValidator {
     for (syncConfig in syncConfigs.configsList) {
       val dataProvider = syncConfig.dataProvider
       require(dataProvider.isNotEmpty()) { "DataAvailabilitySyncConfig.data_provider is missing" }
-      val externalPath =
-        when {
-          syncConfig.externalImpressionPath.isNotEmpty() -> syncConfig.externalImpressionPath
-          dataProvider !in vidLabelingDataProviders -> syncConfig.edpImpressionPath
-          else -> continue
-        }
+      val externalPath = syncConfig.externalImpressionPath.ifEmpty { syncConfig.edpImpressionPath }
       val pathFieldName =
         if (syncConfig.externalImpressionPath.isNotEmpty()) {
           "DataAvailabilitySyncConfig.external_impression_path"

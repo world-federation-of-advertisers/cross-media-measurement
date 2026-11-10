@@ -933,7 +933,17 @@ class DataAvailabilitySyncFunctionTest {
     )
   }
 
-  private fun runInternalPathWorkItem(blockedByGaps: Boolean = false) {
+  @Test
+  fun `queued internal WorkItem on the old root tolerates an external override`() {
+    runInternalPathWorkItem(legacyRoot = true, externalOverride = true)
+  }
+
+  private fun runInternalPathWorkItem(
+    blockedByGaps: Boolean = false,
+    legacyRoot: Boolean = false,
+    externalOverride: Boolean = false,
+  ) {
+    val outputRoot = if (legacyRoot) "edp/edp_name" else "vid-labeled-impressions/edp/edp_name"
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     File(configBucketDir, "config.textproto")
@@ -945,19 +955,19 @@ class DataAvailabilitySyncFunctionTest {
                 fileSystemDataAvailabilitySyncConfig().copy {
                   vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
                   errorIfGapsExist = blockedByGaps
+                  if (externalOverride) externalImpressionPath = "external/edp_name"
                 }
             }
           )
       )
-    val outputDirectory =
-      "vid-labeled-impressions/edp/edp_name/model-line/some-model-line/2025-01-05"
+    val outputDirectory = "$outputRoot/model-line/some-model-line/2025-01-05"
     File(tempFolder.root, outputDirectory).mkdirs()
     val workItemEventDate = LocalDate.of(2025, 1, 5)
     val expectedOutputKey =
-      "vid-labeled-impressions/edp/edp_name/" +
+      "$outputRoot/" +
         LabeledImpressionsBlobKeys.forInput(RAW_INPUT_BLOB_URI, MODEL_LINE, workItemEventDate)
     val otherDateOutputKey =
-      "vid-labeled-impressions/edp/edp_name/" +
+      "$outputRoot/" +
         LabeledImpressionsBlobKeys.forInput(
           OTHER_DATE_RAW_INPUT_BLOB_URI,
           MODEL_LINE,
@@ -1011,6 +1021,9 @@ class DataAvailabilitySyncFunctionTest {
       externalDone.writeBytes(byteArrayOf())
       File(tempFolder.root, "$outputDirectory/done").writeBytes(byteArrayOf())
     }
+    val internalDoneKey =
+      "$outputRoot/" + LabeledImpressionsBlobKeys.forDone(RAW_UPLOAD, MODEL_LINE, workItemEventDate)
+    File(tempFolder.root, internalDoneKey).writeBytes(byteArrayOf())
     val port = startFunction(configBucketDir)
     val workItem = workItem {
       name = WORK_ITEM_NAME.removePrefix("workItems/")
@@ -1036,7 +1049,7 @@ class DataAvailabilitySyncFunctionTest {
             dataPathParams = dataPathParams {
               dataPath =
                 LabeledImpressionsBlobKeys.forDoneUri(
-                  "file:////vid-labeled-impressions/edp/edp_name",
+                  "file:////$outputRoot",
                   RAW_UPLOAD,
                   MODEL_LINE,
                   LocalDate.of(2025, 1, 5),
@@ -1715,8 +1728,8 @@ class DataAvailabilitySyncFunctionTest {
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
-      edpImpressionPath = "edp/edp_name/vid-labeler"
-      externalImpressionPath = "edp/edp_name"
+      edpImpressionPath = "edp/edp_name"
+      vidLabeledImpressionPath = "edp/edp_name/vid-labeler"
       modelLineMap[modelLineResourceName] = modelLineList { modelLines += "some-model-line-mapped" }
       errorIfGapsExist = true
     }

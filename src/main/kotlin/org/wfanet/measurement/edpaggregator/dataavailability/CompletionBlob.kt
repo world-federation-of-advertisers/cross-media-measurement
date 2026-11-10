@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 enum class CompletionBlobType {
   EXTERNAL,
   VID_LABELER,
+  VID_LABELER_OR_LEGACY,
 }
 
 object CompletionBlobNames {
@@ -28,5 +29,7 @@ object CompletionBlobNames {
     when (type) {
       CompletionBlobType.EXTERNAL -> fileName == "done"
       CompletionBlobType.VID_LABELER -> VID_LABELER_DONE_NAME.matches(fileName)
+      CompletionBlobType.VID_LABELER_OR_LEGACY ->
+        fileName == "done" || VID_LABELER_DONE_NAME.matches(fileName)
     }
 }

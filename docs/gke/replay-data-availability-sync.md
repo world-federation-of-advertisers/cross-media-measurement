@@ -27,9 +27,9 @@ replay selection uses only one. See the
 for the full configuration.
 
 Keep both configured prefixes in the standalone replay config: `edp_impression_path` for
-internal VID Labeler outputs and `external_impression_path` for external uploads. When the
-external prefix is unset, external uploads use `edp_impression_path`. Discovery uses the
-selected completion blob's prefix; gap checks include both configured prefixes. A metadata
+external uploads and `vid_labeled_impression_path` for internal VID Labeler outputs. An explicit
+`external_impression_path` overrides the external prefix. Discovery uses the selected completion
+blob's prefix; gap checks include both configured prefixes. A metadata
 replay does not record VID Labeler pipeline completion; use the pipeline's WorkItem recovery
 path when that bookkeeping also needs repair.
 
