@@ -166,13 +166,6 @@ class VidLabelingHealingControllerFunction(
             .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(internalChannel)
         )
       val operations = UploadHealingOperationServiceCoroutineStub(rawChannel)
-      val operationStore =
-        GrpcHealingOperationStore(
-          operations,
-          InternalUploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
-            internalChannel
-          ),
-        )
       val labeledOutputStore = GcsLabeledOutputStore(storage)
       val operationStore =
         GrpcHealingOperationStore(
