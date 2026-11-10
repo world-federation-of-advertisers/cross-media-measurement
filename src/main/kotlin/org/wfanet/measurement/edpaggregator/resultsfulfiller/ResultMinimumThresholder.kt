@@ -66,21 +66,87 @@ object ResultMinimumThresholder {
     protocolMinImpressions: Int,
   ): FrequencyVector {
     if (
+      isBelowThreshold(
+        frequencyVectorBuilder.frequencyDataArray,
+        measurementSpec.vidSamplingInterval.width.toDouble(),
+        resultMinimumThresholds,
+        maxPopulation,
+        protocolMinUsers,
+        protocolMinImpressions,
+      )
+    ) {
+      val emptyFrequencyVector =
+        FrequencyVectorBuilder(
+            measurementSpec = measurementSpec,
+            populationSpec = populationSpec,
+            strict = false,
+            overrideImpressionMaxFrequencyPerUser = null,
+          )
+          .build()
+      return emptyFrequencyVector
+    }
+
+    return frequencyVectorBuilder.build()
+  }
+
+  /** Whether this contribution requires suppression before multi-party aggregation. */
+  fun isBelowThreshold(
+    frequencyData: IntArray,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds,
+    maxPopulation: Int?,
+    protocolMinUsers: Int,
+    protocolMinImpressions: Int,
+  ): Boolean =
+    isBelowThreshold(
+      vidSamplingIntervalWidth,
+      resultMinimumThresholds,
+      maxPopulation,
+      protocolMinUsers,
+      protocolMinImpressions,
+    ) {
+      HistogramComputations.buildHistogram(
+        frequencyData,
+        resultMinimumThresholds.reachMaxFrequencyPerUser,
+      )
+    }
+
+  fun isBelowThreshold(
+    frequencyData: ByteArray,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds,
+    maxPopulation: Int?,
+    protocolMinUsers: Int,
+    protocolMinImpressions: Int,
+  ): Boolean =
+    isBelowThreshold(
+      vidSamplingIntervalWidth,
+      resultMinimumThresholds,
+      maxPopulation,
+      protocolMinUsers,
+      protocolMinImpressions,
+    ) {
+      HistogramComputations.buildHistogram(
+        frequencyData,
+        resultMinimumThresholds.reachMaxFrequencyPerUser,
+      )
+    }
+
+  private inline fun isBelowThreshold(
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds,
+    maxPopulation: Int?,
+    protocolMinUsers: Int,
+    protocolMinImpressions: Int,
+    buildHistogram: () -> LongArray,
+  ): Boolean {
+    if (
       protocolMinUsers >= resultMinimumThresholds.minUsers &&
         protocolMinImpressions >= resultMinimumThresholds.minImpressions
     ) {
-      return frequencyVectorBuilder.build()
+      return false
     }
-
-    val frequencyData = frequencyVectorBuilder.frequencyDataArray
-    val maxFrequency = resultMinimumThresholds.reachMaxFrequencyPerUser
-    val histogram: LongArray =
-      HistogramComputations.buildHistogram(
-        frequencyVector = frequencyData,
-        maxFrequency = maxFrequency,
-      )
-
-    val vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width.toDouble()
+    val histogram = buildHistogram()
     val scaledReach =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram = histogram,
@@ -96,22 +162,7 @@ object ResultMinimumThresholder {
         noiser = NoNoise,
         resultMinimumThresholds = null,
       )
-
-    if (
-      scaledReach < resultMinimumThresholds.minUsers ||
-        scaledImpressions < resultMinimumThresholds.minImpressions
-    ) {
-      val emptyFrequencyVector =
-        FrequencyVectorBuilder(
-            measurementSpec = measurementSpec,
-            populationSpec = populationSpec,
-            strict = false,
-            overrideImpressionMaxFrequencyPerUser = null,
-          )
-          .build()
-      return emptyFrequencyVector
-    }
-
-    return frequencyVectorBuilder.build()
+    return scaledReach < resultMinimumThresholds.minUsers ||
+      scaledImpressions < resultMinimumThresholds.minImpressions
   }
 }
