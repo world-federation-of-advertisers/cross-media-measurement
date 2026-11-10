@@ -345,8 +345,14 @@ enqueue WorkItems.
 
 Lifecycle rules on `EDPA_STORAGE_BUCKET` automatically delete objects per a retention
 policy, so impression data does not accumulate indefinitely. Rules are configured
-per **prefix**, so each EDP can have its own retention period. CMMS applies 10-year rules to the new
-`vid-labeled-impressions/edp/edp7/` and `vid-labeled-impressions/edp/edpa_meta/` output roots.
+per **prefix**, so each EDP can have its own retention period. CMMS currently uses 3,650-day
+(10-year) defaults for the `vid-labeled-impressions/edp/edp7/` and
+`vid-labeled-impressions/edp/edpa_meta/` output roots.
+
+**Markets should adjust retention to their own requirements.** Choose periods that cover the
+market's supported measurement and reporting windows and meet its data retention requirements.
+Apply the market policy to every external and VID-labeler output prefix by explicitly setting
+`retention_days` and, when enabled, `fallback_retention_days`.
 
 The underlying `storage-bucket` module accepts a `lifecycle_rules` list. Each entry
 supports:
@@ -366,21 +372,24 @@ The module emits two rules per entry: a **Custom-Time** delete
 > **Current limitation.** The `edp-aggregator` module does **not** yet expose
 > `lifecycle_rules` as an input variable — it sets `versioning_enabled = true` and the
 > per-prefix `lifecycle_rules` **inside the module source** (its `edp_aggregator_bucket`
-> block). Today, changing retention therefore means editing the module source rather
-> than passing a variable. The rule shape below is what the module sets internally:
+> block). To apply a market's retention policy, edit `lifecycle_rules` in
+> [`edp-aggregator/main.tf`](../../src/main/terraform/gcloud/modules/edp-aggregator/main.tf).
+> The rule shape below is what the module sets internally:
 
 ```hcl
 # Set inside the edp-aggregator module's storage-bucket invocation
 lifecycle_rules = [
   {
-    name           = "edp-a"
-    prefix         = "edp/<edp-a-id>/"
-    retention_days = 3650  # 10 years
+    name                    = "edp-a"
+    prefix                  = "edp/<edp-a-id>/"
+    retention_days          = 3650 # 10 years
+    fallback_retention_days = 3650
   },
   {
-    name           = "edp-b"
-    prefix         = "edp/<edp-b-id>/"
-    retention_days = 730   # 13 months
+    name                    = "edp-b"
+    prefix                  = "edp/<edp-b-id>/"
+    retention_days          = 730 # 2 years
+    fallback_retention_days = 730
   },
 ]
 ```
