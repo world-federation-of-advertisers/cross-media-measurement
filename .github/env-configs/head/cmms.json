@@ -29,6 +29,7 @@
   "REPORTING_TOKEN_AUDIENCE": "reporting.head.halo-cmm.org",
   "REQUISITION_FETCHER_ENDPOINT": "https://us-central1-halo-cmm-head.cloudfunctions.net/requisition-fetcher",
   "SECURE_COMPUTATION_PUBLIC_API_TARGET": "v1alpha.secure-computation.head.halo-cmm.org:8443",
+  "SECURE_COMPUTATION_STORAGE_BUCKET": "secure-computation-storage-head-bucket",
   "SPANNER_INSTANCE": "halo-cmms",
   "STORAGE_BUCKET": "halo-cmm-head-bucket",
   "TF_SERVICE_ACCOUNT": "terraform@halo-cmm-head.iam.gserviceaccount.com",
