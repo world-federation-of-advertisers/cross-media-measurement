@@ -216,6 +216,15 @@ jobs:
         bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
         cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
 
+    - name: Validate DataWatcher configuration
+      env:
+        CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
+      run: |
+        bazelisk run \
+          //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:ValidateDataWatcherConfig \
+          -- \
+          --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto"
+
     - name: Validate direct RequisitionFetcher dispatch configuration
       env:
         CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
