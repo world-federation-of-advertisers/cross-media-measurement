@@ -244,12 +244,15 @@ Both publish metadata and Kingdom availability under the provider synchronizatio
 record durable attempt completion. External tasks do not update VID Labeler pipeline rows.
 
 External WorkItems retain the metadata and impression object generations finalized by `done`.
+These generations come from storage; external writers keep the existing `BlobDetails` format.
 Fulfillment rejects an overwritten object instead of following unfinalized contents. Legacy
 records without these generations retain current-object reads. Apply the
 `add-impression-metadata-blob-generations.sql` migration and deploy the updated metadata service,
 DataAvailabilitySync, and fulfillment consumers before enabling external WorkItem routes.
 Write a new `done` marker after an intentional overwrite to register the new snapshot.
-Legacy HTTP invocation remains supported for external folders.
+Gap checks include both configured output prefixes. Legacy HTTP invocation remains supported
+for external folders with unversioned metadata; use WorkItems or snapshot-aware replay for
+metadata that already has stored generations.
 When `event_group_activity_publishing` is configured, the same sync also derives
 positive EventGroup activity from the finalized metadata and appends it in the Kingdom.
 

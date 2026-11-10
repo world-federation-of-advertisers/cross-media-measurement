@@ -1005,6 +1005,7 @@ class InProcessEdpAggregatorComponents(
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf(ONBOARDING_PREFIX),
       )
     val leaseRunner =
       DataAvailabilitySyncLeaseRunner(
