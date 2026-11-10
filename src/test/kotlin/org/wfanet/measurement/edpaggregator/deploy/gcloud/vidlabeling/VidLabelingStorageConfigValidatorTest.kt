@@ -66,6 +66,29 @@ class VidLabelingStorageConfigValidatorTest {
   }
 
   @Test
+  fun `validate accepts raw upload dispatch beside an external availability route`() {
+    val watcher = dataWatcherConfig {
+      watchedPaths += queuedAvailabilityRoute(externalDoneRegex())
+      watchedPaths += watchedPath {
+        identifier = "vid-labeling-dispatch"
+        sourcePathRegex = "^gs://bucket/$RAW_INPUT_PATH/[^/]+/done$"
+        httpEndpointSink = httpEndpointSink {
+          endpointUri = "https://example.test/dispatcher"
+          appParams = struct { fields["dataProvider"] = value { stringValue = DATA_PROVIDER } }
+        }
+      }
+    }
+
+    validate(
+      vidConfigs(LABELED_OUTPUT_PATH),
+      vidConfigs(LABELED_OUTPUT_PATH),
+      syncConfigs(LABELED_OUTPUT_PATH, EXTERNAL_OUTPUT_PATH),
+      watcher,
+      monitoringConfigs(EXTERNAL_OUTPUT_PATH),
+    )
+  }
+
+  @Test
   fun `validate rejects different VID labeling and DataAvailabilitySync paths`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
@@ -202,7 +225,7 @@ class VidLabelingStorageConfigValidatorTest {
   }
 
   @Test
-  fun `validate rejects overlapping route for a different data provider`() {
+  fun `validate rejects unresolved provider in an overlapping route`() {
     val watcher = dataWatcherConfig {
       watchedPaths +=
         availabilityRoute(
@@ -221,7 +244,8 @@ class VidLabelingStorageConfigValidatorTest {
         )
       }
 
-    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+    assertThat(error).hasMessageThat().contains("app_params must resolve")
+    assertThat(error).hasMessageThat().contains(OTHER_DATA_PROVIDER)
   }
 
   @Test
