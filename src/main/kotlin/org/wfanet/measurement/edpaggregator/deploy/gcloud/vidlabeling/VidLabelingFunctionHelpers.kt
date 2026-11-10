@@ -130,10 +130,7 @@ object VidLabelingFunctionHelpers {
       vidLabeledImpressionsStorageParams =
         VidLabelerParamsKt.storageParams {
           gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
-          // Per-EDP folder segment so each EDP's labeled output lives under its own
-          // folder: gs://<bucket>/<edp_impression_path>/model-line/<id>/<date>/. Required,
-          // and must match this EDP's DataAvailabilitySyncConfig edp_impression_path so the
-          // writer and the registrar agree on the location.
+          // This output prefix must match the registrar's configured internal path.
           impressionsBlobPrefix =
             "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}" +
               "/${config.edpImpressionPath}"
@@ -200,10 +197,7 @@ object VidLabelingFunctionHelpers {
       vidLabeledImpressionsStorageParams =
         SubpoolAssignerParamsKt.storageParams {
           gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
-          // Per-EDP labeled-output folder segment: gs://<bucket>/<edp_impression_path>/
-          // model-line/<id>/<date>/. Must match buildVidLabelerParamsTemplate and this EDP's
-          // DataAvailabilitySyncConfig edp_impression_path so the memoized Phase-2 output lands
-          // where the registrar looks (the non-memoized path composes the same prefix).
+          // Both labeling paths write under the same configured internal prefix.
           blobPrefix =
             "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}" +
               "/${config.edpImpressionPath}"
