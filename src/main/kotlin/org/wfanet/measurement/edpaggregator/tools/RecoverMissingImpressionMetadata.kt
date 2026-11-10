@@ -70,6 +70,7 @@ import picocli.CommandLine.Option
 private class FilteringBlobMetadataStorageClient(
   private val delegate: BlobMetadataStorageClient,
   private val includedBlobKeys: Set<String>,
+  private val metadataFolderPrefix: String,
 ) : BlobMetadataStorageClient by delegate {
   private val mutableProcessedMetadataBlobKeys = mutableSetOf<String>()
 
@@ -77,7 +78,13 @@ private class FilteringBlobMetadataStorageClient(
     get() = mutableProcessedMetadataBlobKeys
 
   override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
-    return delegate.listBlobs(prefix).filter { it.blobKey in includedBlobKeys }
+    // Keep model-line scans complete for provider-wide gap checks.
+    val blobs = delegate.listBlobs(prefix)
+    return if (prefix == metadataFolderPrefix) {
+      blobs.filter { it.blobKey in includedBlobKeys }
+    } else {
+      blobs
+    }
   }
 
   override suspend fun updateBlobMetadata(
@@ -203,17 +210,17 @@ class RecoverMissingImpressionMetadata : Runnable {
     }
     require(config.edpImpressionPath.isNotEmpty()) { "edp_impression_path must be set" }
     require(config.dataProvider.isNotEmpty()) { "data_provider must be set" }
-    val configuredPaths =
-      listOf(config.edpImpressionPath, config.vidLabeledImpressionPath)
-        .filter(String::isNotEmpty)
-        .distinct()
+    val externalPath = config.edpImpressionPath
+    val internalPath = config.vidLabeledImpressionPath
     require(
-      configuredPaths.none { path ->
-        configuredPaths.any { other -> other != path && other.startsWith("$path/") }
-      }
+      internalPath.isEmpty() ||
+        (externalPath != internalPath &&
+          !externalPath.startsWith("$internalPath/") &&
+          !internalPath.startsWith("$externalPath/"))
     ) {
       "Configured impression paths must not overlap"
     }
+    val configuredPaths = listOf(externalPath, internalPath).filter(String::isNotEmpty)
     require(!publishEventGroupActivities || config.hasEventGroupActivityPublishing()) {
       "event_group_activity_publishing must be set when publishing EventGroup activity"
     }
@@ -343,7 +350,11 @@ class RecoverMissingImpressionMetadata : Runnable {
                   ensureLeaseActive = lease::invoke,
                   sync = { doneBlobUri, metadataBlobKeys ->
                     val filteringStorageClient =
-                      FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys)
+                      FilteringBlobMetadataStorageClient(
+                        storageClient,
+                        metadataBlobKeys,
+                        SelectedStorageClient.parseBlobUri(doneBlobUri).key.substringBeforeLast("/"),
+                      )
                     DataAvailabilitySync(
                         edpImpressionPath = impressionPath,
                         storageClient = filteringStorageClient,
@@ -354,6 +365,7 @@ class RecoverMissingImpressionMetadata : Runnable {
                         impressionMetadataBatchSize = impressionMetadataBatchSize,
                         modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
                         errorIfGapsExist = config.errorIfGapsExist,
+                        availabilityImpressionPaths = configuredPaths,
                         publishEventGroupActivities =
                           eventGroupActivityPublisher?.let { it::publish },
                       )

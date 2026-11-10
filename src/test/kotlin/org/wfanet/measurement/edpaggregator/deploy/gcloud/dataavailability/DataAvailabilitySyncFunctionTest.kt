@@ -564,6 +564,15 @@ class DataAvailabilitySyncFunctionTest {
 
   @Test
   fun `WorkItem selects internal path and synchronizes only its raw upload outputs`() {
+    runInternalPathWorkItem()
+  }
+
+  @Test
+  fun `WorkItem blocks a missing date across both impression paths`() {
+    runInternalPathWorkItem(blockedByGaps = true)
+  }
+
+  private fun runInternalPathWorkItem(blockedByGaps: Boolean = false) {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     File(configBucketDir, "config.textproto")
@@ -574,6 +583,7 @@ class DataAvailabilitySyncFunctionTest {
               configs +=
                 fileSystemDataAvailabilitySyncConfig().copy {
                   vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
+                  errorIfGapsExist = blockedByGaps
                 }
             }
           )
@@ -632,6 +642,13 @@ class DataAvailabilitySyncFunctionTest {
             .toByteString()
         ),
       )
+    }
+    if (blockedByGaps) {
+      val externalDone =
+        File(tempFolder.root, "edp/edp_name/model-line/some-model-line/2025-01-03/done")
+      externalDone.parentFile.mkdirs()
+      externalDone.writeBytes(byteArrayOf())
+      File(tempFolder.root, "$outputDirectory/done").writeBytes(byteArrayOf())
     }
     val port = runBlocking {
       functionProcess.start(
@@ -705,6 +722,19 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(createAttempt.firstValue.parent).isEqualTo(WORK_ITEM_NAME)
     assertThat(createAttempt.firstValue.expectedWorkItemGeneration).isEqualTo(1L)
     assertThat(createAttempt.firstValue.supportsAttemptLease).isTrue()
+    if (blockedByGaps) {
+      verifyBlocking(impressionMetadataServiceMock) { batchCreateImpressionMetadata(any()) }
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+      verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+      val failedAttempt = argumentCaptor<FailWorkItemAttemptRequest>()
+      verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(failedAttempt.capture()) }
+      assertThat(failedAttempt.firstValue.errorMessage).contains("GAP_POLICY")
+      verifyBlocking(workItemsServiceMock) { failWorkItem(any()) }
+      verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+        markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+      }
+      return
+    }
     verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
     verifyBlocking(workItemAttemptsServiceMock, times(0)) { failWorkItemAttempt(any()) }
     verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }

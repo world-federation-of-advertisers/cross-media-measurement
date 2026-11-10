@@ -82,6 +82,30 @@ class ReplayDataAvailabilitySyncTest {
   @get:Rule val tempDir = TemporaryFolder()
 
   @Test
+  fun `main rejects equal or nested impression paths`() {
+    for (internalPath in listOf(EDP_IMPRESSION_PATH, "$EDP_IMPRESSION_PATH/internal", "edp")) {
+      val configFile =
+        writeConfigFile(
+          validConfig(includeActivityPublishing = false) +
+            "\nvid_labeled_impression_path: \"$internalPath\"\n"
+        )
+      val output =
+        CommandLineTesting.capturingOutput(
+          requiredArgs(
+            configFile,
+            ReplayDataAvailabilitySync.Mode.DATA_AVAILABILITY_ONLY,
+            UNREACHABLE_API_TARGET,
+          ),
+          ::main,
+        )
+      CommandLineTesting.assertThat(output).status().isNotEqualTo(0)
+      CommandLineTesting.assertThat(output)
+        .err()
+        .contains("Configured impression paths must not overlap")
+    }
+  }
+
+  @Test
   fun `main exits nonzero when mode is missing`() {
     val configFile = writeConfigFile(validConfig(includeActivityPublishing = false))
 

@@ -257,7 +257,14 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           check(rawImpressionBlobUris.isNotEmpty()) {
             "No RawImpressionUploadFile rows matched the WorkItem event date"
           }
-          buildDataAvailabilitySync(config)
+          buildDataAvailabilitySync(
+              config,
+              availabilityImpressionPaths =
+                listOfNotNull(
+                  providerConfig.edpImpressionPath,
+                  internalPath.takeIf(String::isNotEmpty),
+                ),
+            )
             .sync(
               workItem.doneBlobUri,
               dataAvailabilitySyncLease = lease.name,
@@ -317,7 +324,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   private fun buildDataAvailabilitySync(
-    dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+    dataAvailabilitySyncConfig: DataAvailabilitySyncConfig,
+    availabilityImpressionPaths: List<String> =
+      listOfNotNull(
+        dataAvailabilitySyncConfig.edpImpressionPath,
+        dataAvailabilitySyncConfig.vidLabeledImpressionPath.takeIf(String::isNotEmpty),
+      ),
   ): DataAvailabilitySync {
     val storageClient = createStorageClient(dataAvailabilitySyncConfig)
     val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
@@ -381,6 +393,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       modelLineMap =
         dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
+      availabilityImpressionPaths = availabilityImpressionPaths,
     )
   }
 

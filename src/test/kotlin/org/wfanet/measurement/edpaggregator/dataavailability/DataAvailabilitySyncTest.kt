@@ -2395,6 +2395,7 @@ class DataAvailabilitySyncTest {
     storageClient: BlobMetadataStorageClient,
     edpPath: String,
     metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
+    availabilityImpressionPaths: List<String> = listOf(edpPath),
   ) =
     DataAvailabilitySync(
       edpPath,
@@ -2408,7 +2409,75 @@ class DataAvailabilitySyncTest {
       errorIfGapsExist = true,
       publishEventGroupActivities = null,
       metrics = metrics,
+      availabilityImpressionPaths = availabilityImpressionPaths,
     )
+
+  @Test
+  fun `sync blocks a missing date across both impression paths`(): Unit = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val externalPath = "edp/edpa_edp"
+    val internalPath = "vid-labeled-impressions/edp/edpa_edp"
+    writeModelLineDate(storageClient, internalPath, "2026-03-13", finalized = true)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val outcome =
+      newGapTestSync(
+          storageClient,
+          externalPath,
+          availabilityImpressionPaths = listOf(externalPath, internalPath),
+        )
+        .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync publishes when both impression paths together fill the date range`(): Unit =
+    runBlocking {
+      val storageClient =
+        FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+      val externalPath = "edp/edpa_edp"
+      val internalPath = "vid-labeled-impressions/edp/edpa_edp"
+      writeModelLineDate(storageClient, externalPath, "2026-03-13", finalized = true)
+      writeModelLineDate(storageClient, internalPath, "2026-03-14", finalized = true)
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      val outcome =
+        newGapTestSync(
+            storageClient,
+            externalPath,
+            availabilityImpressionPaths = listOf(externalPath, internalPath),
+          )
+          .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+      assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `sync blocks an unfinalized date within the range of both impression paths`(): Unit =
+    runBlocking {
+      val storageClient =
+        FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+      val externalPath = "edp/edpa_edp"
+      val internalPath = "vid-labeled-impressions/edp/edpa_edp"
+      writeModelLineDate(storageClient, internalPath, "2026-03-13", finalized = true)
+      writeModelLineDate(storageClient, internalPath, "2026-03-14", finalized = false)
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      val outcome =
+        newGapTestSync(
+            storageClient,
+            externalPath,
+            availabilityImpressionPaths = listOf(externalPath, internalPath),
+          )
+          .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+      assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    }
 
   @Test
   fun `sync skips replaceDataAvailabilityIntervals when an in-range date has no done blob`(): Unit =

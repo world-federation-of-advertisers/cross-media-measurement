@@ -114,6 +114,23 @@ class RecoverMissingImpressionMetadataTest {
   }
 
   @Test
+  fun `main rejects equal or nested impression paths`() {
+    for (internalPath in listOf(EDP_IMPRESSION_PATH, "$EDP_IMPRESSION_PATH/internal", "edp")) {
+      val configFile =
+        writeConfigFile(validConfig() + "\nvid_labeled_impression_path: \"$internalPath\"\n")
+      val output =
+        CommandLineTesting.capturingOutput(
+          requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0),
+          ::main,
+        )
+      CommandLineTesting.assertThat(output).status().isNotEqualTo(0)
+      CommandLineTesting.assertThat(output)
+        .err()
+        .contains("Configured impression paths must not overlap")
+    }
+  }
+
+  @Test
   fun `main exits nonzero when flag is invalid`() {
     val capturedOutput = CommandLineTesting.capturingOutput(arrayOf("--invalid-option"), ::main)
 
@@ -418,6 +435,15 @@ class RecoverMissingImpressionMetadataTest {
 
   @Test
   fun `recovery registers both configured paths with exact done generations`() {
+    runRecoveryAcrossConfiguredPaths()
+  }
+
+  @Test
+  fun `recovery blocks a missing date across both impression paths`() {
+    runRecoveryAcrossConfiguredPaths(blockedByGaps = true)
+  }
+
+  private fun runRecoveryAcrossConfiguredPaths(blockedByGaps: Boolean = false) {
     val recoveredMetadata = mutableListOf<ImpressionMetadata>()
     val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
@@ -478,7 +504,9 @@ class RecoverMissingImpressionMetadataTest {
     try {
       val doneGenerations =
         listOf(EDP_IMPRESSION_PATH, INTERNAL_IMPRESSION_PATH).associate { path ->
-          val folder = "$path/model-line/model-line-1/2000-01-01"
+          val date =
+            if (blockedByGaps && path == INTERNAL_IMPRESSION_PATH) "2000-01-03" else "2000-01-01"
+          val folder = "$path/model-line/model-line-1/$date"
           val impressionsKey = "$folder/impressions"
           val metadataKey = "$impressionsKey.metadata.binpb"
           storageEmulator.storage.create(
@@ -507,7 +535,9 @@ class RecoverMissingImpressionMetadataTest {
         }
       val configFile =
         writeConfigFile(
-          validConfig() + "\nvid_labeled_impression_path: \"$INTERNAL_IMPRESSION_PATH\"\n"
+          validConfig() +
+            "\nvid_labeled_impression_path: \"$INTERNAL_IMPRESSION_PATH\"\n" +
+            "\nerror_if_gaps_exist: $blockedByGaps\n"
         )
 
       val capturedOutput =
@@ -515,13 +545,17 @@ class RecoverMissingImpressionMetadataTest {
           connectionArgs(configFile, apiTarget = "localhost:${server.port}") +
             arrayOf(
               "--data-date=2000-01-01",
+              "--data-date=2000-01-03",
               "--storage-api-endpoint=${storageEmulator.storage.options.host}",
               "--throttler-minimum-interval=0s",
             ),
           ::main,
         )
 
-      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
+      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(if (blockedByGaps) 1 else 0)
+      verifyBlocking(dataProvidersServiceMock, times(if (blockedByGaps) 0 else 2)) {
+        replaceDataAvailabilityIntervals(any())
+      }
       val request = argumentCaptor<BatchCreateImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataServiceMock, times(2)) {
         batchCreateImpressionMetadata(request.capture())

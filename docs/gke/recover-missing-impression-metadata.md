@@ -28,8 +28,9 @@ It repairs four inconsistencies:
 Deleted-record checks also include folders without `done`, since that existence check is
 independent of upload finalization.
 
-If `error_if_gaps_exist` blocks publication, the publication IDs remain mismatched and the command
-exits nonzero so the folder remains retryable after the gap is corrected.
+Publication checks date gaps across both configured impression paths, including dates outside the
+recovery selection. If `error_if_gaps_exist` blocks publication, the publication IDs remain
+mismatched and the command exits nonzero so the folder remains retryable after the gap is corrected.
 
 ## Run the CLI
 

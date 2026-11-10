@@ -21,7 +21,8 @@ The required `--mode` flag makes the scope explicit:
 Prepare a textproto containing one `DataAvailabilitySyncConfig`, not the
 `DataAvailabilitySyncConfigs` wrapper used by the deployed Cloud Function. Use the same
 DataProvider, storage, impression paths, TLS, model-line, and EventGroup activity settings as the
-deployed configuration. See the
+deployed configuration. Publication checks date gaps across both configured paths, even when the
+replay selection uses only one. See the
 [EDP Aggregator deployment guide](../edpaggregator/deployment-guide.md#dataavailabilitysync-config-dataavailabilitysyncconfigs)
 for the full configuration.
 

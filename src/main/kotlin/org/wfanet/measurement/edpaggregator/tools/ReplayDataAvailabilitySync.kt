@@ -163,17 +163,17 @@ class ReplayDataAvailabilitySync : Runnable {
     }
     require(config.edpImpressionPath.isNotEmpty()) { "edp_impression_path must be set" }
     require(config.dataProvider.isNotEmpty()) { "data_provider must be set" }
-    val configuredPaths =
-      listOf(config.edpImpressionPath, config.vidLabeledImpressionPath)
-        .filter(String::isNotEmpty)
-        .distinct()
+    val externalPath = config.edpImpressionPath
+    val internalPath = config.vidLabeledImpressionPath
     require(
-      configuredPaths.none { path ->
-        configuredPaths.any { other -> other != path && other.startsWith("$path/") }
-      }
+      internalPath.isEmpty() ||
+        (externalPath != internalPath &&
+          !externalPath.startsWith("$internalPath/") &&
+          !internalPath.startsWith("$externalPath/"))
     ) {
       "Configured impression paths must not overlap"
     }
+    val configuredPaths = listOf(externalPath, internalPath).filter(String::isNotEmpty)
     if (mode == Mode.EVENT_GROUP_ACTIVITY_ONLY) {
       require(config.hasEventGroupActivityPublishing()) {
         "event_group_activity_publishing must be set in EVENT_GROUP_ACTIVITY_ONLY mode"
@@ -270,6 +270,7 @@ class ReplayDataAvailabilitySync : Runnable {
                         impressionMetadataBatchSize = impressionMetadataBatchSize,
                         modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
                         errorIfGapsExist = config.errorIfGapsExist,
+                        availabilityImpressionPaths = configuredPaths,
                         publishEventGroupActivities =
                           eventGroupActivityPublisher?.let { it::publish },
                       )

@@ -199,6 +199,16 @@ module "edp_aggregator_bucket" {
       prefix         = "edp/edp_meta/"
       retention_days = 3650 # 10 years
     },
+    {
+      name           = "vid_labeled_edp7"
+      prefix         = "vid-labeled-impressions/edp/edp7/"
+      retention_days = 3650 # 10 years
+    },
+    {
+      name           = "vid_labeled_edpa_meta"
+      prefix         = "vid-labeled-impressions/edp/edpa_meta/"
+      retention_days = 3650 # 10 years
+    },
   ]
 }
 

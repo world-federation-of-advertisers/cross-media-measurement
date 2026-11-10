@@ -345,7 +345,8 @@ enqueue WorkItems.
 
 Lifecycle rules on `EDPA_STORAGE_BUCKET` automatically delete objects per a retention
 policy, so impression data does not accumulate indefinitely. Rules are configured
-per **prefix**, so each EDP can have its own retention period.
+per **prefix**, so each EDP can have its own retention period. CMMS applies 10-year rules to the new
+`vid-labeled-impressions/edp/edp7/` and `vid-labeled-impressions/edp/edpa_meta/` output roots.
 
 The underlying `storage-bucket` module accepts a `lifecycle_rules` list. Each entry
 supports:
