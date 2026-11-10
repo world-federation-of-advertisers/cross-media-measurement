@@ -20,7 +20,7 @@ class DataWatcherHttpException(val statusCode: Int, message: String) :
 
 /** Retry classification shared by DataWatcher and synchronous replay callers. */
 object DataWatcherRetryPolicy {
-  private val RETRYABLE_HTTP_STATUS_CODES = setOf(408, 429, 502, 503, 504)
+  private val RETRYABLE_HTTP_STATUS_CODES = setOf(408, 429, 500, 502, 503, 504)
 
   fun isRetryableHttpFailure(throwable: Throwable): Boolean =
     throwable is DataWatcherHttpException && throwable.statusCode in RETRYABLE_HTTP_STATUS_CODES
