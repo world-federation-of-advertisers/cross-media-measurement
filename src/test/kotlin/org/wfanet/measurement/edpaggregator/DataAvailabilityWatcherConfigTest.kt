@@ -139,7 +139,12 @@ class DataAvailabilityWatcherConfigTest {
         assertThat(createRoutes.single().httpEndpointSink.endpointUri)
           .endsWith("/data-availability-sync")
 
-        if (config.vidLabeledImpressionPath.isEmpty()) continue
+        val vidConfig =
+          dispatcherConfigs.configsList.singleOrNull { it.dataProvider == config.dataProvider }
+            ?: continue
+        assertWithMessage("$environment internal path for ${config.dataProvider}")
+          .that(config.vidLabeledImpressionPath)
+          .isNotEmpty()
         val internalDoneUri =
           "gs://$bucket/${config.vidLabeledImpressionPath}/model-line/test-model-line/2000-01-01/done"
         assertWithMessage("$environment excludes internal create events for ${config.dataProvider}")
@@ -149,8 +154,6 @@ class DataAvailabilityWatcherConfigTest {
             }
           )
           .isTrue()
-        val vidConfig =
-          dispatcherConfigs.configsList.single { it.dataProvider == config.dataProvider }
         val vidMonitorConfig =
           monitorConfigs.configsList.single { it.dataProvider == config.dataProvider }
         assertThat(vidConfig.edpImpressionPath).isEqualTo(config.vidLabeledImpressionPath)

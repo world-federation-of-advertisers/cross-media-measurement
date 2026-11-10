@@ -572,6 +572,59 @@ class DataAvailabilitySyncFunctionTest {
     runInternalPathWorkItem(blockedByGaps = true)
   }
 
+  @Test
+  fun `WorkItem rejects a missing internal path before creating an attempt`() {
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    File(configBucketDir, "config.textproto")
+      .writeText(
+        TextFormat.printer()
+          .printToString(
+            dataAvailabilitySyncConfigs {
+              configs +=
+                fileSystemDataAvailabilitySyncConfig().copy { vidLabeledImpressionPath = "" }
+            }
+          )
+      )
+    val port = startFunction(configBucketDir)
+    val workItem = availabilityWorkItem(RAW_UPLOAD, RAW_MODEL_LINE, LocalDate.of(2025, 1, 5), 123L)
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("Content-Type", "application/octet-stream")
+        .POST(HttpRequest.BodyPublishers.ofByteArray(workItem.toByteArray()))
+        .build()
+
+    val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { createWorkItemAttempt(any()) }
+    verifyBlocking(rawImpressionUploadFileServiceMock, times(0)) {
+      listRawImpressionUploadFiles(any())
+    }
+  }
+
+  private fun startFunction(configBucketDir: File): Int = runBlocking {
+    functionProcess.start(
+      mapOf(
+        "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+        "KINGDOM_CERT_HOST" to "localhost",
+        "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+        "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+        "IMPRESSION_METADATA_CERT_HOST" to "localhost",
+        "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+        "SECURE_COMPUTATION_CERT_HOST" to "localhost",
+        "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+        "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+        "CONFIG_BLOB_KEY" to "config.textproto",
+        "OTEL_METRICS_EXPORTER" to "none",
+        "OTEL_TRACES_EXPORTER" to "none",
+        "OTEL_LOGS_EXPORTER" to "none",
+        "OTEL_PROPAGATORS" to "tracecontext,baggage",
+      )
+    )
+  }
+
   private fun runInternalPathWorkItem(blockedByGaps: Boolean = false) {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
@@ -650,26 +703,7 @@ class DataAvailabilitySyncFunctionTest {
       externalDone.writeBytes(byteArrayOf())
       File(tempFolder.root, "$outputDirectory/done").writeBytes(byteArrayOf())
     }
-    val port = runBlocking {
-      functionProcess.start(
-        mapOf(
-          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
-          "KINGDOM_CERT_HOST" to "localhost",
-          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
-          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
-          "IMPRESSION_METADATA_CERT_HOST" to "localhost",
-          "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
-          "SECURE_COMPUTATION_CERT_HOST" to "localhost",
-          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
-          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
-          "CONFIG_BLOB_KEY" to "config.textproto",
-          "OTEL_METRICS_EXPORTER" to "none",
-          "OTEL_TRACES_EXPORTER" to "none",
-          "OTEL_LOGS_EXPORTER" to "none",
-          "OTEL_PROPAGATORS" to "tracecontext,baggage",
-        )
-      )
-    }
+    val port = startFunction(configBucketDir)
     val workItem = workItem {
       name = WORK_ITEM_NAME
       queue = "data-availability-sync-queue"
@@ -1518,6 +1552,7 @@ class DataAvailabilitySyncFunctionTest {
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"
+      vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
       modelLineMap["modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"] =
         modelLineList {
           modelLines += "some-model-line-mapped"

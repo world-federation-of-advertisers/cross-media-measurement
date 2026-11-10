@@ -1064,7 +1064,7 @@ configs {
   impression_metadata_storage_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   secure_computation_control_plane_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   edp_impression_path: "edp/<edp-id>"
-  # vid_labeled_impression_path: "vid-labeled-impressions/edp/<edp-id>"  # optional internal output
+  vid_labeled_impression_path: "vid-labeled-impressions/edp/<edp-id>"  # required when VID labeling is enabled
   # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
   # event_group_activity_publishing {
@@ -1077,17 +1077,17 @@ configs {
 }
 ```
 
-When external uploads and VidLabeler output both publish availability for one provider, keep
-`edp_impression_path` as the external root and set `vid_labeled_impression_path` to the dispatcher's
-and VidLabelingMonitor's output root in the same bucket. The roots must not overlap. Keep ordinary
-DataWatcher create routes on the external root; VidLabeler publishes internal completion WorkItems
-directly. DataWatcherDelete routes must cover both roots and invoke DataAvailabilityCleanup, which
+When VID labeling is enabled for a provider, `vid_labeled_impression_path` is required and must
+match the dispatcher's and VidLabelingMonitor's output root in the same bucket. Deployment
+validation rejects an omitted path. Keep `edp_impression_path` as the external root; the roots
+must not overlap. Keep ordinary DataWatcher create routes on the external root; VidLabeler publishes
+internal completion WorkItems directly. DataWatcherDelete routes must cover both roots and invoke DataAvailabilityCleanup, which
 retains metadata while a live object version exists. Configure a DataAvailabilityMonitor entry for
 each root.
 
 Retain the external root to process queued WorkItems and existing uploads at their original paths.
-Recovery scans both roots, and replay accepts completion blobs from either root. Without
-`vid_labeled_impression_path`, existing deployments continue using only `edp_impression_path`.
+Recovery scans both roots, and replay accepts completion blobs from either root. Providers with
+VID labeling disabled may omit `vid_labeled_impression_path` and use only `edp_impression_path`.
 Upload the matching configuration and deploy the updated availability functions before resuming
 VidLabeler output at the new root.
 

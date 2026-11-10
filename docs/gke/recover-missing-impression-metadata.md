@@ -38,7 +38,8 @@ The config file is a `DataAvailabilitySyncConfig` textproto. Its GCS bucket, dat
 model-line mapping, and TLS file paths are reused by the recovery command. Recovery scans
 `edp_impression_path` and, when set, `vid_labeled_impression_path`. These paths must not overlap.
 Both scans share the provider's renewable synchronization lease and request throttler. A config
-without `vid_labeled_impression_path` continues scanning only `edp_impression_path`.
+with VID labeling disabled may omit `vid_labeled_impression_path` and scan only
+`edp_impression_path`. When VID labeling is enabled, `vid_labeled_impression_path` is required.
 
 ```shell
 bazel run \

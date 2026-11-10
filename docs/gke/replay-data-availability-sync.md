@@ -52,7 +52,8 @@ Choose exactly one selection mode:
   the configured bucket and be below either configured impression path. A list may contain blobs
   from both paths; synchronization selects the matching path for each blob.
 
-The configured paths must not overlap. A config without `vid_labeled_impression_path` continues
+The configured paths must not overlap. When VID labeling is enabled, `vid_labeled_impression_path`
+is required. A config for a provider with VID labeling disabled may omit it and continue
 accepting only `edp_impression_path`.
 
 To backfill EventGroup activity below an impression prefix without changing metadata or data

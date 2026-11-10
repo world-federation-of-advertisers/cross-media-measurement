@@ -218,9 +218,13 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     val providerConfig =
       runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
     val internalPath = providerConfig.vidLabeledImpressionPath
+    require(internalPath.isNotBlank()) {
+      "vid_labeled_impression_path is required for VID labeling WorkItems on " +
+        providerConfig.dataProvider
+    }
     val doneBlobKey = SelectedStorageClient.parseBlobUri(input.doneBlobUri).key
     val config =
-      if (internalPath.isNotEmpty() && doneBlobKey.startsWith("$internalPath/")) {
+      if (doneBlobKey.startsWith("$internalPath/")) {
         providerConfig.copy { edpImpressionPath = internalPath }
       } else {
         // Queued WorkItems retain the output path encoded before a prefix cutover.
