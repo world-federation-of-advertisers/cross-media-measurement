@@ -147,8 +147,15 @@ class StorageEventSource(
   private val readConcurrency: Int = DEFAULT_READ_CONCURRENCY,
   private val readMaxAttempts: Int = DEFAULT_READ_MAX_ATTEMPTS,
   private val readRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
-  private val eventReaderFactory: (BlobDetails) -> EventReader<Message> = { blobDetails ->
-    StorageEventReader(blobDetails, kmsClient, impressionsStorageConfig, descriptor, batchSize)
+  private val eventReaderFactory: (ImpressionDataSource) -> EventReader<Message> = { source ->
+    StorageEventReader(
+      source.blobDetails,
+      source.blobGeneration,
+      kmsClient,
+      impressionsStorageConfig,
+      descriptor,
+      batchSize,
+    )
   },
 ) : EventSource<Message> {
   init {
@@ -316,7 +323,7 @@ class StorageEventSource(
 
     return uniqueSources.map { source ->
       ResolvedEventReader(
-        reader = eventReaderFactory(source.blobDetails),
+        reader = eventReaderFactory(source),
         eventGroupIdentifier = eventGroupIdentifier(source.blobDetails),
         blobUri = source.blobDetails.blobUri,
       )

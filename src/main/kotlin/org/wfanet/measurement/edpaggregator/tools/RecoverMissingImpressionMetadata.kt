@@ -342,7 +342,13 @@ class RecoverMissingImpressionMetadata : Runnable {
                       impressionMetadataBatchSize = impressionMetadataBatchSize,
                       modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
                       errorIfGapsExist = config.errorIfGapsExist,
-                      publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
+                      publishEventGroupActivities =
+                        eventGroupActivityPublisher?.let { it::publish },
+                      availabilityImpressionPaths =
+                        listOf(
+                          config.edpImpressionPath,
+                          config.externalImpressionPath.ifEmpty { config.edpImpressionPath },
+                        ),
                     )
                     .sync(
                       doneBlobUri,

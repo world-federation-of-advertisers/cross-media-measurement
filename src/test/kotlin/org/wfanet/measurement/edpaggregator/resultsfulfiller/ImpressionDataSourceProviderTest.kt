@@ -169,7 +169,7 @@ class ImpressionDataSourceProviderTest {
         )
 
       assertThat(sources).hasSize(2)
-      assertThat(sources.map { it.blobDetails.blobGeneration }).containsExactly(7L, 8L)
+      assertThat(sources.map { it.blobGeneration }).containsExactly(7L, 8L)
       assertThat(sources[0].blobDetails.blobUri)
         .isEqualTo("file:///impressions/$date/$eventGroupRef")
       assertThat(sources[0].interval.startTime).isEqualTo(start.toProtoTime())

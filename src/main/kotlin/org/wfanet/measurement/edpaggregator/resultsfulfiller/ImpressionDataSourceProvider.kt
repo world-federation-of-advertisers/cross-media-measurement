@@ -38,7 +38,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -53,6 +52,8 @@ data class ImpressionDataSource(
   val modelLine: String,
   val interval: Interval,
   val blobDetails: BlobDetails,
+  /** Finalized impressions generation, or zero for legacy current-object reads. */
+  val blobGeneration: Long,
 )
 
 /**
@@ -126,18 +127,15 @@ class ImpressionDataSourceProvider(
       .distinctBy { Triple(it.blobUri, it.metadataBlobGeneration, it.impressionsBlobGeneration) }
       .map { metadata ->
         logger.info("Processing impression metadata: $metadata")
-        val blobDetails =
-          readBlobDetails(metadata.blobUri, metadata.metadataBlobGeneration).let { details ->
-            if (metadata.impressionsBlobGeneration == 0L) details
-            else details.copy { blobGeneration = metadata.impressionsBlobGeneration }
-          }
+        val blobDetails = readBlobDetails(metadata.blobUri, metadata.metadataBlobGeneration)
         ImpressionDataSource(
           modelLine = modelLine,
           interval = metadata.interval,
           blobDetails = blobDetails,
+          blobGeneration = metadata.impressionsBlobGeneration,
         )
       }
-      .distinctBy { it.blobDetails.blobUri to it.blobDetails.blobGeneration }
+      .distinctBy { it.blobDetails.blobUri to it.blobGeneration }
   }
 
   /** Queries impression metadata using [filter]. */

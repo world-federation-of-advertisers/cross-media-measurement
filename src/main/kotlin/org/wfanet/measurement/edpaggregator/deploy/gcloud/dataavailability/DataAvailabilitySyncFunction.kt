@@ -156,7 +156,10 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         ConfigLoader.buildDataAvailabilitySyncConfig(requestBody, runtimeConfigs.configsList)
 
       val dataAvailabilitySync =
-        buildDataAvailabilitySync(externalSyncConfig(dataAvailabilitySyncConfig))
+        buildDataAvailabilitySync(
+          externalSyncConfig(dataAvailabilitySyncConfig),
+          availabilityImpressionPaths(dataAvailabilitySyncConfig),
+        )
 
       Tracing.withW3CTraceContext(request) {
         val generation =
@@ -268,7 +271,10 @@ class DataAvailabilitySyncFunction() : HttpFunction {
                 eventDate = workItem.eventDate,
               )
             }
-          buildDataAvailabilitySync(if (workItem.isExternal) externalSyncConfig(config) else config)
+          buildDataAvailabilitySync(
+              if (workItem.isExternal) externalSyncConfig(config) else config,
+              availabilityImpressionPaths(config),
+            )
             .sync(
               workItem.doneBlobUri,
               dataAvailabilitySyncLease = lease.name,
@@ -375,8 +381,16 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     if (config.externalImpressionPath.isEmpty()) config
     else config.toBuilder().setEdpImpressionPath(config.externalImpressionPath).build()
 
+  private fun availabilityImpressionPaths(config: DataAvailabilitySyncConfig): List<String> =
+    listOf(
+        config.edpImpressionPath,
+        config.externalImpressionPath.ifEmpty { config.edpImpressionPath },
+      )
+      .distinct()
+
   private fun buildDataAvailabilitySync(
-    dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+    dataAvailabilitySyncConfig: DataAvailabilitySyncConfig,
+    availabilityImpressionPaths: List<String>,
   ): DataAvailabilitySync {
     val storageAccess = createStorageAccess(dataAvailabilitySyncConfig)
     val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
@@ -441,6 +455,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
       generationMatchedMetadataUpdater = storageAccess.generationMatchedMetadataUpdater,
+      availabilityImpressionPaths = availabilityImpressionPaths,
     )
   }
 

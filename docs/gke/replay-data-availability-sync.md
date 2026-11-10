@@ -25,11 +25,12 @@ deployed configuration. See the
 [EDP Aggregator deployment guide](../edpaggregator/deployment-guide.md#dataavailabilitysync-config-dataavailabilitysyncconfigs)
 for the full configuration.
 
-When replaying external uploads from a deployment with `external_impression_path`, copy that
-value into the standalone replay config's `edp_impression_path`. The replay tool selects and
-validates folders using `edp_impression_path`. For internal VID Labeler output folders, keep
-the internal prefix. A metadata replay does not record VID Labeler pipeline completion; use
-the pipeline's WorkItem recovery path when that bookkeeping also needs repair.
+Keep both configured prefixes in the standalone replay config: `edp_impression_path` for
+internal VID Labeler outputs and `external_impression_path` for external uploads. When the
+external prefix is unset, external uploads use `edp_impression_path`. Discovery uses the
+selected completion blob's prefix; gap checks include both configured prefixes. A metadata
+replay does not record VID Labeler pipeline completion; use the pipeline's WorkItem recovery
+path when that bookkeeping also needs repair.
 
 The runtime identity needs:
 
@@ -49,11 +50,12 @@ The runtime identity needs:
 
 Choose exactly one selection mode:
 
-* `--blob-prefix` accepts a `gs://` URI or bucket-relative prefix. It recursively finds blobs whose
-  basename is exactly `done`. The prefix must be the configured `edp_impression_path` or one of its
-  descendants.
-* Repeat `--done-blob-uri` to replay an explicit set of `gs://.../done` blobs. Every URI must use
-  the configured bucket and be below the configured `edp_impression_path`.
+* `--blob-prefix` accepts a `gs://` URI or bucket-relative prefix beneath either configured
+  impression path. It recursively finds external `done` blobs or the VID Labeler completion
+  filenames appropriate to that path.
+* Repeat `--done-blob-uri` to replay an explicit set of completion blobs. Every URI must use
+  the configured bucket, fall beneath a configured impression path, and match that path's
+  completion filename.
 
 To backfill EventGroup activity below an impression prefix without changing metadata or data
 availability:
@@ -105,10 +107,11 @@ its completion blob's current GCS generation. Metadata mutations include that le
 The lease is released after each folder, including when synchronization fails. Activity-only
 replay does not acquire a synchronization lease.
 
-`DATA_AVAILABILITY_ONLY` and `FULL_SYNC` scan the folder's current metadata and check its
-referenced impressions blobs. If blobs were added or overwritten after the original `done` blob
-was written, select that existing `done` blob by prefix or URI; the operator does not need to
-rewrite it to generate another storage event.
+`DATA_AVAILABILITY_ONLY` and `FULL_SYNC` capture external metadata and impressions at
+the completion blob's creation-time cutoff, revalidate them before publication, and persist
+their generations for fulfillment. Additions or overwrites after `done` require a new
+`done` marker before replay. A generationless synchronization cannot update metadata
+that already has stored generations.
 
 `EVENT_GROUP_ACTIVITY_ONLY` lists only active ImpressionMetadata for each selected folder. Deleted
 metadata is excluded, including metadata left behind by an interrupted eviction. This mode does
