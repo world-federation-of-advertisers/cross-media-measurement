@@ -63,6 +63,18 @@ Run the command with:
 * `--gcs-project`: optional Google Cloud project for access to labeled-output buckets.
 * the normal EDP Aggregator API and mutual-TLS flags.
 
+CMMS configurations keep externally produced impressions under `edp/...` and
+VidLabeler output under `vid-labeled-impressions/edp/...`. The registrar's
+`DataAvailabilitySyncConfig.vid_labeled_impression_path` must match the deployed
+VidLabeling output path. External uploads keep `edp_impression_path` and their
+DataWatcher notifications.
+
+Deploy the updated availability functions and configuration before resuming VID
+labeling. A queued WorkItem retains its encoded output path; the registrar accepts
+both configured paths. Existing external data does not need to be moved or
+regenerated. Healing earlier internal output may require its earlier labeling
+configuration and prefix.
+
 Review the printed plan before entering `yes`. Non-memoized model lines include only the selected
 uploads. Memoized model lines include the selected uploads and every later upload that depends on
 their cumulative rank-index state. The command refuses to evict a superseded upload revision while

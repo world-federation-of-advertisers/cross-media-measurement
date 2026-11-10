@@ -183,16 +183,18 @@ message VidLabelingConfig {
   // between the storage bucket and the `model-line/<id>/<date>/` layout so each
   // EDP writes to its own folder (e.g. `gs://<bucket>/<edp_impression_path>/
   // model-line/...`). Keeps multiple EDPs that label the same model line in the
-  // same bucket from colliding in one folder. REQUIRED, and must match the
-  // `edp_impression_path` in this EDP's `DataAvailabilitySyncConfig` so the
-  // writer and the registrar agree on the location.
+  // same bucket from colliding in one folder. Required in both dispatcher and
+  // monitor configs. Must match
+  // `DataAvailabilitySyncConfig.vid_labeled_impression_path`, which must be
+  // explicitly configured when VID labeling is enabled.
   string edp_impression_path = 18 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.
 // Loaded at startup from the EDPA config bucket.
 message VidLabelingConfigs {
-  // All the per-EDP VID Labeling configs. Each entry must have a unique
-  // `data_provider` value.
+  // Each entry enables VID labeling for its `data_provider`. Providers must
+  // be unique and have a DataAvailabilitySyncConfig with an explicit
+  // `vid_labeled_impression_path` matching their labeled-output path.
   repeated VidLabelingConfig configs = 1;
 }

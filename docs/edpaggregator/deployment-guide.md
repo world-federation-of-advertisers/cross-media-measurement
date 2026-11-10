@@ -345,7 +345,14 @@ enqueue WorkItems.
 
 Lifecycle rules on `EDPA_STORAGE_BUCKET` automatically delete objects per a retention
 policy, so impression data does not accumulate indefinitely. Rules are configured
-per **prefix**, so each EDP can have its own retention period.
+per **prefix**, so each EDP can have its own retention period. CMMS currently uses 3,650-day
+(10-year) defaults for the `vid-labeled-impressions/edp/edp7/` and
+`vid-labeled-impressions/edp/edpa_meta/` output roots.
+
+**Markets should adjust retention to their own requirements.** Choose periods that cover the
+market's supported measurement and reporting windows and meet its data retention requirements.
+Apply the market policy to every external and VID-labeler output prefix by explicitly setting
+`retention_days` and, when enabled, `fallback_retention_days`.
 
 The underlying `storage-bucket` module accepts a `lifecycle_rules` list. Each entry
 supports:
@@ -365,21 +372,24 @@ The module emits two rules per entry: a **Custom-Time** delete
 > **Current limitation.** The `edp-aggregator` module does **not** yet expose
 > `lifecycle_rules` as an input variable — it sets `versioning_enabled = true` and the
 > per-prefix `lifecycle_rules` **inside the module source** (its `edp_aggregator_bucket`
-> block). Today, changing retention therefore means editing the module source rather
-> than passing a variable. The rule shape below is what the module sets internally:
+> block). To apply a market's retention policy, edit `lifecycle_rules` in
+> [`edp-aggregator/main.tf`](../../src/main/terraform/gcloud/modules/edp-aggregator/main.tf).
+> The rule shape below is what the module sets internally:
 
 ```hcl
 # Set inside the edp-aggregator module's storage-bucket invocation
 lifecycle_rules = [
   {
-    name           = "edp-a"
-    prefix         = "edp/<edp-a-id>/"
-    retention_days = 3650  # 10 years
+    name                    = "edp-a"
+    prefix                  = "edp/<edp-a-id>/"
+    retention_days          = 3650 # 10 years
+    fallback_retention_days = 3650
   },
   {
-    name           = "edp-b"
-    prefix         = "edp/<edp-b-id>/"
-    retention_days = 730   # 13 months
+    name                    = "edp-b"
+    prefix                  = "edp/<edp-b-id>/"
+    retention_days          = 730 # 2 years
+    fallback_retention_days = 730
   },
 ]
 ```
@@ -1053,7 +1063,8 @@ configs {
   cmms_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   impression_metadata_storage_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   secure_computation_control_plane_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
-  edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"   # optional today; required in a future release
+  edp_impression_path: "edp/<edp-id>"
+  vid_labeled_impression_path: "vid-labeled-impressions/edp/<edp-id>"  # required when VID labeling is enabled
   # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
   # event_group_activity_publishing {
@@ -1065,6 +1076,20 @@ configs {
   # }
 }
 ```
+
+When VID labeling is enabled for a provider, `vid_labeled_impression_path` is required and must
+match the dispatcher's and VidLabelingMonitor's output root in the same bucket. Deployment
+validation rejects an omitted path. Keep `edp_impression_path` as the external root; the roots
+must not overlap. Keep ordinary DataWatcher create routes on the external root; VidLabeler publishes
+internal completion WorkItems directly. DataWatcherDelete routes must cover both roots and invoke DataAvailabilityCleanup, which
+retains metadata while a live object version exists. Configure a DataAvailabilityMonitor entry for
+each root.
+
+Retain the external root to process queued WorkItems and existing uploads at their original paths.
+Recovery scans both roots, and replay accepts completion blobs from either root. Providers with
+VID labeling disabled may omit `vid_labeled_impression_path` and use only `edp_impression_path`.
+Upload the matching configuration and deploy the updated availability functions before resuming
+VidLabeler output at the new root.
 
 `event_group_activity_publishing` is optional. When present, `DataAvailabilitySync`:
 
