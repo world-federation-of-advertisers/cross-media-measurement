@@ -305,11 +305,6 @@ class UploadHealingOperationService(
       else InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
     reason = this@toInternal.reason
     labeledImpressionsBlobPrefix = this@toInternal.labeledImpressionsBlobPrefix
-    badRawImpressionUploadResourceIds +=
-      this@toInternal.badRawImpressionUploadsList.map {
-        parseUploadForParent(it, parent, "plan.bad_raw_impression_uploads").rawImpressionUploadId
-      }
-    if (this@toInternal.hasCutoffTime()) cutoffTime = this@toInternal.cutoffTime
     rawImpressionUploadCorrectionCandidateIds +=
       this@toInternal.rawImpressionUploadCorrectionCandidatesList.map {
         parseCandidateForParent(it, parent, "plan.raw_impression_upload_correction_candidates")

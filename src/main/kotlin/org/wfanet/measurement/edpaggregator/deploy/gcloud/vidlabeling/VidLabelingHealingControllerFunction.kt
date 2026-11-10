@@ -69,12 +69,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItem
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 
-/**
- * Scheduled Cloud Function for automatic VID-labeling correction progression.
- *
- * `HEALING_INTERNAL_API_TARGET` selects the controller-only persistence endpoint, and
- * `HEALING_INTERNAL_API_CERT_HOST` optionally overrides its TLS authority.
- */
+/** Scheduled Cloud Function for automatic VID-labeling correction progression. */
 class VidLabelingHealingControllerFunction(
   private val runController: suspend () -> Unit = { controller.run() }
 ) : HttpFunction {

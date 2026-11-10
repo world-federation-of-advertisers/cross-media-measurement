@@ -26,40 +26,6 @@ kt_jvm_test(
     srcs = ["HealingOperationStoreTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidlabeling.healing.HealingOperationStoreTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:vid_labeling_healing_controller",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
-    ],
-)
-
-kt_jvm_test(
-    name = "RawImpressionUploadCorrectionPlannerTest",
-    srcs = ["RawImpressionUploadCorrectionPlannerTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUploadCorrectionPlannerTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:raw_impression_upload_correction_planner",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-    ],
-)
-
-kt_jvm_test(
-    name = "HealingOperationStoreTest",
-    srcs = ["HealingOperationStoreTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.vidlabeling.healing.HealingOperationStoreTest",
-    deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:vid_labeling_healing_controller",
@@ -75,6 +41,21 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+    ],
+)
+
+kt_jvm_test(
+    name = "RawImpressionUploadCorrectionPlannerTest",
+    srcs = ["RawImpressionUploadCorrectionPlannerTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUploadCorrectionPlannerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:raw_impression_upload_correction_planner",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
 
