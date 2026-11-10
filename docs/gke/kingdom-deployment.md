@@ -266,10 +266,28 @@ You should see something like the following:
 
 ```
 NAME                                 READY UP-TO-DATE AVAILABLE AGE
-gcp-kingdom-data-server-deployment   1/1   1          1         1m
+gcp-kingdom-data-server-deployment    2/2   2          2         1m
 system-api-server-deployment         1/1   1          1         1m
 v2alpha-public-api-server-deployment 1/1   1          1         1m
 ```
+
+The internal data server runs two replicas and prefers placing them on different
+nodes using hostname topology spreading (`ScheduleAnyway`). Both replicas can
+still run on one node when capacity is limited. Each replica requests 500m CPU
+and 640Mi memory; provide capacity for the second replica and a replacement.
+
+A PodDisruptionBudget with `minAvailable: 1` retains one available replica during
+voluntary eviction. Wait for both replicas to become ready and inspect their node
+placement before a planned drain:
+
+```shell
+kubectl rollout status deployment/gcp-kingdom-data-server-deployment
+kubectl get pods -o wide
+kubectl get poddisruptionbudgets
+```
+
+The budget can delay a node drain until a replacement is ready. It does not
+prevent involuntary node loss or guarantee that every RPC survives a drain.
 
 ```
 NAME                      TYPE         CLUSTER-IP   EXTERNAL-IP  PORT(S)        AGE
