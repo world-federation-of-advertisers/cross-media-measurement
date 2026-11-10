@@ -300,7 +300,6 @@ class ReplayDataAvailabilitySync : Runnable {
                               storage,
                               storageConfig.bucketName,
                             ),
-                          availabilityImpressionPaths = completionPaths.map { it.path },
                         )
                         .sync(
                           doneBlobPath = doneBlobUri,
@@ -435,7 +434,12 @@ class ReplayDataAvailabilitySync : Runnable {
     return buildList {
         add(CompletionPath(externalPath, CompletionBlobType.EXTERNAL))
         if (config.vidLabeledImpressionPath.isNotEmpty()) {
-          add(CompletionPath(config.vidLabeledImpressionPath, CompletionBlobType.VID_LABELER))
+          add(
+            CompletionPath(
+              config.vidLabeledImpressionPath,
+              CompletionBlobType.VID_LABELER_OR_LEGACY,
+            )
+          )
         }
       }
       .distinctBy { it.path }
