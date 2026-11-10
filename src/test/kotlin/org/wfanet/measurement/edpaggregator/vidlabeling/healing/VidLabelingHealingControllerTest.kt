@@ -32,6 +32,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -52,7 +53,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
-import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -80,10 +80,7 @@ class VidLabelingHealingControllerTest {
     mockService<
       RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase
     >()
-  private val operationsService =
-    mockService<
-      UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
-    >()
+  private val operationsService = mock<HealingOperationStore>()
   private val uploadsService =
     mockService<RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase>()
   private val filesService =
@@ -100,7 +97,6 @@ class VidLabelingHealingControllerTest {
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(candidatesService)
-    addService(operationsService)
     addService(uploadsService)
     addService(filesService)
     addService(modelLinesService)
@@ -143,13 +139,7 @@ class VidLabelingHealingControllerTest {
     var reconciled = UploadHealingOperation.getDefaultInstance()
     whenever(operationsService.reconcileUploadHealingOperation(any())).thenAnswer { invocation ->
       reconciled =
-        invocation
-          .getArgument<
-            org.wfanet.measurement.edpaggregator.v1alpha.ReconcileUploadHealingOperationRequest
-          >(
-            0
-          )
-          .uploadHealingOperation
+        invocation.getArgument<ReconcileUploadHealingOperationCommand>(0).uploadHealingOperation
       reconciled
     }
 
@@ -177,13 +167,7 @@ class VidLabelingHealingControllerTest {
     var plan = UploadHealingOperation.getDefaultInstance()
     whenever(operationsService.reconcileUploadHealingOperation(any())).thenAnswer { invocation ->
       plan =
-        invocation
-          .getArgument<
-            org.wfanet.measurement.edpaggregator.v1alpha.ReconcileUploadHealingOperationRequest
-          >(
-            0
-          )
-          .uploadHealingOperation
+        invocation.getArgument<ReconcileUploadHealingOperationCommand>(0).uploadHealingOperation
       plan.copy { state = UploadHealingOperation.State.NEEDS_ATTENTION }
     }
     val events = mutableListOf<VidLabelingHealingControllerEventSink.Event>()
@@ -218,14 +202,7 @@ class VidLabelingHealingControllerTest {
     whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
       operation =
         operation.copy {
-          state =
-            invocation
-              .getArgument<
-                org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-              >(
-                0
-              )
-              .state
+          state = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0).state
           etag = "etag-${state.number}"
         }
       operation
@@ -398,14 +375,7 @@ class VidLabelingHealingControllerTest {
     whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
       operation =
         operation.copy {
-          state =
-            invocation
-              .getArgument<
-                org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-              >(
-                0
-              )
-              .state
+          state = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0).state
           etag = "attention-etag"
         }
       operation
@@ -454,31 +424,18 @@ class VidLabelingHealingControllerTest {
     whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
       operation =
         operation.copy {
-          state =
-            invocation
-              .getArgument<
-                org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-              >(
-                0
-              )
-              .state
+          state = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0).state
           etag = "operation-${state.number}"
         }
       operation
     }
     whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
-        >(
-          0
-        )
+      val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
       val state =
         when (request.action) {
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest.Action
-            .CONFIRM_EVICTION -> UploadHealingStep.State.WAITING_FOR_REPLACEMENT
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest.Action
-            .RECORD_RECOVERY -> UploadHealingStep.State.RECOVERY_STARTED
+          UploadHealingStepAction.CONFIRM_EVICTION ->
+            UploadHealingStep.State.WAITING_FOR_REPLACEMENT
+          UploadHealingStepAction.RECORD_RECOVERY -> UploadHealingStep.State.RECOVERY_STARTED
           else -> error("unexpected action")
         }
       val updatedStep =
@@ -624,14 +581,7 @@ class VidLabelingHealingControllerTest {
     whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
       operation =
         operation.copy {
-          state =
-            invocation
-              .getArgument<
-                org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-              >(
-                0
-              )
-              .state
+          state = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0).state
           etag = "reopened"
         }
       operation
@@ -719,12 +669,7 @@ class VidLabelingHealingControllerTest {
       }
     }
     whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
-        >(
-          0
-        )
+      val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
       assertThat(request.replacementRawImpressionUpload).isEqualTo(replacement.name)
       val completed =
         operation.stepsList.single().copy {
@@ -800,12 +745,7 @@ class VidLabelingHealingControllerTest {
     whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
     whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
       val previousState = operation.state
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-        >(
-          0
-        )
+      val request = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0)
       operation =
         operation.copy {
           state = request.state
@@ -897,12 +837,7 @@ class VidLabelingHealingControllerTest {
     val replayed = mutableListOf<DoneBlobReplayer.Request>()
     whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
       check(replayed.isEmpty())
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
-        >(
-          0
-        )
+      val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
       val updated =
         operation.stepsList.single().copy {
           state = UploadHealingStep.State.RECOVERY_STARTED
@@ -996,12 +931,7 @@ class VidLabelingHealingControllerTest {
     var checkpoints = 0
     whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
       checkpoints++
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
-        >(
-          0
-        )
+      val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
       val updated =
         operation.stepsList.single().copy {
           state = UploadHealingStep.State.RECOVERY_STARTED
@@ -1047,116 +977,106 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
-  fun `operator recovery retry replays its persisted generation after HTTP 500`() = runBlocking {
-    val recoveryStep =
-      APPROVED_OPERATION.stepsList.single().copy {
-        recoveryAction =
-          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
-        state = UploadHealingStep.State.WAITING_FOR_REPLACEMENT
-        rawImpressionUploadCorrectionCandidate = ""
-      }
-    var operation =
-      APPROVED_OPERATION.copy {
-        state = UploadHealingOperation.State.RECOVERING
-        rawImpressionUploadCorrectionCandidates.clear()
-        steps[0] = recoveryStep
-        etag = "recovering-etag"
-      }
-    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
-      val states =
-        invocation
-          .getArgument<
-            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
-          >(
-            0
-          )
-          .filter
-          .stateInList
-      listUploadHealingOperationsResponse {
-        if (operation.state in states) uploadHealingOperations += operation
-      }
-    }
-    val failedSource = SOURCE_UPLOAD.copy { state = RawImpressionUpload.State.FAILED }
-    whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(failedSource)
-    whenever(uploadsService.listRawImpressionUploads(any()))
-      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += failedSource })
-    whenever(filesService.listRawImpressionUploadFiles(any()))
-      .thenReturn(listRawImpressionUploadFilesResponse {})
-    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
-    var checkpoints = 0
-    whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
-      checkpoints++
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
-        >(
-          0
-        )
-      val updated =
-        operation.stepsList.single().copy {
-          state = UploadHealingStep.State.RECOVERY_STARTED
-          recoveryDoneBlobGeneration = request.recoveryDoneBlobGeneration
-          etag = "recovery-started-etag"
+  fun `operator recovery automatically replays its persisted generation after HTTP 500`() =
+    runBlocking {
+      val recoveryStep =
+        APPROVED_OPERATION.stepsList.single().copy {
+          recoveryAction =
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+          state = UploadHealingStep.State.WAITING_FOR_REPLACEMENT
+          rawImpressionUploadCorrectionCandidate = ""
         }
-      operation =
-        operation.copy {
-          steps[0] = updated
-          etag = "recovery-started-operation-etag"
+      var operation =
+        APPROVED_OPERATION.copy {
+          state = UploadHealingOperation.State.RECOVERING
+          rawImpressionUploadCorrectionCandidates.clear()
+          steps[0] = recoveryStep
+          etag = "recovering-etag"
         }
-      updated
-    }
-    whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
-      val previousState = operation.state
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-        >(
-          0
-        )
-      operation =
-        operation.copy {
-          state = request.state
-          resumeState = previousState
-          etag = "needs-attention-etag"
+      whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+        val states =
+          invocation
+            .getArgument<
+              org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+            >(
+              0
+            )
+            .filter
+            .stateInList
+        listUploadHealingOperationsResponse {
+          if (operation.state in states) uploadHealingOperations += operation
         }
-      operation
-    }
-    val freshGeneration = SOURCE_UPLOAD.doneBlobGeneration + 1L
-    var recoveryAttempts = 0
-    val recoveryExecutor = RecoveryExecutor { source, modelLines ->
-      recoveryAttempts++
-      RecoverUploader.Result(source, SOURCE_UPLOAD.doneBlobUri, freshGeneration, modelLines)
-    }
-    val replayedGenerations = mutableListOf<Long>()
-    val replayer = DoneBlobReplayer { request ->
-      replayedGenerations += request.doneBlobGeneration
-      if (replayedGenerations.size == 1) {
-        throw DataWatcherHttpException(500, "dispatcher exhausted heap")
       }
-    }
-    val controller = newController(doneBlobReplayer = replayer, recoveryExecutor = recoveryExecutor)
-
-    controller.run()
-
-    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.NEEDS_ATTENTION)
-    assertThat(operation.resumeState).isEqualTo(UploadHealingOperation.State.RECOVERING)
-    assertThat(operation.stepsList.single().state)
-      .isEqualTo(UploadHealingStep.State.RECOVERY_STARTED)
-    assertThat(operation.stepsList.single().recoveryDoneBlobGeneration).isEqualTo(freshGeneration)
-    operation =
-      operation.copy {
-        state = UploadHealingOperation.State.RECOVERING
-        resumeState = UploadHealingOperation.State.STATE_UNSPECIFIED
-        etag = "retried-etag"
+      val failedSource = SOURCE_UPLOAD.copy { state = RawImpressionUpload.State.FAILED }
+      whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(failedSource)
+      whenever(uploadsService.listRawImpressionUploads(any()))
+        .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += failedSource })
+      whenever(filesService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+      whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+      var checkpoints = 0
+      whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+        checkpoints++
+        val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
+        val updated =
+          operation.stepsList.single().copy {
+            state = UploadHealingStep.State.RECOVERY_STARTED
+            recoveryDoneBlobGeneration = request.recoveryDoneBlobGeneration
+            etag = "recovery-started-etag"
+          }
+        operation =
+          operation.copy {
+            steps[0] = updated
+            etag = "recovery-started-operation-etag"
+          }
+        updated
       }
+      whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
+        val previousState = operation.state
+        val request = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0)
+        operation =
+          operation.copy {
+            state = request.state
+            resumeState = previousState
+            etag = "needs-attention-etag"
+          }
+        operation
+      }
+      val freshGeneration = SOURCE_UPLOAD.doneBlobGeneration + 1L
+      var recoveryAttempts = 0
+      val recoveryExecutor = RecoveryExecutor { source, modelLines ->
+        recoveryAttempts++
+        RecoverUploader.Result(source, SOURCE_UPLOAD.doneBlobUri, freshGeneration, modelLines)
+      }
+      val replayedGenerations = mutableListOf<Long>()
+      val replayer = DoneBlobReplayer { request ->
+        replayedGenerations += request.doneBlobGeneration
+        if (replayedGenerations.size == 1) {
+          throw DataWatcherHttpException(500, "dispatcher exhausted heap")
+        }
+      }
+      val controller =
+        newController(doneBlobReplayer = replayer, recoveryExecutor = recoveryExecutor)
 
-    controller.run()
+      controller.run()
 
-    assertThat(recoveryAttempts).isEqualTo(1)
-    assertThat(checkpoints).isEqualTo(1)
-    assertThat(replayedGenerations).containsExactly(freshGeneration, freshGeneration).inOrder()
-    Unit
-  }
+      assertThat(operation.state).isEqualTo(UploadHealingOperation.State.RECOVERING)
+      assertThat(operation.resumeState).isEqualTo(UploadHealingOperation.State.STATE_UNSPECIFIED)
+      assertThat(operation.stepsList.single().state)
+        .isEqualTo(UploadHealingStep.State.RECOVERY_STARTED)
+      assertThat(operation.stepsList.single().recoveryDoneBlobGeneration).isEqualTo(freshGeneration)
+
+      assertThat(replayedGenerations).containsExactly(freshGeneration, freshGeneration).inOrder()
+      controller.run()
+
+      verify(operationsService, never()).advanceUploadHealingOperation(any())
+      assertThat(recoveryAttempts).isEqualTo(1)
+      assertThat(checkpoints).isEqualTo(1)
+      assertThat(replayedGenerations)
+        .containsExactly(freshGeneration, freshGeneration, freshGeneration)
+        .inOrder()
+      Unit
+    }
 
   @Test
   fun `restart completes a partially recorded recovery checkpoint`() = runBlocking {
@@ -1221,12 +1141,7 @@ class VidLabelingHealingControllerTest {
     val replayed = mutableListOf<DoneBlobReplayer.Request>()
     whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
       check(replayed.isEmpty())
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
-        >(
-          0
-        )
+      val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
       val updated =
         operation.stepsList
           .single { it.name == request.name }
@@ -1308,17 +1223,8 @@ class VidLabelingHealingControllerTest {
       }
       whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
       whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
-        val request =
-          invocation.getArgument<
-            org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
-          >(
-            0
-          )
-        check(
-          request.action ==
-            org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest.Action
-              .CONFIRM_REPLACEMENT
-        )
+        val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
+        check(request.action == UploadHealingStepAction.CONFIRM_REPLACEMENT)
         val completed =
           operation.stepsList.single().copy {
             state = UploadHealingStep.State.COMPLETE
@@ -1333,12 +1239,7 @@ class VidLabelingHealingControllerTest {
         completed
       }
       whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
-        val request =
-          invocation.getArgument<
-            org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-          >(
-            0
-          )
+        val request = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0)
         check(request.state == UploadHealingOperation.State.COMPLETE)
         operation = operation.copy { state = UploadHealingOperation.State.COMPLETE }
         operation
@@ -1794,12 +1695,7 @@ class VidLabelingHealingControllerTest {
     }
     whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
     whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-        >(
-          0
-        )
+      val request = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0)
       check(request.state == UploadHealingOperation.State.NEEDS_ATTENTION)
       operation =
         operation.copy {
@@ -1859,14 +1755,7 @@ class VidLabelingHealingControllerTest {
     whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer { invocation ->
       operation =
         operation.copy {
-          state =
-            invocation
-              .getArgument<
-                org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-              >(
-                0
-              )
-              .state
+          state = invocation.getArgument<AdvanceUploadHealingOperationCommand>(0).state
           etag = "attention"
         }
       operation
@@ -1969,9 +1858,7 @@ class VidLabelingHealingControllerTest {
       ),
       RawImpressionUploadCorrectionCandidateServiceGrpcKt
         .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(grpcTestServerRule.channel),
-      UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
-        grpcTestServerRule.channel
-      ),
+      operationsService,
       RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
         grpcTestServerRule.channel
       ),

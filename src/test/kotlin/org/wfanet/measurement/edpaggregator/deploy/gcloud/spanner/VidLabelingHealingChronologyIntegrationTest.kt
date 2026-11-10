@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.edpaggregator.service.v1alpha
+package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.date
 import com.google.type.interval
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -45,8 +46,9 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServices
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertUploadHealingOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
+import org.wfanet.measurement.edpaggregator.service.v1alpha.Services
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
@@ -56,6 +58,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
@@ -90,18 +93,32 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.releaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
+import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.AdvanceUploadHealingOperationCommand
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.AdvanceUploadHealingStepCommand
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManifestReader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcHealingOperationStore
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
-import org.wfanet.measurement.edpaggregator.vidlabeling.healing.UploadHealingWorkflow
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.UploadHealingStepAction
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifestKt as InternalManifestKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalAction
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalOperations
+import org.wfanet.measurement.internal.edpaggregator.labeledOutputManifest as internalManifest
+import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation as internalOperation
+import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep as internalStep
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
-class UploadHealingWorkflowIntegrationTest {
+class VidLabelingHealingChronologyIntegrationTest {
   private val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
   private val internalServer = GrpcTestServerRule {
@@ -137,6 +154,7 @@ class UploadHealingWorkflowIntegrationTest {
     DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
   private lateinit var operationsStub:
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
+  private lateinit var operationStore: GrpcHealingOperationStore
   private lateinit var dispatchSequencer: VidLabelingDispatchSequencer
 
   private val rawStorage = InMemoryStorageClient()
@@ -165,6 +183,11 @@ class UploadHealingWorkflowIntegrationTest {
       DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub(channel)
     operationsStub =
       UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(channel)
+    operationStore =
+      GrpcHealingOperationStore(
+        operationsStub,
+        InternalOperations.UploadHealingOperationServiceCoroutineStub(internalServer.channel),
+      )
     dispatchSequencer = mock()
     dispatchSequencer.stub {
       onBlocking { resolveShardInfo(any()) } doReturn
@@ -214,27 +237,117 @@ class UploadHealingWorkflowIntegrationTest {
         rankIndexBlobsStub,
         rewriteDoneBlob = ::rewriteDoneBlob,
       )
-    val workflow =
-      UploadHealingWorkflow(
-        operationsStub,
-        uploadsStub,
-        modelLinesStub,
-        rankIndexBlobsStub,
-        evictUploader,
-        recoverUploader,
-      )
 
     val plan = evictUploader.plan(listOf(d2.upload.name, d4.upload.name), Instant.EPOCH)
 
     assertThat(plan.cascade.map { it.uploadName })
       .containsExactly(d2.upload.name, d3.upload.name, d4.upload.name, d5.upload.name)
       .inOrder()
-    val started = workflow.start(plan, "invalid raw impressions", LABELED_OUTPUT_PREFIX)
+    val prepared = evictUploader.prepare(plan)
+    val operationName = "$DATA_PROVIDER/uploadHealingOperations/${prepared.evictionOperationId}"
+    spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
+      txn.insertUploadHealingOperation(
+        internalOperation {
+          dataProviderResourceId = DATA_PROVIDER.substringAfterLast('/')
+          uploadHealingOperationId = prepared.evictionOperationId
+          state = InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
+          planFormatVersion = 1
+          outputManifestState =
+            InternalOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
 
-    assertThat(started.nextAction).contains(d2.upload.name)
-    assertThat(started.evictionResult!!.deletedSnapshots).isEqualTo(4)
-    assertThat(started.evictionResult!!.deletedImpressionMetadata).isEqualTo(4)
-    assertThat(started.evictionResult!!.deletedOutputBlobs).isEqualTo(8)
+          reason = "invalid raw impressions"
+          labeledImpressionsBlobPrefix = LABELED_OUTPUT_PREFIX
+          steps +=
+            prepared.cascade.mapIndexed { index, entry ->
+              internalStep {
+                uploadHealingStepId = index.toLong() + 1
+                sequenceNumber = index.toLong()
+                sourceRawImpressionUploadResourceId = entry.uploadName.substringAfterLast('/')
+                rawImpressionUploadModelLineResourceId = entry.modelLineName.substringAfterLast('/')
+                cmmsModelLine = entry.cmmsModelLine
+                memoized = entry.memoized
+                recoveryAction = InternalAction.forNumber(entry.recoveryAction.number)
+                recoveryPredecessorRawImpressionUploadResourceId =
+                  entry.recoveryPredecessorUploadName.substringAfterLast('/')
+                recoveryTarget = true
+                labeledOutputManifest = internalManifest {
+                  blobs +=
+                    entry.labeledOutputManifest.blobsList.map { value ->
+                      InternalManifestKt.blobVersion {
+                        blobUri = value.blobUri
+                        if (value.hasGeneration()) generation = value.generation
+                      }
+                    }
+                }
+              }
+            }
+        },
+        UUID.randomUUID().toString(),
+      )
+    }
+    val evictionResult =
+      evictUploader.evict(prepared, "invalid raw impressions") { entry ->
+        val step =
+          getOperation(operationName).stepsList.single {
+            it.rawImpressionUploadModelLine == entry.modelLineName
+          }
+        operationStore.advanceUploadHealingStep(
+          AdvanceUploadHealingStepCommand(
+            step.name,
+            step.etag,
+            UploadHealingStepAction.CONFIRM_EVICTION,
+            requestId = UUID.randomUUID().toString(),
+          )
+        )
+      }
+    val controller =
+      VidLabelingHealingController(
+        listOf(
+          VidLabelingHealingController.DataProviderConfig(
+            DATA_PROVIDER,
+            LABELED_OUTPUT_PREFIX,
+            Duration.ofDays(30),
+          )
+        ),
+        RawImpressionUploadCorrectionCandidateServiceGrpcKt
+          .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(publicServer.channel),
+        operationStore,
+        uploadsStub,
+        filesStub,
+        modelLinesStub,
+        rankIndexBlobsStub,
+        plannerFactory = { error("unexpected planning") },
+        evictionExecutorFactory = { evictUploader },
+        manifestReader =
+          CorrectionManifestReader { doneUri, _, _ ->
+            val source = uploads.single { it.upload.doneBlobUri == doneUri }
+            val metadata = blobMetadata.getValue(source.rawFileKey)
+            listOf(
+              RawImpressionUploadManifestClassifier.File(
+                "$RAW_INPUT_PREFIX/${source.rawFileKey}",
+                metadata.generation,
+                date {
+                  year = eventDates.getValue(source.rawFileKey).year
+                  month = eventDates.getValue(source.rawFileKey).monthValue
+                  day = eventDates.getValue(source.rawFileKey).dayOfMonth
+                },
+              )
+            )
+          },
+        doneBlobReplayerFactory = {
+          DoneBlobReplayer { request ->
+            val source = uploads.single { it.upload.name == request.sourceRawImpressionUpload }
+            registerCurrentDoneBlob(source)
+            Unit
+          }
+        },
+        recoveryExecutorFactory = { recoverUploader },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+      )
+
+    assertThat(evictionResult.deletedSnapshots).isEqualTo(4)
+    assertThat(evictionResult.deletedImpressionMetadata).isEqualTo(4)
+    assertThat(evictionResult.deletedOutputBlobs).isEqualTo(8)
     for (source in listOf(d2, d3, d4, d5)) {
       val failed = getModelLine(source.modelLine.name)
       assertThat(failed.state).isEqualTo(RawImpressionUploadModelLine.State.FAILED)
@@ -252,45 +365,59 @@ class UploadHealingWorkflowIntegrationTest {
       assertThat(checkNotNull(rawStorage.getBlob(blobKey)).read().flatten()).isEqualTo(contents)
     }
 
-    val d2Replacement = completeReplacement(d2, registerEdpCorrection(d2))
-    val afterD2 = workflow.resume(started.operation.name)
+    beginCorrection(operationName, d2)
+    val d2Replacement = completeReplacement(d2, registerCurrentDoneBlob(d2))
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    val afterD2 = getOperation(operationName)
 
-    assertThat(afterD2.nextAction).contains(d3.upload.name)
+    assertThat(afterD2.state).isEqualTo(UploadHealingOperation.State.RECOVERING)
     assertThat(recoveredSources).containsExactly(d3.upload.name)
     val d3RecoveryGeneration =
-      afterD2.operation.stepsList
+      afterD2.stepsList
         .single { it.sourceRawImpressionUpload == d3.upload.name }
         .recoveryDoneBlobGeneration
     val d3RevisionCount = listRevisions(d3.upload.doneBlobUri).size
 
-    val repeatedWhileD3Pending = workflow.resume(started.operation.name)
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    val repeatedWhileD3Pending = getOperation(operationName)
 
-    assertThat(repeatedWhileD3Pending.nextAction).contains(d3.upload.name)
+    assertThat(repeatedWhileD3Pending.state).isEqualTo(UploadHealingOperation.State.RECOVERING)
     assertThat(recoveredSources).containsExactly(d3.upload.name)
     assertThat(blobMetadata.getValue(d3.doneKey).generation).isEqualTo(d3RecoveryGeneration)
     assertThat(listRevisions(d3.upload.doneBlobUri)).hasSize(d3RevisionCount)
     assertThat(
-        repeatedWhileD3Pending.operation.stepsList
+        repeatedWhileD3Pending.stepsList
           .single { it.sourceRawImpressionUpload == d3.upload.name }
           .recoveryDoneBlobGeneration
       )
       .isEqualTo(d3RecoveryGeneration)
 
     val d3Replacement = completeReplacement(d3, registerRecovery(d3))
-    val afterD3 = workflow.resume(started.operation.name)
+    val d3Step =
+      getOperation(operationName).stepsList.single {
+        it.sourceRawImpressionUpload == d3.upload.name
+      }
+    operationStore.advanceUploadHealingStep(
+      AdvanceUploadHealingStepCommand(
+        d3Step.name,
+        d3Step.etag,
+        UploadHealingStepAction.CONFIRM_REPLACEMENT,
+        replacementRawImpressionUpload = d3Replacement.upload.name,
+        requestId = UUID.randomUUID().toString(),
+      )
+    )
+    beginCorrection(operationName, d4)
 
-    assertThat(afterD3.nextAction).contains(d4.upload.name)
-
-    val d4Replacement = completeReplacement(d4, registerEdpCorrection(d4))
-    val afterD4 = workflow.resume(started.operation.name)
-
-    assertThat(afterD4.nextAction).contains(d5.upload.name)
+    val d4Replacement = completeReplacement(d4, registerCurrentDoneBlob(d4))
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    assertThat(getOperation(operationName).state).isEqualTo(UploadHealingOperation.State.RECOVERING)
     assertThat(recoveredSources).containsExactly(d3.upload.name, d5.upload.name).inOrder()
 
     val d5Replacement = completeReplacement(d5, registerRecovery(d5))
-    val completed = workflow.resume(started.operation.name)
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    val completed = getOperation(operationName)
 
-    assertThat(completed.operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertThat(completed.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
     withSynchronizationLease { leaseName ->
       impressionMetadataStub.batchUndeleteImpressionMetadata(
         batchUndeleteImpressionMetadataRequest {
@@ -301,7 +428,7 @@ class UploadHealingWorkflowIntegrationTest {
       )
     }
     assertThat(
-        completed.operation.stepsList.associate {
+        completed.stepsList.associate {
           it.sourceRawImpressionUpload to it.replacementRawImpressionUpload
         }
       )
@@ -434,9 +561,38 @@ class UploadHealingWorkflowIntegrationTest {
     )
   }
 
-  private suspend fun registerEdpCorrection(source: UploadFixture): RawImpressionUpload {
-    rewriteDoneBlob(source.upload.doneBlobUri, source.upload.doneBlobGeneration, emptyMap())
-    return registerCurrentDoneBlob(source)
+  private suspend fun getOperation(name: String): UploadHealingOperation =
+    operationsStub.getUploadHealingOperation(
+      org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest {
+        this.name = name
+      }
+    )
+
+  private suspend fun beginCorrection(operationName: String, source: UploadFixture) {
+    val generation =
+      rewriteDoneBlob(source.upload.doneBlobUri, source.upload.doneBlobGeneration, emptyMap())
+    var operation = getOperation(operationName)
+    if (operation.state != UploadHealingOperation.State.REPLAYING) {
+      operation =
+        operationStore.advanceUploadHealingOperation(
+          AdvanceUploadHealingOperationCommand(
+            operation.name,
+            operation.etag,
+            UploadHealingOperation.State.REPLAYING,
+            UUID.randomUUID().toString(),
+          )
+        )
+    }
+    val step = operation.stepsList.single { it.sourceRawImpressionUpload == source.upload.name }
+    operationStore.advanceUploadHealingStep(
+      AdvanceUploadHealingStepCommand(
+        step.name,
+        step.etag,
+        UploadHealingStepAction.RECORD_RECOVERY,
+        recoveryDoneBlobGeneration = generation,
+        requestId = UUID.randomUUID().toString(),
+      )
+    )
   }
 
   private suspend fun registerRecovery(source: UploadFixture): RawImpressionUpload {
@@ -474,6 +630,7 @@ class UploadHealingWorkflowIntegrationTest {
         },
         readBlobMetadata = { blobMetadata.getValue(it) },
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        getHealingOperation = { name -> getOperation(name) },
         clock = Clock.fixed(NOW, ZoneOffset.UTC),
       )
     val generation = blobMetadata.getValue(source.doneKey).generation
