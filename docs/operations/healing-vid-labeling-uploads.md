@@ -4,6 +4,10 @@ The VID-labeling dispatcher automatically quarantines a raw-upload revision when
 removes a previously registered object. The healing controller combines pending candidates into
 one DataProvider-scoped plan, pauses ordinary processing, and waits for one operator decision.
 
+Set `HEALING_INTERNAL_API_TARGET` to the controller-only persistence endpoint and
+`HEALING_INTERNAL_API_CERT_HOST` when its TLS authority differs from that endpoint.
+Keep the public raw-upload endpoint configured for reads and operator actions.
+
 ## Inspect a correction
 
 Alerts identify the affected DataProvider and plan. List the plans requiring a decision or manual
