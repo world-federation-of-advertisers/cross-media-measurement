@@ -116,7 +116,7 @@ locals {
     ]
   ])
 
-  data_availability_sync_secrets_access = concat(
+  data_availability_service_secrets_access = concat(
     [
       "metadata_storage_root_ca",
       "trusted_root_ca_collection",
@@ -126,11 +126,19 @@ locals {
     local.edp_tls_keys
   )
 
+  data_availability_sync_secrets_access = concat(
+    local.data_availability_service_secrets_access,
+    [
+      "edpa_tee_app_tls_key",
+      "edpa_tee_app_tls_pem",
+    ]
+  )
+
   # Secrets access for data_watcher_delete (same as data_watcher)
   data_watcher_delete_secrets_access = local.data_watcher_secrets_access
 
-  # Secrets access for data_availability_cleanup (same as data_availability_sync)
-  data_availability_cleanup_secrets_access = local.data_availability_sync_secrets_access
+  # Cleanup does not call the Secure Computation control plane.
+  data_availability_cleanup_secrets_access = local.data_availability_service_secrets_access
 
   requisition_fetcher_secrets_access = concat(
     [
@@ -189,6 +197,16 @@ module "edp_aggregator_bucket" {
     {
       name           = "edp_meta"
       prefix         = "edp/edp_meta/"
+      retention_days = 3650 # 10 years
+    },
+    {
+      name           = "vid_labeled_edp7"
+      prefix         = "vid-labeled-impressions/edp/edp7/"
+      retention_days = 3650 # 10 years
+    },
+    {
+      name           = "vid_labeled_edpa_meta"
+      prefix         = "vid-labeled-impressions/edp/edpa_meta/"
       retention_days = 3650 # 10 years
     },
   ]
@@ -325,6 +343,7 @@ module "data_watcher_delete_cloud_function" {
   secrets_to_access                           = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "deleted"
   retry_on_failure                            = true
+  uploaded_config_generation                  = google_storage_bucket_object.upload_data_watcher_delete_config.generation
 }
 
 module "requisition_fetcher_cloud_function" {
@@ -393,7 +412,10 @@ module "event_group_sync_cloud_function" {
 module "data_availability_sync_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_data_availability_sync_config,
+  ]
 
   http_cloud_function_service_account_name = var.data_availability_sync_service_account_name
   terraform_service_account                = var.terraform_service_account
@@ -402,18 +424,26 @@ module "data_availability_sync_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.data_availability_sync.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_sync.uber_jar_path
-  secrets_to_access                        = [for key in local.data_availability_sync_secrets_access : local.all_secrets[key].secret_id]
+  config_path                              = var.data_availability_sync_config.local_path
+  secrets_to_access = [
+    for key in concat(local.data_availability_sync_secrets_access, ["secure_computation_root_ca"]) :
+    local.all_secrets[key].secret_id
+  ]
 
   # The RPC throttler is process-local. Bound service-wide concurrency to protect the shared
   # ImpressionMetadata service from completion-marker bursts.
-  max_instances = 5
-  concurrency   = 1
+  max_instances   = 5
+  concurrency     = 1
+  timeout_seconds = 540
 }
 
 module "data_availability_cleanup_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_data_availability_sync_config,
+  ]
 
   http_cloud_function_service_account_name = var.data_availability_cleanup_service_account_name
   terraform_service_account                = var.terraform_service_account
@@ -422,6 +452,7 @@ module "data_availability_cleanup_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.data_availability_cleanup.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_cleanup.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_cleanup.uber_jar_path
+  config_path                              = var.data_availability_sync_config.local_path
   secrets_to_access                        = [for key in local.data_availability_cleanup_secrets_access : local.all_secrets[key].secret_id]
 }
 
@@ -688,6 +719,53 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
   }
 }
 
+module "data_availability_sync_work_item_queue" {
+  source = "../pubsub"
+
+  depends_on = [google_service_account_iam_member.data_availability_sync_work_item_token_creator]
+
+  topic_name                 = var.data_availability_sync_work_item_queue.topic_name
+  subscription_name          = var.data_availability_sync_work_item_queue.subscription_name
+  ack_deadline_seconds       = var.data_availability_sync_work_item_queue.ack_deadline_seconds
+  max_delivery_attempts      = var.data_availability_sync_work_item_queue.max_delivery_attempts
+  minimum_backoff            = var.data_availability_sync_work_item_queue.minimum_backoff
+  maximum_backoff            = var.data_availability_sync_work_item_queue.maximum_backoff
+  enable_message_ordering    = true
+  push_endpoint              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"
+  push_service_account_email = module.data_availability_sync_cloud_function.cloud_function_service_account.email
+  push_audience              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"
+}
+
+resource "google_pubsub_topic_iam_member" "data_availability_sync_work_item_publisher" {
+  topic  = module.data_availability_sync_work_item_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_topic_iam_member" "data_availability_sync_work_item_dead_letter_publisher" {
+  topic  = module.data_availability_sync_work_item_queue.dead_letter_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_subscription_iam_member" "data_availability_sync_work_item_dead_letter_subscriber" {
+  subscription = module.data_availability_sync_work_item_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
+resource "google_service_account_iam_member" "data_availability_sync_work_item_token_creator" {
+  service_account_id = module.data_availability_sync_cloud_function.cloud_function_service_account.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_cloud_run_service_iam_member" "data_availability_sync_work_item_invoker" {
+  depends_on = [module.data_availability_sync_cloud_function]
+  service    = var.data_availability_sync_function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+}
 resource "google_compute_address" "edp_aggregator_api_server" {
   name    = "edp-aggregator-system"
   address = var.edp_aggregator_api_server_ip_address
@@ -735,6 +813,7 @@ module "data_availability_monitor_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.data_availability_monitor.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_monitor.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_monitor.uber_jar_path
+  config_path                              = var.data_availability_monitor_config.local_path
 }
 
 module "data_availability_monitor_cloud_scheduler" {
@@ -913,6 +992,7 @@ module "vid_labeling_dispatcher_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.vid_labeling_dispatcher.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.vid_labeling_dispatcher.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_dispatcher.uber_jar_path
+  config_path                              = var.vid_labeling_dispatcher_config.local_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
 
   # The dispatcher and monitor authenticate to Kingdom as the same EDP. One instance of each
@@ -967,6 +1047,7 @@ module "vid_labeling_monitor_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.vid_labeling_monitor.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.vid_labeling_monitor.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_monitor.uber_jar_path
+  config_path                              = var.vid_labeling_monitor_config.local_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
 
   # See the dispatcher cap above. Together the two functions can run at most two 2-QPS clients.

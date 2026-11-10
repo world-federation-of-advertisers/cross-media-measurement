@@ -147,8 +147,5 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
-    ],
+    deps = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler"],
 )
