@@ -19,7 +19,7 @@ distinct from data availability tasks. The function retains one single-request i
 Ordered publication and attempt leases protect redeliveries; they do not promise exactly-once
 side effects after a crash between publishing a mapping and recording task completion.
 
-The source must remain the current generation at the configured input directory. EGS downloads
+The source must remain the current generation under the configured input directory. EGS downloads
 that exact generation and checks it again before publishing the mapping. Superseded sources are
 terminal failures; the newer finalize event supplies the current task. The existing HTTP JSON
 formats remain supported for migration and manual invocations.
@@ -33,12 +33,13 @@ mapping freshness alongside push/DLQ metrics: delivery failures are distinct fro
 outcomes.
 
 For queued GCS inputs, configure each provider's `event_groups_blob_uri` with its canonical
-input object URI. The consumer restricts incoming sources to that bucket and directory and
-reads the exact finalized generation. Update this URI when moving the input location.
+input object URI in the watched root directory. The consumer accepts
+objects in that bucket and directory, including descendants such as dated upload folders, and
+reads the exact finalized generation. Update this URI when moving the watched root.
 
 Set `event_group_sync_memory` to the existing environment allocation before redeployment.
-Leaving it unset preserves the existing deployment replacement keys; a new or redeployed
-function still uses the legacy `512MB` allocation unless overridden.
+Leaving it unset uses the existing `512MB` default. Changing the allocation replaces the
+function deployment action.
 
 ## External data availability WorkItems
 

@@ -37,6 +37,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.renewWorkItemAttemptRequest
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /** Validated source identity for an EventGroupSync task. */
 internal data class EventGroupSyncWorkItem(
@@ -46,6 +47,19 @@ internal data class EventGroupSyncWorkItem(
 ) {
   val source: WorkItem.WorkItemParams.DataPathParams
     get() = params.dataPathParams
+
+  /** Requires a GCS source in the configured input object's bucket and directory. */
+  fun validateGcsSource(configuredBlobUri: String) {
+    val uri = SelectedStorageClient.parseBlobUri(source.dataPath)
+    val configured = SelectedStorageClient.parseBlobUri(configuredBlobUri)
+    val directory = configured.key.substringBeforeLast('/', "")
+    val inputPrefix = if (directory.isEmpty()) "" else "$directory/"
+    require(
+      uri.scheme == "gs" && uri.bucket == configured.bucket && uri.key.startsWith(inputPrefix)
+    ) {
+      "EventGroupSync source is outside the configured input directory"
+    }
+  }
 
   companion object {
     fun parse(workItem: WorkItem): EventGroupSyncWorkItem {

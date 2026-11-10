@@ -41,7 +41,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
     google_secret_manager_secret_iam_member.secret_accessor,
   ]
 
-  triggers_replace = concat([
+  triggers_replace = [
     var.uber_jar_path,
     var.extra_env_vars,
     var.secret_mappings,
@@ -49,12 +49,12 @@ resource "terraform_data" "deploy_http_cloud_function" {
     var.timeout_seconds,
     var.max_instances,
     var.concurrency,
-  ], var.memory == null ? [] : [var.memory])
+    var.memory,
+  ]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     environment = {
-      FUNCTION_MEMORY     = var.memory == null ? "512MB" : var.memory
       FUNCTION_NAME       = var.function_name
       ENTRY_POINT         = var.entry_point
       CLOUD_REGION        = data.google_client_config.default.region
@@ -76,11 +76,8 @@ resource "terraform_data" "deploy_http_cloud_function" {
         "--gen2"
         "--runtime=java17"
         "--entry-point=$ENTRY_POINT"
-        # The 512MB default suffices for test environments. The requisition-fetcher groups a
-        # report's requisitions in memory before writing one blob. A data provider with large
-        # reports (or rare ~1MB requisitions) can need substantially more headroom — up to 8GiB
-        # (Cloud Functions 2nd gen max) — and its MAX_TOTAL_BUFFERED_BYTES should be raised to match.
-        # Size per environment rather than assuming this default holds for larger workloads.
+        # Size memory per workload. The requisition-fetcher buffers report requisitions;
+        # raise MAX_TOTAL_BUFFERED_BYTES consistently with any memory increase.
         "--memory=$FUNCTION_MEMORY"
         "--region=$CLOUD_REGION"
         "--run-service-account=$RUN_SERVICE_ACCOUNT"
