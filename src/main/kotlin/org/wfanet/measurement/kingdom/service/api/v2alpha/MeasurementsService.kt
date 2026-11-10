@@ -277,10 +277,12 @@ class MeasurementsService(
           internalMeasurement.toMeasurement()
         }
       if (results.size > listMeasurementsPageToken.pageSize) {
+        val lastReturnedMeasurement = results[listMeasurementsPageToken.pageSize - 1]
         val pageToken =
           listMeasurementsPageToken.copy {
             lastMeasurement = previousPageEnd {
-              externalMeasurementId = results[results.lastIndex - 1].externalMeasurementId
+              updateTime = lastReturnedMeasurement.updateTime
+              externalMeasurementId = lastReturnedMeasurement.externalMeasurementId
             }
           }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()

@@ -41,7 +41,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
@@ -49,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsPageToken
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
@@ -102,12 +105,14 @@ import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.captureFirst
@@ -2025,6 +2030,149 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `listMeasurements pagination advances past the last update time and measurement ID`() {
+    val t1 = Instant.parse("2026-11-01T00:00:00.123456789Z").toProtoTime()
+    val t2 = Instant.parse("2026-11-02T00:00:00.987654321Z").toProtoTime()
+    val t3 = Instant.parse("2026-11-03T00:00:00.000000001Z").toProtoTime()
+    val rows =
+      listOf(
+        INTERNAL_MEASUREMENT.copy {
+          updateTime = t1
+          externalMeasurementId = 10L
+        },
+        INTERNAL_MEASUREMENT.copy {
+          updateTime = t1
+          externalMeasurementId = 20L
+        },
+        INTERNAL_MEASUREMENT.copy {
+          updateTime = t1
+          externalMeasurementId = 30L
+        },
+        INTERNAL_MEASUREMENT.copy {
+          updateTime = t2
+          externalMeasurementId = 5L
+        },
+        INTERNAL_MEASUREMENT.copy {
+          updateTime = t3
+          externalMeasurementId = 1L
+        },
+      )
+    internalMeasurementsMock.stub {
+      onBlocking { streamMeasurements(any()) }
+        .thenReturn(flowOf(rows[0], rows[1], rows[2]))
+        .thenReturn(flowOf(rows[2], rows[3], rows[4]))
+        .thenReturn(flowOf(rows[4]))
+    }
+
+    val pages =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking {
+          val first =
+            service.listMeasurements(
+              listMeasurementsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                pageSize = 2
+              }
+            )
+          val second =
+            service.listMeasurements(
+              listMeasurementsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                pageSize = 2
+                pageToken = first.nextPageToken
+              }
+            )
+          val third =
+            service.listMeasurements(
+              listMeasurementsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                pageSize = 2
+                pageToken = second.nextPageToken
+              }
+            )
+          listOf(first, second, third)
+        }
+      }
+
+    assertThat(pages.flatMap { it.measurementsList }.map { it.name })
+      .containsExactlyElementsIn(
+        listOf(10L, 20L, 30L, 5L, 1L).map {
+          "$MEASUREMENT_CONSUMER_NAME/measurements/${externalIdToApiId(it)}"
+        }
+      )
+      .inOrder()
+    val firstToken = ListMeasurementsPageToken.parseFrom(pages[0].nextPageToken.base64UrlDecode())
+    assertThat(firstToken)
+      .isEqualTo(
+        listMeasurementsPageToken {
+          pageSize = 2
+          externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+          lastMeasurement = previousPageEnd {
+            updateTime = t1
+            externalMeasurementId = 20L
+          }
+        }
+      )
+    val secondToken = ListMeasurementsPageToken.parseFrom(pages[1].nextPageToken.base64UrlDecode())
+    assertThat(secondToken)
+      .isEqualTo(
+        listMeasurementsPageToken {
+          pageSize = 2
+          externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+          lastMeasurement = previousPageEnd {
+            updateTime = t2
+            externalMeasurementId = 5L
+          }
+        }
+      )
+    assertThat(pages[2].nextPageToken).isEmpty()
+
+    val requestCaptor = argumentCaptor<StreamMeasurementsRequest>()
+    verify(internalMeasurementsMock, times(3)).streamMeasurements(requestCaptor.capture())
+    assertThat(requestCaptor.allValues)
+      .containsExactly(
+        streamMeasurementsRequest {
+          limit = 3
+          filter =
+            StreamMeasurementsRequestKt.filter {
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+            }
+        },
+        streamMeasurementsRequest {
+          limit = 3
+          filter =
+            StreamMeasurementsRequestKt.filter {
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              after =
+                StreamMeasurementsRequestKt.FilterKt.after {
+                  updateTime = t1
+                  measurement = measurementKey {
+                    externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+                    externalMeasurementId = 20L
+                  }
+                }
+            }
+        },
+        streamMeasurementsRequest {
+          limit = 3
+          filter =
+            StreamMeasurementsRequestKt.filter {
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              after =
+                StreamMeasurementsRequestKt.FilterKt.after {
+                  updateTime = t2
+                  measurement = measurementKey {
+                    externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+                    externalMeasurementId = 5L
+                  }
+                }
+            }
+        },
+      )
+      .inOrder()
+  }
+
+  @Test
   fun `listMeasurements with page token with filter returns response`() {
     val pageSize = 2
     val internalStates =
@@ -2084,6 +2232,7 @@ class MeasurementsServiceTest {
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
         states += publicStates
         lastMeasurement = previousPageEnd {
+          updateTime = UPDATE_TIME
           externalMeasurementId =
             apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
         }
