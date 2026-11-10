@@ -139,6 +139,76 @@ class EventGroupSyncWorkItemProcessorTest {
   }
 
   @Test
+  fun `process accepts finalized sources below the configured directory`() = runBlocking {
+    var syncs = 0
+    processor(
+        { task, _ ->
+          task.validateGcsSource("gs://example-bucket/provider/event_groups.json")
+          syncs++
+        },
+        { error("unexpected active attempt") },
+        { awaitCancellation() },
+        {},
+      )
+      .process(input("gs://example-bucket/provider/2025-10-15/nested/event_groups.binpb"))
+    assertThat(syncs).isEqualTo(1)
+    assertThat(controlPlane.state).isEqualTo(WorkItem.State.SUCCEEDED)
+  }
+
+  @Test
+  fun `process accepts sources beneath a configured bucket root`() = runBlocking {
+    var syncs = 0
+    processor(
+        { task, _ ->
+          task.validateGcsSource("gs://example-bucket/event_groups.json")
+          syncs++
+        },
+        { error("unexpected active attempt") },
+        { awaitCancellation() },
+        {},
+      )
+      .process(input("gs://example-bucket/uploads/event_groups.binpb"))
+    assertThat(syncs).isEqualTo(1)
+    assertThat(controlPlane.state).isEqualTo(WorkItem.State.SUCCEEDED)
+  }
+
+  @Test
+  fun `process rejects sources in a sibling directory`() = runBlocking {
+    assertSourceIsRejected("gs://example-bucket/provider-other/event_groups.binpb")
+  }
+
+  @Test
+  fun `process rejects sources in another bucket`() = runBlocking {
+    assertSourceIsRejected("gs://other-bucket/provider/event_groups.binpb")
+  }
+
+  @Test
+  fun `process rejects non GCS sources`() = runBlocking {
+    assertSourceIsRejected("file:///example-bucket/provider/event_groups.binpb")
+  }
+
+  private suspend fun assertSourceIsRejected(sourcePath: String) {
+    var syncs = 0
+    val input = input(sourcePath)
+    val processor =
+      processor(
+        { task, _ ->
+          task.validateGcsSource("gs://example-bucket/provider/event_groups.json")
+          syncs++
+        },
+        { error("unexpected active attempt") },
+        { awaitCancellation() },
+        {},
+      )
+    processor.process(input)
+    processor.process(input)
+    assertThat(syncs).isEqualTo(0)
+    assertThat(controlPlane.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(controlPlane.failedGeneration).isEqualTo(1L)
+    assertThat(controlPlane.claims).hasSize(1)
+  }
+
+  @Test
   fun `lease renews while sync is still running`() = runBlocking {
     val renewed = CompletableDeferred<Unit>()
     controlPlane.onRenew = { renewed.complete(Unit) }
@@ -188,6 +258,9 @@ class EventGroupSyncWorkItemProcessorTest {
   }
 
   private fun input(): EventGroupSyncWorkItem =
+    input("gs://example-bucket/provider/event_groups.json")
+
+  private fun input(sourcePath: String): EventGroupSyncWorkItem =
     EventGroupSyncWorkItem.parse(
       workItem {
         name = "workItems/egs-test"
@@ -197,7 +270,7 @@ class EventGroupSyncWorkItemProcessorTest {
             workItemParams {
               appParams = Any.pack(eventGroupSyncParams { dataProvider = "dataProviders/example" })
               dataPathParams = dataPathParams {
-                dataPath = "gs://example-bucket/provider/event_groups.json"
+                dataPath = sourcePath
                 generation = 7L
                 eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
               }

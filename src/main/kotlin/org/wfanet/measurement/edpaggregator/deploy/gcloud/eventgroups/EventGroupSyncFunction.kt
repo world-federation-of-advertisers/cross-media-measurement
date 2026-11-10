@@ -266,14 +266,7 @@ class EventGroupSyncFunction() : HttpFunction {
       return
     }
     val uri = SelectedStorageClient.parseBlobUri(task.source.dataPath)
-    val configured = SelectedStorageClient.parseBlobUri(config.eventGroupsBlobUri)
-    require(
-      uri.scheme == "gs" &&
-        uri.bucket == configured.bucket &&
-        uri.key.substringBeforeLast('/') == configured.key.substringBeforeLast('/')
-    ) {
-      "EventGroupSync source is outside the configured input directory"
-    }
+    task.validateGcsSource(config.eventGroupsBlobUri)
     val storage =
       StorageOptions.newBuilder()
         .also { builder ->

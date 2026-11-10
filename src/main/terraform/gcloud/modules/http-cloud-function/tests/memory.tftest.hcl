@@ -28,8 +28,17 @@ variables {
 run "existing_default" {
   command = plan
   assert {
-    condition     = terraform_data.deploy_http_cloud_function.triggers_replace == [var.deployment_enabled, "/tmp/example/Function.jar", "", "", "", var.timeout_seconds, var.max_instances, var.concurrency]
-    error_message = "Leaving memory unset must preserve preexisting deployment replacement keys."
+    condition     = terraform_data.deploy_http_cloud_function.triggers_replace == [var.deployment_enabled, "/tmp/example/Function.jar", "", "", "", var.timeout_seconds, var.max_instances, var.concurrency, "512MB"]
+    error_message = "Leaving memory unset must use the existing 512MB default."
+  }
+}
+
+run "explicit_null_uses_default" {
+  command = plan
+  variables { memory = null }
+  assert {
+    condition     = contains(terraform_data.deploy_http_cloud_function.triggers_replace, "512MB")
+    error_message = "An unset parent-module memory override must use the 512MB default."
   }
 }
 
