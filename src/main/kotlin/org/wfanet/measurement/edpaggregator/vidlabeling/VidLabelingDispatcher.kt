@@ -51,6 +51,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
@@ -71,6 +72,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesRequest
@@ -143,6 +146,14 @@ class VidLabelingDispatcher(
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
+  private val getHealingOperation: suspend (name: String) -> UploadHealingOperation? = { null },
+  private val readBlobVersionMetadata:
+    suspend (blobKey: String, generation: Long) -> RawImpressionBlobMetadata =
+    { key, generation ->
+      readBlobMetadata(key).also {
+        check(it.generation == generation) { "The retained raw-object version is unavailable" }
+      }
+    },
 ) {
 
   enum class UploadOutcome(val telemetryValue: String) {
@@ -164,6 +175,12 @@ class VidLabelingDispatcher(
   private data class EdpReplacementAuthorization(
     val evictionOperationId: String?,
     val requiredModelLines: List<String>,
+  )
+
+  private data class CommittedReplay(
+    val operation: UploadHealingOperation,
+    val source: RawImpressionUpload,
+    val steps: List<UploadHealingStep>,
   )
 
   /** Caps concurrent Parquet-footer reads so footer fan-out stays well under GCS per-bucket QPS. */
@@ -206,6 +223,66 @@ class VidLabelingDispatcher(
       val folderPrefix: String =
         doneBlobUri.key.substringBeforeLast("/", missingDelimiterValue = "")
       val listingPrefix = if (folderPrefix.isEmpty()) "" else "$folderPrefix/"
+
+      val committedReplay = findCommittedReplay(doneBlobPath, doneBlobGeneration)
+      if (committedReplay != null) {
+        val doneMetadata = readBlobVersionMetadata(doneBlobUri.key, doneBlobGeneration)
+        check(doneMetadata.generation == doneBlobGeneration) {
+          "The retained done-object version does not match the recovery checkpoint"
+        }
+        validateRecovery(
+          doneBlobPath,
+          doneBlobGeneration,
+          doneMetadata.createTime,
+          committedReplay.source.name,
+          checkNotNull(recoveryOperationId),
+          committedReplay,
+        )
+        val existing =
+          listUploadsByDoneBlob(doneBlobPath).singleOrNull {
+            it.doneBlobGeneration == doneBlobGeneration &&
+              it.uploadHealingOperation == committedReplay.operation.name
+          }
+        if (existing?.registrationComplete == true) {
+          return complete(UploadOutcome.NO_WORK, existing.name)
+        }
+        val files = retainedSourceFiles(committedReplay.source)
+        for (file in files) {
+          require(file.blobGeneration > 0L) { "Recovery input has no exact generation" }
+          val uri = SelectedStorageClient.parseBlobUri(file.blobUri)
+          require(
+            uri.scheme == doneBlobUri.scheme &&
+              uri.bucket == doneBlobUri.bucket &&
+              uri.key.startsWith(listingPrefix)
+          ) {
+            "Recovery input lies outside the source upload directory"
+          }
+          val metadata = readBlobVersionMetadata(uri.key, file.blobGeneration)
+          check(metadata.generation == file.blobGeneration) { "Recovery input generation changed" }
+          check(metadata.createTime <= committedReplay.source.doneBlobCreateTime.toInstant()) {
+            "Recovery input is newer than its source upload"
+          }
+        }
+        val upload =
+          existing
+            ?: checkNotNull(
+              createRawImpressionUpload(
+                doneBlobPath,
+                doneBlobGeneration,
+                doneMetadata.createTime,
+                recoveryOperationId,
+              )
+            ) {
+              "The committed recovery registration was rejected"
+            }
+        registeredUploadName = upload.name
+        registerRetainedFiles(upload.name, files)
+        val modelLines = resolveModelLines(overrideModelLines)
+        createRawImpressionUploadModelLines(upload.name, modelLines)
+        markRegistrationComplete(upload)
+        dispatchFastPath(upload.name)
+        return complete(UploadOutcome.SUCCEEDED, upload.name)
+      }
 
       val doneBlobMetadata = readBlobMetadata(doneBlobUri.key)
       if (doneBlobMetadata.generation != doneBlobGeneration) {
@@ -840,6 +917,129 @@ class VidLabelingDispatcher(
       .parentKey
       .toName()
 
+  /** Resolves only an exact checkpoint owned by the currently executing recovery plan. */
+  private suspend fun findCommittedReplay(
+    doneBlobPath: String,
+    doneBlobGeneration: Long,
+  ): CommittedReplay? {
+    val sourceName = recoverySourceUpload ?: return null
+    val operationId = checkNotNull(recoveryOperationId)
+    val operationName = "$dataProviderName/uploadHealingOperations/$operationId"
+    val operation =
+      rpcThrottlers.metadataRead.onReady { getHealingOperation(operationName) } ?: return null
+    require(operation.name == operationName) { "Recovery operation identity does not match" }
+    if (operation.state != UploadHealingOperation.State.RECOVERING) return null
+    val steps =
+      operation.stepsList.filter { it.recoveryTarget && it.sourceRawImpressionUpload == sourceName }
+    if (
+      steps.isEmpty() ||
+        steps.any {
+          it.state != UploadHealingStep.State.RECOVERY_STARTED ||
+            it.recoveryDoneBlobGeneration != doneBlobGeneration ||
+            it.recoveryAction !=
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
+    ) {
+      return null
+    }
+    require(
+      overrideModelLines.size == overrideModelLines.distinct().size &&
+        overrideModelLines.toSet() == steps.mapTo(mutableSetOf()) { it.cmmsModelLine }
+    ) {
+      "Recovery model lines do not match the committed checkpoint"
+    }
+    val source =
+      rpcThrottlers.metadataRead.onReady {
+        rawImpressionUploadStub.getRawImpressionUpload(
+          getRawImpressionUploadRequest { name = sourceName }
+        )
+      }
+    require(source.doneBlobUri == doneBlobPath && source.hasDoneBlobCreateTime()) {
+      "Recovery source does not match the committed object identity"
+    }
+    val revisions = listUploadsByDoneBlob(doneBlobPath)
+    require(
+      revisions
+        .filter {
+          it.doneBlobGeneration != doneBlobGeneration &&
+            it.hasDoneBlobCreateTime() &&
+            Timestamps.compare(it.doneBlobCreateTime, source.doneBlobCreateTime) > 0 &&
+            it.uploadHealingOperation != operationName
+        }
+        .all {
+          it.processingDeferred &&
+            it.state !in
+              setOf(
+                RawImpressionUpload.State.ACTIVE,
+                RawImpressionUpload.State.COMPLETED,
+                RawImpressionUpload.State.FAILED,
+              )
+        }
+    ) {
+      "A newer revision already owns processed output"
+    }
+    return CommittedReplay(operation, source, steps)
+  }
+
+  private suspend fun retainedSourceFiles(
+    source: RawImpressionUpload
+  ): List<RawImpressionUploadFile> {
+    val revisions = listUploadsByDoneBlob(source.doneBlobUri).associateBy { it.name }
+    val files = linkedMapOf<String, RawImpressionUploadFile>()
+    val visited = mutableSetOf<String>()
+    var revision: RawImpressionUpload? = source
+    while (revision != null) {
+      check(visited.add(revision.name)) { "Recovery source revision chain contains a cycle" }
+      var pageToken = ""
+      do {
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+              listRawImpressionUploadFilesRequest {
+                parent = checkNotNull(revision).name
+                this.pageToken = pageToken
+              }
+            )
+          }
+        for (file in response.rawImpressionUploadFilesList) files.putIfAbsent(file.blobUri, file)
+        pageToken = response.nextPageToken
+      } while (pageToken.isNotEmpty())
+      if (revision.uploadHealingOperation.isNotEmpty()) break
+      revision =
+        revision.replacesRawImpressionUpload
+          .takeIf { it.isNotEmpty() }
+          ?.let { checkNotNull(revisions[it]) { "Recovery source predecessor is missing" } }
+    }
+    return files.values.sortedBy { it.blobUri }
+  }
+
+  private suspend fun registerRetainedFiles(
+    uploadName: String,
+    files: List<RawImpressionUploadFile>,
+  ) {
+    for (chunk in files.chunked(RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE)) {
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadFilesStub.batchCreateRawImpressionUploadFiles(
+          batchCreateRawImpressionUploadFilesRequest {
+            parent = uploadName
+            for (file in chunk) {
+              requests += createRawImpressionUploadFileRequest {
+                parent = uploadName
+                rawImpressionUploadFile = rawImpressionUploadFile {
+                  blobUri = file.blobUri
+                  blobGeneration = file.blobGeneration
+                  eventDate = file.eventDate
+                  sizeBytes = file.sizeBytes
+                }
+                requestId = RequestIds.forRawImpressionUploadFile(uploadName, file.blobUri)
+              }
+            }
+          }
+        )
+      }
+    }
+  }
+
   /**
    * Validates an object-metadata recovery request before honoring its model-line override.
    *
@@ -851,6 +1051,7 @@ class VidLabelingDispatcher(
     doneBlobCreateTime: Instant,
     sourceUploadName: String,
     operationId: String,
+    committedReplay: CommittedReplay? = null,
   ): Boolean {
     require(overrideModelLines.isNotEmpty()) {
       "A recovery source upload requires at least one override model line"
@@ -883,7 +1084,8 @@ class VidLabelingDispatcher(
     }
     val latest = findLatestUploadByDoneBlob(doneBlobPath)
     if (
-      latest != null &&
+      committedReplay == null &&
+        latest != null &&
         latest.doneBlobGeneration != doneBlobGeneration &&
         latest.hasDoneBlobCreateTime() &&
         Timestamps.compare(latest.doneBlobCreateTime, doneBlobCreateTimestamp) >= 0
@@ -900,7 +1102,12 @@ class VidLabelingDispatcher(
       latest != null &&
         latest.replacesRawImpressionUpload == sourceUploadName &&
         !isRegistrationComplete(latest)
-    require(isInitialDelivery || isRetryOfLatestRecovery || isRetryAfterIncompleteRecovery) {
+    require(
+      committedReplay != null ||
+        isInitialDelivery ||
+        isRetryOfLatestRecovery ||
+        isRetryAfterIncompleteRecovery
+    ) {
       "$sourceUploadName has been superseded by ${latest?.name}; recover the latest revision"
     }
 
@@ -986,7 +1193,7 @@ class VidLabelingDispatcher(
     )
   }
 
-  /** Requires the latest replacement of this row's predecessor to own a live completed snapshot. */
+  /** Requires the latest replacement of this row's predecessor to own durable labeled output. */
   private suspend fun requireRecoveryPredecessorReady(row: RawImpressionUploadModelLine) {
     val predecessorName = row.recoveryPredecessorRawImpressionUpload
     if (predecessorName.isEmpty()) return
@@ -997,10 +1204,55 @@ class VidLabelingDispatcher(
         )
       }
     val revisions = listUploadsByDoneBlob(predecessor.doneBlobUri)
+    val operationName = "$dataProviderName/uploadHealingOperations/" + row.evictionOperationId
+    val operation = rpcThrottlers.metadataRead.onReady { getHealingOperation(operationName) }
+    if (operation != null) {
+      check(operation.name == operationName) { "Recovery operation identity does not match" }
+    }
+    val plannedPredecessor =
+      operation
+        ?.takeIf { it.name == operationName }
+        ?.stepsList
+        ?.singleOrNull {
+          it.recoveryTarget &&
+            it.sourceRawImpressionUpload == predecessorName &&
+            it.cmmsModelLine == row.cmmsModelLine &&
+            it.state == UploadHealingStep.State.COMPLETE
+        }
+    if (
+      operation?.stepsList?.any {
+        it.sourceRawImpressionUpload == predecessorName && it.cmmsModelLine == row.cmmsModelLine
+      } == true
+    ) {
+      check(plannedPredecessor != null) { "The planned recovery predecessor has not completed" }
+    }
     val latest =
-      checkNotNull(findLatestUpload(revisions)) {
-        "No upload revision found for recovery predecessor $predecessorName"
-      }
+      plannedPredecessor
+        ?.replacementRawImpressionUpload
+        ?.takeIf { it.isNotEmpty() }
+        ?.let {
+          checkNotNull(revisions.singleOrNull { revision -> revision.name == it }) {
+              "Planned recovery predecessor replacement is missing"
+            }
+            .also { replacement ->
+              check(replacement.uploadHealingOperation == operationName) {
+                "Recovery predecessor belongs to another operation"
+              }
+            }
+        }
+        ?: checkNotNull(
+          findLatestUpload(
+            if (operation != null) {
+              revisions.filter {
+                it.registrationComplete && it.state == RawImpressionUpload.State.COMPLETED
+              }
+            } else {
+              revisions
+            }
+          )
+        ) {
+          "No upload revision found for recovery predecessor $predecessorName"
+        }
     check(
       latest.name == predecessorName || replacesUpload(latest.name, predecessorName, revisions)
     ) {
@@ -1008,8 +1260,8 @@ class VidLabelingDispatcher(
     }
     val replacementRow =
       listModelLines(latest.name).firstOrNull { it.cmmsModelLine == row.cmmsModelLine }
-    check(replacementRow?.state == RawImpressionUploadModelLine.State.COMPLETED) {
-      "Recovery predecessor $predecessorName has not been replaced by a completed upload for " +
+    check(replacementRow != null && isRecoveryPredecessorReadyState(replacementRow.state)) {
+      "Recovery predecessor $predecessorName has not produced durable labeled output for " +
         row.cmmsModelLine
     }
     check(hasActiveSnapshot(latest.name, row.cmmsModelLine)) {
@@ -1262,3 +1514,10 @@ data class RawImpressionBlobMetadata(
   val sizeBytes: Long,
   val createTime: Instant,
 )
+
+internal fun isRecoveryPredecessorReadyState(state: RawImpressionUploadModelLine.State): Boolean =
+  state in
+    setOf(
+      RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+      RawImpressionUploadModelLine.State.COMPLETED,
+    )

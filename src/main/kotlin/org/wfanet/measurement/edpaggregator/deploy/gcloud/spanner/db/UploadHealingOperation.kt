@@ -25,6 +25,7 @@ import com.google.cloud.spanner.Value
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.api.ETags
@@ -52,6 +53,40 @@ data class UploadHealingOperationResult(
   val mutationRequestFingerprints: List<ByteString>,
 )
 
+/** Returns whether a nonterminal healing operation must defer ordinary VID-labeling dispatch. */
+suspend fun AsyncDatabaseClient.ReadContext.hasVidLabelingHealingDispatchGate(
+  dataProviderResourceId: String
+): Boolean {
+  val gateStates =
+    listOf(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING,
+      )
+      .map { it.number.toLong() }
+  val query =
+    statement(
+      """
+      SELECT UploadHealingOperationId
+      FROM UploadHealingOperation
+      WHERE DataProviderResourceId = @dataProviderResourceId
+        AND State IN UNNEST(@gateStates)
+      LIMIT 1
+      """
+        .trimIndent()
+    ) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("gateStates").toInt64Array(gateStates)
+    }
+  return executeQuery(query, Options.tag("action=hasVidLabelingHealingDispatchGate"))
+    .firstOrNull() != null
+}
+
 /** Reads an upload-healing operation and all of its ordered steps. */
 suspend fun AsyncDatabaseClient.ReadContext.findUploadHealingOperation(
   dataProviderResourceId: String,
@@ -65,6 +100,8 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadHealingOperation(
       CreateRequestId,
       State,
       ResumeState,
+      PlanFormatVersion,
+      OutputManifestState,
       Reason,
       LabeledImpressionsBlobPrefix,
       BadRawImpressionUploadResourceIds,
@@ -139,6 +176,8 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadHealingOperationByMutation
       CreateRequestId,
       State,
       ResumeState,
+      PlanFormatVersion,
+      OutputManifestState,
       Reason,
       LabeledImpressionsBlobPrefix,
       BadRawImpressionUploadResourceIds,
@@ -189,6 +228,8 @@ fun AsyncDatabaseClient.ReadContext.readUploadHealingOperations(
         CreateRequestId,
         State,
         ResumeState,
+        PlanFormatVersion,
+        OutputManifestState,
         Reason,
         LabeledImpressionsBlobPrefix,
         BadRawImpressionUploadResourceIds,
@@ -303,6 +344,15 @@ fun AsyncDatabaseClient.TransactionContext.insertUploadHealingOperation(
     ) {
       set("ResumeState").to(operation.resumeState.number.toLong())
     }
+    if (operation.planFormatVersion > 0) {
+      set("PlanFormatVersion").to(operation.planFormatVersion.toLong())
+    }
+    if (
+      operation.outputManifestState !=
+        UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_UNSPECIFIED
+    ) {
+      set("OutputManifestState").to(operation.outputManifestState.number.toLong())
+    }
     set("Reason").to(operation.reason)
     set("LabeledImpressionsBlobPrefix").to(operation.labeledImpressionsBlobPrefix)
     set("BadRawImpressionUploadResourceIds")
@@ -342,6 +392,19 @@ fun AsyncDatabaseClient.TransactionContext.replaceUploadHealingOperationPlan(
     } else {
       set("ResumeState").to(operation.resumeState.number.toLong())
     }
+    if (operation.planFormatVersion > 0) {
+      set("PlanFormatVersion").to(operation.planFormatVersion.toLong())
+    } else {
+      set("PlanFormatVersion").to(null as Long?)
+    }
+    if (
+      operation.outputManifestState ==
+        UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_UNSPECIFIED
+    ) {
+      set("OutputManifestState").to(null as Long?)
+    } else {
+      set("OutputManifestState").to(operation.outputManifestState.number.toLong())
+    }
     if (mutationRequestIds != null) {
       set("MutationRequestIds").toStringArray(mutationRequestIds)
     }
@@ -361,6 +424,56 @@ fun AsyncDatabaseClient.TransactionContext.replaceUploadHealingOperationPlan(
     )
   )
   insertUploadHealingSteps(operation)
+}
+
+/** Finalizes exact output manifests without replacing the approved step graph. */
+fun AsyncDatabaseClient.TransactionContext.finalizeUploadHealingOperationManifests(
+  operation: UploadHealingOperation,
+  manifestsByStepId: Map<Long, LabeledOutputManifest>,
+  mutationRequestIds: List<String>,
+  mutationRequestFingerprints: List<ByteString>,
+) {
+  bufferUpdateMutation("UploadHealingOperation") {
+    set("DataProviderResourceId").to(operation.dataProviderResourceId)
+    set("UploadHealingOperationId").to(operation.uploadHealingOperationId)
+    set("State")
+      .to(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING.number.toLong())
+    set("PlanFormatVersion").to(operation.planFormatVersion.toLong())
+    set("OutputManifestState")
+      .to(
+        UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
+          .number
+          .toLong()
+      )
+    set("MutationRequestIds").toStringArray(mutationRequestIds)
+    set("MutationRequestFingerprints")
+      .toBytesArray(mutationRequestFingerprints.map { it.toGcloudByteArray() })
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+  for ((stepId, manifest) in manifestsByStepId) {
+    bufferUpdateMutation("UploadHealingStep") {
+      set("DataProviderResourceId").to(operation.dataProviderResourceId)
+      set("UploadHealingOperationId").to(operation.uploadHealingOperationId)
+      set("UploadHealingStepId").to(stepId)
+      set("LabeledOutputManifest").to(manifest.toByteArray().toGcloudByteArray())
+      set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+    }
+  }
+}
+
+/** Records an idempotency key without changing the persisted plan. */
+fun AsyncDatabaseClient.TransactionContext.recordUploadHealingOperationMutation(
+  operation: UploadHealingOperation,
+  mutationRequestIds: List<String>,
+  mutationRequestFingerprints: List<ByteString>,
+) {
+  bufferUpdateMutation("UploadHealingOperation") {
+    set("DataProviderResourceId").to(operation.dataProviderResourceId)
+    set("UploadHealingOperationId").to(operation.uploadHealingOperationId)
+    set("MutationRequestIds").toStringArray(mutationRequestIds)
+    set("MutationRequestFingerprints")
+      .toBytesArray(mutationRequestFingerprints.map { it.toGcloudByteArray() })
+  }
 }
 
 private fun AsyncDatabaseClient.TransactionContext.insertUploadHealingSteps(
@@ -439,6 +552,8 @@ fun AsyncDatabaseClient.TransactionContext.updateUploadHealingStep(
 fun AsyncDatabaseClient.TransactionContext.completeUploadHealingOperation(
   dataProviderResourceId: String,
   uploadHealingOperationId: String,
+  mutationRequestIds: List<String>? = null,
+  mutationRequestFingerprints: List<ByteString>? = null,
 ) {
   bufferUpdateMutation("UploadHealingOperation") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -448,6 +563,13 @@ fun AsyncDatabaseClient.TransactionContext.completeUploadHealingOperation(
     set("ResumeState").to(null as Long?)
     set("CompleteTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+    if (mutationRequestIds != null) {
+      set("MutationRequestIds").toStringArray(mutationRequestIds)
+    }
+    if (mutationRequestFingerprints != null) {
+      set("MutationRequestFingerprints")
+        .toBytesArray(mutationRequestFingerprints.map { it.toGcloudByteArray() })
+    }
   }
 }
 
@@ -512,6 +634,22 @@ private fun buildUploadHealingOperationResult(
         resumeState =
           UploadHealingOperation.State.forNumber(operationRow.getLong("ResumeState").toInt())
       }
+      if (operationRow.isNull("PlanFormatVersion")) {
+        planFormatVersion = LEGACY_PLAN_FORMAT_VERSION
+        outputManifestState =
+          UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
+      } else {
+        planFormatVersion = operationRow.getLong("PlanFormatVersion").toInt()
+        outputManifestState =
+          if (operationRow.isNull("OutputManifestState")) {
+            UploadHealingOperation.OutputManifestState
+              .UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_UNSPECIFIED
+          } else {
+            UploadHealingOperation.OutputManifestState.forNumber(
+              operationRow.getLong("OutputManifestState").toInt()
+            )
+          }
+      }
       reason = operationRow.getString("Reason")
       labeledImpressionsBlobPrefix = operationRow.getString("LabeledImpressionsBlobPrefix")
       badRawImpressionUploadResourceIds +=
@@ -532,6 +670,8 @@ private fun buildUploadHealingOperationResult(
       },
   )
 }
+
+private const val LEGACY_PLAN_FORMAT_VERSION = 1
 
 private fun buildUploadHealingStep(row: Struct): UploadHealingStep {
   val updateTime = row.getTimestamp("UpdateTime").toProto()
