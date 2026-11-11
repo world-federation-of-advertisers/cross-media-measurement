@@ -23,6 +23,8 @@ import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.util.JsonFormat
+import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
@@ -60,8 +62,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
@@ -217,6 +221,10 @@ class VidLabelingDispatcherFunction : HttpFunction {
         )
       val rankIndexBlobStub =
         RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(rawImpressionUploadChannel)
+      val healingOperationsStub =
+        UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+          rawImpressionUploadChannel
+        )
       // PoolAssignmentJobService is served by the same RawImpressionMetadata storage deployment.
       val poolAssignmentJobStub =
         PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
@@ -295,6 +303,16 @@ class VidLabelingDispatcherFunction : HttpFunction {
           recoveryOperationId = evictionOperationId,
           modelLineConfigs = modelLineConfigs,
           rpcThrottlers = rpcThrottlers,
+          getHealingOperation = { name ->
+            try {
+              healingOperationsStub.getUploadHealingOperation(
+                getUploadHealingOperationRequest { this.name = name }
+              )
+            } catch (e: StatusException) {
+              if (e.status.code == Status.Code.NOT_FOUND) null else throw e
+            }
+          },
+          readBlobVersionMetadata = createBlobVersionMetadataReader(doneBlobPath, readBlobMetadata),
         )
 
       Tracing.withW3CTraceContext(request) {
@@ -472,6 +490,42 @@ class VidLabelingDispatcherFunction : HttpFunction {
             generation = blob.generation,
             sizeBytes = blob.size,
             createTime = blob.createTimeOffsetDateTime.toInstant(),
+          )
+        }
+      }
+    }
+
+    private fun createBlobVersionMetadataReader(
+      doneBlobPath: String,
+      currentReader: suspend (String) -> RawImpressionBlobMetadata,
+    ): suspend (String, Long) -> RawImpressionBlobMetadata {
+      if (!fileSystemPath.isNullOrEmpty()) {
+        return { key, generation ->
+          currentReader(key).also {
+            check(it.generation == generation) { "The retained raw-object version is unavailable" }
+          }
+        }
+      }
+      val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
+      val storage =
+        StorageOptions.newBuilder()
+          .also { builder ->
+            System.getenv(GOOGLE_PROJECT_ID_ENV)
+              ?.takeIf { it.isNotEmpty() }
+              ?.let { builder.setProjectId(it) }
+          }
+          .build()
+          .service
+      return { key, generation ->
+        withContext(Dispatchers.IO) {
+          val blob =
+            checkNotNull(storage.get(BlobId.of(doneBlobUri.bucket, key, generation))) {
+              "The retained raw-object version is unavailable"
+            }
+          RawImpressionBlobMetadata(
+            blob.generation,
+            blob.size,
+            blob.createTimeOffsetDateTime.toInstant(),
           )
         }
       }
