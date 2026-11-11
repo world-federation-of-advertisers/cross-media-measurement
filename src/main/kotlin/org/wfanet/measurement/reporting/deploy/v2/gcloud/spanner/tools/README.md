@@ -325,8 +325,8 @@ kubectl get deployment postgres-internal-reporting-server-deployment \
 ```
 
 For a deployment provisioned by the Reporting Terraform this is
-`reporting-internal@PROJECT.iam`, corresponding to the service account
-`reporting-internal@PROJECT.iam.gserviceaccount.com`.
+`reporting-v2-internal@PROJECT.iam`, corresponding to the service account
+`reporting-v2-internal@PROJECT.iam.gserviceaccount.com`.
 
 #### Authenticate as it
 
@@ -364,7 +364,6 @@ include the full path to the executable.
       --postgres-cloud-sql-connection-name=halo-cmm-dev:us-central1:dev-postgres \
       --postgres-database=reporting-v2 \
       --postgres-user=reporting-v2-internal@halo-cmm-dev.iam \
-      --create-time-after=2026-06-01T00:00:00Z \
       --dry-run
     ```
 
@@ -377,8 +376,7 @@ include the full path to the executable.
       --spanner-database=reporting \
       --postgres-cloud-sql-connection-name=halo-cmm-dev:us-central1:dev-postgres \
       --postgres-database=reporting-v2 \
-      --postgres-user=reporting-v2-internal@halo-cmm-dev.iam \
-      --create-time-after=2026-06-01T00:00:00Z
+      --postgres-user=reporting-v2-internal@halo-cmm-dev.iam
     ```
 
 ### Output
