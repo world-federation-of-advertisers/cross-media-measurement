@@ -71,10 +71,6 @@ message DataAvailabilityMonitorConfig {
   // date is flagged as having an unprocessed done blob (DataAvailabilitySync
   // did not stamp it). If unset, defaults to 24h.
   google.protobuf.Duration unprocessed_done_threshold = 9;
-
-  // Report cutovers whose historical and replacement model lines are both
-  // monitored over their required rollout windows.
-  repeated ModelLineCutoverConfig model_line_cutovers = 10;
 }
 
 // Wrapper containing monitor configurations. Loaded at startup from the
@@ -83,4 +79,7 @@ message DataAvailabilityMonitorConfigs {
   // Monitored EDP impression paths. Each entry monitors a separate
   // storage location and set of model lines.
   repeated DataAvailabilityMonitorConfig configs = 1;
+
+  // Report cutovers whose contributors may be in different `configs` entries.
+  repeated ModelLineCutoverConfig model_line_cutovers = 2;
 }

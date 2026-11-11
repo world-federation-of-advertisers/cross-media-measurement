@@ -69,6 +69,8 @@ class RequisitionGrouperByReportId(
     requisitions: List<Requisition>,
     groupId: String,
     selectedModelLine: String? = null,
+    reportInterval: Interval? = null,
+    requireModelLineFinalization: Boolean = false,
   ): GroupedRequisitions? {
     if (requisitions.isEmpty()) return null
     val perRequisitionGroups =
@@ -92,7 +94,13 @@ class RequisitionGrouperByReportId(
             }
         }
       }
-    return mergeGroupedRequisitions(reportId, perRequisitionGroups, groupId)
+    return mergeGroupedRequisitions(
+      reportId,
+      perRequisitionGroups,
+      groupId,
+      reportInterval,
+      requireModelLineFinalization,
+    )
   }
 
   /**
@@ -104,6 +112,8 @@ class RequisitionGrouperByReportId(
     reportId: String,
     perRequisitionGroups: List<GroupedRequisitions>,
     groupId: String,
+    reportInterval: Interval?,
+    requireModelLineFinalization: Boolean,
   ): GroupedRequisitions {
     val firstModelLine = perRequisitionGroups.first().modelLine
     val selectedModelLine = perRequisitionGroups.map { it.selectedModelLine }.distinct().single()
@@ -123,6 +133,8 @@ class RequisitionGrouperByReportId(
       this.groupId = groupId
       report = reportId
       this.basicReport = basicReport
+      reportInterval?.let { this.reportInterval = it }
+      this.requireModelLineFinalization = requireModelLineFinalization
     }
   }
 

@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset marcopremier:1 dbms:cloudspanner
+-- changeset marcopremier:23 dbms:cloudspanner
 
 START BATCH DDL;
 

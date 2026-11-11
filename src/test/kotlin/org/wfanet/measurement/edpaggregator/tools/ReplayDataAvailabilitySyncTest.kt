@@ -162,6 +162,50 @@ class ReplayDataAvailabilitySyncTest {
   }
 
   @Test
+  fun `main accepts a replay prefix in a configured contributor bucket`() {
+    storageEmulator.createBucket(BUCKET_NAME)
+    storageEmulator.createBucket(CONTRIBUTOR_BUCKET_NAME)
+    try {
+      val configFile =
+        writeConfigFile(
+          validConfig(includeActivityPublishing = true) +
+            "\n" +
+            """
+            model_line_data_sources {
+              key: "$MODEL_LINE"
+              value {
+                storage {
+                  gcs {
+                    project_id: "test-project"
+                    bucket_name: "$CONTRIBUTOR_BUCKET_NAME"
+                  }
+                }
+                edp_impression_path: "$CONTRIBUTOR_IMPRESSION_PATH"
+              }
+            }
+            """
+              .trimIndent()
+        )
+
+      val capturedOutput =
+        CommandLineTesting.capturingOutput(
+          connectionArgs(configFile, UNREACHABLE_API_TARGET) +
+            arrayOf(
+              "--mode=${ReplayDataAvailabilitySync.Mode.EVENT_GROUP_ACTIVITY_ONLY}",
+              "--blob-prefix=gs://$CONTRIBUTOR_BUCKET_NAME/$CONTRIBUTOR_IMPRESSION_PATH",
+            ) +
+            storageArgs,
+          ::main,
+        )
+
+      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
+    } finally {
+      storageEmulator.deleteBucketRecursive(CONTRIBUTOR_BUCKET_NAME)
+      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
+  }
+
+  @Test
   fun `main exits zero in full sync mode without activity configuration`() {
     storageEmulator.createBucket(BUCKET_NAME)
     try {
@@ -805,9 +849,11 @@ class ReplayDataAvailabilitySyncTest {
 
     private const val MODULE_REPO_NAME = "wfa_measurement_system"
     private const val BUCKET_NAME = "replay-test"
+    private const val CONTRIBUTOR_BUCKET_NAME = "replay-contributor-test"
     private const val DATA_PROVIDER_NAME = "dataProviders/test-provider"
     private const val EDP_IMPRESSION_PATH = "edp/test/vid-labeled-impressions"
     private const val INTERNAL_IMPRESSION_PATH = "vid-labeled-impressions/edp/test"
+    private const val CONTRIBUTOR_IMPRESSION_PATH = "edp/test/legacy-impressions"
     private const val DATE_FOLDER = "$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-01-01"
     private const val METADATA_BLOB_KEY = "$DATE_FOLDER/metadata.json"
     private const val IMPRESSIONS_BLOB_KEY = "$DATE_FOLDER/data-campaign-1"

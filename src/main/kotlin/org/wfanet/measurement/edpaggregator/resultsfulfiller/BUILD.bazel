@@ -76,6 +76,8 @@ kt_jvm_library(
         ":trus_tee_v2_impression_count",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
 
@@ -196,6 +198,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:datetime_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
