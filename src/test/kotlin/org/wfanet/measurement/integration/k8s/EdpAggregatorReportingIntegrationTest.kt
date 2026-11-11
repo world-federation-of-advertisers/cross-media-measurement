@@ -90,11 +90,10 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 /**
  * Tests BasicReport reporting over the EDP Aggregator, against a deployed environment.
  *
- * The rules below provision the high overlap synthetic dataset the reports are computed over. It is
- * pre-labeled and carries its own Population, ModelLine and EventGroups, so none of the VID
- * labeling pipeline or low overlap data set that `EdpAggregatorCorrectnessTest` sets up is needed
- * here. Every rule is a no-op unless `model_line` is set, so an environment opts in only once its
- * ModelLine has been provisioned.
+ * Reads the high overlap dataset prepared by `SeedHighOverlapDataset`. Its Population, ModelLine
+ * and EventGroups are separate from the low overlap data that `EdpAggregatorCorrectnessTest`
+ * provisions. This test verifies the seed manifest and creates reports; it does not seed impressions
+ * or run EventGroupSync. The configured `model_line` must refer to the seeded dataset.
  *
  * Test methods run in name order, so they must be named to sort lexicographically in ascending
  * order of size. A cheaper report then reaches its result before a larger one can exhaust the test
