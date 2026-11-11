@@ -1618,7 +1618,7 @@ needs. The following examples use `time_zone = "UTC"`:
 
 | Deployment | Dispatch schedule | Purpose |
 |---|---|---|
-| CMMS development/cloud tests | `*/5 * * * *` | Allow another dispatch attempt during the 30-minute setup timeout |
+| CMMS development/cloud tests | `*/5 * * * *` | Allow another dispatch attempt during the bounded fixture setup wait |
 | Long-lived deployment, four runs per day | `0 */6 * * *` | Check every six hours |
 | Long-lived deployment, one run per day | `0 0 * * *` | Check daily |
 

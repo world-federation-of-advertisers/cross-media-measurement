@@ -487,7 +487,7 @@ locals {
   # Fallback dispatch recovers registered uploads after fast-path retries are exhausted.
   # ?mode=dispatch selects VidLabelingMonitor.runDispatch without health recovery.
   vid_labeling_dispatch_scheduler_config = {
-    # Short fallback interval for development/cloud tests (30-minute setup timeout).
+    # Short fallback interval for development/cloud tests with bounded setup waits.
     # Long-lived deployments should run 1-4 times per day (every 6-24 hours);
     # newly registered uploads normally start through fast-path dispatch.
     schedule                  = "*/5 * * * *" # Every 5 minutes
