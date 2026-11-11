@@ -187,6 +187,7 @@ class VidLabelingHealingChronologyIntegrationTest {
       GrpcHealingOperationStore(
         operationsStub,
         InternalOperations.UploadHealingOperationServiceCoroutineStub(internalServer.channel),
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
     dispatchSequencer = mock()
     dispatchSequencer.stub {
@@ -229,6 +230,7 @@ class VidLabelingHealingChronologyIntegrationTest {
           }
           outputBlobUris.remove(blobUri)
         },
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
     val recoverUploader =
       RecoverUploader(
@@ -236,6 +238,7 @@ class VidLabelingHealingChronologyIntegrationTest {
         modelLinesStub,
         rankIndexBlobsStub,
         rewriteDoneBlob = ::rewriteDoneBlob,
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
     val plan = evictUploader.plan(listOf(d2.upload.name, d4.upload.name), Instant.EPOCH)
@@ -343,6 +346,7 @@ class VidLabelingHealingChronologyIntegrationTest {
         },
         recoveryExecutorFactory = { recoverUploader },
         clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
     assertThat(evictionResult.deletedSnapshots).isEqualTo(4)

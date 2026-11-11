@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
@@ -51,6 +52,7 @@ class RecoverUploader(
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val getHealingOperation: suspend (name: String) -> UploadHealingOperation? = { null },
   private val rewriteDoneBlob:
     suspend (doneBlobUri: String, expectedGeneration: Long, metadata: Map<String, String>) -> Long,
@@ -80,7 +82,11 @@ class RecoverUploader(
     }
 
     val source =
-      uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = sourceUploadName })
+      rpcThrottlers.metadataRead.onReady {
+        uploadsStub.getRawImpressionUpload(
+          getRawImpressionUploadRequest { name = sourceUploadName }
+        )
+      }
     require(source.doneBlobGeneration > 0L) {
       "$sourceUploadName does not have a valid done-object generation"
     }
@@ -156,13 +162,15 @@ class RecoverUploader(
     var latest: RawImpressionUpload? = null
     do {
       val response =
-        uploadsStub.listRawImpressionUploads(
-          listRawImpressionUploadsRequest {
-            this.parent = parent
-            filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          uploadsStub.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              this.parent = parent
+              filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
+              this.pageToken = pageToken
+            }
+          )
+        }
       latest = findLatestUpload(response.rawImpressionUploadsList + listOfNotNull(latest))
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -191,7 +199,9 @@ class RecoverUploader(
     val predecessorName = row.recoveryPredecessorRawImpressionUpload
     if (predecessorName.isEmpty()) return
     val predecessor =
-      uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = predecessorName })
+      rpcThrottlers.metadataRead.onReady {
+        uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = predecessorName })
+      }
     val revisions = listUploads(dataProviderName, predecessor.doneBlobUri)
     val operationName = "$dataProviderName/uploadHealingOperations/" + row.evictionOperationId
     val operation = getHealingOperation(operationName)
@@ -284,13 +294,15 @@ class RecoverUploader(
     var pageToken = ""
     do {
       val response =
-        uploadsStub.listRawImpressionUploads(
-          listRawImpressionUploadsRequest {
-            this.parent = parent
-            filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          uploadsStub.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              this.parent = parent
+              filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
+              this.pageToken = pageToken
+            }
+          )
+        }
       uploads += response.rawImpressionUploadsList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -317,12 +329,14 @@ class RecoverUploader(
     var pageToken = ""
     do {
       val response =
-        modelLinesStub.listRawImpressionUploadModelLines(
-          listRawImpressionUploadModelLinesRequest {
-            parent = uploadName
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          modelLinesStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              parent = uploadName
+              this.pageToken = pageToken
+            }
+          )
+        }
       rows += response.rawImpressionUploadModelLinesList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -337,18 +351,20 @@ class RecoverUploader(
     var found = false
     do {
       val response =
-        rankIndexBlobsStub.listRankIndexBlobs(
-          listRankIndexBlobsRequest {
-            parent = uploadName
-            showDeleted = true
-            filter =
-              ListRankIndexBlobsRequestKt.filter {
-                blobType = RankIndexBlob.BlobType.SNAPSHOT
-                this.cmmsModelLine = cmmsModelLine
-              }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          rankIndexBlobsStub.listRankIndexBlobs(
+            listRankIndexBlobsRequest {
+              parent = uploadName
+              showDeleted = true
+              filter =
+                ListRankIndexBlobsRequestKt.filter {
+                  blobType = RankIndexBlob.BlobType.SNAPSHOT
+                  this.cmmsModelLine = cmmsModelLine
+                }
+              this.pageToken = pageToken
+            }
+          )
+        }
       if (response.rankIndexBlobsList.any { !it.hasDeleteTime() }) return false
       found = found || response.rankIndexBlobsCount > 0
       pageToken = response.nextPageToken
@@ -358,17 +374,19 @@ class RecoverUploader(
 
   private suspend fun hasActiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
     val response =
-      rankIndexBlobsStub.listRankIndexBlobs(
-        listRankIndexBlobsRequest {
-          parent = uploadName
-          pageSize = 1
-          filter =
-            ListRankIndexBlobsRequestKt.filter {
-              blobType = RankIndexBlob.BlobType.SNAPSHOT
-              this.cmmsModelLine = cmmsModelLine
-            }
-        }
-      )
+      rpcThrottlers.metadataRead.onReady {
+        rankIndexBlobsStub.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            parent = uploadName
+            pageSize = 1
+            filter =
+              ListRankIndexBlobsRequestKt.filter {
+                blobType = RankIndexBlob.BlobType.SNAPSHOT
+                this.cmmsModelLine = cmmsModelLine
+              }
+          }
+        )
+      }
     return response.rankIndexBlobsCount > 0
   }
 }
