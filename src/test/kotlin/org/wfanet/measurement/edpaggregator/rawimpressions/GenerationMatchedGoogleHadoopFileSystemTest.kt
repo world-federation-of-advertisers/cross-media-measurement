@@ -171,7 +171,8 @@ class GenerationMatchedGoogleHadoopFileSystemTest {
       val fileSystem = GenerationMatchedGoogleHadoopFileSystem()
       val configuration = Configuration(false)
       configuration.set("fs.gs.project.id", "test-project")
-      configuration.set("fs.gs.auth.type", "UNAUTHENTICATED")
+      configuration.setBoolean("fs.gs.auth.service.account.enable", false)
+      configuration.setBoolean("fs.gs.auth.null.enable", true)
       fileSystem.initialize(URI.create("gs://bucket"), configuration)
       try {
         block(fileSystem)

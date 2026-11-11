@@ -187,13 +187,7 @@ class RawImpressionUploadManifestClassifierTest {
     val revisions =
       listOf(
         revision("old", 1, files = files("a", "b")),
-        revision(
-          "removed",
-          2,
-          replaces = "old",
-          manifestBoundary = true,
-          files = emptyList(),
-        ),
+        revision("removed", 2, replaces = "old", manifestBoundary = true, files = emptyList()),
         revision("current", 3, replaces = "removed", files = emptyList()),
       )
 
