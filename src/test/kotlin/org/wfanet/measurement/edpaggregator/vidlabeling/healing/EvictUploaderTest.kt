@@ -25,11 +25,13 @@ import java.time.Instant
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.Mockito.mockingDetails
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
@@ -39,6 +41,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
@@ -68,6 +71,40 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKey
 
 @RunWith(JUnit4::class)
 class EvictUploaderTest {
+  private val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
+
+  @After
+  fun verifyRpcPacing() {
+    val calls =
+      listOf(
+          uploadService,
+          modelLineService,
+          rankIndexBlobService,
+          rawImpressionUploadFileService,
+          impressionMetadataService,
+        )
+        .flatMap { mockingDetails(it).invocations }
+        .filter { it.method.parameterCount == 2 }
+        .filter {
+          it.method.name.startsWith("get") ||
+            it.method.name.startsWith("list") ||
+            it.method.name.startsWith("acquire") ||
+            it.method.name.startsWith("advance") ||
+            it.method.name.startsWith("release") ||
+            it.method.name.startsWith("mark") ||
+            it.method.name.startsWith("delete") ||
+            it.method.name.startsWith("batchDelete") ||
+            it.method.name.startsWith("reconcile") ||
+            it.method.name.startsWith("finalize")
+        }
+    val reads =
+      calls.count { it.method.name.startsWith("get") || it.method.name.startsWith("list") }
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(reads)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(calls.size - reads)
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
+  }
+
   private val uploadService:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase =
     mockService()
@@ -112,6 +149,7 @@ class EvictUploaderTest {
         deletedBlobVersions += blobUri to generation
         deletedBlobUris.add(blobUri)
       },
+      rpcThrottlers = recordingThrottlers.throttlers,
     )
   }
 

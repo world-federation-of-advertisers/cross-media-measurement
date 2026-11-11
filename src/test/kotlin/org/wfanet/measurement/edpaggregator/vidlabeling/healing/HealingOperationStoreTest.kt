@@ -17,22 +17,34 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.Mockito.mockingDetails
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt as PublicServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest
+import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingOperationRequest as InternalAdvanceOperationRequest
@@ -45,6 +57,34 @@ import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep as intern
 
 @RunWith(JUnit4::class)
 class HealingOperationStoreTest {
+  private val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
+
+  @After
+  fun verifyRpcPacing() {
+    val calls =
+      listOf(readService, mutationService)
+        .flatMap { mockingDetails(it).invocations }
+        .filter { it.method.parameterCount == 2 }
+        .filter {
+          it.method.name.startsWith("get") ||
+            it.method.name.startsWith("list") ||
+            it.method.name.startsWith("acquire") ||
+            it.method.name.startsWith("advance") ||
+            it.method.name.startsWith("release") ||
+            it.method.name.startsWith("mark") ||
+            it.method.name.startsWith("delete") ||
+            it.method.name.startsWith("batchDelete") ||
+            it.method.name.startsWith("reconcile") ||
+            it.method.name.startsWith("finalize")
+        }
+    val reads =
+      calls.count { it.method.name.startsWith("get") || it.method.name.startsWith("list") }
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(reads)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(calls.size - reads)
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
+  }
+
   private val readService =
     mockService<PublicServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase>()
   private val mutationService =
@@ -60,6 +100,7 @@ class HealingOperationStoreTest {
     GrpcHealingOperationStore(
       PublicServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(grpcTestServerRule.channel),
       InternalServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(grpcTestServerRule.channel),
+      rpcThrottlers = recordingThrottlers.throttlers,
     )
   }
 
@@ -211,6 +252,74 @@ class HealingOperationStoreTest {
       assertThat(request.firstValue.replacementRawImpressionUploadResourceId)
         .isEqualTo("replacement")
       assertThat(result.name).isEqualTo(STEP)
+    }
+
+  @Test
+  fun `public get and successive list pages use the read budget`() =
+    runBlocking<Unit> {
+      whenever(readService.getUploadHealingOperation(any())).thenReturn(PUBLIC_OPERATION)
+      whenever(readService.listUploadHealingOperations(any()))
+        .thenReturn(
+          listUploadHealingOperationsResponse {
+            uploadHealingOperations += PUBLIC_OPERATION
+            nextPageToken = "next"
+          },
+          listUploadHealingOperationsResponse {},
+        )
+
+      assertThat(
+          store.getUploadHealingOperation(getUploadHealingOperationRequest { name = OPERATION })
+        )
+        .isEqualTo(PUBLIC_OPERATION)
+      val first =
+        store.listUploadHealingOperations(
+          listUploadHealingOperationsRequest { parent = DATA_PROVIDER }
+        )
+      val last =
+        store.listUploadHealingOperations(
+          listUploadHealingOperationsRequest {
+            parent = DATA_PROVIDER
+            pageToken = first.nextPageToken
+          }
+        )
+
+      assertThat(first.uploadHealingOperationsList).containsExactly(PUBLIC_OPERATION)
+      assertThat(last.uploadHealingOperationsList).isEmpty()
+      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+      assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(0)
+    }
+
+  @Test
+  fun `cancelling a read waiting for a permit does not issue the RPC`() =
+    runBlocking<Unit> {
+      val entered = CompletableDeferred<Unit>()
+      val release = CompletableDeferred<Unit>()
+      val gate =
+        object : Throttler {
+          override suspend fun <T> onReady(block: suspend () -> T): T {
+            entered.complete(Unit)
+            release.await()
+            return recordingThrottlers.metadataRead.onReady(block)
+          }
+        }
+      val gatedStore =
+        GrpcHealingOperationStore(
+          PublicServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+            grpcTestServerRule.channel
+          ),
+          InternalServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+            grpcTestServerRule.channel
+          ),
+          recordingThrottlers.throttlers.copy(metadataRead = gate),
+        )
+      val request = async {
+        gatedStore.getUploadHealingOperation(getUploadHealingOperationRequest { name = OPERATION })
+      }
+      entered.await()
+      verify(readService, never()).getUploadHealingOperation(any())
+      request.cancel()
+      assertFailsWith<CancellationException> { request.await() }
+      verify(readService, never()).getUploadHealingOperation(any())
     }
 
   companion object {
