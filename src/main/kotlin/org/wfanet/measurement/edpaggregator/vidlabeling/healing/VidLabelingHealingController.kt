@@ -31,6 +31,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadCorrectionCandidateKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
@@ -146,6 +147,7 @@ class VidLabelingHealingController(
   private val manifestReader: CorrectionManifestReader,
   private val doneBlobReplayerFactory: (DataProviderConfig) -> DoneBlobReplayer,
   private val recoveryExecutorFactory: (DataProviderConfig) -> RecoveryExecutor,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val dataAvailabilitySyncWorkItemPublisher: DataAvailabilitySyncWorkItemPublisher =
     DataAvailabilitySyncWorkItemPublisher(
       createWorkItem = { _, _ -> error("Data Availability WorkItem publisher is not configured") },
@@ -447,18 +449,20 @@ class VidLabelingHealingController(
     val acquireState =
       VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
     val acquiredFence =
-      uploadsStub.acquireRawImpressionUploadEvictionFence(
-        acquireRawImpressionUploadEvictionFenceRequest {
-          parent = key.parentKey.toName()
-          evictionOperationId = key.uploadHealingOperationId
-          state = acquireState
-          requestId =
-            RequestIds.forAcquireUploadEvictionFence(
-              key.uploadHealingOperationId,
-              acquireState.name,
-            )
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        uploadsStub.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            parent = key.parentKey.toName()
+            evictionOperationId = key.uploadHealingOperationId
+            state = acquireState
+            requestId =
+              RequestIds.forAcquireUploadEvictionFence(
+                key.uploadHealingOperationId,
+                acquireState.name,
+              )
+          }
+        )
+      }
     var fenceState = acquiredFence.state
     var fenceEtag = acquiredFence.etag
     if (
@@ -466,40 +470,44 @@ class VidLabelingHealingController(
     ) {
       val nextState = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
       fenceEtag =
-        uploadsStub
-          .advanceRawImpressionUploadEvictionFence(
-            advanceRawImpressionUploadEvictionFenceRequest {
-              parent = key.parentKey.toName()
-              evictionOperationId = key.uploadHealingOperationId
-              state = nextState
-              etag = fenceEtag
-              requestId =
-                RequestIds.forAdvanceUploadEvictionFence(
-                  key.uploadHealingOperationId,
-                  nextState.name,
-                  fenceEtag,
-                )
-            }
-          )
+        rpcThrottlers.metadataWrite
+          .onReady {
+            uploadsStub.advanceRawImpressionUploadEvictionFence(
+              advanceRawImpressionUploadEvictionFenceRequest {
+                parent = key.parentKey.toName()
+                evictionOperationId = key.uploadHealingOperationId
+                state = nextState
+                etag = fenceEtag
+                requestId =
+                  RequestIds.forAdvanceUploadEvictionFence(
+                    key.uploadHealingOperationId,
+                    nextState.name,
+                    fenceEtag,
+                  )
+              }
+            )
+          }
           .etag
       fenceState = nextState
     }
     if (fenceState != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING) {
       val nextState = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-      uploadsStub.advanceRawImpressionUploadEvictionFence(
-        advanceRawImpressionUploadEvictionFenceRequest {
-          parent = key.parentKey.toName()
-          evictionOperationId = key.uploadHealingOperationId
-          state = nextState
-          etag = fenceEtag
-          requestId =
-            RequestIds.forAdvanceUploadEvictionFence(
-              key.uploadHealingOperationId,
-              nextState.name,
-              fenceEtag,
-            )
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        uploadsStub.advanceRawImpressionUploadEvictionFence(
+          advanceRawImpressionUploadEvictionFenceRequest {
+            parent = key.parentKey.toName()
+            evictionOperationId = key.uploadHealingOperationId
+            state = nextState
+            etag = fenceEtag
+            requestId =
+              RequestIds.forAdvanceUploadEvictionFence(
+                key.uploadHealingOperationId,
+                nextState.name,
+                fenceEtag,
+              )
+          }
+        )
+      }
     }
     verifyExactCandidateManifests(operation)
     val evictionExecutor =
@@ -901,12 +909,14 @@ class VidLabelingHealingController(
     var pageToken = ""
     do {
       val response =
-        filesStub.listRawImpressionUploadFiles(
-          listRawImpressionUploadFilesRequest {
-            parent = uploadName
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          filesStub.listRawImpressionUploadFiles(
+            listRawImpressionUploadFilesRequest {
+              parent = uploadName
+              this.pageToken = pageToken
+            }
+          )
+        }
       files +=
         response.rawImpressionUploadFilesList.map {
           RawImpressionUploadManifestClassifier.File(it.blobUri, it.blobGeneration, it.eventDate)
@@ -998,12 +1008,16 @@ class VidLabelingHealingController(
     operationsStub.getUploadHealingOperation(getUploadHealingOperationRequest { this.name = name })
 
   private suspend fun getCandidate(name: String): RawImpressionUploadCorrectionCandidate =
-    candidatesStub.getRawImpressionUploadCorrectionCandidate(
-      getRawImpressionUploadCorrectionCandidateRequest { this.name = name }
-    )
+    rpcThrottlers.metadataRead.onReady {
+      candidatesStub.getRawImpressionUploadCorrectionCandidate(
+        getRawImpressionUploadCorrectionCandidateRequest { this.name = name }
+      )
+    }
 
   private suspend fun getUpload(name: String): RawImpressionUpload =
-    uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { this.name = name })
+    rpcThrottlers.metadataRead.onReady {
+      uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { this.name = name })
+    }
 
   private suspend fun listCandidates(
     parent: String,
@@ -1013,14 +1027,16 @@ class VidLabelingHealingController(
     var pageToken = ""
     do {
       val response =
-        candidatesStub.listRawImpressionUploadCorrectionCandidates(
-          listRawImpressionUploadCorrectionCandidatesRequest {
-            this.parent = parent
-            filter =
-              ListRawImpressionUploadCorrectionCandidatesRequestKt.filter { stateIn += states }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          candidatesStub.listRawImpressionUploadCorrectionCandidates(
+            listRawImpressionUploadCorrectionCandidatesRequest {
+              this.parent = parent
+              filter =
+                ListRawImpressionUploadCorrectionCandidatesRequestKt.filter { stateIn += states }
+              this.pageToken = pageToken
+            }
+          )
+        }
       candidates += response.rawImpressionUploadCorrectionCandidatesList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -1135,13 +1151,15 @@ class VidLabelingHealingController(
     var pageToken = ""
     do {
       val response =
-        uploadsStub.listRawImpressionUploads(
-          listRawImpressionUploadsRequest {
-            this.parent = parent
-            filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          uploadsStub.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              this.parent = parent
+              filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
+              this.pageToken = pageToken
+            }
+          )
+        }
       uploads += response.rawImpressionUploadsList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -1153,12 +1171,14 @@ class VidLabelingHealingController(
     var pageToken = ""
     do {
       val response =
-        modelLinesStub.listRawImpressionUploadModelLines(
-          listRawImpressionUploadModelLinesRequest {
-            parent = uploadName
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          modelLinesStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              parent = uploadName
+              this.pageToken = pageToken
+            }
+          )
+        }
       rows += response.rawImpressionUploadModelLinesList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -1167,17 +1187,19 @@ class VidLabelingHealingController(
 
   private suspend fun hasActiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
     val response =
-      rankIndexBlobsStub.listRankIndexBlobs(
-        listRankIndexBlobsRequest {
-          parent = uploadName
-          pageSize = 1
-          filter =
-            org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt.filter {
-              blobType = RankIndexBlob.BlobType.SNAPSHOT
-              this.cmmsModelLine = cmmsModelLine
-            }
-        }
-      )
+      rpcThrottlers.metadataRead.onReady {
+        rankIndexBlobsStub.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            parent = uploadName
+            pageSize = 1
+            filter =
+              org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt.filter {
+                blobType = RankIndexBlob.BlobType.SNAPSHOT
+                this.cmmsModelLine = cmmsModelLine
+              }
+          }
+        )
+      }
     return response.rankIndexBlobsCount > 0
   }
 

@@ -19,6 +19,7 @@ import io.grpc.StatusException
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
@@ -27,6 +28,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 class DataAvailabilitySyncWorkItemPublisher(
   private val createWorkItem: suspend (String, CreateWorkItemRequest) -> WorkItem,
   private val getWorkItem: suspend (String, String) -> WorkItem,
+  private val controlPlaneThrottler: Throttler? = null,
 ) {
   data class Result(val workItemName: String, val outcome: String)
 
@@ -57,7 +59,7 @@ class DataAvailabilitySyncWorkItemPublisher(
     while (true) {
       val workItemName = "workItems/${request.workItemId}"
       try {
-        createWorkItem(dataProvider, request)
+        callControlPlane { createWorkItem(dataProvider, request) }
         return Result(workItemName, "created")
       } catch (e: CancellationException) {
         throw e
@@ -68,7 +70,7 @@ class DataAvailabilitySyncWorkItemPublisher(
         }
         val existing =
           try {
-            getWorkItem(dataProvider, workItemName)
+            callControlPlane { getWorkItem(dataProvider, workItemName) }
           } catch (validationError: CancellationException) {
             throw validationError
           } catch (validationError: Exception) {
@@ -109,5 +111,10 @@ class DataAvailabilitySyncWorkItemPublisher(
         throw e
       }
     }
+  }
+
+  private suspend fun <T> callControlPlane(block: suspend () -> T): T {
+    val throttler = controlPlaneThrottler
+    return if (throttler == null) block() else throttler.onReady(block)
   }
 }
