@@ -632,6 +632,14 @@ class VidLabelingDispatchSequencer(
       "max_file_batch_size_bytes missing for non-memoized model lines under $uploadName; " +
         "set it on VidLabelingConfig for this DataProvider"
     }
+    val files: List<RawImpressionUploadFile> = listUploadFiles(uploadName)
+    if (files.isEmpty()) {
+      // Unclaimed lines remain CREATED; claimed lines resume when files are available.
+      logger.warning("No registered raw impression files under $uploadName; delaying dispatch")
+      return false
+    }
+    val batches: List<List<String>> = RawImpressionFileBinPacker.pack(files, maxFileBatchSizeBytes)
+
     val claimedBundle =
       if (alreadyClaimed) {
         bundle
@@ -651,21 +659,6 @@ class VidLabelingDispatchSequencer(
     val modelBlobPathByLine: Map<String, String> =
       claimedBundle.associate { it.modelLine.cmmsModelLine to it.shardInfo.modelBlobPath }
 
-    val files: List<RawImpressionUploadFile> = listUploadFiles(uploadName)
-    if (files.isEmpty()) {
-      // Do NOT advance the model lines to LABELING: with no files there are no VidLabelingJobs, so
-      // the last-job-out MarkVidLabelingJobSucceeded would never fire and the lines would strand in
-      // LABELING with no completion path. Leave them CREATED so a later dispatch retries (an empty
-      // listing is anomalous/transient because files are registered before dispatch); the Monitor
-      // surfaces uploads that stay CREATED.
-      logger.warning(
-        "No RawImpressionUploadFiles under $uploadName; nothing to label for non-memoized model " +
-          "lines $modelLineNames; leaving them CREATED for retry"
-      )
-      return false
-    }
-
-    val batches: List<List<String>> = RawImpressionFileBinPacker.pack(files, maxFileBatchSizeBytes)
     val labelingJobs: List<VidLabelingJob> =
       createVidLabelingJobs(uploadName, modelLineNames, batches)
     for (job in labelingJobs) {

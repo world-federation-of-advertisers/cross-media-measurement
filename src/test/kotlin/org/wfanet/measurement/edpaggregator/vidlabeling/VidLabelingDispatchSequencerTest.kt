@@ -1888,6 +1888,106 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
+  fun `dispatchNext leaves a non-memoized line unclaimed when its file listing is empty`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+      stubMarkTransitions()
+
+      val result = createSequencer().dispatchNext()
+
+      assertThat(result.dispatchedUpload).isNull()
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
+      verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatchNext leaves a non-memoized line unclaimed when its file listing fails`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+        throw StatusException(Status.UNAVAILABLE)
+      }
+      stubMarkTransitions()
+
+      assertFailsWith<StatusException> { createSequencer().dispatchNext() }
+
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
+      verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatchNext retries an empty non-memoized file listing without an extra claim`() =
+    runBlocking<Unit> {
+      val created = upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)
+      stubUploads(created = listOf(created))
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+      stubMarkTransitions()
+      val sequencer = createSequencer()
+
+      assertThat(sequencer.dispatchNext().dispatchedUpload).isNull()
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
+      stubNonMemoizedFilesAndJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+
+      assertThat(sequencer.dispatchNext().dispatchedUpload).isEqualTo(created.name)
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
+      verifyBlocking(vidLabelingJobService) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatchNext resumes an already claimed non-memoized line after an empty listing`() =
+    runBlocking<Unit> {
+      stubUploads(active = listOf(upload("upload-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+      stubModelLines(
+        createdModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING }
+      )
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+      val sequencer = createSequencer()
+      sequencer.dispatchNext()
+      verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+
+      stubNonMemoizedFilesAndJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      sequencer.dispatchNext()
+
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
+      verifyBlocking(vidLabelingJobService) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+    }
+
+  @Test
   fun `dispatchNext bundles all non-memoized model lines of an upload into shared jobs`() =
     runBlocking<Unit> {
       val created = upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)
