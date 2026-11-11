@@ -773,13 +773,18 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `queued internal WorkItem preserves a later generation`() {
-    runInternalPathWorkItem(workItemGeneration = 7L)
+  fun `queued legacy WorkItem preserves a later generation`() {
+    runInternalPathWorkItem(workItemGeneration = 7L, legacyMessage = true)
   }
 
   @Test
   fun `queued legacy WorkItem uses generation one`() {
-    runInternalPathWorkItem(workItemGeneration = 0L)
+    runInternalPathWorkItem(workItemGeneration = 0L, legacyMessage = true)
+  }
+
+  @Test
+  fun `public WorkItem preserves a later generation`() {
+    runInternalPathWorkItem(workItemGeneration = 7L)
   }
 
   @Test
@@ -843,6 +848,7 @@ class DataAvailabilitySyncFunctionTest {
   private fun runInternalPathWorkItem(
     blockedByGaps: Boolean = false,
     workItemGeneration: Long = 1L,
+    legacyMessage: Boolean = false,
   ) {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
@@ -962,7 +968,9 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("Content-Type", "application/octet-stream")
-        .POST(HttpRequest.BodyPublishers.ofByteArray(publishedWorkItemBytes(workItem)))
+        .POST(
+          HttpRequest.BodyPublishers.ofByteArray(publishedWorkItemBytes(workItem, legacyMessage))
+        )
         .build()
 
     val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
@@ -1787,9 +1795,13 @@ class DataAvailabilitySyncFunctionTest {
         }
     }
 
-  /** Serializes the internal WorkItem format used by WorkItemPublicationRunner. */
-  private fun publishedWorkItemBytes(workItem: WorkItem): ByteArray =
-    InternalWorkItem.newBuilder()
+  /** Serializes current public messages, or the internal format used by older publishers. */
+  private fun publishedWorkItemBytes(
+    workItem: WorkItem,
+    legacyMessage: Boolean = false,
+  ): ByteArray {
+    if (!legacyMessage) return workItem.toByteArray()
+    return InternalWorkItem.newBuilder()
       .setWorkItemResourceId(workItem.name.removePrefix("workItems/"))
       .setQueueResourceId(workItem.queue)
       .setState(InternalWorkItem.State.QUEUED)
@@ -1798,6 +1810,7 @@ class DataAvailabilitySyncFunctionTest {
       .setSerializationKey(workItem.serializationKey)
       .build()
       .toByteArray()
+  }
 
   private fun availabilityWorkItem(
     rawImpressionUpload: String,
