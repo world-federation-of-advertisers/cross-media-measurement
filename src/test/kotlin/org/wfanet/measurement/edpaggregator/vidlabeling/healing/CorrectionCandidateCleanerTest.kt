@@ -39,9 +39,9 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
-import org.wfanet.measurement.internal.edpaggregator.PurgeExpiredRawImpressionUploadCorrectionCandidatesRequest
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.purgeExpiredRawImpressionUploadCorrectionCandidatesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.PurgeRawImpressionUploadCorrectionCandidatesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.purgeRawImpressionUploadCorrectionCandidatesResponse
 
 @RunWith(JUnit4::class)
 class CorrectionCandidateCleanerTest {
@@ -51,7 +51,7 @@ class CorrectionCandidateCleanerTest {
   fun verifyMutationPacing() {
     val calls =
       mockingDetails(service).invocations.count {
-        it.method.name == "purgeExpiredRawImpressionUploadCorrectionCandidates" &&
+        it.method.name == "purgeRawImpressionUploadCorrectionCandidates" &&
           it.method.parameterCount == 2
       }
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(calls)
@@ -67,11 +67,11 @@ class CorrectionCandidateCleanerTest {
 
   @Test
   fun `purge drains every full page`() = runBlocking {
-    whenever(service.purgeExpiredRawImpressionUploadCorrectionCandidates(any()))
+    whenever(service.purgeRawImpressionUploadCorrectionCandidates(any()))
       .thenReturn(
-        purgeExpiredRawImpressionUploadCorrectionCandidatesResponse { purgedCount = 2 },
-        purgeExpiredRawImpressionUploadCorrectionCandidatesResponse { purgedCount = 2 },
-        purgeExpiredRawImpressionUploadCorrectionCandidatesResponse { purgedCount = 1 },
+        purgeRawImpressionUploadCorrectionCandidatesResponse { purgeCount = 2 },
+        purgeRawImpressionUploadCorrectionCandidatesResponse { purgeCount = 2 },
+        purgeRawImpressionUploadCorrectionCandidatesResponse { purgeCount = 1 },
       )
     val cleaner =
       GrpcCorrectionCandidateCleaner(
@@ -83,12 +83,12 @@ class CorrectionCandidateCleanerTest {
 
     cleaner.purge("dataProviders/dp")
 
-    val requests = argumentCaptor<PurgeExpiredRawImpressionUploadCorrectionCandidatesRequest>()
+    val requests = argumentCaptor<PurgeRawImpressionUploadCorrectionCandidatesRequest>()
     verifyBlocking(service, times(3)) {
-      purgeExpiredRawImpressionUploadCorrectionCandidates(requests.capture())
+      purgeRawImpressionUploadCorrectionCandidates(requests.capture())
     }
-    assertThat(requests.allValues.map { it.dataProviderResourceId })
-      .containsExactly("dp", "dp", "dp")
+    assertThat(requests.allValues.map { it.parent })
+      .containsExactly("dataProviders/dp", "dataProviders/dp", "dataProviders/dp")
     assertThat(requests.allValues.map { it.pageSize }).containsExactly(2, 2, 2)
     Unit
   }
@@ -111,8 +111,8 @@ class CorrectionCandidateCleanerTest {
   @Test
   fun `purge stops after an empty page`() =
     runBlocking<Unit> {
-      whenever(service.purgeExpiredRawImpressionUploadCorrectionCandidates(any()))
-        .thenReturn(purgeExpiredRawImpressionUploadCorrectionCandidatesResponse {})
+      whenever(service.purgeRawImpressionUploadCorrectionCandidates(any()))
+        .thenReturn(purgeRawImpressionUploadCorrectionCandidatesResponse {})
       newCleaner().purge("dataProviders/dp")
       assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
     }
@@ -121,10 +121,8 @@ class CorrectionCandidateCleanerTest {
   fun `purge rejects response counts outside the requested page size`() =
     runBlocking<Unit> {
       for (count in listOf(-1, 3)) {
-        whenever(service.purgeExpiredRawImpressionUploadCorrectionCandidates(any()))
-          .thenReturn(
-            purgeExpiredRawImpressionUploadCorrectionCandidatesResponse { purgedCount = count }
-          )
+        whenever(service.purgeRawImpressionUploadCorrectionCandidates(any()))
+          .thenReturn(purgeRawImpressionUploadCorrectionCandidatesResponse { purgeCount = count })
         assertFailsWith<IllegalStateException> { newCleaner().purge("dataProviders/dp") }
       }
       assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
@@ -140,8 +138,8 @@ class CorrectionCandidateCleanerTest {
   @Test
   fun `purge paces and propagates a failure on a later page`() =
     runBlocking<Unit> {
-      whenever(service.purgeExpiredRawImpressionUploadCorrectionCandidates(any()))
-        .thenReturn(purgeExpiredRawImpressionUploadCorrectionCandidatesResponse { purgedCount = 2 })
+      whenever(service.purgeRawImpressionUploadCorrectionCandidates(any()))
+        .thenReturn(purgeRawImpressionUploadCorrectionCandidatesResponse { purgeCount = 2 })
         .thenThrow(Status.UNAVAILABLE.asRuntimeException())
       val failure = assertFailsWith<StatusException> { newCleaner().purge("dataProviders/dp") }
       assertThat(failure.status.code).isEqualTo(Status.Code.UNAVAILABLE)

@@ -67,14 +67,18 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub as CorrectionDetectionStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RegisterRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RegisterRawImpressionUploadCorrectionCandidateRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.activateRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFileRequest
@@ -86,17 +90,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadRegistrationCompleteRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.quarantineRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate as InternalCandidate
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub as CorrectionDetectionStub
-import org.wfanet.measurement.internal.edpaggregator.activateQuarantinedRawImpressionUploadRequest
-import org.wfanet.measurement.internal.edpaggregator.createQuarantinedRawImpressionUploadRequest
-import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
-import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadCorrectionCandidate as internalCandidate
-import org.wfanet.measurement.internal.edpaggregator.registerDetectedRawImpressionUploadCorrectionCandidateRequest
-import org.wfanet.measurement.internal.edpaggregator.resolveDetectedRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.registerRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.resolveRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -1015,15 +1014,14 @@ class VidLabelingDispatcher(
     operationId: String,
   ) {
     val uploadKey = requireNotNull(RawImpressionUploadKey.fromName(upload.name))
-    val sourceKey = requireNotNull(RawImpressionUploadKey.fromName(sourceUploadName))
     val activated =
       rpcThrottlers.metadataWrite.onReady {
-        correctionDetectionStub.activateQuarantinedRawImpressionUpload(
-          activateQuarantinedRawImpressionUploadRequest {
-            dataProviderResourceId = uploadKey.dataProviderId
-            rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
-            sourceRawImpressionUploadResourceId = sourceKey.rawImpressionUploadId
-            evictionOperationId = operationId
+        correctionDetectionStub.activateRawImpressionUpload(
+          activateRawImpressionUploadRequest {
+            name = upload.name
+            sourceRawImpressionUpload = sourceUploadName
+            uploadHealingOperation =
+              UploadHealingOperationKey(uploadKey.parentKey, operationId).toName()
             requestId =
               RequestIds.forActivateQuarantinedRawImpressionUpload(upload.name, operationId)
           }
@@ -1072,31 +1070,21 @@ class VidLabelingDispatcher(
     val quarantinedUpload =
       if (exactRevision == null) {
         rpcThrottlers.metadataWrite.onReady {
-          correctionDetectionStub.createQuarantinedRawImpressionUpload(
-            createQuarantinedRawImpressionUploadRequest {
-              dataProviderResourceId = dataProviderKey.dataProviderId
-              rawImpressionUpload = internalRawImpressionUpload {
+          correctionDetectionStub
+            .quarantineRawImpressionUpload(
+              quarantineRawImpressionUploadRequest {
+                parent = dataProviderName
                 doneBlobUri = doneBlobPath
                 this.doneBlobGeneration = doneBlobGeneration
                 this.doneBlobCreateTime = doneBlobCreateTime.toProtoTime()
+                rawImpressionUploadCorrectionCandidateId = candidateId
+                requestId = RequestIds.forRawImpressionUpload(doneBlobPath, doneBlobGeneration)
               }
-              rawImpressionUploadCorrectionCandidateId = candidateId
-              requestId = RequestIds.forRawImpressionUpload(doneBlobPath, doneBlobGeneration)
-            }
-          )
+            )
+            .rawImpressionUpload
         }
-      } else {
-        internalRawImpressionUpload {
-          dataProviderResourceId = dataProviderKey.dataProviderId
-          rawImpressionUploadResourceId =
-            requireNotNull(RawImpressionUploadKey.fromName(exactRevision.name))
-              .rawImpressionUploadId
-          registrationComplete = exactRevision.registrationComplete
-        }
-      }
-    val uploadName =
-      RawImpressionUploadKey(dataProviderKey, quarantinedUpload.rawImpressionUploadResourceId)
-        .toName()
+      } else exactRevision
+    val uploadName = quarantinedUpload.name
     val resolvedCurrentEventDates =
       currentEventDates ?: resolveSingleEventDates(currentBlobVersions, doneBlobPath)
     val datedComparison = comparison.withCurrentEventDates(resolvedCurrentEventDates)
@@ -1121,22 +1109,21 @@ class VidLabelingDispatcher(
     val classificationLabel = classification.name.removePrefix("CLASSIFICATION_")
     val registration =
       rpcThrottlers.metadataWrite.onReady {
-        correctionDetectionStub.registerDetectedRawImpressionUploadCorrectionCandidate(
-          registerDetectedRawImpressionUploadCorrectionCandidateRequest {
-            dataProviderResourceId = dataProviderKey.dataProviderId
+        correctionDetectionStub.registerRawImpressionUploadCorrectionCandidate(
+          registerRawImpressionUploadCorrectionCandidateRequest {
+            parent = dataProviderName
             rawImpressionUploadCorrectionCandidateId = candidateId
-            rawImpressionUploadCorrectionCandidate = internalCandidate {
-              rawImpressionUploadResourceId = quarantinedUpload.rawImpressionUploadResourceId
-              this.classification = classification
-              priorManifestDigest = comparison.priorManifestDigest
-              currentManifestDigest = datedComparison.currentManifestDigest
-              manifestComparison =
-                datedComparison.toCandidateManifestComparison(
-                  quarantinedUpload.rawImpressionUploadResourceId
-                )
-              expireTime = doneBlobCreateTime.plus(correctionCandidateRetention).toProtoTime()
+            rawImpressionUpload = uploadName
+            this.classification = classification
+            priorManifestDigest = comparison.priorManifestDigest
+            currentManifestDigest = datedComparison.currentManifestDigest
+            manifestComparison = datedComparison.toCandidateManifestComparison(uploadName)
+            expireTime = doneBlobCreateTime.plus(correctionCandidateRetention).toProtoTime()
+            if (supersededCandidateId.isNotEmpty()) {
+              supersededRawImpressionUploadCorrectionCandidate =
+                RawImpressionUploadCorrectionCandidateKey(dataProviderKey, supersededCandidateId)
+                  .toName()
             }
-            supersededRawImpressionUploadCorrectionCandidateId = supersededCandidateId
             requestId =
               RequestIds.forRegisterRawImpressionUploadCorrectionCandidate(
                 doneBlobPath,
@@ -1145,6 +1132,7 @@ class VidLabelingDispatcher(
           }
         )
       }
+
     if (registration.newlyCreated) {
       metrics.correctionCandidatesCounter.add(
         1,
@@ -1192,21 +1180,49 @@ class VidLabelingDispatcher(
   }
 
   private fun RawImpressionUploadManifestClassifier.Result.toCandidateManifestComparison(
-    currentRawImpressionUploadResourceId: String
-  ): InternalCandidate.ManifestComparison {
+    currentUploadName: String
+  ): RegisterRawImpressionUploadCorrectionCandidateRequest.ManifestComparison {
+    val currentKey = requireNotNull(RawImpressionUploadKey.fromName(currentUploadName))
     val currentOwners =
       currentManifest.values.mapTo(mutableSetOf()) { it.outputSourceRawImpressionUpload }
     check(currentOwners.size <= 1) { "Current manifest has multiple owners" }
     val currentOwner = currentOwners.singleOrNull()
-    return manifestClassifier.snapshot(this) { owner ->
-      if (owner == currentOwner) {
-        currentRawImpressionUploadResourceId
-      } else {
-        requireNotNull(RawImpressionUploadKey.fromName(owner)) {
-            "Invalid RawImpressionUpload owner $owner"
-          }
-          .rawImpressionUploadId
+    val snapshot =
+      manifestClassifier.snapshot(this) { owner ->
+        if (owner == currentOwner) currentKey.rawImpressionUploadId
+        else requireNotNull(RawImpressionUploadKey.fromName(owner)).rawImpressionUploadId
       }
+    fun entry(
+      value:
+        org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate.ManifestEntry
+    ) =
+      RegisterRawImpressionUploadCorrectionCandidateRequestKt.manifestEntry {
+        blobUri = value.blobUri
+        blobGeneration = value.blobGeneration
+        if (value.hasEventDate()) eventDate = value.eventDate
+        if (value.outputSourceRawImpressionUploadResourceId.isNotEmpty()) {
+          outputSourceRawImpressionUpload =
+            RawImpressionUploadKey(
+                currentKey.parentKey,
+                value.outputSourceRawImpressionUploadResourceId,
+              )
+              .toName()
+        }
+      }
+    return RegisterRawImpressionUploadCorrectionCandidateRequestKt.manifestComparison {
+      priorManifest += snapshot.priorManifestList.map { entry(it) }
+      currentManifest += snapshot.currentManifestList.map { entry(it) }
+      differences +=
+        snapshot.differencesList.map { difference ->
+          RegisterRawImpressionUploadCorrectionCandidateRequestKt.manifestDifference {
+            type =
+              RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.forNumber(
+                difference.type.number
+              )
+            if (difference.hasPrior()) prior = entry(difference.prior)
+            if (difference.hasCurrent()) current = entry(difference.current)
+          }
+        }
     }
   }
 
@@ -1216,13 +1232,16 @@ class VidLabelingDispatcher(
         previousRevision.doneBlobUri,
         previousRevision.doneBlobGeneration,
       )
-    val dataProviderId = requireNotNull(DataProviderKey.fromName(dataProviderName)).dataProviderId
     val result =
       rpcThrottlers.metadataWrite.onReady {
-        correctionDetectionStub.resolveDetectedRawImpressionUploadCorrectionCandidate(
-          resolveDetectedRawImpressionUploadCorrectionCandidateRequest {
-            dataProviderResourceId = dataProviderId
-            rawImpressionUploadCorrectionCandidateId = candidateId
+        correctionDetectionStub.resolveRawImpressionUploadCorrectionCandidate(
+          resolveRawImpressionUploadCorrectionCandidateRequest {
+            name =
+              RawImpressionUploadCorrectionCandidateKey(
+                  requireNotNull(DataProviderKey.fromName(dataProviderName)),
+                  candidateId,
+                )
+                .toName()
             requestId = RequestIds.forResolveRawImpressionUploadCorrectionCandidate(candidateId)
           }
         )
@@ -1233,14 +1252,14 @@ class VidLabelingDispatcher(
   }
 
   private fun RawImpressionUploadManifestClassifier.Classification.toCandidateClassification():
-    InternalCandidate.Classification =
+    RawImpressionUploadCorrectionCandidate.Classification =
     when (this) {
       RawImpressionUploadManifestClassifier.Classification.EDITED ->
-        InternalCandidate.Classification.CLASSIFICATION_EDITED
+        RawImpressionUploadCorrectionCandidate.Classification.EDITED
       RawImpressionUploadManifestClassifier.Classification.REMOVED ->
-        InternalCandidate.Classification.CLASSIFICATION_REMOVED
+        RawImpressionUploadCorrectionCandidate.Classification.REMOVED
       RawImpressionUploadManifestClassifier.Classification.MIXED ->
-        InternalCandidate.Classification.CLASSIFICATION_MIXED
+        RawImpressionUploadCorrectionCandidate.Classification.MIXED
       RawImpressionUploadManifestClassifier.Classification.NEW,
       RawImpressionUploadManifestClassifier.Classification.NO_OP,
       RawImpressionUploadManifestClassifier.Classification.APPEND ->

@@ -50,6 +50,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -79,6 +80,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
+import org.wfanet.measurement.edpaggregator.service.v1alpha.RawImpressionUploadCorrectionCandidateService
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
@@ -92,6 +94,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpc
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt as PublicCandidateGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -121,6 +124,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrecti
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCandidateGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RegisterDetectedRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.ResolveDetectedRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadCorrectionCandidate as internalCandidate
 import org.wfanet.measurement.internal.edpaggregator.registerDetectedRawImpressionUploadCorrectionCandidateResponse
@@ -186,8 +190,7 @@ class VidLabelingDispatcherTest {
     mockService()
   private val storageClient: StorageClient = mock()
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
+  private val grpcTestServerRule = GrpcTestServerRule {
     addService(modelLinesService)
     addService(modelRolloutsService)
     addService(modelShardsService)
@@ -201,6 +204,17 @@ class VidLabelingDispatcherTest {
     addService(poolAssignmentJobService)
     addService(vidLabelingJobService)
   }
+
+  private val publicCandidateServer = GrpcTestServerRule {
+    addService(
+      RawImpressionUploadCorrectionCandidateService(
+        InternalCandidateGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub(
+          grpcTestServerRule.channel
+        )
+      )
+    )
+  }
+  @get:Rule val rpcServers = RuleChain.outerRule(grpcTestServerRule).around(publicCandidateServer)
 
   private val poolAssignmentJobStub by lazy {
     PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(grpcTestServerRule.channel)
@@ -231,8 +245,8 @@ class VidLabelingDispatcherTest {
   }
 
   private val correctionCandidateStub by lazy {
-    InternalCandidateGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub(
-      grpcTestServerRule.channel
+    PublicCandidateGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub(
+      publicCandidateServer.channel
     )
   }
 
@@ -570,6 +584,9 @@ class VidLabelingDispatcherTest {
     whenever(correctionCandidateService.createQuarantinedRawImpressionUpload(any()))
       .thenReturn(
         internalRawImpressionUpload {
+          state =
+            org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+              .RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
           dataProviderResourceId = DATA_PROVIDER_NAME.substringAfter("dataProviders/")
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_ID
           etag = UPLOAD_ETAG
@@ -895,6 +912,9 @@ class VidLabelingDispatcherTest {
     whenever(correctionCandidateService.createQuarantinedRawImpressionUpload(any())).thenAnswer {
       fenceAcquired = true
       internalRawImpressionUpload {
+        state =
+          org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+            .RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
         dataProviderResourceId = DATA_PROVIDER_NAME.substringAfter("dataProviders/")
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_ID
         etag = UPLOAD_ETAG
@@ -3333,13 +3353,24 @@ class VidLabelingDispatcherTest {
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
     stubRawImpressionUploadCreation()
     stubCorrectionCandidateRegistration()
+    val registrationCalls = AtomicInteger()
     whenever(
         correctionCandidateService.registerDetectedRawImpressionUploadCorrectionCandidate(any())
       )
-      .thenReturn(
-        registerDetectedRawImpressionUploadCorrectionCandidateResponse { newlyCreated = true },
-        registerDetectedRawImpressionUploadCorrectionCandidateResponse { newlyCreated = false },
-      )
+      .thenAnswer { invocation ->
+        val request =
+          invocation.getArgument<RegisterDetectedRawImpressionUploadCorrectionCandidateRequest>(0)
+        registerDetectedRawImpressionUploadCorrectionCandidateResponse {
+          rawImpressionUploadCorrectionCandidate =
+            request.rawImpressionUploadCorrectionCandidate.copy {
+              dataProviderResourceId = request.dataProviderResourceId
+              rawImpressionUploadCorrectionCandidateId =
+                request.rawImpressionUploadCorrectionCandidateId
+              state = InternalCandidate.State.STATE_PENDING
+            }
+          newlyCreated = registrationCalls.getAndIncrement() == 0
+        }
+      }
     whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
       .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += previous })
     whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))

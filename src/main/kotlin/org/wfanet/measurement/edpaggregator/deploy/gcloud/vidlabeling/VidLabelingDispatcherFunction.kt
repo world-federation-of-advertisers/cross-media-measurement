@@ -72,7 +72,6 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadat
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -95,16 +94,12 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `MODEL_LINES_TARGET`: Required. Target endpoint for the VID Repository ModelLines service.
  * - `MODEL_LINES_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_ROLLOUTS_TARGET`: Required. Target endpoint for the VID Repository ModelRollouts
- *   service.
  * - `MODEL_ROLLOUTS_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_SHARDS_TARGET`: Required. Target endpoint for the VID Repository ModelShards service.
  * - `MODEL_SHARDS_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`,
  *   `RawImpressionUploadModelLineService`, and `PoolAssignmentJobService`.
  * - `RAW_IMPRESSION_UPLOAD_CERT_HOST`: Optional. Overrides TLS authority for testing.
- * - `CORRECTION_DETECTION_TARGET`: Required. Target endpoint for the internal correction-detection
- *   service.
- * - `CORRECTION_DETECTION_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `CONTROL_PLANE_TARGET`: Required. Target endpoint for the Secure Computation control plane
  *   (`WorkItemsService`).
  * - `CONTROL_PLANE_CERT_HOST`: Optional. Overrides TLS authority for testing.
@@ -222,17 +217,6 @@ class VidLabelingDispatcherFunction : HttpFunction {
         RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
           rawImpressionUploadChannel
         )
-      val correctionDetectionChannel =
-        VidLabelingFunctionHelpers.createInstrumentedChannel(
-          config.rawImpressionMetadataStorageConnection,
-          correctionDetectionTarget,
-          correctionDetectionCertHost,
-          grpcTelemetry,
-        )
-      val correctionDetectionStub =
-        InternalCorrectionCandidateServiceGrpcKt
-          .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(correctionDetectionChannel)
-
       val rawImpressionUploadModelLineStub =
         RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
           rawImpressionUploadChannel
@@ -315,7 +299,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           readBlobMetadata = readBlobMetadata,
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
-          correctionDetectionStub = correctionDetectionStub,
+          correctionDetectionStub = correctionCandidateStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
           rankIndexBlobStub = rankIndexBlobStub,
           modelLinesStub = modelLinesStub,
@@ -410,10 +394,6 @@ class VidLabelingDispatcherFunction : HttpFunction {
       EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET")
     private val rawImpressionUploadCertHost: String? =
       System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST")
-    private val correctionDetectionTarget: String =
-      EnvVars.checkNotNullOrEmpty("CORRECTION_DETECTION_TARGET")
-    private val correctionDetectionCertHost: String? =
-      System.getenv("CORRECTION_DETECTION_CERT_HOST")
     private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
     private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
     private val vidLabelerQueueName: String = EnvVars.checkNotNullOrEmpty("VID_LABELER_QUEUE_NAME")

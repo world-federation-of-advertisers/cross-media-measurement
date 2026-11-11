@@ -119,10 +119,8 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHeali
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifestKt as InternalManifestKt
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalAction
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
-import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalOperations
 import org.wfanet.measurement.internal.edpaggregator.labeledOutputManifest as internalManifest
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation as internalOperation
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep as internalStep
@@ -168,7 +166,7 @@ class VidLabelingHealingChronologyIntegrationTest {
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
   private lateinit var operationStore: GrpcHealingOperationStore
   private lateinit var correctionDetectionStub:
-    InternalCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
+    RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
   private lateinit var dispatchSequencer: VidLabelingDispatchSequencer
 
   private val rawStorage = InMemoryStorageClient()
@@ -200,12 +198,11 @@ class VidLabelingHealingChronologyIntegrationTest {
     operationStore =
       GrpcHealingOperationStore(
         operationsStub,
-        InternalOperations.UploadHealingOperationServiceCoroutineStub(internalServer.channel),
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
     correctionDetectionStub =
-      InternalCorrectionCandidateServiceGrpcKt
-        .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(internalServer.channel)
+      RawImpressionUploadCorrectionCandidateServiceGrpcKt
+        .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(publicServer.channel)
     dispatchSequencer = mock()
     dispatchSequencer.stub {
       onBlocking { resolveShardInfo(any()) } doReturn

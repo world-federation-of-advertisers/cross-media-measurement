@@ -107,7 +107,6 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
@@ -154,7 +153,7 @@ class VidLabelingHealingControllerIntegrationTest {
   private lateinit var dataAvailabilitySyncLeasesStub:
     DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
   private lateinit var correctionDetectionStub:
-    InternalCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
+    RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
   private lateinit var dispatchSequencer: VidLabelingDispatchSequencer
 
   private val rawStorage = InMemoryStorageClient()
@@ -180,8 +179,8 @@ class VidLabelingHealingControllerIntegrationTest {
     dataAvailabilitySyncLeasesStub =
       DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub(channel)
     correctionDetectionStub =
-      InternalCorrectionCandidateServiceGrpcKt
-        .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(internalServer.channel)
+      RawImpressionUploadCorrectionCandidateServiceGrpcKt
+        .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(publicServer.channel)
     dispatchSequencer = mock()
     dispatchSequencer.stub {
       onBlocking { resolveShardInfo(any()) } doReturn

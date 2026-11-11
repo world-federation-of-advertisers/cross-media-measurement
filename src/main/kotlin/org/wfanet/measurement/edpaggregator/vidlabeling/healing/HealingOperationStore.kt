@@ -16,34 +16,21 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
-import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadCorrectionCandidateKey
-import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
-import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
-import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
-import org.wfanet.measurement.edpaggregator.service.UploadHealingStepKey
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.FinalizeUploadHealingOperationRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.ReconcileUploadHealingOperationRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
-import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifestKt as InternalLabeledOutputManifestKt
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
-import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
-import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub as InternalOperationStub
-import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingOperationRequest as internalAdvanceOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingStepRequest as internalAdvanceStepRequest
-import org.wfanet.measurement.internal.edpaggregator.finalizeUploadHealingOperationRequest as internalFinalizeOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.labeledOutputManifest as internalLabeledOutputManifest
-import org.wfanet.measurement.internal.edpaggregator.reconcileUploadHealingOperationRequest as internalReconcileOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation as internalOperation
-import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep as internalStep
+import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.finalizeUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.reconcileUploadHealingOperationRequest
 
 data class ReconcileUploadHealingOperationCommand(
   val parent: String,
@@ -112,225 +99,121 @@ interface HealingOperationStore {
   suspend fun advanceUploadHealingStep(request: AdvanceUploadHealingStepCommand): UploadHealingStep
 }
 
-/** Routes controller mutations to the internal API and reads through the public API. */
+/** Controller access through the public upload-healing API. */
 class GrpcHealingOperationStore(
-  private val readStub: UploadHealingOperationServiceCoroutineStub,
-  private val mutationStub: InternalOperationStub,
+  private val stub: UploadHealingOperationServiceCoroutineStub,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
 ) : HealingOperationStore {
   override suspend fun reconcileUploadHealingOperation(
     request: ReconcileUploadHealingOperationCommand
-  ): UploadHealingOperation {
-    val parent = requireNotNull(DataProviderKey.fromName(request.parent))
+  ): UploadHealingOperation =
     rpcThrottlers.metadataWrite.onReady {
-      mutationStub.reconcileUploadHealingOperation(
-        internalReconcileOperationRequest {
-          dataProviderResourceId = parent.dataProviderId
-          uploadHealingOperationId = request.uploadHealingOperationId
-          uploadHealingOperation = request.uploadHealingOperation.toInternal(parent)
-          etag = request.etag
-          requestId = request.requestId
-        }
-      )
+      stub
+        .reconcileUploadHealingOperation(
+          reconcileUploadHealingOperationRequest {
+            parent = request.parent
+            uploadHealingOperationId = request.uploadHealingOperationId
+            plan =
+              ReconcileUploadHealingOperationRequestKt.plan {
+                val source = request.uploadHealingOperation
+                reason = source.reason
+                labeledImpressionsBlobPrefix = source.labeledImpressionsBlobPrefix
+                badRawImpressionUploads += source.badRawImpressionUploadsList
+                if (source.hasCutoffTime()) cutoffTime = source.cutoffTime
+                rawImpressionUploadCorrectionCandidates +=
+                  source.rawImpressionUploadCorrectionCandidatesList
+                planFormatVersion = source.planFormatVersion
+                outputManifestState = source.outputManifestState
+                steps +=
+                  source.stepsList.map { step ->
+                    ReconcileUploadHealingOperationRequestKt.step {
+                      sequenceNumber = step.sequenceNumber
+                      sourceRawImpressionUpload = step.sourceRawImpressionUpload
+                      rawImpressionUploadModelLine = step.rawImpressionUploadModelLine
+                      cmmsModelLine = step.cmmsModelLine
+                      memoized = step.memoized
+                      recoveryAction = step.recoveryAction
+                      recoveryPredecessorRawImpressionUpload =
+                        step.recoveryPredecessorRawImpressionUpload
+                      recoveryTarget = step.recoveryTarget
+                      labeledOutputManifest = step.labeledOutputManifest
+                      rawImpressionUploadCorrectionCandidate =
+                        step.rawImpressionUploadCorrectionCandidate
+                    }
+                  }
+              }
+            etag = request.etag
+            requestId = request.requestId
+          }
+        )
+        .uploadHealingOperation
     }
-    return getOperation(parent, request.uploadHealingOperationId)
-  }
 
   override suspend fun getUploadHealingOperation(
     request: GetUploadHealingOperationRequest
   ): UploadHealingOperation =
-    rpcThrottlers.metadataRead.onReady { readStub.getUploadHealingOperation(request) }
+    rpcThrottlers.metadataRead.onReady { stub.getUploadHealingOperation(request) }
 
   override suspend fun listUploadHealingOperations(
     request: ListUploadHealingOperationsRequest
   ): ListUploadHealingOperationsResponse =
-    rpcThrottlers.metadataRead.onReady { readStub.listUploadHealingOperations(request) }
+    rpcThrottlers.metadataRead.onReady { stub.listUploadHealingOperations(request) }
 
   override suspend fun advanceUploadHealingOperation(
     request: AdvanceUploadHealingOperationCommand
-  ): UploadHealingOperation {
-    val key = requireNotNull(UploadHealingOperationKey.fromName(request.name))
+  ): UploadHealingOperation =
     rpcThrottlers.metadataWrite.onReady {
-      mutationStub.advanceUploadHealingOperation(
-        internalAdvanceOperationRequest {
-          dataProviderResourceId = key.dataProviderId
-          uploadHealingOperationId = key.uploadHealingOperationId
+      stub.advanceUploadHealingOperation(
+        advanceUploadHealingOperationRequest {
+          name = request.name
+          state = request.state
           etag = request.etag
-          state = request.state.toInternal()
           requestId = request.requestId
         }
       )
     }
-    return getOperation(key.parentKey, key.uploadHealingOperationId)
-  }
 
   override suspend fun finalizeUploadHealingOperation(
     request: FinalizeUploadHealingOperationCommand
-  ): UploadHealingOperation {
-    val key = requireNotNull(UploadHealingOperationKey.fromName(request.name))
+  ): UploadHealingOperation =
     rpcThrottlers.metadataWrite.onReady {
-      mutationStub.finalizeUploadHealingOperation(
-        internalFinalizeOperationRequest {
-          dataProviderResourceId = key.dataProviderId
-          uploadHealingOperationId = key.uploadHealingOperationId
+      stub.finalizeUploadHealingOperation(
+        finalizeUploadHealingOperationRequest {
+          name = request.name
           stepManifests +=
-            request.stepManifests.map { stepManifest ->
-              val stepKey =
-                requireNotNull(UploadHealingStepKey.fromName(stepManifest.uploadHealingStep))
-              require(stepKey.parentKey == key)
-              org.wfanet.measurement.internal.edpaggregator.FinalizeUploadHealingOperationRequestKt
-                .stepManifest {
-                  uploadHealingStepId = requireNotNull(stepKey.uploadHealingStepId.toLongOrNull())
-                  labeledOutputManifest = internalLabeledOutputManifest {
-                    blobs +=
-                      stepManifest.labeledOutputManifest.blobsList.map { blob ->
-                        InternalLabeledOutputManifestKt.blobVersion {
-                          blobUri = blob.blobUri
-                          if (blob.hasGeneration()) generation = blob.generation
-                        }
-                      }
-                  }
-                }
+            request.stepManifests.map { manifest ->
+              FinalizeUploadHealingOperationRequestKt.stepManifest {
+                uploadHealingStep = manifest.uploadHealingStep
+                labeledOutputManifest = manifest.labeledOutputManifest
+              }
             }
           etag = request.etag
           requestId = request.requestId
         }
       )
     }
-    return getOperation(key.parentKey, key.uploadHealingOperationId)
-  }
 
   override suspend fun advanceUploadHealingStep(
     request: AdvanceUploadHealingStepCommand
-  ): UploadHealingStep {
-    val key = requireNotNull(UploadHealingStepKey.fromName(request.name))
-    val stepId = requireNotNull(key.uploadHealingStepId.toLongOrNull())
-    val replacementId =
-      request.replacementRawImpressionUpload
-        .takeIf(String::isNotEmpty)
-        ?.let { requireNotNull(RawImpressionUploadKey.fromName(it)).rawImpressionUploadId }
-        .orEmpty()
+  ): UploadHealingStep =
     rpcThrottlers.metadataWrite.onReady {
-      mutationStub.advanceUploadHealingStep(
-        internalAdvanceStepRequest {
-          dataProviderResourceId = key.dataProviderId
-          uploadHealingOperationId = key.uploadHealingOperationId
-          uploadHealingStepId = stepId
-          etag = request.etag
-          action = request.action.toInternal()
-          replacementRawImpressionUploadResourceId = replacementId
+      stub.advanceUploadHealingStep(
+        advanceUploadHealingStepRequest {
+          name = request.name
+          action =
+            when (request.action) {
+              UploadHealingStepAction.CONFIRM_EVICTION ->
+                AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+              UploadHealingStepAction.RECORD_RECOVERY ->
+                AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
+              UploadHealingStepAction.CONFIRM_REPLACEMENT ->
+                AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
+            }
+          replacementRawImpressionUpload = request.replacementRawImpressionUpload
           recoveryDoneBlobGeneration = request.recoveryDoneBlobGeneration
+          etag = request.etag
           requestId = request.requestId
         }
       )
-    }
-    return getOperation(key.parentKey.parentKey, key.uploadHealingOperationId).stepsList.single {
-      it.name == request.name
-    }
-  }
-
-  private suspend fun getOperation(
-    parent: DataProviderKey,
-    operationId: String,
-  ): UploadHealingOperation =
-    rpcThrottlers.metadataRead.onReady {
-      readStub.getUploadHealingOperation(
-        getUploadHealingOperationRequest {
-          name = UploadHealingOperationKey(parent, operationId).toName()
-        }
-      )
-    }
-
-  private fun UploadHealingOperation.toInternal(parent: DataProviderKey): InternalOperation =
-    internalOperation {
-      state =
-        if (stepsCount == 0) {
-          InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
-        } else {
-          InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
-        }
-      planFormatVersion = this@toInternal.planFormatVersion
-      outputManifestState =
-        InternalOperation.OutputManifestState.forNumber(this@toInternal.outputManifestState.number)
-      reason = this@toInternal.reason
-      labeledImpressionsBlobPrefix = this@toInternal.labeledImpressionsBlobPrefix
-      badRawImpressionUploadResourceIds +=
-        this@toInternal.badRawImpressionUploadsList.map {
-          requireNotNull(RawImpressionUploadKey.fromName(it)).rawImpressionUploadId
-        }
-      cutoffTime = this@toInternal.cutoffTime
-      rawImpressionUploadCorrectionCandidateIds +=
-        rawImpressionUploadCorrectionCandidatesList.map {
-          val key = requireNotNull(RawImpressionUploadCorrectionCandidateKey.fromName(it))
-          require(key.parentKey == parent)
-          key.rawImpressionUploadCorrectionCandidateId
-        }
-      steps +=
-        stepsList.mapIndexed { index, step ->
-          val source =
-            requireNotNull(RawImpressionUploadKey.fromName(step.sourceRawImpressionUpload))
-          require(source.parentKey == parent)
-          val modelLine =
-            requireNotNull(
-              RawImpressionUploadModelLineKey.fromName(step.rawImpressionUploadModelLine)
-            )
-          require(modelLine.parentKey == source)
-          require(ModelLineKey.fromName(step.cmmsModelLine) != null)
-          internalStep {
-            uploadHealingStepId = index.toLong() + 1L
-            sequenceNumber = step.sequenceNumber
-            sourceRawImpressionUploadResourceId = source.rawImpressionUploadId
-            rawImpressionUploadModelLineResourceId = modelLine.rawImpressionUploadModelLineId
-            cmmsModelLine = step.cmmsModelLine
-            memoized = step.memoized
-            recoveryAction = step.recoveryAction.toInternal()
-            if (step.recoveryPredecessorRawImpressionUpload.isNotEmpty()) {
-              recoveryPredecessorRawImpressionUploadResourceId =
-                requireNotNull(
-                    RawImpressionUploadKey.fromName(step.recoveryPredecessorRawImpressionUpload)
-                  )
-                  .rawImpressionUploadId
-            }
-            recoveryTarget = step.recoveryTarget
-            labeledOutputManifest = internalLabeledOutputManifest {
-              blobs +=
-                step.labeledOutputManifest.blobsList.map { blob ->
-                  InternalLabeledOutputManifestKt.blobVersion {
-                    blobUri = blob.blobUri
-                    if (blob.hasGeneration()) generation = blob.generation
-                  }
-                }
-            }
-            if (step.rawImpressionUploadCorrectionCandidate.isNotEmpty()) {
-              rawImpressionUploadCorrectionCandidateId =
-                requireNotNull(
-                    RawImpressionUploadCorrectionCandidateKey.fromName(
-                      step.rawImpressionUploadCorrectionCandidate
-                    )
-                  )
-                  .rawImpressionUploadCorrectionCandidateId
-            }
-          }
-        }
-    }
-
-  private fun UploadHealingOperation.State.toInternal(): InternalOperation.State =
-    InternalOperation.State.forNumber(number)
-
-  private fun RawImpressionUploadModelLine.RecoveryAction.toInternal(): InternalRecoveryAction =
-    InternalRecoveryAction.forNumber(number)
-
-  private fun UploadHealingStepAction.toInternal():
-    org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest.Action =
-    when (this) {
-      UploadHealingStepAction.CONFIRM_EVICTION ->
-        org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest.Action
-          .CONFIRM_EVICTION
-      UploadHealingStepAction.RECORD_RECOVERY ->
-        org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest.Action
-          .RECORD_RECOVERY
-      UploadHealingStepAction.CONFIRM_REPLACEMENT ->
-        org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest.Action
-          .CONFIRM_REPLACEMENT
     }
 }

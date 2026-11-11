@@ -18,15 +18,15 @@ package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
-import org.wfanet.measurement.internal.edpaggregator.purgeExpiredRawImpressionUploadCorrectionCandidatesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.purgeRawImpressionUploadCorrectionCandidatesRequest
 
 /** Removes expired terminal correction candidates. */
 fun interface CorrectionCandidateCleaner {
   suspend fun purge(dataProvider: String)
 }
 
-/** Drains expired correction candidates through the internal API. */
+/** Drains expired correction candidates through the public API. */
 class GrpcCorrectionCandidateCleaner(
   private val candidatesStub: RawImpressionUploadCorrectionCandidateServiceCoroutineStub,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
@@ -37,25 +37,22 @@ class GrpcCorrectionCandidateCleaner(
   }
 
   override suspend fun purge(dataProvider: String) {
-    val dataProviderId =
-      requireNotNull(DataProviderKey.fromName(dataProvider)) {
-          "Invalid DataProvider: $dataProvider"
-        }
-        .dataProviderId
+    requireNotNull(DataProviderKey.fromName(dataProvider)) { "Invalid DataProvider: $dataProvider" }
+
     do {
       val response =
         rpcThrottlers.metadataWrite.onReady {
-          candidatesStub.purgeExpiredRawImpressionUploadCorrectionCandidates(
-            purgeExpiredRawImpressionUploadCorrectionCandidatesRequest {
-              dataProviderResourceId = dataProviderId
+          candidatesStub.purgeRawImpressionUploadCorrectionCandidates(
+            purgeRawImpressionUploadCorrectionCandidatesRequest {
+              parent = dataProvider
               pageSize = this@GrpcCorrectionCandidateCleaner.pageSize
             }
           )
         }
-      check(response.purgedCount in 0..pageSize) {
+      check(response.purgeCount in 0..pageSize) {
         "Purge response exceeded the requested page size"
       }
-    } while (response.purgedCount == pageSize)
+    } while (response.purgeCount == pageSize)
   }
 
   companion object {
