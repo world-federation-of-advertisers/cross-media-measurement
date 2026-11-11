@@ -3495,6 +3495,12 @@ class RequisitionFetcherTest {
       blobsList().map { Any.parseFrom(it.readBytes()).unpack(GroupedRequisitions::class.java) }
     assertThat(grouped.map { it.selectedModelLine })
       .containsExactly(historicalModelLine, historicalModelLine)
+    assertThat(grouped.map { it.reportInterval })
+      .containsExactly(
+        measurementSpec.reportingMetadata.reportInterval,
+        measurementSpec.reportingMetadata.reportInterval,
+      )
+    assertThat(grouped.map { it.requireModelLineFinalization }).containsExactly(true, true)
     assertThat(routingRequests).hasSize(2)
     assertThat(routingRequests[1].candidate.selectedModelLine).isEqualTo(replacementModelLine)
   }
