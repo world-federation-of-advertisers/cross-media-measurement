@@ -73,29 +73,27 @@ ALTER TABLE EventGroups
 ALTER TABLE EventGroups
   ADD COLUMN EntityPath STRING(MAX);
 
--- EntityMetadata as JSON, written by the service layer alongside the protobuf
--- column. This cannot be a generated column: EntityMetadata is a
--- google.protobuf.Struct, and GoogleSQL has no PROTO-to-JSON conversion. The
--- two representations are written in the same transaction.
+-- Flattened scalar values from EntityMetadata, excluding keys. Written in the
+-- same transaction as EntityMetadata.
 -- TODO(world-federation-of-advertisers/cross-media-measurement#4543): Add the
--- EntityMetadataJson backfill tool; run after dual writes and before search.
---
--- Stored as JSON rather than flattened text so that no custom serialization
--- format has to be defined and maintained, and so that a TOKENIZE_JSON column
--- and a JSON search index can be added later for JSON_CONTAINS and
--- key-existence queries.
+-- EntityMetadataValues backfill tool; run after dual writes and before search.
 ALTER TABLE EventGroups
-  ADD COLUMN EntityMetadataJson JSON;
+  ADD COLUMN EntityMetadataValues ARRAY<STRING(MAX)>;
 
 ALTER TABLE EventGroups
   ADD COLUMN EntityMetadata_Tokens TOKENLIST AS (
-    TOKENIZE_FULLTEXT(TO_JSON_STRING(EntityMetadataJson))
+    TOKENIZE_FULLTEXT(EntityMetadataValues)
   ) HIDDEN;
 
--- Keep EventGroupsByMetadata available while this index backfills. Both token
+ALTER TABLE EventGroups
+  ADD COLUMN EntityType_Tokens TOKENLIST AS (
+    TOKENIZE_FULLTEXT(EntityType)
+  ) HIDDEN;
+
+-- Keep EventGroupsByMetadata available while this index backfills. All token
 -- columns must be in one index for queries that search across them.
 CREATE SEARCH INDEX EventGroupsByEntityMetadata
-  ON EventGroups(Metadata_Tokens, EntityMetadata_Tokens);
+  ON EventGroups(Metadata_Tokens, EntityMetadata_Tokens, EntityType_Tokens);
 
 -- Subtree scans: STARTS_WITH(EntityPath, prefix).
 CREATE NULL_FILTERED INDEX EventGroupsByEntityPath
