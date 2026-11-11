@@ -39,6 +39,7 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPath
@@ -66,6 +67,7 @@ class DataWatcher(
     GoogleCredentials.getApplicationDefault() as? IdTokenProvider
       ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
   private val meter: Meter = Instrumentation.meter,
+  private val controlPlaneThrottler: Throttler? = null,
 ) {
   private val metrics =
     DataWatcherMetrics(meter = meter, sinkTypeKey = ATTR_SINK_TYPE_KEY, queueKey = ATTR_QUEUE_KEY)
@@ -193,13 +195,20 @@ class DataWatcher(
     onQueueWrite(config, path, queueConfig.queue, workItemId)
   }
 
+  private suspend fun <T> callControlPlane(block: suspend () -> T): T {
+    val throttler = controlPlaneThrottler
+    return if (throttler == null) block() else throttler.onReady(block)
+  }
+
   private suspend fun ensureWorkItem(workItemId: String, workItem: WorkItem) {
-    workItemsStub.ensureWorkItem(
-      ensureWorkItemRequest {
-        this.workItemId = workItemId
-        this.workItem = workItem
-      }
-    )
+    callControlPlane {
+      workItemsStub.ensureWorkItem(
+        ensureWorkItemRequest {
+          this.workItemId = workItemId
+          this.workItem = workItem
+        }
+      )
+    }
   }
 
   private suspend fun ensureWorkItemWithStoredTraceContext(
@@ -224,12 +233,14 @@ class DataWatcher(
 
   private suspend fun createWorkItemWithLegacyApi(workItemId: String, requestedWorkItem: WorkItem) {
     try {
-      workItemsStub.createWorkItem(
-        createWorkItemRequest {
-          this.workItemId = workItemId
-          workItem = requestedWorkItem
-        }
-      )
+      callControlPlane {
+        workItemsStub.createWorkItem(
+          createWorkItemRequest {
+            this.workItemId = workItemId
+            workItem = requestedWorkItem
+          }
+        )
+      }
     } catch (e: Exception) {
       if (e.grpcStatusCode() != Status.Code.ALREADY_EXISTS) {
         throw e
@@ -242,7 +253,9 @@ class DataWatcher(
     workItemId: String,
     requestedWorkItem: WorkItem,
   ): Any {
-    val existing = workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+    val existing = callControlPlane {
+      workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+    }
     val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     val requestedParams =
       requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
