@@ -92,8 +92,8 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *
  * Reads the high overlap dataset prepared by `SeedHighOverlapDataset`. Its Population, ModelLine
  * and EventGroups are separate from the low overlap data that `EdpAggregatorCorrectnessTest`
- * provisions. This test verifies the seed manifest and creates reports; it does not seed impressions
- * or run EventGroupSync. The configured `model_line` must refer to the seeded dataset.
+ * provisions. This test verifies the seed manifest and creates reports; it does not seed
+ * impressions or run EventGroupSync. The configured `model_line` must refer to the seeded dataset.
  *
  * Test methods run in name order, so they must be named to sort lexicographically in ascending
  * order of size. A cheaper report then reaches its result before a larger one can exhaust the test
