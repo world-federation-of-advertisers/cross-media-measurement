@@ -240,6 +240,7 @@ maven.artifact(
 )
 maven.install(
     artifacts = [
+        "com.google.http-client:google-http-client:1.47.0",
         "com.squareup.okhttp3:okhttp",
         "com.squareup.okhttp3:okhttp-tls",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",

@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.loadtest.edpaggregator.testing
 
+import com.google.api.client.http.HttpHeaders
+import com.google.api.client.http.HttpResponseException
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
@@ -25,11 +27,17 @@ import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import java.security.GeneralSecurityException
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -538,16 +546,115 @@ class ImpressionWriterTest {
       }
     }
 
+  @Test
+  fun `writeLabeledImpressionData retries unavailable KMS unwrapping`() = runTest {
+    val aead = FailingAead(kmsHttpFailure(503), failuresRemaining = 1)
+
+    val written = writeAndReadImpressions("", emptyList(), false, aead)
+
+    assertThat(written.impressions).hasSize(2)
+    assertThat(aead.encryptCalls).isEqualTo(1)
+    assertThat(aead.decryptCalls).isEqualTo(3)
+  }
+
+  @Test
+  fun `writeLabeledImpressionData retries unavailable KMS key wrapping`() = runTest {
+    val aead = FailingAead(kmsHttpFailure(503), failuresRemaining = 1, failEncrypt = true)
+
+    val written = writeAndReadImpressions("", emptyList(), false, aead)
+
+    assertThat(written.impressions).hasSize(2)
+    assertThat(aead.encryptCalls).isEqualTo(2)
+  }
+
+  @Test
+  fun `writeLabeledImpressionData does not retry permission failures`() = runTest {
+    val failure = kmsHttpFailure(403)
+    val aead = FailingAead(failure, failuresRemaining = Int.MAX_VALUE)
+
+    val thrown =
+      assertFailsWith<GeneralSecurityException> {
+        writeAndReadImpressions("", emptyList(), false, aead)
+      }
+
+    assertThat(thrown).isSameInstanceAs(failure)
+    assertThat(aead.decryptCalls).isEqualTo(1)
+    assertNoImpressionsWritten()
+  }
+
+  @Test
+  fun `writeLabeledImpressionData does not retry invalid encrypted keys`() = runTest {
+    val failure = GeneralSecurityException("Invalid encrypted keyset")
+    val aead = FailingAead(failure, failuresRemaining = Int.MAX_VALUE)
+
+    val thrown =
+      assertFailsWith<GeneralSecurityException> {
+        writeAndReadImpressions("", emptyList(), false, aead)
+      }
+
+    assertThat(thrown).isSameInstanceAs(failure)
+    assertThat(aead.decryptCalls).isEqualTo(1)
+    assertNoImpressionsWritten()
+  }
+
+  @Test
+  fun `writeLabeledImpressionData bounds KMS retries before storage writes`() = runTest {
+    val failure = kmsHttpFailure(503)
+    val aead = FailingAead(failure, failuresRemaining = Int.MAX_VALUE)
+
+    val thrown =
+      assertFailsWith<GeneralSecurityException> {
+        writeAndReadImpressions("", emptyList(), false, aead)
+      }
+
+    assertThat(thrown).isSameInstanceAs(failure)
+    assertThat(aead.decryptCalls).isEqualTo(6)
+    assertNoImpressionsWritten()
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun `writeLabeledImpressionData stops KMS retries on cancellation`() = runTest {
+    val aead = FailingAead(kmsHttpFailure(503), failuresRemaining = Int.MAX_VALUE)
+    val writer = launch { writeAndReadImpressions("", emptyList(), false, aead) }
+    runCurrent()
+    assertThat(aead.decryptCalls).isEqualTo(1)
+
+    writer.cancelAndJoin()
+
+    assertThat(aead.decryptCalls).isEqualTo(1)
+    assertNoImpressionsWritten()
+  }
+
+  private fun assertNoImpressionsWritten() {
+    assertThat(
+        tempFolder.root
+          .resolve("identifier-impressions-bucket/identifier-test/2020-01-01/impressions")
+          .exists()
+      )
+      .isFalse()
+    assertThat(
+        tempFolder.root
+          .resolve("identifier-metadata-bucket/identifier-test/2020-01-01/metadata.binpb")
+          .exists()
+      )
+      .isFalse()
+  }
+
   private suspend fun writeAndReadImpressions(
     eventGroupReferenceId: String,
     entityKeys: List<EntityKey>,
     includeEventGroupReferenceIdInImpressions: Boolean,
+    aead: Aead? = null,
   ): WrittenImpressions {
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
     val kmsClient =
       FakeKmsClient().apply {
         val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-        setAead(kekUri, kmsKeyHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java))
+        setAead(
+          kekUri,
+          aead ?: kmsKeyHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java),
+        )
       }
     val impressionsBucket = "identifier-impressions-bucket"
     val metadataBucket = "identifier-metadata-bucket"
@@ -609,6 +716,46 @@ class ImpressionWriterTest {
         .toList()
         .map { LabeledImpression.parseFrom(it) }
     return WrittenImpressions(blobDetails, impressions)
+  }
+
+  private fun kmsHttpFailure(statusCode: Int): GeneralSecurityException {
+    return GeneralSecurityException(
+      "Synthetic KMS failure",
+      HttpResponseException.Builder(statusCode, "Synthetic KMS failure", HttpHeaders()).build(),
+    )
+  }
+
+  private class FailingAead(
+    private val failure: GeneralSecurityException,
+    private var failuresRemaining: Int,
+    private val failEncrypt: Boolean = false,
+  ) : Aead {
+    private val delegate =
+      KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+        .getPrimitive(RegistryConfiguration.get(), Aead::class.java)
+    var encryptCalls = 0
+      private set
+
+    var decryptCalls = 0
+      private set
+
+    override fun encrypt(plaintext: ByteArray, associatedData: ByteArray?): ByteArray {
+      encryptCalls++
+      if (failEncrypt && shouldFail()) throw failure
+      return delegate.encrypt(plaintext, associatedData)
+    }
+
+    override fun decrypt(ciphertext: ByteArray, associatedData: ByteArray?): ByteArray {
+      decryptCalls++
+      if (!failEncrypt && shouldFail()) throw failure
+      return delegate.decrypt(ciphertext, associatedData)
+    }
+
+    private fun shouldFail(): Boolean {
+      if (failuresRemaining == 0) return false
+      failuresRemaining--
+      return true
+    }
   }
 
   private data class WrittenImpressions(
