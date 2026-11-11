@@ -104,8 +104,23 @@ locations, or trusted workload identities are shared between markets.
 
 ## 3. Set up KMS and workload trust
 
-Create a symmetric KEK in an EDP-owned Google Cloud project or AWS account. Use
-separate identities for the EDP's export process and Halo's attested workloads.
+Manage the symmetric KEK, workload federation, and IAM permissions with Terraform
+in an EDP-owned Google Cloud project or AWS account. Use separate identities for
+the EDP's export process and Halo's attested workloads.
+
+Halo provides reusable modules and complete examples for each supported path:
+
+| KMS and federation path | Terraform example |
+| --- | --- |
+| Google Cloud KMS | [Google Cloud EDP KMS](../../src/main/terraform/gcloud/examples/edp-kms) |
+| AWS KMS with direct Confidential Space attestation | [Direct AWS EDP KMS](../../src/main/terraform/aws/examples/edp-kms) |
+| AWS KMS through an EDP-owned Google Cloud project | [Google-to-AWS bridge](../../src/main/terraform/aws/examples/edp-kms-google-bridge) |
+
+Configure the example's variables with the values exchanged in Section 2. Keep
+each resource under one Terraform configuration and state. Import infrastructure
+that already exists before applying; if it is already managed by Terraform,
+update that configuration or explicitly migrate its state. Review the plan for
+key replacement and permission changes. See each module's adoption instructions.
 
 ### Configure TrusTEE if enabled
 
@@ -176,98 +191,68 @@ general-purpose VMs access to the KEK.
 
 ### Google Cloud KMS
 
-Create the key, the service account used by attested workloads, and the Workload
-Identity Pool in the EDP's project. Replace every placeholder before running the
-commands.
+Use the [EDP-owned Google Cloud KMS module](../../src/main/terraform/gcloud/modules/edp-aggregator-edp-deployment)
+and its [complete example](../../src/main/terraform/gcloud/examples/edp-kms). It
+provisions the key ring, symmetric KEK, EDP-owned federated service account,
+globally scoped workload identity pool, attestation-gated OIDC provider, and KMS
+permissions. The KMS location is independent of the pool's global scope.
+
+Set the example's variables:
+
+| Variables | Values to supply |
+| --- | --- |
+| `project_id`, `kms_location`, `kms_keyring`, `kms_key`, `rotation_period` | EDP-owned project, key location, resource names, and rotation policy |
+| `service_account_name`, `service_account_display_name`, `workload_identity_pool_id`, `wip_display_name`, `workload_identity_pool_provider_id` | EDP-owned federation resource names |
+| `workload_project_ids`, `workload_service_accounts`, `image_signature_fingerprints` | Exact operator projects, runtime service-account emails, and `signature_algorithm:key_id` fingerprints approved for this EDP |
+| `allowed_audiences` | Confidential Space token audiences; the example uses `https://sts.googleapis.com` |
+| `attested_kms_role` | The role required by the selected impression path and TrusTEE key arrangement |
+| `export_principal_roles` | EDP export IAM members and their KMS roles; normally `roles/cloudkms.cryptoKeyEncrypter` |
+
+The example constructs a CEL attestation condition that requires Confidential
+Space, stable-image support, an approved workload project, an approved runtime
+service account, and an approved image signature. Use only workloads the operator
+confirms are enabled for this EDP. The reusable module also accepts an explicit
+`attribute_condition` when your trust policy needs further restrictions.
+
+For `attested_kms_role`, use:
+
+* `roles/cloudkms.cryptoKeyDecrypter` for already VID-labeled input without
+  TrusTEE;
+* `roles/cloudkms.cryptoKeyEncrypterDecrypter` for Parquet labeling, or when the
+  same key protects input and TrusTEE contributions; or
+* permissions appropriate to each key when TrusTEE uses a separate re-encryption
+  key. Create that key in the same key ring and manage its grants in Terraform,
+  using the module's `key_ring_id` and `service_account_email` outputs.
+
+Grant the export identity decrypt access only for EDP-operated validation.
+Keep a separate TrusTEE key's permissions distinct from the input key's grants.
+
+From a Halo checkout, configure and apply the example. Configure a suitable
+shared-state backend before applying:
 
 ```bash
-gcloud kms keyrings create <KEY_RING> \
-  --project=<EDP_PROJECT_ID> \
-  --location=<KMS_LOCATION>
+cd src/main/terraform/gcloud/examples/edp-kms
+cp terraform.tfvars.example terraform.tfvars
+# Replace every sample value with the agreed EDP and operator configuration.
+terraform init
+terraform plan -out=onboarding.tfplan
+terraform apply onboarding.tfplan
 
-gcloud kms keys create <KEY_NAME> \
-  --project=<EDP_PROJECT_ID> \
-  --location=<KMS_LOCATION> \
-  --keyring=<KEY_RING> \
-  --purpose=encryption
-
-gcloud iam service-accounts create <HALO_KMS_SERVICE_ACCOUNT> \
-  --project=<EDP_PROJECT_ID>
-
-gcloud iam workload-identity-pools create <WORKLOAD_IDENTITY_POOL> \
-  --project=<EDP_PROJECT_ID> \
-  --location=global
-
-gcloud iam service-accounts add-iam-policy-binding \
-  <HALO_KMS_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
-  --project=<EDP_PROJECT_ID> \
-  --member="principalSet://iam.googleapis.com/projects/<EDP_PROJECT_NUMBER>/locations/global/workloadIdentityPools/<WORKLOAD_IDENTITY_POOL>/*" \
-  --role=roles/iam.workloadIdentityUser
+terraform output -raw kek_uri
+terraform output -raw service_account_email
+terraform output -raw kms_audience
 ```
 
-The KEK URI is:
+The key URI has this format:
 
 ```text
 gcp-kms://projects/<EDP_PROJECT_ID>/locations/<KMS_LOCATION>/keyRings/<KEY_RING>/cryptoKeys/<KEY_NAME>
 ```
 
-Grant the EDP's export identity encrypt-only access:
-
-```bash
-gcloud kms keys add-iam-policy-binding \
-  projects/<EDP_PROJECT_ID>/locations/<KMS_LOCATION>/keyRings/<KEY_RING>/cryptoKeys/<KEY_NAME> \
-  --member=serviceAccount:<EXPORT_SERVICE_ACCOUNT> \
-  --role=roles/cloudkms.cryptoKeyEncrypter
-```
-
-Grant the federated Halo service account the least-privilege role for the chosen
-path. The Parquet path requires encrypt and decrypt. The already VID-labeled path
-without TrusTEE requires decrypt only:
-
-```bash
-# Parquet, or one-key already-labeled + TrusTEE configuration
-gcloud kms keys add-iam-policy-binding \
-  projects/<EDP_PROJECT_ID>/locations/<KMS_LOCATION>/keyRings/<KEY_RING>/cryptoKeys/<KEY_NAME> \
-  --member=serviceAccount:<HALO_KMS_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
-  --role=roles/cloudkms.cryptoKeyEncrypterDecrypter
-
-# Already VID-labeled without TrusTEE
-gcloud kms keys add-iam-policy-binding \
-  projects/<EDP_PROJECT_ID>/locations/<KMS_LOCATION>/keyRings/<KEY_RING>/cryptoKeys/<KEY_NAME> \
-  --member=serviceAccount:<HALO_KMS_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
-  --role=roles/cloudkms.cryptoKeyDecrypter
-```
-
-Run only the command matching the selected profile. Grant the export identity
-decrypt access only when an EDP-operated validation process needs it.
-
-Create an OIDC provider in the pool. The following production condition requires
-Confidential Space, a stable image, one of the exact workload service accounts,
-and an approved image signature:
-
-```bash
-EDPA_ATTRIBUTE_CONDITION="assertion.swname == 'CONFIDENTIAL_SPACE' &&
-  'STABLE' in assertion.submods.confidential_space.support_attributes &&
-  ['<WORKLOAD_SA_1>','<WORKLOAD_SA_2>'].exists(
-    sa, sa in assertion.google_service_accounts) &&
-  ['<SIGNATURE_ALGORITHM>:<SIGNING_KEY_ID>'].exists(
-    fingerprint,
-    fingerprint in assertion.submods.container.image_signatures.map(
-      sig, sig.signature_algorithm + ':' + sig.key_id))"
-
-gcloud iam workload-identity-pools providers create-oidc <PROVIDER_NAME> \
-  --project=<EDP_PROJECT_ID> \
-  --location=global \
-  --workload-identity-pool=<WORKLOAD_IDENTITY_POOL> \
-  --issuer-uri=https://confidentialcomputing.googleapis.com/ \
-  --allowed-audiences=https://sts.googleapis.com \
-  --attribute-mapping=google.subject=assertion.sub \
-  --attribute-condition="$EDPA_ATTRIBUTE_CONDITION"
-```
-
-Use only service accounts that the operator confirms are enabled for this EDP.
-Share the KEK URI, federated service-account email, and provider resource name
-with the operator.
+Give the operator the outputs for the KEK URI, federated service-account email,
+and KMS audience. The audience includes the provider's full resource name with
+the `//iam.googleapis.com/` prefix required by Halo's `kms_audience` field.
+The module also exposes `workload_identity_provider_name` without that prefix.
 
 ### AWS KMS
 
@@ -280,204 +265,161 @@ Confidential Space workload
                            └─ temporary credentials ─► AWS KMS
 ```
 
-#### 1. Create the key and export permission
+Use the [AWS EDP KMS module](../../src/main/terraform/aws/modules/edp-kms) and
+[direct AWS example](../../src/main/terraform/aws/examples/edp-kms). Terraform
+creates a symmetric customer-managed key, alias, attested-workload role, and
+Confidential Space OIDC provider. If the AWS account already has that issuer's
+provider, pass its ARN as `existing_oidc_provider_arn` and manage its allowed
+audiences in the Terraform configuration that owns it. AWS permits one provider
+per issuer URL in an account.
 
-Create a symmetric customer-managed AWS KMS key. Its URI is:
+#### 1. Configure the key and attestation trust
+
+Set the example's variables:
+
+| Variables | Values to supply |
+| --- | --- |
+| `region`, `kms_key_description`, `kms_key_alias`, `enable_key_rotation`, `deletion_window_in_days` | EDP region, key description and alias, rotation setting, and deletion waiting period |
+| `key_administrator_arns` | Key administrators, including the identity applying Terraform |
+| `role_name` | Name of the attested-workload IAM role |
+| `audience` | An EDP-chosen value other than `https://sts.google.com`, such as `https://<EDP_NAME>.confidential-space` |
+| `oidc_thumbprints`, `existing_oidc_provider_arn` | Verified issuer CA thumbprints and an existing provider ARN, or `null` to create a provider |
+| `image_signature_key_id_tags`, `workload_project_ids` | Approved Halo signing-key tags and exact operator projects |
+| `workload_kms_actions`, `export_principal_permissions` | Workload and export-principal operations from the permissions table above |
+
+The direct example uses the issuer `https://confidentialcomputing.googleapis.com`
+and permits both `sts:AssumeRoleWithWebIdentity` and `sts:TagSession`. Its role
+trust condition checks audience, Confidential Space software name, stable-image
+support, signing-key tags, and approved operator projects.
+
+If an image can carry multiple approved signatures, Confidential Space supplies
+one alphabetically sorted `=`-joined signing-key tag. Include each deployable
+combination in `image_signature_key_id_tags`. The example uses `StringEquals`
+because AWS defines `aws:RequestTag/tag-key` as a single-valued context key.
+
+The Parquet path requires `kms:Encrypt` and `kms:Decrypt`. Already VID-labeled
+input without TrusTEE requires `kms:Decrypt` only. Export principals normally
+need `kms:Encrypt`; add `kms:Decrypt` only for EDP-operated validation. Apply the
+combined permissions for a shared input/TrusTEE key, or manage a separate
+TrusTEE key in the same account and region with its own Terraform grants.
+
+#### 2. Apply Terraform and give the operator the configuration
+
+From a Halo checkout, configure a suitable shared-state backend and apply the
+example:
+
+```bash
+cd src/main/terraform/aws/examples/edp-kms
+cp terraform.tfvars.example terraform.tfvars
+# Replace every sample value with the agreed EDP and operator configuration.
+terraform init
+terraform plan -out=onboarding.tfplan
+terraform apply onboarding.tfplan
+
+terraform output -raw kek_uri
+terraform output -raw aws_role_arn
+terraform output -raw aws_region
+terraform output -raw aws_audience
+```
+
+The KEK URI is:
 
 ```text
 aws-kms://arn:aws:kms:<REGION>:<AWS_ACCOUNT_ID>:key/<KEY_ID>
 ```
 
-Give the EDP's export principal `kms:Encrypt`. Give it `kms:Decrypt` only if an
-EDP-operated validation process needs it. The export principal is not part of
-the Confidential Space trust policy.
-
-#### 2. Register the Confidential Space issuer
-
-Create an AWS IAM OpenID Connect provider with:
-
-| Setting | Value |
-| --- | --- |
-| Provider URL | `https://confidentialcomputing.googleapis.com` |
-| Audience | An EDP-chosen value other than `https://sts.google.com`, such as `https://<EDP_NAME>.confidential-space` |
-
-Do not use the AWS console's **Google** preset; that preset uses
-`accounts.google.com` and belongs to the alternative federation path below.
-
-#### 3. Create the attested workload role
-
-Create an AWS role that allows both `sts:AssumeRoleWithWebIdentity` and
-`sts:TagSession`. The attestation claims arrive as session tags. Gate the role on
-the audience, Confidential Space software name, stable-image support attribute,
-operator-provided signing key IDs, and approved operator projects:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam::<AWS_ACCOUNT_ID>:oidc-provider/confidentialcomputing.googleapis.com"
-      },
-      "Action": ["sts:AssumeRoleWithWebIdentity", "sts:TagSession"],
-      "Condition": {
-        "StringEquals": {
-          "confidentialcomputing.googleapis.com:aud": "<AUDIENCE>",
-          "aws:RequestTag/swname": "CONFIDENTIAL_SPACE",
-          "aws:RequestTag/confidential_space.support_attributes": "LATEST=STABLE=USABLE",
-          "aws:RequestTag/container.signatures.key_ids": [
-            "<SIGNING_KEY_ID_1>",
-            "<SIGNING_KEY_ID_2>",
-            "<SIGNING_KEY_ID_1>=<SIGNING_KEY_ID_2>"
-          ],
-          "aws:RequestTag/gce.project_id": ["<OPERATOR_PROJECT_1>", "<OPERATOR_PROJECT_2>"]
-        }
-      }
-    }
-  ]
-}
-```
-
-If an image can carry multiple approved signatures, Confidential Space supplies
-one alphabetically sorted `=`-joined tag. Enumerate each combination that the
-operator can deploy. Do not use `ForAnyValue` or `ForAllValues` with
-`aws:RequestTag/tag-key`; AWS defines it as a single-valued context key.
-
-Grant the role the KMS actions from the permissions table. For example, the
-Parquet path uses:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["kms:Decrypt", "kms:Encrypt"],
-      "Resource": "arn:aws:kms:<REGION>:<AWS_ACCOUNT_ID>:key/<KEY_ID>"
-    }
-  ]
-}
-```
-
-#### 4. Give the operator the direct-AWS configuration
-
-Provide the KEK URI, role ARN, region, role-session name, and audience. The
-operator configures:
+Provide the outputs and the agreed role-session name to the operator, who
+configures:
 
 ```textproto
 event_data_provider_config {
   data_provider: "dataProviders/<DATA_PROVIDER_ID>"
   kms_config {
     kms_type: AWS_CONFIDENTIAL_SPACE
-    aws_role_arn: "arn:aws:iam::<AWS_ACCOUNT_ID>:role/<ROLE_NAME>"
+    aws_role_arn: "<AWS_ROLE_ARN_OUTPUT>"
     aws_role_session_name: "<SESSION_NAME>"
-    aws_region: "<REGION>"
-    aws_audience: "<AUDIENCE>"
-    kek_uri: "aws-kms://arn:aws:kms:<REGION>:<AWS_ACCOUNT_ID>:key/<KEY_ID>"
+    aws_region: "<AWS_REGION_OUTPUT>"
+    aws_audience: "<AWS_AUDIENCE_OUTPUT>"
+    kek_uri: "<KEK_URI_OUTPUT>"
   }
 }
 ```
 
-#### 5. Verify direct AWS access
+#### 3. Verify direct AWS access
 
 Run an onboarding test that exercises the chosen path. Confirm in AWS CloudTrail
 that `AssumeRoleWithWebIdentity` succeeds and that only the expected KMS actions
-occur. CloudTrail includes the session tags on successful calls but redacts them
-on `AccessDenied`; compare a denial with a successful call when diagnosing a
-claim mismatch.
+occur. CloudTrail includes session tags on successful calls but redacts them on
+`AccessDenied`; compare a denial with a successful call when diagnosing a claim
+mismatch.
 
 #### Alternative: AWS through an EDP-owned Google Cloud project
 
-Use this supported path only when the EDP needs a Google Cloud Workload Identity
-Pool in the chain. The pool and service account must be in the EDP's project, not
-the operator's project:
+Use this supported path when the EDP needs a Google Cloud workload identity pool
+in the chain. The pool and service account must be in the EDP's project:
 
 ```text
 Confidential Space attestation
-  └─► EDP Workload Identity Pool
+  └─► EDP workload identity pool
        └─► EDP Google service account ID token
             └─► AWS STS ─► AWS KMS
 ```
 
-Create an `accounts.google.com` OIDC provider in AWS and an AWS role restricted
-to the Google service account's numeric unique ID. In the EDP's Google Cloud
-project, create the attestation-gated Workload Identity Pool as described in the
-Google Cloud section, then create the bridge service account:
+Use the [Google-to-AWS bridge example](../../src/main/terraform/aws/examples/edp-kms-google-bridge).
+It combines the reusable Google Cloud
+[Confidential Space workload identity module](../../src/main/terraform/gcloud/modules/confidential-space-workload-identity)
+with the [AWS EDP KMS module](../../src/main/terraform/aws/modules/edp-kms).
+Configure both providers for the EDP's accounts. Supply the same Google
+attestation inputs and AWS key permissions described above.
+
+Terraform grants `roles/iam.serviceAccountTokenCreator` to the attested pool
+principal and `roles/iam.serviceAccountOpenIdTokenCreator` to the bridge account
+on itself. This permits the bridge to generate the OIDC ID token AWS needs.
+The AWS OIDC provider uses `https://accounts.google.com`; its role trust condition
+requires the Google service account's numeric unique ID as subject and audience.
+
+If the AWS account already has an `accounts.google.com` provider, set
+`existing_oidc_provider_arn` to reuse it. Add the bridge's numeric unique ID to
+that provider's audience list through the Terraform configuration that owns it.
+The bridge module exposes the numeric ID, so it can be passed between Terraform
+configurations without a service-account lookup command.
+
+Configure and apply the bridge example using its `terraform.tfvars.example`,
+then give the operator these outputs and the agreed role-session name:
 
 ```bash
-gcloud iam service-accounts create <AWS_BRIDGE_SERVICE_ACCOUNT> \
-  --project=<EDP_PROJECT_ID> \
-  --display-name="EDP AWS KMS bridge"
-
-gcloud iam service-accounts add-iam-policy-binding \
-  <AWS_BRIDGE_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
-  --project=<EDP_PROJECT_ID> \
-  --role=roles/iam.serviceAccountTokenCreator \
-  --member="principalSet://iam.googleapis.com/projects/<EDP_PROJECT_NUMBER>/locations/global/workloadIdentityPools/<WORKLOAD_IDENTITY_POOL>/*"
-
-gcloud iam service-accounts add-iam-policy-binding \
-  <AWS_BRIDGE_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
-  --project=<EDP_PROJECT_ID> \
-  --role=roles/iam.serviceAccountOpenIdTokenCreator \
-  --member="serviceAccount:<AWS_BRIDGE_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com"
-
-gcloud iam service-accounts describe \
-  <AWS_BRIDGE_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com \
-  --project=<EDP_PROJECT_ID> \
-  --format="value(uniqueId)"
+terraform output -raw kek_uri
+terraform output -raw aws_role_arn
+terraform output -raw aws_region
+terraform output -raw aws_audience
+terraform output -raw service_account_email
+terraform output -raw kms_audience
 ```
 
-Add that numeric ID both as an audience on the AWS OIDC provider and as the
-`accounts.google.com:sub` condition on the AWS role:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam::<AWS_ACCOUNT_ID>:oidc-provider/accounts.google.com"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "accounts.google.com:sub": ["<SERVICE_ACCOUNT_UNIQUE_ID>"]
-        }
-      }
-    }
-  ]
-}
-```
-
-Provide the operator with the following configuration:
+The operator configures:
 
 ```textproto
 event_data_provider_config {
   data_provider: "dataProviders/<DATA_PROVIDER_ID>"
   kms_config {
     kms_type: AWS
-    kms_audience: "//iam.googleapis.com/projects/<EDP_PROJECT_NUMBER>/locations/global/workloadIdentityPools/<WORKLOAD_IDENTITY_POOL>/providers/<PROVIDER_NAME>"
-    service_account: "<AWS_BRIDGE_SERVICE_ACCOUNT>@<EDP_PROJECT_ID>.iam.gserviceaccount.com"
-    aws_role_arn: "arn:aws:iam::<AWS_ACCOUNT_ID>:role/<ROLE_NAME>"
+    kms_audience: "<KMS_AUDIENCE_OUTPUT>"
+    service_account: "<SERVICE_ACCOUNT_EMAIL_OUTPUT>"
+    aws_role_arn: "<AWS_ROLE_ARN_OUTPUT>"
     aws_role_session_name: "<SESSION_NAME>"
-    aws_region: "<REGION>"
-    aws_audience: "<SERVICE_ACCOUNT_UNIQUE_ID>"
-    kek_uri: "aws-kms://arn:aws:kms:<REGION>:<AWS_ACCOUNT_ID>:key/<KEY_ID>"
+    aws_region: "<AWS_REGION_OUTPUT>"
+    aws_audience: "<AWS_AUDIENCE_OUTPUT>"
+    kek_uri: "<KEK_URI_OUTPUT>"
   }
 }
 ```
 
-This alternative requires `serviceAccountTokenCreator`, rather than only
-`workloadIdentityUser`, because the bridge must generate an OIDC ID token for
-AWS. It also requires `serviceAccountOpenIdTokenCreator` on itself.
-
 ## 4. Set up storage access
 
 The market operator owns the private object-storage bucket and assigns prefixes
-for campaign information and impressions. The operator grants the EDP's upload
-identity write access only to those prefixes.
+for campaign information and impressions. The operator manages the bucket and
+its IAM grants through Terraform and gives the EDP's upload identity write access
+only to those prefixes.
 
 Use a dedicated, keyless workload identity for automated exports. Do not share a
 downloaded service-account key with the operator. The upload identity needs
