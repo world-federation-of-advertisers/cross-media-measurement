@@ -68,6 +68,20 @@ object DirectDynamicClipping {
       resultMinimumThresholds = resultMinimumThresholds,
     )
 
+  fun computeImpressions(
+    frequencyData: ByteArray,
+    dpParams: DpParams,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): DynamicallyClippedImpressions =
+    clipDynamically(
+      frequencyData = frequencyData,
+      queryDpParams = dpParams,
+      noiseSource = StochasticStandardNormalNoiseSource(),
+      vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+      resultMinimumThresholds = resultMinimumThresholds,
+    )
+
   /**
    * Counts the impressions in [frequencyData] with a clip derived from its own distribution,
    * charging the params compiled into this image and seeding the draws from the vector.
@@ -103,8 +117,47 @@ object DirectDynamicClipping {
       resultMinimumThresholds = resultMinimumThresholds,
     )
 
+  fun computeDeterministicImpressions(
+    frequencyData: ByteArray,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): DynamicallyClippedImpressions =
+    clipDynamically(
+      frequencyData = frequencyData,
+      queryDpParams =
+        DpParams(
+          DeterministicTruncatedLaplaceParams.EPSILON,
+          DeterministicTruncatedLaplaceParams.DELTA,
+        ),
+      noiseSource =
+        DeterministicDynamicClippingNoiseSource(
+          DeterministicTruncatedLaplaceResultNoiser.fingerprint(
+            frequencyData,
+            DIRECT_CONTRIBUTION_COUNT,
+          )
+        ),
+      vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+      resultMinimumThresholds = resultMinimumThresholds,
+    )
+
   private fun clipDynamically(
     frequencyData: IntArray,
+    queryDpParams: DpParams,
+    noiseSource: DynamicClippingNoiseSource,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): DynamicallyClippedImpressions =
+    ImpressionComputations.computeDynamicallyClippedImpressionCount(
+      frequencyVector = frequencyData,
+      queryRho = AcdpParamsConverter.getDirectAcdpCharge(queryDpParams, BAR_SENSITIVITY).rho,
+      maxFrequency = MAX_REPRESENTABLE_FREQUENCY,
+      noiseSource = noiseSource,
+      vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+      resultMinimumThresholds = resultMinimumThresholds,
+    )
+
+  private fun clipDynamically(
+    frequencyData: ByteArray,
     queryDpParams: DpParams,
     noiseSource: DynamicClippingNoiseSource,
     vidSamplingIntervalWidth: Double,

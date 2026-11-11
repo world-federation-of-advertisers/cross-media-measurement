@@ -30,7 +30,9 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectIndexed
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
@@ -40,12 +42,14 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.deleteVidLa
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findLatestUploadByDoneBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByMarkRegistrationCompleteRequestId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadHealingOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingEvictionFenceMutation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasActiveDataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasActiveRawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasIncompleteRawImpressionUploadRegistration
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasVidLabelingHealingDispatchGate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertVidLabelingEvictionFenceMutation
@@ -53,6 +57,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasEvictionOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasModelLines
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readProcessingDeferredRawImpressionUploadIds
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadCorrectionCandidates
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadRegistrationComplete
@@ -70,16 +75,20 @@ import org.wfanet.measurement.internal.edpaggregator.AdvanceRawImpressionUploadE
 import org.wfanet.measurement.internal.edpaggregator.AdvanceRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.GetRawImpressionUploadRequest
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsResponse
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.ReleaseRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.ReleaseRawImpressionUploadEvictionFenceResponse
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
@@ -173,13 +182,16 @@ class SpannerRawImpressionUploadService(
             return@run existing.rawImpressionUpload
           }
 
-          val previous =
+          val latest =
             txn.findLatestUploadByDoneBlobUri(
               request.dataProviderResourceId,
               request.rawImpressionUpload.doneBlobUri,
             )
+          val committedSource = findCommittedRecoverySource(txn, request)
+          val previous = committedSource ?: latest
           if (
-            previous != null &&
+            committedSource == null &&
+              previous != null &&
               (!request.rawImpressionUpload.hasDoneBlobCreateTime() ||
                 (previous.rawImpressionUpload.hasDoneBlobCreateTime() &&
                   Timestamps.compare(
@@ -213,6 +225,9 @@ class SpannerRawImpressionUploadService(
           }
           val replacesResourceId = previous?.rawImpressionUpload?.rawImpressionUploadResourceId
           val activeEvictionFence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
+          val availabilityHandoffGateActive =
+            activeEvictionFence == null &&
+              txn.hasAvailabilityHandoffOrCandidateGate(request.dataProviderResourceId)
           val processingDeferred =
             if (activeEvictionFence == null) {
               if (request.evictionOperationId.isNotEmpty()) {
@@ -222,7 +237,7 @@ class SpannerRawImpressionUploadService(
                   )
                   .asRuntimeException()
               }
-              false
+              availabilityHandoffGateActive
             } else if (request.evictionOperationId.isEmpty()) {
               true
             } else {
@@ -361,7 +376,7 @@ class SpannerRawImpressionUploadService(
                   )
                   .asRuntimeException()
               }
-              return@run FenceMutationResult(replay.newlyAcquired, liveFence.etag)
+              return@run FenceMutationResult(replay.newlyAcquired, liveFence.etag, liveFence.state)
             }
           val currentFence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
           if (currentFence?.evictionOperationId == request.evictionOperationId) {
@@ -381,7 +396,7 @@ class SpannerRawImpressionUploadService(
               requestFingerprint,
               currentFence.etag,
             )
-            return@run FenceMutationResult(false, currentFence.etag)
+            return@run FenceMutationResult(false, currentFence.etag, currentFence.state)
           }
           if (currentFence != null) {
             throw Status.FAILED_PRECONDITION.withDescription(
@@ -409,10 +424,11 @@ class SpannerRawImpressionUploadService(
             requestedEtag,
             newlyAcquired = true,
           )
-          FenceMutationResult(true, requestedEtag)
+          FenceMutationResult(true, requestedEtag, requestedState)
         }
     return acquireRawImpressionUploadEvictionFenceResponse {
       newlyAcquired = result.newlyAcquired
+      state = result.state
       etag = result.etag
     }
   }
@@ -658,7 +674,11 @@ class SpannerRawImpressionUploadService(
   private fun ByteString.toEtag(): String =
     toByteArray().joinToString(separator = "") { byte -> "%02x".format(byte) }
 
-  private data class FenceMutationResult(val newlyAcquired: Boolean, val etag: String)
+  private data class FenceMutationResult(
+    val newlyAcquired: Boolean,
+    val etag: String,
+    val state: VidLabelingEvictionFenceState,
+  )
 
   private fun AcquireRawImpressionUploadEvictionFenceRequest.initialFenceState():
     VidLabelingEvictionFenceState =
@@ -811,6 +831,93 @@ class SpannerRawImpressionUploadService(
     }
   }
 
+  private suspend fun findCommittedRecoverySource(
+    txn: AsyncDatabaseClient.TransactionContext,
+    request: CreateRawImpressionUploadRequest,
+  ): RawImpressionUploadResult? {
+    if (request.evictionOperationId.isEmpty()) return null
+    val operation =
+      txn
+        .findUploadHealingOperation(request.dataProviderResourceId, request.evictionOperationId)
+        ?.uploadHealingOperation ?: return null
+    val steps =
+      operation.stepsList.filter {
+        it.recoveryTarget &&
+          it.recoveryDoneBlobGeneration > 0L &&
+          it.recoveryDoneBlobGeneration == request.rawImpressionUpload.doneBlobGeneration
+      }
+    if (steps.isEmpty()) return null
+    val sources =
+      steps
+        .map { it.sourceRawImpressionUploadResourceId }
+        .distinct()
+        .map { txn.getRawImpressionUploadByResourceId(request.dataProviderResourceId, it) }
+        .filter { it.rawImpressionUpload.doneBlobUri == request.rawImpressionUpload.doneBlobUri }
+    if (sources.size != 1) {
+      throw Status.FAILED_PRECONDITION.withDescription(
+          "Recovery object does not identify one approved source"
+        )
+        .asRuntimeException()
+    }
+    val source = sources.single()
+    val matchingSteps =
+      steps.filter {
+        it.sourceRawImpressionUploadResourceId ==
+          source.rawImpressionUpload.rawImpressionUploadResourceId
+      }
+    if (
+      !(operation.state in
+        setOf(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+        ) &&
+        matchingSteps.all {
+          it.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED
+        })
+    ) {
+      throw Status.FAILED_PRECONDITION.withDescription("The recovery checkpoint is not active")
+        .asRuntimeException()
+    }
+    val revisions =
+      txn
+        .readRawImpressionUploads(
+          request.dataProviderResourceId,
+          org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRequestKt.filter {
+            doneBlobUri = request.rawImpressionUpload.doneBlobUri
+          },
+          Int.MAX_VALUE,
+        )
+        .toList()
+        .map { it.rawImpressionUpload }
+    if (
+      !(revisions
+        .filter {
+          it.rawImpressionUploadResourceId !=
+            source.rawImpressionUpload.rawImpressionUploadResourceId &&
+            it.evictionOperationId != request.evictionOperationId &&
+            Timestamps.compare(
+              if (it.hasDoneBlobCreateTime()) it.doneBlobCreateTime else it.createTime,
+              source.rawImpressionUpload.doneBlobCreateTime,
+            ) >= 0
+        }
+        .all {
+          it.processingDeferred &&
+            it.state !in
+              setOf(
+                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
+                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
+                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+              )
+        })
+    ) {
+      throw Status.FAILED_PRECONDITION.withDescription(
+          "A newer source revision already owns processed output"
+        )
+        .asRuntimeException()
+    }
+    return source
+  }
+
   override suspend fun getRawImpressionUpload(
     request: GetRawImpressionUploadRequest
   ): RawImpressionUpload {
@@ -892,6 +999,22 @@ class SpannerRawImpressionUploadService(
         }
       }
     }
+  }
+
+  private suspend fun AsyncDatabaseClient.TransactionContext.hasAvailabilityHandoffOrCandidateGate(
+    dataProviderResourceId: String
+  ): Boolean {
+    if (hasVidLabelingHealingDispatchGate(dataProviderResourceId)) return true
+    val candidateFilter =
+      ListRawImpressionUploadCorrectionCandidatesRequest.Filter.newBuilder()
+        .addStateIn(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING)
+        .build()
+    return readRawImpressionUploadCorrectionCandidates(
+        dataProviderResourceId,
+        candidateFilter,
+        limit = 1,
+      )
+      .firstOrNull() != null
   }
 
   companion object {
