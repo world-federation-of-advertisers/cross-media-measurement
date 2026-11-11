@@ -74,6 +74,13 @@ proto_library(
 [
     kt_jvm_proto_library(
         name = "{prefix}_kt_jvm_proto".format(prefix = proto_lib_prefix(label_str)),
+        # DataAvailabilitySync receives the internal WorkItem published to its queue.
+        visibility = [
+            "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+        ] + ([
+            "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:__pkg__",
+            "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:__pkg__",
+        ] if label_str == ":work_item_proto" else []),
         deps = [label_str],
     )
     for label_str in MESSAGE_LIBS

@@ -111,6 +111,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CompleteWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
@@ -568,6 +569,16 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
+  fun `queued internal WorkItem preserves a later generation`() {
+    runInternalPathWorkItem(workItemGeneration = 7L)
+  }
+
+  @Test
+  fun `queued legacy WorkItem uses generation one`() {
+    runInternalPathWorkItem(workItemGeneration = 0L)
+  }
+
+  @Test
   fun `WorkItem blocks a missing date across both impression paths`() {
     runInternalPathWorkItem(blockedByGaps = true)
   }
@@ -592,7 +603,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("Content-Type", "application/octet-stream")
-        .POST(HttpRequest.BodyPublishers.ofByteArray(workItem.toByteArray()))
+        .POST(HttpRequest.BodyPublishers.ofByteArray(publishedWorkItemBytes(workItem)))
         .build()
 
     val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
@@ -625,7 +636,10 @@ class DataAvailabilitySyncFunctionTest {
     )
   }
 
-  private fun runInternalPathWorkItem(blockedByGaps: Boolean = false) {
+  private fun runInternalPathWorkItem(
+    blockedByGaps: Boolean = false,
+    workItemGeneration: Long = 1L,
+  ) {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     File(configBucketDir, "config.textproto")
@@ -707,7 +721,7 @@ class DataAvailabilitySyncFunctionTest {
     val workItem = workItem {
       name = WORK_ITEM_NAME
       queue = "data-availability-sync-queue"
-      generation = 1L
+      generation = workItemGeneration
       workItemParams =
         Any.pack(
           workItemParams {
@@ -738,7 +752,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("Content-Type", "application/octet-stream")
-        .POST(HttpRequest.BodyPublishers.ofByteArray(workItem.toByteArray()))
+        .POST(HttpRequest.BodyPublishers.ofByteArray(publishedWorkItemBytes(workItem)))
         .build()
 
     val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
@@ -754,7 +768,8 @@ class DataAvailabilitySyncFunctionTest {
     val createAttempt = argumentCaptor<CreateWorkItemAttemptRequest>()
     verifyBlocking(workItemAttemptsServiceMock) { createWorkItemAttempt(createAttempt.capture()) }
     assertThat(createAttempt.firstValue.parent).isEqualTo(WORK_ITEM_NAME)
-    assertThat(createAttempt.firstValue.expectedWorkItemGeneration).isEqualTo(1L)
+    assertThat(createAttempt.firstValue.expectedWorkItemGeneration)
+      .isEqualTo(workItemGeneration.takeUnless { it == 0L } ?: 1L)
     assertThat(createAttempt.firstValue.supportsAttemptLease).isTrue()
     if (blockedByGaps) {
       verifyBlocking(impressionMetadataServiceMock) { batchCreateImpressionMetadata(any()) }
@@ -899,7 +914,7 @@ class DataAvailabilitySyncFunctionTest {
         HttpRequest.newBuilder()
           .uri(URI.create("http://localhost:$port"))
           .header("Content-Type", "application/octet-stream")
-          .POST(HttpRequest.BodyPublishers.ofByteArray(workItem.toByteArray()))
+          .POST(HttpRequest.BodyPublishers.ofByteArray(publishedWorkItemBytes(workItem)))
           .build()
       val response = client.send(request, HttpResponse.BodyHandlers.ofString())
       assertThat(response.statusCode()).isEqualTo(200)
@@ -1558,6 +1573,18 @@ class DataAvailabilitySyncFunctionTest {
           modelLines += "some-model-line-mapped"
         }
     }
+
+  /** Serializes the internal WorkItem format used by WorkItemPublicationRunner. */
+  private fun publishedWorkItemBytes(workItem: WorkItem): ByteArray =
+    InternalWorkItem.newBuilder()
+      .setWorkItemResourceId(workItem.name.removePrefix("workItems/"))
+      .setQueueResourceId(workItem.queue)
+      .setState(InternalWorkItem.State.QUEUED)
+      .setWorkItemParams(workItem.workItemParams)
+      .setGeneration(workItem.generation)
+      .setSerializationKey(workItem.serializationKey)
+      .build()
+      .toByteArray()
 
   private fun availabilityWorkItem(
     rawImpressionUpload: String,

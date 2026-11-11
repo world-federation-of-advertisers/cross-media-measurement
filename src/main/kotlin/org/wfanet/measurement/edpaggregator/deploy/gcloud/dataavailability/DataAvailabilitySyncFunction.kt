@@ -71,9 +71,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.toWorkItem
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -214,7 +215,11 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   private fun serviceWorkItem(request: HttpRequest) {
-    val input = DataAvailabilitySyncWorkItem.parse(WorkItem.parseFrom(request.inputStream))
+    // WorkItemPublicationRunner publishes the internal proto, whose identifier is a bare ID.
+    val input =
+      DataAvailabilitySyncWorkItem.parse(
+        InternalWorkItem.parseFrom(request.inputStream).toWorkItem()
+      )
     val providerConfig =
       runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
     val internalPath = providerConfig.vidLabeledImpressionPath
