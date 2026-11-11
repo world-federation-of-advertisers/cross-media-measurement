@@ -16,9 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy.protocol;
 
+import "google/protobuf/descriptor.proto";
 import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
 import "wfa/measurement/internal/duchy/population_spec.proto";
-import "google/protobuf/descriptor.proto";
 import "wfa/measurement/internal/duchy/query.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol";
@@ -65,6 +65,21 @@ message TrusTeeV2 {
     // [PopulationSpec.SubPopulation.attributes][] entry, which is a packed
     // event template message.
     EventDescriptor event_descriptor = 4;
+
+    // Copied from the `MeasurementSpec`'s `vid_sampling_interval`. Every base
+    // vector covers this interval, so it fixes which VID each vector position
+    // holds.
+    VidSamplingInterval vid_sampling_interval = 5;
+  }
+
+  // A range of VIDs sampled by every base vector, as fractions of the
+  // population.
+  message VidSamplingInterval {
+    // Start of the interval, in [0, 1].
+    float start = 1;
+
+    // Width of the interval, in (0, 1]. The interval wraps past 1 to 0.
+    float width = 2;
   }
 
   // The event message type that a computation's `PopulationSpec` subpopulation
