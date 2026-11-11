@@ -68,6 +68,7 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/testing:schemata",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal/testing:test_config",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
