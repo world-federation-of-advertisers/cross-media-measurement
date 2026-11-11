@@ -30,6 +30,7 @@ import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.service.RankIndexBlobKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
@@ -98,6 +99,7 @@ class EvictUploader(
   labeledImpressionsBlobPrefix: String,
   private val getBlobGeneration: suspend (String) -> Long?,
   private val deleteBlob: suspend (String, Long) -> Boolean,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
 ) : EvictionExecutor {
   private val labeledImpressionsBlobPrefix = labeledImpressionsBlobPrefix.trimEnd('/')
 
@@ -581,14 +583,17 @@ class EvictUploader(
   override suspend fun prepare(plan: EvictionPlan): EvictionPlan {
     val dataProvider = dataProviderOf(plan.badUploads.first())
     val acquireResponse =
-      uploadsStub.acquireRawImpressionUploadEvictionFence(
-        acquireRawImpressionUploadEvictionFenceRequest {
-          parent = dataProvider
-          evictionOperationId = plan.evictionOperationId
-          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-          requestId = RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, state.name)
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        uploadsStub.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            parent = dataProvider
+            evictionOperationId = plan.evictionOperationId
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId =
+              RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, state.name)
+          }
+        )
+      }
     try {
       val refreshed =
         plan(
@@ -605,18 +610,20 @@ class EvictUploader(
       if (acquireResponse.newlyAcquired) {
         try {
           withContext(NonCancellable) {
-            uploadsStub.releaseRawImpressionUploadEvictionFence(
-              releaseRawImpressionUploadEvictionFenceRequest {
-                parent = dataProvider
-                evictionOperationId = plan.evictionOperationId
-                etag = acquireResponse.etag
-                requestId =
-                  RequestIds.forReleaseUploadEvictionFence(
-                    plan.evictionOperationId,
-                    acquireResponse.etag,
-                  )
-              }
-            )
+            rpcThrottlers.metadataWrite.onReady {
+              uploadsStub.releaseRawImpressionUploadEvictionFence(
+                releaseRawImpressionUploadEvictionFenceRequest {
+                  parent = dataProvider
+                  evictionOperationId = plan.evictionOperationId
+                  etag = acquireResponse.etag
+                  requestId =
+                    RequestIds.forReleaseUploadEvictionFence(
+                      plan.evictionOperationId,
+                      acquireResponse.etag,
+                    )
+                }
+              )
+            }
           }
         } catch (releaseException: Throwable) {
           e.addSuppressed(releaseException)
@@ -633,15 +640,17 @@ class EvictUploader(
   ): EvictionResult {
     val dataProvider = dataProviderOf(plan.badUploads.first())
     val fenceState = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-    uploadsStub.acquireRawImpressionUploadEvictionFence(
-      acquireRawImpressionUploadEvictionFenceRequest {
-        parent = dataProvider
-        evictionOperationId = plan.evictionOperationId
-        state = fenceState
-        requestId =
-          RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, fenceState.name)
-      }
-    )
+    rpcThrottlers.metadataWrite.onReady {
+      uploadsStub.acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          parent = dataProvider
+          evictionOperationId = plan.evictionOperationId
+          state = fenceState
+          requestId =
+            RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, fenceState.name)
+        }
+      )
+    }
     val result = executeEviction(plan, reason, onEntryEvicted)
     return result
   }
@@ -668,9 +677,11 @@ class EvictUploader(
       // already-failed processing attempt be reclassified as evicted before its snapshots are
       // deleted.
       val current =
-        rawImpressionModelLinesStub.getRawImpressionUploadModelLine(
-          getRawImpressionUploadModelLineRequest { name = entry.modelLineName }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionModelLinesStub.getRawImpressionUploadModelLine(
+            getRawImpressionUploadModelLineRequest { name = entry.modelLineName }
+          )
+        }
       if (
         current.state != RawImpressionUploadModelLine.State.FAILED ||
           current.failureReason != RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT ||
@@ -678,19 +689,21 @@ class EvictUploader(
           current.recoveryAction != entry.recoveryAction ||
           current.recoveryPredecessorRawImpressionUpload != entry.recoveryPredecessorUploadName
       ) {
-        rawImpressionModelLinesStub.markRawImpressionUploadModelLineFailed(
-          markRawImpressionUploadModelLineFailedRequest {
-            name = entry.modelLineName
-            errorMessage = reason
-            etag = current.etag
-            failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
-            evictionOperationId = plan.evictionOperationId
-            recoveryAction = entry.recoveryAction
-            recoveryPredecessorRawImpressionUpload = entry.recoveryPredecessorUploadName
-            requestId =
-              RequestIds.forEvictRawImpressionUploadModelLine(entry.modelLineName, current.etag)
-          }
-        )
+        rpcThrottlers.metadataWrite.onReady {
+          rawImpressionModelLinesStub.markRawImpressionUploadModelLineFailed(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = entry.modelLineName
+              errorMessage = reason
+              etag = current.etag
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              evictionOperationId = plan.evictionOperationId
+              recoveryAction = entry.recoveryAction
+              recoveryPredecessorRawImpressionUpload = entry.recoveryPredecessorUploadName
+              requestId =
+                RequestIds.forEvictRawImpressionUploadModelLine(entry.modelLineName, current.etag)
+            }
+          )
+        }
         failed.add(entry.modelLineName)
         logger.info("Marked ${entry.modelLineName} FAILED with reason EVICTED_OUTPUT.")
       }
@@ -713,16 +726,18 @@ class EvictUploader(
     var pageToken = ""
     do {
       val response =
-        uploadsStub.listRawImpressionUploads(
-          listRawImpressionUploadsRequest {
-            parent = dataProvider
-            filter =
-              ListRawImpressionUploadsRequestKt.filter {
-                createTimeIn = interval { startTime = cutoffTime.toProtoTime() }
-              }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          uploadsStub.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              parent = dataProvider
+              filter =
+                ListRawImpressionUploadsRequestKt.filter {
+                  createTimeIn = interval { startTime = cutoffTime.toProtoTime() }
+                }
+              this.pageToken = pageToken
+            }
+          )
+        }
       for (upload in response.rawImpressionUploadsList) {
         uploads[upload.name] = upload
       }
@@ -907,12 +922,14 @@ class EvictUploader(
     val activeMetadata = matchingMetadata.filter { it.state == ImpressionMetadata.State.ACTIVE }
 
     for (chunk in activeMetadata.chunked(IMPRESSION_METADATA_BATCH_DELETE_SIZE)) {
-      impressionMetadataStub.batchDeleteImpressionMetadata(
-        batchDeleteImpressionMetadataRequest {
-          parent = dataProviderOf(entry.uploadName)
-          names += chunk.map { it.name }
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        impressionMetadataStub.batchDeleteImpressionMetadata(
+          batchDeleteImpressionMetadataRequest {
+            parent = dataProviderOf(entry.uploadName)
+            names += chunk.map { it.name }
+          }
+        )
+      }
     }
 
     val blobVersionPairs =
@@ -951,13 +968,15 @@ class EvictUploader(
     var pageToken = ""
     do {
       val response =
-        rawImpressionFilesStub.listRawImpressionUploadFiles(
-          listRawImpressionUploadFilesRequest {
-            parent = uploadName
-            pageSize = RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionFilesStub.listRawImpressionUploadFiles(
+            listRawImpressionUploadFilesRequest {
+              parent = uploadName
+              pageSize = RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE
+              this.pageToken = pageToken
+            }
+          )
+        }
       files += response.rawImpressionUploadFilesList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -973,15 +992,17 @@ class EvictUploader(
       var pageToken = ""
       do {
         val response =
-          impressionMetadataStub.listImpressionMetadata(
-            listImpressionMetadataRequest {
-              parent = dataProviderName
-              pageSize = IMPRESSION_METADATA_LOOKUP_BATCH_SIZE
-              showDeleted = true
-              filter = ListImpressionMetadataRequestKt.filter { this.blobUris += blobUriChunk }
-              this.pageToken = pageToken
-            }
-          )
+          rpcThrottlers.metadataRead.onReady {
+            impressionMetadataStub.listImpressionMetadata(
+              listImpressionMetadataRequest {
+                parent = dataProviderName
+                pageSize = IMPRESSION_METADATA_LOOKUP_BATCH_SIZE
+                showDeleted = true
+                filter = ListImpressionMetadataRequestKt.filter { this.blobUris += blobUriChunk }
+                this.pageToken = pageToken
+              }
+            )
+          }
         metadata += response.impressionMetadataList
         pageToken = response.nextPageToken
       } while (pageToken.isNotEmpty())
@@ -998,21 +1019,23 @@ class EvictUploader(
     var pageToken = ""
     do {
       val response =
-        rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
-          listRawImpressionUploadModelLinesRequest {
-            this.parent = parent
-            if (cmmsModelLine.isNotEmpty() || cutoffTime != null) {
-              filter =
-                ListRawImpressionUploadModelLinesRequestKt.filter {
-                  if (cmmsModelLine.isNotEmpty()) this.cmmsModelLine = cmmsModelLine
-                  if (cutoffTime != null) {
-                    createTimeIn = interval { startTime = cutoffTime.toProtoTime() }
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              this.parent = parent
+              if (cmmsModelLine.isNotEmpty() || cutoffTime != null) {
+                filter =
+                  ListRawImpressionUploadModelLinesRequestKt.filter {
+                    if (cmmsModelLine.isNotEmpty()) this.cmmsModelLine = cmmsModelLine
+                    if (cutoffTime != null) {
+                      createTimeIn = interval { startTime = cutoffTime.toProtoTime() }
+                    }
                   }
-                }
+              }
+              this.pageToken = pageToken
             }
-            this.pageToken = pageToken
-          }
-        )
+          )
+        }
       rows += response.rawImpressionUploadModelLinesList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -1026,16 +1049,18 @@ class EvictUploader(
     var pageToken = ""
     do {
       val response =
-        rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
-          listRawImpressionUploadModelLinesRequest {
-            parent = "$dataProvider/rawImpressionUploads/-"
-            filter =
-              ListRawImpressionUploadModelLinesRequestKt.filter {
-                stateIn += QUEUED_OR_RUNNING_STATES
-              }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              parent = "$dataProvider/rawImpressionUploads/-"
+              filter =
+                ListRawImpressionUploadModelLinesRequestKt.filter {
+                  stateIn += QUEUED_OR_RUNNING_STATES
+                }
+              this.pageToken = pageToken
+            }
+          )
+        }
       rows +=
         response.rawImpressionUploadModelLinesList.filter { it.state in QUEUED_OR_RUNNING_STATES }
       pageToken = response.nextPageToken
@@ -1048,19 +1073,23 @@ class EvictUploader(
     var pageToken = ""
     do {
       val response =
-        rankIndexBlobsStub.listRankIndexBlobs(
-          listRankIndexBlobsRequest {
-            parent = uploadName
-            filter =
-              ListRankIndexBlobsRequestKt.filter {
-                blobType = RankIndexBlob.BlobType.SNAPSHOT
-                this.cmmsModelLine = cmmsModelLine
-              }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          rankIndexBlobsStub.listRankIndexBlobs(
+            listRankIndexBlobsRequest {
+              parent = uploadName
+              filter =
+                ListRankIndexBlobsRequestKt.filter {
+                  blobType = RankIndexBlob.BlobType.SNAPSHOT
+                  this.cmmsModelLine = cmmsModelLine
+                }
+              this.pageToken = pageToken
+            }
+          )
+        }
       for (blob in response.rankIndexBlobsList) {
-        rankIndexBlobsStub.deleteRankIndexBlob(deleteRankIndexBlobRequest { name = blob.name })
+        rpcThrottlers.metadataWrite.onReady {
+          rankIndexBlobsStub.deleteRankIndexBlob(deleteRankIndexBlobRequest { name = blob.name })
+        }
         count++
       }
       pageToken = response.nextPageToken
@@ -1076,18 +1105,20 @@ class EvictUploader(
     var pageToken = ""
     do {
       val response =
-        rankIndexBlobsStub.listRankIndexBlobs(
-          listRankIndexBlobsRequest {
-            parent = "$dataProvider/rawImpressionUploads/-"
-            showDeleted = true
-            filter =
-              ListRankIndexBlobsRequestKt.filter {
-                blobType = RankIndexBlob.BlobType.SNAPSHOT
-                this.cmmsModelLine = cmmsModelLine
-              }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          rankIndexBlobsStub.listRankIndexBlobs(
+            listRankIndexBlobsRequest {
+              parent = "$dataProvider/rawImpressionUploads/-"
+              showDeleted = true
+              filter =
+                ListRankIndexBlobsRequestKt.filter {
+                  blobType = RankIndexBlob.BlobType.SNAPSHOT
+                  this.cmmsModelLine = cmmsModelLine
+                }
+              this.pageToken = pageToken
+            }
+          )
+        }
       for (blob in response.rankIndexBlobsList) {
         val key =
           requireNotNull(RankIndexBlobKey.fromName(blob.name)) {

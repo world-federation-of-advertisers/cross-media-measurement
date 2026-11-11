@@ -29,6 +29,8 @@ import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.time.Duration
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.EnvVars
@@ -122,6 +124,8 @@ class VidLabelingHealingControllerFunction(
       }
     }
 
+    private val rpcThrottlers by lazy { VidLabelingRpcThrottlersEnvironment.load() }
+
     private val controller: VidLabelingHealingController by lazy {
       val firstConfig = vidLabelingConfigs.first()
       require(
@@ -159,6 +163,7 @@ class VidLabelingHealingControllerFunction(
           InternalUploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
             internalChannel
           ),
+          rpcThrottlers = rpcThrottlers,
         )
       val labeledOutputStore = GcsLabeledOutputStore(storage)
       val workItemsClients =
@@ -174,7 +179,11 @@ class VidLabelingHealingControllerFunction(
         }
       val watchers =
         workItemsClients.mapValues { (_, workItemsClient) ->
-          DataWatcher(workItemsClient, dataWatcherConfig.watchedPathsList)
+          DataWatcher(
+            workItemsClient,
+            dataWatcherConfig.watchedPathsList,
+            controlPlaneThrottler = rpcThrottlers.controlPlane,
+          )
         }
       val evictors =
         vidLabelingConfigs.associate { config ->
@@ -188,6 +197,7 @@ class VidLabelingHealingControllerFunction(
               labeledOutputPrefix(config),
               labeledOutputStore::getGeneration,
               labeledOutputStore::delete,
+              rpcThrottlers = rpcThrottlers,
             )
         }
       val recoverUploader =
@@ -196,11 +206,14 @@ class VidLabelingHealingControllerFunction(
           modelLines,
           ranks,
           getHealingOperation = { name ->
-            operations.getUploadHealingOperation(
-              getUploadHealingOperationRequest { this.name = name }
-            )
+            rpcThrottlers.metadataRead.onReady {
+              operations.getUploadHealingOperation(
+                getUploadHealingOperationRequest { this.name = name }
+              )
+            }
           },
           rewriteDoneBlob = GcsDoneBlobRecoveryWriter(storage)::rewrite,
+          rpcThrottlers = rpcThrottlers,
         )
       return@lazy VidLabelingHealingController(
         vidLabelingConfigs.map {
@@ -235,6 +248,7 @@ class VidLabelingHealingControllerFunction(
             createWorkItem = { dataProvider, request ->
               workItemsClients.getValue(dataProvider).createWorkItem(request)
             },
+            controlPlaneThrottler = rpcThrottlers.controlPlane,
             getWorkItem = { dataProvider, name ->
               workItemsClients
                 .getValue(dataProvider)
@@ -244,6 +258,7 @@ class VidLabelingHealingControllerFunction(
         doneObjectMetadataReader = GcsDoneObjectMetadataReader(storage),
         traceContextProvider = Tracing::currentW3CTraceContext,
         eventSink = HealingMetrics(),
+        rpcThrottlers = rpcThrottlers,
       )
     }
 
@@ -272,37 +287,49 @@ internal class GcsDoneObjectMetadataReader(private val storage: Storage) :
 }
 
 internal class GcsLabeledOutputStore(private val storage: Storage) {
-  fun getGeneration(uri: String): Long? {
-    val parsed = GcsUri.parse(uri)
-    return storage.get(BlobId.of(parsed.bucket, parsed.key))?.generation
-  }
+  suspend fun getGeneration(uri: String): Long? =
+    withContext(Dispatchers.IO) {
+      val parsed = GcsUri.parse(uri)
+      storage.get(BlobId.of(parsed.bucket, parsed.key))?.generation
+    }
 
-  fun delete(uri: String, generation: Long): Boolean {
-    val parsed = GcsUri.parse(uri)
-    return storage.delete(BlobId.of(parsed.bucket, parsed.key, generation))
-  }
+  suspend fun delete(uri: String, generation: Long): Boolean =
+    withContext(Dispatchers.IO) {
+      val parsed = GcsUri.parse(uri)
+      storage.delete(BlobId.of(parsed.bucket, parsed.key, generation))
+    }
 }
 
 /** Writes retry-safe recovery generations for raw done objects. */
 internal class GcsDoneBlobRecoveryWriter(private val storage: Storage) {
-  fun rewrite(doneBlobUri: String, expectedGeneration: Long, metadata: Map<String, String>): Long {
-    val done = GcsUri.parse(doneBlobUri)
-    val blobId = BlobId.of(done.bucket, done.key)
-    val current = checkNotNull(storage.get(blobId)) { "$doneBlobUri does not exist" }
-    val currentMetadata = current.metadata.orEmpty()
-    val matchingRecovery =
-      current.generation > 0L &&
-        current.generation != expectedGeneration &&
-        metadata.all { (key, value) -> currentMetadata[key] == value }
-    check(current.generation == expectedGeneration || matchingRecovery) {
-      "$doneBlobUri is at generation ${current.generation}, not $expectedGeneration"
+  suspend fun rewrite(
+    doneBlobUri: String,
+    expectedGeneration: Long,
+    metadata: Map<String, String>,
+  ): Long =
+    withContext(Dispatchers.IO) {
+      val done = GcsUri.parse(doneBlobUri)
+      val blobId = BlobId.of(done.bucket, done.key)
+      val current = checkNotNull(storage.get(blobId)) { "$doneBlobUri does not exist" }
+      val currentMetadata = current.metadata.orEmpty()
+      val matchingRecovery =
+        current.generation > 0L &&
+          current.generation != expectedGeneration &&
+          metadata.all { (key, value) -> currentMetadata[key] == value }
+      check(current.generation == expectedGeneration || matchingRecovery) {
+        "$doneBlobUri is at generation ${current.generation}, not $expectedGeneration"
+      }
+      if (matchingRecovery) return@withContext current.generation
+      currentCoroutineContext().ensureActive()
+      val blobInfo = BlobInfo.newBuilder(blobId).setMetadata(currentMetadata + metadata).build()
+      storage
+        .create(
+          blobInfo,
+          ByteArray(0),
+          Storage.BlobTargetOption.generationMatch(current.generation),
+        )
+        .generation
     }
-    if (matchingRecovery) return current.generation
-    val blobInfo = BlobInfo.newBuilder(blobId).setMetadata(currentMetadata + metadata).build()
-    return storage
-      .create(blobInfo, ByteArray(0), Storage.BlobTargetOption.generationMatch(current.generation))
-      .generation
-  }
 }
 
 internal class GcsCorrectionManifestReader(private val storage: Storage) :

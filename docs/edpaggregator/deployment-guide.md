@@ -745,15 +745,20 @@ every 250 milliseconds). These are per-process limits, not measured downstream c
 deployment-wide quotas.
 
 The checked-in topology permits 24 phase-worker VMs, one dispatcher function, one monitor/dispatch
-function, one internal API server, and one concurrently running operator retry process. If every
+function, one scheduled healing-controller function, one internal API server, and one concurrently
+running operator retry process. If every
 eligible process saturates a throttle class, the aggregate ceilings are 4 Kingdom RPCs per second
-(two functions), 280 metadata reads per second (28 processes), 140 metadata mutations per second
-(28 processes), and 112 control-plane RPCs per second (28 processes). These are conservative
+(two functions), 290 metadata reads per second (29 processes), 145 metadata mutations per second
+(29 processes), and 116 control-plane RPCs per second (29 processes). These are conservative
 per-class envelopes, not per-method bounds: each class contains multiple methods, and each method
 has its own caller set. Compare each method's measured traffic and configured server limit before
 tuning these values.
 
-The Terraform module caps both the dispatcher and monitor at one instance. The checked-in Kingdom
+The dispatcher, monitor, and healing controller each load one throttler bundle shared by all of
+their helpers. Healing metadata pagination, fence/step mutations, and availability WorkItem calls
+use the same metadata-read, metadata-write, and control-plane budgets, respectively.
+
+The Terraform module caps the dispatcher, monitor, and healing controller at one instance. The checked-in Kingdom
 `RateLimitConfig` gives each VID Repository method its own 5-QPS average / 20-request burst bucket,
 so the two functions' worst-case 4 QPS leaves 20 percent headroom without competing with
 ResultsFulfiller, RequisitionFetcher, EventGroupSync, or DataAvailabilitySync in the shared default

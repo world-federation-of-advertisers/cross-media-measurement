@@ -26,6 +26,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.securecomputation.datawatcher.DataWatcherTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/testing:test_id_token_provider",
@@ -35,6 +36,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/java/io/opentelemetry/sdk",
         "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
+        "@wfa_common_jvm//imports/java/org/mockito",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",

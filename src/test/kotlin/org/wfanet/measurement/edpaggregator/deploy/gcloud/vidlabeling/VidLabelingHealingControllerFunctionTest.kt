@@ -21,11 +21,23 @@ import com.google.cloud.storage.Blob
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
+import com.google.cloud.storage.StorageException
 import com.google.common.truth.Truth.assertThat
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -116,73 +128,77 @@ class VidLabelingHealingControllerFunctionTest {
   }
 
   @Test
-  fun `labeled output store deletes only the requested generation`() {
-    val storage = mock<Storage>()
-    val live = blob("day/output.avro", 42L)
-    val unqualified = BlobId.of("output", "day/output.avro")
-    val qualified = BlobId.of("output", "day/output.avro", 42L)
-    whenever(storage.get(unqualified)).thenReturn(live)
-    whenever(storage.delete(qualified)).thenReturn(true)
-    val outputStore = GcsLabeledOutputStore(storage)
+  fun `labeled output store deletes only the requested generation`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val live = blob("day/output.avro", 42L)
+      val unqualified = BlobId.of("output", "day/output.avro")
+      val qualified = BlobId.of("output", "day/output.avro", 42L)
+      whenever(storage.get(unqualified)).thenReturn(live)
+      whenever(storage.delete(qualified)).thenReturn(true)
+      val outputStore = GcsLabeledOutputStore(storage)
 
-    assertThat(outputStore.getGeneration("gs://output/day/output.avro")).isEqualTo(42L)
-    assertThat(outputStore.delete("gs://output/day/output.avro", 42L)).isTrue()
+      assertThat(outputStore.getGeneration("gs://output/day/output.avro")).isEqualTo(42L)
+      assertThat(outputStore.delete("gs://output/day/output.avro", 42L)).isTrue()
 
-    verify(storage).delete(qualified)
-    verify(storage, never()).delete(unqualified)
-  }
-
-  @Test
-  fun `done object metadata reader returns exact generation and create time`() = runBlocking {
-    val storage = mock<Storage>()
-    val done = blob("model-line/ml/2026-11-01/done", 42L)
-    val createTime = Instant.parse("2026-11-01T00:00:00Z")
-    whenever(done.createTimeOffsetDateTime).thenReturn(createTime.atOffset(ZoneOffset.UTC))
-    whenever(storage.get(BlobId.of("output", done.name))).thenReturn(done)
-
-    val metadata =
-      GcsDoneObjectMetadataReader(storage).read("gs://output/model-line/ml/2026-11-01/done")
-
-    assertThat(metadata!!.generation).isEqualTo(42L)
-    assertThat(metadata.createTime).isEqualTo(createTime)
-  }
+      verify(storage).delete(qualified)
+      verify(storage, never()).delete(unqualified)
+    }
 
   @Test
-  fun `recovery writer creates a fresh generation with recovery metadata`() {
-    val storage = mock<Storage>()
-    val current = blob("day/done", 11L)
-    val rewritten = blob("day/done", 12L)
-    whenever(current.metadata).thenReturn(mapOf("existing" to "value"))
-    whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
-    whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
-      .thenReturn(rewritten)
+  fun `done object metadata reader returns exact generation and create time`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val done = blob("model-line/ml/2026-11-01/done", 42L)
+      val createTime = Instant.parse("2026-11-01T00:00:00Z")
+      whenever(done.createTimeOffsetDateTime).thenReturn(createTime.atOffset(ZoneOffset.UTC))
+      whenever(storage.get(BlobId.of("output", done.name))).thenReturn(done)
 
-    val generation =
-      GcsDoneBlobRecoveryWriter(storage)
-        .rewrite("gs://raw/day/done", 11L, mapOf("recovery" to "operation"))
+      val metadata =
+        GcsDoneObjectMetadataReader(storage).read("gs://output/model-line/ml/2026-11-01/done")
 
-    assertThat(generation).isEqualTo(12L)
-    val blobInfo = argumentCaptor<BlobInfo>()
-    verify(storage).create(blobInfo.capture(), any<ByteArray>(), any<Storage.BlobTargetOption>())
-    assertThat(blobInfo.firstValue.metadata)
-      .containsExactly("existing", "value", "recovery", "operation")
-  }
+      assertThat(metadata!!.generation).isEqualTo(42L)
+      assertThat(metadata.createTime).isEqualTo(createTime)
+    }
 
   @Test
-  fun `recovery writer reuses a matching recovery generation`() {
-    val storage = mock<Storage>()
-    val current = blob("day/done", 12L)
-    whenever(current.metadata).thenReturn(mapOf("recovery" to "operation"))
-    whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+  fun `recovery writer creates a fresh generation with recovery metadata`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 11L)
+      val rewritten = blob("day/done", 12L)
+      whenever(current.metadata).thenReturn(mapOf("existing" to "value"))
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+      whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
+        .thenReturn(rewritten)
 
-    val generation =
-      GcsDoneBlobRecoveryWriter(storage)
-        .rewrite("gs://raw/day/done", 11L, mapOf("recovery" to "operation"))
+      val generation =
+        GcsDoneBlobRecoveryWriter(storage)
+          .rewrite("gs://raw/day/done", 11L, mapOf("recovery" to "operation"))
 
-    assertThat(generation).isEqualTo(12L)
-    verify(storage, never())
-      .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
-  }
+      assertThat(generation).isEqualTo(12L)
+      val blobInfo = argumentCaptor<BlobInfo>()
+      verify(storage).create(blobInfo.capture(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+      assertThat(blobInfo.firstValue.metadata)
+        .containsExactly("existing", "value", "recovery", "operation")
+    }
+
+  @Test
+  fun `recovery writer reuses a matching recovery generation`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 12L)
+      whenever(current.metadata).thenReturn(mapOf("recovery" to "operation"))
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+
+      val generation =
+        GcsDoneBlobRecoveryWriter(storage)
+          .rewrite("gs://raw/day/done", 11L, mapOf("recovery" to "operation"))
+
+      assertThat(generation).isEqualTo(12L)
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
 
   @Test
   fun `done replayer routes exact recovery metadata`() {
@@ -213,6 +229,222 @@ class VidLabelingHealingControllerFunctionTest {
         )
     }
   }
+
+  @Test
+  fun `generation reads overlap on IO instead of blocking the caller`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val entered = CountDownLatch(2)
+      val callerThread = Thread.currentThread()
+      whenever(storage.get(any<BlobId>())).thenAnswer { invocation ->
+        assertThat(Thread.currentThread()).isNotSameInstanceAs(callerThread)
+        entered.countDown()
+        check(entered.await(5, TimeUnit.SECONDS)) { "Generation reads did not overlap" }
+        blob(invocation.getArgument<BlobId>(0).name, 42L)
+      }
+      val store = GcsLabeledOutputStore(storage)
+
+      val generations = coroutineScope {
+        listOf("first", "second")
+          .map { key -> async { store.getGeneration("gs://output/$key") } }
+          .awaitAll()
+      }
+
+      assertThat(generations).containsExactly(42L, 42L)
+    }
+
+  @Test
+  fun `exact generation deletes overlap on IO instead of blocking the caller`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val entered = CountDownLatch(2)
+      val callerThread = Thread.currentThread()
+      whenever(storage.delete(any<BlobId>())).thenAnswer { invocation ->
+        assertThat(Thread.currentThread()).isNotSameInstanceAs(callerThread)
+        assertThat(invocation.getArgument<BlobId>(0).generation).isEqualTo(42L)
+        entered.countDown()
+        check(entered.await(5, TimeUnit.SECONDS)) { "Output deletes did not overlap" }
+        true
+      }
+      val store = GcsLabeledOutputStore(storage)
+
+      val deleted = coroutineScope {
+        listOf("first", "second")
+          .map { key -> async { store.delete("gs://output/$key", 42L) } }
+          .awaitAll()
+      }
+
+      assertThat(deleted).containsExactly(true, true)
+    }
+
+  @Test
+  fun `output store reports absent objects without substituting a version`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val store = GcsLabeledOutputStore(storage)
+
+      assertThat(store.getGeneration("gs://output/missing")).isNull()
+      assertThat(store.delete("gs://output/missing", 42L)).isFalse()
+      verify(storage).delete(BlobId.of("output", "missing", 42L))
+    }
+
+  @Test
+  fun `output store propagates read and delete failures`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val failure = StorageException(503, "unavailable")
+      whenever(storage.get(any<BlobId>())).thenThrow(failure)
+      whenever(storage.delete(any<BlobId>())).thenThrow(failure)
+      val store = GcsLabeledOutputStore(storage)
+
+      assertThat(assertFailsWith<StorageException> { store.getGeneration("gs://output/file") })
+        .isSameInstanceAs(failure)
+      assertThat(assertFailsWith<StorageException> { store.delete("gs://output/file", 42L) })
+        .isSameInstanceAs(failure)
+    }
+
+  @Test
+  fun `cancelled output operations never issue storage requests`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val store = GcsLabeledOutputStore(storage)
+      val job = launch {
+        yield()
+        store.getGeneration("gs://output/file")
+        store.delete("gs://output/file", 42L)
+      }
+      job.cancel()
+      job.join()
+
+      verify(storage, never()).get(any<BlobId>())
+      verify(storage, never()).delete(any<BlobId>())
+    }
+
+  @Test
+  fun `recovery reads and conditional writes run away from the caller thread`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val callerThread = Thread.currentThread()
+      val current = blob("day/done", 11L)
+      val rewritten = blob("day/done", 12L)
+      val calls = AtomicInteger()
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenAnswer {
+        assertThat(Thread.currentThread()).isNotSameInstanceAs(callerThread)
+        calls.incrementAndGet()
+        current
+      }
+      whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
+        .thenAnswer {
+          assertThat(Thread.currentThread()).isNotSameInstanceAs(callerThread)
+          calls.incrementAndGet()
+          rewritten
+        }
+
+      assertThat(GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, emptyMap()))
+        .isEqualTo(12L)
+      assertThat(calls.get()).isEqualTo(2)
+      verify(storage)
+        .create(
+          any<BlobInfo>(),
+          eq(ByteArray(0)),
+          eq(Storage.BlobTargetOption.generationMatch(11L)),
+        )
+    }
+
+  @Test
+  fun `recovery rejects a missing marker without creating one`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+
+      assertFailsWith<IllegalStateException> {
+        GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, emptyMap())
+      }
+
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  @Test
+  fun `recovery rejects a newer marker for another operation`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 12L)
+      whenever(current.metadata).thenReturn(mapOf("recovery" to "other"))
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+
+      val failure =
+        assertFailsWith<IllegalStateException> {
+          GcsDoneBlobRecoveryWriter(storage)
+            .rewrite("gs://raw/day/done", 11L, mapOf("recovery" to "ours"))
+        }
+
+      assertThat(failure).hasMessageThat().contains("not 11")
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  @Test
+  fun `recovery propagates a generation match rejection`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 11L)
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+      val failure = StorageException(412, "generation changed during write")
+      whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
+        .thenThrow(failure)
+
+      assertThat(
+          assertFailsWith<StorageException> {
+            GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, emptyMap())
+          }
+        )
+        .isSameInstanceAs(failure)
+    }
+
+  @Test
+  fun `recovery propagates a marker read failure without writing`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val failure = StorageException(503, "unavailable")
+      whenever(storage.get(any<BlobId>())).thenThrow(failure)
+
+      assertThat(
+          assertFailsWith<StorageException> {
+            GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, emptyMap())
+          }
+        )
+        .isSameInstanceAs(failure)
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  @Test
+  fun `cancellation during recovery marker read prevents the conditional write`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val entered = CompletableDeferred<Unit>()
+      val release = CountDownLatch(1)
+      val current = blob("day/done", 11L)
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenAnswer {
+        entered.complete(Unit)
+        check(release.await(10, TimeUnit.SECONDS)) { "Marker read was not released" }
+        current
+      }
+      val recovery = async {
+        GcsDoneBlobRecoveryWriter(storage)
+          .rewrite("gs://raw/day/done", 11L, mapOf("recovery" to "ours"))
+      }
+      try {
+        withTimeout(5_000) { entered.await() }
+        recovery.cancel()
+      } finally {
+        release.countDown()
+      }
+      assertFailsWith<CancellationException> { recovery.await() }
+
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
 
   private fun blob(name: String, generation: Long): Blob {
     return mock<Blob>().also {

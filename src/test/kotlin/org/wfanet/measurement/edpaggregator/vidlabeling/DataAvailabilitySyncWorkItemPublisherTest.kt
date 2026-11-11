@@ -21,8 +21,12 @@ import java.time.Instant
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
@@ -40,6 +44,7 @@ class DataAvailabilitySyncWorkItemPublisherTest {
     assertThat(existing.outcome).isEqualTo("already_exists")
     assertThat(existing.workItemName).isEqualTo(created.workItemName)
     assertThat(client.items).hasSize(1)
+    assertThat(client.rpcThrottlers.controlPlane.invocationCount).isEqualTo(3)
   }
 
   @Test
@@ -59,6 +64,7 @@ class DataAvailabilitySyncWorkItemPublisherTest {
     assertThat(exception).hasMessageThat().contains("does not match")
     assertThat(failedName).isEqualTo(created.workItemName)
     assertThat(client.items).hasSize(1)
+    assertThat(client.rpcThrottlers.controlPlane.invocationCount).isEqualTo(3)
   }
 
   @Test
@@ -82,6 +88,7 @@ class DataAvailabilitySyncWorkItemPublisherTest {
       .isEqualTo("workItems/${RequestIds.forRetriedWorkItem(originalId, "123:4")}")
     assertThat(successor.outcome).isEqualTo("created")
     assertThat(client.items).hasSize(2)
+    assertThat(client.rpcThrottlers.controlPlane.invocationCount).isEqualTo(4)
   }
 
   @Test
@@ -94,6 +101,87 @@ class DataAvailabilitySyncWorkItemPublisherTest {
 
     assertFailsWith<CancellationException> { publisher.ensure() }
     Unit
+  }
+
+  @Test
+  fun `a waiting control-plane throttle prevents publication and cancellation propagates`() =
+    runBlocking {
+      val entered = CompletableDeferred<Unit>()
+      val release = CompletableDeferred<Unit>()
+      var called = false
+      val throttler =
+        object : Throttler {
+          override suspend fun <T> onReady(block: suspend () -> T): T {
+            entered.complete(Unit)
+            release.await()
+            return block()
+          }
+        }
+      val publisher =
+        DataAvailabilitySyncWorkItemPublisher(
+          createWorkItem = { _, _ ->
+            called = true
+            error("unexpected request")
+          },
+          getWorkItem = { _, _ -> error("unexpected lookup") },
+          controlPlaneThrottler = throttler,
+        )
+      val attempt = async { publisher.ensure() }
+      entered.await()
+      assertThat(called).isFalse()
+
+      attempt.cancel()
+      assertFailsWith<CancellationException> { attempt.await() }
+
+      assertThat(called).isFalse()
+    }
+
+  @Test
+  fun `duplicate lookup failure is paced and propagated`() = runBlocking {
+    val throttlers = VidLabelingRpcThrottlersTestHelper.recording()
+    val publisher =
+      DataAvailabilitySyncWorkItemPublisher(
+        createWorkItem = { _, _ -> throw Status.ALREADY_EXISTS.asException() },
+        getWorkItem = { _, _ -> throw Status.NOT_FOUND.asException() },
+        controlPlaneThrottler = throttlers.controlPlane,
+      )
+
+    val failure = assertFailsWith<io.grpc.StatusException> { publisher.ensure() }
+
+    assertThat(failure.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(throttlers.controlPlane.invocationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `a transient publication failure and its retry each consume a permit`() = runBlocking {
+    val throttlers = VidLabelingRpcThrottlersTestHelper.recording()
+    var calls = 0
+    val publisher =
+      DataAvailabilitySyncWorkItemPublisher(
+        createWorkItem = { _, request ->
+          calls++
+          if (calls == 1) throw Status.UNAVAILABLE.asException()
+          request.workItem
+        },
+        getWorkItem = { _, _ -> error("unexpected lookup") },
+        controlPlaneThrottler = throttlers.controlPlane,
+      )
+
+    assertFailsWith<io.grpc.StatusException> { publisher.ensure() }
+    assertThat(publisher.ensure().outcome).isEqualTo("created")
+    assertThat(throttlers.controlPlane.invocationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `invalid existing state is paced and rejected`() = runBlocking {
+    val client = FakeClient()
+    val publisher = client.publisher()
+    val first = publisher.ensure()
+    client.items[first.workItemName] =
+      client.items.getValue(first.workItemName).copy { state = WorkItem.State.STATE_UNSPECIFIED }
+
+    assertFailsWith<IllegalStateException> { publisher.ensure() }
+    assertThat(client.rpcThrottlers.controlPlane.invocationCount).isEqualTo(3)
   }
 
   private suspend fun DataAvailabilitySyncWorkItemPublisher.ensure(
@@ -115,11 +203,13 @@ class DataAvailabilitySyncWorkItemPublisherTest {
 
   private class FakeClient {
     val items = linkedMapOf<String, WorkItem>()
+    val rpcThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
     fun publisher() =
       DataAvailabilitySyncWorkItemPublisher(
         createWorkItem = { _, request -> create(request) },
         getWorkItem = { _, name -> get(name) },
+        controlPlaneThrottler = rpcThrottlers.controlPlane,
       )
 
     private suspend fun create(request: CreateWorkItemRequest): WorkItem {
