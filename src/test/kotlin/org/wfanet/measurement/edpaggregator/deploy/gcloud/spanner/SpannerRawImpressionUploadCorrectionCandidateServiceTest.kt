@@ -1464,7 +1464,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
   }
 
   @Test
-  fun `purge waits for an associated healing operation to complete`() = runBlocking {
+  fun `registered gRPC purge waits for the linked operation enum to be COMPLETE`() = runBlocking {
     val candidate =
       createCandidateForCleanup(
         0,
@@ -1473,24 +1473,23 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         operationId = OPERATION_ID,
       )
     insertHealingOperation(listOf(candidate.candidateId))
-    val cleanupService = cleanupService()
     val request = purgeExpiredRawImpressionUploadCorrectionCandidatesRequest {
       dataProviderResourceId = DATA_PROVIDER_ID
       pageSize = 10
     }
 
-    assertThat(
-        cleanupService.purgeExpiredRawImpressionUploadCorrectionCandidates(request).purgedCount
-      )
+    assertThat(grpcStub.purgeExpiredRawImpressionUploadCorrectionCandidates(request).purgedCount)
       .isEqualTo(0)
     assertThat(getCandidate(candidate.candidateId).state).isEqualTo(candidate.state)
 
     completeHealingOperation()
 
-    assertThat(
-        cleanupService.purgeExpiredRawImpressionUploadCorrectionCandidates(request).purgedCount
-      )
+    assertThat(grpcStub.purgeExpiredRawImpressionUploadCorrectionCandidates(request).purgedCount)
       .isEqualTo(1)
+    val error = assertFailsWith<StatusRuntimeException> { getCandidate(candidate.candidateId) }
+    assertThat(error.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(grpcStub.purgeExpiredRawImpressionUploadCorrectionCandidates(request).purgedCount)
+      .isEqualTo(0)
   }
 
   @Test

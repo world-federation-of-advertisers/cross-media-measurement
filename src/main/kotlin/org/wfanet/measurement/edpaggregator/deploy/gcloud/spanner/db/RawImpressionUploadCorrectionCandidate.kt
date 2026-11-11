@@ -301,7 +301,7 @@ fun AsyncDatabaseClient.ReadContext.readExpiredRawImpressionUploadCorrectionCand
       AND candidate.ExpireTime <= @now
       AND (
         candidate.UploadHealingOperationId IS NULL
-        OR operation.State = @completeOperationState
+        OR CAST(operation.State AS INT64) = @completeOperationState
       )
     ORDER BY candidate.ExpireTime, candidate.RawImpressionUploadCorrectionCandidateId
     LIMIT @limit
