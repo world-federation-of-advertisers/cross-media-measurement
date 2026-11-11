@@ -1054,7 +1054,7 @@ class VidLabelingDispatcherTest {
         dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
       }
 
-    assertThat(error).hasMessageThat().contains("has not been replaced by a completed upload")
+    assertThat(error).hasMessageThat().contains("has not produced durable labeled output")
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 
@@ -1126,7 +1126,7 @@ class VidLabelingDispatcherTest {
         createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
       }
 
-    assertThat(error).hasMessageThat().contains("has not been replaced by a completed upload")
+    assertThat(error).hasMessageThat().contains("has not produced durable labeled output")
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 
