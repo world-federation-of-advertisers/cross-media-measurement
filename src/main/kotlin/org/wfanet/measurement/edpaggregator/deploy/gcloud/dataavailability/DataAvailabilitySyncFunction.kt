@@ -66,7 +66,9 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
@@ -289,7 +291,35 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               ensureLeaseActive = lease::invoke,
             )
         },
-        verifyDoneObject = { workItem -> verifyWorkItemDoneObject(workItem, config) },
+        verifyDoneObject = { workItem ->
+          if (workItem.appParams.triggeringRawImpressionUpload.isNotEmpty()) {
+            val parent =
+              globalThrottler.onReady {
+                rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
+                  getRawImpressionUploadModelLineRequest {
+                    name = workItem.rawImpressionUploadModelLineName
+                  }
+                )
+              }
+            require(
+              parent.name == workItem.rawImpressionUploadModelLineName &&
+                parent.name.substringBefore("/rawImpressionUploadModelLines/") ==
+                  workItem.appParams.triggeringRawImpressionUpload
+            ) {
+              "WorkItem source upload does not match its parent"
+            }
+            require(parent.cmmsModelLine == workItem.appParams.modelLine) {
+              "WorkItem model line does not match its parent"
+            }
+            check(
+              parent.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING ||
+                parent.state == RawImpressionUploadModelLine.State.COMPLETED
+            ) {
+              "WorkItem parent is not ready for availability synchronization"
+            }
+          }
+          verifyWorkItemDoneObject(workItem, config)
+        },
         markAvailabilitySynchronized = { workItem ->
           rawImpressionUploadModelLinesStub
             .markRawImpressionUploadModelLineAvailabilitySynchronized(

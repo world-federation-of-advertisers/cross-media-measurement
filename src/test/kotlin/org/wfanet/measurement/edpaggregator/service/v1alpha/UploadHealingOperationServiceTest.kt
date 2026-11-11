@@ -26,22 +26,14 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
-import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.approveUploadHealingOperationRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.createUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.retryUploadHealingOperationRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
-import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
-import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest as InternalAdvanceRequest
 import org.wfanet.measurement.internal.edpaggregator.ApproveUploadHealingOperationRequest as InternalApproveRequest
-import org.wfanet.measurement.internal.edpaggregator.CreateUploadHealingOperationRequest as InternalCreateRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RetryUploadHealingOperationRequest as InternalRetryRequest
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
@@ -58,121 +50,6 @@ class UploadHealingOperationServiceTest {
     mockService()
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalService) }
-
-  @Test
-  fun `create forwards the complete healing graph`() = runBlocking {
-    var captured: InternalCreateRequest? = null
-    org.mockito.kotlin
-      .whenever(internalService.createUploadHealingOperation(org.mockito.kotlin.any()))
-      .thenAnswer { invocation ->
-        captured = invocation.getArgument(0)
-        INTERNAL_OPERATION
-      }
-    val service =
-      UploadHealingOperationService(
-        InternalServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(grpcTestServerRule.channel)
-      )
-
-    val result =
-      service.createUploadHealingOperation(
-        createUploadHealingOperationRequest {
-          parent = DATA_PROVIDER
-          uploadHealingOperationId = OPERATION_ID
-          requestId = REQUEST_ID
-          uploadHealingOperation = uploadHealingOperation {
-            reason = "bad data"
-            labeledImpressionsBlobPrefix = "gs://output/vid"
-            badRawImpressionUploads += UPLOAD
-            cutoffTime = timestamp { seconds = 100L }
-            steps += uploadHealingStep {
-              sequenceNumber = 0L
-              sourceRawImpressionUpload = UPLOAD
-              rawImpressionUploadModelLine = MODEL_LINE_ROW
-              cmmsModelLine = CMMS_MODEL_LINE
-              memoized = true
-              recoveryAction =
-                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
-              recoveryPredecessorRawImpressionUpload = PREDECESSOR
-              recoveryTarget = true
-              rawImpressionUploadCorrectionCandidate =
-                "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/$CANDIDATE_ID"
-            }
-          }
-        }
-      )
-
-    assertThat(captured!!.uploadHealingOperation.stepsList.single().recoveryAction)
-      .isEqualTo(
-        InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
-      )
-    assertThat(
-        captured!!.uploadHealingOperation.stepsList.single().sourceRawImpressionUploadResourceId
-      )
-      .isEqualTo("upload")
-    assertThat(
-        captured!!
-          .uploadHealingOperation
-          .stepsList
-          .single()
-          .rawImpressionUploadCorrectionCandidateId
-      )
-      .isEqualTo(CANDIDATE_ID)
-    assertThat(result.name).isEqualTo("$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID")
-    assertThat(result.stepsList.single().rawImpressionUploadModelLine).isEqualTo(MODEL_LINE_ROW)
-    Unit
-  }
-
-  @Test
-  fun `create forwards and returns a no-replacement action`() = runBlocking {
-    var captured: InternalCreateRequest? = null
-    val internalResponse =
-      INTERNAL_OPERATION.toBuilder()
-        .setSteps(
-          0,
-          INTERNAL_OPERATION.stepsList
-            .single()
-            .toBuilder()
-            .setRecoveryAction(
-              InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
-            ),
-        )
-        .build()
-    org.mockito.kotlin
-      .whenever(internalService.createUploadHealingOperation(org.mockito.kotlin.any()))
-      .thenAnswer { invocation ->
-        captured = invocation.getArgument(0)
-        internalResponse
-      }
-    val request =
-      validCreateRequest()
-        .toBuilder()
-        .setUploadHealingOperation(
-          validCreateRequest()
-            .uploadHealingOperation
-            .toBuilder()
-            .setSteps(
-              0,
-              validCreateRequest()
-                .uploadHealingOperation
-                .stepsList
-                .single()
-                .toBuilder()
-                .setRecoveryAction(
-                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
-                ),
-            )
-        )
-        .build()
-
-    val result = newService().createUploadHealingOperation(request)
-
-    assertThat(captured!!.uploadHealingOperation.stepsList.single().recoveryAction)
-      .isEqualTo(
-        InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
-      )
-    assertThat(result.stepsList.single().recoveryAction)
-      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT)
-  }
 
   @Test
   fun `get exposes every operation state and associated candidates`() = runBlocking {
@@ -304,7 +181,7 @@ class UploadHealingOperationServiceTest {
       .thenAnswer { invocation ->
         captured = invocation.getArgument(0)
         INTERNAL_OPERATION.copy {
-          state = InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED
+          state = InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
         }
       }
 
@@ -332,7 +209,7 @@ class UploadHealingOperationServiceTest {
       )
     assertThat(captured!!.etag).isEqualTo("etag")
     assertThat(captured!!.requestId).isEqualTo(REQUEST_ID)
-    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.APPROVED)
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.DRAINING)
   }
 
   @Test
@@ -424,79 +301,6 @@ class UploadHealingOperationServiceTest {
   }
 
   @Test
-  fun `advance forwards a server-verified action instead of writable state`() = runBlocking {
-    var captured: InternalAdvanceRequest? = null
-    org.mockito.kotlin
-      .whenever(internalService.advanceUploadHealingStep(org.mockito.kotlin.any()))
-      .thenAnswer { invocation ->
-        captured = invocation.getArgument(0)
-        INTERNAL_OPERATION.stepsList.single()
-      }
-    val service = newService()
-
-    val result =
-      service.advanceUploadHealingStep(
-        advanceUploadHealingStepRequest {
-          name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/uploadHealingSteps/1"
-          etag = "etag"
-          action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
-          recoveryDoneBlobGeneration = 123L
-          requestId = REQUEST_ID
-        }
-      )
-
-    assertThat(captured!!.action).isEqualTo(InternalAdvanceRequest.Action.RECORD_RECOVERY)
-    assertThat(captured!!.uploadHealingStepId).isEqualTo(1L)
-    assertThat(captured!!.recoveryDoneBlobGeneration).isEqualTo(123L)
-    assertThat(result.state)
-      .isEqualTo(
-        org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.PENDING_EVICTION
-      )
-    Unit
-  }
-
-  @Test
-  fun `create requires request ID`() = runBlocking {
-    val error =
-      assertFailsWith<StatusRuntimeException> {
-        newService().createUploadHealingOperation(validCreateRequest(requestId = ""))
-      }
-
-    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `advance requires request ID`() = runBlocking {
-    val error =
-      assertFailsWith<StatusRuntimeException> {
-        newService()
-          .advanceUploadHealingStep(
-            advanceUploadHealingStepRequest {
-              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/uploadHealingSteps/1"
-              etag = "etag"
-              action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
-            }
-          )
-      }
-
-    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `create translates internal errors`() = runBlocking {
-    org.mockito.kotlin
-      .whenever(internalService.createUploadHealingOperation(org.mockito.kotlin.any()))
-      .thenThrow(Status.ALREADY_EXISTS.withDescription("internal details").asRuntimeException())
-    val error =
-      assertFailsWith<StatusRuntimeException> {
-        newService().createUploadHealingOperation(validCreateRequest())
-      }
-
-    assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-    assertThat(error.status.description).doesNotContain("internal details")
-  }
-
-  @Test
   fun `get translates internal errors`() = runBlocking {
     org.mockito.kotlin
       .whenever(internalService.getUploadHealingOperation(org.mockito.kotlin.any()))
@@ -515,63 +319,10 @@ class UploadHealingOperationServiceTest {
     assertThat(error.status.description).doesNotContain("internal details")
   }
 
-  @Test
-  fun `advance translates internal errors`() = runBlocking {
-    org.mockito.kotlin
-      .whenever(internalService.advanceUploadHealingStep(org.mockito.kotlin.any()))
-      .thenThrow(
-        Status.FAILED_PRECONDITION.withDescription("internal details").asRuntimeException()
-      )
-    val error =
-      assertFailsWith<StatusRuntimeException> {
-        newService()
-          .advanceUploadHealingStep(
-            advanceUploadHealingStepRequest {
-              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/uploadHealingSteps/1"
-              etag = "etag"
-              action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
-              requestId = REQUEST_ID
-            }
-          )
-      }
-
-    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(error.status.description).doesNotContain("internal details")
-  }
-
   private fun newService() =
     UploadHealingOperationService(
       InternalServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(grpcTestServerRule.channel)
     )
-
-  private fun validCreateRequest(requestId: String = REQUEST_ID) =
-    createUploadHealingOperationRequest {
-      parent = DATA_PROVIDER
-      uploadHealingOperationId = OPERATION_ID
-      this.requestId = requestId
-      uploadHealingOperation = uploadHealingOperation {
-        reason = "bad data"
-        labeledImpressionsBlobPrefix = "gs://output/vid"
-        badRawImpressionUploads += UPLOAD
-        cutoffTime = timestamp { seconds = 100L }
-        steps += uploadHealingStep {
-          sequenceNumber = 0L
-          sourceRawImpressionUpload = UPLOAD
-          rawImpressionUploadModelLine = MODEL_LINE_ROW
-          cmmsModelLine = CMMS_MODEL_LINE
-          recoveryAction =
-            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
-          labeledOutputManifest =
-            org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest {
-              blobs +=
-                org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt.blobVersion {
-                  blobUri = "gs://output/vid/file"
-                  generation = 100L
-                }
-            }
-        }
-      }
-    }
 
   private fun approvalDecision(
     decision: RawImpressionUploadCorrectionCandidate.Decision,
@@ -597,9 +348,6 @@ class UploadHealingOperationServiceTest {
       uploadHealingOperationId = OPERATION_ID
       state = InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
       reason = "bad data"
-      labeledImpressionsBlobPrefix = "gs://output/vid"
-      badRawImpressionUploadResourceIds += "upload"
-      cutoffTime = timestamp { seconds = 100L }
       steps += internalStep {
         uploadHealingStepId = 1L
         sequenceNumber = 0L
@@ -611,14 +359,6 @@ class UploadHealingOperationServiceTest {
           InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
         recoveryPredecessorRawImpressionUploadResourceId = "previous"
         recoveryTarget = true
-        labeledOutputManifest =
-          org.wfanet.measurement.internal.edpaggregator.labeledOutputManifest {
-            blobs +=
-              org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifestKt.blobVersion {
-                blobUri = "gs://output/vid/file"
-                generation = 100L
-              }
-          }
         state = InternalStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION
         etag = "etag"
       }
