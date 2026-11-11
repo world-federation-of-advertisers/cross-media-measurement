@@ -12,3 +12,5 @@ This layout keeps the configuration reviewed and versioned in the repository, bu
 Halo workflows read non-secret per-environment configuration from committed files rather than GitHub environment variables. GitHub environments hold secrets such as API keys and credentials. GitHub Actions variables are reserved for repository-wide CI and release integrations, such as artifact publishing, image signing, and notifications. Workflow-dispatch overrides remain inputs.
 
 Secret mapping values committed in tfvars name Secret Manager resources and filesystem mount paths; secret contents must remain in GitHub or Google Secret Manager.
+
+Set Spanner capacity with `spanner_processing_units` in the selected tfvars file. Terraform reapplies that value during deployment, so commit sustained capacity increases there to preserve them across deployments.
