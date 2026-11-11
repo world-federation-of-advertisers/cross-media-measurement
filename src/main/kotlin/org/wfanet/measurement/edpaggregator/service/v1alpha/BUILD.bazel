@@ -187,6 +187,12 @@ kt_jvm_library(
 kt_jvm_library(
     name = "services",
     srcs = ["Services.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+        test_target(":__pkg__"),
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:__pkg__",
+    ],
     deps = [
         ":data_availability_sync_lease_service",
         ":impression_metadata_service",
