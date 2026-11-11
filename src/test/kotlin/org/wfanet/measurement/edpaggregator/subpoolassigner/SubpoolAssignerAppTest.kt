@@ -17,27 +17,44 @@
 package org.wfanet.measurement.edpaggregator.subpoolassigner
 
 import com.google.common.truth.Truth.assertThat
+import com.google.crypto.tink.KmsClient
 import com.google.protobuf.timestamp
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verifyNoInteractions
+import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
+import org.wfanet.measurement.queue.QueueSubscriber
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
+import org.wfanet.measurement.storage.ParquetStorageClient
 
 private const val DATA_PROVIDER = "dataProviders/dp"
 private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
+private const val ALLOWED_PRIOR_UPLOAD = "dataProviders/dp/rawImpressionUploads/up0"
 private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
 
-/**
- * Unit tests for [SubpoolAssignerApp.buildVidRankBuilderParamsTemplate] — the Phase-0 -> Phase-1
- * pass-through mapper. Verifies that the static `VidRankBuilderParams` fields (including the
- * Phase-2 `max_file_batch_size_bytes` bin-packing cap) are forwarded verbatim from the incoming
- * `SubpoolAssignerParams`.
- */
+/** Tests Phase-0 model validation and the Phase-1 params template. */
 @RunWith(JUnit4::class)
 class SubpoolAssignerAppTest {
 
@@ -52,6 +69,7 @@ class SubpoolAssignerAppTest {
     rawImpressionStorageParams = storageParams("raw-impressions")
     vidLabeledImpressionsStorageParams = storageParams("vid-labeled")
     subpoolMapStorageParams = storageParams("subpool-map")
+    modelStorageParams = storageParams("model")
     vidRankMapStorageParams = storageParams("vid-rank-map")
     rawImpressionUpload = UPLOAD
     modelLine = MODEL_LINE
@@ -66,11 +84,56 @@ class SubpoolAssignerAppTest {
     eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
     requiredEntityKeyFieldMapping.put("household", "hh_col")
     optionalEntityKeyFieldMapping.put("creative", "cr_col")
+    allowedPriorSnapshotRawImpressionUploads += ALLOWED_PRIOR_UPLOAD
     totalShards = 4
     maxFileBatchSizeBytes = 777
     activeStartTime = timestamp { seconds = 1000 }
     activeEndTime = timestamp { seconds = 2000 }
   }
+
+  @Test
+  fun `runWork rejects an invalid model before reading raw impressions`() =
+    runBlocking<Unit> {
+      val modelFailure = IllegalArgumentException("Model has no ranked pools")
+      val filesStub =
+        mock<RawImpressionUploadFileServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadFiles(any(), any()) } doAnswer
+            {
+              error("Raw impression files must not be read for an invalid model")
+            }
+        }
+      val parquetStorageClient = mock<ParquetStorageClient>()
+      val app =
+        SubpoolAssignerApp(
+          subscriptionId = "subpool-assigner-subscription",
+          queueSubscriber = mock<QueueSubscriber>(),
+          parser = WorkItem.parser(),
+          workItemsClient = mock<WorkItemsCoroutineStub>(),
+          workItemAttemptsClient = mock<WorkItemAttemptsCoroutineStub>(),
+          vidRankBuilderQueue = "queues/vid-rank-builder",
+          kmsClients = mapOf(DATA_PROVIDER to mock<KmsClient>()),
+          getSubpoolMapStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
+          getRawImpressionsStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
+          getModelStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
+          rawImpressionUploadsStub = mock<RawImpressionUploadServiceCoroutineStub>(),
+          rawImpressionUploadModelLinesStub =
+            mock<RawImpressionUploadModelLineServiceCoroutineStub>(),
+          rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
+          poolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>(),
+          rawImpressionUploadFilesStub = filesStub,
+          buildParquetStorageClient = { _, _ -> parquetStorageClient },
+          buildSubpoolMapStorageClient = { mock<ConditionalOperationStorageClient>() },
+          loadPoolEmitLabeler = { _, _ -> throw modelFailure },
+          getSubpoolMapKekUri = { "kms://test-key" },
+          rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        )
+      val message = workItemParams { appParams = validParams().pack() }.pack()
+
+      val exception = assertFailsWith<IllegalArgumentException> { app.runWork(message) }
+
+      assertThat(exception).isSameInstanceAs(modelFailure)
+      verifyNoInteractions(filesStub, parquetStorageClient)
+    }
 
   @Test
   fun `forwards max_file_batch_size_bytes verbatim into the template`() {
@@ -116,6 +179,8 @@ class SubpoolAssignerAppTest {
     // Per-impression entity-key columns forwarded for the Phase-2 fan-out.
     assertThat(template.requiredEntityKeyFieldMappingMap).containsExactly("household", "hh_col")
     assertThat(template.optionalEntityKeyFieldMappingMap).containsExactly("creative", "cr_col")
+    assertThat(template.allowedPriorSnapshotRawImpressionUploadsList)
+      .containsExactly(ALLOWED_PRIOR_UPLOAD)
     // Active-window timestamps forwarded verbatim from Phase-0 for the Phase-2 fan-out.
     assertThat(template.activeStartTime).isEqualTo(timestamp { seconds = 1000 })
     assertThat(template.activeEndTime).isEqualTo(timestamp { seconds = 2000 })

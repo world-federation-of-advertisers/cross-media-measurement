@@ -33,4 +33,6 @@ enum RawImpressionUploadState {
   RAW_IMPRESSION_UPLOAD_STATE_COMPLETED = 3;
   // At least one model line failed.
   RAW_IMPRESSION_UPLOAD_STATE_FAILED = 4;
+  // The upload is quarantined pending correction approval.
+  RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED = 5;
 }

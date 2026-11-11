@@ -10,7 +10,7 @@ kt_jvm_library(
     name = "requisitions_validator",
     srcs = ["RequisitionsValidator.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:requisition_specs",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
@@ -18,7 +18,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )
 
@@ -35,7 +34,10 @@ kt_jvm_library(
     name = "requisition_work_item_dispatcher",
     srcs = ["RequisitionWorkItemDispatcher.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:errors",
+        "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
@@ -59,6 +61,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:requisition_specs",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
@@ -101,7 +104,7 @@ kt_jvm_library(
     deps = [
         ":requisition_grouper",
         ":requisitions_validator",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:requisition_specs",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
@@ -119,7 +122,7 @@ kt_jvm_library(
     deps = [
         ":requisition_grouper",
         ":requisitions_validator",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:requisition_specs",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",

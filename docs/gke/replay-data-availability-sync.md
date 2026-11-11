@@ -20,8 +20,9 @@ The required `--mode` flag makes the scope explicit:
 
 Prepare a textproto containing one `DataAvailabilitySyncConfig`, not the
 `DataAvailabilitySyncConfigs` wrapper used by the deployed Cloud Function. Use the same
-DataProvider, storage, impression path, TLS, model-line, and EventGroup activity settings as the
-deployed configuration. See the
+DataProvider, storage, impression paths, TLS, model-line, and EventGroup activity settings as the
+deployed configuration. Publication checks date gaps across both configured paths, even when the
+replay selection uses only one. See the
 [EDP Aggregator deployment guide](../edpaggregator/deployment-guide.md#dataavailabilitysync-config-dataavailabilitysyncconfigs)
 for the full configuration.
 
@@ -33,6 +34,8 @@ The runtime identity needs:
 * read access to the EventGroup map when publishing EventGroup activity;
 * network access to the Kingdom and ImpressionMetadata public APIs;
 * permission to list and write ImpressionMetadata in `DATA_AVAILABILITY_ONLY` and `FULL_SYNC`;
+* permission to acquire, renew, and release DataAvailabilitySyncLeases on the ImpressionMetadata
+  endpoint in `DATA_AVAILABILITY_ONLY` and `FULL_SYNC`;
 * permission to list ImpressionMetadata and update EventGroup activity in
   `EVENT_GROUP_ACTIVITY_ONLY`; and
 * access to the TLS files referenced by the config.
@@ -42,10 +45,16 @@ The runtime identity needs:
 Choose exactly one selection mode:
 
 * `--blob-prefix` accepts a `gs://` URI or bucket-relative prefix. It recursively finds blobs whose
-  basename is exactly `done`. The prefix must be the configured `edp_impression_path` or one of its
-  descendants.
+  basename is exactly `done`. The prefix must be `edp_impression_path`,
+  `vid_labeled_impression_path` when configured, or a descendant of either. A URI must use the
+  configured bucket.
 * Repeat `--done-blob-uri` to replay an explicit set of `gs://.../done` blobs. Every URI must use
-  the configured bucket and be below the configured `edp_impression_path`.
+  the configured bucket and be below either configured impression path. A list may contain blobs
+  from both paths; synchronization selects the matching path for each blob.
+
+The configured paths must not overlap. When VID labeling is enabled, `vid_labeled_impression_path`
+is required. A config for a provider with VID labeling disabled may omit it and continue
+accepting only `edp_impression_path`.
 
 To backfill EventGroup activity below an impression prefix without changing metadata or data
 availability:
@@ -58,7 +67,7 @@ bazel run \
   --config-file=/absolute/path/to/data-availability-sync-config.textproto \
   --kingdom-public-api-target=KINGDOM_HOST:8443 \
   --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
-  --blob-prefix=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/vid-labeled-impressions
+  --blob-prefix=gs://EDPA_STORAGE_BUCKET/vid-labeled-impressions/edp/EDP_ID
 ```
 
 To replay data availability for named completion blobs without publishing EventGroup activity:
@@ -71,8 +80,8 @@ bazel run \
   --config-file=/absolute/path/to/data-availability-sync-config.textproto \
   --kingdom-public-api-target=KINGDOM_HOST:8443 \
   --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
-  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/vid-labeled-impressions/2026-09-12/done \
-  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/vid-labeled-impressions/2026-09-15/done
+  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/model-line/MODEL_LINE_ID/2026-09-12/done \
+  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/vid-labeled-impressions/edp/EDP_ID/model-line/MODEL_LINE_ID/2026-09-15/done
 ```
 
 Optional flags:
@@ -81,7 +90,7 @@ Optional flags:
 * `--impression-metadata-api-cert-host`
 * `--throttler-minimum-interval` (default `1s`): shared minimum interval between metadata,
   availability, and activity RPCs, including activity retries.
-* `--impression-metadata-batch-size` (default `1000`)
+* `--impression-metadata-batch-size` (default `100`)
 
 ## Understand replay behavior
 
@@ -91,6 +100,11 @@ folders from being attempted, and the process exits nonzero if any folder fails.
 publication.
 Failures are logged with the affected completion blob and the exception's cause chain, including
 underlying RPC statuses.
+
+Each data-availability replay acquires a renewable DataProvider synchronization lease and reads
+its completion blob's current GCS generation. Metadata mutations include that lease and generation.
+The lease is released after each folder, including when synchronization fails. Activity-only
+replay does not acquire a synchronization lease.
 
 `DATA_AVAILABILITY_ONLY` and `FULL_SYNC` scan the folder's current metadata and check its
 referenced impressions blobs. If blobs were added or overwritten after the original `done` blob

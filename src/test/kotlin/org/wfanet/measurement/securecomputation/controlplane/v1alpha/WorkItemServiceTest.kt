@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
+import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
@@ -32,6 +33,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.stub
@@ -41,6 +43,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt as InternalListWorkItemsPageTokenKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest as InternalListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
@@ -80,6 +83,7 @@ class WorkItemServiceTest {
     val internalWorkItem = internalWorkItem {
       workItemResourceId = "workItem"
       queueResourceId = "queueId"
+      serializationKey = "data-availability:dataProviders/provider-1"
       state = InternalWorkItem.State.QUEUED
     }
     internalServiceMock.stub { onBlocking { createWorkItem(any()) } doReturn internalWorkItem }
@@ -88,6 +92,7 @@ class WorkItemServiceTest {
       workItem = workItem {
         name = "workItems/${internalWorkItem.workItemResourceId}"
         queue = "queueId"
+        serializationKey = internalWorkItem.serializationKey
       }
       workItemId = "workItem"
     }
@@ -103,6 +108,7 @@ class WorkItemServiceTest {
             queueResourceId = "queueId"
             workItemResourceId = request.workItemId
             workItemParams = Any.getDefaultInstance()
+            serializationKey = request.workItem.serializationKey
           }
         }
       )
@@ -124,13 +130,17 @@ class WorkItemServiceTest {
     val internalWorkItem = internalWorkItem {
       workItemResourceId = "work-item"
       queueResourceId = "queue-id"
+      serializationKey = "data-availability:dataProviders/provider-1"
       state = InternalWorkItem.State.QUEUED
       generation = 1L
     }
     internalServiceMock.stub { onBlocking { ensureWorkItem(any()) } doReturn internalWorkItem }
     val request = ensureWorkItemRequest {
       workItemId = "work-item"
-      workItem = workItem { queue = "queue-id" }
+      workItem = workItem {
+        queue = "queue-id"
+        serializationKey = internalWorkItem.serializationKey
+      }
     }
 
     val response = service.ensureWorkItem(request)
@@ -145,10 +155,12 @@ class WorkItemServiceTest {
             workItemResourceId = "work-item"
             queueResourceId = "queue-id"
             workItemParams = Any.getDefaultInstance()
+            serializationKey = request.workItem.serializationKey
           }
         }
       )
     assertThat(response.name).isEqualTo("workItems/work-item")
+    assertThat(response.serializationKey).isEqualTo(internalWorkItem.serializationKey)
     assertThat(response.state).isEqualTo(WorkItem.State.QUEUED)
     assertThat(response.generation).isEqualTo(1L)
   }
@@ -756,9 +768,71 @@ class WorkItemServiceTest {
         listWorkItemsResponse {
           workItems += internalWorkItemFirst.toWorkItem()
           nextPageToken =
-            internalListWorkItemsResponse.nextPageToken.after.toByteString().base64UrlEncode()
+            internalListWorkItemsResponse.nextPageToken.toByteString().base64UrlEncode()
         }
       )
+  }
+
+  @Test
+  fun `listWorkItems page token advances to the next page and terminates`() = runBlocking {
+    val firstWorkItem = internalWorkItem {
+      workItemResourceId = "work-item-1"
+      queueResourceId = "queue-id"
+      state = InternalWorkItem.State.QUEUED
+    }
+    val secondWorkItem = internalWorkItem {
+      workItemResourceId = "work-item-2"
+      queueResourceId = "queue-id"
+      state = InternalWorkItem.State.SUCCEEDED
+    }
+    val internalPageToken = internalListWorkItemsPageToken {
+      after =
+        InternalListWorkItemsPageTokenKt.after {
+          createdAfter = timestamp {
+            seconds = 123L
+            nanos = 456
+          }
+          workItemResourceId = firstWorkItem.workItemResourceId
+        }
+    }
+    var invocationCount = 0
+    internalServiceMock.stub {
+      onBlocking { listWorkItems(any()) } doAnswer
+        { invocation ->
+          val request = invocation.arguments.single() as InternalListWorkItemsRequest
+          when (invocationCount++) {
+            0 -> {
+              assertThat(request.hasPageToken()).isFalse()
+              internalListWorkItemsResponse {
+                workItems += firstWorkItem
+                nextPageToken = internalPageToken
+              }
+            }
+            1 -> {
+              assertThat(request.pageToken).isEqualTo(internalPageToken)
+              internalListWorkItemsResponse { workItems += secondWorkItem }
+            }
+            else -> error("Unexpected ListWorkItems request")
+          }
+        }
+    }
+
+    val firstResponse = service.listWorkItems(listWorkItemsRequest { pageSize = 1 })
+    val secondResponse =
+      service.listWorkItems(
+        listWorkItemsRequest {
+          pageSize = 1
+          pageToken = firstResponse.nextPageToken
+        }
+      )
+
+    assertThat(firstResponse.workItemsList.map { it.name }).containsExactly("workItems/work-item-1")
+    assertThat(firstResponse.nextPageToken)
+      .isEqualTo(internalPageToken.toByteString().base64UrlEncode())
+    assertThat(secondResponse.workItemsList.map { it.name })
+      .containsExactly("workItems/work-item-2")
+    assertThat(secondResponse.nextPageToken).isEmpty()
+    assertThat(invocationCount).isEqualTo(2)
   }
 
   @Test
@@ -795,5 +869,98 @@ class WorkItemServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
         }
       )
+  }
+
+  @Test
+  fun `createWorkItem preserves UNAVAILABLE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { createWorkItem(any()) } doThrow
+        Status.UNAVAILABLE.withDescription("Backend transport failure").asRuntimeException()
+    }
+    val request = createWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queue-id" }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.createWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description).isNull()
+  }
+
+  @Test
+  fun `ensureWorkItem preserves UNAVAILABLE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        Status.UNAVAILABLE.withDescription("Backend transport failure").asRuntimeException()
+    }
+    val request = ensureWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queue-id" }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.ensureWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description).isNull()
+  }
+
+  @Test
+  fun `getWorkItem preserves UNAVAILABLE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { getWorkItem(any()) } doThrow
+        Status.UNAVAILABLE.withDescription("Backend transport failure").asRuntimeException()
+    }
+    val request = getWorkItemRequest { name = "workItems/work-item" }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.getWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description).isNull()
+  }
+
+  @Test
+  fun `failWorkItem preserves UNAVAILABLE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { failWorkItem(any()) } doThrow
+        Status.UNAVAILABLE.withDescription("Backend transport failure").asRuntimeException()
+    }
+    val request = failWorkItemRequest { name = "workItems/work-item" }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.failWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description).isNull()
+  }
+
+  @Test
+  fun `retryWorkItem preserves UNAVAILABLE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { retryWorkItem(any()) } doThrow
+        Status.UNAVAILABLE.withDescription("Backend transport failure").asRuntimeException()
+    }
+    val request = retryWorkItemRequest { name = "workItems/work-item" }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.retryWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description).isNull()
+  }
+
+  @Test
+  fun `createWorkItem maps unclassified backend exhaustion to INTERNAL`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { createWorkItem(any()) } doThrow
+        Status.RESOURCE_EXHAUSTED.withDescription("Backend resource failure").asRuntimeException()
+    }
+    val request = createWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queue-id" }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.createWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+    assertThat(exception.status.description).isNull()
   }
 }

@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
+import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.util.logging.Level
@@ -40,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitor
@@ -52,8 +54,9 @@ import org.wfanet.measurement.storage.StorageClient
  *
  * Invoked by two Cloud Scheduler jobs against this one endpoint, selected by the `mode` query
  * parameter (anything else is rejected with HTTP 400):
- * - `?mode=dispatch` on a fast cadence (~6h) runs [VidLabelingMonitor.runDispatch] only, so a
- *   newly-registered upload starts promptly.
+ * - `?mode=dispatch` runs [VidLabelingMonitor.runDispatch] on the configured fallback schedule:
+ *   every five minutes for CMMS development/cloud tests, or 1–4 times per day for long-lived
+ *   deployments. It starts eligible work after fast-path dispatch retries are exhausted.
  * - `?mode=health` on a slow cadence (~daily, matching the DataAvailabilityMonitor) runs
  *   [VidLabelingMonitor.runHealth] only: staleness/failure monitoring, stuck-phase recovery, and
  *   data-quality checks. Recovery wants a slow, well-spaced clock so it never races an in-flight
@@ -235,6 +238,10 @@ class VidLabelingMonitorFunction : HttpFunction {
       RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
         rawImpressionUploadChannel
       )
+    val uploadHealingOperationStub =
+      UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+        rawImpressionUploadChannel
+      )
     val rawImpressionUploadModelLineStub =
       RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
         rawImpressionUploadChannel
@@ -278,6 +285,11 @@ class VidLabelingMonitorFunction : HttpFunction {
         rpcThrottlers = rpcThrottlers,
       )
 
+    val vidLabeledBucket = config.vidLabeledImpressionsStorageParams.gcs.bucketName
+    val vidLabeledStorage: Storage by lazy {
+      createGoogleCloudStorage(config.vidLabeledImpressionsStorageParams.gcs.projectId)
+    }
+    val vidLabeledImpressionsBlobPrefix = "gs://$vidLabeledBucket/${config.edpImpressionPath}"
     val monitor =
       VidLabelingMonitor(
         rawImpressionUploadStub = rawImpressionUploadStub,
@@ -293,15 +305,14 @@ class VidLabelingMonitorFunction : HttpFunction {
           )
         },
         vidLabeledImpressionsStorageClientProvider = {
-          createStorageClient(
-            config.vidLabeledImpressionsStorageParams.gcs.bucketName,
-            config.vidLabeledImpressionsStorageParams.gcs.projectId,
-          )
+          GcsStorageClient(vidLabeledStorage, vidLabeledBucket)
         },
         poolAssignmentJobStub = poolAssignmentJobStub,
         rankerJobStub = rankerJobStub,
         vidLabelingJobStub = vidLabelingJobStub,
         workItemsStub = workItemsStub,
+        uploadHealingOperationStub = uploadHealingOperationStub,
+        vidLabeledImpressionsBlobPrefix = vidLabeledImpressionsBlobPrefix,
         rpcThrottlers = rpcThrottlers,
       )
 
@@ -360,17 +371,17 @@ class VidLabelingMonitorFunction : HttpFunction {
 
     /** Builds a bucket-rooted [StorageClient] for the data-quality crawl. */
     private fun createStorageClient(bucketName: String, projectId: String): StorageClient {
-      return GcsStorageClient(
-        StorageOptions.newBuilder()
-          .also { builder ->
-            if (projectId.isNotEmpty()) {
-              builder.setProjectId(projectId)
-            }
-          }
-          .build()
-          .service,
-        bucketName,
-      )
+      return GcsStorageClient(createGoogleCloudStorage(projectId), bucketName)
     }
+
+    private fun createGoogleCloudStorage(projectId: String): Storage =
+      StorageOptions.newBuilder()
+        .also { builder ->
+          if (projectId.isNotEmpty()) {
+            builder.setProjectId(projectId)
+          }
+        }
+        .build()
+        .service
   }
 }

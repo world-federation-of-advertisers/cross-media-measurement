@@ -81,6 +81,22 @@ configs {
         key: "person"
         value: "person_id"
       }
+      optional_entity_key_field_mapping {
+        key: "campaign"
+        value: "campaign_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "adset-id"
+        value: "adset_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "ad-id"
+        value: "ad_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "account-id"
+        value: "account_id"
+      }
     }
   }
   model_line_configs {
@@ -161,6 +177,22 @@ configs {
       optional_entity_key_field_mapping {
         key: "person"
         value: "person_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "campaign"
+        value: "campaign_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "adset-id"
+        value: "adset_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "ad-id"
+        value: "ad_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "account-id"
+        value: "account_id"
       }
     }
   }
@@ -243,9 +275,25 @@ configs {
         key: "person"
         value: "person_id"
       }
+      optional_entity_key_field_mapping {
+        key: "campaign"
+        value: "campaign_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "adset-id"
+        value: "adset_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "ad-id"
+        value: "ad_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "account-id"
+        value: "account_id"
+      }
     }
   }
-  edp_impression_path: "edp/edp7"
+  edp_impression_path: "vid-labeled-impressions/edp/edp7"
   raw_impressions_storage_params {
     gcs {
       project_id: "halo-cmm-dev"
@@ -310,7 +358,7 @@ configs {
 }
 configs {
   data_provider: "dataProviders/J3-pzhqS9Lo"
-  edp_impression_path: "edp/edpa_meta"
+  edp_impression_path: "vid-labeled-impressions/edp/edpa_meta"
   raw_impressions_storage_params {
     gcs {
       project_id: "halo-cmm-dev"

@@ -1,0 +1,433 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
+
+import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.TextFormat
+import com.google.protobuf.struct
+import com.google.protobuf.value
+import kotlin.test.assertFailsWith
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage
+import org.wfanet.measurement.config.edpaggregator.copy
+import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
+import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfigs
+import org.wfanet.measurement.config.edpaggregator.storageParams
+import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
+import org.wfanet.measurement.config.edpaggregator.vidLabelingConfigs
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpointSink
+import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.watchedPath
+import picocli.CommandLine
+
+@RunWith(JUnit4::class)
+class VidLabelingStorageConfigValidatorTest {
+  @get:Rule val temporaryFolder = TemporaryFolder()
+
+  @Test
+  fun `validate accepts matching output paths not watched by DataWatcher`() {
+    VidLabelingStorageConfigValidator.validate(
+      vidConfigs(LABELED_OUTPUT_PATH),
+      vidConfigs(LABELED_OUTPUT_PATH),
+      syncConfigs(LABELED_OUTPUT_PATH),
+      watcherConfig("gs://bucket/edp/event-groups/.*"),
+    )
+  }
+
+  @Test
+  fun `validate accepts separate internal and external paths for one provider`() {
+    val syncConfigs = dataAvailabilitySyncConfigs {
+      configs +=
+        syncConfigs(OTHER_OUTPUT_PATH).configsList.single().copy {
+          vidLabeledImpressionPath = LABELED_OUTPUT_PATH
+        }
+    }
+
+    VidLabelingStorageConfigValidator.validate(
+      vidConfigs(LABELED_OUTPUT_PATH),
+      vidConfigs(LABELED_OUTPUT_PATH),
+      syncConfigs,
+      watcherConfig("gs://bucket/$OTHER_OUTPUT_PATH/model-line/.*/.*/done"),
+    )
+  }
+
+  @Test
+  fun `validate rejects overlapping internal and external paths`() {
+    val syncConfigs = dataAvailabilitySyncConfigs {
+      configs +=
+        syncConfigs(LABELED_OUTPUT_PATH).configsList.single().copy {
+          edpImpressionPath = LABELED_OUTPUT_PATH
+          vidLabeledImpressionPath = "$LABELED_OUTPUT_PATH/internal"
+        }
+    }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs("$LABELED_OUTPUT_PATH/internal"),
+          vidConfigs("$LABELED_OUTPUT_PATH/internal"),
+          syncConfigs,
+          watcherConfig("gs://bucket/edp/event-groups/.*"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("paths overlap")
+  }
+
+  @Test
+  fun `validate rejects different VID labeling and DataAvailabilitySync paths`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(OTHER_OUTPUT_PATH),
+          watcherConfig("gs://bucket/edp/event-groups/.*"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("vid_labeled_impression_path differ")
+  }
+
+  @Test
+  fun `validate rejects DataWatcher route matching VidLabeler-managed output`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcherConfig("gs://bucket/$LABELED_OUTPUT_PATH/model-line/.*/.*/done"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects exact internal child excluded by sample matching`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcherConfig("^gs://bucket/$LABELED_OUTPUT_PATH/model-line/foo/2026-01-01/done$"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects broad ancestor route`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcherConfig("^gs://bucket/edp/.*"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects overlap hidden by an optional literal`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcherConfig("^gs://bucket/edp/vidX?-labeler/model-line/[^/]+/[^/]+/done$"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects overlap hidden by alternation`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcherConfig(
+            "^gs://bucket/edp/external/.*|" + "^gs://bucket/$LABELED_OUTPUT_PATH/model-line/.*"
+          ),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects overlapping route for a different data provider`() {
+    val watcher = dataWatcherConfig {
+      watchedPaths +=
+        availabilityRoute(
+          "gs://bucket/$LABELED_OUTPUT_PATH/model-line/.*/.*/done",
+          dataProvider = "dataProviders/other",
+        )
+    }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcher,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects overlapping route with no data provider`() {
+    val watcher = dataWatcherConfig {
+      watchedPaths += watchedPath {
+        sourcePathRegex = "gs://bucket/$LABELED_OUTPUT_PATH/model-line/.*/.*/done"
+        httpEndpointSink = httpEndpointSink { endpointUri = "https://example.test/sync" }
+      }
+    }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcher,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate rejects overlapping control plane route`() {
+    val watcher = dataWatcherConfig {
+      watchedPaths += watchedPath {
+        sourcePathRegex = "gs://bucket/$LABELED_OUTPUT_PATH/model-line/.*/.*/done"
+        controlPlaneQueueSink = controlPlaneQueueSink { queue = "availability-queue" }
+      }
+    }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(LABELED_OUTPUT_PATH),
+          watcher,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("matches the VidLabeler-managed output path")
+  }
+
+  @Test
+  fun `validate accepts a regex with a provably disjoint literal prefix`() {
+    VidLabelingStorageConfigValidator.validate(
+      vidConfigs(LABELED_OUTPUT_PATH),
+      vidConfigs(LABELED_OUTPUT_PATH),
+      syncConfigs(LABELED_OUTPUT_PATH),
+      watcherConfig("^gs://bucket/edp/external/model-line/.*/.*/done$"),
+    )
+  }
+
+  @Test
+  fun `CLI validates deployment textprotos`() {
+    val vidConfigFile = temporaryFolder.newFile("vid-labeling.textproto")
+    vidConfigFile.writeText(TextFormat.printer().printToString(vidConfigs(LABELED_OUTPUT_PATH)))
+    val syncConfigFile = temporaryFolder.newFile("data-availability.textproto")
+    syncConfigFile.writeText(TextFormat.printer().printToString(syncConfigs(LABELED_OUTPUT_PATH)))
+    val watcherConfigFile = temporaryFolder.newFile("data-watcher.textproto")
+    watcherConfigFile.writeText(
+      TextFormat.printer().printToString(watcherConfig("gs://bucket/edp/event-groups/.*"))
+    )
+
+    val exitCode =
+      CommandLine(ValidateVidLabelingStorageConfig())
+        .execute(
+          "--vid-labeling-config=${vidConfigFile.path}",
+          "--vid-labeling-monitor-config=${vidConfigFile.path}",
+          "--data-availability-sync-config=${syncConfigFile.path}",
+          "--data-watcher-config=${watcherConfigFile.path}",
+        )
+
+    assertThat(exitCode).isEqualTo(0)
+  }
+
+  @Test
+  fun `validate requires an explicit internal path when VID labeling is configured`() {
+    val syncConfigs = dataAvailabilitySyncConfigs {
+      configs +=
+        syncConfigs(LABELED_OUTPUT_PATH).configsList.single().copy {
+          edpImpressionPath = LABELED_OUTPUT_PATH
+          vidLabeledImpressionPath = ""
+        }
+    }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs,
+          watcherConfig("gs://bucket/edp/event-groups/.*"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("vid_labeled_impression_path is missing")
+  }
+
+  @Test
+  fun `validate accepts an external-only provider with VID labeling disabled`() {
+    val syncConfigs = dataAvailabilitySyncConfigs {
+      configs +=
+        syncConfigs(LABELED_OUTPUT_PATH).configsList.single().copy { vidLabeledImpressionPath = "" }
+    }
+
+    VidLabelingStorageConfigValidator.validate(
+      vidLabelingConfigs {},
+      vidLabelingConfigs {},
+      syncConfigs,
+      watcherConfig("gs://bucket/$OTHER_OUTPUT_PATH/model-line/.*/.*/done"),
+    )
+  }
+
+  @Test
+  fun `validate rejects a blank internal path`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs(" "),
+          watcherConfig("gs://bucket/edp/event-groups/.*"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("vid_labeled_impression_path is missing")
+  }
+
+  @Test
+  fun `CLI rejects VID labeling without an explicit internal availability path`() {
+    val vidConfigFile = temporaryFolder.newFile("vid-labeling.textproto")
+    vidConfigFile.writeText(TextFormat.printer().printToString(vidConfigs(LABELED_OUTPUT_PATH)))
+    val syncConfigFile = temporaryFolder.newFile("data-availability.textproto")
+    syncConfigFile.writeText(
+      TextFormat.printer()
+        .printToString(
+          dataAvailabilitySyncConfigs {
+            configs +=
+              syncConfigs(LABELED_OUTPUT_PATH).configsList.single().copy {
+                edpImpressionPath = LABELED_OUTPUT_PATH
+                vidLabeledImpressionPath = ""
+              }
+          }
+        )
+    )
+    val watcherConfigFile = temporaryFolder.newFile("data-watcher.textproto")
+    watcherConfigFile.writeText(
+      TextFormat.printer().printToString(watcherConfig("gs://bucket/edp/event-groups/.*"))
+    )
+
+    val exitCode =
+      CommandLine(ValidateVidLabelingStorageConfig())
+        .execute(
+          "--vid-labeling-config=${vidConfigFile.path}",
+          "--vid-labeling-monitor-config=${vidConfigFile.path}",
+          "--data-availability-sync-config=${syncConfigFile.path}",
+          "--data-watcher-config=${watcherConfigFile.path}",
+        )
+
+    assertThat(exitCode).isEqualTo(1)
+  }
+
+  @Test
+  fun `validate rejects identical internal and external paths`() {
+    val syncConfigs = dataAvailabilitySyncConfigs {
+      configs +=
+        syncConfigs(LABELED_OUTPUT_PATH).configsList.single().copy {
+          edpImpressionPath = LABELED_OUTPUT_PATH
+        }
+    }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingStorageConfigValidator.validate(
+          vidConfigs(LABELED_OUTPUT_PATH),
+          vidConfigs(LABELED_OUTPUT_PATH),
+          syncConfigs,
+          watcherConfig("gs://bucket/edp/event-groups/.*"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("paths overlap")
+  }
+
+  private fun vidConfigs(path: String) = vidLabelingConfigs {
+    configs += vidLabelingConfig {
+      dataProvider = DATA_PROVIDER
+      edpImpressionPath = path
+      vidLabeledImpressionsStorageParams = storageParams {
+        gcs = gcsStorage { bucketName = "bucket" }
+      }
+    }
+  }
+
+  private fun syncConfigs(path: String) = dataAvailabilitySyncConfigs {
+    configs += dataAvailabilitySyncConfig {
+      dataProvider = DATA_PROVIDER
+      edpImpressionPath = OTHER_OUTPUT_PATH
+      vidLabeledImpressionPath = path
+      dataAvailabilityStorage = storageParams { gcs = gcsStorage { bucketName = "bucket" } }
+    }
+  }
+
+  private fun watcherConfig(regex: String) = dataWatcherConfig {
+    watchedPaths += availabilityRoute(regex)
+  }
+
+  private fun availabilityRoute(regex: String, dataProvider: String = DATA_PROVIDER) = watchedPath {
+    sourcePathRegex = regex
+    httpEndpointSink = httpEndpointSink {
+      endpointUri = "https://example.test/sync"
+      appParams = struct { fields["dataProvider"] = value { stringValue = dataProvider } }
+    }
+  }
+
+  companion object {
+    private const val DATA_PROVIDER = "dataProviders/edp7"
+    private const val LABELED_OUTPUT_PATH = "edp/vid-labeler"
+    private const val OTHER_OUTPUT_PATH = "edp/other"
+  }
+}

@@ -35,6 +35,10 @@ class RequestIdsTest {
       .isEqualTo(RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI))
     assertThat(RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE))
       .isEqualTo(RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE))
+    assertThat(RequestIds.forApproveUploadHealingOperation(OPERATION, ETAG, CANDIDATE_DECISIONS))
+      .isEqualTo(RequestIds.forApproveUploadHealingOperation(OPERATION, ETAG, CANDIDATE_DECISIONS))
+    assertThat(RequestIds.forRetryUploadHealingOperation(OPERATION, ETAG))
+      .isEqualTo(RequestIds.forRetryUploadHealingOperation(OPERATION, ETAG))
   }
 
   @Test
@@ -70,6 +74,37 @@ class RequestIdsTest {
   }
 
   @Test
+  fun `healing operation request ids include operation context`() {
+    assertThat(RequestIds.forApproveUploadHealingOperation(OPERATION, ETAG, CANDIDATE_DECISIONS))
+      .isNotEqualTo(
+        RequestIds.forApproveUploadHealingOperation(
+          "$DATA_PROVIDER/uploadHealingOperations/other",
+          ETAG,
+          CANDIDATE_DECISIONS,
+        )
+      )
+    assertThat(RequestIds.forRetryUploadHealingOperation(OPERATION, ETAG))
+      .isNotEqualTo(
+        RequestIds.forRetryUploadHealingOperation(
+          "$DATA_PROVIDER/uploadHealingOperations/other",
+          ETAG,
+        )
+      )
+  }
+
+  @Test
+  fun `approval request id is independent of candidate decision order`() {
+    assertThat(RequestIds.forApproveUploadHealingOperation(OPERATION, ETAG, CANDIDATE_DECISIONS))
+      .isEqualTo(
+        RequestIds.forApproveUploadHealingOperation(
+          OPERATION,
+          ETAG,
+          CANDIDATE_DECISIONS.entries.reversed().associate { it.toPair() },
+        )
+      )
+  }
+
+  @Test
   fun `request ids are formatted as UUID version 4`() {
     // Every request_id proto field declares (google.api.field_info).format = UUID4, so the
     // deterministic ids must render in the version-4 layout. Cover every helper family so no
@@ -89,10 +124,17 @@ class RequestIdsTest {
         RequestIds.forMarkRawImpressionUploadModelLineCompleted(MODEL_LINE_NAME),
         RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, ETAG),
         RequestIds.forEvictRawImpressionUploadModelLine(MODEL_LINE_NAME, ETAG),
+        RequestIds.forReconcileUploadHealingOperation(EVICTION_OPERATION_ID, byteArrayOf(1)),
+        RequestIds.forAdvanceUploadHealingOperation(UPLOAD_HEALING_OPERATION, "DRAINING", ETAG),
+        RequestIds.forAcquireUploadEvictionFence(EVICTION_OPERATION_ID, "EVICTING"),
+        RequestIds.forAdvanceUploadEvictionFence(EVICTION_OPERATION_ID, "EVICTING", ETAG),
+        RequestIds.forReleaseUploadEvictionFence(EVICTION_OPERATION_ID, ETAG),
         RequestIds.forHealingRetryPoolAssigning(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
         RequestIds.forHealingRetryRanking(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
         RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
         RequestIds.forRetriedWorkItem(VID_LABELING_JOB, FAILURE_ATTEMPT_ID).removePrefix("rt-"),
+        RequestIds.forApproveUploadHealingOperation(OPERATION, ETAG, CANDIDATE_DECISIONS),
+        RequestIds.forRetryUploadHealingOperation(OPERATION, ETAG),
       )
     for (id in ids) {
       assertThat(UUID.fromString(id).version()).isEqualTo(4)
@@ -114,6 +156,48 @@ class RequestIdsTest {
   }
 
   @Test
+  fun `fence request ids distinguish actions states and versions`() {
+    val acquire = RequestIds.forAcquireUploadEvictionFence(EVICTION_OPERATION_ID, "DRAINING")
+    val advance = RequestIds.forAdvanceUploadEvictionFence(EVICTION_OPERATION_ID, "DRAINING", ETAG)
+    val release = RequestIds.forReleaseUploadEvictionFence(EVICTION_OPERATION_ID, ETAG)
+
+    assertThat(setOf(acquire, advance, release)).hasSize(3)
+    assertThat(acquire)
+      .isNotEqualTo(RequestIds.forAcquireUploadEvictionFence(EVICTION_OPERATION_ID, "EVICTING"))
+    assertThat(release)
+      .isNotEqualTo(RequestIds.forReleaseUploadEvictionFence(EVICTION_OPERATION_ID, "new-etag"))
+  }
+
+  @Test
+  fun `operation request ids distinguish states versions and plans`() {
+    val advance =
+      RequestIds.forAdvanceUploadHealingOperation(UPLOAD_HEALING_OPERATION, "DRAINING", ETAG)
+
+    assertThat(advance)
+      .isNotEqualTo(
+        RequestIds.forAdvanceUploadHealingOperation(UPLOAD_HEALING_OPERATION, "EVICTING", ETAG)
+      )
+    assertThat(advance)
+      .isNotEqualTo(
+        RequestIds.forAdvanceUploadHealingOperation(
+          UPLOAD_HEALING_OPERATION,
+          "DRAINING",
+          "new-etag",
+        )
+      )
+    assertThat(RequestIds.forReconcileUploadHealingOperation(EVICTION_OPERATION_ID, byteArrayOf(1)))
+      .isNotEqualTo(
+        RequestIds.forReconcileUploadHealingOperation(EVICTION_OPERATION_ID, byteArrayOf(2))
+      )
+    assertThat(
+        RequestIds.forFinalizeUploadHealingOperation(UPLOAD_HEALING_OPERATION, byteArrayOf(1))
+      )
+      .isNotEqualTo(
+        RequestIds.forFinalizeUploadHealingOperation(UPLOAD_HEALING_OPERATION, byteArrayOf(2))
+      )
+  }
+
+  @Test
   fun `healing request ids distinguish failure attempts`() {
     assertThat(RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID))
       .isNotEqualTo(RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, "failure-attempt-2"))
@@ -131,6 +215,15 @@ class RequestIdsTest {
     private const val MODEL_LINE_NAME = "$UPLOAD/rawImpressionUploadModelLines/riuml-1"
     private const val VID_LABELING_JOB = "$UPLOAD/vidLabelingJobs/vlj-1"
     private const val ETAG = "etag-1"
+    private const val OPERATION = "$DATA_PROVIDER/uploadHealingOperations/operation-1"
+    private val CANDIDATE_DECISIONS =
+      mapOf(
+        "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/candidate-1" to 1,
+        "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/candidate-2" to 2,
+      )
     private const val FAILURE_ATTEMPT_ID = "failure-attempt-1"
+    private const val EVICTION_OPERATION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    private const val UPLOAD_HEALING_OPERATION =
+      "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
   }
 }

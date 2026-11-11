@@ -216,6 +216,8 @@ locals {
       "/secrets/ca/kingdom_root.pem=${local.trusted_root_ca_collection.secret_id}:latest",
       "/secrets/cert/data_availability/data_availability_tls.pem=${local.data_availability_tls_pem.secret_id}:latest",
       "/secrets/key/data_availability/data_availability_tls.key=${local.data_availability_tls_key.secret_id}:latest",
+      "/secrets/cert-control-plane/edpa_tee_app_tls.pem=${local.edpa_tee_app_tls_pem.secret_id}:latest",
+      "/secrets/key-control-plane/edpa_tee_app_tls.key=${local.edpa_tee_app_tls_key.secret_id}:latest",
       "/secrets/ca/metadata_storage/edp_aggregator_root.pem=${local.metadata_storage_root_ca.secret_id}:latest",
     ]
   )
@@ -394,11 +396,19 @@ locals {
       uber_jar_path   = var.event_group_uber_jar_path
     }
     data_availability_sync = {
-      function_name   = "data-availability-sync"
-      entry_point     = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunction"
-      extra_env_vars  = "${var.data_availability_env_var},CONFIG_BLOB_KEY=${local.data_availability_sync_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
-      secret_mappings = join(",", local.data_availability_secret_mappings)
-      uber_jar_path   = var.data_availability_uber_jar_path
+      function_name = "data-availability-sync"
+      entry_point   = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunction"
+      extra_env_vars = join(",", compact([
+        var.data_availability_env_var,
+        "CONFIG_BLOB_KEY=${local.data_availability_sync_config.destination}",
+        "EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}",
+        "SECURE_COMPUTATION_CONTROL_PLANE_TARGET=${var.secure_computation_public_api_target}",
+      ]))
+      secret_mappings = join(",", compact([
+        join(",", local.data_availability_secret_mappings),
+        "/secrets/secure-computation-ca/secure_computation_root.pem=${local.secure_computation_root_ca.secret_id}:latest",
+      ]))
+      uber_jar_path = var.data_availability_uber_jar_path
     }
     data_watcher_delete = {
       function_name   = "data-watcher-delete"
@@ -435,6 +445,18 @@ locals {
       secret_mappings = var.vid_labeling_monitor_secret_mapping
       uber_jar_path   = var.vid_labeling_monitor_uber_jar_path
     }
+    vid_labeling_healing_controller = {
+      function_name = "vid-labeling-healing-controller"
+      entry_point   = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingHealingControllerFunction"
+      extra_env_vars = join(",", compact([
+        var.vid_labeling_healing_controller_env_var,
+        "CONFIG_BLOB_KEY=${local.vid_labeling_dispatcher_config.destination}",
+        "DATA_WATCHER_CONFIG_BLOB_KEY=${local.data_watcher_config.destination}",
+        "EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}",
+      ]))
+      secret_mappings = var.vid_labeling_healing_controller_secret_mapping
+      uber_jar_path   = var.vid_labeling_healing_controller_uber_jar_path
+    }
   }
 
   vid_labeling_dispatcher_config = {
@@ -447,12 +469,9 @@ locals {
     destination = "vid-labeling-monitor-config.textproto"
   }
 
-  # Health cadence: staleness alerting, stuck-phase recovery, and data-quality
-  # checks (VidLabelingMonitor.runHealth, selected by ?mode=health). Runs once
-  # daily, 30 minutes after the 06:00 dispatch tick, so the two scheduled requests
-  # do not compete for the function's single instance. Recovery attempts remain
-  # spaced a day apart and never race an in-flight last-out (see
-  # staleness_threshold's 24h floor).
+  # Daily health checks select VidLabelingMonitor.runHealth with ?mode=health.
+  # HTTP retries accommodate a busy monitor; stuck-phase recovery remains spaced
+  # a day apart by the staleness threshold's 24h floor.
   vid_labeling_monitor_scheduler_config = {
     schedule                  = "30 6 * * *" # Daily at 06:30
     time_zone                 = "UTC"
@@ -464,19 +483,32 @@ locals {
     scheduler_job_name        = "vid-labeling-monitor"
   }
 
-  # Dispatch cadence: publish WorkItems for newly-registered uploads
-  # (VidLabelingMonitor.runDispatch, selected by ?mode=dispatch). Runs every 6h
-  # so new uploads start promptly; dispatch is user-visible latency, so it wants
-  # a fast clock independent of the slow health cadence.
+  # Fallback dispatch recovers registered uploads after fast-path retries are exhausted.
+  # ?mode=dispatch selects VidLabelingMonitor.runDispatch without health recovery.
   vid_labeling_dispatch_scheduler_config = {
-    schedule                  = "0 */6 * * *" # Every 6 hours
+    # Short fallback interval for development/cloud tests (30-minute setup timeout).
+    # Long-lived deployments should run 1-4 times per day (every 6-24 hours);
+    # newly registered uploads normally start through fast-path dispatch.
+    schedule                  = "*/5 * * * *" # Every 5 minutes
     time_zone                 = "UTC"
     name                      = "vid-labeling-dispatch-sched"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor?mode=dispatch"
     scheduler_sa_display_name = "VID Labeling Dispatch Scheduler"
     scheduler_sa_description  = "Service account for Cloud Scheduler to trigger VID labeling dispatch"
-    scheduler_job_description = "Six-hourly job dispatching VID labeling WorkItems for newly-registered uploads"
+    scheduler_job_description = "Five-minute job dispatching VID labeling WorkItems for newly-registered uploads"
     scheduler_job_name        = "vid-labeling-dispatcher"
+  }
+
+  vid_labeling_healing_controller_scheduler_config = {
+    schedule                  = "*/5 * * * *"
+    time_zone                 = "UTC"
+    name                      = "vid-labeling-healing-sched"
+    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-healing-controller"
+    scheduler_sa_display_name = "VID Labeling Healing Controller Scheduler"
+    scheduler_sa_description  = "Triggers automatic VID-labeling healing progression"
+    scheduler_job_description = "Runs the VID-labeling healing controller every five minutes"
+    scheduler_job_name        = "vid-labeling-healing-controller"
+    attempt_deadline          = "660s"
   }
 
   # Shared TEE-app flags (from BaseTeeAppRunner) reused by the three VID Labeling
@@ -584,10 +616,21 @@ locals {
     }
   }
 
+  data_availability_sync_work_item_queue = {
+    topic_name            = "data-availability-sync-queue"
+    subscription_name     = "data-availability-sync-subscription"
+    ack_deadline_seconds  = 600
+    max_delivery_attempts = 100
+    minimum_backoff       = "10s"
+    maximum_backoff       = "600s"
+  }
+
 }
 
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
+
+  depends_on = [google_project_iam_member.terraform_metric_writer]
 
   tee_consumers_enabled                            = var.tee_consumers_enabled
   requisition_fulfiller_config                     = local.requisition_fulfiller_config
@@ -639,6 +682,7 @@ module "edp_aggregator" {
   data_availability_monitor_config                 = local.data_availability_monitor_config
   data_availability_monitor_scheduler_config       = local.data_availability_monitor_scheduler_config
   vid_labeling_workers                             = local.vid_labeling_workers
+  data_availability_sync_work_item_queue           = local.data_availability_sync_work_item_queue
   vid_labeling_dispatcher_service_account_name     = "edpa-vid-labeling-dispatcher"
   vid_labeling_monitor_service_account_name        = "edpa-vid-labeling-monitor"
   vid_labeling_dispatcher_config                   = local.vid_labeling_dispatcher_config
@@ -646,4 +690,10 @@ module "edp_aggregator" {
   vid_labeling_monitor_scheduler_config            = local.vid_labeling_monitor_scheduler_config
   vid_labeling_dispatch_scheduler_config           = local.vid_labeling_dispatch_scheduler_config
   spanner_instance                                 = google_spanner_instance.spanner_instance
+  vid_labeling_trace_operator_member               = "serviceAccount:${module.reporting_v2.vid_labeling_trace_operator_service_account_email}"
+
+  vid_labeling_healing_controller_service_account_name = "edpa-vid-healing-controller"
+  vid_labeling_healing_controller_scheduler_config     = local.vid_labeling_healing_controller_scheduler_config
+  vid_labeling_healing_labeled_output_object_prefixes  = var.vid_labeling_healing_labeled_output_object_prefixes
+  vid_labeling_healing_alert_notification_channels     = var.vid_labeling_healing_alert_notification_channels
 }

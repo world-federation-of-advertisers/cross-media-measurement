@@ -43,8 +43,8 @@ kt_jvm_library(
     name = "rate_limiting_server_interceptor",
     srcs = ["RateLimitingServerInterceptor.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/ratelimit:rate_limiter",
         "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/ratelimit:rate_limiter",
     ],
 )
 
@@ -52,9 +52,9 @@ kt_jvm_library(
     name = "rate_limiter_provider",
     srcs = ["RateLimiterProvider.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/ratelimit:token_bucket",
         "//src/main/proto/wfa/measurement/config:rate_limit_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:context",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/ratelimit:token_bucket",
     ],
 )
 
