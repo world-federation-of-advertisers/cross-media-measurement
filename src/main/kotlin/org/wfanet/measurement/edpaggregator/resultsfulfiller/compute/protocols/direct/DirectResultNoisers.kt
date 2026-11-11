@@ -46,16 +46,51 @@ fun buildDirectResultNoiser(
   frequencyDpParams: DifferentialPrivacyParams,
   maxFrequencyPerUser: Int,
 ): ResultNoiser =
+  buildDirectResultNoiser(
+    directNoiseMechanism,
+    reachDpParams,
+    frequencyDpParams,
+    maxFrequencyPerUser,
+  ) {
+    DeterministicTruncatedLaplaceResultNoiser(
+      combinedFrequencyVector = frequencyData,
+      contributionCount = DIRECT_CONTRIBUTION_COUNT,
+      maxFrequencyPerUser = maxFrequencyPerUser,
+    )
+  }
+
+fun buildDirectResultNoiser(
+  directNoiseMechanism: DirectNoiseMechanism,
+  frequencyData: ByteArray,
+  reachDpParams: DifferentialPrivacyParams,
+  frequencyDpParams: DifferentialPrivacyParams,
+  maxFrequencyPerUser: Int,
+): ResultNoiser =
+  buildDirectResultNoiser(
+    directNoiseMechanism,
+    reachDpParams,
+    frequencyDpParams,
+    maxFrequencyPerUser,
+  ) {
+    DeterministicTruncatedLaplaceResultNoiser(
+      combinedFrequencyVector = frequencyData,
+      contributionCount = DIRECT_CONTRIBUTION_COUNT,
+      maxFrequencyPerUser = maxFrequencyPerUser,
+    )
+  }
+
+private inline fun buildDirectResultNoiser(
+  directNoiseMechanism: DirectNoiseMechanism,
+  reachDpParams: DifferentialPrivacyParams,
+  frequencyDpParams: DifferentialPrivacyParams,
+  maxFrequencyPerUser: Int,
+  deterministicNoiser: () -> ResultNoiser,
+): ResultNoiser =
   when (directNoiseMechanism) {
     DirectNoiseMechanism.NONE -> NoNoise
     DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
       GaussianResultNoiser(reachDpParams, frequencyDpParams, maxFrequencyPerUser)
-    DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
-      DeterministicTruncatedLaplaceResultNoiser(
-        combinedFrequencyVector = frequencyData,
-        contributionCount = DIRECT_CONTRIBUTION_COUNT,
-        maxFrequencyPerUser = maxFrequencyPerUser,
-      )
+    DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE -> deterministicNoiser()
     DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
       throw IllegalArgumentException("$directNoiseMechanism is not supported for Direct results")
   }

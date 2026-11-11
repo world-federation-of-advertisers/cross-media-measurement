@@ -176,13 +176,6 @@ class RequisitionFetcherFunction : HttpFunction {
     val namespaces = buildList {
       for (dataProviderConfig in requisitionFetcherConfig.configsList) {
         val storageUriPrefix = createRequisitionBlobPrefix(dataProviderConfig)
-        add(
-          StoragePathPrefixes.Namespace(
-            storageUriPrefix,
-            dataProviderConfig.storagePathPrefix,
-            "legacy DataWatcher path for ${dataProviderConfig.dataProvider}",
-          )
-        )
         val dispatchConfig =
           requireNotNull(
             dataProviderConfig.workItemDispatch.takeIf { dataProviderConfig.hasWorkItemDispatch() }
@@ -298,7 +291,6 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionMetadataStub = requisitionMetadataStub,
       storageClient = storageClient,
       dataProviderName = dataProviderConfig.dataProvider,
-      storagePathPrefix = dataProviderConfig.storagePathPrefix,
       directStoragePathPrefix = dispatchConfig.storagePathPrefix,
       blobUriPrefix = requisitionBlobPrefix,
       requisitionValidator = requisitionsValidator,
@@ -512,8 +504,9 @@ class RequisitionFetcherFunction : HttpFunction {
         "Invalid 'requisition_storage': must specify either GCS or FileSystem storage for data provider: ${dataProviderConfig.dataProvider}."
       }
 
-      require(dataProviderConfig.storagePathPrefix.isNotBlank()) {
-        "Missing 'storage_path_prefix' for data provider: ${dataProviderConfig.dataProvider}."
+      require(deprecatedStoragePathPrefix(dataProviderConfig).isEmpty()) {
+        "Deprecated top-level 'storage_path_prefix' must not be set for data provider: " +
+          "${dataProviderConfig.dataProvider}."
       }
 
       require(dataProviderConfig.edpPrivateKeyPath.isNotBlank()) {
@@ -541,14 +534,6 @@ class RequisitionFetcherFunction : HttpFunction {
       require(dispatchConfig.storagePathPrefix.isNotBlank()) {
         "Missing 'storage_path_prefix' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
       }
-      require(
-        !StoragePathPrefixes.overlap(
-          dispatchConfig.storagePathPrefix,
-          dataProviderConfig.storagePathPrefix,
-        )
-      ) {
-        "Direct-dispatch storage_path_prefix must not overlap the legacy storage_path_prefix for data provider: ${dataProviderConfig.dataProvider}."
-      }
       require(dispatchConfig.queue.isNotBlank()) {
         "Missing 'queue' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
       }
@@ -573,5 +558,11 @@ class RequisitionFetcherFunction : HttpFunction {
         "Missing 'cert_collection_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
       }
     }
+
+    private fun deprecatedStoragePathPrefix(config: DataProviderRequisitionConfig): String =
+      config.getField(DEPRECATED_STORAGE_PATH_PREFIX_FIELD) as String
+
+    private val DEPRECATED_STORAGE_PATH_PREFIX_FIELD =
+      checkNotNull(DataProviderRequisitionConfig.getDescriptor().findFieldByNumber(3))
   }
 }

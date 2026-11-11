@@ -145,9 +145,9 @@ material.
 **Shared certificates:**
 
 * `securecomputation-root-ca` — root cert for verifying the Secure Computation API.
-* `edpa-tee-app-tls-key` / `edpa-tee-app-tls-pem` — TLS keypair used by the
-  ResultsFulfiller TEE app to authenticate to the Secure Computation API. Signed by
-  `securecomputation-root-ca`.
+* `edpa-tee-app-tls-key` / `edpa-tee-app-tls-pem` — TLS keypair used by VID-labeling functions,
+  the ResultsFulfiller TEE app, and DataAvailabilitySync to authenticate to the Secure Computation
+  API. Signed by `securecomputation-root-ca`.
 * `edpa-data-watcher-tls-key` / `edpa-data-watcher-tls-pem` — DataWatcher and
   DataWatcherDelete TLS keypair for the Secure Computation API. Signed by
   `securecomputation-root-ca`.
@@ -345,7 +345,14 @@ enqueue WorkItems.
 
 Lifecycle rules on `EDPA_STORAGE_BUCKET` automatically delete objects per a retention
 policy, so impression data does not accumulate indefinitely. Rules are configured
-per **prefix**, so each EDP can have its own retention period.
+per **prefix**, so each EDP can have its own retention period. CMMS currently uses 3,650-day
+(10-year) defaults for the `vid-labeled-impressions/edp/edp7/` and
+`vid-labeled-impressions/edp/edpa_meta/` output roots.
+
+**Markets should adjust retention to their own requirements.** Choose periods that cover the
+market's supported measurement and reporting windows and meet its data retention requirements.
+Apply the market policy to every external and VID-labeler output prefix by explicitly setting
+`retention_days` and, when enabled, `fallback_retention_days`.
 
 The underlying `storage-bucket` module accepts a `lifecycle_rules` list. Each entry
 supports:
@@ -365,21 +372,24 @@ The module emits two rules per entry: a **Custom-Time** delete
 > **Current limitation.** The `edp-aggregator` module does **not** yet expose
 > `lifecycle_rules` as an input variable — it sets `versioning_enabled = true` and the
 > per-prefix `lifecycle_rules` **inside the module source** (its `edp_aggregator_bucket`
-> block). Today, changing retention therefore means editing the module source rather
-> than passing a variable. The rule shape below is what the module sets internally:
+> block). To apply a market's retention policy, edit `lifecycle_rules` in
+> [`edp-aggregator/main.tf`](../../src/main/terraform/gcloud/modules/edp-aggregator/main.tf).
+> The rule shape below is what the module sets internally:
 
 ```hcl
 # Set inside the edp-aggregator module's storage-bucket invocation
 lifecycle_rules = [
   {
-    name           = "edp-a"
-    prefix         = "edp/<edp-a-id>/"
-    retention_days = 3650  # 10 years
+    name                    = "edp-a"
+    prefix                  = "edp/<edp-a-id>/"
+    retention_days          = 3650 # 10 years
+    fallback_retention_days = 3650
   },
   {
-    name           = "edp-b"
-    prefix         = "edp/<edp-b-id>/"
-    retention_days = 730   # 13 months
+    name                    = "edp-b"
+    prefix                  = "edp/<edp-b-id>/"
+    retention_days          = 730 # 2 years
+    fallback_retention_days = 730
   },
 ]
 ```
@@ -509,7 +519,7 @@ edps_certs = {
 
 ### Cloud Functions
 
-All nine functions are configured through a single `cloud_function_configs` map.
+All ten functions are configured through a single `cloud_function_configs` map.
 Each entry provides:
 
 | Field | Meaning |
@@ -532,10 +542,12 @@ cloud_function_configs = {
   # Required even for a baseline R&F deployment (deploy unconditionally):
   vid_labeling_dispatcher   = { ... }
   vid_labeling_monitor      = { ... }
+  vid_labeling_healing_controller = { ... }
 }
 ```
 
-> The last two entries (`vid_labeling_dispatcher`, `vid_labeling_monitor`) are
+> The last three entries (`vid_labeling_dispatcher`, `vid_labeling_monitor`, and
+> `vid_labeling_healing_controller`) are
 > **mandatory** — those functions deploy unconditionally regardless of
 > `vid_labeling_workers`. See
 > [Optional: VID Labeling pipeline](#optional-vid-labeling-pipeline).
@@ -552,6 +564,7 @@ the standard OpenTelemetry variables `OTEL_SERVICE_NAME`, `OTEL_METRICS_EXPORTER
 | `data_availability_sync` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_cleanup` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_monitor` | `IMPRESSION_METADATA_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `CONFIG_BLOB_KEY` |
+| `vid_labeling_healing_controller` | `RAW_IMPRESSION_UPLOAD_TARGET`, `CONTROL_PLANE_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `CONFIG_BLOB_KEY`, `DATA_WATCHER_CONFIG_BLOB_KEY`, `HEALING_RETENTION_DAYS`, `HEALING_STALL_MINUTES` |
 
 **`secret_mappings` — path/secret consistency is critical.** Each mounted path must
 match, character for character, the path referenced in the corresponding config
@@ -588,6 +601,7 @@ by the module:
 | `event_group_sync_config` | `EventGroupSyncConfigs` | EventGroupSync |
 | `data_availability_sync_config` | `DataAvailabilitySyncConfigs` | DataAvailabilitySync |
 | `data_availability_monitor_config` | `DataAvailabilityMonitorConfigs` | DataAvailabilityMonitor |
+| `vid_labeling_dispatcher_config` | `VidLabelingConfigs` | VidLabelingDispatcher, VidLabelingHealingController |
 | `edps_config` | `EventDataProviderConfigs` | ResultsFulfiller (TEE) |
 | `results_fulfiller_event_descriptor` | (serialized event descriptor set) | ResultsFulfiller (TEE) |
 | `results_fulfiller_population_spec` | (population spec) | ResultsFulfiller (TEE) |
@@ -631,7 +645,7 @@ private DNS zone for `*.googleapis.com` (all configurable, see
 
 ### Schedulers
 
-Four schedulers are configured, each with a `{ schedule, time_zone, name,
+Five schedulers are configured, each with a `{ schedule, time_zone, name,
 function_url, scheduler_sa_display_name, scheduler_sa_description,
 scheduler_job_description }` object:
 
@@ -643,6 +657,8 @@ scheduler_job_description }` object:
   cadence. Required (deploys unconditionally).
 * `vid_labeling_dispatch_scheduler_config` — triggers the VidLabelingMonitor dispatch
   cadence. Required (deploys unconditionally).
+* `vid_labeling_healing_controller_scheduler_config` — advances approved correction
+  plans every five minutes with a 660-second attempt deadline.
 
 ### Networking
 
@@ -671,7 +687,8 @@ One variable per function/worker service account:
 `requisition_fetcher_service_account_name`, `event_group_sync_service_account_name`,
 `data_availability_sync_service_account_name`,
 `data_availability_cleanup_service_account_name`,
-`data_availability_monitor_service_account_name`, plus `terraform_service_account`
+`data_availability_monitor_service_account_name`,
+`vid_labeling_healing_controller_service_account_name`, plus `terraform_service_account`
 (used to attach MIG service accounts to VMs) and `pubsub_iam_service_account_member`
 (the Secure Computation control-plane SA granted publisher on the queues).
 
@@ -685,25 +702,38 @@ DataWatcher / DataWatcherDelete invoke over HTTP (used to grant `run.invoker`):
 
 The module can additionally deploy the memoized VID Labeling pipeline (Phase 0
 SubpoolAssigner, Phase 1 VidRankBuilder, Phase 2 VidLabeler) as Confidential Space
-TEE apps, plus a VidLabelingDispatcher and VidLabelingMonitor. VID labeling within
+TEE apps, plus a VidLabelingDispatcher, VidLabelingMonitor, and
+VidLabelingHealingController. VID labeling within
 the aggregator is out of scope for the baseline (Phase 1) R&F deployment.
 
 **Important:** only the **Phase 0/1/2 TEE MIGs and their Pub/Sub queues** are gated by
 the `vid_labeling_workers` map (which defaults to `{}`). Setting an empty map does
 **not** fully disable the pipeline — the **VidLabelingDispatcher** and
-**VidLabelingMonitor** Cloud Functions, their **two schedulers** (dispatch and
-health cadence), and the **`VID_MODELS_BUCKET`** deploy **unconditionally**, and
+**VidLabelingMonitor** and **VidLabelingHealingController** Cloud Functions, their
+**three schedulers**, and the **`VID_MODELS_BUCKET`** deploy **unconditionally**, and
 their inputs are **required**. Even for a baseline R&F deployment you must therefore
 supply:
 
 * `vid_models_bucket_name`;
-* the `vid_labeling_dispatcher_*` and `vid_labeling_monitor_*` service-account,
-  config, and scheduler variables; and
-* `vid_labeling_dispatcher` / `vid_labeling_monitor` entries in
+* the `vid_labeling_dispatcher_*`, `vid_labeling_monitor_*`, and
+  `vid_labeling_healing_controller_*` service-account, config, and scheduler variables; and
+* `vid_labeling_dispatcher`, `vid_labeling_monitor`, and
+  `vid_labeling_healing_controller` entries in
   `cloud_function_configs`.
 
 Leave `vid_labeling_workers = {}` to skip the phase workers/queues; provide worker
 entries only once your market has adopted VID labeling.
+
+Set `vid_labeling_healing_labeled_output_object_prefixes` to the bucket-relative
+`edp_impression_path` values from `VidLabelingConfigs`, each ending in `/`. The controller can read
+the shared EDPA bucket but can delete objects only below these prefixes; its dedicated environment
+and secret mapping variables should mount only the metadata and control-plane mTLS identities and
+roots.
+
+The module creates alerts for approval pending, stalled controllers, manifest mismatches,
+out-of-retention candidates, and plans in `NEEDS_ATTENTION`. Configure
+`vid_labeling_healing_alert_notification_channels`; each incident links its condition to the plan
+inspection or retry action, while approval remains a separate operator decision.
 
 #### VID Labeling outbound RPC rate limits
 
@@ -715,15 +745,20 @@ every 250 milliseconds). These are per-process limits, not measured downstream c
 deployment-wide quotas.
 
 The checked-in topology permits 24 phase-worker VMs, one dispatcher function, one monitor/dispatch
-function, one internal API server, and one concurrently running operator retry process. If every
+function, one scheduled healing-controller function, one internal API server, and one concurrently
+running operator retry process. If every
 eligible process saturates a throttle class, the aggregate ceilings are 4 Kingdom RPCs per second
-(two functions), 280 metadata reads per second (28 processes), 140 metadata mutations per second
-(28 processes), and 112 control-plane RPCs per second (28 processes). These are conservative
+(two functions), 290 metadata reads per second (29 processes), 145 metadata mutations per second
+(29 processes), and 116 control-plane RPCs per second (29 processes). These are conservative
 per-class envelopes, not per-method bounds: each class contains multiple methods, and each method
 has its own caller set. Compare each method's measured traffic and configured server limit before
 tuning these values.
 
-The Terraform module caps both the dispatcher and monitor at one instance. The checked-in Kingdom
+The dispatcher, monitor, and healing controller each load one throttler bundle shared by all of
+their helpers. Healing metadata pagination, fence/step mutations, and availability WorkItem calls
+use the same metadata-read, metadata-write, and control-plane budgets, respectively.
+
+The Terraform module caps the dispatcher, monitor, and healing controller at one instance. The checked-in Kingdom
 `RateLimitConfig` gives each VID Repository method its own 5-QPS average / 20-request burst bucket,
 so the two functions' worst-case 4 QPS leaves 20 percent headroom without competing with
 ResultsFulfiller, RequisitionFetcher, EventGroupSync, or DataAvailabilitySync in the shared default
@@ -830,7 +865,6 @@ requisition_refusal_duration {
 configs {
   data_provider: "dataProviders/DATA_PROVIDER_ID"
   requisition_storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
-  storage_path_prefix: "<edp-id>/requisitions"  # Legacy recovery only; no new writes.
   cmms_connection {
     cert_file_path: "/secrets/cert/<edp-id>_tls.pem"
     private_key_file_path: "/secrets/key/<edp-id>_tls.key"
@@ -844,8 +878,8 @@ configs {
   }
   # Required. All newly fetched requisitions use direct dispatch.
   work_item_dispatch {
-    # Dedicated namespace for directly dispatched groups. Do not match this
-    # path in the legacy DataWatcher source_path_regex.
+    # Dedicated namespace for directly dispatched groups. This must be
+    # disjoint from every other direct-dispatch prefix in the bucket.
     storage_path_prefix: "<edp-id>/requisitions-v2"
     control_plane_connection {
       cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
@@ -895,12 +929,11 @@ Kingdom state and applies the matching local terminal transition. If the Requisi
 current run; a later scheduled invocation retries the refusal.
 
 `work_item_dispatch` is required for every configured data provider. RequisitionFetcher writes every
-new grouped blob under its nested `storage_path_prefix` and dispatches it directly. The top-level
-`storage_path_prefix` is retained only to recognize and recover pre-cutover DataWatcher-owned groups.
-Every legacy and direct prefix sharing a bucket must be disjoint globally: no prefix may equal,
-contain, or be contained by another at a path-segment boundary, even when the prefixes belong to
-different data providers. The fetcher validates all namespaces before processing any provider. Keep
-the DataWatcher `results-fulfiller` watched path restricted to the top-level legacy prefix.
+new grouped blob under its `storage_path_prefix` and dispatches it directly. Every direct prefix
+sharing a bucket must be disjoint globally: no prefix may equal, contain, or be contained by another
+at a path-segment boundary, even when the prefixes belong to different data providers. The fetcher
+validates all namespaces before processing any provider. The deprecated top-level
+`storage_path_prefix` must remain unset.
 RequisitionFetcher also requires
 `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
 `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST`. The repository's Terraform entry point injects the
@@ -908,88 +941,21 @@ target from `secure_computation_public_api_target` and mounts the
 `securecomputation-root-ca` secret at `/secrets/secure-computation-ca/secure_computation_root.pem`; each
 `control_plane_connection.cert_collection_file_path` must name that mounted path.
 
-#### Migrating from DataWatcher dispatch
+The repository's top-level **Update CMMS** workflow is the supported deployment path. Its preflight
+validates the exact RequisitionFetcher and DataWatcher configurations committed for the selected
+environment before any worker is quiesced. The RequisitionFetcher validation requires a
+direct-dispatch block for every configured data provider, a control-plane target, queue, TLS paths,
+valid ResultsFulfiller parameters, and disjoint storage prefixes. Do not invoke the child deployment
+workflows independently.
 
-The legacy and direct paths use separate object namespaces. All new groups are created atomically in
-`QUEUED` under the direct prefix. Pre-cutover legacy groups remain `STORED` under the original
-prefix. Recovery uses each group's persisted `blob_uri`; it never moves a group between namespaces.
-Keep the direct prefix unchanged while any direct group remains `STORED`, `QUEUED`, or `PROCESSING`.
-RequisitionFetcher determines ownership by comparing each persisted `blob_uri` with the URI derived
-from the currently configured prefix; changing it sooner makes those groups unrecognizable and
-strands their recovery.
-
-A legacy group with any `PROCESSING` row remains owned by its existing
-DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob.
-It still processes newly discovered requisitions for the same report through the direct namespace.
-
-To activate direct dispatch, operators only need to:
-
-1. Add the required `work_item_dispatch` block to every provider in
-   the selected environment's `requisition-fetcher-config.textproto` under
-   `src/main/terraform/gcloud/cmms/envs/`. Preserve the existing top-level
-   `storage_path_prefix`, and choose a dedicated nested prefix such as
-   `<edp-id>/requisitions-v2` that is disjoint from every legacy and direct prefix sharing the
-   bucket.
-2. Run the repository's top-level **Update CMMS** workflow, or automation that implements the same
-   environment lock and ordered barriers.
-3. If deployment fails before workers are restored, rerun the complete process. Do not enable
-   direct dispatch, TEE MIGs, or individual deployment phases independently.
-
-The workflow's environment-scoped concurrency lock prevents overlapping deployments from
-interleaving rollout phases. Before its first Terraform apply, the workflow validates the exact
-RequisitionFetcher and DataWatcher textprotos committed for the selected environment. It requires
-a direct-dispatch block for every configured data provider, a control-plane target, queue, TLS
-paths, and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any
-deployed DataWatcher regex that matches a representative direct-path object. Validation failure
-therefore stops deployment before any worker is quiesced. The workflow first rolls both Secure
-Computation API deployments with WorkItem publication, legacy reconciliation, and dead-letter
-processing disabled.
-Its first Terraform apply then pauses the RequisitionFetcher Cloud Scheduler job, uploads the
-direct-only configuration and binary, and quiesces all WorkItem-consuming TEE MIGs. The workflow
-waits for the fetcher's 600-second maximum invocation duration and verifies that every affected TEE
-MIG has zero instances before continuing. It rolls both Secure Computation API deployments again
-with publication and dead-letter processing enabled, then rolls every EDP Aggregator/Requisition
-Metadata API deployment to completion. Its final Terraform apply validates the configuration again
-before resuming the RequisitionFetcher scheduler and enabling the new workers.
-
-The final Terraform apply resumes the RequisitionFetcher scheduler and enables the new workers.
-Scheduler pausing is independent of the function revision, so an old fetcher cannot run during the
-API and worker rollout and the new direct-only fetcher needs no legacy-mode process flag. The next
-invocation polls the same unfulfilled Kingdom requisitions. DataWatcher stays active and unclaimed
-Pub/Sub messages remain queued; they must not be drained.
-
-After all legacy groups have finished and no legacy blobs require recovery, remove the legacy
-ResultsFulfiller watched path from the DataWatcher configuration. Preflight accepts a DataWatcher
-configuration without that route; direct dispatch does not depend on the legacy queue mapping.
-
-Do not invoke child deployment workflows independently for this upgrade. No manual service
-scaling, subscription drain, WorkItem snapshot, active-attempt query, or migration-time
-failure/retry RPC is required.
-
-The upgraded publication runner automatically repairs old `QUEUED` WorkItems without outbox rows.
-The upgraded DataWatcher uses deterministic WorkItem IDs and returns transient dispatch failures to
-Eventarc, so retained and future legacy events can be redelivered safely. A new lease-capable worker
-atomically replaces an unleased attempt left by a stopped old worker when its Pub/Sub message is
-redelivered. Events that the previous DataWatcher acknowledged after an ambiguous dispatch failure
-are not recoverable from Pub/Sub; before claiming that no legacy recovery is required, identify any
-legacy `STORED` group with a blob but no matching WorkItem.
-
-This cutover does not add version-suffixed RPCs or another Secure Computation queue, Pub/Sub topic,
-subscription, or dead-letter queue. It keeps the existing outbox publish-ack behavior,
-`EnsureWorkItem` for idempotent dispatch, and `RegisterQueuedRequisitionMetadata` for atomic
-ownership registration. The existing EDPA-aware DLQ behavior predates this change and is not
-expanded for ResultsFulfiller.
-
-After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
+A `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
 failure, then call `RetryWorkItem` explicitly. Upgraded workers renew attempt leases, and the Secure
 Computation internal API automatically republishes an attempt after its lease expires.
 
-For rollback, first pause the RequisitionFetcher scheduler and disable the WorkItem consumers, then
-drain or repair all direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`; the legacy
-DataWatcher intentionally does not watch that namespace. Restore the pre-cutover RequisitionFetcher
-binary and config as a unit before resuming the scheduler. Do not remove `work_item_dispatch` while
-the new binary is deployed: the field is required. The legacy prefix and DataWatcher rule remain
-unchanged.
+For rollback, pause the RequisitionFetcher scheduler and disable the WorkItem consumers, then drain
+or repair all directly dispatched groups in `STORED`, `QUEUED`, or `PROCESSING`. Restore the
+RequisitionFetcher binary and configuration as a unit before resuming the scheduler. Do not remove
+`work_item_dispatch` while the new binary is deployed: the field is required.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
 
@@ -1052,7 +1018,9 @@ configs {
   data_availability_storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
   cmms_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   impression_metadata_storage_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
-  edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"   # optional today; required in a future release
+  secure_computation_control_plane_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
+  edp_impression_path: "edp/<edp-id>"
+  vid_labeled_impression_path: "vid-labeled-impressions/edp/<edp-id>"  # required when VID labeling is enabled
   # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
   # event_group_activity_publishing {
@@ -1064,6 +1032,20 @@ configs {
   # }
 }
 ```
+
+When VID labeling is enabled for a provider, `vid_labeled_impression_path` is required and must
+match the dispatcher's and VidLabelingMonitor's output root in the same bucket. Deployment
+validation rejects an omitted path. Keep `edp_impression_path` as the external root; the roots
+must not overlap. Keep ordinary DataWatcher create routes on the external root; VidLabeler publishes
+internal completion WorkItems directly. DataWatcherDelete routes must cover both roots and invoke DataAvailabilityCleanup, which
+retains metadata while a live object version exists. Configure a DataAvailabilityMonitor entry for
+each root.
+
+Retain the external root to process queued WorkItems and existing uploads at their original paths.
+Recovery scans both roots, and replay accepts completion blobs from either root. Providers with
+VID labeling disabled may omit `vid_labeled_impression_path` and use only `edp_impression_path`.
+Upload the matching configuration and deploy the updated availability functions before resuming
+VidLabeler output at the new root.
 
 `event_group_activity_publishing` is optional. When present, `DataAvailabilitySync`:
 
@@ -1320,8 +1302,8 @@ The repository's top-level **Update CMMS** workflow is the supported upgrade pat
 child deployment workflows independently; doing so bypasses the worker-quiescence barrier.
 
 Configure the deployment, then run **Update CMMS** once. Before changing a deployment, the workflow
-validates the RequisitionFetcher and DataWatcher configuration, including direct/legacy namespace
-separation and required control-plane settings. An environment-scoped concurrency lock prevents
+validates the RequisitionFetcher and DataWatcher configuration, including direct-dispatch namespace
+exclusion and required control-plane settings. An environment-scoped concurrency lock prevents
 two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
 performs the required order:
 

@@ -1,9 +1,11 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:__pkg__",
     "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher/testing:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
 ])
 
@@ -14,12 +16,34 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "data_watcher_config_validator",
+    srcs = ["DataWatcherConfigValidator.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/datawatcher:__pkg__",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
+    name = "retry_policy",
+    srcs = ["DataWatcherRetryPolicy.kt"],
+    visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
     name = "data_watcher",
     srcs = [
         "DataWatcher.kt",
         "DataWatcherMetrics.kt",
     ],
     deps = [
+        ":retry_policy",
         ":watched_blobs",
         "//imports/java/com/google/auth:credentials",
         "//imports/java/com/google/auth:oauth_http2",
@@ -33,5 +57,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
     ],
 )

@@ -144,6 +144,20 @@ class VidLabelingDispatcherFunctionTest {
     }
 
   private val rankIndexBlobServiceMock: RankIndexBlobServiceCoroutineImplBase = mockService()
+  private var activeHealingOperation:
+    org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation? =
+    null
+  private val healingOperationService =
+    object :
+      org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase() {
+      override suspend fun getUploadHealingOperation(
+        request: org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
+      ): org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation {
+        val operation = activeHealingOperation ?: throw io.grpc.Status.NOT_FOUND.asException()
+        check(request.name == operation.name)
+        return operation
+      }
+    }
 
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
     onBlocking { listModelLines(any()) }
@@ -195,6 +209,7 @@ class VidLabelingDispatcherFunctionTest {
               rawImpressionUploadFileServiceMock.bindService(),
               rawImpressionUploadModelLineServiceMock.bindService(),
               rankIndexBlobServiceMock.bindService(),
+              healingOperationService.bindService(),
               modelLinesServiceMock.bindService(),
               modelRolloutsServiceMock.bindService(),
               modelShardsServiceMock.bindService(),
@@ -330,6 +345,7 @@ class VidLabelingDispatcherFunctionTest {
     val sourceUpload = rawImpressionUpload {
       name = RECOVERY_SOURCE_UPLOAD
       state = RawImpressionUpload.State.FAILED
+      doneBlobCreateTime = Timestamps.fromMillis(1L)
       doneBlobUri = DONE_BLOB_URI
       doneBlobGeneration = doneGeneration + 1L
     }
@@ -340,10 +356,39 @@ class VidLabelingDispatcherFunctionTest {
     }
     val predecessorReplacement = rawImpressionUpload {
       name = RECOVERY_PREDECESSOR_REPLACEMENT
+      state = RawImpressionUpload.State.COMPLETED
+      registrationComplete = true
+      uploadHealingOperation = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
       doneBlobUri = RECOVERY_PREDECESSOR_DONE_BLOB_URI
       createTime = Timestamps.fromMillis(2L)
       replacesRawImpressionUpload = predecessorUpload.name
     }
+    activeHealingOperation =
+      org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+        name = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
+        state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+        steps +=
+          org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+            name = "${this@uploadHealingOperation.name}/uploadHealingSteps/1"
+            sourceRawImpressionUpload = sourceUpload.name
+            cmmsModelLine = MODEL_LINE
+            recoveryTarget = true
+            state =
+              org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.RECOVERY_STARTED
+            recoveryDoneBlobGeneration = doneGeneration
+            recoveryAction =
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+          }
+        steps +=
+          org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+            name = "${this@uploadHealingOperation.name}/uploadHealingSteps/2"
+            sourceRawImpressionUpload = predecessorUpload.name
+            cmmsModelLine = MODEL_LINE
+            recoveryTarget = true
+            state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.COMPLETE
+            replacementRawImpressionUpload = predecessorReplacement.name
+          }
+      }
     wheneverBlocking { rawImpressionUploadServiceMock.getRawImpressionUpload(any()) }
       .thenAnswer { invocation ->
         val request = invocation.getArgument<GetRawImpressionUploadRequest>(0)

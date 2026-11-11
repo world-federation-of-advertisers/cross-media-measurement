@@ -166,7 +166,8 @@ jobs:
         set -euo pipefail
         TEMP_DIR="${RUNNER_TEMP}/uber-jars"
         mkdir -p "$TEMP_DIR"
-        echo "Maven repo: $(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)"
+        LOCAL_REPO="$RUNNER_TEMP/maven-repository"
+        echo "Maven repo: $LOCAL_REPO"
 
         declare -A coords
         coords[data-watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$ARTIFACT_VERSION:jar"
@@ -175,24 +176,25 @@ jobs:
         coords[data-availability-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-sync:$ARTIFACT_VERSION:jar"
         coords[data-availability-cleanup]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-cleanup:$ARTIFACT_VERSION:jar"
         coords[data-availability-monitor]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-monitor:$ARTIFACT_VERSION:jar"
-        # TODO(@marcopremier): requires the function jars to be published to GitHub Packages
-        # (vid-labeling-dispatcher is on main; vid-labeling-monitor needs PR #4020 merged).
         coords[vid-labeling-dispatcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-dispatcher:$ARTIFACT_VERSION:jar"
         coords[vid-labeling-monitor]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-monitor:$ARTIFACT_VERSION:jar"
+        coords[vid-labeling-healing-controller]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-healing-controller:$ARTIFACT_VERSION:jar"
         coords[dashboard-compliance-check]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools:dashboard-compliance-check:$ARTIFACT_VERSION:jar"
         
-        LOCAL_REPO=$(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)
-
         for key in "${!coords[@]}"; do
           dest_dir="$TEMP_DIR/$key"
           mkdir -p "$dest_dir"
-          mvn -U dependency:get \
+          # Uber JARs already contain their runtime dependencies.
+          mvn -B -U -Dmaven.repo.local="$LOCAL_REPO" \
+            org.apache.maven.plugins:maven-dependency-plugin:3.11.0:get \
             -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
-            -Dartifact="${coords[$key]}" 
+            -Dartifact="${coords[$key]}" \
+            -Dtransitive=false
         
           IFS=':' read -r groupId artifactId version type <<<"${coords[$key]}"
           jar_dir="$LOCAL_REPO/${groupId//./\/}/$artifactId/$version"
-          jar_path=$(find "$jar_dir" -maxdepth 1 -type f -name "$artifactId-*.jar" ! -name "*sources*" | head -n1)
+          # Maven installs timestamped SNAPSHOTs with the base-version filename.
+          jar_path="$jar_dir/$artifactId-$version.jar"
           filename="${version}-function.jar"
           cp "$jar_path" "$dest_dir/$filename"
           
@@ -214,6 +216,15 @@ jobs:
       run: |
         bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
         cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
+
+    - name: Validate DataWatcher configuration
+      env:
+        CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
+      run: |
+        bazelisk run \
+          //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:ValidateDataWatcherConfig \
+          -- \
+          --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto"
 
     - name: Validate direct RequisitionFetcher dispatch configuration
       env:
@@ -289,6 +300,9 @@ jobs:
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         RESULTS_FULFILLER_TRUSTED_CA_FILE: ${{ runner.temp }}/results-fulfiller-trusted-root-ca.pem
         IMAGE_TAG: ${{ inputs.image-tag }}
+        VID_LABELING_HEALING_CONTROLLER_ENV_VAR: ${{ vars.VID_LABELING_HEALING_CONTROLLER_ENV_VAR }}
+        VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING: ${{ vars.VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING }}
+        VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES: ${{ vars.VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES }}
         DUCHY_WORKER1_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER2_PUBLIC_API_TARGET }}
         DUCHY_AGGREGATOR_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).AGGREGATOR_PUBLIC_API_TARGET }}
@@ -314,6 +328,10 @@ jobs:
         -var="data_availability_monitor_uber_jar_path=${{ steps.download-uber-jars.outputs.data_availability_monitor_source_path }}"
         -var="vid_labeling_dispatcher_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_dispatcher_source_path }}"
         -var="vid_labeling_monitor_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_monitor_source_path }}"
+        -var="vid_labeling_healing_controller_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_healing_controller_source_path }}"
+        -var="vid_labeling_healing_controller_env_var=$VID_LABELING_HEALING_CONTROLLER_ENV_VAR"
+        -var="vid_labeling_healing_controller_secret_mapping=$VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING"
+        -var="vid_labeling_healing_labeled_output_object_prefixes=$VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES"
         -var="dashboard_compliance_uber_jar_path=${{ steps.download-uber-jars.outputs.dashboard_compliance_check_source_path }}"
         -var="image_tag=$IMAGE_TAG"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"

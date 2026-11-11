@@ -3511,10 +3511,9 @@ private fun calculateFrequencyHistogramResults(
         weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
           weightedMeasurementVarianceParamsList.size == 1 &&
           weightedMeasurementVarianceParamsList
-            .first()
+            .single()
             .measurementVarianceParams
-            .reachMeasurementVariance >= 0.0 &&
-          weightedMeasurementVarianceParamsList.first().measurementVarianceParams.totalReach > 0.0
+            .reachMeasurementVariance >= 0.0
       ) {
         try {
           variances.computeMetricVariance(

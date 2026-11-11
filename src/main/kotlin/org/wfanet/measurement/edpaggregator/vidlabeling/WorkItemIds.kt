@@ -58,6 +58,13 @@ object WorkItemIds {
   fun forVidLabeler(vidLabelingJobName: String): String =
     "vl-" + fromKey("vidLabelingWorkItem:$vidLabelingJobName")
 
+  /** `WorkItem` ID for synchronizing the availability of one exact labeled-output done object. */
+  fun forDataAvailabilitySync(doneBlobPathHash: String, generation: Long): String {
+    require(doneBlobPathHash.isNotEmpty()) { "doneBlobPathHash must not be empty" }
+    require(generation > 0) { "generation must be positive" }
+    return "das-" + fromKey("dataAvailabilitySyncWorkItem:$doneBlobPathHash:$generation")
+  }
+
   /** Resource ID for a bounded monitor-recovery attempt. */
   fun forMonitorRecovery(originalWorkItemId: String, attempt: Int): String {
     require(attempt in 1..MAX_MONITOR_RECOVERY_ATTEMPTS)
