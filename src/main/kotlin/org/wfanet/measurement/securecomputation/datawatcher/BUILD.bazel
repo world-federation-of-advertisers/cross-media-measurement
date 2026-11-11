@@ -1,9 +1,11 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:__pkg__",
     "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher/testing:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
 ])
 
@@ -55,5 +57,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
     ],
 )
