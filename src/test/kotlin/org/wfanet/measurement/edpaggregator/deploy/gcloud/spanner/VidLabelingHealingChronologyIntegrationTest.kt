@@ -50,6 +50,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertUploa
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.v1alpha.Services
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
@@ -58,6 +59,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -66,7 +68,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.advanceRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.approveUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRankIndexBlobRequest
@@ -75,12 +81,15 @@ import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadMod
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.getImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadCorrectionCandidatesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
@@ -103,19 +112,20 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManife
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcHealingOperationStore
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUploadCorrectionPlanner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.UploadHealingStepAction
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifestKt as InternalManifestKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalAction
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalOperations
 import org.wfanet.measurement.internal.edpaggregator.labeledOutputManifest as internalManifest
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation as internalOperation
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep as internalStep
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
@@ -466,6 +476,194 @@ class VidLabelingHealingChronologyIntegrationTest {
     }
     Unit
   }
+
+  @Test
+  fun `manifest mismatch before eviction reopens the plan after a newer correction`() =
+    runBlocking {
+      val source = createCompletedUpload(1)
+      val candidates =
+        RawImpressionUploadCorrectionCandidateServiceGrpcKt
+          .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(publicServer.channel)
+      var deletedOutputs = 0
+      var replayedCorrections = 0
+      val evictUploader =
+        EvictUploader(
+          uploadsStub,
+          modelLinesStub,
+          rankIndexBlobsStub,
+          filesStub,
+          impressionMetadataStub,
+          LABELED_OUTPUT_PREFIX,
+          getBlobGeneration = { uri -> if (uri in outputBlobUris) 100L else null },
+          deleteBlob = { _, _ ->
+            deletedOutputs++
+            true
+          },
+          rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        )
+      fun controller() =
+        VidLabelingHealingController(
+          listOf(
+            VidLabelingHealingController.DataProviderConfig(
+              DATA_PROVIDER,
+              LABELED_OUTPUT_PREFIX,
+              Duration.ofDays(30),
+            )
+          ),
+          candidates,
+          CorrectionCandidateCleaner { _ -> },
+          operationStore,
+          uploadsStub,
+          filesStub,
+          modelLinesStub,
+          rankIndexBlobsStub,
+          plannerFactory = {
+            RawImpressionUploadCorrectionPlanner(
+              planCorrection = { owners, cutoff, operationId ->
+                evictUploader.planCorrection(owners, cutoff, operationId)
+              }
+            )
+          },
+          evictionExecutorFactory = { evictUploader },
+          manifestReader =
+            CorrectionManifestReader { uri, generation, _ ->
+              check(uri == source.upload.doneBlobUri)
+              check(blobMetadata.getValue(source.doneKey).generation == generation)
+              val metadata = blobMetadata.getValue(source.rawFileKey)
+              listOf(
+                RawImpressionUploadManifestClassifier.File(
+                  "$RAW_INPUT_PREFIX/${source.rawFileKey}",
+                  metadata.generation,
+                  date {
+                    year = BASE_EVENT_DATE.year
+                    month = BASE_EVENT_DATE.monthValue
+                    day = BASE_EVENT_DATE.dayOfMonth
+                  },
+                )
+              )
+            },
+          doneBlobReplayerFactory = { DoneBlobReplayer { replayedCorrections++ } },
+          recoveryExecutorFactory = { error("Recovery must wait for approval") },
+          clock = Clock.fixed(NOW, ZoneOffset.UTC),
+          rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        )
+      suspend fun candidateFor(upload: RawImpressionUpload) =
+        candidates
+          .listRawImpressionUploadCorrectionCandidates(
+            listRawImpressionUploadCorrectionCandidatesRequest { parent = DATA_PROVIDER }
+          )
+          .rawImpressionUploadCorrectionCandidatesList
+          .single { it.rawImpressionUpload == upload.name }
+      suspend fun currentFence(operation: UploadHealingOperation) =
+        uploadsStub.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            parent = DATA_PROVIDER
+            evictionOperationId = operation.name.substringAfterLast('/')
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      rawStorage.writeBlob(source.rawFileKey, ByteString.copyFromUtf8("approved correction"))
+      blobMetadata[source.rawFileKey] =
+        blobMetadata
+          .getValue(source.rawFileKey)
+          .copy(generation = 3_001L, createTime = nextDoneCreateTime.minusSeconds(1))
+      rewriteDoneBlob(source.upload.doneBlobUri, source.upload.doneBlobGeneration, emptyMap())
+      val approvedUpload = registerCurrentDoneBlob(source)
+      val approvedCandidate = candidateFor(approvedUpload)
+      assertThat(approvedUpload.state).isEqualTo(RawImpressionUpload.State.CORRECTION_REQUIRED)
+      assertThat(controller().run().failedDataProviders).isEqualTo(0)
+      val draft =
+        operationsStub
+          .listUploadHealingOperations(
+            listUploadHealingOperationsRequest { parent = DATA_PROVIDER }
+          )
+          .uploadHealingOperationsList
+          .single()
+      val approved =
+        operationsStub.approveUploadHealingOperation(
+          approveUploadHealingOperationRequest {
+            name = draft.name
+            etag = draft.etag
+            requestId = UUID.randomUUID().toString()
+            candidateDecisions +=
+              ApproveUploadHealingOperationRequestKt.candidateDecision {
+                rawImpressionUploadCorrectionCandidate = approvedCandidate.name
+                decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+              }
+          }
+        )
+      assertThat(approved.state).isEqualTo(UploadHealingOperation.State.DRAINING)
+      val drainingFence = currentFence(approved)
+      uploadsStub.advanceRawImpressionUploadEvictionFence(
+        advanceRawImpressionUploadEvictionFenceRequest {
+          parent = DATA_PROVIDER
+          evictionOperationId = approved.name.substringAfterLast('/')
+          etag = drainingFence.etag
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+      rawStorage.writeBlob(source.rawFileKey, ByteString.copyFromUtf8("new unfinalized correction"))
+      blobMetadata[source.rawFileKey] =
+        blobMetadata
+          .getValue(source.rawFileKey)
+          .copy(generation = 3_002L, createTime = nextDoneCreateTime)
+      assertThat(controller().run().failedDataProviders).isEqualTo(0)
+      val attention = getOperation(approved.name)
+      assertThat(attention.state).isEqualTo(UploadHealingOperation.State.NEEDS_ATTENTION)
+      assertThat(attention.resumeState).isEqualTo(UploadHealingOperation.State.DRAINING)
+      assertThat(currentFence(attention).state)
+        .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING)
+      assertThat(deletedOutputs).isEqualTo(0)
+      assertThat(replayedCorrections).isEqualTo(0)
+      assertThat(getModelLine(source.modelLine.name).state)
+        .isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+      assertThat(getMetadata(source.metadata.name).state).isEqualTo(ImpressionMetadata.State.ACTIVE)
+      assertThat(listSnapshots(source.upload.name, showDeleted = true).single().hasDeleteTime())
+        .isFalse()
+
+      rewriteDoneBlob(
+        source.upload.doneBlobUri,
+        blobMetadata.getValue(source.doneKey).generation,
+        emptyMap(),
+      )
+      val newerUpload = registerCurrentDoneBlob(source)
+      val newerCandidate = candidateFor(newerUpload)
+      assertThat(newerCandidate.state)
+        .isEqualTo(RawImpressionUploadCorrectionCandidate.State.PENDING)
+      val superseded =
+        candidates.getRawImpressionUploadCorrectionCandidate(
+          getRawImpressionUploadCorrectionCandidateRequest { name = approvedCandidate.name }
+        )
+      assertThat(superseded.state)
+        .isEqualTo(RawImpressionUploadCorrectionCandidate.State.SUPERSEDED)
+      assertThat(superseded.supersedingRawImpressionUploadCorrectionCandidate)
+        .isEqualTo(newerCandidate.name)
+      assertThat(newerUpload.processingDeferred).isTrue()
+      assertThat(
+          modelLinesStub
+            .listRawImpressionUploadModelLines(
+              listRawImpressionUploadModelLinesRequest { parent = newerUpload.name }
+            )
+            .rawImpressionUploadModelLinesList
+        )
+        .isEmpty()
+
+      assertThat(controller().run().failedDataProviders).isEqualTo(0)
+      val reopened = getOperation(approved.name)
+      assertThat(reopened.state).isEqualTo(UploadHealingOperation.State.APPROVAL_REQUIRED)
+      assertThat(currentFence(reopened).state)
+        .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING)
+      assertThat(controller().run().failedDataProviders).isEqualTo(0)
+      val replanned = getOperation(approved.name)
+      assertThat(replanned.rawImpressionUploadCorrectionCandidatesList)
+        .containsExactly(newerCandidate.name)
+      assertThat(replanned.state).isEqualTo(UploadHealingOperation.State.APPROVAL_REQUIRED)
+      assertThat(deletedOutputs).isEqualTo(0)
+      assertThat(replayedCorrections).isEqualTo(0)
+    }
 
   private suspend fun createCompletedUpload(index: Int): UploadFixture {
     val doneKey = "day-$index/done"
