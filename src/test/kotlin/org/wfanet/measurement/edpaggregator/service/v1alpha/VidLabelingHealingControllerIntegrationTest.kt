@@ -201,6 +201,7 @@ class VidLabelingHealingControllerIntegrationTest {
         LABELED_OUTPUT_PREFIX,
         getBlobGeneration = { null },
         deleteBlob = { _, _ -> true },
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
     val plan = evictUploader.plan(listOf(d1.upload.name), Instant.EPOCH)
     evictUploader.evict(plan, "invalid raw impressions")
@@ -263,6 +264,7 @@ class VidLabelingHealingControllerIntegrationTest {
         modelLinesStub,
         rankIndexBlobsStub,
         rewriteDoneBlob = ::rewriteDoneBlob,
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
     var replayed: DoneBlobReplayer.Request? = null
     val controller =
@@ -292,6 +294,7 @@ class VidLabelingHealingControllerIntegrationTest {
           }
         },
         recoveryExecutorFactory = { recoverUploader },
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
     val result = controller.run()

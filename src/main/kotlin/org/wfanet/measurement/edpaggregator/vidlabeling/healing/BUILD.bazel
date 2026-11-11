@@ -14,6 +14,7 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
@@ -34,6 +35,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/com/google/type:interval_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
     ],
 )
 
@@ -62,6 +64,7 @@ kt_jvm_library(
         ":healing",
         ":raw_impression_upload_correction_planner",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:data_availability_sync_work_items",
@@ -88,5 +91,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
     ],
 )
