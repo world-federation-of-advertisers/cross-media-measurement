@@ -32,6 +32,12 @@ resource ID is a hash of the spec's serialized bytes, so any semantic change
 provisions a **new** Population and invalidates every expected reach in
 [`EdpAggregatorReportingIntegrationTest`](../../src/test/kotlin/org/wfanet/measurement/integration/k8s/EdpAggregatorReportingIntegrationTest.kt).
 
+Seeding can take longer than the one-hour lifetime of its Google identity token
+for AWS KMS. The seeding workflow renews the private token file every 30 minutes;
+the AWS SDK reads the current token when renewing its STS session. A renewal
+failure stops seeding rather than allowing an incomplete fixture to be declared
+ready.
+
 ## The Noise Floor, and Why It Sets Everything
 
 Every reach measurement has noise added with a **fixed standard deviation**, in
