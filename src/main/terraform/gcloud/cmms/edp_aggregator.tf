@@ -692,6 +692,7 @@ module "edp_aggregator" {
   spanner_instance                                 = google_spanner_instance.spanner_instance
   vid_labeling_trace_operator_member               = "serviceAccount:${module.reporting_v2.vid_labeling_trace_operator_service_account_email}"
 
+  vid_labeling_healing_controller_enabled              = var.vid_labeling_healing_controller_enabled
   vid_labeling_healing_controller_service_account_name = "edpa-vid-healing-controller"
   vid_labeling_healing_controller_scheduler_config     = local.vid_labeling_healing_controller_scheduler_config
   vid_labeling_healing_labeled_output_object_prefixes  = var.vid_labeling_healing_labeled_output_object_prefixes

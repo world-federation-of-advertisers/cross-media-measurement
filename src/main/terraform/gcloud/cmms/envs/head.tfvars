@@ -46,3 +46,6 @@ duchy_worker1_id                             = "worker1"
 duchy_worker2_id                             = "worker2"
 duchy_aggregator_id                          = "aggregator"
 duchy_aggregator_computations_service_target = "10.128.0.50:8443"
+
+# Enable only after the controller can reach its private persistence endpoint.
+vid_labeling_healing_controller_enabled = false

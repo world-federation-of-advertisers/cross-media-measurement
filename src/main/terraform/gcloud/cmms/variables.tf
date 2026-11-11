@@ -509,6 +509,13 @@ variable "vid_labeling_monitor_config_file_path" {
   type        = string
 }
 
+variable "vid_labeling_healing_controller_enabled" {
+  description = "Deploy the healing controller after its private persistence endpoint is configured."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "vid_labeling_healing_controller_uber_jar_path" {
   description = "Path to the VidLabelingHealingController uber jar."
   type        = string
@@ -517,9 +524,11 @@ variable "vid_labeling_healing_controller_uber_jar_path" {
 variable "vid_labeling_healing_controller_env_var" {
   description = "VidLabelingHealingController extra environment variables."
   type        = string
+  default     = ""
+  nullable    = false
 
   validation {
-    condition = can(regex(
+    condition = !var.vid_labeling_healing_controller_enabled || can(regex(
       "(^|,)HEALING_INTERNAL_API_TARGET=[^,]+",
       var.vid_labeling_healing_controller_env_var,
     ))
@@ -530,15 +539,23 @@ variable "vid_labeling_healing_controller_env_var" {
 variable "vid_labeling_healing_controller_secret_mapping" {
   description = "VidLabelingHealingController secret mapping."
   type        = string
+  default     = ""
+  nullable    = false
+
+  validation {
+    condition     = !var.vid_labeling_healing_controller_enabled || var.vid_labeling_healing_controller_secret_mapping != ""
+    error_message = "Enabled VidLabelingHealingController requires its TLS secret mappings."
+  }
 }
 
 variable "vid_labeling_healing_labeled_output_object_prefixes" {
   description = "Object prefixes under which the healing controller may delete labeled output."
   type        = list(string)
+  default     = []
   nullable    = false
 
   validation {
-    condition = length(var.vid_labeling_healing_labeled_output_object_prefixes) > 0 && alltrue([
+    condition = (!var.vid_labeling_healing_controller_enabled || length(var.vid_labeling_healing_labeled_output_object_prefixes) > 0) && alltrue([
       for prefix in var.vid_labeling_healing_labeled_output_object_prefixes :
       prefix != "" && !startswith(prefix, "/") && endswith(prefix, "/")
     ])
