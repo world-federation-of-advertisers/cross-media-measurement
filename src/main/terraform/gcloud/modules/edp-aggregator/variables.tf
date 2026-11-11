@@ -546,6 +546,13 @@ variable "vid_labeling_monitor_service_account_name" {
   nullable    = false
 }
 
+variable "vid_labeling_healing_controller_enabled" {
+  description = "Deploy the healing controller after its private persistence endpoint is configured."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "vid_labeling_healing_controller_service_account_name" {
   description = "Name of the VidLabelingHealingController service account."
   type        = string
@@ -555,10 +562,11 @@ variable "vid_labeling_healing_controller_service_account_name" {
 variable "vid_labeling_healing_labeled_output_object_prefixes" {
   description = "Object prefixes under which the healing controller may delete labeled output."
   type        = list(string)
+  default     = []
   nullable    = false
 
   validation {
-    condition = length(var.vid_labeling_healing_labeled_output_object_prefixes) > 0 && alltrue([
+    condition = (!var.vid_labeling_healing_controller_enabled || length(var.vid_labeling_healing_labeled_output_object_prefixes) > 0) && alltrue([
       for prefix in var.vid_labeling_healing_labeled_output_object_prefixes :
       prefix != "" && !startswith(prefix, "/") && endswith(prefix, "/")
     ])

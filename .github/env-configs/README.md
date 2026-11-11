@@ -16,3 +16,5 @@ Secret mapping values committed in tfvars name Secret Manager resources and file
 `REQUISITION_FETCHER_SCHEDULER_JOB_NAME` in `cmms.json` selects the scheduler paused by Update CMMS. The workflow also passes this value to Terraform as `requisition_fetcher_scheduler_job_name`, so both operations address the same job.
 
 Set Spanner capacity with `spanner_processing_units` in the selected tfvars file. Terraform reapplies that value during deployment, so commit sustained capacity increases there to preserve them across deployments.
+
+The VID-labeling healing controller is opt-in through `vid_labeling_healing_controller_enabled` in tfvars. Configure its private persistence endpoint, runtime settings, TLS secret mappings, and labeled-output deletion prefixes there before enabling it; see [the operator guide](../../docs/operations/healing-vid-labeling-uploads.md#deployment-configuration).

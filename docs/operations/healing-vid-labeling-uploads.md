@@ -11,6 +11,22 @@ Keep the public raw-upload endpoint configured for reads and operator actions.
 
 ## Deployment configuration
 
+The scheduled healing controller is disabled until its private persistence endpoint
+is provisioned. In the environment's committed Terraform tfvars, set
+`vid_labeling_healing_controller_enabled = true` together with
+`vid_labeling_healing_controller_env_var`,
+`vid_labeling_healing_controller_secret_mapping`, and
+`vid_labeling_healing_labeled_output_object_prefixes`. The runtime settings must
+include the public raw-upload and control-plane targets, the private healing target,
+their TLS authorities, and the matching TLS Secret Manager mounts. Restrict deletion
+prefixes to the configured VidLabeler output directories, each ending in `/`.
+
+Terraform requires the healing target, TLS mounts, and deletion prefixes when
+enabled. When disabled, it creates no healing function, schedule, access grants, or
+alerts. The dispatcher still quarantines corrections; automatic healing progression
+requires the configured controller.
+
+
 CMMS configurations keep externally produced impressions under `edp/...` and
 VidLabeler output under `vid-labeled-impressions/edp/...`. The registrar's
 `DataAvailabilitySyncConfig.vid_labeled_impression_path` must match the deployed

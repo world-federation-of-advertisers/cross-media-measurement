@@ -156,7 +156,7 @@ locals {
     local.edp_tls_keys
   )
 
-  service_accounts = {
+  service_accounts = merge({
     "data_watcher"              = module.data_watcher_cloud_function.cloud_function_service_account.email
     "requisition_fetcher"       = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
     "event_group_sync"          = module.event_group_sync_cloud_function.cloud_function_service_account.email
@@ -166,8 +166,10 @@ locals {
     "data_availability_monitor" = module.data_availability_monitor_cloud_function.cloud_function_service_account.email
     "vid_labeling_dispatcher"   = module.vid_labeling_dispatcher_cloud_function.cloud_function_service_account.email
     "vid_labeling_monitor"      = module.vid_labeling_monitor_cloud_function.cloud_function_service_account.email
-    "vid_labeling_healing"      = module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email
-  }
+    }, {
+    for function in module.vid_labeling_healing_controller_cloud_function :
+    "vid_labeling_healing" => function.cloud_function_service_account.email
+  })
 
   otel_metadata = {
     "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
@@ -1096,7 +1098,44 @@ module "vid_labeling_dispatch_cloud_scheduler" {
 }
 
 # ---- VidLabelingHealingController (scheduled HTTP Cloud Function) ----
+moved {
+  from = module.vid_labeling_healing_controller_cloud_function
+  to   = module.vid_labeling_healing_controller_cloud_function[0]
+}
+
+moved {
+  from = module.vid_labeling_healing_controller_cloud_scheduler
+  to   = module.vid_labeling_healing_controller_cloud_scheduler[0]
+}
+
+moved {
+  from = google_cloud_run_service_iam_member.vid_labeling_healing_controller_dispatcher_invoker
+  to   = google_cloud_run_service_iam_member.vid_labeling_healing_controller_dispatcher_invoker[0]
+}
+
+moved {
+  from = google_storage_bucket_iam_member.vid_labeling_healing_controller_storage_viewer
+  to   = google_storage_bucket_iam_member.vid_labeling_healing_controller_storage_viewer[0]
+}
+
+moved {
+  from = google_project_iam_custom_role.vid_labeling_healing_output_deleter
+  to   = google_project_iam_custom_role.vid_labeling_healing_output_deleter[0]
+}
+
+moved {
+  from = google_storage_bucket_iam_member.vid_labeling_healing_controller_output_deleter
+  to   = google_storage_bucket_iam_member.vid_labeling_healing_controller_output_deleter[0]
+}
+
+moved {
+  from = google_storage_bucket_iam_member.vid_labeling_healing_controller_config_viewer
+  to   = google_storage_bucket_iam_member.vid_labeling_healing_controller_config_viewer[0]
+}
+
 module "vid_labeling_healing_controller_cloud_function" {
+  count = var.vid_labeling_healing_controller_enabled ? 1 : 0
+
   source = "../http-cloud-function"
 
   depends_on = [
@@ -1119,6 +1158,8 @@ module "vid_labeling_healing_controller_cloud_function" {
 }
 
 module "vid_labeling_healing_controller_cloud_scheduler" {
+  count = var.vid_labeling_healing_controller_enabled ? 1 : 0
+
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
   scheduler_config          = var.vid_labeling_healing_controller_scheduler_config
@@ -1131,19 +1172,25 @@ module "vid_labeling_healing_controller_cloud_scheduler" {
 }
 
 resource "google_cloud_run_service_iam_member" "vid_labeling_healing_controller_dispatcher_invoker" {
+  count = var.vid_labeling_healing_controller_enabled ? 1 : 0
+
   depends_on = [module.vid_labeling_dispatcher_cloud_function]
   service    = var.cloud_function_configs.vid_labeling_dispatcher.function_name
   role       = "roles/run.invoker"
-  member     = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+  member     = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function[0].cloud_function_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_storage_viewer" {
+  count = var.vid_labeling_healing_controller_enabled ? 1 : 0
+
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function[0].cloud_function_service_account.email}"
 }
 
 resource "google_project_iam_custom_role" "vid_labeling_healing_output_deleter" {
+  count = var.vid_labeling_healing_controller_enabled ? 1 : 0
+
   role_id     = "edpaVidHealingOutputDeleter"
   title       = "EDPA VID Healing Output Deleter"
   description = "Deletes derived VID-labeled output selected by an approved healing plan."
@@ -1151,9 +1198,11 @@ resource "google_project_iam_custom_role" "vid_labeling_healing_output_deleter" 
 }
 
 resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_output_deleter" {
+  count = var.vid_labeling_healing_controller_enabled ? 1 : 0
+
   bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = google_project_iam_custom_role.vid_labeling_healing_output_deleter.name
-  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+  role   = google_project_iam_custom_role.vid_labeling_healing_output_deleter[0].name
+  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function[0].cloud_function_service_account.email}"
 
   condition {
     title = "delete_vid_labeled_output"
@@ -1165,19 +1214,21 @@ resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_out
 }
 
 resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_config_viewer" {
+  count = var.vid_labeling_healing_controller_enabled ? 1 : 0
+
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function[0].cloud_function_service_account.email}"
 }
 
 resource "google_monitoring_metric_descriptor" "vid_labeling_healing" {
-  for_each = toset([
+  for_each = var.vid_labeling_healing_controller_enabled ? toset([
     "approval_pending",
     "stalled",
     "manifest_mismatch",
     "out_of_retention",
     "needs_attention",
-  ])
+  ]) : toset([])
 
   type         = "workload.googleapis.com/edpa.vid_labeling.healing.${each.value}"
   metric_kind  = "CUMULATIVE"
@@ -1191,13 +1242,13 @@ resource "google_monitoring_metric_descriptor" "vid_labeling_healing" {
 }
 
 resource "google_monitoring_alert_policy" "vid_labeling_healing" {
-  for_each = toset([
+  for_each = var.vid_labeling_healing_controller_enabled ? toset([
     "approval_pending",
     "stalled",
     "manifest_mismatch",
     "out_of_retention",
     "needs_attention",
-  ])
+  ]) : toset([])
 
   depends_on            = [google_monitoring_metric_descriptor.vid_labeling_healing]
   display_name          = "EDPA VID-labeling healing ${replace(each.value, "_", " ")}"
