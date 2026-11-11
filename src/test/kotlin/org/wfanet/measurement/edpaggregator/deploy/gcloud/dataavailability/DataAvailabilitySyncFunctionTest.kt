@@ -932,7 +932,7 @@ class DataAvailabilitySyncFunctionTest {
             dataPathParams = dataPathParams {
               dataPath =
                 LabeledImpressionsBlobKeys.forDoneUri(
-                  "file:////edp/edp_name",
+                  "file:////vid-labeled-impressions/edp/edp_name",
                   RAW_UPLOAD,
                   MODEL_LINE,
                   LocalDate.of(2025, 1, 5),
