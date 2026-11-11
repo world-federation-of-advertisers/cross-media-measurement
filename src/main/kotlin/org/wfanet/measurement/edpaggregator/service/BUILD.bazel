@@ -51,3 +51,60 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )
+
+kt_jvm_library(
+    name = "raw_impression_upload_conversions",
+    srcs = [
+        "RawImpressionUploadConversions.kt",
+    ],
+    deps = [
+        ":resource_key",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_state_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "correction_candidate_conversions",
+    srcs = [
+        "RawImpressionUploadCorrectionCandidateConversions.kt",
+    ],
+    deps = [
+        ":resource_key",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_correction_candidate_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_correction_candidate_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "vid_labeling_machine_api_conversions",
+    srcs = [
+        "VidLabelingMachineApiConversions.kt",
+    ],
+    deps = [
+        ":resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_correction_candidate_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_machine_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_correction_candidate_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_correction_candidate_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_state_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "vid_labeling_machine_authorizer",
+    srcs = [
+        "VidLabelingMachineAuthorizer.kt",
+    ],
+    deps = [
+        "//imports/java/com/google/api/client/json",
+        "//imports/java/com/google/auth:oauth_http2",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_machine_api_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)

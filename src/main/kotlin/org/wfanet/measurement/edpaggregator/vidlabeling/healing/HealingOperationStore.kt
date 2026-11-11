@@ -30,6 +30,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsR
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
@@ -113,11 +114,36 @@ interface HealingOperationStore {
 }
 
 /** Routes controller mutations to the internal API and reads through the public API. */
-class GrpcHealingOperationStore(
-  private val readStub: UploadHealingOperationServiceCoroutineStub,
+class GrpcHealingOperationStore
+private constructor(
+  private val readOperation: suspend (GetUploadHealingOperationRequest) -> UploadHealingOperation,
+  private val readOperations:
+    suspend (ListUploadHealingOperationsRequest) -> ListUploadHealingOperationsResponse,
   private val mutationStub: InternalOperationStub,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
 ) : HealingOperationStore {
+  constructor(
+    readStub: UploadHealingOperationServiceCoroutineStub,
+    mutationStub: InternalOperationStub,
+    rpcThrottlers: VidLabelingRpcThrottlers,
+  ) : this(
+    { readStub.getUploadHealingOperation(it) },
+    { readStub.listUploadHealingOperations(it) },
+    mutationStub,
+    rpcThrottlers,
+  )
+
+  constructor(
+    readService: UploadHealingOperationServiceCoroutineImplBase,
+    mutationStub: InternalOperationStub,
+    rpcThrottlers: VidLabelingRpcThrottlers,
+  ) : this(
+    { readService.getUploadHealingOperation(it) },
+    { readService.listUploadHealingOperations(it) },
+    mutationStub,
+    rpcThrottlers,
+  )
+
   override suspend fun reconcileUploadHealingOperation(
     request: ReconcileUploadHealingOperationCommand
   ): UploadHealingOperation {
@@ -138,13 +164,12 @@ class GrpcHealingOperationStore(
 
   override suspend fun getUploadHealingOperation(
     request: GetUploadHealingOperationRequest
-  ): UploadHealingOperation =
-    rpcThrottlers.metadataRead.onReady { readStub.getUploadHealingOperation(request) }
+  ): UploadHealingOperation = rpcThrottlers.metadataRead.onReady { readOperation(request) }
 
   override suspend fun listUploadHealingOperations(
     request: ListUploadHealingOperationsRequest
   ): ListUploadHealingOperationsResponse =
-    rpcThrottlers.metadataRead.onReady { readStub.listUploadHealingOperations(request) }
+    rpcThrottlers.metadataRead.onReady { readOperations(request) }
 
   override suspend fun advanceUploadHealingOperation(
     request: AdvanceUploadHealingOperationCommand
@@ -234,7 +259,7 @@ class GrpcHealingOperationStore(
     operationId: String,
   ): UploadHealingOperation =
     rpcThrottlers.metadataRead.onReady {
-      readStub.getUploadHealingOperation(
+      readOperation(
         getUploadHealingOperationRequest {
           name = UploadHealingOperationKey(parent, operationId).toName()
         }

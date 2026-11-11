@@ -176,6 +176,7 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      vid-labeling-machine-functions-enabled: false
       tee-consumers-enabled: false
       requisition-fetcher-enabled: false
 
@@ -278,7 +279,7 @@ jobs:
 
   update-edp-aggregator-service:
     uses: ./.github/workflows/configure-edp-aggregator.yml
-    needs: [publish-images, wait-for-tee-consumers-to-stop, update-kingdom, update-secure-computation]
+    needs: [publish-images, terraform-quiesced, wait-for-tee-consumers-to-stop, update-kingdom, update-secure-computation]
     secrets: inherit
     permissions:
       contents: read
@@ -287,6 +288,7 @@ jobs:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
+      vid-labeling-machine-api-config: ${{ needs.terraform-quiesced.outputs.vid_labeling_machine_api_config }}
 
   terraform:
     uses: ./.github/workflows/terraform-cmms-v2.yml

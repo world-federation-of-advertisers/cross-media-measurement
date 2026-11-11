@@ -31,3 +31,12 @@ output "vid_labeling_trace_operator_service_account_email" {
   description = "Email of the logs-and-traces-only VID-labeling trace operator service account."
   value       = module.reporting_v2.vid_labeling_trace_operator_service_account_email
 }
+
+output "vid_labeling_machine_api_config" {
+  description = "Authorization configuration consumed by the system API Kubernetes rollout."
+  value = jsonencode({
+    audience                                    = local.vid_labeling_machine_api_audience
+    dispatcher_service_account_subjects         = module.edp_aggregator.vid_labeling_machine_api_service_account_subjects.dispatcher
+    healing_controller_service_account_subjects = module.edp_aggregator.vid_labeling_machine_api_service_account_subjects.healing_controller
+  })
+}

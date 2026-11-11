@@ -50,6 +50,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingHealingControllerServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItemPublisher
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
@@ -58,14 +59,12 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadataReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
-import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcCorrectionCandidateCleaner
-import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcHealingOperationStore
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUploadCorrectionPlanner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.SystemApiCorrectionCandidateCleaner
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.SystemApiHealingOperationStore
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingControllerEventSink
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalRawImpressionUploadCorrectionCandidateServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalUploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
@@ -93,12 +92,6 @@ class VidLabelingHealingControllerFunction(
     private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
     private val rawApiTarget by lazy { EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET") }
     private val rawApiCertHost by lazy { System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST") }
-    private val healingInternalApiTarget by lazy {
-      EnvVars.checkNotNullOrEmpty("HEALING_INTERNAL_API_TARGET")
-    }
-    private val healingInternalApiCertHost by lazy {
-      System.getenv("HEALING_INTERNAL_API_CERT_HOST")
-    }
     private val controlPlaneTarget by lazy { EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET") }
     private val controlPlaneCertHost by lazy { System.getenv("CONTROL_PLANE_CERT_HOST") }
     private val retention by lazy {
@@ -146,34 +139,24 @@ class VidLabelingHealingControllerFunction(
           rawApiCertHost,
           grpcTelemetry,
         )
-      val internalChannel =
-        VidLabelingFunctionHelpers.createInstrumentedChannel(
-          firstConfig.rawImpressionMetadataStorageConnection,
-          healingInternalApiTarget,
-          healingInternalApiCertHost,
-          grpcTelemetry,
-        )
+      val machineStub =
+        VidLabelingHealingControllerServiceGrpcKt.VidLabelingHealingControllerServiceCoroutineStub(
+            rawChannel
+          )
+          .withCallCredentials(
+            VidLabelingMachineCallCredentials(
+              EnvVars.checkNotNullOrEmpty("VID_LABELING_MACHINE_API_AUDIENCE")
+            )
+          )
       val uploads = RawImpressionUploadServiceCoroutineStub(rawChannel)
       val files = RawImpressionUploadFileServiceCoroutineStub(rawChannel)
       val modelLines = RawImpressionUploadModelLineServiceCoroutineStub(rawChannel)
       val ranks = RankIndexBlobServiceCoroutineStub(rawChannel)
       val impressionMetadata = ImpressionMetadataServiceCoroutineStub(rawChannel)
       val candidates = RawImpressionUploadCorrectionCandidateServiceCoroutineStub(rawChannel)
-      val candidateCleaner =
-        GrpcCorrectionCandidateCleaner(
-          InternalRawImpressionUploadCorrectionCandidateServiceGrpcKt
-            .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(internalChannel),
-          rpcThrottlers = rpcThrottlers,
-        )
+      val candidateCleaner = SystemApiCorrectionCandidateCleaner(machineStub, rpcThrottlers)
       val operations = UploadHealingOperationServiceCoroutineStub(rawChannel)
-      val operationStore =
-        GrpcHealingOperationStore(
-          operations,
-          InternalUploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
-            internalChannel
-          ),
-          rpcThrottlers = rpcThrottlers,
-        )
+      val operationStore = SystemApiHealingOperationStore(operations, machineStub, rpcThrottlers)
       val labeledOutputStore = GcsLabeledOutputStore(storage)
       val workItemsClients =
         vidLabelingConfigs.associate { config ->

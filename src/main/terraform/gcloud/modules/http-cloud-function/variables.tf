@@ -87,3 +87,9 @@ variable "concurrency" {
   nullable    = true
   default     = null
 }
+
+variable "deployment_enabled" {
+  description = "Whether to deploy this function revision; false retains the currently deployed function."
+  type        = bool
+  default     = true
+}

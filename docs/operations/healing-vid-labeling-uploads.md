@@ -23,6 +23,25 @@ both configured paths. Existing external data does not need to be moved or
 regenerated. Healing earlier internal output may require its earlier labeling
 configuration and prefix.
 
+## Machine API deployment
+
+The dispatcher and healing-controller functions use the existing EDP Aggregator
+system API endpoint over mutual TLS. They authenticate machine operations with
+Google ID tokens from their runtime service accounts. The system API adapters
+forward authorized requests through the existing in-cluster internal API channel.
+
+The correction-detection service accepts only the configured dispatcher
+service-account subjects. The controller service accepts only the configured
+healing-controller subjects. Operator Get/List/Approve/Retry APIs retain their
+existing contracts. A trusted TLS certificate alone does not grant machine access.
+
+Terraform generates the token audience from the system endpoint and exports both
+service-account unique IDs. Update CMMS retains existing machine function revisions
+during preparation, writes this authorization configuration into the system server's
+ConfigMap, waits for its rollout, and deploys the new function revisions during
+activation. No internal endpoint IP needs to be copied into an environment file.
+The system server permits HTTPS egress to retrieve Google's verification keys.
+
 ## Inspect a correction
 
 Alerts identify the affected DataProvider and plan. List the plans requiring a decision or manual

@@ -515,17 +515,11 @@ variable "vid_labeling_healing_controller_uber_jar_path" {
 }
 
 variable "vid_labeling_healing_controller_env_var" {
-  description = "VidLabelingHealingController extra environment variables."
+  description = "Additional healing-controller environment; shared endpoints and machine audience are generated."
   type        = string
-
-  validation {
-    condition = can(regex(
-      "(^|,)HEALING_INTERNAL_API_TARGET=[^,]+",
-      var.vid_labeling_healing_controller_env_var,
-    ))
-    error_message = "VidLabelingHealingController environment must define HEALING_INTERNAL_API_TARGET."
-  }
+  default     = ""
 }
+
 
 variable "vid_labeling_healing_controller_secret_mapping" {
   description = "VidLabelingHealingController secret mapping."
@@ -563,4 +557,10 @@ variable "dashboard_alert_notification_channels" {
   description = "Cloud Monitoring notification channel IDs (Slack/PagerDuty) to notify on dashboard compliance check failures. Empty creates the policy without notifications."
   type        = list(string)
   default     = []
+}
+
+variable "vid_labeling_machine_functions_deployment_enabled" {
+  description = "Whether to deploy the dispatcher and healing-controller revisions after the system API rollout."
+  type        = bool
+  default     = true
 }

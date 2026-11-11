@@ -1,0 +1,414 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload.proto";
+import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload_correction_candidate.proto";
+import "wfa/measurement/edpaggregator/v1alpha/upload_healing_operation.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "VidLabelingMachineServiceProto";
+
+// Machine operations restricted to the VID-labeling dispatcher identity.
+service VidLabelingCorrectionDetectionService {
+  // Registers an undispatchable raw-upload revision and its approval fence.
+  rpc QuarantineRawImpressionUpload(QuarantineRawImpressionUploadRequest)
+      returns (QuarantineRawImpressionUploadResponse);
+  // Activates the exact revision authorized by an approved healing operation.
+  rpc ActivateRawImpressionUpload(ActivateRawImpressionUploadRequest)
+      returns (ActivateRawImpressionUploadResponse);
+  // Persists the complete manifest comparison and supersedes an earlier
+  // candidate.
+  rpc RegisterRawImpressionUploadCorrectionCandidate(
+      RegisterRawImpressionUploadCorrectionCandidateRequest)
+      returns (RegisterRawImpressionUploadCorrectionCandidateResponse);
+  // Resolves a pending candidate whose revision became additive or unchanged.
+  rpc ResolveRawImpressionUploadCorrectionCandidate(
+      ResolveRawImpressionUploadCorrectionCandidateRequest)
+      returns (ResolveRawImpressionUploadCorrectionCandidateResponse);
+}
+
+// Machine operations restricted to the VID-labeling healing controller
+// identity.
+service VidLabelingHealingControllerService {
+  // Reconciles the complete mutable draft for one DataProvider.
+  rpc ReconcileUploadHealingOperation(ReconcileUploadHealingOperationRequest)
+      returns (UploadHealingOperation);
+  // Advances a durable operation checkpoint.
+  rpc AdvanceUploadHealingOperation(AdvanceUploadHealingOperationRequest)
+      returns (UploadHealingOperation);
+  // Freezes exact labeled-output manifests after the drain completes.
+  rpc FinalizeUploadHealingOperation(FinalizeUploadHealingOperationRequest)
+      returns (UploadHealingOperation);
+  // Advances a durable recovery step.
+  rpc AdvanceUploadHealingStep(AdvanceUploadHealingStepRequest)
+      returns (UploadHealingStep);
+  // Purges a bounded page of expired terminal candidates.
+  rpc PurgeRawImpressionUploadCorrectionCandidates(
+      PurgeRawImpressionUploadCorrectionCandidatesRequest)
+      returns (PurgeRawImpressionUploadCorrectionCandidatesResponse);
+}
+
+// Exact raw-object snapshots compared by the dispatcher.
+message RawImpressionUploadManifestComparison {
+  // One raw-object version and the upload owning its labeled output.
+  message Entry {
+    // Absolute object URI.
+    string blob_uri = 1 [(google.api.field_behavior) = REQUIRED];
+    // Positive object generation.
+    int64 blob_generation = 2 [(google.api.field_behavior) = REQUIRED];
+    // Event date in the plaintext raw-file footer.
+    google.type.Date event_date = 3 [(google.api.field_behavior) = REQUIRED];
+    // Owning upload, when known.
+    string output_source_raw_impression_upload = 4 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+      }
+    ];
+  }
+  // One addition, edit, removal, or event-date change.
+  message Difference {
+    // Relationship between the two entries.
+    RawImpressionUploadCorrectionCandidate.ManifestDifference.Type type = 1
+        [(google.api.field_behavior) = REQUIRED];
+    // Prior entry, absent for an addition.
+    Entry prior = 2 [(google.api.field_behavior) = OPTIONAL];
+    // Current entry, absent for a removal.
+    Entry current = 3 [(google.api.field_behavior) = OPTIONAL];
+  }
+  // Complete effective prior snapshot.
+  repeated Entry prior_manifest = 1 [(google.api.field_behavior) = OPTIONAL];
+  // Complete candidate snapshot; empty for a complete removal.
+  repeated Entry current_manifest = 2 [(google.api.field_behavior) = OPTIONAL];
+  // Differences between the snapshots.
+  repeated Difference differences = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for `QuarantineRawImpressionUpload`.
+message QuarantineRawImpressionUploadRequest {
+  // Parent DataProvider.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+    }
+  ];
+  // Candidate resource ID.
+  string raw_impression_upload_correction_candidate_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+  // Absolute done-object URI.
+  string done_blob_uri = 3 [(google.api.field_behavior) = REQUIRED];
+  // Positive done-object generation.
+  int64 done_blob_generation = 4 [(google.api.field_behavior) = REQUIRED];
+  // Creation time of the exact done-object version.
+  google.protobuf.Timestamp done_blob_create_time = 5
+      [(google.api.field_behavior) = REQUIRED];
+  // Idempotency request ID.
+  string request_id = 6 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Result of the raw-upload transition.
+message QuarantineRawImpressionUploadResponse {
+  // Persisted upload.
+  RawImpressionUpload raw_impression_upload = 1
+      [(google.api.field_behavior) = REQUIRED];
+  // Candidate associated with the upload.
+  string raw_impression_upload_correction_candidate = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+    }
+  ];
+}
+
+// Result of the raw-upload transition.
+message ActivateRawImpressionUploadResponse {
+  // Persisted upload.
+  RawImpressionUpload raw_impression_upload = 1
+      [(google.api.field_behavior) = REQUIRED];
+  // Candidate associated with the upload.
+  string raw_impression_upload_correction_candidate = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+    }
+  ];
+}
+
+// Request message for `ActivateRawImpressionUpload`.
+message ActivateRawImpressionUploadRequest {
+  // Quarantined upload.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+  // Evicted source upload.
+  string source_raw_impression_upload = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+  // Operation authorizing activation.
+  string upload_healing_operation = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+  // Idempotency request ID.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `RegisterRawImpressionUploadCorrectionCandidate`.
+message RegisterRawImpressionUploadCorrectionCandidateRequest {
+  // Parent DataProvider.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+    }
+  ];
+  // Candidate resource ID.
+  string raw_impression_upload_correction_candidate_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+  // Quarantined upload containing the complete snapshot.
+  string raw_impression_upload = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+  // Non-additive classification.
+  RawImpressionUploadCorrectionCandidate.Classification classification = 4
+      [(google.api.field_behavior) = REQUIRED];
+  // Digest of the complete prior manifest.
+  bytes prior_manifest_digest = 5 [(google.api.field_behavior) = REQUIRED];
+  // Digest of the complete candidate manifest.
+  bytes current_manifest_digest = 6 [(google.api.field_behavior) = REQUIRED];
+  // Complete authoritative manifest comparison.
+  RawImpressionUploadManifestComparison manifest_comparison = 7
+      [(google.api.field_behavior) = REQUIRED];
+  // Earlier pending candidate, if any.
+  string superseded_raw_impression_upload_correction_candidate = 8 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+    }
+  ];
+  // Expiration time used after the candidate becomes terminal.
+  google.protobuf.Timestamp expire_time = 9
+      [(google.api.field_behavior) = REQUIRED];
+  // Idempotency request ID.
+  string request_id = 10 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Persisted correction candidate and its exact comparison.
+message RegisterRawImpressionUploadCorrectionCandidateResponse {
+  // Persisted candidate lifecycle and identity.
+  RawImpressionUploadCorrectionCandidate
+      raw_impression_upload_correction_candidate = 1;
+  // Complete persisted comparison.
+  RawImpressionUploadManifestComparison manifest_comparison = 2;
+  // Whether this request created the candidate.
+  bool newly_created = 3;
+}
+
+// Request message for `ResolveRawImpressionUploadCorrectionCandidate`.
+message ResolveRawImpressionUploadCorrectionCandidateRequest {
+  // Pending candidate.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+    }
+  ];
+  // Idempotency request ID.
+  string request_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Result of resolving the pending candidate.
+message ResolveRawImpressionUploadCorrectionCandidateResponse {
+  // Whether this request resolved the candidate.
+  bool newly_resolved = 1;
+}
+
+// Request message for `ReconcileUploadHealingOperation`.
+message ReconcileUploadHealingOperationRequest {
+  // Parent DataProvider.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+  // Operation resource ID.
+  string upload_healing_operation_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+  // Complete controller-computed draft.
+  UploadHealingOperation upload_healing_operation = 3
+      [(google.api.field_behavior) = REQUIRED];
+  // Expected draft etag; absent for the initial draft.
+  string etag = 4 [(google.api.field_behavior) = OPTIONAL];
+  // Idempotency request ID.
+  string request_id = 5 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `AdvanceUploadHealingOperation`.
+message AdvanceUploadHealingOperationRequest {
+  // Healing operation.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+  // Next controller-owned state.
+  UploadHealingOperation.State state = 2
+      [(google.api.field_behavior) = REQUIRED];
+  // Expected operation etag.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+  // Idempotency request ID.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `FinalizeUploadHealingOperation`.
+message FinalizeUploadHealingOperationRequest {
+  // Exact output manifest for one step.
+  message StepManifest {
+    // Healing step.
+    string upload_healing_step = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/UploadHealingStep"
+      }
+    ];
+    // Exact output versions captured after the drain.
+    LabeledOutputManifest labeled_output_manifest = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
+  // Healing operation.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+  // Exact manifests for every operation step.
+  repeated StepManifest step_manifests = 2
+      [(google.api.field_behavior) = REQUIRED];
+  // Expected operation etag.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+  // Idempotency request ID.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `AdvanceUploadHealingStep`.
+message AdvanceUploadHealingStepRequest {
+  // Controller-owned checkpoint action.
+  enum Action {
+    // Unspecified action.
+    ACTION_UNSPECIFIED = 0;
+    // Records completed eviction.
+    CONFIRM_EVICTION = 1;
+    // Records the exact recovery generation.
+    RECORD_RECOVERY = 2;
+    // Records the durable replacement upload.
+    CONFIRM_REPLACEMENT = 3;
+  }
+  // Healing step.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingStep"
+    }
+  ];
+  // Checkpoint action.
+  Action action = 2 [(google.api.field_behavior) = REQUIRED];
+  // Replacement upload, when confirming replacement.
+  string replacement_raw_impression_upload = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+  // Positive recovery generation, when recording recovery.
+  int64 recovery_done_blob_generation = 4
+      [(google.api.field_behavior) = OPTIONAL];
+  // Expected step etag.
+  string etag = 5 [(google.api.field_behavior) = REQUIRED];
+  // Idempotency request ID.
+  string request_id = 6 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `PurgeRawImpressionUploadCorrectionCandidates`.
+message PurgeRawImpressionUploadCorrectionCandidatesRequest {
+  // Parent DataProvider.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+    }
+  ];
+  // Maximum number of expired candidates to purge.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Result of bounded correction-candidate cleanup.
+message PurgeRawImpressionUploadCorrectionCandidatesResponse {
+  // Number of candidates purged.
+  int32 purged_count = 1;
+}

@@ -345,7 +345,7 @@ class VidLabelingDispatcherTest {
       storageClient = storageClient,
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
-      correctionDetectionStub = correctionCandidateStub,
+      correctionDetectionStub = CorrectionDetectionClient(correctionCandidateStub),
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
       rankIndexBlobStub = rankIndexBlobStub,
       modelLinesStub = modelLinesStub,

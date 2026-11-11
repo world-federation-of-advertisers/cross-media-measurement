@@ -986,7 +986,8 @@ resource "google_storage_bucket_object" "upload_vid_labeling_dispatcher_config" 
 }
 
 module "vid_labeling_dispatcher_cloud_function" {
-  source = "../http-cloud-function"
+  deployment_enabled = var.vid_labeling_machine_functions_deployment_enabled
+  source             = "../http-cloud-function"
 
   depends_on = [
     module.secrets,
@@ -1097,7 +1098,8 @@ module "vid_labeling_dispatch_cloud_scheduler" {
 
 # ---- VidLabelingHealingController (scheduled HTTP Cloud Function) ----
 module "vid_labeling_healing_controller_cloud_function" {
-  source = "../http-cloud-function"
+  deployment_enabled = var.vid_labeling_machine_functions_deployment_enabled
+  source             = "../http-cloud-function"
 
   depends_on = [
     module.secrets,

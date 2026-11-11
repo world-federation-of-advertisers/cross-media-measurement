@@ -13,6 +13,27 @@
 # limitations under the License.
 
 locals {
+  vid_labeling_machine_api_audience = "https://${var.metadata_storage_public_api_target}/vid-labeling-machine-api"
+  vid_labeling_dispatcher_environment = {
+    for entry in compact(split(",", var.vid_labeling_dispatcher_env_var)) :
+    regex("^([^=]+)=(.*)$", entry)[0] => regex("^([^=]+)=(.*)$", entry)[1]
+  }
+  vid_labeling_healing_controller_environment = {
+    for entry in compact(split(",", var.vid_labeling_healing_controller_env_var)) :
+    regex("^([^=]+)=(.*)$", entry)[0] => regex("^([^=]+)=(.*)$", entry)[1]
+  }
+  vid_labeling_shared_environment = {
+    for key, value in local.vid_labeling_dispatcher_environment : key => value
+    if contains(["RAW_IMPRESSION_UPLOAD_TARGET", "RAW_IMPRESSION_UPLOAD_CERT_HOST", "CONTROL_PLANE_TARGET", "CONTROL_PLANE_CERT_HOST", "GOOGLE_PROJECT_ID"], key)
+  }
+  vid_labeling_dispatcher_machine_environment = {
+    for key, value in merge(local.vid_labeling_dispatcher_environment, { VID_LABELING_MACHINE_API_AUDIENCE = local.vid_labeling_machine_api_audience }) : key => value
+    if !contains(["CORRECTION_DETECTION_TARGET", "CORRECTION_DETECTION_CERT_HOST"], key)
+  }
+  vid_labeling_healing_machine_environment = {
+    for key, value in merge({ OTEL_SERVICE_NAME = "edpa.vid_labeling_healing_controller", OTEL_METRICS_EXPORTER = "google_cloud_monitoring", OTEL_TRACES_EXPORTER = "google_cloud_trace", OTEL_LOGS_EXPORTER = "logging" }, local.vid_labeling_healing_controller_environment, local.vid_labeling_shared_environment, { VID_LABELING_MACHINE_API_AUDIENCE = local.vid_labeling_machine_api_audience }) : key => value
+    if !contains(["HEALING_INTERNAL_API_TARGET", "HEALING_INTERNAL_API_CERT_HOST"], key)
+  }
 
   edp_secret_mount_paths = {
     edp7 = {
@@ -434,7 +455,7 @@ locals {
     vid_labeling_dispatcher = {
       function_name   = "vid-labeling-dispatcher"
       entry_point     = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingDispatcherFunction"
-      extra_env_vars  = "${var.vid_labeling_dispatcher_env_var},CONFIG_BLOB_KEY=${local.vid_labeling_dispatcher_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
+      extra_env_vars  = "${join(",", [for key, value in local.vid_labeling_dispatcher_machine_environment : "${key}=${value}"])},CONFIG_BLOB_KEY=${local.vid_labeling_dispatcher_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
       secret_mappings = var.vid_labeling_dispatcher_secret_mapping
       uber_jar_path   = var.vid_labeling_dispatcher_uber_jar_path
     }
@@ -449,7 +470,7 @@ locals {
       function_name = "vid-labeling-healing-controller"
       entry_point   = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingHealingControllerFunction"
       extra_env_vars = join(",", compact([
-        var.vid_labeling_healing_controller_env_var,
+        join(",", [for key, value in local.vid_labeling_healing_machine_environment : "${key}=${value}"]),
         "CONFIG_BLOB_KEY=${local.vid_labeling_dispatcher_config.destination}",
         "DATA_WATCHER_CONFIG_BLOB_KEY=${local.data_watcher_config.destination}",
         "EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}",
@@ -509,6 +530,7 @@ locals {
     scheduler_job_description = "Runs the VID-labeling healing controller every five minutes"
     scheduler_job_name        = "vid-labeling-healing-controller"
     attempt_deadline          = "660s"
+    paused                    = !var.vid_labeling_machine_functions_deployment_enabled
   }
 
   # Shared TEE-app flags (from BaseTeeAppRunner) reused by the three VID Labeling
@@ -628,7 +650,8 @@ locals {
 }
 
 module "edp_aggregator" {
-  source = "../modules/edp-aggregator"
+  vid_labeling_machine_functions_deployment_enabled = var.vid_labeling_machine_functions_deployment_enabled
+  source                                            = "../modules/edp-aggregator"
 
   depends_on = [google_project_iam_member.terraform_metric_writer]
 

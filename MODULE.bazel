@@ -240,6 +240,8 @@ maven.artifact(
 )
 maven.install(
     artifacts = [
+        # Public types returned by the existing Google ID-token verifier.
+        "com.google.http-client:google-http-client:1.47.0",
         "com.squareup.okhttp3:okhttp",
         "com.squareup.okhttp3:okhttp-tls",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",

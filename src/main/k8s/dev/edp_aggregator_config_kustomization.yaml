@@ -16,6 +16,7 @@ configMapGenerator:
   - name: edp-aggregator-config
     files:
     - trusted_certs.pem
+    - vid-labeling-machine-api-config.textproto
     - event-group-activity-sync-config-edp7.textproto
     - data-availability-recovery-config-edp7.textproto
     - kingdom_root.pem

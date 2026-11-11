@@ -33,6 +33,10 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
+      vid-labeling-machine-api-config:
+        description: Applied Terraform machine authorization output
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -200,6 +204,21 @@ jobs:
         output = pathlib.Path(os.environ["KUSTOMIZATION_PATH"]) / "src/main/k8s/dev/edp_aggregator_config/data-availability-recovery-config-edp7.textproto"
         output.write_text(config.strip() + "\n")
         PY
+
+    - name: Write machine API authorization configuration
+      env:
+        MACHINE_API_CONFIG_JSON: ${{ inputs.vid-labeling-machine-api-config }}
+        APPLY_CONFIGURATION: ${{ inputs.apply }}
+      run: |
+        args=(
+          --config-json "$MACHINE_API_CONFIG_JSON"
+          --audience "https://$METADATA_STORAGE_PUBLIC_API_TARGET/vid-labeling-machine-api"
+          --output "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/vid-labeling-machine-api-config.textproto"
+        )
+        if [[ "$APPLY_CONFIGURATION" == "true" ]]; then
+          args+=(--require-subjects)
+        fi
+        python3 .github/workflows/scripts/write_vid_labeling_machine_api_config.py "${args[@]}"
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator" >> $GITHUB_ENV

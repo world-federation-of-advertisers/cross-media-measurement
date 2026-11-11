@@ -198,3 +198,14 @@ kt_jvm_proto_library(
     name = "dashboard_config_kt_jvm_proto",
     deps = [":dashboard_config_proto"],
 )
+
+proto_library(
+    name = "vid_labeling_machine_api_config_proto",
+    srcs = ["vid_labeling_machine_api_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "vid_labeling_machine_api_config_kt_jvm_proto",
+    deps = [":vid_labeling_machine_api_config_proto"],
+)

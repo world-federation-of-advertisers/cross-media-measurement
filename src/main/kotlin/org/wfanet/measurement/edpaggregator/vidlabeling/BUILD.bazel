@@ -115,6 +115,7 @@ kt_jvm_library(
         "VidLabelingDispatcherMetrics.kt",
     ],
     deps = [
+        ":correction_detection_client",
         ":raw_impression_upload_manifest_classifier",
         ":request_ids",
         ":vid_labeling_dispatch_sequencer",
@@ -192,5 +193,18 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_library(
+    name = "correction_detection_client",
+    srcs = [
+        "CorrectionDetectionClient.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:vid_labeling_machine_api_conversions",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_machine_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_correction_candidate_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_kt_jvm_proto",
     ],
 )

@@ -21,3 +21,11 @@ output "work_item_tee_mig_names" {
     ],
   )
 }
+
+output "vid_labeling_machine_api_service_account_subjects" {
+  description = "Numeric Google ID-token subjects for the machine functions."
+  value = {
+    dispatcher         = [module.vid_labeling_dispatcher_cloud_function.cloud_function_service_account.unique_id]
+    healing_controller = [module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.unique_id]
+  }
+}

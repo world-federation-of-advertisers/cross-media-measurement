@@ -691,3 +691,24 @@ kt_jvm_grpc_proto_library(
     name = "vid_labeling_job_service_kt_jvm_grpc_proto",
     deps = [":vid_labeling_job_service_proto"],
 )
+
+proto_library(
+    name = "vid_labeling_machine_service_proto",
+    srcs = ["vid_labeling_machine_service.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":raw_impression_upload_correction_candidate_proto",
+        ":raw_impression_upload_proto",
+        ":upload_healing_operation_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "vid_labeling_machine_service_kt_jvm_grpc_proto",
+    deps = [":vid_labeling_machine_service_proto"],
+)

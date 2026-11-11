@@ -90,7 +90,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate as InternalCandidate
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub as CorrectionDetectionStub
 import org.wfanet.measurement.internal.edpaggregator.activateQuarantinedRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.createQuarantinedRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
@@ -141,7 +140,7 @@ class VidLabelingDispatcher(
   private val storageClient: StorageClient,
   private val rawImpressionUploadStub: RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
-  private val correctionDetectionStub: CorrectionDetectionStub,
+  private val correctionDetectionStub: CorrectionDetectionClient,
   private val rawImpressionUploadModelLineStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankIndexBlobStub: RankIndexBlobServiceCoroutineStub,
   private val modelLinesStub: ModelLinesCoroutineStub,

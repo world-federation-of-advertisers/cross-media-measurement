@@ -508,3 +508,16 @@ k8s_apply(
     name = "apply_kustomization",
     srcs = [":kustomization"],
 )
+
+filegroup(
+    name = "vid_labeling_machine_api_tls_files",
+    srcs = [
+        "edp_aggregator_root.pem",
+        "edp_aggregator_tls.key",
+        "edp_aggregator_tls.pem",
+        "edpa_tee_app_tls.key",
+        "edpa_tee_app_tls.pem",
+        "secure_computation_root.pem",
+        ":edp_aggregator_trusted_certs.pem",
+    ],
+)

@@ -6,13 +6,19 @@ kt_jvm_library(
     name = "system_api_server",
     srcs = ["SystemApiServer.kt"],
     deps = [
+        ":redacting_logging_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiter_provider",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiting_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:vid_labeling_machine_authorizer",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:services",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:vid_labeling_machine_services",
         "//src/main/proto/wfa/measurement/config:rate_limit_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_machine_api_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/netty/handler",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
@@ -22,6 +28,7 @@ kt_jvm_library(
 java_binary(
     name = "SystemApiServer",
     main_class = "org.wfanet.measurement.edpaggregator.deploy.common.server.SystemApiServer",
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:__pkg__"],
     runtime_deps = [":system_api_server"],
 )
 
@@ -30,4 +37,17 @@ java_image(
     binary = ":SystemApiServer",
     main_class = "org.wfanet.measurement.edpaggregator.deploy.common.server.SystemApiServer",
     visibility = ["//src:docker_image_deployment"],
+)
+
+kt_jvm_library(
+    name = "redacting_logging_server_interceptor",
+    srcs = ["RedactingLoggingServerInterceptor.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    ],
+    deps = [
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
 )

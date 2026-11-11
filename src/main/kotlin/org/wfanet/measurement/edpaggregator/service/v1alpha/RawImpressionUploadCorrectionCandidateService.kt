@@ -26,17 +26,14 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadCorrectionCandidateKey
-import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
-import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
+import org.wfanet.measurement.edpaggregator.service.toPublic as toPublicResource
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadCorrectionCandidatesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadCorrectionCandidatesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadCorrectionCandidatesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesPageToken as InternalListCandidatesPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequestKt as InternalListCandidatesRequestKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesResponse as InternalListCandidatesResponse
@@ -135,70 +132,7 @@ class RawImpressionUploadCorrectionCandidateService(
 
   private fun InternalCandidate.toPublic(
     includeDifferences: Boolean = false
-  ): RawImpressionUploadCorrectionCandidate = rawImpressionUploadCorrectionCandidate {
-    name =
-      RawImpressionUploadCorrectionCandidateKey(
-          this@toPublic.dataProviderResourceId,
-          this@toPublic.rawImpressionUploadCorrectionCandidateId,
-        )
-        .toName()
-    rawImpressionUpload =
-      RawImpressionUploadKey(
-          this@toPublic.dataProviderResourceId,
-          this@toPublic.rawImpressionUploadResourceId,
-        )
-        .toName()
-    classification = this@toPublic.classification.toPublic()
-    priorManifestDigest = this@toPublic.priorManifestDigest
-    currentManifestDigest = this@toPublic.currentManifestDigest
-    state = this@toPublic.state.toPublic()
-    decision = this@toPublic.decision.toPublic()
-    if (supersedingRawImpressionUploadCorrectionCandidateId.isNotEmpty()) {
-      supersedingRawImpressionUploadCorrectionCandidate =
-        RawImpressionUploadCorrectionCandidateKey(
-            this@toPublic.dataProviderResourceId,
-            this@toPublic.supersedingRawImpressionUploadCorrectionCandidateId,
-          )
-          .toName()
-    }
-    if (uploadHealingOperationId.isNotEmpty()) {
-      uploadHealingOperation =
-        UploadHealingOperationKey(
-            this@toPublic.dataProviderResourceId,
-            this@toPublic.uploadHealingOperationId,
-          )
-          .toName()
-    }
-    expireTime = this@toPublic.expireTime
-    createTime = this@toPublic.createTime
-    updateTime = this@toPublic.updateTime
-    etag = this@toPublic.etag
-    if (includeDifferences) {
-      manifestDifferences +=
-        this@toPublic.manifestComparison.differencesList.map { difference ->
-          RawImpressionUploadCorrectionCandidateKt.manifestDifference {
-            type = difference.type.toPublic()
-            val prior = difference.prior.takeIf { difference.hasPrior() }
-            val current = difference.current.takeIf { difference.hasCurrent() }
-            blobUri = prior?.blobUri ?: checkNotNull(current).blobUri
-            if (prior != null) {
-              priorBlobGeneration = prior.blobGeneration
-              priorEventDate = prior.eventDate
-              priorOutputSourceRawImpressionUpload =
-                RawImpressionUploadKey(
-                    this@toPublic.dataProviderResourceId,
-                    prior.outputSourceRawImpressionUploadResourceId,
-                  )
-                  .toName()
-            }
-            if (current != null) {
-              currentBlobGeneration = current.blobGeneration
-              currentEventDate = current.eventDate
-            }
-          }
-        }
-    }
-  }
+  ): RawImpressionUploadCorrectionCandidate = toPublicResource(includeDifferences)
 
   private fun translateCandidateError(e: StatusException) =
     when (e.status.code) {
@@ -226,34 +160,6 @@ class RawImpressionUploadCorrectionCandidateService(
   }
 }
 
-private fun InternalCandidate.Classification.toPublic() =
-  when (this) {
-    InternalCandidate.Classification.CLASSIFICATION_EDITED ->
-      RawImpressionUploadCorrectionCandidate.Classification.EDITED
-    InternalCandidate.Classification.CLASSIFICATION_REMOVED ->
-      RawImpressionUploadCorrectionCandidate.Classification.REMOVED
-    InternalCandidate.Classification.CLASSIFICATION_MIXED ->
-      RawImpressionUploadCorrectionCandidate.Classification.MIXED
-    InternalCandidate.Classification.CLASSIFICATION_UNSPECIFIED,
-    InternalCandidate.Classification.UNRECOGNIZED ->
-      RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_UNSPECIFIED
-  }
-
-private fun InternalCandidate.ManifestDifference.Type.toPublic() =
-  when (this) {
-    InternalCandidate.ManifestDifference.Type.TYPE_ADDED ->
-      RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.ADDED
-    InternalCandidate.ManifestDifference.Type.TYPE_EDITED ->
-      RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.EDITED
-    InternalCandidate.ManifestDifference.Type.TYPE_REMOVED ->
-      RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.REMOVED
-    InternalCandidate.ManifestDifference.Type.TYPE_EVENT_DATE_CHANGED ->
-      RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.EVENT_DATE_CHANGED
-    InternalCandidate.ManifestDifference.Type.TYPE_UNSPECIFIED,
-    InternalCandidate.ManifestDifference.Type.UNRECOGNIZED ->
-      RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_UNSPECIFIED
-  }
-
 private fun RawImpressionUploadCorrectionCandidate.Classification.toInternal() =
   when (this) {
     RawImpressionUploadCorrectionCandidate.Classification.EDITED ->
@@ -265,20 +171,6 @@ private fun RawImpressionUploadCorrectionCandidate.Classification.toInternal() =
     RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_UNSPECIFIED,
     RawImpressionUploadCorrectionCandidate.Classification.UNRECOGNIZED ->
       InternalCandidate.Classification.CLASSIFICATION_UNSPECIFIED
-  }
-
-private fun InternalCandidate.State.toPublic() =
-  when (this) {
-    InternalCandidate.State.STATE_PENDING -> RawImpressionUploadCorrectionCandidate.State.PENDING
-    InternalCandidate.State.STATE_ASSIGNED -> RawImpressionUploadCorrectionCandidate.State.ASSIGNED
-    InternalCandidate.State.STATE_COMPLETE -> RawImpressionUploadCorrectionCandidate.State.COMPLETE
-    InternalCandidate.State.STATE_SUPERSEDED ->
-      RawImpressionUploadCorrectionCandidate.State.SUPERSEDED
-    InternalCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED ->
-      RawImpressionUploadCorrectionCandidate.State.MANUAL_INTERVENTION_REQUIRED
-    InternalCandidate.State.STATE_UNSPECIFIED,
-    InternalCandidate.State.UNRECOGNIZED ->
-      RawImpressionUploadCorrectionCandidate.State.STATE_UNSPECIFIED
   }
 
 private fun RawImpressionUploadCorrectionCandidate.State.toInternal() =
@@ -293,15 +185,4 @@ private fun RawImpressionUploadCorrectionCandidate.State.toInternal() =
     RawImpressionUploadCorrectionCandidate.State.STATE_UNSPECIFIED,
     RawImpressionUploadCorrectionCandidate.State.UNRECOGNIZED ->
       InternalCandidate.State.STATE_UNSPECIFIED
-  }
-
-private fun InternalCandidate.Decision.toPublic() =
-  when (this) {
-    InternalCandidate.Decision.DECISION_APPLY_CANDIDATE ->
-      RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
-    InternalCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT ->
-      RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
-    InternalCandidate.Decision.DECISION_UNSPECIFIED,
-    InternalCandidate.Decision.UNRECOGNIZED ->
-      RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED
   }

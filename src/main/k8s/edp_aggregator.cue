@@ -142,6 +142,7 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 						"--cert-collection-file=\(MountRoot)/config/trusted_certs.pem",
 						"--tls-cert-file=\(MountRoot)/tls/tls.crt",
 						"--tls-key-file=\(MountRoot)/tls/tls.key",
+						"--vid-labeling-machine-api-config-file=\(MountRoot)/config/vid-labeling-machine-api-config.textproto",
 			] + _edpAggregatorInternalApiTarget.args
 			spec: template: spec: {
 				_dependencies: ["edp-aggregator-internal-api-server"]
@@ -173,6 +174,10 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 		}
 		"edp-aggregator-system-api-server": {
 			_destinationMatchLabels: ["edp-aggregator-internal-api-server-app"]
+			_egresses: googleTokenKeys: {
+				ports: [{protocol: "TCP", port: 443}]
+			}
+
 			_ingresses: {
 				gRpc: {
 					ports: [{

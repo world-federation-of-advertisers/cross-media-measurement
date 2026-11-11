@@ -45,7 +45,14 @@ on:
         description: Whether the RequisitionFetcher scheduler may start new invocations
         type: boolean
         default: true
+      vid-labeling-machine-functions-enabled:
+        description: Whether dispatcher/controller revisions may use the updated machine API
+        type: boolean
+        default: true
     outputs:
+      vid_labeling_machine_api_config:
+        description: Applied machine API audience and service-account subjects as JSON
+        value: ${{ jobs.terraform.outputs.vid_labeling_machine_api_config }}
       work_item_tee_mig_names:
         description: WorkItem-consuming Managed Instance Group names as JSON
         value: ${{ jobs.terraform.outputs.work_item_tee_mig_names }}
@@ -61,6 +68,7 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     outputs:
+      vid_labeling_machine_api_config: ${{ steps.terraform_outputs.outputs.vid_labeling_machine_api_config }}
       work_item_tee_mig_names: ${{ steps.terraform_outputs.outputs.work_item_tee_mig_names }}
     env:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
@@ -334,6 +342,7 @@ jobs:
         -var="vid_labeling_healing_labeled_output_object_prefixes=$VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES"
         -var="dashboard_compliance_uber_jar_path=${{ steps.download-uber-jars.outputs.dashboard_compliance_check_source_path }}"
         -var="image_tag=$IMAGE_TAG"
+        -var="vid_labeling_machine_functions_deployment_enabled=${{ inputs.vid-labeling-machine-functions-enabled }}"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"
         -var="requisition_fetcher_enabled=${{ inputs.requisition-fetcher-enabled }}"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
@@ -370,3 +379,5 @@ jobs:
       run: |
         mig_names=$(terraform output -json work_item_tee_mig_names | jq -c .)
         echo "work_item_tee_mig_names=$mig_names" >> "$GITHUB_OUTPUT"
+        machine_config=$(terraform output -raw vid_labeling_machine_api_config)
+        printf 'vid_labeling_machine_api_config=%s\n' "$machine_config" >> "$GITHUB_OUTPUT"

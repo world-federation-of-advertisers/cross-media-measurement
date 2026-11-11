@@ -160,3 +160,17 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "VidLabelingMachineCallCredentialsTest",
+    srcs = ["VidLabelingMachineCallCredentialsTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:machine_call_credentials"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingMachineCallCredentialsTest",
+    deps = [
+        "//imports/java/com/google/auth:oauth_http2",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)

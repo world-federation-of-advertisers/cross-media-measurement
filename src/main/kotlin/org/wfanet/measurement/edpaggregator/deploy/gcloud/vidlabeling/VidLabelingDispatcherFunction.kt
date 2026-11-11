@@ -64,15 +64,16 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingCorrectionDetectionServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.vidlabeling.CorrectionDetectionClient
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -102,9 +103,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`,
  *   `RawImpressionUploadModelLineService`, and `PoolAssignmentJobService`.
  * - `RAW_IMPRESSION_UPLOAD_CERT_HOST`: Optional. Overrides TLS authority for testing.
- * - `CORRECTION_DETECTION_TARGET`: Required. Target endpoint for the internal correction-detection
- *   service.
- * - `CORRECTION_DETECTION_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `VID_LABELING_MACHINE_API_AUDIENCE`: Required. Audience for the function service-account ID
+ *   token.
  * - `CONTROL_PLANE_TARGET`: Required. Target endpoint for the Secure Computation control plane
  *   (`WorkItemsService`).
  * - `CONTROL_PLANE_CERT_HOST`: Optional. Overrides TLS authority for testing.
@@ -222,16 +222,16 @@ class VidLabelingDispatcherFunction : HttpFunction {
         RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
           rawImpressionUploadChannel
         )
-      val correctionDetectionChannel =
-        VidLabelingFunctionHelpers.createInstrumentedChannel(
-          config.rawImpressionMetadataStorageConnection,
-          correctionDetectionTarget,
-          correctionDetectionCertHost,
-          grpcTelemetry,
-        )
       val correctionDetectionStub =
-        InternalCorrectionCandidateServiceGrpcKt
-          .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(correctionDetectionChannel)
+        CorrectionDetectionClient(
+          VidLabelingCorrectionDetectionServiceGrpcKt
+            .VidLabelingCorrectionDetectionServiceCoroutineStub(rawImpressionUploadChannel)
+            .withCallCredentials(
+              VidLabelingMachineCallCredentials(
+                EnvVars.checkNotNullOrEmpty("VID_LABELING_MACHINE_API_AUDIENCE")
+              )
+            )
+        )
 
       val rawImpressionUploadModelLineStub =
         RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
@@ -410,10 +410,6 @@ class VidLabelingDispatcherFunction : HttpFunction {
       EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET")
     private val rawImpressionUploadCertHost: String? =
       System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST")
-    private val correctionDetectionTarget: String =
-      EnvVars.checkNotNullOrEmpty("CORRECTION_DETECTION_TARGET")
-    private val correctionDetectionCertHost: String? =
-      System.getenv("CORRECTION_DETECTION_CERT_HOST")
     private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
     private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
     private val vidLabelerQueueName: String = EnvVars.checkNotNullOrEmpty("VID_LABELER_QUEUE_NAME")

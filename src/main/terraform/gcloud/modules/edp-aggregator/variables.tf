@@ -615,6 +615,7 @@ variable "vid_labeling_dispatch_scheduler_config" {
 variable "vid_labeling_healing_controller_scheduler_config" {
   description = "Configuration for the five-minute VID-labeling healing controller schedule."
   type = object({
+    paused                    = optional(bool, false)
     schedule                  = string
     time_zone                 = string
     name                      = string
@@ -632,4 +633,10 @@ variable "vid_labeling_healing_alert_notification_channels" {
   description = "Monitoring notification channels for VID-labeling healing alerts."
   type        = list(string)
   default     = []
+}
+
+variable "vid_labeling_machine_functions_deployment_enabled" {
+  description = "Whether machine-API function revisions may be deployed."
+  type        = bool
+  default     = true
 }

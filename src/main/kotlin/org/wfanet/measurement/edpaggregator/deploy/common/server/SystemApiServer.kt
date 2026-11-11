@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.common.server
 
 import io.grpc.ServerServiceDefinition
+import io.netty.handler.ssl.ClientAuth
 import java.io.File
 import java.time.Duration
 import kotlin.properties.Delegates
@@ -35,8 +36,12 @@ import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.RateLimitConfig
 import org.wfanet.measurement.config.RateLimitConfigKt
+import org.wfanet.measurement.config.edpaggregator.VidLabelingMachineApiConfig
 import org.wfanet.measurement.config.rateLimitConfig
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.service.VidLabelingMachineAuthorizer
 import org.wfanet.measurement.edpaggregator.service.v1alpha.Services
+import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingMachineApiServices
 import picocli.CommandLine
 
 private const val SERVER_NAME = "EdpAggregatorApiServer"
@@ -91,6 +96,12 @@ class SystemApiServer : Runnable {
   )
   private var rateLimitConfigFile: File? = null
 
+  @CommandLine.Option(
+    names = ["--vid-labeling-machine-api-config-file"],
+    description = ["Google service-account authorization for VID-labeling machine APIs."],
+  )
+  private var machineApiConfigFile: File? = null
+
   private val rateLimitConfig: RateLimitConfig by lazy {
     val configFile = rateLimitConfigFile
     if (configFile == null) {
@@ -117,12 +128,41 @@ class SystemApiServer : Runnable {
     // protection, not per-client fairness.
     val rateLimitingInterceptor =
       RateLimitingServerInterceptor(RateLimiterProvider(rateLimitConfig) { null }::getRateLimiter)
+    val machineServices =
+      machineApiConfigFile
+        ?.let { file ->
+          val config = parseTextProto(file, VidLabelingMachineApiConfig.getDefaultInstance())
+          VidLabelingMachineApiServices.build(
+            internalApiChannel,
+            VidLabelingMachineAuthorizer(config),
+            VidLabelingRpcThrottlers.fromMinimumIntervals(),
+            serviceDispatcher,
+          )
+        }
+        .orEmpty()
     val services: List<ServerServiceDefinition> =
-      Services.build(internalApiChannel, serviceDispatcher).toList().map {
-        it.withInterceptor(rateLimitingInterceptor)
-      }
+      (Services.build(internalApiChannel, serviceDispatcher).toList().map { it.bindService() } +
+          machineServices)
+        .map { it.withInterceptor(rateLimitingInterceptor) }
+        .map {
+          if (serverFlags.debugVerboseGrpcLogging)
+            it.withInterceptor(RedactingLoggingServerInterceptor)
+          else it
+        }
 
-    val server: CommonServer = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
+    // Per-service logging redacts credentials before the common server's error logging.
+    val server: CommonServer =
+      CommonServer.fromParameters(
+        verboseGrpcLogging = false,
+        certs = serverFlags.tlsFlags.signingCerts,
+        clientAuth =
+          if (serverFlags.clientAuthRequired) ClientAuth.REQUIRE else ClientAuth.OPTIONAL,
+        nameForLogging = SERVER_NAME,
+        services = services,
+        port = serverFlags.port,
+        healthPort = serverFlags.healthPort,
+        shutdownGracePeriodSeconds = serverFlags.shutdownGracePeriodSeconds,
+      )
     server.start().blockUntilShutdown()
   }
 

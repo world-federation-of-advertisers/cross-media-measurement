@@ -57,12 +57,12 @@ kt_jvm_library(
 kt_jvm_library(
     name = "vid_labeling_healing_controller",
     srcs = [
-        "CorrectionCandidateCleaner.kt",
-        "HealingOperationStore.kt",
         "VidLabelingHealingController.kt",
     ],
     deps = [
+        ":correction_candidate_cleaner",
         ":healing",
+        ":healing_operation_store",
         ":raw_impression_upload_correction_planner",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
@@ -94,5 +94,57 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+    ],
+)
+
+kt_jvm_library(
+    name = "system_api_healing_operation_store",
+    srcs = [
+        "SystemApiHealingOperationStore.kt",
+    ],
+    deps = [
+        ":healing_operation_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_machine_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "system_api_correction_candidate_cleaner",
+    srcs = [
+        "SystemApiCorrectionCandidateCleaner.kt",
+    ],
+    deps = [
+        ":correction_candidate_cleaner",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_machine_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "correction_candidate_cleaner",
+    srcs = ["CorrectionCandidateCleaner.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_correction_candidate_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "healing_operation_store",
+    srcs = ["HealingOperationStore.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_recovery_action_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_service_kt_jvm_grpc_proto",
     ],
 )
