@@ -471,9 +471,8 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
 
-  # Runs after run-edpa-reporting-integration-test, which seeds EventGroups for the same EDPs;
-  # concurrent EventGroupSync runs for one EDP race. That job is skipped unless requested and may
-  # fail independently, so each deployment job is required explicitly instead.
+  # Reporting reads the separately seeded high-overlap dataset, so these suites can run together.
+  # Each deployment must succeed before the EDPA cloud test starts.
   run-edpa-cloud-test:
     if: >-
       ${{ inputs.run-tests && !cancelled()
@@ -495,8 +494,7 @@ jobs:
       update-simulators,
       update-reporting-v2,
       update-secure-computation,
-      update-edp-aggregator-service,
-      run-edpa-reporting-integration-test
+      update-edp-aggregator-service
     ]
     uses: ./.github/workflows/edpa-cloud-test.yml
     secrets: inherit
