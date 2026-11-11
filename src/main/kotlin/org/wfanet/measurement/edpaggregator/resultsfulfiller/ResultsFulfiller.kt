@@ -130,6 +130,22 @@ class ResultsFulfiller(
   private val metrics: ResultsFulfillerMetrics,
 ) {
 
+  init {
+    groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)?.let { selectedModelLine ->
+      val visibleModelInfo = modelLineInfoMap.getValue(groupedRequisitions.modelLine)
+      val selectedModelInfo = modelLineInfoMap.getValue(selectedModelLine)
+      require(selectedModelInfo.populationSpec == visibleModelInfo.populationSpec) {
+        "Selected model line $selectedModelLine has an incompatible PopulationSpec"
+      }
+      require(
+        selectedModelInfo.eventDescriptor.fullName == visibleModelInfo.eventDescriptor.fullName &&
+          selectedModelInfo.eventDescriptor.toProto() == visibleModelInfo.eventDescriptor.toProto()
+      ) {
+        "Selected model line $selectedModelLine has an incompatible EventTemplate descriptor"
+      }
+    }
+  }
+
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
     EventProcessingOrchestrator<Message>(privateEncryptionKey = privateEncryptionKey)
   }
@@ -301,10 +317,8 @@ class ResultsFulfiller(
       }
     val modelLineKey = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLineKey)
-    val modelLine =
-      groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)
-        ?: modelInfo.localAlias
-        ?: modelLineKey
+    val selectedModelLine = groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)
+    val modelLine = selectedModelLine ?: modelInfo.localAlias ?: modelLineKey
     val eventDescriptor = modelInfo.eventDescriptor
 
     val populationSpec = modelInfo.populationSpec
@@ -315,11 +329,13 @@ class ResultsFulfiller(
         impressionDataSourceProvider = impressionDataSourceProvider,
         resolvedEventGroups = resolvedEventGroups,
         modelLine = modelLine,
-        failOnDeletedMetadata = groupedRequisitions.selectedModelLine.isNotEmpty(),
         kmsClient = kmsClient,
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
+        reportInterval =
+          groupedRequisitions.reportInterval.takeIf { groupedRequisitions.hasReportInterval() },
+        requireModelLineFinalization = groupedRequisitions.requireModelLineFinalization,
         readConcurrency = pipelineConfiguration.readConcurrency,
       )
 

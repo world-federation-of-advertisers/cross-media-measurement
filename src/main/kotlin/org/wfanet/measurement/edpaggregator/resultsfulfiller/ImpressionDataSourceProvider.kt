@@ -21,16 +21,20 @@ import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
 import io.grpc.Status
 import io.grpc.StatusException
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
@@ -54,6 +58,12 @@ data class ImpressionDataSource(
   val blobDetails: BlobDetails,
 )
 
+data class ModelLineDataSource(
+  val blobUriPrefix: String,
+  val validStartDate: LocalDate?,
+  val validEndDate: LocalDate?,
+)
+
 /**
  * @param impressionMetadataStub used to sync impressions with the ImpressionsMetadataStorage
  * @param dataProvider The DataProvider resource name
@@ -67,6 +77,7 @@ class ImpressionDataSourceProvider(
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val dataProvider: String,
   private val impressionsMetadataStorageConfig: StorageConfig,
+  private val modelLineDataSources: Map<String, ModelLineDataSource> = emptyMap(),
   private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
@@ -75,8 +86,22 @@ class ImpressionDataSourceProvider(
   suspend fun listImpressionDataSources(
     modelLine: String,
     eventGroups: Collection<ResolvedEventGroup>,
-    failOnDeletedMetadata: Boolean = false,
+    reportInterval: Interval? = null,
+    requireModelLineFinalization: Boolean = false,
   ): List<ImpressionDataSource> {
+    if (requireModelLineFinalization) {
+      val dataSource =
+        checkNotNull(modelLineDataSources[modelLine]) {
+          "Missing finalization data source for selected model line $modelLine"
+        }
+      validateFinalizedDates(
+        modelLine,
+        checkNotNull(reportInterval) {
+          "Missing Report interval for selected model line $modelLine"
+        },
+        dataSource,
+      )
+    }
     val eventGroupsByInterval: Map<Interval, List<ResolvedEventGroup>> =
       eventGroups
         .flatMap { eventGroup ->
@@ -85,15 +110,6 @@ class ImpressionDataSourceProvider(
         .groupBy({ it.first }, { it.second })
     val metadata = mutableListOf<ImpressionMetadata>()
     for ((interval, intervalEventGroups) in eventGroupsByInterval) {
-      if (failOnDeletedMetadata) {
-        requireNoDeletedMetadata(
-          modelLine,
-          ListImpressionMetadataRequestKt.filter {
-            this.modelLine = modelLine
-            intervalOverlaps = interval
-          },
-        )
-      }
       val entityKeys: Set<EntityKey> =
         intervalEventGroups
           .mapNotNull { eventGroup ->
@@ -144,8 +160,7 @@ class ImpressionDataSourceProvider(
   /** Queries impression metadata using [filter]. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private fun getImpressionsMetadata(
-    filter: ListImpressionMetadataRequest.Filter,
-    showDeleted: Boolean = false,
+    filter: ListImpressionMetadataRequest.Filter
   ): Flow<ImpressionMetadata> {
     logger.info("Resolving path for impression metadata: $filter")
 
@@ -168,7 +183,6 @@ class ImpressionDataSourceProvider(
               listImpressionMetadataRequest {
                 parent = dataProvider
                 this.filter = filter
-                this.showDeleted = showDeleted
                 this.pageSize = pageSize
                 this.pageToken = pageToken
               }
@@ -211,15 +225,44 @@ class ImpressionDataSourceProvider(
       .flattenConcat()
   }
 
-  private suspend fun requireNoDeletedMetadata(
+  private suspend fun validateFinalizedDates(
     modelLine: String,
-    filter: ListImpressionMetadataRequest.Filter,
+    reportInterval: Interval,
+    dataSource: ModelLineDataSource,
   ) {
-    val deletedFilter = filter.toBuilder().setState(ImpressionMetadata.State.DELETED).build()
-    val deleted = getImpressionsMetadata(deletedFilter, showDeleted = true).toList()
-    check(deleted.isEmpty()) {
-      "Selected model line $modelLine has deleted impression metadata overlapping the requested " +
-        "interval: ${deleted.map { it.blobUri }}"
+    val modelLineId = checkNotNull(ModelLineKey.fromName(modelLine)).modelLineId
+    val prefixUri = SelectedStorageClient.parseBlobUri(dataSource.blobUriPrefix)
+    val storageClient =
+      SelectedStorageClient(
+          prefixUri,
+          impressionsMetadataStorageConfig.rootDirectory,
+          impressionsMetadataStorageConfig.projectId,
+        )
+        .underlyingClient
+    val prefix = prefixUri.key.trimEnd('/')
+    require(reportInterval.hasStartTime() && reportInterval.hasEndTime()) {
+      "Invalid Report interval for selected model line $modelLine"
+    }
+    val start = reportInterval.startTime.toInstant()
+    val end = reportInterval.endTime.toInstant()
+    require(start < end) { "Invalid Report interval for selected model line $modelLine" }
+    val firstDate = start.atZone(ZoneOffset.UTC).toLocalDate()
+    val lastDate = end.minusNanos(1).atZone(ZoneOffset.UTC).toLocalDate()
+    val dates = generateSequence(firstDate) { it.plusDays(1) }.takeWhile { it <= lastDate }.toList()
+    for (date in dates) {
+      require(dataSource.validStartDate == null || date >= dataSource.validStartDate) {
+        "Selected model line $modelLine is not valid on $date"
+      }
+      require(dataSource.validEndDate == null || date <= dataSource.validEndDate) {
+        "Selected model line $modelLine is not valid on $date"
+      }
+      val doneBlobKey =
+        listOf(prefix, "model-line/$modelLineId/$date/done")
+          .filter(String::isNotEmpty)
+          .joinToString("/")
+      checkNotNull(storageClient.getBlob(doneBlobKey)) {
+        "Selected model line $modelLine is not finalized on $date"
+      }
     }
   }
 

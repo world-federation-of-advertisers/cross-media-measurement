@@ -23,6 +23,8 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
@@ -169,6 +171,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.NoOpFulfill
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
@@ -661,6 +664,8 @@ class ResultsFulfillerTest {
         multiplier = 1.0,
         randomnessFactor = 0.0,
       ),
+    groupedRequisitions: GroupedRequisitions = groupedRequisitions { groupId = "retry-group" },
+    modelLineInfoMap: Map<String, ModelLineInfo> = emptyMap(),
   ): ResultsFulfiller {
     val tmpDir = Files.createTempDirectory(null).toFile()
     return ResultsFulfiller(
@@ -670,8 +675,8 @@ class ResultsFulfillerTest {
       requisitionsThrottler = FakeThrottler(),
       kingdomThrottler = FakeThrottler(),
       privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-      groupedRequisitions = groupedRequisitions { groupId = "retry-group" },
-      modelLineInfoMap = emptyMap(),
+      groupedRequisitions = groupedRequisitions,
+      modelLineInfoMap = modelLineInfoMap,
       pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
       impressionDataSourceProvider =
         ImpressionDataSourceProvider(
@@ -687,6 +692,107 @@ class ResultsFulfillerTest {
       listMaxAttempts = listMaxAttempts,
       listRetryBackoff = listRetryBackoff,
     )
+  }
+
+  @Test
+  fun `selected model line with matching processing artifacts is accepted`() {
+    createRetryTestFulfiller(
+      groupedRequisitions =
+        groupedRequisitions {
+          groupId = "compatible"
+          modelLine = "visible"
+          selectedModelLine = "selected"
+        },
+      modelLineInfoMap = mapOf("visible" to MODEL_LINE_INFO, "selected" to MODEL_LINE_INFO),
+    )
+  }
+
+  @Test
+  fun `selected model line with mismatched population spec is rejected`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        createRetryTestFulfiller(
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "incompatible"
+              modelLine = "visible"
+              selectedModelLine = "selected"
+            },
+          modelLineInfoMap =
+            mapOf(
+              "visible" to MODEL_LINE_INFO,
+              "selected" to MODEL_LINE_INFO.copy(populationSpec = populationSpec {}),
+            ),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("incompatible PopulationSpec")
+  }
+
+  @Test
+  fun `selected model line with mismatched event descriptor is rejected`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        createRetryTestFulfiller(
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "incompatible"
+              modelLine = "visible"
+              selectedModelLine = "selected"
+            },
+          modelLineInfoMap =
+            mapOf(
+              "visible" to MODEL_LINE_INFO,
+              "selected" to
+                MODEL_LINE_INFO.copy(eventDescriptor = LabeledImpression.getDescriptor()),
+            ),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("incompatible EventTemplate descriptor")
+  }
+
+  @Test
+  fun `selected model line with same descriptor shape in another package is rejected`() {
+    val messageDescriptor =
+      DescriptorProtos.DescriptorProto.newBuilder()
+        .setName("Event")
+        .addField(
+          DescriptorProtos.FieldDescriptorProto.newBuilder()
+            .setName("value")
+            .setNumber(1)
+            .setType(DescriptorProtos.FieldDescriptorProto.Type.TYPE_INT64)
+        )
+        .build()
+    fun descriptor(packageName: String): Descriptors.Descriptor =
+      Descriptors.FileDescriptor.buildFrom(
+          DescriptorProtos.FileDescriptorProto.newBuilder()
+            .setName("$packageName.proto")
+            .setPackage(packageName)
+            .addMessageType(messageDescriptor)
+            .build(),
+          emptyArray(),
+        )
+        .findMessageTypeByName(messageDescriptor.name)
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        createRetryTestFulfiller(
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "incompatible-package"
+              modelLine = "visible"
+              selectedModelLine = "selected"
+            },
+          modelLineInfoMap =
+            mapOf(
+              "visible" to MODEL_LINE_INFO.copy(eventDescriptor = descriptor("visible")),
+              "selected" to MODEL_LINE_INFO.copy(eventDescriptor = descriptor("selected")),
+            ),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("incompatible EventTemplate descriptor")
   }
 
   @Test

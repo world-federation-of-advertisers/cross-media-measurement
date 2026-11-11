@@ -2377,6 +2377,11 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = false,
         modelLineCutovers = listOf(cutover),
+        modelLineDataSources =
+          mapOf(
+            historicalModelLine to DataAvailabilitySync.ModelLineDataSource(storageClient, edpPath),
+            replacementModelLine to DataAvailabilitySync.ModelLineDataSource(storageClient, edpPath),
+          ),
         publishEventGroupActivities = null,
       )
 
@@ -2388,9 +2393,17 @@ class DataAvailabilitySyncTest {
 
   @Test
   fun `sync advances from replacement alone after legacy required date`() = runBlocking {
-    val storageClient =
-      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val historicalStorageClient =
+      FakeBlobMetadataStorageClient(
+        FileSystemStorageClient(File(tempFolder.root, "historical-source").also(File::mkdirs))
+      )
+    val replacementStorageClient =
+      FakeBlobMetadataStorageClient(
+        FileSystemStorageClient(File(tempFolder.root, "replacement-source").also(File::mkdirs))
+      )
     val edpPath = "edp/edpa_edp"
+    val historicalPath = "edp/historical"
+    val replacementPath = "edp/replacement"
     val externalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/external"
     val historicalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/historical"
     val replacementModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/replacement"
@@ -2399,9 +2412,9 @@ class DataAvailabilitySyncTest {
 
     // A historical gap after the required-through date must not block replacement advancement.
     for (date in listOf("2026-10-01", "2026-10-02", "2026-10-03", "2026-10-05")) {
-      val prefix = "$edpPath/model-line/historical/$date"
-      storageClient.writeBlob("$prefix/data_campaign_1", ByteString.copyFromUtf8("data"))
-      storageClient.writeBlob("$prefix/done", ByteString.copyFromUtf8("done"))
+      val prefix = "$historicalPath/model-line/historical/$date"
+      historicalStorageClient.writeBlob("$prefix/data_campaign_1", ByteString.copyFromUtf8("data"))
+      historicalStorageClient.writeBlob("$prefix/done", ByteString.copyFromUtf8("done"))
     }
     // A replacement gap before cutover is outside its required window.
     for (date in
@@ -2414,17 +2427,17 @@ class DataAvailabilitySyncTest {
         "2026-10-04",
         "2026-10-05",
       )) {
-      val prefix = "$edpPath/model-line/replacement/$date"
-      storageClient.writeBlob("$prefix/data_campaign_1", ByteString.copyFromUtf8("data"))
-      storageClient.writeBlob("$prefix/done", ByteString.copyFromUtf8("done"))
+      val prefix = "$replacementPath/model-line/replacement/$date"
+      replacementStorageClient.writeBlob("$prefix/data_campaign_1", ByteString.copyFromUtf8("data"))
+      replacementStorageClient.writeBlob("$prefix/done", ByteString.copyFromUtf8("done"))
     }
     // A trailing, unfinalized folder extends neither contributor's required range.
-    storageClient.writeBlob(
-      "$edpPath/model-line/replacement/2026-10-06/data_campaign_1",
+    replacementStorageClient.writeBlob(
+      "$replacementPath/model-line/replacement/2026-10-06/data_campaign_1",
       ByteString.copyFromUtf8("data"),
     )
     seedBlobDetailsWithModelLine(
-      storageClient,
+      replacementStorageClient,
       folderPrefix,
       listOf(boundary.epochSecond to boundary.plusSeconds(86400).epochSecond),
       replacementModelLine,
@@ -2452,7 +2465,7 @@ class DataAvailabilitySyncTest {
     val dataAvailabilitySync =
       DataAvailabilitySync(
         edpPath,
-        storageClient,
+        replacementStorageClient,
         dataProvidersStub,
         impressionMetadataStub,
         "dataProviders/dataProvider123",
@@ -2471,6 +2484,13 @@ class DataAvailabilitySyncTest {
               Duration.ofDays(2),
             )
           ),
+        modelLineDataSources =
+          mapOf(
+            historicalModelLine to
+              DataAvailabilitySync.ModelLineDataSource(historicalStorageClient, historicalPath),
+            replacementModelLine to
+              DataAvailabilitySync.ModelLineDataSource(replacementStorageClient, replacementPath),
+          ),
         publishEventGroupActivities = null,
       )
 
@@ -2483,8 +2503,182 @@ class DataAvailabilitySyncTest {
     }
     val externalAvailability =
       requestCaptor.firstValue.dataAvailabilityIntervalsList.single { it.key == externalModelLine }
+    assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
+      .containsExactly(externalModelLine)
     assertThat(externalAvailability.value.endTime)
       .isEqualTo(boundary.plusSeconds(5 * 86400).toProtoTime())
+  }
+
+  @Test
+  fun `sync includes finalized zero-impression cutover date in visible availability`() =
+    runBlocking {
+      val storageClient =
+        FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+      val edpPath = "edp/edpa_edp"
+      val historicalPath = "edp/historical"
+      val replacementPath = "edp/replacement"
+      val externalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/external"
+      val historicalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/historical"
+      val replacementModelLine =
+        "modelProviders/provider1/modelSuites/suite1/modelLines/replacement"
+      val cutoverDate = LocalDate.of(2026, 10, 1)
+      val boundary = cutoverDate.atStartOfDay(ZoneOffset.UTC).toInstant()
+
+      for (date in listOf("2026-09-30", "2026-10-01", "2026-10-02")) {
+        storageClient.writeBlob(
+          "$historicalPath/model-line/historical/$date/done",
+          ByteString.copyFromUtf8("done"),
+        )
+      }
+      for (date in listOf("2026-10-01", "2026-10-02", "2026-10-03")) {
+        storageClient.writeBlob(
+          "$replacementPath/model-line/replacement/$date/done",
+          ByteString.copyFromUtf8("done"),
+        )
+      }
+      seedBlobDetailsWithModelLine(
+        storageClient,
+        folderPrefix,
+        listOf(
+          boundary.plusSeconds(86400).epochSecond to boundary.plusSeconds(2 * 86400).epochSecond
+        ),
+        replacementModelLine,
+        gapCheckDate = "2026-10-02",
+      )
+      wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+        .thenReturn(
+          computeModelLineBoundsResponse {
+            modelLineBounds += modelLineBoundMapEntry {
+              key = historicalModelLine
+              value = interval {
+                startTime = boundary.minusSeconds(86400).toProtoTime()
+                endTime = boundary.plusSeconds(2 * 86400).toProtoTime()
+              }
+            }
+            modelLineBounds += modelLineBoundMapEntry {
+              key = replacementModelLine
+              value = interval {
+                startTime = boundary.plusSeconds(86400).toProtoTime()
+                endTime = boundary.plusSeconds(2 * 86400).toProtoTime()
+              }
+            }
+          }
+        )
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          edpPath,
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+          modelLineCutovers =
+            listOf(
+              ModelLineCutover(
+                externalModelLine,
+                historicalModelLine,
+                replacementModelLine,
+                cutoverDate,
+                LocalDate.of(2026, 10, 2),
+                Duration.ofDays(1),
+              )
+            ),
+          modelLineDataSources =
+            mapOf(
+              historicalModelLine to
+                DataAvailabilitySync.ModelLineDataSource(storageClient, historicalPath),
+              replacementModelLine to
+                DataAvailabilitySync.ModelLineDataSource(storageClient, replacementPath),
+            ),
+          publishEventGroupActivities = null,
+        )
+
+      val outcome = dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+      assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+      verifyBlocking(dataProvidersServiceMock) {
+        replaceDataAvailabilityIntervals(requestCaptor.capture())
+      }
+      val availability = requestCaptor.firstValue.dataAvailabilityIntervalsList.single()
+      assertThat(availability.key).isEqualTo(externalModelLine)
+      assertThat(availability.value.startTime).isEqualTo(boundary.minusSeconds(86400).toProtoTime())
+      assertThat(availability.value.endTime)
+        .isEqualTo(boundary.plusSeconds(3 * 86400).toProtoTime())
+    }
+
+  @Test
+  fun `sync publishes cutover availability for an empty finalized trigger`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val edpPath = "edp/edpa_edp"
+    val historicalPath = "edp/historical"
+    val replacementPath = "edp/replacement"
+    val externalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/external"
+    val historicalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/historical"
+    val replacementModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/replacement"
+    val cutoverDate = LocalDate.of(2026, 10, 1)
+    val boundary = cutoverDate.atStartOfDay(ZoneOffset.UTC).toInstant()
+
+    storageClient.writeBlob("${folderPrefix}done", ByteString.EMPTY)
+    for (date in listOf("2026-09-30", "2026-10-01")) {
+      storageClient.writeBlob(
+        "$historicalPath/model-line/historical/$date/done",
+        ByteString.copyFromUtf8("done"),
+      )
+    }
+    storageClient.writeBlob(
+      "$replacementPath/model-line/replacement/2026-10-01/done",
+      ByteString.copyFromUtf8("done"),
+    )
+    wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+      .thenReturn(computeModelLineBoundsResponse {})
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        edpPath,
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        modelLineCutovers =
+          listOf(
+            ModelLineCutover(
+              externalModelLine,
+              historicalModelLine,
+              replacementModelLine,
+              cutoverDate,
+              LocalDate.of(2026, 10, 2),
+              Duration.ofDays(1),
+            )
+          ),
+        modelLineDataSources =
+          mapOf(
+            historicalModelLine to
+              DataAvailabilitySync.ModelLineDataSource(storageClient, historicalPath),
+            replacementModelLine to
+              DataAvailabilitySync.ModelLineDataSource(storageClient, replacementPath),
+          ),
+        publishEventGroupActivities = null,
+      )
+
+    val outcome = dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+    verifyBlocking(dataProvidersServiceMock) {
+      replaceDataAvailabilityIntervals(requestCaptor.capture())
+    }
+    val availability = requestCaptor.firstValue.dataAvailabilityIntervalsList.single()
+    assertThat(availability.key).isEqualTo(externalModelLine)
+    assertThat(availability.value.startTime).isEqualTo(boundary.minusSeconds(86400).toProtoTime())
+    assertThat(availability.value.endTime).isEqualTo(boundary.plusSeconds(86400).toProtoTime())
   }
 
   @Test

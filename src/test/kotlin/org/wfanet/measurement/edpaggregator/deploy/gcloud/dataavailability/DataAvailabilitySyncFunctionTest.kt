@@ -446,6 +446,43 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
+  fun `trigger data source is selected by configured bucket and path`() {
+    val config =
+      DataAvailabilitySyncConfig.newBuilder()
+        .setEdpImpressionPath("edp/default")
+        .setDataAvailabilityStorage(
+          org.wfanet.measurement.config.edpaggregator.StorageParams.newBuilder()
+            .setGcs(
+              org.wfanet.measurement.config.edpaggregator.StorageParams.GcsStorage.newBuilder()
+                .setBucketName("default-bucket")
+            )
+        )
+        .putModelLineDataSources(
+          MODEL_LINE,
+          DataAvailabilitySyncConfig.ModelLineDataSource.newBuilder()
+            .setStorage(
+              org.wfanet.measurement.config.edpaggregator.StorageParams.newBuilder()
+                .setGcs(
+                  org.wfanet.measurement.config.edpaggregator.StorageParams.GcsStorage.newBuilder()
+                    .setBucketName("legacy-bucket")
+                )
+            )
+            .setEdpImpressionPath("edp/legacy")
+            .build(),
+        )
+        .build()
+
+    val selected =
+      selectTriggerDataSource(
+        config,
+        "gs://legacy-bucket/edp/legacy/model-line/model-line-1/2026-10-05/done",
+      )
+
+    assertThat(selected.storage.gcs.bucketName).isEqualTo("legacy-bucket")
+    assertThat(selected.edpImpressionPath).isEqualTo("edp/legacy")
+  }
+
+  @Test
   fun `Secure Computation connection is independent from metadata connection`() {
     val config =
       fileSystemDataAvailabilitySyncConfig()

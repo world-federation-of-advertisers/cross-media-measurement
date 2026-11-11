@@ -112,4 +112,14 @@ message GroupedRequisitions {
     (google.api.field_behavior) = OPTIONAL,
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
+
+  // Immutable closed-open bounding interval of the complete Report.
+  google.type.Interval report_interval = 8
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Whether fulfillment must verify every date in `report_interval` against
+  // the selected model line's configured validity window and completion
+  // markers.
+  bool require_model_line_finalization = 9
+      [(google.api.field_behavior) = OPTIONAL];
 }

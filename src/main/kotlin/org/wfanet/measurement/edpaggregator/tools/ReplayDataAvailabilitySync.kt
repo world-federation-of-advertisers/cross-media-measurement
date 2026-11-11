@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.cloud.NoCredentials
+import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import io.grpc.Channel
 import io.grpc.ClientInterceptors
@@ -61,6 +62,18 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
+
+private data class ReplayStorageSource(
+  val storage: Storage,
+  val storageClient: GcsStorageClient,
+  val bucketName: String,
+  val edpImpressionPath: String,
+)
+
+private data class ReplaySourceSelection(
+  val source: ReplayStorageSource,
+  val selection: DataAvailabilitySyncReplay.Selection,
+)
 
 /** Replays data availability or only EventGroup activity for selected completion blobs. */
 @Command(
@@ -183,7 +196,6 @@ class ReplayDataAvailabilitySync : Runnable {
 
     val storageConfig = config.dataAvailabilityStorage.gcs
     require(storageConfig.bucketName.isNotEmpty()) { "GCS bucket_name must be set" }
-    val selection = buildReplaySelection(configuredPaths, storageConfig.bucketName)
     val storageApiEndpoint = storageApiEndpoint
     val storage =
       StorageOptions.newBuilder()
@@ -199,6 +211,53 @@ class ReplayDataAvailabilitySync : Runnable {
         .build()
         .service
     val storageClient = GcsStorageClient(storage, storageConfig.bucketName)
+    val modelLineStorageSources =
+      config.modelLineDataSourcesMap.mapValues { (modelLine, source) ->
+        require(source.storage.storageCase == StorageCase.GCS) {
+          "model_line_data_sources[$modelLine].storage must use GCS"
+        }
+        val sourceStorageConfig = source.storage.gcs
+        require(sourceStorageConfig.bucketName.isNotEmpty()) {
+          "model_line_data_sources[$modelLine].storage.gcs.bucket_name must be set"
+        }
+        val sourceStorage =
+          StorageOptions.newBuilder()
+            .also {
+              if (sourceStorageConfig.projectId.isNotEmpty()) {
+                it.setProjectId(sourceStorageConfig.projectId)
+              }
+              if (storageApiEndpoint != null) {
+                it.setHost(storageApiEndpoint)
+                it.setCredentials(NoCredentials.getInstance())
+              }
+            }
+            .build()
+            .service
+        ReplayStorageSource(
+          storage = sourceStorage,
+          storageClient = GcsStorageClient(sourceStorage, sourceStorageConfig.bucketName),
+          bucketName = sourceStorageConfig.bucketName,
+          edpImpressionPath = source.edpImpressionPath,
+        )
+      }
+    val modelLineDataSources =
+      modelLineStorageSources.mapValues { (_, source) ->
+        DataAvailabilitySync.ModelLineDataSource(
+          storageClient = source.storageClient,
+          edpImpressionPath = source.edpImpressionPath,
+        )
+      }
+    val storageSources =
+      (configuredPaths.map { impressionPath ->
+          ReplayStorageSource(
+            storage = storage,
+            storageClient = storageClient,
+            bucketName = storageConfig.bucketName,
+            edpImpressionPath = impressionPath,
+          )
+        } + modelLineStorageSources.values)
+        .distinctBy { it.bucketName to it.edpImpressionPath }
+    val sourceSelections = buildReplaySelections(storageSources, storageConfig.bucketName)
     val kingdomChannel =
       buildChannel(config.cmmsConnection, kingdomPublicApiTarget, kingdomPublicApiCertHost)
     val impressionMetadataChannel =
@@ -227,71 +286,81 @@ class ReplayDataAvailabilitySync : Runnable {
         Mode.FULL_SYNC ->
           buildEventGroupActivityPublisher(config, instrumentedKingdomChannel, throttler)
       }
-    val storageRootUri = BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = "")
-
     val succeeded =
       try {
         when (mode) {
           Mode.EVENT_GROUP_ACTIVITY_ONLY -> {
             val publisher = checkNotNull(eventGroupActivityPublisher)
-            val result = runBlocking {
-              EventGroupActivityBackfill(
-                  storageClient = storageClient,
-                  storageRootUri = storageRootUri,
-                  selection = selection.toEventGroupActivitySelection(),
-                  impressionMetadataStub = impressionMetadataStub,
-                  dataProviderName = config.dataProvider,
-                  throttler = throttler,
-                  impressionMetadataPageSize = impressionMetadataBatchSize,
-                  publishEventGroupActivities = publisher::publish,
-                )
-                .backfill()
+            val results = runBlocking {
+              sourceSelections.map { sourceSelection ->
+                EventGroupActivityBackfill(
+                    storageClient = sourceSelection.source.storageClient,
+                    storageRootUri =
+                      BlobUri(scheme = "gs", bucket = sourceSelection.source.bucketName, key = ""),
+                    selection = sourceSelection.selection.toEventGroupActivitySelection(),
+                    impressionMetadataStub = impressionMetadataStub,
+                    dataProviderName = config.dataProvider,
+                    throttler = throttler,
+                    impressionMetadataPageSize = impressionMetadataBatchSize,
+                    publishEventGroupActivities = publisher::publish,
+                  )
+                  .backfill()
+              }
             }
-            logActivityOnlyResult(result)
-            result.errors.isEmpty()
+            results.forEach(::logActivityOnlyResult)
+            results.all { it.errors.isEmpty() }
           }
           Mode.DATA_AVAILABILITY_ONLY,
           Mode.FULL_SYNC -> {
-            val result = runBlocking {
-              DataAvailabilitySyncReplay(
-                  storageClient = storageClient,
-                  storageRootUri = storageRootUri,
-                  selection = selection,
-                  sync = { doneBlobUri ->
-                    val blobKey = SelectedStorageClient.parseBlobUri(doneBlobUri).key
-                    val impressionPath = configuredPaths.single { blobKey.startsWith("$it/") }
-                    val dataAvailabilitySync =
-                      DataAvailabilitySync(
-                        edpImpressionPath = impressionPath,
-                        storageClient = storageClient,
-                        dataProvidersStub = DataProvidersCoroutineStub(instrumentedKingdomChannel),
-                        impressionMetadataServiceStub = impressionMetadataStub,
-                        dataProviderName = config.dataProvider,
-                        throttler = throttler,
-                        impressionMetadataBatchSize = impressionMetadataBatchSize,
-                        modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
-                        errorIfGapsExist = config.errorIfGapsExist,
-                        availabilityImpressionPaths = configuredPaths,
-                        modelLineCutovers =
-                          config.modelLineCutoversList.map(ModelLineCutover::from),
-                        publishEventGroupActivities =
-                          eventGroupActivityPublisher?.let { it::publish },
-                      )
-                    leaseRunner.run(config.dataProvider) { lease ->
-                      dataAvailabilitySync.sync(
-                        doneBlobPath = doneBlobUri,
-                        dataAvailabilitySyncLease = lease.name,
-                        doneBlobGeneration =
-                          DoneBlobGenerationResolver.resolve(storage, doneBlobUri),
-                        ensureLeaseActive = lease::invoke,
-                      )
-                    }
-                  },
-                )
-                .replay()
+            val results = runBlocking {
+              sourceSelections.map { sourceSelection ->
+                DataAvailabilitySyncReplay(
+                    storageClient = sourceSelection.source.storageClient,
+                    storageRootUri =
+                      BlobUri(scheme = "gs", bucket = sourceSelection.source.bucketName, key = ""),
+                    selection = sourceSelection.selection,
+                    sync = { doneBlobUri ->
+                      val triggerSource = resolveReplayStorageSource(storageSources, doneBlobUri)
+                      val availabilityPaths =
+                        storageSources
+                          .filter { it.bucketName == triggerSource.bucketName }
+                          .map { it.edpImpressionPath }
+                      val dataAvailabilitySync =
+                        DataAvailabilitySync(
+                          edpImpressionPath = triggerSource.edpImpressionPath,
+                          storageClient = triggerSource.storageClient,
+                          dataProvidersStub =
+                            DataProvidersCoroutineStub(instrumentedKingdomChannel),
+                          impressionMetadataServiceStub = impressionMetadataStub,
+                          dataProviderName = config.dataProvider,
+                          throttler = throttler,
+                          impressionMetadataBatchSize = impressionMetadataBatchSize,
+                          modelLineMap =
+                            config.modelLineMapMap.mapValues { it.value.modelLinesList },
+                          errorIfGapsExist = config.errorIfGapsExist,
+                          availabilityImpressionPaths = availabilityPaths,
+                          modelLineCutovers =
+                            config.modelLineCutoversList.map(ModelLineCutover::from),
+                          modelLineDataSources = modelLineDataSources,
+                          publishEventGroupActivities =
+                            eventGroupActivityPublisher?.let { it::publish },
+                        )
+                      leaseRunner.run(config.dataProvider) { lease ->
+                        dataAvailabilitySync.sync(
+                          doneBlobPath = doneBlobUri,
+                          dataAvailabilitySyncLease = lease.name,
+                          doneBlobGeneration =
+                            DoneBlobGenerationResolver.resolve(triggerSource.storage, doneBlobUri),
+                          ensureLeaseActive = lease::invoke,
+                        )
+                      }
+                    },
+                  )
+                  .replay()
+              }
             }
-            logDataAvailabilityReplayResult(result)
-            result.blockedByGaps == 0 && result.errors.isEmpty()
+            results.forEach(::logDataAvailabilityReplayResult)
+            results.all { it.blockedByGaps == 0 && it.errors.isEmpty() }
           }
         }
       } finally {
@@ -344,47 +413,89 @@ class ReplayDataAvailabilitySync : Runnable {
     )
   }
 
-  private fun buildReplaySelection(
-    configuredPaths: List<String>,
-    bucketName: String,
-  ): DataAvailabilitySyncReplay.Selection {
+  private fun buildReplaySelections(
+    sources: List<ReplayStorageSource>,
+    defaultBucketName: String,
+  ): List<ReplaySourceSelection> {
     if (replaySelection.hasBlobPrefix()) {
       val suppliedBlobPrefix = replaySelection.blobPrefix.trimEnd('/')
-      val normalizedBlobPrefix =
+      val parsedPrefix =
         if (suppliedBlobPrefix.startsWith("gs://")) {
           val parsedUri = SelectedStorageClient.parseBlobUri(suppliedBlobPrefix)
-          require(parsedUri.bucket == bucketName) {
-            "blob-prefix must use the configured GCS bucket: $suppliedBlobPrefix"
-          }
-          parsedUri.key.trimEnd('/')
+          parsedUri.bucket to parsedUri.key.trimEnd('/')
         } else {
-          suppliedBlobPrefix
+          defaultBucketName to suppliedBlobPrefix
         }
-      require(
-        configuredPaths.any { path ->
-          normalizedBlobPrefix == path || normalizedBlobPrefix.startsWith("$path/")
-        }
-      ) {
-        "blob-prefix must be a configured impression path or one of its descendants"
+      require(sources.any { it.bucketName == parsedPrefix.first }) {
+        "blob-prefix must use the configured GCS bucket: $suppliedBlobPrefix"
       }
-      return DataAvailabilitySyncReplay.Selection.BlobPrefix(normalizedBlobPrefix)
+      val source =
+        resolveReplayStorageSource(
+          sources,
+          parsedPrefix.first,
+          parsedPrefix.second,
+          suppliedBlobPrefix,
+          "blob-prefix must be a configured impression path or one of its descendants",
+        )
+      return listOf(
+        ReplaySourceSelection(
+          source,
+          DataAvailabilitySyncReplay.Selection.BlobPrefix(parsedPrefix.second),
+        )
+      )
     }
 
     val doneBlobUris = replaySelection.doneBlobUris.toSet()
-    for (doneBlobUri in doneBlobUris) {
-      val parsedUri = SelectedStorageClient.parseBlobUri(doneBlobUri)
-      require(parsedUri.scheme == "gs") { "done-blob-uri must use the gs scheme: $doneBlobUri" }
-      require(parsedUri.bucket == bucketName) {
-        "done-blob-uri must use the configured GCS bucket: $doneBlobUri"
+    val urisBySource =
+      doneBlobUris.groupBy { doneBlobUri ->
+        val parsedUri = SelectedStorageClient.parseBlobUri(doneBlobUri)
+        require(parsedUri.scheme == "gs") { "done-blob-uri must use the gs scheme: $doneBlobUri" }
+        require(sources.any { it.bucketName == parsedUri.bucket }) {
+          "done-blob-uri must use the configured GCS bucket: $doneBlobUri"
+        }
+        require(parsedUri.key.substringAfterLast('/') == DONE_BLOB_FILE_NAME) {
+          "done-blob-uri must identify a done blob: $doneBlobUri"
+        }
+        resolveReplayStorageSource(
+          sources,
+          parsedUri.bucket,
+          parsedUri.key,
+          doneBlobUri,
+          "done-blob-uri must be below a configured impression path: $doneBlobUri",
+        )
       }
-      require(parsedUri.key.substringAfterLast('/') == DONE_BLOB_FILE_NAME) {
-        "done-blob-uri must identify a done blob: $doneBlobUri"
-      }
-      require(configuredPaths.any { parsedUri.key.startsWith("$it/") }) {
-        "done-blob-uri must be below a configured impression path: $doneBlobUri"
-      }
+    return urisBySource.map { (source, uris) ->
+      ReplaySourceSelection(source, DataAvailabilitySyncReplay.Selection.DoneBlobUris(uris.toSet()))
     }
-    return DataAvailabilitySyncReplay.Selection.DoneBlobUris(doneBlobUris)
+  }
+
+  private fun resolveReplayStorageSource(
+    sources: List<ReplayStorageSource>,
+    doneBlobUri: String,
+  ): ReplayStorageSource {
+    val parsedUri = SelectedStorageClient.parseBlobUri(doneBlobUri)
+    require(parsedUri.scheme == "gs") { "done blob must use the gs scheme: $doneBlobUri" }
+    return resolveReplayStorageSource(sources, parsedUri.bucket, parsedUri.key, doneBlobUri)
+  }
+
+  private fun resolveReplayStorageSource(
+    sources: List<ReplayStorageSource>,
+    bucketName: String,
+    blobKey: String,
+    suppliedValue: String,
+    errorMessage: String = "Object must be below a configured impression source: $suppliedValue",
+  ): ReplayStorageSource {
+    return requireNotNull(
+      sources
+        .filter { source ->
+          source.bucketName == bucketName &&
+            (blobKey == source.edpImpressionPath ||
+              blobKey.startsWith("${source.edpImpressionPath}/"))
+        }
+        .maxByOrNull { it.edpImpressionPath.length }
+    ) {
+      errorMessage
+    }
   }
 
   private fun DataAvailabilitySyncReplay.Selection.toEventGroupActivitySelection():

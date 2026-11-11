@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.type.Interval
 import com.google.type.interval
@@ -59,6 +60,7 @@ class ImpressionDataSourceProviderTest {
 
   @get:Rule val tmp = TemporaryFolder()
   val modelLine = "model-line-1"
+  val fullModelLine = "modelProviders/provider/modelSuites/suite/modelLines/model-line-1"
   val impressionsBlobDetailsUriPrefix = "file:///meta-bucket/"
 
   private val impressionMetadataServiceMock =
@@ -74,11 +76,12 @@ class ImpressionDataSourceProviderTest {
     )
   }
 
-  private fun createService() =
+  private fun createService(modelLineDataSources: Map<String, ModelLineDataSource> = emptyMap()) =
     ImpressionDataSourceProvider(
       impressionMetadataStub = impressionMetadataStub,
       dataProvider = "dataProviders/123",
       impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmp.root),
+      modelLineDataSources = modelLineDataSources,
     )
 
   private fun referenceEventGroup(referenceId: String, period: Interval): ResolvedEventGroup {
@@ -106,20 +109,10 @@ class ImpressionDataSourceProviderTest {
   }
 
   @Test
-  fun `selected model line fails when matching metadata was deleted`(): Unit = runBlocking {
-    whenever(impressionMetadataServiceMock.listImpressionMetadata(any())).thenAnswer { invocation ->
-      val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
-      if (request.showDeleted) {
-        listImpressionMetadataResponse {
-          impressionMetadata += impressionMetadata {
-            state = ImpressionMetadata.State.DELETED
-            blobUri = "file:///meta-bucket/deleted-metadata"
-          }
-        }
-      } else {
-        listImpressionMetadataResponse {}
-      }
-    }
+  fun `selected model line fails when requested date is not finalized`(): Unit = runBlocking {
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse {})
+    File(tmp.root, "availability").mkdirs()
     val date = LocalDate.of(2026, 10, 5)
     val period = interval {
       startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
@@ -128,15 +121,25 @@ class ImpressionDataSourceProviderTest {
 
     val exception =
       assertFailsWith<IllegalStateException> {
-        createService()
+        createService(
+            mapOf(
+              fullModelLine to
+                ModelLineDataSource(
+                  "file:///availability/root",
+                  validStartDate = date,
+                  validEndDate = null,
+                )
+            )
+          )
           .listImpressionDataSources(
-            modelLine,
-            listOf(referenceEventGroup("eg-deleted", period)),
-            failOnDeletedMetadata = true,
+            fullModelLine,
+            listOf(referenceEventGroup("eg-missing", period)),
+            reportInterval = period,
+            requireModelLineFinalization = true,
           )
       }
 
-    assertThat(exception).hasMessageThat().contains("deleted impression metadata")
+    assertThat(exception).hasMessageThat().contains("not finalized")
   }
 
   @Test
@@ -145,20 +148,104 @@ class ImpressionDataSourceProviderTest {
       whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
         .thenReturn(listImpressionMetadataResponse {})
       val date = LocalDate.of(2026, 10, 5)
+      val availabilityDir = File(tmp.root, "availability").also(File::mkdirs)
+      val storageClient = FileSystemStorageClient(availabilityDir)
+      storageClient.writeBlob(
+        "root/model-line/model-line-1/$date/done",
+        ByteString.copyFromUtf8("done"),
+      )
       val period = interval {
         startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
         endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
       }
 
       val sources =
-        createService()
+        createService(
+            mapOf(
+              fullModelLine to
+                ModelLineDataSource(
+                  "file:///availability/root",
+                  validStartDate = date,
+                  validEndDate = null,
+                )
+            )
+          )
           .listImpressionDataSources(
-            modelLine,
+            fullModelLine,
             listOf(referenceEventGroup("eg-zero", period)),
-            failOnDeletedMetadata = true,
+            reportInterval = period,
+            requireModelLineFinalization = true,
           )
 
       assertThat(sources).isEmpty()
+    }
+
+  @Test
+  fun `cutover selection fails when finalization data source is missing`(): Unit = runBlocking {
+    val date = LocalDate.of(2026, 10, 5)
+    val reportInterval = interval {
+      startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        createService()
+          .listImpressionDataSources(
+            fullModelLine,
+            listOf(referenceEventGroup("eg-missing-source", reportInterval)),
+            reportInterval = reportInterval,
+            requireModelLineFinalization = true,
+          )
+      }
+
+    assertThat(exception).hasMessageThat().contains("Missing finalization data source")
+  }
+
+  @Test
+  fun `cutover selection validates dates outside current collection intervals`(): Unit =
+    runBlocking {
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+      val firstDate = LocalDate.of(2026, 10, 5)
+      val collectionDate = firstDate.plusDays(1)
+      val availabilityDir = File(tmp.root, "availability").also(File::mkdirs)
+      FileSystemStorageClient(availabilityDir)
+        .writeBlob(
+          "root/model-line/model-line-1/$collectionDate/done",
+          ByteString.copyFromUtf8("done"),
+        )
+      val collectionInterval = interval {
+        startTime = collectionDate.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime =
+          collectionDate.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+      val reportInterval = interval {
+        startTime = firstDate.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = firstDate.plusDays(2).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          createService(
+              mapOf(
+                fullModelLine to
+                  ModelLineDataSource(
+                    "file:///availability/root",
+                    validStartDate = firstDate,
+                    validEndDate = null,
+                  )
+              )
+            )
+            .listImpressionDataSources(
+              fullModelLine,
+              listOf(referenceEventGroup("eg-narrow", collectionInterval)),
+              reportInterval = reportInterval,
+              requireModelLineFinalization = true,
+            )
+        }
+
+      assertThat(exception).hasMessageThat().contains("not finalized on $firstDate")
     }
 
   @Test

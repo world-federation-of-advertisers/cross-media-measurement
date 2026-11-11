@@ -174,9 +174,6 @@ class RequisitionFetcher(
     require(!requisitionRefusalDuration.isZero && !requisitionRefusalDuration.isNegative) {
       "requisitionRefusalDuration must be positive, was $requisitionRefusalDuration"
     }
-    require(!StoragePathPrefixes.overlap(directStoragePathPrefix, storagePathPrefix)) {
-      "directStoragePathPrefix must not overlap storagePathPrefix"
-    }
     ModelLineCutoverValidator.validate(modelLineCutovers, legacyModelLineMap.keys)
   }
 
@@ -194,6 +191,12 @@ class RequisitionFetcher(
     val reportId: String
       get() = identifiers.reportName
   }
+
+  private data class ResolvedReportRouting(
+    val selectedModelLine: String,
+    val reportInterval: Interval?,
+    val requireModelLineFinalization: Boolean,
+  )
 
   private data class GroupLocation(val blobUri: String, val blobKey: String)
 
@@ -743,14 +746,16 @@ class RequisitionFetcher(
       if (pending.collected.isEmpty()) continue
 
       if (pending.collected.size >= pending.expected.size) {
-        val selectedModelLine = resolveSelectedModelLine(unit.identifiers)
+        val routing = resolveReportRouting(unit.identifiers)
         val rebuilt =
           try {
             requisitionGrouper.groupForReport(
               unit.reportId,
               pending.collected.values.toList(),
               existingGroupId,
-              selectedModelLine,
+              routing.selectedModelLine,
+              routing.reportInterval,
+              routing.requireModelLineFinalization,
             )
           } catch (e: InconsistentEventGroupSelectorsException) {
             logger.log(
@@ -792,7 +797,7 @@ class RequisitionFetcher(
         refuseUnregisteredAndPersist(unregistered, unit.reportId, invalidRefusal)
         return
       }
-      val selectedModelLine = resolveSelectedModelLine(unit.identifiers)
+      val routing = resolveReportRouting(unit.identifiers)
 
       // Split the report's requisitions into groups of at most [maxRequisitionsPerGroup],
       // each with its own groupId, blob, and atomic metadata batch. There is no upstream
@@ -810,7 +815,14 @@ class RequisitionFetcher(
         val groupId = UUID.randomUUID().toString()
         val grouped =
           try {
-            requisitionGrouper.groupForReport(unit.reportId, chunk, groupId, selectedModelLine)
+            requisitionGrouper.groupForReport(
+              unit.reportId,
+              chunk,
+              groupId,
+              routing.selectedModelLine,
+              routing.reportInterval,
+              routing.requireModelLineFinalization,
+            )
           } catch (e: InconsistentEventGroupSelectorsException) {
             val refusal = refusal {
               justification = Requisition.Refusal.Justification.UNFULFILLABLE
@@ -966,7 +978,7 @@ class RequisitionFetcher(
    * Returns the report ID embedded in [requisition]'s [MeasurementSpec], or `null` if the spec
    * cannot be parsed or has no report set.
    */
-  private suspend fun resolveSelectedModelLine(identifiers: ReportIdentifiers): String {
+  private suspend fun resolveReportRouting(identifiers: ReportIdentifiers): ResolvedReportRouting {
     val cutover =
       modelLineCutovers.singleOrNull { it.externalModelLine == identifiers.externalModelLine }
     val selectedModelLine =
@@ -979,7 +991,8 @@ class RequisitionFetcher(
           }
         cutover.selectModelLine(reportInterval.startTime.toInstant())
       }
-    val reportInterval = identifiers.reportInterval ?: return selectedModelLine
+    val reportInterval =
+      identifiers.reportInterval ?: return ResolvedReportRouting(selectedModelLine, null, false)
 
     val response =
       metadataThrottler.onReady {
@@ -1005,7 +1018,11 @@ class RequisitionFetcher(
           "but the persisted decision selects ${persisted.selectedModelLine}"
       )
     }
-    return persisted.selectedModelLine
+    return ResolvedReportRouting(
+      selectedModelLine = persisted.selectedModelLine,
+      reportInterval = persisted.reportInterval,
+      requireModelLineFinalization = persisted.hasCutoverTime(),
+    )
   }
 
   private fun extractReportIdentifiers(requisition: Requisition): ReportIdentifiers? {

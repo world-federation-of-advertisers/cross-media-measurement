@@ -104,6 +104,15 @@ message DataAvailabilitySyncConfig {
   // Report-level cutovers projected onto advertiser-visible availability.
   repeated ModelLineCutoverConfig model_line_cutovers = 9;
 
+  // Storage location for one cutover contributor model line.
+  message ModelLineDataSource {
+    StorageParams storage = 1;
+    string edp_impression_path = 2;
+  }
+
+  // Internal model line resource name to its storage location.
+  map<string, ModelLineDataSource> model_line_data_sources = 12;
+
   // List of model lines to use for a single mapping entry.
   message ModelLineList {
     repeated string model_lines = 1;
