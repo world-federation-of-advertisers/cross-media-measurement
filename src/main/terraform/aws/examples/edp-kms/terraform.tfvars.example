@@ -1,0 +1,16 @@
+region                      = "us-east-1"
+audience                    = "https://example-edp.confidential-space"
+existing_oidc_provider_arn  = null
+oidc_thumbprints            = ["REPLACE_WITH_VERIFIED_40_HEX_CHARACTER_CA_THUMBPRINT"]
+role_name                   = "halo-attested-kms"
+image_signature_key_id_tags = ["REPLACE_WITH_SIGNING_KEY_ID"]
+workload_project_ids        = ["example-operator-project"]
+kms_key_description         = "EDP input KEK"
+kms_key_alias               = "alias/edp-kek"
+enable_key_rotation         = true
+deletion_window_in_days     = 30
+key_administrator_arns      = ["arn:aws:iam::123456789012:root"]
+workload_kms_actions        = ["kms:Decrypt"]
+export_principal_permissions = {
+  "arn:aws:iam::123456789012:role/edp-export" = ["kms:Encrypt"]
+}

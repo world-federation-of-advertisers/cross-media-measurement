@@ -1,0 +1,18 @@
+project_id                         = "example-edp-project"
+kms_location                       = "us-central1"
+kms_keyring                        = "edp-key-ring"
+kms_key                            = "edp-kek"
+rotation_period                    = "63072000s"
+service_account_name               = "halo-kms"
+service_account_display_name       = "Halo attested KMS access"
+workload_identity_pool_id          = "halo-workloads"
+wip_display_name                   = "Halo workloads"
+workload_identity_pool_provider_id = "confidential-space"
+workload_project_ids               = ["example-operator-project"]
+workload_service_accounts          = ["results-fulfiller@example-operator-project.iam.gserviceaccount.com"]
+image_signature_fingerprints       = ["RSASSA_PSS_SHA256:REPLACE_WITH_SIGNING_KEY_ID"]
+allowed_audiences                  = ["https://sts.googleapis.com"]
+attested_kms_role                  = "roles/cloudkms.cryptoKeyDecrypter"
+export_principal_roles = {
+  "serviceAccount:export@example-edp-project.iam.gserviceaccount.com" = "roles/cloudkms.cryptoKeyEncrypter"
+}

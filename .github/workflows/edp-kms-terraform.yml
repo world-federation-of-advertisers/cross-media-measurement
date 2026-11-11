@@ -1,0 +1,83 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: EDP KMS Terraform
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/edp-kms-terraform.yml'
+      - 'src/main/terraform/gcloud/modules/confidential-space-workload-identity/**'
+      - 'src/main/terraform/gcloud/modules/edp-aggregator-edp-deployment/**'
+      - 'src/main/terraform/gcloud/examples/edp-kms/**'
+      - 'src/main/terraform/aws/modules/edp-kms/**'
+      - 'src/main/terraform/aws/examples/edp-kms/**'
+      - 'src/main/terraform/aws/examples/edp-kms-google-bridge/**'
+      - 'src/test/terraform/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/edp-kms-terraform.yml'
+      - 'src/main/terraform/gcloud/modules/confidential-space-workload-identity/**'
+      - 'src/main/terraform/gcloud/modules/edp-aggregator-edp-deployment/**'
+      - 'src/main/terraform/gcloud/examples/edp-kms/**'
+      - 'src/main/terraform/aws/modules/edp-kms/**'
+      - 'src/main/terraform/aws/examples/edp-kms/**'
+      - 'src/main/terraform/aws/examples/edp-kms-google-bridge/**'
+      - 'src/test/terraform/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  terraform:
+    name: Validate EDP modules and permissions
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+      - name: Validate configurations and run mocked permission plans
+        run: |
+          set -euo pipefail
+          export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/edp-tf-plugins"
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          paths=(
+            src/main/terraform/gcloud/modules/confidential-space-workload-identity
+            src/main/terraform/gcloud/modules/edp-aggregator-edp-deployment
+            src/main/terraform/gcloud/examples/edp-kms
+            src/main/terraform/aws/modules/edp-kms
+            src/main/terraform/aws/examples/edp-kms
+            src/main/terraform/aws/examples/edp-kms-google-bridge
+            src/test/terraform/gcloud/confidential-space-workload-identity
+            src/test/terraform/gcloud/edp-aggregator-edp-deployment
+            src/test/terraform/aws/edp-kms
+          )
+          for path in "${paths[@]}"; do
+            export TF_DATA_DIR="$RUNNER_TEMP/edp-tf-data/${path//\//_}"
+            terraform -chdir="$path" fmt -check -recursive
+            terraform -chdir="$path" init -backend=false -input=false
+            terraform -chdir="$path" validate
+            if [[ "$path" == src/test/* ]]; then
+              terraform -chdir="$path" test
+            fi
+          done
