@@ -46,6 +46,12 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Load CMMS environment configuration
+        id: cmms-config
+        uses: ./.github/actions/load-cmms-environment
+        with:
+          environment: ${{ inputs.environment }}
+
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
 
@@ -53,8 +59,8 @@ jobs:
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
 
       - name: Write auth.bazelrc
         env:
@@ -66,20 +72,8 @@ jobs:
 
       - name: Write ~/.bazelrc
         env:
-          KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
-          MC_NAME: ${{ vars.MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
-          REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
-          REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
-          REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
-          ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
-          HIGH_OVERLAP_MODEL_LINE: ${{ vars.HIGH_OVERLAP_MODEL_LINE }}
-          PDP_NAME: ${{ vars.PDP_NAME }}
-          EDP7_KEK_URI: ${{ vars.EDP7_KEK_URI }}
-          EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
-          EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
-          EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
@@ -92,53 +86,20 @@ jobs:
           build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
           build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
           build --define high_overlap_model_line=$HIGH_OVERLAP_MODEL_LINE
-          build --define pdp_name=$PDP_NAME
-          build --define edp7_kek_uri=$EDP7_KEK_URI
-          build --define edpa_meta_kek_uri=$EDPA_META_KEK_URI
-          build --define edpa_meta_aws_role_arn=$EDPA_META_AWS_ROLE_ARN
-          build --define edpa_meta_aws_region=$EDPA_META_AWS_REGION
           test --test_output=streamed
-          # TODO(world-federation-of-advertisers/cross-media-measurement#4661): Lower to 6000
-          # once dataset seeding moves out of the test.
-          test --test_timeout=9000
+          test --test_timeout=6000
           EOF
 
       - name: Wait for Kingdom public API
         uses: ./.github/actions/wait-for-kingdom
         with:
-          kingdom-public-api-target: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+          kingdom-public-api-target: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
           kingdom-public-api-cert-host: localhost
-          model-line-name: ${{ vars.HIGH_OVERLAP_MODEL_LINE }}
+          model-line-name: ${{ fromJSON(steps.cmms-config.outputs.config).HIGH_OVERLAP_MODEL_LINE }}
 
       # Reduce chance of disconnection from the Build Event Service.
       - name: Set TCP keepalive
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
-
-      # The edpa_meta AWS KMS client authenticates via web-identity federation using a Google
-      # (accounts.google.com) OIDC token. The AWS role EDPA_META_AWS_ROLE_ARN
-      # (GcpSyntheticDataKmsRole) trusts the CI service account's numeric subject
-      # (accounts.google.com:sub) and has no audience condition. Mint a fresh id_token for the CI
-      # service account here (right before the test, for maximum validity headroom) and point
-      # AWS_WEB_IDENTITY_TOKEN_FILE at it.
-      - name: Mint Google web-identity token for AWS
-        id: aws_auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
-          token_format: 'id_token'
-          id_token_audience: ${{ vars.EDPA_META_AWS_AUDIENCE }}
-          create_credentials_file: false
-          export_environment_variables: false
-
-      - name: Write AWS web-identity token file
-        env:
-          AWS_WEB_IDENTITY_ID_TOKEN: ${{ steps.aws_auth.outputs.id_token }}
-        run: |
-          token_file="$RUNNER_TEMP/aws-web-identity-token"
-          printf '%s' "$AWS_WEB_IDENTITY_ID_TOKEN" > "$token_file"
-          chmod 600 "$token_file"
-          echo "AWS_WEB_IDENTITY_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
 
       - name: Run tests
         id: run-tests
@@ -146,7 +107,6 @@ jobs:
           bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
           --test_env=GOOGLE_CLOUD_PROJECT \
-          --test_env=AWS_WEB_IDENTITY_TOKEN_FILE \
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorReportingIntegrationTest
 
       - name: Upload Bazel testlogs

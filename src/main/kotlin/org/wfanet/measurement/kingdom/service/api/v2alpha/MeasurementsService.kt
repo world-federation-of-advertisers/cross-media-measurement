@@ -186,6 +186,7 @@ class MeasurementsService(
       }
     }
 
+    request.measurement.requireNotMultimeasurement()
     grpcRequire(request.measurement.dataProvidersList.isNotEmpty()) {
       "measurement.data_providers is empty"
     }
@@ -276,10 +277,12 @@ class MeasurementsService(
           internalMeasurement.toMeasurement()
         }
       if (results.size > listMeasurementsPageToken.pageSize) {
+        val lastReturnedMeasurement = results[listMeasurementsPageToken.pageSize - 1]
         val pageToken =
           listMeasurementsPageToken.copy {
             lastMeasurement = previousPageEnd {
-              externalMeasurementId = results[results.lastIndex - 1].externalMeasurementId
+              updateTime = lastReturnedMeasurement.updateTime
+              externalMeasurementId = lastReturnedMeasurement.externalMeasurementId
             }
           }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()
@@ -381,6 +384,10 @@ class MeasurementsService(
 
     if (request.requestsList.size > MAX_BATCH_SIZE) {
       failGrpc { "Number of elements in requests exceeds the maximum batch size." }
+    }
+
+    for (createMeasurementRequest in request.requestsList) {
+      createMeasurementRequest.measurement.requireNotMultimeasurement()
     }
 
     val allExternalDataProviderIds: List<ExternalId> =
@@ -838,6 +845,15 @@ class MeasurementsService(
         .build()
     ReportTracing.recordSuccess("kingdom.measurement.created", attributes)
     return measurement
+  }
+}
+
+/** Rejects a multimeasurement, which the Kingdom does not support yet. */
+// TODO(world-federation-of-advertisers/cross-media-measurement#4532): Validate and create a
+//   multimeasurement, fanning it out to one Requisition per vector, once its Kingdom support lands.
+private fun Measurement.requireNotMultimeasurement() {
+  if (hasUnsignedMeasurementSpec() || hasMultimeasurement()) {
+    failGrpc(Status.UNIMPLEMENTED) { "Multimeasurements are not supported" }
   }
 }
 

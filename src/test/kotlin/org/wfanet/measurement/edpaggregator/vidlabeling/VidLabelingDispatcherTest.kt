@@ -628,6 +628,122 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
+  fun `upload rejects a new URI created after the done object`() = runBlocking {
+    val earlyBlob = createMockBlob("$FOLDER_PREFIX/early.parquet")
+    val lateBlob = createMockBlob("$FOLDER_PREFIX/late.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(earlyBlob, lateBlob))
+    stubRawImpressionUploadCreation()
+
+    val outcome =
+      createDispatcher(
+          readBlobMetadata = { blobKey ->
+            RawImpressionBlobMetadata(
+              generation = RAW_BLOB_GENERATION,
+              sizeBytes = 100L,
+              createTime =
+                if (blobKey == lateBlob.blobKey) {
+                  DONE_BLOB_CREATE_TIME.plusSeconds(1)
+                } else {
+                  RAW_BLOB_CREATE_TIME
+                },
+            )
+          }
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.INVALID_DONE_MARKER)
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    verifyBlocking(rawImpressionUploadFileService, never()) {
+      batchCreateRawImpressionUploadFiles(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+    verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `upload rejects a same URI overwrite created after the done object`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val previousUpload = rawImpressionUpload {
+      name = "$DATA_PROVIDER_NAME/rawImpressionUploads/previous"
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(2).toProtoTime()
+      state = RawImpressionUpload.State.COMPLETED
+      registrationComplete = true
+    }
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += previousUpload })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "${previousUpload.name}/files/file"
+            this.blobUri = blobUri
+            blobGeneration = RAW_BLOB_GENERATION - 1
+          }
+        }
+      )
+
+    val outcome =
+      createDispatcher(
+          readBlobMetadata = {
+            RawImpressionBlobMetadata(
+              generation = RAW_BLOB_GENERATION,
+              sizeBytes = 100L,
+              createTime = DONE_BLOB_CREATE_TIME.plusSeconds(1),
+            )
+          }
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.INVALID_DONE_MARKER)
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    verifyBlocking(rawImpressionUploadFileService, never()) { listRawImpressionUploadFiles(any()) }
+    verifyBlocking(rawImpressionUploadFileService, never()) {
+      batchCreateRawImpressionUploadFiles(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+    verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `upload rejects files with different footer event dates before creating file resources`() =
+    runBlocking<Unit> {
+      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
+      stubRawImpressionUploadCreation()
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          createDispatcher(
+              readEventDate = { blobUri ->
+                if (blobUri.contains("file1.parquet")) EVENT_DATE else EVENT_DATE.plusDays(1)
+              }
+            )
+            .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+        }
+
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("contains files with multiple footer event dates")
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        batchCreateRawImpressionUploadFiles(any())
+      }
+      verifyBlocking(rawImpressionUploadService, never()) {
+        markRawImpressionUploadRegistrationComplete(any())
+      }
+    }
+
+  @Test
   fun `upload routes Kingdom and metadata RPCs through their throttlers`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
@@ -938,7 +1054,7 @@ class VidLabelingDispatcherTest {
         dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
       }
 
-    assertThat(error).hasMessageThat().contains("has not been replaced by a completed upload")
+    assertThat(error).hasMessageThat().contains("has not produced durable labeled output")
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 
@@ -1010,7 +1126,7 @@ class VidLabelingDispatcherTest {
         createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
       }
 
-    assertThat(error).hasMessageThat().contains("has not been replaced by a completed upload")
+    assertThat(error).hasMessageThat().contains("has not produced durable labeled output")
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 

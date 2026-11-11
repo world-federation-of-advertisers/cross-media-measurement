@@ -77,6 +77,9 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   certificate. Useful when the hostname in the certificate does not match the `KINGDOM_TARGET`.
  * - `GRPC_REQUEST_INTERVAL`: Optional. Minimum interval between Kingdom mutation RPCs (e.g.
  *   `refuseRequisition`). Default `1s`.
+ * - `KINGDOM_LIST_REQUEST_INTERVAL`: Optional. Process-scoped minimum interval between Kingdom
+ *   ListRequisitions calls across providers, including resized-page retries. Default `250ms`.
+ *   Transport retries follow the gRPC channel policy.
  * - `KINGDOM_EVENT_GROUP_REQUEST_INTERVAL`: Optional. Minimum interval between Kingdom
  *   `getEventGroup` RPCs. Default `50ms`.
  * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
@@ -173,13 +176,6 @@ class RequisitionFetcherFunction : HttpFunction {
     val namespaces = buildList {
       for (dataProviderConfig in requisitionFetcherConfig.configsList) {
         val storageUriPrefix = createRequisitionBlobPrefix(dataProviderConfig)
-        add(
-          StoragePathPrefixes.Namespace(
-            storageUriPrefix,
-            dataProviderConfig.storagePathPrefix,
-            "legacy DataWatcher path for ${dataProviderConfig.dataProvider}",
-          )
-        )
         val dispatchConfig =
           requireNotNull(
             dataProviderConfig.workItemDispatch.takeIf { dataProviderConfig.hasWorkItemDispatch() }
@@ -295,12 +291,12 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionMetadataStub = requisitionMetadataStub,
       storageClient = storageClient,
       dataProviderName = dataProviderConfig.dataProvider,
-      storagePathPrefix = dataProviderConfig.storagePathPrefix,
       directStoragePathPrefix = dispatchConfig.storagePathPrefix,
       blobUriPrefix = requisitionBlobPrefix,
       requisitionValidator = requisitionsValidator,
       requisitionGrouper = requisitionGrouper,
       metadataThrottler = metadataThrottler,
+      kingdomListThrottler = kingdomListThrottler,
       workItemDispatcher = workItemDispatcher,
       requisitionRefusalDuration = requisitionRefusalDuration,
       clock = Clock.systemUTC(),
@@ -398,6 +394,13 @@ class RequisitionFetcherFunction : HttpFunction {
       System.getenv("SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
 
+    private val kingdomListThrottler =
+      MinimumIntervalThrottler(
+        Clock.systemUTC(),
+        (System.getenv("KINGDOM_LIST_REQUEST_INTERVAL") ?: DEFAULT_KINGDOM_LIST_REQUEST_INTERVAL)
+          .toDuration(),
+      )
+    private const val DEFAULT_KINGDOM_LIST_REQUEST_INTERVAL = "250ms"
     private const val DEFAULT_GRPC_REQUEST_INTERVAL = "1s"
     private const val DEFAULT_KINGDOM_EVENT_GROUP_REQUEST_INTERVAL = "50ms"
     private const val DEFAULT_METADATA_REQUEST_INTERVAL = "100ms"
@@ -501,8 +504,9 @@ class RequisitionFetcherFunction : HttpFunction {
         "Invalid 'requisition_storage': must specify either GCS or FileSystem storage for data provider: ${dataProviderConfig.dataProvider}."
       }
 
-      require(dataProviderConfig.storagePathPrefix.isNotBlank()) {
-        "Missing 'storage_path_prefix' for data provider: ${dataProviderConfig.dataProvider}."
+      require(deprecatedStoragePathPrefix(dataProviderConfig).isEmpty()) {
+        "Deprecated top-level 'storage_path_prefix' must not be set for data provider: " +
+          "${dataProviderConfig.dataProvider}."
       }
 
       require(dataProviderConfig.edpPrivateKeyPath.isNotBlank()) {
@@ -530,14 +534,6 @@ class RequisitionFetcherFunction : HttpFunction {
       require(dispatchConfig.storagePathPrefix.isNotBlank()) {
         "Missing 'storage_path_prefix' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
       }
-      require(
-        !StoragePathPrefixes.overlap(
-          dispatchConfig.storagePathPrefix,
-          dataProviderConfig.storagePathPrefix,
-        )
-      ) {
-        "Direct-dispatch storage_path_prefix must not overlap the legacy storage_path_prefix for data provider: ${dataProviderConfig.dataProvider}."
-      }
       require(dispatchConfig.queue.isNotBlank()) {
         "Missing 'queue' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
       }
@@ -562,5 +558,11 @@ class RequisitionFetcherFunction : HttpFunction {
         "Missing 'cert_collection_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
       }
     }
+
+    private fun deprecatedStoragePathPrefix(config: DataProviderRequisitionConfig): String =
+      config.getField(DEPRECATED_STORAGE_PATH_PREFIX_FIELD) as String
+
+    private val DEPRECATED_STORAGE_PATH_PREFIX_FIELD =
+      checkNotNull(DataProviderRequisitionConfig.getDescriptor().findFieldByNumber(3))
   }
 }

@@ -1195,8 +1195,8 @@ abstract class AbstractEdpSimulator(
       }
     }
 
-    val sampledFrequencyVector = frequencyVectorBuilder.build()
-    logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.dataCount}" }
+    val sampledFrequencyVector = frequencyVectorBuilder.buildBytes()
+    logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.size}" }
 
     val requests: Flow<FulfillRequisitionRequest> =
       if (trusTeeEncryptionParams != null) {

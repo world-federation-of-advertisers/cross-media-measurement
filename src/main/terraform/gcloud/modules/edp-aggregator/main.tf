@@ -15,6 +15,12 @@
 data "google_client_config" "default" {}
 data "google_project" "project" {}
 
+resource "google_storage_bucket_iam_member" "vid_labeling_trace_operator" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = var.vid_labeling_trace_operator_member
+}
+
 locals {
   google_project_id = trimprefix(data.google_project.project.id, "projects/")
 
@@ -110,7 +116,7 @@ locals {
     ]
   ])
 
-  data_availability_sync_secrets_access = concat(
+  data_availability_service_secrets_access = concat(
     [
       "metadata_storage_root_ca",
       "trusted_root_ca_collection",
@@ -120,11 +126,19 @@ locals {
     local.edp_tls_keys
   )
 
+  data_availability_sync_secrets_access = concat(
+    local.data_availability_service_secrets_access,
+    [
+      "edpa_tee_app_tls_key",
+      "edpa_tee_app_tls_pem",
+    ]
+  )
+
   # Secrets access for data_watcher_delete (same as data_watcher)
   data_watcher_delete_secrets_access = local.data_watcher_secrets_access
 
-  # Secrets access for data_availability_cleanup (same as data_availability_sync)
-  data_availability_cleanup_secrets_access = local.data_availability_sync_secrets_access
+  # Cleanup does not call the Secure Computation control plane.
+  data_availability_cleanup_secrets_access = local.data_availability_service_secrets_access
 
   requisition_fetcher_secrets_access = concat(
     [
@@ -152,6 +166,7 @@ locals {
     "data_availability_monitor" = module.data_availability_monitor_cloud_function.cloud_function_service_account.email
     "vid_labeling_dispatcher"   = module.vid_labeling_dispatcher_cloud_function.cloud_function_service_account.email
     "vid_labeling_monitor"      = module.vid_labeling_monitor_cloud_function.cloud_function_service_account.email
+    "vid_labeling_healing"      = module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email
   }
 
   otel_metadata = {
@@ -183,6 +198,16 @@ module "edp_aggregator_bucket" {
     {
       name           = "edp_meta"
       prefix         = "edp/edp_meta/"
+      retention_days = 3650 # 10 years
+    },
+    {
+      name           = "vid_labeled_edp7"
+      prefix         = "vid-labeled-impressions/edp/edp7/"
+      retention_days = 3650 # 10 years
+    },
+    {
+      name           = "vid_labeled_edpa_meta"
+      prefix         = "vid-labeled-impressions/edp/edpa_meta/"
       retention_days = 3650 # 10 years
     },
   ]
@@ -319,6 +344,7 @@ module "data_watcher_delete_cloud_function" {
   secrets_to_access                           = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "deleted"
   retry_on_failure                            = true
+  uploaded_config_generation                  = google_storage_bucket_object.upload_data_watcher_delete_config.generation
 }
 
 module "requisition_fetcher_cloud_function" {
@@ -387,7 +413,10 @@ module "event_group_sync_cloud_function" {
 module "data_availability_sync_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_data_availability_sync_config,
+  ]
 
   http_cloud_function_service_account_name = var.data_availability_sync_service_account_name
   terraform_service_account                = var.terraform_service_account
@@ -396,13 +425,26 @@ module "data_availability_sync_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.data_availability_sync.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_sync.uber_jar_path
-  secrets_to_access                        = [for key in local.data_availability_sync_secrets_access : local.all_secrets[key].secret_id]
+  config_path                              = var.data_availability_sync_config.local_path
+  secrets_to_access = [
+    for key in concat(local.data_availability_sync_secrets_access, ["secure_computation_root_ca"]) :
+    local.all_secrets[key].secret_id
+  ]
+
+  # The RPC throttler is process-local. Bound service-wide concurrency to protect the shared
+  # ImpressionMetadata service from completion-marker bursts.
+  max_instances   = 5
+  concurrency     = 1
+  timeout_seconds = 540
 }
 
 module "data_availability_cleanup_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_data_availability_sync_config,
+  ]
 
   http_cloud_function_service_account_name = var.data_availability_cleanup_service_account_name
   terraform_service_account                = var.terraform_service_account
@@ -411,6 +453,7 @@ module "data_availability_cleanup_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.data_availability_cleanup.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_cleanup.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_cleanup.uber_jar_path
+  config_path                              = var.data_availability_sync_config.local_path
   secrets_to_access                        = [for key in local.data_availability_cleanup_secrets_access : local.all_secrets[key].secret_id]
 }
 
@@ -460,6 +503,8 @@ module "result_fulfiller_tee_app" {
   max_replicas                  = var.requisition_fulfiller_config.worker.max_replicas
   machine_type                  = var.requisition_fulfiller_config.worker.machine_type
   java_tool_options             = var.requisition_fulfiller_config.worker.java_tool_options
+  max_attempt_runtime_seconds   = var.requisition_fulfiller_config.worker.max_attempt_runtime_seconds
+  stack_dump_interval_seconds   = var.requisition_fulfiller_config.worker.stack_dump_interval_seconds
   docker_image                  = var.requisition_fulfiller_config.worker.docker_image
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
@@ -675,6 +720,53 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
   }
 }
 
+module "data_availability_sync_work_item_queue" {
+  source = "../pubsub"
+
+  depends_on = [google_service_account_iam_member.data_availability_sync_work_item_token_creator]
+
+  topic_name                 = var.data_availability_sync_work_item_queue.topic_name
+  subscription_name          = var.data_availability_sync_work_item_queue.subscription_name
+  ack_deadline_seconds       = var.data_availability_sync_work_item_queue.ack_deadline_seconds
+  max_delivery_attempts      = var.data_availability_sync_work_item_queue.max_delivery_attempts
+  minimum_backoff            = var.data_availability_sync_work_item_queue.minimum_backoff
+  maximum_backoff            = var.data_availability_sync_work_item_queue.maximum_backoff
+  enable_message_ordering    = true
+  push_endpoint              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"
+  push_service_account_email = module.data_availability_sync_cloud_function.cloud_function_service_account.email
+  push_audience              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"
+}
+
+resource "google_pubsub_topic_iam_member" "data_availability_sync_work_item_publisher" {
+  topic  = module.data_availability_sync_work_item_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_topic_iam_member" "data_availability_sync_work_item_dead_letter_publisher" {
+  topic  = module.data_availability_sync_work_item_queue.dead_letter_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_subscription_iam_member" "data_availability_sync_work_item_dead_letter_subscriber" {
+  subscription = module.data_availability_sync_work_item_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
+resource "google_service_account_iam_member" "data_availability_sync_work_item_token_creator" {
+  service_account_id = module.data_availability_sync_cloud_function.cloud_function_service_account.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_cloud_run_service_iam_member" "data_availability_sync_work_item_invoker" {
+  depends_on = [module.data_availability_sync_cloud_function]
+  service    = var.data_availability_sync_function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+}
 resource "google_compute_address" "edp_aggregator_api_server" {
   name    = "edp-aggregator-system"
   address = var.edp_aggregator_api_server_ip_address
@@ -722,6 +814,7 @@ module "data_availability_monitor_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.data_availability_monitor.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_monitor.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_monitor.uber_jar_path
+  config_path                              = var.data_availability_monitor_config.local_path
 }
 
 module "data_availability_monitor_cloud_scheduler" {
@@ -774,6 +867,13 @@ locals {
     ],
     local.edp_tls_keys,
   )
+
+  vid_labeling_healing_controller_secrets_access = [
+    "edpa_tee_app_tls_key",
+    "edpa_tee_app_tls_pem",
+    "secure_computation_root_ca",
+    "metadata_storage_root_ca",
+  ]
 }
 
 module "vid_labeling_queue" {
@@ -834,6 +934,8 @@ module "vid_labeling_tee_app" {
   machine_type                  = each.value.worker.machine_type
   disk_type                     = each.value.worker.disk_type
   java_tool_options             = each.value.worker.java_tool_options
+  max_attempt_runtime_seconds   = each.value.worker.max_attempt_runtime_seconds
+  stack_dump_interval_seconds   = each.value.worker.stack_dump_interval_seconds
   docker_image                  = each.value.worker.docker_image
   mig_distribution_policy_zones = each.value.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
@@ -898,6 +1000,7 @@ module "vid_labeling_dispatcher_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.vid_labeling_dispatcher.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.vid_labeling_dispatcher.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_dispatcher.uber_jar_path
+  config_path                              = var.vid_labeling_dispatcher_config.local_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
 
   # The dispatcher and monitor authenticate to Kingdom as the same EDP. One instance of each
@@ -906,6 +1009,7 @@ module "vid_labeling_dispatcher_cloud_function" {
   # 540-second timeout.
   timeout_seconds = 480
   max_instances   = 1
+  concurrency     = 1
 }
 
 # The DataWatcher invokes the dispatcher over HTTP when a "done" blob lands.
@@ -951,12 +1055,14 @@ module "vid_labeling_monitor_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.vid_labeling_monitor.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.vid_labeling_monitor.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_monitor.uber_jar_path
+  config_path                              = var.vid_labeling_monitor_config.local_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
 
   # See the dispatcher cap above. Together the two functions can run at most two 2-QPS clients.
   # Health scans may traverse multiple metadata pages, so retain the same timeout headroom.
   timeout_seconds = 600
   max_instances   = 1
+  concurrency     = 1
 }
 
 module "vid_labeling_monitor_cloud_scheduler" {
@@ -965,7 +1071,15 @@ module "vid_labeling_monitor_cloud_scheduler" {
   # Wait beyond the function's 600-second timeout so Scheduler can receive its terminal response.
   scheduler_config = merge(
     var.vid_labeling_monitor_scheduler_config,
-    { attempt_deadline = "660s" },
+    {
+      attempt_deadline = "660s"
+      retry_config = {
+        retry_count          = 3
+        min_backoff_duration = "300s"
+        max_backoff_duration = "600s"
+        max_doublings        = 2
+      }
+    },
   )
   depends_on = [module.vid_labeling_monitor_cloud_function]
 }
@@ -979,6 +1093,144 @@ module "vid_labeling_dispatch_cloud_scheduler" {
     { attempt_deadline = "660s" },
   )
   depends_on = [module.vid_labeling_monitor_cloud_function]
+}
+
+# ---- VidLabelingHealingController (scheduled HTTP Cloud Function) ----
+module "vid_labeling_healing_controller_cloud_function" {
+  source = "../http-cloud-function"
+
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_vid_labeling_dispatcher_config,
+    google_storage_bucket_object.upload_data_watcher_config,
+  ]
+
+  http_cloud_function_service_account_name = var.vid_labeling_healing_controller_service_account_name
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = var.cloud_function_configs.vid_labeling_healing_controller.function_name
+  entry_point                              = var.cloud_function_configs.vid_labeling_healing_controller.entry_point
+  extra_env_vars                           = var.cloud_function_configs.vid_labeling_healing_controller.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.vid_labeling_healing_controller.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.vid_labeling_healing_controller.uber_jar_path
+  secrets_to_access                        = [for key in local.vid_labeling_healing_controller_secrets_access : local.all_secrets[key].secret_id]
+  timeout_seconds                          = 600
+  max_instances                            = 1
+  concurrency                              = 1
+}
+
+module "vid_labeling_healing_controller_cloud_scheduler" {
+  source                    = "../cloud-scheduler"
+  terraform_service_account = var.terraform_service_account
+  scheduler_config          = var.vid_labeling_healing_controller_scheduler_config
+  depends_on = [
+    google_cloud_run_service_iam_member.vid_labeling_healing_controller_dispatcher_invoker,
+    google_storage_bucket_iam_member.vid_labeling_healing_controller_config_viewer,
+    google_storage_bucket_iam_member.vid_labeling_healing_controller_output_deleter,
+    google_storage_bucket_iam_member.vid_labeling_healing_controller_storage_viewer,
+  ]
+}
+
+resource "google_cloud_run_service_iam_member" "vid_labeling_healing_controller_dispatcher_invoker" {
+  depends_on = [module.vid_labeling_dispatcher_cloud_function]
+  service    = var.cloud_function_configs.vid_labeling_dispatcher.function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_storage_viewer" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_project_iam_custom_role" "vid_labeling_healing_output_deleter" {
+  role_id     = "edpaVidHealingOutputDeleter"
+  title       = "EDPA VID Healing Output Deleter"
+  description = "Deletes derived VID-labeled output selected by an approved healing plan."
+  permissions = ["storage.objects.delete"]
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_output_deleter" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = google_project_iam_custom_role.vid_labeling_healing_output_deleter.name
+  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+
+  condition {
+    title = "delete_vid_labeled_output"
+    expression = join(" || ", [
+      for prefix in var.vid_labeling_healing_labeled_output_object_prefixes :
+      "resource.name.startsWith(\"projects/_/buckets/${module.edp_aggregator_bucket.storage_bucket.name}/objects/${prefix}\")"
+    ])
+  }
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_config_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_monitoring_metric_descriptor" "vid_labeling_healing" {
+  for_each = toset([
+    "approval_pending",
+    "stalled",
+    "manifest_mismatch",
+    "out_of_retention",
+    "needs_attention",
+  ])
+
+  type         = "workload.googleapis.com/edpa.vid_labeling.healing.${each.value}"
+  metric_kind  = "CUMULATIVE"
+  value_type   = "INT64"
+  display_name = "edpa.vid_labeling.healing.${each.value}"
+  description  = "VID-labeling healing controller ${replace(each.value, "_", " ")} events."
+  labels { key = "instrumentation_source" }
+  labels { key = "service_name" }
+  labels { key = "instrumentation_version" }
+  labels { key = "data_provider" }
+}
+
+resource "google_monitoring_alert_policy" "vid_labeling_healing" {
+  for_each = toset([
+    "approval_pending",
+    "stalled",
+    "manifest_mismatch",
+    "out_of_retention",
+    "needs_attention",
+  ])
+
+  depends_on            = [google_monitoring_metric_descriptor.vid_labeling_healing]
+  display_name          = "EDPA VID-labeling healing ${replace(each.value, "_", " ")}"
+  combiner              = "OR"
+  notification_channels = var.vid_labeling_healing_alert_notification_channels
+
+  conditions {
+    display_name = each.value
+    condition_threshold {
+      filter          = "metric.type=\"workload.googleapis.com/edpa.vid_labeling.healing.${each.value}\" AND resource.type=\"generic_task\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_DELTA"
+      }
+    }
+  }
+
+  alert_strategy {
+    auto_close = "1800s"
+  }
+
+  documentation {
+    content = {
+      approval_pending  = "A VID-labeling correction plan is waiting for operator approval. Inspect it with list-correction-plans and get-correction-plan."
+      stalled           = "A VID-labeling correction plan has not advanced within the configured stall timeout. Inspect the controller logs and plan state."
+      manifest_mismatch = "The live raw-object manifest no longer matches the approved correction candidate. Inspect the replacement and move the plan from NEEDS_ATTENTION only after resolving the mismatch."
+      out_of_retention  = "A correction candidate is older than the configured healing retention window. Inspect the plan and restore the required historical inputs before retrying."
+      needs_attention   = "A VID-labeling correction plan requires operator intervention. Inspect the plan reason and controller logs before invoking retry-correction-plan."
+    }[each.value]
+  }
 }
 
 resource "google_storage_bucket_iam_member" "vid_labeling_monitor_storage_viewer" {

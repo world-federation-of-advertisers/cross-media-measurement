@@ -17,11 +17,12 @@ Run the tool with `--help` for usage information.
 
 ### What it does
 
-Every `BasicReport` in state `SUCCEEDED`, across all `MeasurementConsumer`s, is
-examined one `MeasurementConsumer` at a time and one page at a time. Use
-`--cmms-measurement-consumer-id` to restrict the scan. Use `--create-time-after`
-to restrict which `BasicReport`s are eligible for updates; older rows are still
-considered when checking that a Report is not already claimed.
+Every `BasicReport` in a terminal state (`SUCCEEDED`, `FAILED` or `INVALID`),
+across all `MeasurementConsumer`s, is examined one `MeasurementConsumer` at a
+time and one page at a time. Use `--cmms-measurement-consumer-id` to restrict
+the scan. Use `--create-time-after` to restrict which `BasicReport`s are
+eligible for updates; older rows are still considered when checking that a
+Report is not already claimed.
 
 For each `BasicReport` missing `external_report_id`, the tool reads the
 associated `Report` from Reporting Postgres using either of these explicit
@@ -340,8 +341,8 @@ kubectl get deployment postgres-internal-reporting-server-deployment \
 ```
 
 For a deployment provisioned by the Reporting Terraform this is
-`reporting-internal@PROJECT.iam`, corresponding to the service account
-`reporting-internal@PROJECT.iam.gserviceaccount.com`.
+`reporting-v2-internal@PROJECT.iam`, corresponding to the service account
+`reporting-v2-internal@PROJECT.iam.gserviceaccount.com`.
 
 #### Authenticate as it
 
@@ -379,7 +380,6 @@ include the full path to the executable.
       --postgres-cloud-sql-connection-name=halo-cmm-dev:us-central1:dev-postgres \
       --postgres-database=reporting-v2 \
       --postgres-user=reporting-v2-internal@halo-cmm-dev.iam \
-      --create-time-after=2026-06-01T00:00:00Z \
       --dry-run
     ```
 
@@ -392,8 +392,7 @@ include the full path to the executable.
       --spanner-database=reporting \
       --postgres-cloud-sql-connection-name=halo-cmm-dev:us-central1:dev-postgres \
       --postgres-database=reporting-v2 \
-      --postgres-user=reporting-v2-internal@halo-cmm-dev.iam \
-      --create-time-after=2026-06-01T00:00:00Z
+      --postgres-user=reporting-v2-internal@halo-cmm-dev.iam
     ```
 
 ### Output

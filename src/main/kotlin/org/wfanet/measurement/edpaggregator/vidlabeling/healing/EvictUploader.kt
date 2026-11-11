@@ -1,0 +1,1172 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.vidlabeling.healing
+
+import com.google.type.interval
+import java.time.Instant
+import java.util.UUID
+import java.util.logging.Logger
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.service.RankIndexBlobKey
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.deleteRankIndexBlobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.releaseRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
+
+/**
+ * Evicts uploads that carry bad data across both VID-labeling paths. Non-memoized model lines are
+ * isolated to the requested uploads. Memoized model lines are cascaded forward and have their
+ * cumulative `SNAPSHOT` rank-index blobs soft-deleted, so Phase-1 falls back to the last good
+ * snapshot when the data provider re-triggers corrected uploads.
+ *
+ * For a memoized line, each subsequent cumulative snapshot was built on the corrupted one, so
+ * eviction cascades from the earliest bad upload to the most recent (`Up_k … Up_n`). A non-memoized
+ * line has no cumulative state and is evicted in isolation. Eviction is confined to the retention
+ * window; uploads older than the window are rejected.
+ *
+ * @param uploadsStub stub for `RawImpressionUploadService` (create-time ordering + retention
+ *   check).
+ * @param rawImpressionModelLinesStub stub for `RawImpressionUploadModelLineService` (mark FAILED).
+ * @param rankIndexBlobsStub stub for `RankIndexBlobService` (soft-delete SNAPSHOT rows).
+ * @param rawImpressionFilesStub stub used to resolve the raw files whose generated outputs must be
+ *   removed. Raw objects and their metadata rows are deliberately retained for replacement-delta
+ *   registration.
+ * @param impressionMetadataStub stub used to soft-delete invalid labeled-output metadata.
+ * @param labeledImpressionsBlobPrefix absolute URI prefix under which the VID labeler writes
+ *   generated output.
+ * @param getBlobGeneration returns the live generation of a labeled output or sidecar.
+ * @param deleteBlob deletes one exact labeled-output generation and returns whether it existed.
+ */
+class EvictUploader(
+  private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
+  private val rawImpressionModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
+  private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
+  private val rawImpressionFilesStub: RawImpressionUploadFileServiceCoroutineStub,
+  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
+  labeledImpressionsBlobPrefix: String,
+  private val getBlobGeneration: suspend (String) -> Long?,
+  private val deleteBlob: suspend (String, Long) -> Boolean,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
+) : EvictionExecutor {
+  private val labeledImpressionsBlobPrefix = labeledImpressionsBlobPrefix.trimEnd('/')
+
+  init {
+    require(this.labeledImpressionsBlobPrefix.isNotBlank()) {
+      "labeledImpressionsBlobPrefix must not be blank"
+    }
+  }
+
+  /** A single `(upload, model line)` in the eviction plan. */
+  data class CascadeEntry(
+    val uploadName: String,
+    val modelLineName: String,
+    val cmmsModelLine: String,
+    val memoized: Boolean,
+    val recoveryAction: RawImpressionUploadModelLine.RecoveryAction,
+    val recoveryPredecessorUploadName: String,
+    val labeledOutputManifest: LabeledOutputManifest = LabeledOutputManifest.getDefaultInstance(),
+  )
+
+  /** An evicted upload on which a replacement action must run. */
+  data class RecoveryTarget(val uploadName: String, val cmmsModelLines: List<String>)
+
+  /** The forward cascade to evict, ordered by upload create time. */
+  data class EvictionPlan(
+    val cascade: List<CascadeEntry>,
+    /** Uploads pulled into the cascade beyond the requested bad ones (they came after them). */
+    val extraUploads: List<String>,
+    val memoizedModelLines: Set<String>,
+    val nonMemoizedModelLines: Set<String>,
+    val badUploads: List<String>,
+    /** Explicitly bad uploads that are permanently removed instead of replaced by the EDP. */
+    val noReplacementUploads: Set<String>,
+    val cutoffTime: Instant,
+    /** UUID4 that owns the fence and identifies every model-line row in this eviction. */
+    val evictionOperationId: String,
+    /** Latest revisions evicted only because their memoized rank state depended on a bad upload. */
+    val recoveryTargets: List<RecoveryTarget>,
+    /** Latest invalid revisions that an EDP correction replaces. */
+    val replacementTargets: List<RecoveryTarget> = emptyList(),
+    /** Whether every manifest carries the exact version captured under the eviction fence. */
+    val outputManifestsFinalized: Boolean = true,
+  )
+
+  /** Outcome of an [evict] run. */
+  data class EvictionResult(
+    val failedModelLines: List<String>,
+    val deletedSnapshots: Int,
+    val deletedImpressionMetadata: Int,
+    val deletedOutputBlobs: Int,
+  )
+
+  /**
+   * Builds one eviction plan for every model line attached to [badUploads]. Memoized lines cascade
+   * from their earliest bad upload; non-memoized lines contain only explicitly bad uploads.
+   * Snapshot presence identifies the memoized path because completed memoized processing always
+   * writes a cumulative `SNAPSHOT`, while non-memoized processing never does.
+   *
+   * @param badUploads `RawImpressionUpload` resource names of the bad uploads (all under the same
+   *   DataProvider).
+   * @param noReplacementUploads subset of [badUploads] that the operator is permanently removing.
+   * @throws IllegalArgumentException if [badUploads] is empty, spans multiple DataProviders, names
+   *   an unknown upload, names an upload older than [cutoffTime], or the DataProvider still has
+   *   queued or running model-line work.
+   */
+  suspend fun plan(
+    badUploads: List<String>,
+    cutoffTime: Instant,
+    evictionOperationId: String = UUID.randomUUID().toString(),
+    noReplacementUploads: Set<String> = emptySet(),
+  ): EvictionPlan =
+    plan(
+      badUploads,
+      cutoffTime,
+      evictionOperationId,
+      noReplacementUploads,
+      includeSupersedingRevisions = false,
+      requirePipelineIdle = true,
+      captureOutputGenerations = true,
+    )
+
+  /**
+   * Builds a correction plan that also evicts completed revisions superseding [historicalOwners].
+   */
+  suspend fun planCorrection(
+    historicalOwners: List<String>,
+    cutoffTime: Instant,
+    evictionOperationId: String = UUID.randomUUID().toString(),
+    noReplacementOwners: Set<String> = emptySet(),
+  ): EvictionPlan =
+    plan(
+      historicalOwners,
+      cutoffTime,
+      evictionOperationId,
+      noReplacementOwners,
+      includeSupersedingRevisions = true,
+      requirePipelineIdle = false,
+      captureOutputGenerations = false,
+    )
+
+  private suspend fun plan(
+    badUploads: List<String>,
+    cutoffTime: Instant,
+    evictionOperationId: String,
+    noReplacementUploads: Set<String>,
+    includeSupersedingRevisions: Boolean,
+    requirePipelineIdle: Boolean,
+    captureOutputGenerations: Boolean,
+  ): EvictionPlan {
+    require(badUploads.isNotEmpty()) { "at least one bad upload is required" }
+    require(runCatching { UUID.fromString(evictionOperationId) }.isSuccess) {
+      "evictionOperationId must be a UUID"
+    }
+    val dataProvider = dataProviderOf(badUploads.first())
+    require(badUploads.all { dataProviderOf(it) == dataProvider }) {
+      "all bad uploads must be under the same DataProvider"
+    }
+    require(noReplacementUploads.all { it in badUploads }) {
+      "no-replacement upload(s) must also be listed in badUploads: " +
+        noReplacementUploads.filter { it !in badUploads }
+    }
+
+    val uploadsByName: Map<String, RawImpressionUpload> = listUploads(dataProvider, cutoffTime)
+    val createTimeByUpload =
+      uploadsByName.mapValues { (_, upload) -> upload.createTime.toInstant() }
+
+    val unknown = badUploads.filter { it !in createTimeByUpload }
+    require(unknown.isEmpty()) {
+      "unknown upload(s), or upload(s) older than the retention window " +
+        "(create_time before $cutoffTime), for $dataProvider: $unknown"
+    }
+    val outOfWindow = badUploads.filter { createTimeByUpload.getValue(it) < cutoffTime }
+    require(outOfWindow.isEmpty()) {
+      "upload(s) older than the retention window (create_time before $cutoffTime): $outOfWindow"
+    }
+
+    val queuedOrRunningRows = listQueuedOrRunningModelLines(dataProvider)
+    if (requirePipelineIdle) {
+      require(queuedOrRunningRows.isEmpty()) {
+        "The VID-labeling pipeline is currently processing data for $dataProvider, so eviction " +
+          "cannot run. Retry after all VID-labeling processing for this data provider has " +
+          "finished. Active upload/model-line resources: ${queuedOrRunningRows.map { it.name }}"
+      }
+    }
+
+    val candidateSupersedingUploads =
+      if (includeSupersedingRevisions) {
+        uploadsByName.keys.filter { candidate ->
+          candidate !in badUploads &&
+            badUploads.any { owner -> replacesUpload(candidate, owner, uploadsByName) }
+        }
+      } else {
+        emptyList()
+      }
+    val candidateSupersedingRows = candidateSupersedingUploads.associateWith { listModelLines(it) }
+    val supersedingUploads =
+      candidateSupersedingRows
+        .filterValues { rows ->
+          rows.any { it.state != RawImpressionUploadModelLine.State.CREATED }
+        }
+        .keys
+    val plannedBadUploads =
+      (badUploads + supersedingUploads)
+        .distinct()
+        .sortedWith(compareBy<String> { createTimeByUpload.getValue(it) }.thenBy { it })
+    val rowsByUpload =
+      plannedBadUploads.associateWith { uploadName ->
+        candidateSupersedingRows[uploadName] ?: listModelLines(uploadName)
+      }
+    val requestedMissing = badUploads.filter { rowsByUpload.getValue(it).isEmpty() }
+    require(requestedMissing.isEmpty()) {
+      "requested upload(s) have no model-line rows (nothing to evict): $requestedMissing"
+    }
+
+    val requestedRows =
+      rowsByUpload.values.flatten().filter {
+        it.state != RawImpressionUploadModelLine.State.CREATED
+      }
+    val rowsByCmmsModelLine =
+      requestedRows
+        .map { it.cmmsModelLine }
+        .toSet()
+        .associateWith { listModelLines("$dataProvider/rawImpressionUploads/-", it, cutoffTime) }
+    val snapshots: List<SnapshotRow> = coroutineScope {
+      val semaphore = Semaphore(SNAPSHOT_LOOKUP_PARALLELISM)
+      rowsByCmmsModelLine.keys
+        .map { cmmsModelLine ->
+          async { semaphore.withPermit { listSnapshotRows(dataProvider, cmmsModelLine) } }
+        }
+        .awaitAll()
+        .flatten()
+    }
+    val snapshotRows = snapshots.mapTo(mutableSetOf()) { it.uploadName to it.cmmsModelLine }
+    val activeSnapshotRows =
+      snapshots.filter { !it.deleted }.mapTo(mutableSetOf()) { it.uploadName to it.cmmsModelLine }
+    val memoizedRequestedRows = requestedRows.filter { isMemoized(it, snapshotRows) }
+    val nonMemoizedRequestedRows = requestedRows - memoizedRequestedRows.toSet()
+    val requestedNames = plannedBadUploads.toSet()
+    val plannedNoReplacementUploads =
+      if (includeSupersedingRevisions) {
+        plannedBadUploads
+          .filter { upload ->
+            upload in noReplacementUploads ||
+              noReplacementUploads.any { owner -> replacesUpload(upload, owner, uploadsByName) }
+          }
+          .toSet()
+      } else {
+        noReplacementUploads
+      }
+    val completedReplacements =
+      requestedRows.flatMap { badRow ->
+        val badUploadName = uploadNameOf(badRow.name)
+        rowsByCmmsModelLine.getValue(badRow.cmmsModelLine).filter { candidate ->
+          val candidateUploadName = uploadNameOf(candidate.name)
+          candidateUploadName !in requestedNames &&
+            hasDurableLabeledOutput(candidate.state) &&
+            replacesUpload(candidateUploadName, badUploadName, uploadsByName)
+        }
+      }
+    require(completedReplacements.isEmpty()) {
+      "bad upload(s) have completed replacement rows that own the current " +
+        "deterministic output; evict the replacement explicitly if it is also invalid: " +
+        completedReplacements.map { it.name }
+    }
+    val memoizedModelLines = memoizedRequestedRows.mapTo(mutableSetOf()) { it.cmmsModelLine }
+    val nonMemoizedModelLines = nonMemoizedRequestedRows.mapTo(mutableSetOf()) { it.cmmsModelLine }
+    val earliestMemoizedBadTimeByModelLine =
+      memoizedModelLines.associateWith { cmmsModelLine ->
+        memoizedRequestedRows
+          .filter { it.cmmsModelLine == cmmsModelLine }
+          .minOf { createTimeByUpload.getValue(uploadNameOf(it.name)) }
+      }
+    val entries = mutableListOf<Pair<Instant, CascadeEntry>>()
+    for (cmmsModelLine in memoizedModelLines) {
+      val earliestBadTime = earliestMemoizedBadTimeByModelLine.getValue(cmmsModelLine)
+      for (row in rowsByCmmsModelLine.getValue(cmmsModelLine)) {
+        if (row.state == RawImpressionUploadModelLine.State.CREATED) continue
+        val uploadName = uploadNameOf(row.name)
+        val uploadTime = createTimeByUpload[uploadName] ?: continue
+        if (uploadTime < earliestBadTime) continue
+        if (wasEvictedByAnotherOperation(row, evictionOperationId)) continue
+        entries +=
+          uploadTime to
+            CascadeEntry(
+              uploadName,
+              row.name,
+              cmmsModelLine = cmmsModelLine,
+              memoized = true,
+              recoveryAction =
+                if (uploadName in plannedNoReplacementUploads) {
+                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+                } else if (uploadName in requestedNames) {
+                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+                } else {
+                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+                },
+              recoveryPredecessorUploadName = "",
+            )
+      }
+    }
+    for (row in nonMemoizedRequestedRows) {
+      if (wasEvictedByAnotherOperation(row, evictionOperationId)) continue
+      val uploadName = uploadNameOf(row.name)
+      entries +=
+        createTimeByUpload.getValue(uploadName) to
+          CascadeEntry(
+            uploadName,
+            row.name,
+            row.cmmsModelLine,
+            memoized = false,
+            recoveryAction =
+              if (uploadName in plannedNoReplacementUploads) {
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+              } else {
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+              },
+            recoveryPredecessorUploadName = "",
+          )
+    }
+
+    val unlinkedCascade =
+      entries
+        .sortedWith(
+          compareBy<Pair<Instant, CascadeEntry>> { it.first }.thenBy { it.second.cmmsModelLine }
+        )
+        .map { it.second }
+    val latestCascadeUploadByDoneBlobUri =
+      unlinkedCascade
+        .map { uploadsByName.getValue(it.uploadName) }
+        .groupBy { it.doneBlobUri }
+        .mapValues { (_, revisions) -> findLatestUpload(revisions) }
+    val predecessorByModelLineAndUpload =
+      rowsByCmmsModelLine
+        .flatMap { (cmmsModelLine, rows) ->
+          val orderedMemoizedRows =
+            rows
+              .filter { it.state != RawImpressionUploadModelLine.State.CREATED }
+              .sortedWith(
+                compareBy<RawImpressionUploadModelLine> {
+                    createTimeByUpload.getValue(uploadNameOf(it.name))
+                  }
+                  .thenBy { uploadNameOf(it.name) }
+              )
+          val cascadeEntries = unlinkedCascade.filter { it.cmmsModelLine == cmmsModelLine }
+          val actionHeads =
+            cascadeEntries.filter { entry ->
+              val upload = uploadsByName.getValue(entry.uploadName)
+              latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+            }
+          val orderedActions = actionHeads
+          if (orderedActions.isEmpty()) return@flatMap emptyList()
+
+          val firstAction = orderedActions.first()
+          val firstActionTime = createTimeByUpload.getValue(firstAction.uploadName)
+          val firstActionDoneBlobUri = uploadsByName.getValue(firstAction.uploadName).doneBlobUri
+          var predecessorName =
+            orderedMemoizedRows
+              .lastOrNull { row ->
+                val uploadName = uploadNameOf(row.name)
+                createTimeByUpload.getValue(uploadName) < firstActionTime &&
+                  uploadsByName.getValue(uploadName).doneBlobUri != firstActionDoneBlobUri &&
+                  isEligibleRecoveryPredecessor(row, activeSnapshotRows, evictionOperationId)
+              }
+              ?.let { uploadNameOf(it.name) }
+              .orEmpty()
+          buildList {
+            for (entry in orderedActions) {
+              val doneBlobUri = uploadsByName.getValue(entry.uploadName).doneBlobUri
+              for (sameRevision in cascadeEntries) {
+                if (uploadsByName.getValue(sameRevision.uploadName).doneBlobUri == doneBlobUri) {
+                  add((cmmsModelLine to sameRevision.uploadName) to predecessorName)
+                }
+              }
+              if (
+                entry.recoveryAction !=
+                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+              ) {
+                predecessorName = entry.uploadName
+              }
+            }
+          }
+        }
+        .toMap()
+    val cascade =
+      unlinkedCascade.map { entry ->
+        entry.copy(
+          recoveryPredecessorUploadName =
+            if (entry.memoized) {
+              predecessorByModelLineAndUpload[entry.cmmsModelLine to entry.uploadName].orEmpty()
+            } else {
+              ""
+            }
+        )
+      }
+    val cascadeWithOutputManifests =
+      cascade.map { entry ->
+        entry.copy(
+          labeledOutputManifest =
+            resolveLabeledOutputManifest(entry, captureGeneration = captureOutputGenerations)
+        )
+      }
+    if (!requirePipelineIdle) {
+      val approvedOutputUris =
+        cascadeWithOutputManifests
+          .flatMap { it.labeledOutputManifest.blobsList }
+          .mapTo(mutableSetOf()) { it.blobUri }
+      val scopedModelLines = cascadeWithOutputManifests.mapTo(mutableSetOf()) { it.modelLineName }
+      val overlappingActiveRows = buildList {
+        for (row in queuedOrRunningRows) {
+          if (row.state == RawImpressionUploadModelLine.State.CREATED) continue
+          val activeOutputUris = resolveLabeledOutputUris(uploadNameOf(row.name), row.cmmsModelLine)
+          if (row.name !in scopedModelLines && activeOutputUris.any { it in approvedOutputUris }) {
+            add(row)
+          }
+        }
+      }
+      require(overlappingActiveRows.isEmpty()) {
+        "Correction scope omits active model-line work that can publish approved output: " +
+          overlappingActiveRows.map { it.name }
+      }
+    }
+    val extraUploads =
+      cascadeWithOutputManifests.map { it.uploadName }.filter { it !in requestedNames }.distinct()
+    val recoveryTargets =
+      cascadeWithOutputManifests
+        .filter { entry ->
+          if (
+            entry.recoveryAction !=
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+          ) {
+            return@filter false
+          }
+          val upload = uploadsByName.getValue(entry.uploadName)
+          latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+        }
+        .groupBy { it.uploadName }
+        .map { (uploadName, entries) ->
+          RecoveryTarget(uploadName, entries.map { it.cmmsModelLine }.distinct())
+        }
+    val replacementTargets =
+      cascadeWithOutputManifests
+        .filter { entry ->
+          if (
+            entry.recoveryAction !=
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+          ) {
+            return@filter false
+          }
+          val upload = uploadsByName.getValue(entry.uploadName)
+          latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+        }
+        .groupBy { it.uploadName }
+        .map { (uploadName, entries) ->
+          RecoveryTarget(uploadName, entries.map { it.cmmsModelLine }.distinct())
+        }
+    return EvictionPlan(
+      cascadeWithOutputManifests,
+      extraUploads,
+      memoizedModelLines,
+      nonMemoizedModelLines,
+      plannedBadUploads,
+      plannedNoReplacementUploads,
+      cutoffTime,
+      evictionOperationId,
+      recoveryTargets,
+      replacementTargets,
+      outputManifestsFinalized = captureOutputGenerations,
+    )
+  }
+
+  /** Captures exact output versions after the DataProvider fence has drained all writers. */
+  override suspend fun finalizeOutputManifests(plan: EvictionPlan): EvictionPlan {
+    require(
+      listQueuedOrRunningModelLines(dataProviderOf(plan.badUploads.first())).none {
+        it.state != RawImpressionUploadModelLine.State.CREATED
+      }
+    ) {
+      "Cannot finalize labeled output while model-line work is active"
+    }
+    val versionsByUri = mutableMapOf<String, LabeledOutputManifest.BlobVersion>()
+    val cascade =
+      plan.cascade.map { entry ->
+        val expectedUris = resolveLabeledOutputUris(entry.uploadName, entry.cmmsModelLine)
+        require(entry.labeledOutputManifest.blobsList.map { it.blobUri } == expectedUris) {
+          "Labeled-output URI scope changed for ${entry.modelLineName}"
+        }
+        val finalized = resolveLabeledOutputManifest(entry, captureGeneration = true)
+        for (blob in finalized.blobsList) {
+          val previous = versionsByUri.putIfAbsent(blob.blobUri, blob)
+          require(previous == null || previous == blob) {
+            "Labeled output ${blob.blobUri} resolved to mixed generations"
+          }
+        }
+        entry.copy(labeledOutputManifest = finalized)
+      }
+    return plan.copy(cascade = cascade, outputManifestsFinalized = true)
+  }
+
+  /**
+   * Executes [plan]: marks each cascade `(upload, model line)` `FAILED` with failure reason
+   * `EVICTED_OUTPUT` (recording [reason]), soft-deletes its cumulative `SNAPSHOT` rank-index blobs
+   * and labeled-output metadata, then removes the labeled-output data and sidecar blobs. Model
+   * lines already failed for another reason are reclassified as evicted before their output is
+   * deleted, so `retry-failed` cannot recreate invalidated output. Raw inputs are retained so a
+   * replacement upload can calculate its delta against the evicted upload. Before refreshing the
+   * plan, this acquires a durable DataProvider-wide fence that verifies the pipeline is idle and
+   * defers unrelated upload processing until the complete healing workflow finishes. A partial
+   * failure leaves the fence in place so the same operation ID can safely resume. Synchronization
+   * leases prevent eviction from crossing in-flight `DataAvailabilitySync` mutations.
+   *
+   * Metadata is deleted before its GCS object. This makes `DataAvailabilityCleanup` harmless when
+   * the object-deletion event arrives: its active-only lookup finds no row, and a cleanup event
+   * carrying the resource ID treats the already-deleted row as an idempotent `NOT_FOUND`.
+   */
+  suspend fun evict(plan: EvictionPlan, reason: String): EvictionResult {
+    val preparedPlan = prepare(plan)
+    return evict(preparedPlan, reason) {}
+  }
+
+  /** Acquires the eviction fence and rejects a plan that changed after operator confirmation. */
+  override suspend fun prepare(plan: EvictionPlan): EvictionPlan {
+    val dataProvider = dataProviderOf(plan.badUploads.first())
+    val acquireResponse =
+      rpcThrottlers.metadataWrite.onReady {
+        uploadsStub.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            parent = dataProvider
+            evictionOperationId = plan.evictionOperationId
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId =
+              RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, state.name)
+          }
+        )
+      }
+    try {
+      val refreshed =
+        plan(
+          plan.badUploads,
+          plan.cutoffTime,
+          evictionOperationId = plan.evictionOperationId,
+          noReplacementUploads = plan.noReplacementUploads,
+        )
+      require(refreshed.cascade == plan.cascade) {
+        "eviction plan changed after confirmation; review the new plan and retry"
+      }
+      return refreshed
+    } catch (e: Throwable) {
+      if (acquireResponse.newlyAcquired) {
+        try {
+          withContext(NonCancellable) {
+            rpcThrottlers.metadataWrite.onReady {
+              uploadsStub.releaseRawImpressionUploadEvictionFence(
+                releaseRawImpressionUploadEvictionFenceRequest {
+                  parent = dataProvider
+                  evictionOperationId = plan.evictionOperationId
+                  etag = acquireResponse.etag
+                  requestId =
+                    RequestIds.forReleaseUploadEvictionFence(
+                      plan.evictionOperationId,
+                      acquireResponse.etag,
+                    )
+                }
+              )
+            }
+          }
+        } catch (releaseException: Throwable) {
+          e.addSuppressed(releaseException)
+        }
+      }
+      throw e
+    }
+  }
+
+  override suspend fun evict(
+    plan: EvictionPlan,
+    reason: String,
+    onEntryEvicted: suspend (CascadeEntry) -> Unit,
+  ): EvictionResult {
+    val dataProvider = dataProviderOf(plan.badUploads.first())
+    val fenceState = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+    rpcThrottlers.metadataWrite.onReady {
+      uploadsStub.acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          parent = dataProvider
+          evictionOperationId = plan.evictionOperationId
+          state = fenceState
+          requestId =
+            RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, fenceState.name)
+        }
+      )
+    }
+    val result = executeEviction(plan, reason, onEntryEvicted)
+    return result
+  }
+
+  private suspend fun executeEviction(
+    plan: EvictionPlan,
+    reason: String,
+    onEntryEvicted: suspend (CascadeEntry) -> Unit,
+  ): EvictionResult {
+    require(plan.outputManifestsFinalized) {
+      "Cannot evict with provisional labeled-output manifests"
+    }
+    verifyLabeledOutputManifests(plan)
+    val failed = mutableListOf<String>()
+    var deleted = 0
+    var deletedMetadata = 0
+    var deletedOutputBlobs = 0
+    val cleanedMetadataNames = mutableSetOf<String>()
+    val cleanedBlobUris = mutableSetOf<String>()
+    for (entry in plan.cascade) {
+      // Re-fetch the model line so the Mark uses a current etag and state: the plan may be minutes
+      // old, and the Monitor or another operator could have advanced the row since. Reusing the
+      // plan-time etag would throw ABORTED partway through the cascade. Re-reading also lets an
+      // already-failed processing attempt be reclassified as evicted before its snapshots are
+      // deleted.
+      val current =
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionModelLinesStub.getRawImpressionUploadModelLine(
+            getRawImpressionUploadModelLineRequest { name = entry.modelLineName }
+          )
+        }
+      if (
+        current.state != RawImpressionUploadModelLine.State.FAILED ||
+          current.failureReason != RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT ||
+          current.evictionOperationId != plan.evictionOperationId ||
+          current.recoveryAction != entry.recoveryAction ||
+          current.recoveryPredecessorRawImpressionUpload != entry.recoveryPredecessorUploadName
+      ) {
+        rpcThrottlers.metadataWrite.onReady {
+          rawImpressionModelLinesStub.markRawImpressionUploadModelLineFailed(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = entry.modelLineName
+              errorMessage = reason
+              etag = current.etag
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              evictionOperationId = plan.evictionOperationId
+              recoveryAction = entry.recoveryAction
+              recoveryPredecessorRawImpressionUpload = entry.recoveryPredecessorUploadName
+              requestId =
+                RequestIds.forEvictRawImpressionUploadModelLine(entry.modelLineName, current.etag)
+            }
+          )
+        }
+        failed.add(entry.modelLineName)
+        logger.info("Marked ${entry.modelLineName} FAILED with reason EVICTED_OUTPUT.")
+      }
+      if (entry.memoized) {
+        deleted += softDeleteSnapshots(entry.uploadName, entry.cmmsModelLine)
+      }
+      val outputCleanup = cleanLabeledOutputs(entry, cleanedMetadataNames, cleanedBlobUris)
+      deletedMetadata += outputCleanup.deletedMetadata
+      deletedOutputBlobs += outputCleanup.deletedBlobs
+      onEntryEvicted(entry)
+    }
+    return EvictionResult(failed, deleted, deletedMetadata, deletedOutputBlobs)
+  }
+
+  private suspend fun listUploads(
+    dataProvider: String,
+    cutoffTime: Instant,
+  ): Map<String, RawImpressionUpload> {
+    val uploads = mutableMapOf<String, RawImpressionUpload>()
+    var pageToken = ""
+    do {
+      val response =
+        rpcThrottlers.metadataRead.onReady {
+          uploadsStub.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              parent = dataProvider
+              filter =
+                ListRawImpressionUploadsRequestKt.filter {
+                  createTimeIn = interval { startTime = cutoffTime.toProtoTime() }
+                }
+              this.pageToken = pageToken
+            }
+          )
+        }
+      for (upload in response.rawImpressionUploadsList) {
+        uploads[upload.name] = upload
+      }
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return uploads
+  }
+
+  private fun replacesUpload(
+    candidateUploadName: String,
+    ancestorUploadName: String,
+    uploadsByName: Map<String, RawImpressionUpload>,
+  ): Boolean {
+    val visited = mutableSetOf<String>()
+    var current = uploadsByName[candidateUploadName]?.replacesRawImpressionUpload.orEmpty()
+    while (current.isNotEmpty() && visited.add(current)) {
+      if (current == ancestorUploadName) return true
+      current = uploadsByName[current]?.replacesRawImpressionUpload.orEmpty()
+    }
+    return false
+  }
+
+  private fun findLatestUpload(uploads: List<RawImpressionUpload>): RawImpressionUpload {
+    val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
+    return if (timestamped.isNotEmpty()) {
+      timestamped.maxWith { left, right ->
+        com.google.protobuf.util.Timestamps.compare(
+          left.doneBlobCreateTime,
+          right.doneBlobCreateTime,
+        )
+      }
+    } else {
+      uploads.maxWith { left, right ->
+        com.google.protobuf.util.Timestamps.compare(left.createTime, right.createTime)
+      }
+    }
+  }
+
+  private fun isMemoized(
+    row: RawImpressionUploadModelLine,
+    snapshotRows: Set<Pair<String, String>>,
+  ): Boolean {
+    return row.state in
+      setOf(
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+        RawImpressionUploadModelLine.State.RANKING,
+      ) || uploadNameOf(row.name) to row.cmmsModelLine in snapshotRows
+  }
+
+  private fun isEligibleRecoveryPredecessor(
+    row: RawImpressionUploadModelLine,
+    activeSnapshotRows: Set<Pair<String, String>>,
+    evictionOperationId: String,
+  ): Boolean {
+    if (
+      row.recoveryAction ==
+        RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+    ) {
+      return false
+    }
+    if (
+      hasDurableLabeledOutput(row.state) &&
+        uploadNameOf(row.name) to row.cmmsModelLine in activeSnapshotRows
+    ) {
+      return true
+    }
+    return !wasEvictedByAnotherOperation(row, evictionOperationId) &&
+      row.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT &&
+      row.evictionOperationId == evictionOperationId &&
+      row.recoveryAction in
+        setOf(
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
+        )
+  }
+
+  private fun wasEvictedByAnotherOperation(
+    row: RawImpressionUploadModelLine,
+    evictionOperationId: String,
+  ): Boolean =
+    row.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT &&
+      row.evictionOperationId.isNotEmpty() &&
+      row.evictionOperationId != evictionOperationId
+
+  private fun hasDurableLabeledOutput(state: RawImpressionUploadModelLine.State): Boolean =
+    state in
+      setOf(
+        RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+        RawImpressionUploadModelLine.State.COMPLETED,
+      )
+
+  private data class OutputCleanupResult(val deletedMetadata: Int, val deletedBlobs: Int)
+
+  private suspend fun resolveLabeledOutputManifest(
+    entry: CascadeEntry,
+    captureGeneration: Boolean,
+  ): LabeledOutputManifest {
+    val outputUris = resolveLabeledOutputUris(entry.uploadName, entry.cmmsModelLine)
+    val semaphore = Semaphore(OUTPUT_DELETE_PARALLELISM)
+    val versions = coroutineScope {
+      outputUris
+        .map { blobUri ->
+          async {
+            semaphore.withPermit {
+              LabeledOutputManifestKt.blobVersion {
+                this.blobUri = blobUri
+                if (captureGeneration) {
+                  getBlobGeneration(blobUri)?.let { generation = it }
+                }
+              }
+            }
+          }
+        }
+        .awaitAll()
+    }
+    return labeledOutputManifest { blobs += versions }
+  }
+
+  private suspend fun resolveLabeledOutputUris(
+    uploadName: String,
+    cmmsModelLine: String,
+  ): List<String> {
+    val outputUris =
+      listRawImpressionUploadFiles(uploadName)
+        .map { file ->
+          LabeledImpressionsBlobKeys.forInputUri(
+            labeledImpressionsBlobPrefix,
+            file.blobUri,
+            cmmsModelLine,
+            file.eventDate.toLocalDate(),
+          )
+        }
+        .distinct()
+        .sorted()
+        .flatMap { impressionsBlobUri ->
+          listOf(impressionsBlobUri + LABELED_OUTPUT_METADATA_SUFFIX, impressionsBlobUri)
+        }
+    return outputUris
+  }
+
+  private suspend fun verifyLabeledOutputManifests(plan: EvictionPlan) {
+    val approvedByUri = mutableMapOf<String, LabeledOutputManifest.BlobVersion>()
+    for (entry in plan.cascade) {
+      for (blob in entry.labeledOutputManifest.blobsList) {
+        val previous = approvedByUri.putIfAbsent(blob.blobUri, blob)
+        check(previous == null || previous == blob) {
+          "Healing plan has conflicting generations for ${blob.blobUri}"
+        }
+      }
+    }
+    for (blob in approvedByUri.values) {
+      val liveGeneration = getBlobGeneration(blob.blobUri)
+      val unchanged =
+        if (blob.hasGeneration()) {
+          liveGeneration == null || liveGeneration == blob.generation
+        } else {
+          liveGeneration == null
+        }
+      check(unchanged) {
+        "Labeled output ${blob.blobUri} changed after plan approval: " +
+          "expected=${blob.generation.takeIf { blob.hasGeneration() }}, live=$liveGeneration"
+      }
+    }
+  }
+
+  private suspend fun cleanLabeledOutputs(
+    entry: CascadeEntry,
+    cleanedMetadataNames: MutableSet<String>,
+    cleanedBlobUris: MutableSet<String>,
+  ): OutputCleanupResult {
+    val versionsByUri = entry.labeledOutputManifest.blobsList.associateBy { it.blobUri }
+    val expectedImpressionsBlobUris =
+      versionsByUri.keys.filterNot { it.endsWith(LABELED_OUTPUT_METADATA_SUFFIX) }.sorted()
+    if (expectedImpressionsBlobUris.isEmpty()) return OutputCleanupResult(0, 0)
+    val expectedMetadataBlobUris =
+      expectedImpressionsBlobUris.map { it + LABELED_OUTPUT_METADATA_SUFFIX }
+    val expectedMetadataBlobUriSet = expectedMetadataBlobUris.toSet()
+    val matchingMetadata =
+      listImpressionMetadata(dataProviderOf(entry.uploadName), expectedMetadataBlobUris)
+        .filter { metadata -> metadata.blobUri in expectedMetadataBlobUriSet }
+        .filter { cleanedMetadataNames.add(it.name) }
+    val activeMetadata = matchingMetadata.filter { it.state == ImpressionMetadata.State.ACTIVE }
+
+    for (chunk in activeMetadata.chunked(IMPRESSION_METADATA_BATCH_DELETE_SIZE)) {
+      rpcThrottlers.metadataWrite.onReady {
+        impressionMetadataStub.batchDeleteImpressionMetadata(
+          batchDeleteImpressionMetadataRequest {
+            parent = dataProviderOf(entry.uploadName)
+            names += chunk.map { it.name }
+          }
+        )
+      }
+    }
+
+    val blobVersionPairs =
+      expectedMetadataBlobUris.zip(expectedImpressionsBlobUris).mapNotNull {
+        (metadataBlobUri, impressionsBlobUri) ->
+        listOfNotNull(versionsByUri[metadataBlobUri], versionsByUri[impressionsBlobUri])
+          .filter { cleanedBlobUris.add(it.blobUri) }
+          .takeIf { it.isNotEmpty() }
+      }
+    val deletedBlobs = coroutineScope {
+      val semaphore = Semaphore(OUTPUT_DELETE_PARALLELISM)
+      blobVersionPairs
+        .map { blobVersions ->
+          async {
+            semaphore.withPermit {
+              // Delete the sidecar before its data blob so metadata is never left pointing at an
+              // absent data object if this pair fails partway through.
+              var count = 0
+              for (blob in blobVersions) {
+                if (blob.hasGeneration() && deleteBlob(blob.blobUri, blob.generation)) count++
+              }
+              count
+            }
+          }
+        }
+        .awaitAll()
+        .sum()
+    }
+    return OutputCleanupResult(activeMetadata.size, deletedBlobs)
+  }
+
+  private suspend fun listRawImpressionUploadFiles(
+    uploadName: String
+  ): List<RawImpressionUploadFile> {
+    val files = mutableListOf<RawImpressionUploadFile>()
+    var pageToken = ""
+    do {
+      val response =
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionFilesStub.listRawImpressionUploadFiles(
+            listRawImpressionUploadFilesRequest {
+              parent = uploadName
+              pageSize = RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE
+              this.pageToken = pageToken
+            }
+          )
+        }
+      files += response.rawImpressionUploadFilesList
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return files
+  }
+
+  private suspend fun listImpressionMetadata(
+    dataProviderName: String,
+    blobUris: List<String>,
+  ): List<ImpressionMetadata> {
+    val metadata = mutableListOf<ImpressionMetadata>()
+    for (blobUriChunk in blobUris.chunked(IMPRESSION_METADATA_LOOKUP_BATCH_SIZE)) {
+      var pageToken = ""
+      do {
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            impressionMetadataStub.listImpressionMetadata(
+              listImpressionMetadataRequest {
+                parent = dataProviderName
+                pageSize = IMPRESSION_METADATA_LOOKUP_BATCH_SIZE
+                showDeleted = true
+                filter = ListImpressionMetadataRequestKt.filter { this.blobUris += blobUriChunk }
+                this.pageToken = pageToken
+              }
+            )
+          }
+        metadata += response.impressionMetadataList
+        pageToken = response.nextPageToken
+      } while (pageToken.isNotEmpty())
+    }
+    return metadata
+  }
+
+  private suspend fun listModelLines(
+    parent: String,
+    cmmsModelLine: String = "",
+    cutoffTime: Instant? = null,
+  ): List<RawImpressionUploadModelLine> {
+    val rows = mutableListOf<RawImpressionUploadModelLine>()
+    var pageToken = ""
+    do {
+      val response =
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              this.parent = parent
+              if (cmmsModelLine.isNotEmpty() || cutoffTime != null) {
+                filter =
+                  ListRawImpressionUploadModelLinesRequestKt.filter {
+                    if (cmmsModelLine.isNotEmpty()) this.cmmsModelLine = cmmsModelLine
+                    if (cutoffTime != null) {
+                      createTimeIn = interval { startTime = cutoffTime.toProtoTime() }
+                    }
+                  }
+              }
+              this.pageToken = pageToken
+            }
+          )
+        }
+      rows += response.rawImpressionUploadModelLinesList
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return rows
+  }
+
+  private suspend fun listQueuedOrRunningModelLines(
+    dataProvider: String
+  ): List<RawImpressionUploadModelLine> {
+    val rows = mutableListOf<RawImpressionUploadModelLine>()
+    var pageToken = ""
+    do {
+      val response =
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              parent = "$dataProvider/rawImpressionUploads/-"
+              filter =
+                ListRawImpressionUploadModelLinesRequestKt.filter {
+                  stateIn += QUEUED_OR_RUNNING_STATES
+                }
+              this.pageToken = pageToken
+            }
+          )
+        }
+      rows +=
+        response.rawImpressionUploadModelLinesList.filter { it.state in QUEUED_OR_RUNNING_STATES }
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return rows
+  }
+
+  private suspend fun softDeleteSnapshots(uploadName: String, cmmsModelLine: String): Int {
+    var count = 0
+    var pageToken = ""
+    do {
+      val response =
+        rpcThrottlers.metadataRead.onReady {
+          rankIndexBlobsStub.listRankIndexBlobs(
+            listRankIndexBlobsRequest {
+              parent = uploadName
+              filter =
+                ListRankIndexBlobsRequestKt.filter {
+                  blobType = RankIndexBlob.BlobType.SNAPSHOT
+                  this.cmmsModelLine = cmmsModelLine
+                }
+              this.pageToken = pageToken
+            }
+          )
+        }
+      for (blob in response.rankIndexBlobsList) {
+        rpcThrottlers.metadataWrite.onReady {
+          rankIndexBlobsStub.deleteRankIndexBlob(deleteRankIndexBlobRequest { name = blob.name })
+        }
+        count++
+      }
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return count
+  }
+
+  private suspend fun listSnapshotRows(
+    dataProvider: String,
+    cmmsModelLine: String,
+  ): List<SnapshotRow> {
+    val rows = mutableListOf<SnapshotRow>()
+    var pageToken = ""
+    do {
+      val response =
+        rpcThrottlers.metadataRead.onReady {
+          rankIndexBlobsStub.listRankIndexBlobs(
+            listRankIndexBlobsRequest {
+              parent = "$dataProvider/rawImpressionUploads/-"
+              showDeleted = true
+              filter =
+                ListRankIndexBlobsRequestKt.filter {
+                  blobType = RankIndexBlob.BlobType.SNAPSHOT
+                  this.cmmsModelLine = cmmsModelLine
+                }
+              this.pageToken = pageToken
+            }
+          )
+        }
+      for (blob in response.rankIndexBlobsList) {
+        val key =
+          requireNotNull(RankIndexBlobKey.fromName(blob.name)) {
+            "Malformed RankIndexBlob resource name: ${blob.name}"
+          }
+        rows += SnapshotRow(key.parentKey.toName(), blob.cmmsModelLine, blob.hasDeleteTime())
+      }
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return rows
+  }
+
+  private data class SnapshotRow(
+    val uploadName: String,
+    val cmmsModelLine: String,
+    val deleted: Boolean,
+  )
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(EvictUploader::class.java.name)
+    private const val SNAPSHOT_LOOKUP_PARALLELISM = 16
+    private const val LABELED_OUTPUT_METADATA_SUFFIX = ".metadata.binpb"
+    private const val IMPRESSION_METADATA_LOOKUP_BATCH_SIZE = 1000
+    private const val RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE = 100
+    private const val OUTPUT_DELETE_PARALLELISM = 16
+    private val QUEUED_OR_RUNNING_STATES =
+      setOf(
+        RawImpressionUploadModelLine.State.CREATED,
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+        RawImpressionUploadModelLine.State.RANKING,
+        RawImpressionUploadModelLine.State.LABELING,
+      )
+    private const val IMPRESSION_METADATA_BATCH_DELETE_SIZE = 1000
+
+    /** The `dataProviders/{data_provider}` parent of an upload resource name. */
+    private fun dataProviderOf(uploadName: String): String =
+      requireNotNull(RawImpressionUploadKey.fromName(uploadName)) {
+          "Malformed RawImpressionUpload resource name: $uploadName"
+        }
+        .parentKey
+        .toName()
+
+    /** The parent `RawImpressionUpload` resource name of a model-line resource name. */
+    private fun uploadNameOf(modelLineName: String): String =
+      requireNotNull(RawImpressionUploadModelLineKey.fromName(modelLineName)) {
+          "Malformed RawImpressionUploadModelLine resource name: $modelLineName"
+        }
+        .parentKey
+        .toName()
+  }
+}

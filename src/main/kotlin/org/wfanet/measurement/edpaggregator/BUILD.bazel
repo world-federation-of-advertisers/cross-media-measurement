@@ -25,6 +25,20 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "requisition_specs",
+    srcs = ["RequisitionSpecs.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:key_storage",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+    ],
+)
+
+kt_jvm_library(
     name = "blob_uris",
     srcs = ["BlobUris.kt"],
     deps = [
@@ -59,9 +73,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "tee_stack_dump_logger",
+    srcs = ["TeeStackDumpLogger.kt"],
+)
+
+kt_jvm_library(
     name = "base_tee_app_runner",
     srcs = ["BaseTeeAppRunner.kt"],
     deps = [
+        ":tee_stack_dump_logger",
         "//imports/java/com/google/cloud/logging",
         "//imports/java/com/google/cloud/secretmanager",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
@@ -127,8 +147,5 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
-    ],
+    deps = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler"],
 )

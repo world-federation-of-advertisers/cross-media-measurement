@@ -432,6 +432,13 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	volumes: [ for _, volume in _volumes {volume}]
 	serviceAccountName?: string
 	nodeSelector?: [_=string]: string
+	topologySpreadConstraints?: [...{
+		maxSkew:           int & >=1
+		minDomains?:       int & >=1
+		topologyKey:       string
+		whenUnsatisfiable: "DoNotSchedule" | "ScheduleAnyway"
+		labelSelector:     #LabelSelector
+	}]
 	initContainers: [ for _, initContainer in _initContainers {initContainer}]
 	tolerations: [ for _, toleration in _tolerations {toleration}]
 }
@@ -557,6 +564,17 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	startupProbe?:   #Probe
 	restartPolicy?:  "Always" // For sidecar containers.
 	env: [ for _, envVar in _envVars {envVar}]
+}
+
+// K8s PodDisruptionBudget.
+#PodDisruptionBudget: {
+	apiVersion: "policy/v1"
+	kind:       "PodDisruptionBudget"
+	metadata:   #ObjectMeta
+	spec: {
+		minAvailable: uint | string
+		selector:     #LabelSelector
+	}
 }
 
 // K8s Deployment.

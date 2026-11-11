@@ -18,6 +18,11 @@ variable "tee_consumers_enabled" {
   default     = true
 }
 
+variable "vid_labeling_trace_operator_member" {
+  description = "IAM member for the read-only VID-labeling trace operator."
+  type        = string
+}
+
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({
@@ -39,6 +44,8 @@ variable "requisition_fulfiller_config" {
       max_replicas                  = number
       machine_type                  = string
       java_tool_options             = optional(string)
+      max_attempt_runtime_seconds   = optional(number)
+      stack_dump_interval_seconds   = optional(number)
       docker_image                  = string
       mig_distribution_policy_zones = list(string)
       app_flags                     = list(string)
@@ -163,6 +170,18 @@ variable "pubsub_iam_service_account_member" {
   type        = string
   default     = "secure-computation-pubsub"
   nullable    = false
+}
+
+variable "data_availability_sync_work_item_queue" {
+  description = "Pub/Sub queue for DataAvailabilitySync WorkItems."
+  type = object({
+    topic_name            = string
+    subscription_name     = string
+    ack_deadline_seconds  = number
+    max_delivery_attempts = number
+    minimum_backoff       = string
+    maximum_backoff       = string
+  })
 }
 
 variable "edp_aggregator_bucket_name" {
@@ -504,6 +523,8 @@ variable "vid_labeling_workers" {
       machine_type                  = string
       disk_type                     = optional(string, "pd-ssd")
       java_tool_options             = optional(string)
+      max_attempt_runtime_seconds   = optional(number)
+      stack_dump_interval_seconds   = optional(number)
       docker_image                  = string
       tee_signed_image_repo         = string
       mig_distribution_policy_zones = list(string)
@@ -523,6 +544,26 @@ variable "vid_labeling_monitor_service_account_name" {
   description = "Name of the VidLabelingMonitor service account."
   type        = string
   nullable    = false
+}
+
+variable "vid_labeling_healing_controller_service_account_name" {
+  description = "Name of the VidLabelingHealingController service account."
+  type        = string
+  nullable    = false
+}
+
+variable "vid_labeling_healing_labeled_output_object_prefixes" {
+  description = "Object prefixes under which the healing controller may delete labeled output."
+  type        = list(string)
+  nullable    = false
+
+  validation {
+    condition = length(var.vid_labeling_healing_labeled_output_object_prefixes) > 0 && alltrue([
+      for prefix in var.vid_labeling_healing_labeled_output_object_prefixes :
+      prefix != "" && !startswith(prefix, "/") && endswith(prefix, "/")
+    ])
+    error_message = "At least one bucket-relative labeled-output directory prefix ending in '/' is required."
+  }
 }
 
 variable "vid_labeling_dispatcher_config" {
@@ -569,4 +610,26 @@ variable "vid_labeling_dispatch_scheduler_config" {
     scheduler_job_name        = optional(string)
   })
   nullable = false
+}
+
+variable "vid_labeling_healing_controller_scheduler_config" {
+  description = "Configuration for the five-minute VID-labeling healing controller schedule."
+  type = object({
+    schedule                  = string
+    time_zone                 = string
+    name                      = string
+    function_url              = string
+    scheduler_sa_display_name = string
+    scheduler_sa_description  = string
+    scheduler_job_description = string
+    scheduler_job_name        = optional(string)
+    attempt_deadline          = optional(string, "660s")
+  })
+  nullable = false
+}
+
+variable "vid_labeling_healing_alert_notification_channels" {
+  description = "Monitoring notification channels for VID-labeling healing alerts."
+  type        = list(string)
+  default     = []
 }

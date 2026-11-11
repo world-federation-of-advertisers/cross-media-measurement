@@ -56,6 +56,9 @@ message RawImpressionUploadModelLine {
     // processing attempts may be retried; invalidated output requires a
     // replacement upload.
     FAILED = 6;
+    // VID labeling has finished, but availability is still being synchronized
+    // for one or more event dates.
+    AVAILABILITY_SYNCING = 7;
   }
 
   // Reason that the model line entered the `FAILED` state.
@@ -132,6 +135,9 @@ message RawImpressionUploadModelLine {
   // `VidRankBuilderParams.encrypted_subpool_maps_dek` — stays consistent with
   // the already-written merged blobs instead of diverging on a freshly
   // generated DEK.
+  // (-- api-linter: core::0215::foreign-type-reference=disabled
+  //     aip.dev/not-precedent: Shared encryption key schema used by
+  //     impression processing and aggregation. --)
   wfa.measurement.securecomputation.impressions.EncryptedDek
       encrypted_merged_dek = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 
@@ -160,4 +166,9 @@ message RawImpressionUploadModelLine {
       type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
     }
   ];
+
+  // Event dates whose VID-labeled output has not yet been synchronized into
+  // ImpressionMetadata and the Kingdom.
+  repeated google.type.Date pending_availability_dates = 16
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

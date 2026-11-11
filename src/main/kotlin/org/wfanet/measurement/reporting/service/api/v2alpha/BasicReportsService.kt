@@ -750,6 +750,9 @@ class BasicReportsService(
                       .toTimestamp()
                 }
                 dataProviders += dataProviderNames
+                if (requestModelLine.isNotEmpty()) {
+                  types += listOf(ModelLine.Type.PROD, ModelLine.Type.DEV)
+                }
               }
             )
         } catch (e: StatusException) {

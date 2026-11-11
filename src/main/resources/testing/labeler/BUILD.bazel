@@ -17,3 +17,15 @@ filegroup(
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:__pkg__",
     ],
 )
+
+# A single Any-packed CompiledNode from ranked_model.textproto, written uncompressed with
+# riegeli::RecordWriter (riegeli 0.0.0-20250822-9f2744d). It emits pool offset 1000 with ranked size 80.
+filegroup(
+    name = "ranked_model_riegeli",
+    testonly = True,
+    srcs = [
+        "ranked_model.textproto",
+        "ranked_model_riegeli_list",
+    ],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:__pkg__"],
+)

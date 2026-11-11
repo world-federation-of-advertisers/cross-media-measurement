@@ -64,14 +64,18 @@ jobs:
       work_item_tee_mig_names: ${{ steps.terraform_outputs.outputs.work_item_tee_mig_names }}
     env:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
-      GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
-      GCLOUD_ZONE: ${{ vars.GCLOUD_ZONE }}
       RESULTS_FULFILLER_TRUSTED_CA_CONTENT: ${{ secrets.RESULTS_FULFILLER_TRUSTED_CA_CONTENT }}
       CMMS_OPERATOR_MEMBERS_JSON: ${{ secrets.CMMS_OPERATOR_MEMBERS_JSON }}
       EDP_SIMULATOR_NAMES: '["edp1-simulator", "edp2-simulator", "edp3-simulator", "edp4-simulator", "edp5-simulator", "edp6-simulator"]'
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Load CMMS environment configuration
+      id: cmms-config
+      uses: ./.github/actions/load-cmms-environment
+      with:
+        environment: ${{ inputs.environment }}
 
     - name: Compute commit age
       id: compute-commit-age
@@ -114,8 +118,8 @@ jobs:
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
-        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+        workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
 
     - name: Set up Java & Maven
       uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
@@ -162,7 +166,8 @@ jobs:
         set -euo pipefail
         TEMP_DIR="${RUNNER_TEMP}/uber-jars"
         mkdir -p "$TEMP_DIR"
-        echo "Maven repo: $(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)"
+        LOCAL_REPO="$RUNNER_TEMP/maven-repository"
+        echo "Maven repo: $LOCAL_REPO"
 
         declare -A coords
         coords[data-watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$ARTIFACT_VERSION:jar"
@@ -171,24 +176,25 @@ jobs:
         coords[data-availability-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-sync:$ARTIFACT_VERSION:jar"
         coords[data-availability-cleanup]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-cleanup:$ARTIFACT_VERSION:jar"
         coords[data-availability-monitor]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-monitor:$ARTIFACT_VERSION:jar"
-        # TODO(@marcopremier): requires the function jars to be published to GitHub Packages
-        # (vid-labeling-dispatcher is on main; vid-labeling-monitor needs PR #4020 merged).
         coords[vid-labeling-dispatcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-dispatcher:$ARTIFACT_VERSION:jar"
         coords[vid-labeling-monitor]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-monitor:$ARTIFACT_VERSION:jar"
+        coords[vid-labeling-healing-controller]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-healing-controller:$ARTIFACT_VERSION:jar"
         coords[dashboard-compliance-check]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools:dashboard-compliance-check:$ARTIFACT_VERSION:jar"
         
-        LOCAL_REPO=$(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)
-
         for key in "${!coords[@]}"; do
           dest_dir="$TEMP_DIR/$key"
           mkdir -p "$dest_dir"
-          mvn -U dependency:get \
+          # Uber JARs already contain their runtime dependencies.
+          mvn -B -U -Dmaven.repo.local="$LOCAL_REPO" \
+            org.apache.maven.plugins:maven-dependency-plugin:3.11.0:get \
             -DremoteRepositories=github::default::https://maven.pkg.github.com/world-federation-of-advertisers/cross-media-measurement \
-            -Dartifact="${coords[$key]}" 
+            -Dartifact="${coords[$key]}" \
+            -Dtransitive=false
         
           IFS=':' read -r groupId artifactId version type <<<"${coords[$key]}"
           jar_dir="$LOCAL_REPO/${groupId//./\/}/$artifactId/$version"
-          jar_path=$(find "$jar_dir" -maxdepth 1 -type f -name "$artifactId-*.jar" ! -name "*sources*" | head -n1)
+          # Maven installs timestamped SNAPSHOTs with the base-version filename.
+          jar_path="$jar_dir/$artifactId-$version.jar"
           filename="${version}-function.jar"
           cp "$jar_path" "$dest_dir/$filename"
           
@@ -211,10 +217,18 @@ jobs:
         bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
         cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
 
+    - name: Validate DataWatcher configuration
+      env:
+        CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
+      run: |
+        bazelisk run \
+          //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:ValidateDataWatcherConfig \
+          -- \
+          --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto"
+
     - name: Validate direct RequisitionFetcher dispatch configuration
       env:
         CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
-        SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
       run: |
         bazelisk run \
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:ValidateRequisitionFetcherConfig \
@@ -224,14 +238,12 @@ jobs:
           --control-plane-target="$SECURE_COMPUTATION_PUBLIC_API_TARGET"
 
     - name: terraform init
-      env:
-        TF_STORAGE_BUCKET: ${{ vars.TF_STORAGE_BUCKET }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform init
         -input=false
         -lockfile=readonly
-        -backend-config="bucket=$TF_STORAGE_BUCKET"
+        -backend-config=envs/${{ inputs.environment }}.backend.hcl
 
     - id: get-public-key-fingerprint
       name: Get TEE image signing key fingerprint
@@ -248,8 +260,7 @@ jobs:
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       env:
         DASHBOARD_CONFIG_FILE: envs/${{ inputs.environment }}/dashboard-config.json
-        SPANNER_PROJECT: ${{ vars.GCLOUD_PROJECT }}
-        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+        SPANNER_PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
       run: |
         set -euo pipefail
         # Dashboard config (EDPs, operators, deletion protection) is consolidated
@@ -285,39 +296,16 @@ jobs:
 
     - name: terraform plan
       env:
-        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
-        STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
-        TERRAFORM_SERVICE_ACCOUNT: ${{ vars.TF_SERVICE_ACCOUNT }}
-        POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
+        TERRAFORM_SERVICE_ACCOUNT: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         RESULTS_FULFILLER_TRUSTED_CA_FILE: ${{ runner.temp }}/results-fulfiller-trusted-root-ca.pem
-        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
-        SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
-        METADATA_STORAGE_PUBLIC_API_TARGET: ${{ vars.METADATA_STORAGE_PUBLIC_API_TARGET }}
         IMAGE_TAG: ${{ inputs.image-tag }}
-        DATA_WATCHER_ENV_VAR: ${{ vars.DATA_WATCHER_ENV_VAR }}
-        DATA_WATCHER_SECRET_MAPPING: ${{ vars.DATA_WATCHER_SECRET_MAPPING }}
-        DATA_WATCHER_DELETE_ENV_VAR: ${{ vars.DATA_WATCHER_DELETE_ENV_VAR }}
-        DATA_WATCHER_DELETE_SECRET_MAPPING: ${{ vars.DATA_WATCHER_DELETE_SECRET_MAPPING }}
-        REQUISITION_FETCHER_ENV_VAR: ${{ vars.REQUISITION_FETCHER_ENV_VAR }}
-        EVENT_GROUP_ENV_VAR: ${{ vars.EVENT_GROUP_ENV_VAR }}
-        DATA_AVAILABILITY_ENV_VAR: ${{ vars.DATA_AVAILABILITY_ENV_VAR }}
-        DATA_AVAILABILITY_CLEANUP_ENV_VAR: ${{ vars.DATA_AVAILABILITY_CLEANUP_ENV_VAR }}
-        DATA_AVAILABILITY_CLEANUP_SECRET_MAPPING: ${{ vars.DATA_AVAILABILITY_CLEANUP_SECRET_MAPPING }}
-        DATA_AVAILABILITY_MONITOR_ENV_VAR: ${{ vars.DATA_AVAILABILITY_MONITOR_ENV_VAR }}
-        VID_LABELING_DISPATCHER_ENV_VAR: ${{ vars.VID_LABELING_DISPATCHER_ENV_VAR }}
-        VID_LABELING_DISPATCHER_SECRET_MAPPING: ${{ vars.VID_LABELING_DISPATCHER_SECRET_MAPPING }}
-        VID_LABELING_MONITOR_ENV_VAR: ${{ vars.VID_LABELING_MONITOR_ENV_VAR }}
-        VID_LABELING_MONITOR_SECRET_MAPPING: ${{ vars.VID_LABELING_MONITOR_SECRET_MAPPING }}
-        DUCHY_WORKER1_ID: ${{ vars.WORKER1_DUCHY_ID }}
-        DUCHY_WORKER1_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
-        DUCHY_WORKER2_ID: ${{ vars.WORKER2_DUCHY_ID }}
-        DUCHY_WORKER2_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
-        DUCHY_AGGREGATOR_ID: ${{ vars.AGGREGATOR_DUCHY_ID }}
-        DUCHY_AGGREGATOR_TARGET: ${{ vars.AGGREGATOR_PUBLIC_API_TARGET }}
-        DUCHY_AGGREGATOR_INTERNAL_API_TARGET: ${{ vars.AGGREGATOR_INTERNAL_API_TARGET }}
-        KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
-        AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
+        VID_LABELING_HEALING_CONTROLLER_ENV_VAR: ${{ vars.VID_LABELING_HEALING_CONTROLLER_ENV_VAR }}
+        VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING: ${{ vars.VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING }}
+        VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES: ${{ vars.VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES }}
+        DUCHY_WORKER1_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER1_PUBLIC_API_TARGET }}
+        DUCHY_WORKER2_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER2_PUBLIC_API_TARGET }}
+        DUCHY_AGGREGATOR_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).AGGREGATOR_PUBLIC_API_TARGET }}
         TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
@@ -332,41 +320,27 @@ jobs:
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
         -var="metadata_storage_public_api_target=$METADATA_STORAGE_PUBLIC_API_TARGET"
-        -var="data_watcher_env_var=$DATA_WATCHER_ENV_VAR"
-        -var="data_watcher_secret_mapping=$DATA_WATCHER_SECRET_MAPPING"
-        -var="requisition_fetcher_env_var=$REQUISITION_FETCHER_ENV_VAR"
-        -var="event_group_env_var=$EVENT_GROUP_ENV_VAR"
-        -var="data_availability_env_var=$DATA_AVAILABILITY_ENV_VAR"
         -var="data_watcher_uber_jar_path=${{ steps.download-uber-jars.outputs.data_watcher_source_path }}"
-        -var="data_watcher_delete_env_var=$DATA_WATCHER_DELETE_ENV_VAR"
-        -var="data_watcher_delete_secret_mapping=$DATA_WATCHER_DELETE_SECRET_MAPPING"
         -var="requisition_fetcher_uber_jar_path=${{ steps.download-uber-jars.outputs.requisition_fetcher_source_path }}"
         -var="event_group_uber_jar_path=${{ steps.download-uber-jars.outputs.event_group_sync_source_path }}"
         -var="data_availability_uber_jar_path=${{ steps.download-uber-jars.outputs.data_availability_sync_source_path }}"
-        -var="data_availability_cleanup_env_var=$DATA_AVAILABILITY_CLEANUP_ENV_VAR"
-        -var="data_availability_cleanup_secret_mapping=$DATA_AVAILABILITY_CLEANUP_SECRET_MAPPING"
         -var="data_availability_cleanup_uber_jar_path=${{ steps.download-uber-jars.outputs.data_availability_cleanup_source_path }}"
-        -var="data_availability_monitor_env_var=$DATA_AVAILABILITY_MONITOR_ENV_VAR"
         -var="data_availability_monitor_uber_jar_path=${{ steps.download-uber-jars.outputs.data_availability_monitor_source_path }}"
-        -var="vid_labeling_dispatcher_env_var=$VID_LABELING_DISPATCHER_ENV_VAR"
-        -var="vid_labeling_dispatcher_secret_mapping=$VID_LABELING_DISPATCHER_SECRET_MAPPING"
         -var="vid_labeling_dispatcher_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_dispatcher_source_path }}"
-        -var="vid_labeling_monitor_env_var=$VID_LABELING_MONITOR_ENV_VAR"
-        -var="vid_labeling_monitor_secret_mapping=$VID_LABELING_MONITOR_SECRET_MAPPING"
         -var="vid_labeling_monitor_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_monitor_source_path }}"
+        -var="vid_labeling_healing_controller_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_healing_controller_source_path }}"
+        -var="vid_labeling_healing_controller_env_var=$VID_LABELING_HEALING_CONTROLLER_ENV_VAR"
+        -var="vid_labeling_healing_controller_secret_mapping=$VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING"
+        -var="vid_labeling_healing_labeled_output_object_prefixes=$VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES"
         -var="dashboard_compliance_uber_jar_path=${{ steps.download-uber-jars.outputs.dashboard_compliance_check_source_path }}"
         -var="image_tag=$IMAGE_TAG"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"
         -var="requisition_fetcher_enabled=${{ inputs.requisition-fetcher-enabled }}"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
-        -var="duchy_worker1_id=$DUCHY_WORKER1_ID"
         -var="duchy_worker1_target=$DUCHY_WORKER1_TARGET"
-        -var="duchy_worker2_id=$DUCHY_WORKER2_ID"
         -var="duchy_worker2_target=$DUCHY_WORKER2_TARGET"
-        -var="duchy_aggregator_id=$DUCHY_AGGREGATOR_ID"
         -var="duchy_aggregator_target=$DUCHY_AGGREGATOR_TARGET"
         -var="results_fulfiller_trusted_root_ca_collection_file_path=$RESULTS_FULFILLER_TRUSTED_CA_FILE"
-        -var="duchy_aggregator_computations_service_target=$DUCHY_AGGREGATOR_INTERNAL_API_TARGET"
         -var="kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
         -var="duchy_aggregator_cert_id=$AGGREGATOR_DUCHY_CERT_ID"
         -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"
