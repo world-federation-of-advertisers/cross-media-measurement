@@ -38,7 +38,8 @@ import picocli.CommandLine
  * Backfills `ReportingUnitComponentSummary.external_reporting_set_id` on stored `BasicReport`s.
  *
  * `BasicReport`s written via the internal `InsertBasicReport` method before the field was validated
- * have it unset, which makes them unserveable on the public read path.
+ * have it unset. The temporary public read fallback serves them without `reporting_set`; this tool
+ * makes them complete so that fallback can be removed.
  */
 @CommandLine.Command(
   name = "BackfillBasicReportReportingSets",
