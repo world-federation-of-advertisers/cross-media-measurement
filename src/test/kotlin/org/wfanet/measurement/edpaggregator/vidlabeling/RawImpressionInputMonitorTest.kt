@@ -247,6 +247,250 @@ class RawImpressionInputMonitorTest {
       assertThat(registered.unregisteredDoneDirectories).isEqualTo(0)
     }
 
+  @Test
+  fun `scan recognizes finalized raw data for every done marker spelling and size`() =
+    runBlocking<Unit> {
+      for (markerName in listOf("done", "Done", "DONE", "dOnE")) {
+        for (markerSize in listOf(0L, 3L)) {
+          val storage =
+            FakeStorageClient(
+              blob("raw/upload/data.parquet", OLD, size = 1),
+              blob("raw/upload/partition/data.parquet", OLD, size = 1),
+              blob("raw/upload/$markerName", OLD.plusSeconds(1), size = markerSize, generation = 42),
+            )
+
+          val result = createMonitor(storage).scan()
+
+          assertThat(result.missingDoneDirectories).isEqualTo(0)
+          assertThat(result.doneWithoutDataDirectories).isEqualTo(0)
+          assertThat(result.unregisteredDoneDirectories).isEqualTo(1)
+          assertThat(result.dataFilesAfterDone).isEqualTo(0)
+          assertThat(result.ambiguousDoneLayouts).isEqualTo(0)
+          assertThat(result.objectsScanned).isEqualTo(3)
+          assertThat(result.findings.map { it.type })
+            .containsExactly(RawImpressionInputMonitor.FindingType.UNREGISTERED_DONE)
+          assertThat(storage.contentReadCalls.get()).isEqualTo(0)
+        }
+      }
+    }
+
+  @Test
+  fun `scan never counts done marker contents as raw data regardless of spelling`() =
+    runBlocking<Unit> {
+      for (markerName in listOf("done", "Done", "DONE", "dOnE")) {
+        for (markerSize in listOf(0L, 3L)) {
+          val storage =
+            FakeStorageClient(
+              blob("raw/empty/$markerName", OLD, size = markerSize, generation = 42),
+              blob("raw/empty/control", OLD, size = 0),
+            )
+
+          val result = createMonitor(storage).scan()
+
+          assertThat(result.doneWithoutDataDirectories).isEqualTo(1)
+          assertThat(result.missingDoneDirectories).isEqualTo(0)
+          assertThat(result.unregisteredDoneDirectories).isEqualTo(0)
+          assertThat(result.dataFilesAfterDone).isEqualTo(0)
+          assertThat(result.findings.map { it.type })
+            .containsExactly(RawImpressionInputMonitor.FindingType.DONE_WITHOUT_DATA)
+          assertThat(storage.contentReadCalls.get()).isEqualTo(0)
+        }
+      }
+    }
+
+  @Test
+  fun `scan preserves exact done URI and generation matching for every marker spelling`() =
+    runBlocking<Unit> {
+      for (markerName in listOf("done", "Done", "DONE", "dOnE")) {
+        val storage =
+          FakeStorageClient(
+            blob("raw/upload/data.parquet", OLD, size = 1),
+            blob("raw/upload/$markerName", OLD.plusSeconds(1), generation = 42),
+          )
+        val monitor = createMonitor(storage)
+        val markerUri = "gs://bucket/raw/upload/$markerName"
+
+        val registered =
+          monitor.scan(
+            registeredDoneObjects =
+              setOf(RawImpressionInputMonitor.DoneObjectIdentity(markerUri, 42))
+          )
+        assertThat(registered.findings).isEmpty()
+        assertThat(registered.missingDoneDirectories).isEqualTo(0)
+        assertThat(registered.unregisteredDoneDirectories).isEqualTo(0)
+
+        val differentGeneration =
+          monitor.scan(
+            registeredDoneObjects =
+              setOf(RawImpressionInputMonitor.DoneObjectIdentity(markerUri, 41))
+          )
+        assertThat(differentGeneration.unregisteredDoneDirectories).isEqualTo(1)
+
+        val differentSpelling = if (markerName == "done") "DONE" else "done"
+        val differentUri =
+          monitor.scan(
+            registeredDoneObjects =
+              setOf(
+                RawImpressionInputMonitor.DoneObjectIdentity(
+                  "gs://bucket/raw/upload/$differentSpelling",
+                  42,
+                )
+              )
+          )
+        assertThat(differentUri.unregisteredDoneDirectories).isEqualTo(1)
+      }
+    }
+
+  @Test
+  fun `scan suppresses exact empty correction markers for every spelling and size`() =
+    runBlocking<Unit> {
+      for (markerName in listOf("done", "Done", "DONE", "dOnE")) {
+        for (markerSize in listOf(0L, 3L)) {
+          val storage =
+            FakeStorageClient(
+              blob("raw/empty/$markerName", OLD, size = markerSize, generation = 42)
+            )
+
+          val result =
+            createMonitor(storage)
+              .scan(
+                ignoredEmptyDoneObjects =
+                  setOf(
+                    RawImpressionInputMonitor.DoneObjectIdentity(
+                      "gs://bucket/raw/empty/$markerName",
+                      42,
+                    )
+                  )
+              )
+
+          assertThat(result.findings).isEmpty()
+          assertThat(result.doneWithoutDataDirectories).isEqualTo(0)
+          assertThat(result.missingDoneDirectories).isEqualTo(0)
+        }
+      }
+    }
+
+  @Test
+  fun `scan reports late data after registered done markers for every spelling`() =
+    runBlocking<Unit> {
+      for (markerName in listOf("done", "Done", "DONE", "dOnE")) {
+        val storage =
+          FakeStorageClient(
+            blob("raw/upload/data.parquet", OLD.minusSeconds(1), size = 1),
+            blob("raw/upload/$markerName", OLD, generation = 42),
+            blob("raw/upload/partition/late.parquet", OLD.plusSeconds(1), size = 1),
+          )
+
+        val result =
+          createMonitor(storage)
+            .scan(
+              registeredDoneObjects =
+                setOf(
+                  RawImpressionInputMonitor.DoneObjectIdentity(
+                    "gs://bucket/raw/upload/$markerName",
+                    42,
+                  )
+                )
+            )
+
+        assertThat(result.dataFilesAfterDone).isEqualTo(1)
+        assertThat(result.missingDoneDirectories).isEqualTo(0)
+        assertThat(result.doneWithoutDataDirectories).isEqualTo(0)
+        assertThat(result.unregisteredDoneDirectories).isEqualTo(0)
+        assertThat(result.findings.map { it.type })
+          .containsExactly(RawImpressionInputMonitor.FindingType.DATA_AFTER_DONE)
+      }
+    }
+
+  @Test
+  fun `scan treats marker-like basenames and done directory names as data`() =
+    runBlocking<Unit> {
+      val storage =
+        FakeStorageClient(
+          blob("raw/upload/done.parquet", OLD, size = 1),
+          blob("raw/upload/DONE.txt", OLD, size = 1),
+          blob("raw/upload/undone", OLD, size = 1),
+          blob("raw/upload/done-1", OLD, size = 1),
+          blob("raw/upload/DONE/data.parquet", OLD, size = 1),
+        )
+
+      val result = createMonitor(storage).scan()
+
+      assertThat(result.missingDoneDirectories).isEqualTo(1)
+      assertThat(result.doneWithoutDataDirectories).isEqualTo(0)
+      assertThat(result.unregisteredDoneDirectories).isEqualTo(0)
+      assertThat(result.objectsScanned).isEqualTo(5)
+      assertThat(result.findings.map { it.type })
+        .containsExactly(RawImpressionInputMonitor.FindingType.MISSING_DONE)
+      assertThat(storage.contentReadCalls.get()).isEqualTo(0)
+    }
+
+  @Test
+  fun `scan selects newest marker by creation time when case variants coexist`() =
+    runBlocking<Unit> {
+      for (newerName in listOf("done", "Done", "DONE", "dOnE")) {
+        val olderName = if (newerName == "done") "DONE" else "done"
+        val storage =
+          FakeStorageClient(
+            blob("raw/upload/$olderName", OLD.minusSeconds(2), generation = 99),
+            blob("raw/upload/data.parquet", OLD.minusSeconds(1), size = 1),
+            blob("raw/upload/$newerName", OLD, generation = 42),
+          )
+        val monitor = createMonitor(storage)
+
+        val registeredNewest =
+          monitor.scan(
+            registeredDoneObjects =
+              setOf(
+                RawImpressionInputMonitor.DoneObjectIdentity(
+                  "gs://bucket/raw/upload/$newerName",
+                  42,
+                )
+              )
+          )
+        assertThat(registeredNewest.findings).isEmpty()
+        assertThat(registeredNewest.missingDoneDirectories).isEqualTo(0)
+        assertThat(registeredNewest.doneWithoutDataDirectories).isEqualTo(0)
+        assertThat(registeredNewest.dataFilesAfterDone).isEqualTo(0)
+
+        val registeredOlderOnly =
+          monitor.scan(
+            registeredDoneObjects =
+              setOf(
+                RawImpressionInputMonitor.DoneObjectIdentity(
+                  "gs://bucket/raw/upload/$olderName",
+                  99,
+                )
+              )
+          )
+        assertThat(registeredOlderOnly.unregisteredDoneDirectories).isEqualTo(1)
+        assertThat(registeredOlderOnly.doneWithoutDataDirectories).isEqualTo(0)
+        assertThat(registeredOlderOnly.dataFilesAfterDone).isEqualTo(0)
+      }
+    }
+
+  @Test
+  fun `scan retains listing order for markers with equal creation times`() =
+    runBlocking<Unit> {
+      val storage =
+        FakeStorageClient(
+          blob("raw/upload/data.parquet", OLD.minusSeconds(1), size = 1),
+          blob("raw/upload/DONE", OLD, generation = 99),
+          blob("raw/upload/done", OLD, generation = 42),
+        )
+
+      val result =
+        createMonitor(storage)
+          .scan(
+            registeredDoneObjects =
+              setOf(RawImpressionInputMonitor.DoneObjectIdentity("gs://bucket/raw/upload/done", 42))
+          )
+
+      assertThat(result.findings).isEmpty()
+      assertThat(result.unregisteredDoneDirectories).isEqualTo(0)
+      assertThat(result.dataFilesAfterDone).isEqualTo(0)
+    }
+
   private fun createMonitor(
     storageClient: StorageClient,
     excludedBlobPrefixes: Set<String> = emptySet(),

@@ -89,14 +89,17 @@ class RawImpressionInputMonitor(
       val directory = relativeKey.substringBeforeLast('/', missingDelimiterValue = "")
       val observation = directories.getOrPut(directory) { DirectoryObservation() }
       missingRegisteredBlobKeys.remove(blob.blobKey)
-      if (relativeKey.substringAfterLast('/') == DONE_FILE_NAME) {
-        observation.done =
-          DoneMarker(
-            blobKey = blob.blobKey,
-            generation =
-              (blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken?.toLongOrNull(),
-            createTime = blob.createTime,
-          )
+      if (relativeKey.substringAfterLast('/').equals(DONE_FILE_NAME, ignoreCase = true)) {
+        val previousMarker = observation.done
+        if (previousMarker == null || blob.createTime >= previousMarker.createTime) {
+          observation.done =
+            DoneMarker(
+              blobKey = blob.blobKey,
+              generation =
+                (blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken?.toLongOrNull(),
+              createTime = blob.createTime,
+            )
+        }
       } else if (blob.size > 0L) {
         observation.dataCreateTimes.add(blob.createTime.toEpochMilli())
       }
