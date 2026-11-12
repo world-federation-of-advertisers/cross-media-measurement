@@ -155,6 +155,10 @@ and those consistency checks pass does the tool:
     while preserving the exact IDs of caller-supplied ReportingSet components,
     including their filter semantics.
 
+Ordinary Campaign Group references are migrated even when every component ID
+is populated. A report is already valid only when its Campaign Group is valid
+and its component identities need no repair.
+
 Before changing the Campaign Group, the stored result-group count must match the
 request, and every requested group must contain at least one result. Missing,
 extra, or empty groups block the whole report before either database is changed.

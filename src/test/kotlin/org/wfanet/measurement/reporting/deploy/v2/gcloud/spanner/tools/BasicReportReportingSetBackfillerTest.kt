@@ -115,6 +115,77 @@ class BasicReportReportingSetBackfillerTest {
   }
 
   @Test
+  fun `run migrates a primitive Campaign Group with a populated filtered custom component`() =
+    runBlocking<Unit> {
+      createNonCampaignGroup(INVALID_CAMPAIGN_GROUP_ID, listOf(EVENT_GROUP_ID_1))
+      createFilteredCustomComponent()
+      insertIdentityBasicReport(
+        customReportingUnit(listOf(CUSTOM_COMPONENT_ID)),
+        listOf(
+          ComponentSpec(
+            cmmsDataProviderId = "",
+            cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1),
+            externalReportingSetId = CUSTOM_COMPONENT_ID,
+          )
+        ),
+        listOf(CUSTOM_COMPONENT_ID),
+        emptyList(),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+      val before = readInternalBasicReport()
+      val customBefore = readReportingSet(CUSTOM_COMPONENT_ID)
+      val setsBefore = readAllReportingSets()
+      val dryRun = newBackfiller(dryRun = true).run()
+      assertThat(dryRun.updated).isEqualTo(1)
+      assertThat(readInternalBasicReport()).isEqualTo(before)
+      assertThat(readAllReportingSets()).containsExactlyElementsIn(setsBefore)
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.primitiveCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(result.componentSummariesFilled).isEqualTo(0)
+      assertThat(result.dataProviderIdsFilled).isEqualTo(0)
+      assertThat(result.readyToRemoveReadPathFallback).isTrue()
+      val migrated = readInternalBasicReport()
+      assertThat(migrated.externalCampaignGroupId).isNotEqualTo(INVALID_CAMPAIGN_GROUP_ID)
+      assertThat(migrated)
+        .isEqualTo(before.copy { externalCampaignGroupId = migrated.externalCampaignGroupId })
+      assertThat(readReportingSet(CUSTOM_COMPONENT_ID)).isEqualTo(customBefore)
+      assertThat(newBackfiller(dryRun = false).run().updated).isEqualTo(0)
+    }
+
+  @Test
+  fun `run continues past 65535 distinct unknown EventGroups`() =
+    runBlocking<Unit> {
+      createCampaignGroup()
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID,
+        externalCampaignGroupId = CAMPAIGN_GROUP_ID,
+        components = listOf(ComponentSpec(cmmsEventGroupIds = List(65535) { "unknown-$it" })),
+      )
+      val unresolvedBefore = readInternalBasicReport()
+      val nextReportId = "next-report"
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID + 1,
+        externalBasicReportId = nextReportId,
+        externalCampaignGroupId = CAMPAIGN_GROUP_ID,
+        components = listOf(ComponentSpec()),
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.examined).isEqualTo(2)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.unresolvedComponents).isEqualTo(1)
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.readyToRemoveReadPathFallback).isFalse()
+      assertThat(readInternalBasicReport()).isEqualTo(unresolvedBefore)
+      assertThat(readComponentSummaryReportingSetId(nextReportId)).isNotEmpty()
+    }
+
+  @Test
   fun `run blocks missing requested result group`() =
     runBlocking<Unit> {
       createNonCampaignGroup()
@@ -2695,7 +2766,7 @@ class BasicReportReportingSetBackfillerTest {
     }
 
   @Test
-  fun `does not migrate an invalid primitive when every component is already populated`() =
+  fun `run migrates a primitive Campaign Group when every component ID is populated`() =
     runBlocking<Unit> {
       createNonCampaignGroup()
       insertTestBasicReport(
@@ -2704,17 +2775,41 @@ class BasicReportReportingSetBackfillerTest {
         externalCampaignGroupId = INVALID_CAMPAIGN_GROUP_ID,
         components = listOf(ComponentSpec(externalReportingSetId = INVALID_CAMPAIGN_GROUP_ID)),
       )
+      val before = readInternalBasicReport()
       val reportingSetsBefore = readAllReportingSets()
+      val dryRun = newBackfiller(dryRun = true).run()
+      assertThat(dryRun.updated).isEqualTo(1)
+      assertThat(dryRun.primitiveCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(dryRun.alreadyValid).isEqualTo(0)
+      assertThat(dryRun.readyToRemoveReadPathFallback).isFalse()
+      assertThat(readInternalBasicReport()).isEqualTo(before)
+      assertThat(readAllReportingSets()).containsExactlyElementsIn(reportingSetsBefore)
 
       val result = newBackfiller(dryRun = false).run()
 
-      assertThat(result.alreadyValid).isEqualTo(1)
-      assertThat(result.primitiveCampaignGroupsMigrated).isEqualTo(0)
-      assertThat(result.updated).isEqualTo(0)
-      assertThat(readInternalBasicReport().externalCampaignGroupId)
-        .isEqualTo(INVALID_CAMPAIGN_GROUP_ID)
-      assertThat(readComponentSummaryReportingSetId()).isEqualTo(INVALID_CAMPAIGN_GROUP_ID)
-      assertThat(readAllReportingSets()).containsExactlyElementsIn(reportingSetsBefore)
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.primitiveCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(result.alreadyValid).isEqualTo(0)
+      assertThat(result.readyToRemoveReadPathFallback).isTrue()
+      val migrated = readInternalBasicReport()
+      assertThat(migrated.externalCampaignGroupId).isNotEqualTo(INVALID_CAMPAIGN_GROUP_ID)
+      assertThat(migrated.details).isEqualTo(before.details)
+      assertThat(migrated.state).isEqualTo(before.state)
+      assertThat(migrated.createTime).isEqualTo(before.createTime)
+      val componentId = readComponentSummaryReportingSetId()
+      assertThat(componentId).isNotEqualTo(INVALID_CAMPAIGN_GROUP_ID)
+      assertThat(readReportingSet(componentId).externalCampaignGroupId)
+        .isEqualTo(migrated.externalCampaignGroupId)
+      assertThat(readReportingSet(migrated.externalCampaignGroupId).primitive.eventGroupKeysList)
+        .containsExactly(eventGroupKey(EVENT_GROUP_ID_1), eventGroupKey(EVENT_GROUP_ID_2))
+      assertThat(readReportingSet(INVALID_CAMPAIGN_GROUP_ID))
+        .isEqualTo(
+          reportingSetsBefore.single { it.externalReportingSetId == INVALID_CAMPAIGN_GROUP_ID }
+        )
+      val rerun = newBackfiller(dryRun = false).run()
+      assertThat(rerun.updated).isEqualTo(0)
+      assertThat(rerun.alreadyValid).isEqualTo(1)
+      assertThat(rerun.readyToRemoveReadPathFallback).isTrue()
     }
 
   @Test
