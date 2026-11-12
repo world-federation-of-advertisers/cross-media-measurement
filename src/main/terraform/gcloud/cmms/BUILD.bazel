@@ -25,3 +25,19 @@ filegroup(
     ],
     visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator:__pkg__"],
 )
+
+filegroup(
+    name = "vid_labeling_healing_test_configs",
+    testonly = True,
+    srcs = [
+        "edp_aggregator.tf",
+        "envs/dev.tfvars",
+        "envs/dev/vid-labeling-dispatcher-config.textproto",
+        "envs/head.tfvars",
+        "envs/head/vid-labeling-dispatcher-config.textproto",
+        "envs/qa.tfvars",
+        "envs/qa/vid-labeling-dispatcher-config.textproto",
+        "variables.tf",
+    ],
+    visibility = ["//src/test/python/wfa/measurement/edpaggregator/deploy/gcloud/vidlabeling:__pkg__"],
+)
