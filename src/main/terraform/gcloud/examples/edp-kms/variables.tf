@@ -39,7 +39,7 @@ variable "kms_key" {
 variable "rotation_period" {
   description = "KMS key rotation period in seconds."
   type        = string
-  nullable    = false
+  nullable    = true
 }
 
 variable "service_account_name" {

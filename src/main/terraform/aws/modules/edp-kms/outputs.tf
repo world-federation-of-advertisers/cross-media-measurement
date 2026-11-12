@@ -31,3 +31,10 @@ output "oidc_provider_arn" {
   description = "Created or reused OIDC provider ARN."
   value       = local.oidc_provider_arn
 }
+
+output "role_name" {
+  value = aws_iam_role.attested_workload.name
+}
+output "assume_role_policy" {
+  value = aws_iam_role.attested_workload.assume_role_policy
+}

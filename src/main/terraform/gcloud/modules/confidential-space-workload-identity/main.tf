@@ -27,6 +27,7 @@ resource "google_iam_workload_identity_pool" "pool" {
 resource "google_iam_workload_identity_pool_provider" "oidc" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.pool.workload_identity_pool_id
   workload_identity_pool_provider_id = var.workload_identity_pool_provider_id
+  display_name                       = var.workload_identity_pool_provider_id
   attribute_mapping                  = { "google.subject" = "assertion.sub" }
   attribute_condition                = var.attribute_condition
 

@@ -75,6 +75,18 @@ jobs:
       existing-image-tag: ${{ inputs.existing-image-tag }}
       use-release-key: ${{ inputs.environment == 'qa' && github.actor == 'github-actions[bot]' }}
 
+  deploy-edp-kms:
+    uses: world-federation-of-advertisers/cross-media-measurement/.github/workflows/deploy-edp-kms.yml@main
+    needs: [publish-images]
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+    with:
+      apply: ${{ inputs.apply }}
+      candidate-environment: ${{ inputs.environment }}
+      candidate-image-tag: ${{ needs.publish-images.outputs.image-tag }}
+
   scan-images:
     uses: ./.github/workflows/scan-images.yml
     needs: [publish-images]
@@ -153,7 +165,7 @@ jobs:
 
   pause-requisition-fetcher:
     runs-on: ubuntu-24.04
-    needs: [publish-images, validate-direct-dispatch-config]
+    needs: [publish-images, validate-direct-dispatch-config, deploy-edp-kms]
     permissions:
       contents: read
       id-token: write

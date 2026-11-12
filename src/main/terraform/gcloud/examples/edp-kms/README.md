@@ -30,3 +30,18 @@ All sample values are placeholders. Import any existing infrastructure into this
 state before applying, or reuse resources through the documented module inputs.
 Manage subsequent changes through Terraform. Review the plan for key replacement
 and permission changes; keys are protected with `prevent_destroy`.
+
+## Image-signing fingerprints
+
+Halo publishes its [test and release signing keys](../../../../../../README.md#container-images).
+For each approved public key, compute `KEY_ID` from DER bytes and supply
+`ECDSA_P256_SHA256:<KEY_ID>` through `image_signature_fingerprints`:
+
+```bash
+openssl pkey -pubin -in cosign-release-pub-key.pem -outform DER | openssl sha256
+```
+
+Configure the workload's signed-image repository so Confidential Space can fetch
+the cosign signatures. Verify a published image against the approved public key
+before applying its trust policy. Approve additional signing keys before rotating
+the signer, then remove retired keys after all workloads have moved.

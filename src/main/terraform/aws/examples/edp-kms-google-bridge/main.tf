@@ -40,7 +40,8 @@ module "workload_identity" {
 }
 
 module "edp_kms" {
-  source = "../../modules/edp-kms"
+  key_policy_json = var.key_policy_json
+  source          = "../../modules/edp-kms"
 
   existing_oidc_provider_arn = var.existing_oidc_provider_arn
   oidc_provider_url          = "https://accounts.google.com"

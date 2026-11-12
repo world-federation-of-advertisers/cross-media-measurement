@@ -96,10 +96,10 @@ variable "key_administrator_arns" {
 
 variable "workload_kms_actions" {
   validation {
-    condition     = length(var.workload_kms_actions) > 0 && alltrue([for action in var.workload_kms_actions : contains(["kms:Encrypt", "kms:Decrypt"], action)])
-    error_message = "Specify only the required kms:Encrypt and/or kms:Decrypt actions."
+    condition     = length(var.workload_kms_actions) > 0 && alltrue([for action in var.workload_kms_actions : contains(["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey"], action)])
+    error_message = "Specify only the required Encrypt, Decrypt, and GenerateDataKey actions."
   }
-  description = "Encrypt and/or decrypt actions needed by the attested workload."
+  description = "Required Encrypt, Decrypt, and optional GenerateDataKey actions."
   type        = set(string)
   nullable    = false
 }
@@ -118,4 +118,14 @@ variable "existing_oidc_provider_arn" {
   description = "Existing issuer provider ARN, or null to create a provider. Only one provider per issuer can exist in an AWS account."
   type        = string
   nullable    = true
+}
+
+variable "key_policy_json" {
+  description = "Complete existing KMS key policy to retain on adoption, or null to generate least-privilege grants."
+  type        = string
+  nullable    = true
+  validation {
+    condition     = var.key_policy_json == null ? true : can(jsondecode(var.key_policy_json).Statement)
+    error_message = "Supply a valid KMS key policy JSON object."
+  }
 }

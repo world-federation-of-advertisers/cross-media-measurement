@@ -40,7 +40,7 @@ resource "aws_kms_key" "kek" {
   description             = var.kms_key_description
   enable_key_rotation     = var.enable_key_rotation
   deletion_window_in_days = var.deletion_window_in_days
-  policy = jsonencode({
+  policy = var.key_policy_json == null ? jsonencode({
     Version = "2012-10-17"
     Statement = concat([
       {
@@ -63,7 +63,7 @@ resource "aws_kms_key" "kek" {
         Action    = actions
         Resource  = "*"
     }])
-  })
+  }) : var.key_policy_json
 
   lifecycle {
     prevent_destroy = true

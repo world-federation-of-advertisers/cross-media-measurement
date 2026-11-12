@@ -26,6 +26,15 @@ on:
       - 'src/main/terraform/aws/examples/edp-kms/**'
       - 'src/main/terraform/aws/examples/edp-kms-google-bridge/**'
       - 'src/test/terraform/**'
+      - 'src/main/terraform/gcloud/edp-kms/**'
+      - 'src/main/terraform/gcloud/modules/edp-kms-attestation-policy/**'
+      - 'src/main/terraform/aws/edp-kms/**'
+      - '.github/env-configs/edp-kms.json'
+      - '.github/env-configs/*/cmms.json'
+      - 'cosign-*-pub-key.pem'
+      - 'src/main/terraform/gcloud/cmms/envs/*/event-data-provider-configs.textproto'
+      - '.github/workflows/scripts/prepare_edp_kms.py'
+      - '.github/workflows/deploy-edp-kms.yml'
   push:
     branches: [main]
     paths:
@@ -37,6 +46,15 @@ on:
       - 'src/main/terraform/aws/examples/edp-kms/**'
       - 'src/main/terraform/aws/examples/edp-kms-google-bridge/**'
       - 'src/test/terraform/**'
+      - 'src/main/terraform/gcloud/edp-kms/**'
+      - 'src/main/terraform/gcloud/modules/edp-kms-attestation-policy/**'
+      - 'src/main/terraform/aws/edp-kms/**'
+      - '.github/env-configs/edp-kms.json'
+      - '.github/env-configs/*/cmms.json'
+      - 'cosign-*-pub-key.pem'
+      - 'src/main/terraform/gcloud/cmms/envs/*/event-data-provider-configs.textproto'
+      - '.github/workflows/scripts/prepare_edp_kms.py'
+      - '.github/workflows/deploy-edp-kms.yml'
   workflow_dispatch:
 
 permissions:
@@ -61,13 +79,18 @@ jobs:
           set -euo pipefail
           export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/edp-tf-plugins"
           mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          python3 .github/workflows/scripts/prepare_edp_kms.py --output-directory "$RUNNER_TEMP/kms-inputs"
           paths=(
+            src/main/terraform/gcloud/edp-kms
+            src/main/terraform/gcloud/modules/edp-kms-attestation-policy
+            src/main/terraform/aws/edp-kms
             src/main/terraform/gcloud/modules/confidential-space-workload-identity
             src/main/terraform/gcloud/modules/edp-aggregator-edp-deployment
             src/main/terraform/gcloud/examples/edp-kms
             src/main/terraform/aws/modules/edp-kms
             src/main/terraform/aws/examples/edp-kms
             src/main/terraform/aws/examples/edp-kms-google-bridge
+            src/test/terraform/gcloud/edp-kms
             src/test/terraform/gcloud/confidential-space-workload-identity
             src/test/terraform/gcloud/edp-aggregator-edp-deployment
             src/test/terraform/aws/edp-kms

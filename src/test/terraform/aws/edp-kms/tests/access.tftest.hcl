@@ -34,6 +34,7 @@ mock_provider "aws" {
 }
 
 variables {
+  key_policy_json            = null
   existing_oidc_provider_arn = null
   oidc_provider_url          = "https://confidentialcomputing.googleapis.com"
   oidc_audiences             = ["https://example-edp.confidential-space"]
@@ -127,4 +128,23 @@ run "reject_empty_trust_condition" {
     trust_condition = "{}"
   }
   expect_failures = [var.trust_condition]
+}
+
+run "retain_existing_iam_delegation" {
+  module { source = "../../../../main/terraform/aws/modules/edp-kms" }
+  command = plan
+  variables {
+    key_policy_json      = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = "Allow", Principal = { AWS = "arn:aws:iam::123456789012:root" }, Action = "kms:*", Resource = "*" }] })
+    workload_kms_actions = ["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey"]
+  }
+  assert {
+    condition     = jsondecode(aws_kms_key.kek.policy) == jsondecode(var.key_policy_json)
+    error_message = "Adoption must retain existing IAM delegation and key access."
+  }
+}
+run "reject_invalid_existing_key_policy" {
+  module { source = "../../../../main/terraform/aws/modules/edp-kms" }
+  command = plan
+  variables { key_policy_json = "not-json" }
+  expect_failures = [var.key_policy_json]
 }

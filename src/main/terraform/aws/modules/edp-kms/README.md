@@ -23,3 +23,8 @@ The key has `prevent_destroy` to protect existing encrypted data. Import existin
 keys, roles, aliases, and providers before adoption; verify the plan does not
 replace the key. Each separate TrusTEE key must be in the same account and region
 and have Terraform-managed grants for its required workloads.
+
+When adopting a key that delegates existing access through IAM, supply its full
+policy through `key_policy_json`; pass `null` for a newly generated policy. Include
+`kms:GenerateDataKey` only when an existing integration requires it. Review retained
+IAM delegation and export permissions before applying.

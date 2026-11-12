@@ -14,3 +14,4 @@ workload_kms_actions        = ["kms:Decrypt"]
 export_principal_permissions = {
   "arn:aws:iam::123456789012:role/edp-export" = ["kms:Encrypt"]
 }
+key_policy_json = null

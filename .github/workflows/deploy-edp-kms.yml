@@ -1,0 +1,160 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Deploy EDP KMS
+
+on:
+  workflow_call:
+    inputs:
+      apply:
+        type: boolean
+        required: true
+      candidate-environment:
+        type: string
+      candidate-image-tag:
+        type: string
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply the reviewed shared KMS configuration
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-edp-kms.yml'
+      - '.github/workflows/scripts/prepare_edp_kms.py'
+      - '.github/env-configs/edp-kms.json'
+      - '.github/env-configs/*/cmms.json'
+      - 'src/main/terraform/gcloud/cmms/envs/*/event-data-provider-configs.textproto'
+      - 'cosign-*-pub-key.pem'
+      - 'src/main/terraform/gcloud/edp-kms/**'
+      - 'src/main/terraform/gcloud/modules/edp-kms-attestation-policy/**'
+      - 'src/main/terraform/aws/edp-kms/**'
+      - 'src/main/terraform/gcloud/modules/edp-aggregator-edp-deployment/**'
+      - 'src/main/terraform/gcloud/modules/confidential-space-workload-identity/**'
+      - 'src/main/terraform/aws/modules/edp-kms/**'
+
+permissions:
+  contents: read
+  id-token: write
+  packages: read
+
+concurrency:
+  group: shared-edp-kms
+  cancel-in-progress: false
+
+jobs:
+  verify-images:
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, head, qa]
+    runs-on: ubuntu-24.04
+    environment: ${{ matrix.environment }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+      - uses: ./.github/actions/load-cmms-environment
+        id: config
+        with:
+          environment: ${{ matrix.environment }}
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ fromJSON(steps.config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.config.outputs.config).TF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.0.2
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Verify deployed and candidate workload images
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+          CANDIDATE_ENVIRONMENT: ${{ inputs.candidate-environment }}
+          CANDIDATE_IMAGE_TAG: ${{ inputs.candidate-image-tag }}
+        run: |
+          set -euo pipefail
+          args=(--output-directory "$RUNNER_TEMP/kms-inputs" --environment "$ENVIRONMENT")
+          if [[ -n "$CANDIDATE_IMAGE_TAG" ]]; then
+            args+=(--candidate-environment "$CANDIDATE_ENVIRONMENT" --candidate-image-tag "$CANDIDATE_IMAGE_TAG")
+          fi
+          python3 .github/workflows/scripts/prepare_edp_kms.py "${args[@]}"
+
+  terraform:
+    needs: verify-images
+    runs-on: ubuntu-24.04
+    environment: dev
+    env:
+      TF_IN_AUTOMATION: true
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+      - uses: ./.github/actions/load-cmms-environment
+        id: config
+        with:
+          environment: dev
+      - name: Prepare committed shared KMS configuration
+        id: kms-config
+        run: |
+          set -euo pipefail
+          echo "KMS_INPUTS=$RUNNER_TEMP/kms-inputs" >> "$GITHUB_ENV"
+          python3 .github/workflows/scripts/prepare_edp_kms.py --output-directory "$RUNNER_TEMP/kms-inputs" --github-output "$GITHUB_OUTPUT"
+      - name: Authenticate for Terraform state
+        id: state-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ fromJSON(steps.config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.config.outputs.config).TF_SERVICE_ACCOUNT }}
+      - name: Authenticate to the EDP-owned Google Cloud project
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ steps.kms-config.outputs.google_workload_identity_provider }}
+          service_account: ${{ steps.kms-config.outputs.google_service_account }}
+      - uses: aws-actions/configure-aws-credentials@5579c002bb4778aa43395ef1df492868a9a1c83f # v4.0.2
+        with:
+          role-to-assume: ${{ steps.kms-config.outputs.aws_deployment_role }}
+          aws-region: ${{ steps.kms-config.outputs.aws_region }}
+          role-session-name: edp-kms-terraform
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+      - name: Plan both cloud deployments
+        env:
+          GOOGLE_BACKEND_CREDENTIALS: ${{ steps.state-auth.outputs.credentials_file_path }}
+          BACKEND_BUCKET: ${{ steps.kms-config.outputs.backend_bucket }}
+        run: |
+          set -euo pipefail
+          for cloud in google aws; do
+            if [[ "$cloud" == google ]]; then path=src/main/terraform/gcloud/edp-kms; else path=src/main/terraform/aws/edp-kms; fi
+            terraform -chdir="$path" init -input=false -lockfile=readonly -backend-config="bucket=$BACKEND_BUCKET"
+            terraform -chdir="$path" validate
+            terraform -chdir="$path" plan -input=false -lock-timeout=5m -var-file="$KMS_INPUTS/$cloud.tfvars.json" -out="$KMS_INPUTS/$cloud.tfplan"
+            python3 .github/workflows/scripts/prepare_edp_kms.py --output-directory "$KMS_INPUTS" --check-plan "$KMS_INPUTS/$cloud.tfplan"
+          done
+      - name: Apply the saved plans
+        if: ${{ inputs.apply || github.event_name == 'push' }}
+        env:
+          GOOGLE_BACKEND_CREDENTIALS: ${{ steps.state-auth.outputs.credentials_file_path }}
+        run: |
+          set -euo pipefail
+          terraform -chdir=src/main/terraform/gcloud/edp-kms apply -input=false -lock-timeout=5m "$KMS_INPUTS/google.tfplan"
+          terraform -chdir=src/main/terraform/aws/edp-kms apply -input=false -lock-timeout=5m "$KMS_INPUTS/aws.tfplan"

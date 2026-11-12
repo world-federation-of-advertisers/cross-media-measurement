@@ -137,3 +137,9 @@ variable "existing_oidc_provider_arn" {
   type        = string
   nullable    = true
 }
+
+variable "key_policy_json" {
+  description = "Existing complete KMS key policy to retain, or null for a new generated policy."
+  type        = string
+  nullable    = true
+}

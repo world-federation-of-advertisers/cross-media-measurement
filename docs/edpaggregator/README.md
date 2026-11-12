@@ -254,6 +254,28 @@ and KMS audience. The audience includes the provider's full resource name with
 the `//iam.googleapis.com/` prefix required by Halo's `kms_audience` field.
 The module also exposes `workload_identity_provider_name` without that prefix.
 
+### Halo-managed test deployments
+
+The shared [Google Cloud KMS root](../../src/main/terraform/gcloud/edp-kms) and
+[AWS KMS root](../../src/main/terraform/aws/edp-kms) adopt the existing test EDP
+resources into separate states. Their project/account credentials are independent
+of the dev/head/qa CMMS deployment credentials. The
+[Deploy EDP KMS workflow](../../.github/workflows/deploy-edp-kms.yml) deploys keys,
+IAM trust, and image-signature conditions before CMMS updates. Dev and head trust
+the test image-signing key; QA's Google provider trusts the release key. The shared
+AWS role retains both approved keys. Unsigned developer images cannot obtain key
+access through these attested paths.
+
+Within each environment, the EDPA and TrusTEE Mill use one provider and one
+federated account. Separate providers are possible, but separate key access also
+requires appropriate service-account permissions. An operator permitted to attach
+another approved workload's service account can use that identity; signing-key
+approval does not pin an individual image digest or separate operator roles.
+
+Bootstrap the Google deployment identity through its Terraform instructions
+before the first workflow run. Imports preserve key URIs and existing permissions;
+do not give multiple environment states ownership of shared keys or identity pools.
+
 ### AWS KMS
 
 For a new AWS integration, use direct Confidential Space attestation. It does

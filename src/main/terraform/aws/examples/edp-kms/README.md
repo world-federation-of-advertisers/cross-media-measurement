@@ -33,3 +33,6 @@ All sample values are placeholders. Import any existing infrastructure into this
 state before applying, or reuse resources through the documented module inputs.
 Manage subsequent changes through Terraform. Review the plan for key replacement
 and permission changes; keys are protected with `prevent_destroy`.
+
+When adopting an existing key, set `key_policy_json` to its complete policy when
+existing IAM delegation or grants must be retained. Pass `null` for a new key.
