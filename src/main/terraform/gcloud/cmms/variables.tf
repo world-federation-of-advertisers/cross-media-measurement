@@ -528,11 +528,17 @@ variable "vid_labeling_healing_controller_env_var" {
   nullable    = false
 
   validation {
-    condition = !var.vid_labeling_healing_controller_enabled || can(regex(
-      "(^|,)HEALING_INTERNAL_API_TARGET=[^,]+",
-      var.vid_labeling_healing_controller_env_var,
-    ))
-    error_message = "VidLabelingHealingController environment must define HEALING_INTERNAL_API_TARGET."
+    condition = !var.vid_labeling_healing_controller_enabled || alltrue([
+      for target in [
+        "RAW_IMPRESSION_UPLOAD_TARGET",
+        "HEALING_INTERNAL_API_TARGET",
+        "CONTROL_PLANE_TARGET",
+        ] : can(regex(
+          "(^|,)${target}=[^,[:space:]]+(,|$)",
+          var.vid_labeling_healing_controller_env_var,
+      ))
+    ])
+    error_message = "Enabled VidLabelingHealingController must define nonempty RAW_IMPRESSION_UPLOAD_TARGET, HEALING_INTERNAL_API_TARGET, and CONTROL_PLANE_TARGET."
   }
 }
 

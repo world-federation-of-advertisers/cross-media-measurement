@@ -688,8 +688,7 @@ One variable per function/worker service account:
 `requisition_fetcher_service_account_name`, `event_group_sync_service_account_name`,
 `data_availability_sync_service_account_name`,
 `data_availability_cleanup_service_account_name`,
-`data_availability_monitor_service_account_name`,
-`vid_labeling_healing_controller_service_account_name`, plus `terraform_service_account`
+`data_availability_monitor_service_account_name`, plus `terraform_service_account`
 (used to attach MIG service accounts to VMs) and `pubsub_iam_service_account_member`
 (the Secure Computation control-plane SA granted publisher on the queues).
 
@@ -703,27 +702,25 @@ DataWatcher / DataWatcherDelete invoke over HTTP (used to grant `run.invoker`):
 
 The module can additionally deploy the memoized VID Labeling pipeline (Phase 0
 SubpoolAssigner, Phase 1 VidRankBuilder, Phase 2 VidLabeler) as Confidential Space
-TEE apps, plus a VidLabelingDispatcher, VidLabelingMonitor, and
-VidLabelingHealingController. VID labeling within
-the aggregator is out of scope for the baseline (Phase 1) R&F deployment.
+TEE apps, plus a VidLabelingDispatcher and VidLabelingMonitor. VID labeling is
+outside the baseline R&F deployment.
 
-**Important:** only the **Phase 0/1/2 TEE MIGs and their Pub/Sub queues** are gated by
-the `vid_labeling_workers` map (which defaults to `{}`). Setting an empty map does
-**not** fully disable the pipeline — the **VidLabelingDispatcher** and
-**VidLabelingMonitor** and **VidLabelingHealingController** Cloud Functions, their
-**three schedulers**, and the **`VID_MODELS_BUCKET`** deploy **unconditionally**, and
-their inputs are **required**. Even for a baseline R&F deployment you must therefore
-supply:
+The `vid_labeling_workers` map gates the phase workers and their Pub/Sub queues.
+An empty map skips those workers; the dispatcher, monitor, their two schedulers,
+and `VID_MODELS_BUCKET` still require configuration. Supply
+`vid_models_bucket_name`, the `vid_labeling_dispatcher_*` and
+`vid_labeling_monitor_*` inputs, and their entries in `cloud_function_configs`.
 
-* `vid_models_bucket_name`;
-* the `vid_labeling_dispatcher_*`, `vid_labeling_monitor_*`, and
-  `vid_labeling_healing_controller_*` service-account, config, and scheduler variables; and
-* `vid_labeling_dispatcher`, `vid_labeling_monitor`, and
-  `vid_labeling_healing_controller` entries in
-  `cloud_function_configs`.
-
-Leave `vid_labeling_workers = {}` to skip the phase workers/queues; provide worker
-entries only once your market has adopted VID labeling.
+The scheduled healing controller is separately disabled by default. Set
+`vid_labeling_healing_controller_enabled = true` only after provisioning private
+connectivity to its persistence endpoint. Enablement requires all three API
+targets (`RAW_IMPRESSION_UPLOAD_TARGET`, `HEALING_INTERNAL_API_TARGET`, and
+`CONTROL_PLANE_TARGET`), TLS mounts, labeled-output deletion prefixes, and the
+healing controller's function and scheduler settings. Keep these settings in
+committed Terraform configuration; see
+[healing deployment configuration](../operations/healing-vid-labeling-uploads.md#deployment-configuration).
+When disabled, Terraform creates no healing function, scheduler, access grants,
+or alerts.
 
 Each `VidLabelingConfig` must set `raw_impressions_blob_prefix` to that DataProvider's dedicated,
 bucket-relative raw-only root, without leading or trailing `/` characters. Keep labeled output,

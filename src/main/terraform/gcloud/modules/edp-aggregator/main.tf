@@ -1194,9 +1194,11 @@ resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_sto
 }
 
 resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_done_writer" {
+  count = var.vid_labeling_healing_controller_enabled ? 1 : 0
+
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectUser"
-  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function[0].cloud_function_service_account.email}"
 
   condition {
     title      = "write_recovery_done_markers"
@@ -1311,4 +1313,9 @@ resource "google_storage_bucket_iam_member" "vid_labeling_monitor_config_storage
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.vid_labeling_monitor_cloud_function.cloud_function_service_account.email}"
+}
+
+moved {
+  from = google_storage_bucket_iam_member.vid_labeling_healing_controller_done_writer
+  to   = google_storage_bucket_iam_member.vid_labeling_healing_controller_done_writer[0]
 }

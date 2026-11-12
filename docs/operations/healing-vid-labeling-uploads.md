@@ -23,11 +23,12 @@ is provisioned. In the environment's committed Terraform tfvars, set
 `vid_labeling_healing_controller_env_var`,
 `vid_labeling_healing_controller_secret_mapping`, and
 `vid_labeling_healing_labeled_output_object_prefixes`. The runtime settings must
-include the public raw-upload and control-plane targets, the private healing target,
+include `RAW_IMPRESSION_UPLOAD_TARGET`, `CONTROL_PLANE_TARGET`, and
+`HEALING_INTERNAL_API_TARGET`,
 their TLS authorities, and the matching TLS Secret Manager mounts. Restrict deletion
 prefixes to the configured VidLabeler output directories, each ending in `/`.
 
-Terraform requires the healing target, TLS mounts, and deletion prefixes when
+Terraform requires all three API targets, TLS mounts, and deletion prefixes when
 enabled. When disabled, it creates no healing function, schedule, access grants, or
 alerts. The dispatcher still quarantines corrections; automatic healing progression
 requires the configured controller.
