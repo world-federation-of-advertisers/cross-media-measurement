@@ -524,13 +524,6 @@ variable "vid_labeling_healing_controller_env_var" {
   description = "VidLabelingHealingController extra environment variables."
   type        = string
 
-  validation {
-    condition = can(regex(
-      "(^|,)HEALING_INTERNAL_API_TARGET=[^,]+",
-      var.vid_labeling_healing_controller_env_var,
-    ))
-    error_message = "VidLabelingHealingController environment must define HEALING_INTERNAL_API_TARGET."
-  }
 }
 
 variable "vid_labeling_healing_controller_secret_mapping" {
