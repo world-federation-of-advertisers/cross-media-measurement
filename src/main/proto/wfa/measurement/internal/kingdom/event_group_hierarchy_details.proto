@@ -27,8 +27,8 @@ message EventGroupHierarchyDetails {
     // Distinct from the entity_type of every other Level of every
     // EventGroupHierarchy of the same DataProvider.
     //
-    // Initially, an entity_type already used by EventGroups can only be added
-    // at the most granular level. This includes "campaign".
+    // A new level must use a type not used by existing EventGroups unless
+    // it is the most granular level.
     string entity_type = 1;
 
     // The entity_metadata key holding the ID of the entity at this level.
