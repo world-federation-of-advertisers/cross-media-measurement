@@ -111,6 +111,14 @@ fun requireValidRawImpressionsBlobPrefix(config: VidLabelingConfig) {
     "raw_impressions_blob_prefix must not start or end with '/' for data provider: " +
       config.dataProvider
   }
+  require(!prefix.contains("://")) {
+    "raw_impressions_blob_prefix must be a bucket-relative prefix, not a URI, " +
+      "for data provider: ${config.dataProvider}"
+  }
+  require(prefix.split('/').none { it.isEmpty() || it == "." || it == ".." }) {
+    "raw_impressions_blob_prefix must not contain empty, '.' or '..' path segments " +
+      "for data provider: ${config.dataProvider}"
+  }
 }
 
 /** Validates labeled-output routing shared by VID labeling and availability synchronization. */

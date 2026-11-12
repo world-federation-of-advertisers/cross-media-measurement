@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.TextFormat
 import com.google.protobuf.struct
 import com.google.protobuf.value
+import java.io.StringWriter
 import kotlin.test.assertFailsWith
 import org.junit.Rule
 import org.junit.Test
@@ -304,6 +305,77 @@ class VidLabelingStorageConfigValidatorTest {
       syncConfigs(LABELED_OUTPUT_PATH),
       watcherConfig("^gs://bucket/edp/external/model-line/.*/.*/done$"),
     )
+  }
+
+  @Test
+  fun `CLI rejects a URI prefix in the dispatcher config`() {
+    val errors = StringWriter()
+    val exitCode = validateRawPrefixes("gs://other-bucket/raw", "raw", errors)
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(errors.toString()).contains("raw_impressions_blob_prefix")
+    assertThat(errors.toString()).contains("bucket-relative")
+  }
+
+  @Test
+  fun `CLI rejects a URI prefix in the monitor config`() {
+    val errors = StringWriter()
+    val exitCode = validateRawPrefixes("raw", "gs://other-bucket/raw", errors)
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(errors.toString()).contains("raw_impressions_blob_prefix")
+    assertThat(errors.toString()).contains("bucket-relative")
+  }
+
+  @Test
+  fun `CLI rejects matching malformed raw prefixes`() {
+    for (prefix in listOf("raw//2026", "raw/./2026", "raw/../2026")) {
+      val errors = StringWriter()
+      val exitCode = validateRawPrefixes(prefix, prefix, errors)
+
+      assertThat(exitCode).isEqualTo(1)
+      assertThat(errors.toString()).contains("raw_impressions_blob_prefix")
+      assertThat(errors.toString()).contains("path segments")
+    }
+  }
+
+  private fun validateRawPrefixes(
+    dispatcherPrefix: String,
+    monitorPrefix: String,
+    errors: StringWriter,
+  ): Int {
+    val dispatcherConfigFile = temporaryFolder.newFile()
+    dispatcherConfigFile.writeText(
+      TextFormat.printer()
+        .printToString(vidConfigs(LABELED_OUTPUT_PATH, rawPrefix = dispatcherPrefix))
+    )
+    val monitorConfigFile = temporaryFolder.newFile()
+    monitorConfigFile.writeText(
+      TextFormat.printer().printToString(vidConfigs(LABELED_OUTPUT_PATH, rawPrefix = monitorPrefix))
+    )
+    val syncConfigFile = temporaryFolder.newFile()
+    syncConfigFile.writeText(TextFormat.printer().printToString(syncConfigs(LABELED_OUTPUT_PATH)))
+    val watcherConfigFile = temporaryFolder.newFile()
+    watcherConfigFile.writeText(
+      TextFormat.printer().printToString(watcherConfig("gs://bucket/edp/event-groups/.*"))
+    )
+
+    val process =
+      ProcessBuilder(
+          "${System.getProperty("java.home")}/bin/java",
+          "-cp",
+          System.getProperty("java.class.path"),
+          ValidateVidLabelingStorageConfig::class.java.name,
+          "--vid-labeling-config=${dispatcherConfigFile.path}",
+          "--vid-labeling-monitor-config=${monitorConfigFile.path}",
+          "--data-availability-sync-config=${syncConfigFile.path}",
+          "--data-watcher-config=${watcherConfigFile.path}",
+        )
+        .redirectErrorStream(true)
+        .start()
+
+    errors.write(process.inputStream.bufferedReader().use { it.readText() })
+    return process.waitFor()
   }
 
   @Test

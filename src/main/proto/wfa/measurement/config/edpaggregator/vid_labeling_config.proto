@@ -189,7 +189,9 @@ message VidLabelingConfig {
   // explicitly configured when VID labeling is enabled.
   string edp_impression_path = 18 [(google.api.field_behavior) = REQUIRED];
 
-  // Blob-key prefix containing this EDP's raw-impression upload directories.
+  // Bucket-relative blob-key prefix containing this EDP's raw-impression upload
+  // directories, e.g. "raw-impressions/edp/edp7". Must not contain "://",
+  // leading/trailing slashes, or empty, "." or ".." path segments.
   // The Monitor scans this prefix directly so it can discover directories that
   // never produced RawImpressionUpload metadata. This must be a dedicated
   // raw-input root. Configured labeled-output descendants are excluded by the
