@@ -59,12 +59,14 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
@@ -92,7 +94,6 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `MODEL_LINES_TARGET`: Required. Target endpoint for the VID Repository ModelLines service.
  * - `MODEL_LINES_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_ROLLOUTS_TARGET`: Required. Target endpoint for the VID Repository ModelRollouts
- *   service.
  * - `MODEL_ROLLOUTS_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_SHARDS_TARGET`: Required. Target endpoint for the VID Repository ModelShards service.
  * - `MODEL_SHARDS_CERT_HOST`: Optional. Overrides TLS authority for testing.
@@ -111,6 +112,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   throttlers.
  * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
  *   of GCS. Used only in testing.
+ * - `VID_LABELING_DISPATCHER_FOOTER_READ_CONCURRENCY`: Optional. Maximum concurrent Parquet footer
+ *   reads (default: 12).
  *
  * ## Request Headers
  * - `X-DataWatcher-Path`: Required. Full storage URI of the "done" blob.
@@ -214,14 +217,16 @@ class VidLabelingDispatcherFunction : HttpFunction {
         RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
           rawImpressionUploadChannel
         )
-
       val rawImpressionUploadModelLineStub =
         RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
           rawImpressionUploadChannel
         )
+      val correctionCandidateStub =
+        RawImpressionUploadCorrectionCandidateServiceGrpcKt
+          .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(rawImpressionUploadChannel)
       val rankIndexBlobStub =
         RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(rawImpressionUploadChannel)
-      val healingOperationsStub =
+      val uploadHealingOperationStub =
         UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
           rawImpressionUploadChannel
         )
@@ -257,6 +262,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
         VidLabelingDispatchSequencer(
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+          rankIndexBlobStub = rankIndexBlobStub,
+          uploadHealingOperationStub = uploadHealingOperationStub,
           workItemsStub = workItemsStub,
           poolAssignmentJobStub = poolAssignmentJobStub,
           modelRolloutsStub = modelRolloutsStub,
@@ -292,6 +299,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           readBlobMetadata = readBlobMetadata,
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+          correctionDetectionStub = correctionCandidateStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
           rankIndexBlobStub = rankIndexBlobStub,
           modelLinesStub = modelLinesStub,
@@ -302,10 +310,14 @@ class VidLabelingDispatcherFunction : HttpFunction {
           recoverySourceUpload = recoverySourceUpload,
           recoveryOperationId = evictionOperationId,
           modelLineConfigs = modelLineConfigs,
+          footerReadConcurrency =
+            VidLabelingDispatcher.resolveFooterReadConcurrency(
+              System.getenv(VidLabelingDispatcher.FOOTER_READ_CONCURRENCY_ENV)
+            ),
           rpcThrottlers = rpcThrottlers,
           getHealingOperation = { name ->
             try {
-              healingOperationsStub.getUploadHealingOperation(
+              uploadHealingOperationStub.getUploadHealingOperation(
                 getUploadHealingOperationRequest { this.name = name }
               )
             } catch (e: StatusException) {
@@ -313,6 +325,11 @@ class VidLabelingDispatcherFunction : HttpFunction {
             }
           },
           readBlobVersionMetadata = createBlobVersionMetadataReader(doneBlobPath, readBlobMetadata),
+          getCorrectionCandidate = { name ->
+            correctionCandidateStub.getRawImpressionUploadCorrectionCandidate(
+              getRawImpressionUploadCorrectionCandidateRequest { this.name = name }
+            )
+          },
         )
 
       Tracing.withW3CTraceContext(request) {
