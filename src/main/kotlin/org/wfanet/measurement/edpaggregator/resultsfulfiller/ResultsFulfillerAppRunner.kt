@@ -33,8 +33,10 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResult
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig.TeeWorkload
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.WorkloadKmsConfigs
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics.Companion.measured
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -319,22 +321,23 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   private fun buildKmsAndTrusTeeMaps(): Pair<Map<String, KmsClient>, Map<String, TrusTeeConfig>> {
     val entries =
       edpsConfig.eventDataProviderConfigList.map { edpConfig ->
-        val kmsClient = buildKmsClient(edpConfig)
+        val kmsClient = buildKmsClient(edpConfig, TeeWorkload.RESULTS_FULFILLER)
+        val recipient = WorkloadKmsConfigs.select(edpConfig, TeeWorkload.TRUSTEE_MILL)
         val apiAwsKmsParams =
-          when (edpConfig.kmsConfig.kmsType) {
+          when (recipient.kmsType) {
             EventDataProviderConfig.KmsConfig.KmsType.AWS ->
               awsKmsParams {
-                roleArn = edpConfig.kmsConfig.awsRoleArn
-                roleSession = edpConfig.kmsConfig.awsRoleSessionName
-                region = edpConfig.kmsConfig.awsRegion
-                workloadIdentityIdTokenAudience = edpConfig.kmsConfig.awsAudience
+                roleArn = recipient.awsRoleArn
+                roleSession = recipient.awsRoleSessionName
+                region = recipient.awsRegion
+                workloadIdentityIdTokenAudience = recipient.awsAudience
               }
             EventDataProviderConfig.KmsConfig.KmsType.AWS_CONFIDENTIAL_SPACE ->
               awsKmsParams {
-                roleArn = edpConfig.kmsConfig.awsRoleArn
-                roleSession = edpConfig.kmsConfig.awsRoleSessionName
-                region = edpConfig.kmsConfig.awsRegion
-                confidentialSpaceAttestationTokenAudience = edpConfig.kmsConfig.awsAudience
+                roleArn = recipient.awsRoleArn
+                roleSession = recipient.awsRoleSessionName
+                region = recipient.awsRegion
+                confidentialSpaceAttestationTokenAudience = recipient.awsAudience
               }
             else -> null
           }
@@ -342,9 +345,15 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
           edpConfig.dataProvider,
           kmsClient,
           TrusTeeConfig(
+            kmsKekUri =
+              if (edpConfig.workloadKmsConfigsCount > 0)
+                recipient.kekUri.also {
+                  require(it.isNotEmpty()) { "TrusTEE recipient KEK must be configured" }
+                }
+              else null,
             kmsClient = kmsClient,
-            workloadIdentityProvider = edpConfig.kmsConfig.kmsAudience,
-            impersonatedServiceAccount = edpConfig.kmsConfig.serviceAccount,
+            workloadIdentityProvider = recipient.kmsAudience,
+            impersonatedServiceAccount = recipient.serviceAccount,
             awsKmsParams = apiAwsKmsParams,
           ),
         )

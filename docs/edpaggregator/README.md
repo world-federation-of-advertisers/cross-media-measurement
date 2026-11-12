@@ -266,11 +266,13 @@ the test image-signing key; QA's Google provider trusts the release key. The sha
 AWS role retains both approved keys. Unsigned developer images cannot obtain key
 access through these attested paths.
 
-Within each environment, the EDPA and TrusTEE Mill use one provider and one
-federated account. Separate providers are possible, but separate key access also
-requires appropriate service-account permissions. An operator permitted to attach
-another approved workload's service account can use that identity; signing-key
-approval does not pin an individual image digest or separate operator roles.
+The legacy configuration uses one provider and one federated account within
+each environment. The [per-job workload KMS deployment](../operations/tee-workload-kms.md)
+adds dedicated job identities, purpose-specific Google/AWS KEKs, job signing keys,
+and approved image repositories. Its staged activation is committed separately
+for dev, head, and QA. New purpose keys admit only their configured jobs. Retire
+legacy federation after migration to remove shared access to existing input
+keys and historical frequency vectors.
 
 Bootstrap the Google deployment identity through its Terraform instructions
 before the first workflow run. Imports preserve key URIs and existing permissions;
@@ -278,8 +280,11 @@ do not give multiple environment states ownership of shared keys or identity poo
 
 ### AWS KMS
 
-For a new AWS integration, use direct Confidential Space attestation. It does
-not require an EDP-owned Google Cloud project:
+For per-job keys and repository attestation, use the
+[dual-cloud example](../../src/main/terraform/gcloud/examples/tee-workload-kms),
+which admits AWS access through Google federation. The direct Confidential Space
+path below supports signature attestation and requires no EDP-owned Google Cloud
+project; AWS principal tags do not expose `image_reference`:
 
 ```text
 Confidential Space workload

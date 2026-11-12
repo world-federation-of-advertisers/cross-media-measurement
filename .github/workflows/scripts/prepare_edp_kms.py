@@ -38,7 +38,11 @@ def prepare(repository, output_directory):
                                     "-outform", "DER")).hexdigest()
         for key in ("test", "release")
     }
+    isolation = json.loads((repository / ".github/env-configs/tee-workloads.json").read_text())
+    if isolation["retire_legacy_federation"] and not all(isolation["activate_environments"].values()):
+        raise ValueError("Roll out every environment before retiring legacy federation")
     google = dict(config["google"])
+    google["legacy_federation_enabled"] = not isolation["retire_legacy_federation"]
     google["input_kek_uri"] = environments["dev"]["EDP7_KEK_URI"]
     google["workloads"] = {
         env: {
@@ -52,6 +56,7 @@ def prepare(repository, output_directory):
     }
     aws = {key: value for key, value in config["aws"].items()
            if key not in ("deployment_role_arn", "additional_export_google_subjects")}
+    aws["legacy_federation_enabled"] = not isolation["retire_legacy_federation"]
     aws["input_kek_uri"] = environments["dev"]["EDPA_META_KEK_URI"]
     aws["workload_project_ids"] = [value["GCLOUD_PROJECT"] for value in environments.values()]
     aws["image_signature_key_ids"] = list(fingerprints.values())

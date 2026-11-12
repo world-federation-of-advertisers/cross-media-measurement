@@ -40,6 +40,8 @@ import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig.KmsConfig
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig.TeeWorkload
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.gcloud.kms.ConfidentialSpaceToAwsKmsClientFactory
@@ -228,51 +230,55 @@ abstract class BaseTeeAppRunner : Runnable {
   }
 
   /** Builds a single [KmsClient] for the given EDP config via WIF. */
-  protected fun buildKmsClient(edpConfig: EventDataProviderConfig): KmsClient {
-    return when (edpConfig.kmsConfig.kmsType) {
+  protected fun buildKmsClient(
+    edpConfig: EventDataProviderConfig,
+    workload: TeeWorkload,
+  ): KmsClient {
+    val kmsConfig = WorkloadKmsConfigs.select(edpConfig, workload)
+    return when (kmsConfig.kmsType) {
       EventDataProviderConfig.KmsConfig.KmsType.AWS -> {
-        requireAwsKmsFields(edpConfig)
+        requireAwsKmsFields(kmsConfig, edpConfig.dataProvider)
         val gcloudToAwsConfig =
           GCloudToAwsWifCredentials(
-            gcloudAudience = edpConfig.kmsConfig.kmsAudience,
+            gcloudAudience = kmsConfig.kmsAudience,
             subjectTokenType = SUBJECT_TOKEN_TYPE,
             tokenUrl = TOKEN_URL,
             credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
             serviceAccountImpersonationUrl =
-              EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
-            roleArn = edpConfig.kmsConfig.awsRoleArn,
-            roleSessionName = edpConfig.kmsConfig.awsRoleSessionName,
-            region = edpConfig.kmsConfig.awsRegion,
-            awsAudience = edpConfig.kmsConfig.awsAudience,
+              EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(kmsConfig.serviceAccount),
+            roleArn = kmsConfig.awsRoleArn,
+            roleSessionName = kmsConfig.awsRoleSessionName,
+            region = kmsConfig.awsRegion,
+            awsAudience = kmsConfig.awsAudience,
           )
         GCloudToAwsKmsClientFactory().getKmsClient(gcloudToAwsConfig)
       }
       EventDataProviderConfig.KmsConfig.KmsType.AWS_CONFIDENTIAL_SPACE -> {
-        requireAwsKmsFields(edpConfig)
+        requireAwsKmsFields(kmsConfig, edpConfig.dataProvider)
         val confidentialSpaceToAwsConfig =
           ConfidentialSpaceToAwsWifCredentials(
-            roleArn = edpConfig.kmsConfig.awsRoleArn,
-            roleSessionName = edpConfig.kmsConfig.awsRoleSessionName,
-            region = edpConfig.kmsConfig.awsRegion,
-            audience = edpConfig.kmsConfig.awsAudience,
+            roleArn = kmsConfig.awsRoleArn,
+            roleSessionName = kmsConfig.awsRoleSessionName,
+            region = kmsConfig.awsRegion,
+            audience = kmsConfig.awsAudience,
           )
         ConfidentialSpaceToAwsKmsClientFactory().getKmsClient(confidentialSpaceToAwsConfig)
       }
       EventDataProviderConfig.KmsConfig.KmsType.GCP -> {
         val gcpConfig =
           GCloudWifCredentials(
-            audience = edpConfig.kmsConfig.kmsAudience,
+            audience = kmsConfig.kmsAudience,
             subjectTokenType = SUBJECT_TOKEN_TYPE,
             tokenUrl = TOKEN_URL,
             credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
             serviceAccountImpersonationUrl =
-              EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
+              EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(kmsConfig.serviceAccount),
           )
         GCloudKmsClientFactory().getKmsClient(gcpConfig)
       }
       EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED,
       EventDataProviderConfig.KmsConfig.KmsType.UNRECOGNIZED ->
-        error("Unsupported KMS type: ${edpConfig.kmsConfig.kmsType}")
+        error("Unsupported KMS type: ${kmsConfig.kmsType}")
     }
   }
 
@@ -281,26 +287,25 @@ abstract class BaseTeeAppRunner : Runnable {
    * Checking them here reports a misconfigured EDP immediately instead of as an opaque STS or KMS
    * failure once the workload is already running.
    */
-  private fun requireAwsKmsFields(edpConfig: EventDataProviderConfig) {
-    val kmsConfig = edpConfig.kmsConfig
+  private fun requireAwsKmsFields(kmsConfig: KmsConfig, dataProvider: String) {
     require(kmsConfig.awsRoleArn.isNotEmpty()) {
-      "aws_role_arn is required for ${kmsConfig.kmsType} but is missing for ${edpConfig.dataProvider}"
+      "aws_role_arn is required for ${kmsConfig.kmsType} but is missing for $dataProvider"
     }
     require(kmsConfig.awsRoleSessionName.isNotEmpty()) {
-      "aws_role_session_name is required for ${kmsConfig.kmsType} but is missing for ${edpConfig.dataProvider}"
+      "aws_role_session_name is required for ${kmsConfig.kmsType} but is missing for $dataProvider"
     }
     require(kmsConfig.awsRegion.isNotEmpty()) {
-      "aws_region is required for ${kmsConfig.kmsType} but is missing for ${edpConfig.dataProvider}"
+      "aws_region is required for ${kmsConfig.kmsType} but is missing for $dataProvider"
     }
     require(kmsConfig.awsAudience.isNotEmpty()) {
-      "aws_audience is required for ${kmsConfig.kmsType} but is missing for ${edpConfig.dataProvider}"
+      "aws_audience is required for ${kmsConfig.kmsType} but is missing for $dataProvider"
     }
   }
 
   /** Returns an immutable map of `DataProvider` resource name to [KmsClient]. */
-  protected fun buildKmsClientsMap(): Map<String, KmsClient> =
+  protected fun buildKmsClientsMap(workload: TeeWorkload): Map<String, KmsClient> =
     edpsConfig.eventDataProviderConfigList.associate { edpConfig ->
-      edpConfig.dataProvider to buildKmsClient(edpConfig)
+      edpConfig.dataProvider to buildKmsClient(edpConfig, workload)
     }
 
   protected fun createQueueSubscriber(pubSubClient: GooglePubSubClient): QueueSubscriber {

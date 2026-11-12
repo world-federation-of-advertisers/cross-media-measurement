@@ -39,7 +39,10 @@
           "release"
         ]
       }
-    }
+    },
+    "project_iam_admin_members": [
+      "serviceAccount:terraform@halo-cmm-dev-edp.iam.gserviceaccount.com"
+    ]
   },
   "aws": {
     "deployment_role_arn": "arn:aws:iam::010295286036:role/GitHubAction-AssumeRoleWithAction",

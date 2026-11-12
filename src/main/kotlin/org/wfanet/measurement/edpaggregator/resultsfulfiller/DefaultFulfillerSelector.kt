@@ -47,22 +47,28 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.Fulf
 /**
  * Configuration for TrusTee protocol envelope encryption.
  *
- * @property kmsClient The KMS client for encryption operations.
+ * @property kmsKekUri The explicit recipient KEK, or null to use legacy key-name remapping.
+ * @property kmsClient The producer KMS client for encryption operations.
  * @property workloadIdentityProvider The workload identity provider URL for GCP WIF.
  * @property impersonatedServiceAccount The service account to impersonate for KMS operations.
  */
 data class TrusTeeConfig(
+  val kmsKekUri: String?,
   val kmsClient: KmsClient,
   val workloadIdentityProvider: String,
   val impersonatedServiceAccount: String,
   val awsKmsParams: FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsParams?,
 ) {
+  init {
+    require(kmsKekUri == null || kmsKekUri.isNotEmpty()) { "Recipient KEK must not be empty" }
+  }
+
   /**
-   * Builds EncryptionParams for the TrusTee protocol using the provided KEK URI.
+   * Builds EncryptionParams using the explicit recipient KEK when configured.
    *
-   * If the kekUri is found in the kekUriToKeyNameMap, the output KEK URI will be constructed by
-   * replacing the key name in the original URI with the mapped key name (on the same keyring). If
-   * not found in the map, the original kekUri is used unchanged.
+   * Otherwise, if the kekUri is found in the kekUriToKeyNameMap, the output KEK URI will be
+   * constructed by replacing the key name in the original URI with the mapped key name (on the same
+   * keyring). If not found in the map, the original kekUri is used unchanged.
    *
    * @param kekUri The KEK URI from BlobDetails.encryptedDek.
    * @param kekUriToKeyNameMap Map from input KEK URI to output key name for re-encryption.
@@ -72,7 +78,7 @@ data class TrusTeeConfig(
     kekUri: String,
     kekUriToKeyNameMap: Map<String, String>,
   ): TrusteeFulfillRequisitionRequestBuilder.EncryptionParams {
-    val remappedKekUri = remapKekUri(kekUri, kekUriToKeyNameMap)
+    val remappedKekUri = kmsKekUri ?: remapKekUri(kekUri, kekUriToKeyNameMap)
     return TrusteeFulfillRequisitionRequestBuilder.EncryptionParams(
       kmsClient = kmsClient,
       kmsKekUri = remappedKekUri,

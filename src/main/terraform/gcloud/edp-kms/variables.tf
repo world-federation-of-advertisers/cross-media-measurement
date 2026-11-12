@@ -60,3 +60,19 @@ variable "workloads" {
     error_message = "Configure dev, head, and qa with approved SHA-256 image-signing fingerprints."
   }
 }
+
+variable "legacy_federation_enabled" {
+  description = "Retain legacy shared federation during the staged per-job rollout."
+  type        = bool
+  nullable    = false
+}
+
+variable "project_iam_admin_members" {
+  description = "Authoritative project IAM administrators; runtime identities must not be members."
+  type        = set(string)
+  nullable    = false
+  validation {
+    condition     = length(var.project_iam_admin_members) > 0 && !contains(var.project_iam_admin_members, "serviceAccount:${var.service_account_name}@${split("/", trimprefix(var.input_kek_uri, "gcp-kms://"))[1]}.iam.gserviceaccount.com")
+    error_message = "Retain trusted administrators and remove the shared runtime account's project IAM administration."
+  }
+}

@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.subpoolassigner
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Parser
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig.TeeWorkload
 import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
@@ -69,7 +70,7 @@ class SubpoolAssignerAppRunner :
 
   override fun run() {
     saveCommonEdpaCerts()
-    val kmsClientsMap: Map<String, KmsClient> = buildKmsClientsMap()
+    val kmsClientsMap: Map<String, KmsClient> = buildKmsClientsMap(TeeWorkload.SUBPOOL_ASSIGNER)
 
     val pubSubClient = DefaultGooglePubSubClient()
     val queueSubscriber = createQueueSubscriber(pubSubClient)
@@ -113,7 +114,9 @@ class SubpoolAssignerAppRunner :
             readCompiledModelBlob(modelStorageConfig, modelBlobPath)
           )
         },
-        getSubpoolMapKekUri = { dataProvider -> kekUriFor(dataProvider) },
+        getSubpoolMapKekUri = { dataProvider ->
+          kekUriFor(dataProvider, TeeWorkload.SUBPOOL_ASSIGNER)
+        },
         rpcThrottlers = rpcThrottlers,
       )
 

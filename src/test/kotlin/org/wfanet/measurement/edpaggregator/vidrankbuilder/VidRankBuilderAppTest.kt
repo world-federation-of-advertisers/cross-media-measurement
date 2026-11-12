@@ -231,6 +231,7 @@ class VidRankBuilderAppTest {
     workItemsStub: WorkItemsCoroutineStub = mock(),
   ): VidRankBuilderApp =
     VidRankBuilderApp(
+      getRankIndexKekUri = { null },
       subscriptionId = "test-subscription",
       queueSubscriber = mock<QueueSubscriber>(),
       parser = WorkItem.parser(),

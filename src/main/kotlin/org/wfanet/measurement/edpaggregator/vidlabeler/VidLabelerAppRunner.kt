@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig.TeeWorkload
 import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
@@ -67,7 +68,8 @@ class VidLabelerAppRunner :
     storageConfig(storageParams.gcsProjectId).copy(blobPrefix = storageParams.impressionsBlobPrefix)
   }
 
-  // Caches resolved EventTemplate descriptors by (blob URI, type name) so a descriptor blob is read
+  // Caches resolved EventTemplate descriptors by (blob URI, type name) so a descriptor blob is
+  // read
   // and parsed once per process instead of once per WorkItem.
   private val eventDescriptorCache =
     ConcurrentHashMap<Pair<String, String>, Descriptors.Descriptor>()
@@ -78,14 +80,15 @@ class VidLabelerAppRunner :
 
   override fun run() {
     saveCommonEdpaCerts()
-    val kmsClients: Map<String, KmsClient> = buildKmsClientsMap()
-    // Per-EDP output KEK for the non-memoized Phase-2 path (the memoized path derives its KEK
-    // from the rank-index blobs). Only EDPs that use the VID Labeling pipeline set
+    val kmsClients: Map<String, KmsClient> = buildKmsClientsMap(TeeWorkload.VID_LABELER)
+    // Per-EDP output KEK for both labeler paths. Legacy configurations for EDPs
+    // that use the VID Labeling pipeline set
     // kms_config.kek_uri; AWS/direct-path EDPs (e.g. edpa_meta) leave it unset in the shared
-    // all-EDP config and never produce Phase-2 work, so skip them here instead of failing to boot.
+    // all-EDP config and never produce Phase-2 work, so skip them here instead of failing to
+    // boot.
     val encryptKekUris: Map<String, String> = buildMap {
       for (dataProvider in kmsClients.keys) {
-        val kekUri = kekUriForOrNull(dataProvider)
+        val kekUri = kekUriForOrNull(dataProvider, TeeWorkload.VID_LABELER)
         if (kekUri != null) {
           put(dataProvider, kekUri)
         }
@@ -142,7 +145,9 @@ class VidLabelerAppRunner :
               populationAttributeWriterLoader.getWriter(config, eventDescriptor),
           )
         },
-        // Process-scoped: one cache shared across every WorkItem this container processes, so the
+        // Process-scoped: one cache shared across every WorkItem this container processes,
+        // so
+        // the
         // memoized rank index is reused across WorkItems when the Phase-1 snapshot set is
         // unchanged.
         memoizedRankIndexCache = MemoizedRankIndexCache(),

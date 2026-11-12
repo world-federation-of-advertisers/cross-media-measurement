@@ -81,7 +81,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      packages: read
+      packages: write
     with:
       apply: ${{ inputs.apply }}
       candidate-environment: ${{ inputs.environment }}
@@ -233,12 +233,13 @@ jobs:
 
   terraform-quiesced:
     uses: ./.github/workflows/terraform-cmms-v2.yml
-    needs: [publish-images, update-secure-computation-dlq-paused]
+    needs: [deploy-edp-kms, publish-images, update-secure-computation-dlq-paused]
     secrets: inherit
     permissions:
       contents: read
       id-token: write
     with:
+      edp-kms-config-artifact: ${{ needs.deploy-edp-kms.outputs.runtime-config-artifact }}
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -385,12 +386,13 @@ jobs:
 
   terraform:
     uses: ./.github/workflows/terraform-cmms-v2.yml
-    needs: [publish-images, update-secure-computation, update-edp-aggregator-service]
+    needs: [deploy-edp-kms, publish-images, update-secure-computation, update-edp-aggregator-service]
     secrets: inherit
     permissions:
       contents: read
       id-token: write
     with:
+      edp-kms-config-artifact: ${{ needs.deploy-edp-kms.outputs.runtime-config-artifact }}
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}

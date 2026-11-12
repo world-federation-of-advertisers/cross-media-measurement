@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.vidrankbuilder
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Parser
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig.TeeWorkload
 import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
 import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
@@ -59,7 +60,7 @@ class VidRankBuilderAppRunner :
 
   override fun run() {
     saveCommonEdpaCerts()
-    val kmsClientsMap: Map<String, KmsClient> = buildKmsClientsMap()
+    val kmsClientsMap: Map<String, KmsClient> = buildKmsClientsMap(TeeWorkload.VID_RANK_BUILDER)
     // Per-EDP rank-index retention. Sourced from the shared, all-EDP config, which also lists EDPs
     // that never run the memoized ranker — `retention_days` is documented "only set for EDPs that
     // use the memoized VID ranker", so such an EDP legitimately leaves it 0. It is therefore NOT
@@ -97,6 +98,9 @@ class VidRankBuilderAppRunner :
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
         kmsClients = kmsClientsMap,
+        getRankIndexKekUri = { dataProvider ->
+          kekUriForOrNull(dataProvider, TeeWorkload.VID_RANK_BUILDER)
+        },
         retentionDaysByDataProvider = retentionDaysByDataProvider,
         buildSubpoolMapStorageClient = { sp ->
           buildStorageClient(storageConfig(sp.gcsProjectId).copy(blobPrefix = sp.blobPrefix))

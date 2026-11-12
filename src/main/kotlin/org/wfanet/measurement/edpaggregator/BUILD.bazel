@@ -82,6 +82,7 @@ kt_jvm_library(
     srcs = ["BaseTeeAppRunner.kt"],
     deps = [
         ":tee_stack_dump_logger",
+        ":workload_kms_configs",
         "//imports/java/com/google/cloud/logging",
         "//imports/java/com/google/cloud/secretmanager",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
@@ -108,6 +109,8 @@ kt_jvm_library(
         ":storage_config",
         ":vid_labeling_rpc_duration_converter",
         ":vid_labeling_rpc_throttlers",
+        ":workload_kms_configs",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:event_data_provider_configs_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_api",
@@ -148,4 +151,10 @@ kt_jvm_library(
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     ],
     deps = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler"],
+)
+
+kt_jvm_library(
+    name = "workload_kms_configs",
+    srcs = ["WorkloadKmsConfigs.kt"],
+    deps = ["//src/main/proto/wfa/measurement/config/edpaggregator:event_data_provider_configs_kt_jvm_proto"],
 )

@@ -122,8 +122,8 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param workItemAttemptsClient gRPC stub for WorkItemAttempts service.
  * @param kmsClients per-`DataProvider` [KmsClient]s (each the EDP's own KEK), used for BOTH the
  *   raw-impression PME decrypt and the labeled-output encrypt — exactly one client per EDP.
- * @param encryptKekUris per-`DataProvider` KEK URI used to wrap the labeled output on the
- *   non-memoized path; the memoized path instead reuses the KEK carried on the rank-index blobs.
+ * @param encryptKekUris per-`DataProvider` KEK URI used to wrap labeled output. Legacy memoized
+ *   configurations without an output KEK use the rank-index KEK.
  * @param getStorageConfig builds a [StorageConfig] from [VidLabelerParams.StorageParams].
  * @param vidLabelingJobsStub stub to mark this WorkItem's `VidLabelingJob` `SUCCEEDED` and learn
  *   whether it is the last job out for one or more model lines.
@@ -579,9 +579,9 @@ class VidLabelerApp(
         vidModelLoader = vidModelLoader,
         impressionConverter = impressionConverter,
         encryptKmsClient = kmsClient,
-        // The labeled output is wrapped with the EDP's KEK, the same one the rank-index blobs were
-        // written with; read it from the loaded RankIndexBlobs so there is no separate KEK field.
-        encryptKekUri = rankIndex.kekUri,
+        // Decrypt the rank index with its metadata key; wrap labeled output with
+        // the independently configured labeled-impression key.
+        encryptKekUri = encryptKekUris[dataProvider] ?: rankIndex.kekUri,
         newSink = {
           inputBlobUri,
           contexts,

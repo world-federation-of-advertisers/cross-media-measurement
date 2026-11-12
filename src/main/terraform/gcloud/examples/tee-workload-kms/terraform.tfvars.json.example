@@ -1,0 +1,252 @@
+{
+  "google_project_id": "key-project",
+  "aws_region": "us-east-1",
+  "aws_account_id": "123456789012",
+  "key_administrator_arns": [
+    "arn:aws:iam::123456789012:root"
+  ],
+  "workloads": {
+    "trustee-mill": {
+      "service_account_name": "tee-trustee-mill",
+      "workload_identity_pool_id": "tee-trustee-mill",
+      "aws_role_name": "tee-trustee-mill",
+      "workload_project_ids": [
+        "workload-project"
+      ],
+      "workload_service_accounts": [
+        "trustee-mill-mig-sa@workload-project.iam.gserviceaccount.com"
+      ],
+      "image_repositories": [
+        "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
+      ],
+      "image_signature_fingerprints": [
+        "ECDSA_P256_SHA256:1c86d5ce8d43e8ef35e4366fdab9c0aff132bd20a50e0a15ab24adcee68b69db"
+      ],
+      "google_key_permissions": {
+        "trustee_frequency_vector": [
+          "roles/cloudkms.cryptoKeyDecrypter"
+        ]
+      },
+      "aws_key_permissions": {
+        "trustee_frequency_vector": [
+          "kms:Decrypt"
+        ]
+      }
+    },
+    "results-fulfiller": {
+      "service_account_name": "tee-results-fulfiller",
+      "workload_identity_pool_id": "tee-results-fulfiller",
+      "aws_role_name": "tee-results-fulfiller",
+      "workload_project_ids": [
+        "workload-project"
+      ],
+      "workload_service_accounts": [
+        "results-fulfiller-sa@workload-project.iam.gserviceaccount.com"
+      ],
+      "image_repositories": [
+        "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
+      ],
+      "image_signature_fingerprints": [
+        "ECDSA_P256_SHA256:039db027b679df12cab8990090f0c7c58d4d17704f8444dc4558dcdec64fc858"
+      ],
+      "google_key_permissions": {
+        "raw_input": [
+          "roles/cloudkms.cryptoKeyDecrypter"
+        ],
+        "labeled_impressions": [
+          "roles/cloudkms.cryptoKeyDecrypter"
+        ],
+        "trustee_frequency_vector": [
+          "roles/cloudkms.cryptoKeyEncrypter"
+        ]
+      },
+      "aws_key_permissions": {
+        "raw_input": [
+          "kms:Decrypt"
+        ],
+        "labeled_impressions": [
+          "kms:Decrypt"
+        ],
+        "trustee_frequency_vector": [
+          "kms:Encrypt"
+        ]
+      }
+    },
+    "subpool-assigner": {
+      "service_account_name": "tee-subpool-assigner",
+      "workload_identity_pool_id": "tee-subpool-assigner",
+      "aws_role_name": "tee-subpool-assigner",
+      "workload_project_ids": [
+        "workload-project"
+      ],
+      "workload_service_accounts": [
+        "subpool-assigner-sa@workload-project.iam.gserviceaccount.com"
+      ],
+      "image_repositories": [
+        "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner"
+      ],
+      "image_signature_fingerprints": [
+        "ECDSA_P256_SHA256:457fb4e155f03217ec1383854306268272ad5f89b43303bc04fcd019d008bfb3"
+      ],
+      "google_key_permissions": {
+        "subpool_map": [
+          "roles/cloudkms.cryptoKeyEncrypter"
+        ]
+      },
+      "aws_key_permissions": {
+        "subpool_map": [
+          "kms:Encrypt"
+        ]
+      }
+    },
+    "vid-rank-builder": {
+      "service_account_name": "tee-vid-rank-builder",
+      "workload_identity_pool_id": "tee-vid-rank-builder",
+      "aws_role_name": "tee-vid-rank-builder",
+      "workload_project_ids": [
+        "workload-project"
+      ],
+      "workload_service_accounts": [
+        "vid-rank-builder-sa@workload-project.iam.gserviceaccount.com"
+      ],
+      "image_repositories": [
+        "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder"
+      ],
+      "image_signature_fingerprints": [
+        "ECDSA_P256_SHA256:f08e8b709431ce484d81d49e6709cf072e1f55559ddd4fb1526d242f1f5d8487"
+      ],
+      "google_key_permissions": {
+        "raw_input": [
+          "roles/cloudkms.cryptoKeyDecrypter"
+        ],
+        "subpool_map": [
+          "roles/cloudkms.cryptoKeyDecrypter"
+        ],
+        "rank_index": [
+          "roles/cloudkms.cryptoKeyEncrypter",
+          "roles/cloudkms.cryptoKeyDecrypter"
+        ]
+      },
+      "aws_key_permissions": {
+        "raw_input": [
+          "kms:Decrypt"
+        ],
+        "subpool_map": [
+          "kms:Decrypt"
+        ],
+        "rank_index": [
+          "kms:Encrypt",
+          "kms:Decrypt"
+        ]
+      }
+    },
+    "vid-labeler": {
+      "service_account_name": "tee-vid-labeler",
+      "workload_identity_pool_id": "tee-vid-labeler",
+      "aws_role_name": "tee-vid-labeler",
+      "workload_project_ids": [
+        "workload-project"
+      ],
+      "workload_service_accounts": [
+        "vid-labeler-sa@workload-project.iam.gserviceaccount.com"
+      ],
+      "image_repositories": [
+        "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler"
+      ],
+      "image_signature_fingerprints": [
+        "ECDSA_P256_SHA256:7bd8d22681fe8866ea6aa0cec597563e8638c40fa4a987f941d1412a07915fbd"
+      ],
+      "google_key_permissions": {
+        "raw_input": [
+          "roles/cloudkms.cryptoKeyDecrypter"
+        ],
+        "rank_index": [
+          "roles/cloudkms.cryptoKeyDecrypter"
+        ],
+        "labeled_impressions": [
+          "roles/cloudkms.cryptoKeyEncrypter"
+        ]
+      },
+      "aws_key_permissions": {
+        "raw_input": [
+          "kms:Decrypt"
+        ],
+        "rank_index": [
+          "kms:Decrypt"
+        ],
+        "labeled_impressions": [
+          "kms:Encrypt"
+        ]
+      }
+    }
+  },
+  "google_keys": {
+    "raw_input": {
+      "key_ring_id": "projects/key-project/locations/global/keyRings/edp",
+      "key_name": "raw_input",
+      "existing_key_id": "projects/key-project/locations/global/keyRings/edp/cryptoKeys/publisher-input",
+      "rotation_period": null
+    },
+    "subpool_map": {
+      "key_ring_id": "projects/key-project/locations/global/keyRings/edp",
+      "key_name": "subpool_map",
+      "existing_key_id": null,
+      "rotation_period": "2592000s"
+    },
+    "rank_index": {
+      "key_ring_id": "projects/key-project/locations/global/keyRings/edp",
+      "key_name": "rank_index",
+      "existing_key_id": null,
+      "rotation_period": "2592000s"
+    },
+    "labeled_impressions": {
+      "key_ring_id": "projects/key-project/locations/global/keyRings/edp",
+      "key_name": "labeled_impressions",
+      "existing_key_id": null,
+      "rotation_period": "2592000s"
+    },
+    "trustee_frequency_vector": {
+      "key_ring_id": "projects/key-project/locations/global/keyRings/edp",
+      "key_name": "trustee_frequency_vector",
+      "existing_key_id": null,
+      "rotation_period": "2592000s"
+    }
+  },
+  "aws_keys": {
+    "raw_input": {
+      "alias": "alias/raw_input",
+      "description": "raw_input",
+      "existing_key_arn": "arn:aws:kms:us-east-1:123456789012:key/replace-with-input-key-id",
+      "enable_key_rotation": true,
+      "deletion_window_in_days": 30
+    },
+    "subpool_map": {
+      "alias": "alias/subpool_map",
+      "description": "subpool_map",
+      "existing_key_arn": null,
+      "enable_key_rotation": true,
+      "deletion_window_in_days": 30
+    },
+    "rank_index": {
+      "alias": "alias/rank_index",
+      "description": "rank_index",
+      "existing_key_arn": null,
+      "enable_key_rotation": true,
+      "deletion_window_in_days": 30
+    },
+    "labeled_impressions": {
+      "alias": "alias/labeled_impressions",
+      "description": "labeled_impressions",
+      "existing_key_arn": null,
+      "enable_key_rotation": true,
+      "deletion_window_in_days": 30
+    },
+    "trustee_frequency_vector": {
+      "alias": "alias/trustee_frequency_vector",
+      "description": "trustee_frequency_vector",
+      "existing_key_arn": null,
+      "enable_key_rotation": true,
+      "deletion_window_in_days": 30
+    }
+  }
+}
