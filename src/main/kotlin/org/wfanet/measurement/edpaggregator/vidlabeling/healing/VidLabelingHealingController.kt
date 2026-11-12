@@ -30,7 +30,6 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadCorrectionCandidateKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
@@ -55,6 +54,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
@@ -137,6 +137,7 @@ fun interface VidLabelingHealingControllerEventSink {
 class VidLabelingHealingController(
   dataProviderConfigs: Collection<DataProviderConfig>,
   private val candidatesStub: RawImpressionUploadCorrectionCandidateServiceCoroutineStub,
+  private val candidateCleaner: CorrectionCandidateCleaner,
   private val operationsStub: HealingOperationStore,
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val filesStub: RawImpressionUploadFileServiceCoroutineStub,
@@ -201,6 +202,7 @@ class VidLabelingHealingController(
       try {
         reconcileDraft(config)
         advanceUntilBlocked(config)
+        candidateCleaner.purge(config.name)
         processed++
       } catch (e: Exception) {
         if (e is CancellationException) throw e
@@ -311,26 +313,17 @@ class VidLabelingHealingController(
             requireNotNull(RawImpressionUploadCorrectionCandidateKey.fromName(it.name))
               .rawImpressionUploadCorrectionCandidateId
           }
-    val cutoffTime = draft?.cutoffTime?.toInstant() ?: clock.instant().minus(config.retention)
+    val cutoffTime = clock.instant().minus(config.retention)
     var planningFailed = false
     val plan =
       try {
         val candidates = summaries.map { getCandidate(it.name) }
-        val ownerNames =
-          candidates
-            .flatMap { candidate ->
-              candidate.manifestDifferencesList.mapNotNull { difference ->
-                difference.priorOutputSourceRawImpressionUpload.takeIf { it.isNotEmpty() }
-              }
-            }
-            .distinct()
+        val ownersByCandidate = candidates.associate { it.name to currentOwnerNames(it) }
+        val ownerNames = ownersByCandidate.values.flatten().distinct()
         val owners = ownerNames.associateWith { getUpload(it) }
         val plannerCandidates =
           candidates.map { candidate ->
-            val historicalOwnerNames =
-              candidate.manifestDifferencesList
-                .mapNotNull { it.priorOutputSourceRawImpressionUpload.takeIf(String::isNotEmpty) }
-                .distinct()
+            val historicalOwnerNames = ownersByCandidate.getValue(candidate.name)
             val historicalOwners =
               historicalOwnerNames.map { ownerName ->
                 RawImpressionUploadCorrectionPlanner.HistoricalOwner(
@@ -350,16 +343,11 @@ class VidLabelingHealingController(
           .plan(
             plannerCandidates,
             cutoffTime,
-            mapOf(
-              config.name to
-                RawImpressionUploadCorrectionPlanner.DataProviderConfig(
-                  config.labeledImpressionsBlobPrefix
-                )
-            ),
             operationIdsByDataProvider = mapOf(config.name to operationId),
           )
           .single()
           .toPublicPlan()
+          .copy { labeledImpressionsBlobPrefix = config.labeledImpressionsBlobPrefix }
       } catch (e: Exception) {
         if (e is CancellationException || e is InterruptedException || e.isTransient()) throw e
         planningFailed = true
@@ -369,8 +357,6 @@ class VidLabelingHealingController(
             UploadHealingOperation.OutputManifestState.OUTPUT_MANIFEST_STATE_PROVISIONAL
           reason = "Correction plan could not be computed: ${e.message.orEmpty()}"
           labeledImpressionsBlobPrefix = config.labeledImpressionsBlobPrefix
-          badRawImpressionUploads += summaries.map { it.rawImpressionUpload }
-          this.cutoffTime = cutoffTime.toProtoTime()
           rawImpressionUploadCorrectionCandidates += summaries.map { it.name }
         }
       }
@@ -397,6 +383,57 @@ class VidLabelingHealingController(
         reconciled.name,
       )
     )
+  }
+
+  private suspend fun currentOwnerNames(
+    candidate: RawImpressionUploadCorrectionCandidate
+  ): List<String> {
+    val detectedOwners =
+      candidate.manifestDifferencesList
+        .mapNotNull { it.priorOutputSourceRawImpressionUpload.takeIf { name -> name.isNotEmpty() } }
+        .distinct()
+    val upload = getUpload(candidate.rawImpressionUpload)
+    val parent = requireNotNull(RawImpressionUploadKey.fromName(upload.name)).parentKey.toName()
+    val revisions = listUploads(parent, upload.doneBlobUri)
+    val completedOperations = mutableMapOf<String, UploadHealingOperation>()
+    var replacementCompleted = false
+    for (revision in revisions.filter { it.uploadHealingOperation.isNotEmpty() }) {
+      val operation =
+        completedOperations.getOrPut(revision.uploadHealingOperation) {
+          getOperation(revision.uploadHealingOperation)
+        }
+      if (
+        operation.state == UploadHealingOperation.State.COMPLETE &&
+          operation.stepsList.any {
+            it.state == UploadHealingStep.State.COMPLETE &&
+              it.replacementRawImpressionUpload == revision.name
+          }
+      )
+        replacementCompleted = true
+    }
+    if (!replacementCompleted) return detectedOwners
+
+    val ownersByOutput = mutableMapOf<Pair<String, String>, RawImpressionUpload>()
+    for (revision in revisions.filter { it.name != upload.name && it.registrationComplete }) {
+      val completedModelLines =
+        listModelLines(revision.name).filter {
+          it.state == RawImpressionUploadModelLine.State.COMPLETED
+        }
+      if (completedModelLines.isEmpty()) continue
+      for (file in listPersistedFiles(revision.name)) {
+        for (modelLine in completedModelLines) {
+          val key = file.blobUri to modelLine.cmmsModelLine
+          val existing = ownersByOutput[key]
+          if (
+            existing == null ||
+              Timestamps.compare(revision.createTime, existing.createTime) > 0 ||
+              revision.createTime == existing.createTime && revision.name > existing.name
+          )
+            ownersByOutput[key] = revision
+        }
+      }
+    }
+    return ownersByOutput.values.map { it.name }.distinct().sorted().ifEmpty { detectedOwners }
   }
 
   private suspend fun advanceActiveOperation(
@@ -512,7 +549,8 @@ class VidLabelingHealingController(
     verifyExactCandidateManifests(operation)
     val evictionExecutor =
       evictionExecutorFactory(dataProviderConfigs.getValue(key.parentKey.toName()))
-    val finalizedPlan = evictionExecutor.finalizeOutputManifests(operation.toEvictionPlan())
+    val finalizedPlan =
+      evictionExecutor.finalizeOutputManifests(operation.toPersistedEvictionPlan())
     check(finalizedPlan.outputManifestsFinalized) {
       "Eviction executor returned provisional labeled-output manifests"
     }
@@ -540,14 +578,9 @@ class VidLabelingHealingController(
     val completedOperations =
       listOperations(dataProvider, listOf(UploadHealingOperation.State.COMPLETE))
     for (completedOperation in completedOperations) {
-      val replacementNames =
-        completedOperation.stepsList
-          .map { it.replacementRawImpressionUpload }
-          .filter { it.isNotEmpty() }
-          .distinct()
-      for (replacementName in replacementNames) {
+      for (uploadName in availabilityHandoffUploadNames(completedOperation)) {
         if (
-          listModelLines(replacementName).any {
+          listModelLines(uploadName).any {
             it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING &&
               it.pendingAvailabilityDatesCount > 0
           }
@@ -562,7 +595,9 @@ class VidLabelingHealingController(
   private suspend fun evict(config: DataProviderConfig, initial: UploadHealingOperation) {
     verifyExactCandidateManifests(initial, retainedVersions = true)
     var operation = initial
-    evictionExecutorFactory(config).evict(operation.toEvictionPlan(), operation.reason) { entry ->
+    val evictionExecutor = evictionExecutorFactory(config)
+    val evictionPlan = operation.toPersistedEvictionPlan()
+    evictionExecutor.evict(evictionPlan, operation.reason) { entry ->
       val step =
         operation.stepsList.single { it.rawImpressionUploadModelLine == entry.modelLineName }
       if (step.state == UploadHealingStep.State.PENDING_EVICTION) {
@@ -588,12 +623,8 @@ class VidLabelingHealingController(
         )
         operation = getOperation(operation.name)
       }
-      val source = group.first().sourceRawImpressionUpload
-      val action = group.first().recoveryAction
-      group =
-        operation.stepsList.filter {
-          it.sourceRawImpressionUpload == source && it.recoveryAction == action && it.recoveryTarget
-        }
+      val stepNames = group.mapTo(mutableSetOf()) { it.name }
+      group = operation.stepsList.filter { it.name in stepNames }
       operation = confirmReplacement(operation, group, replacement.name)
       if (operation.state != UploadHealingOperation.State.COMPLETE) {
         advanceToNextRecoveryPhase(operation)
@@ -698,25 +729,29 @@ class VidLabelingHealingController(
         }
         .filter { it.replacementRawImpressionUpload.isNotEmpty() }
         .groupBy { it.replacementRawImpressionUpload }
-    val traceContext = traceContextProvider()
-    for ((replacementName, steps) in replacementSteps.toSortedMap()) {
+    for (replacementName in replacementSteps.keys) {
       val replacement = getUpload(replacementName)
       check(replacement.uploadHealingOperation == operation.name) {
         "Replacement $replacementName does not belong to ${operation.name}"
       }
-      val modelLines = listModelLines(replacementName).associateBy { it.cmmsModelLine }
-      for (step in steps.distinctBy { it.cmmsModelLine }.sortedBy { it.cmmsModelLine }) {
+    }
+    val modelLinesByUpload =
+      availabilityHandoffUploadNames(operation).associateWith { uploadName ->
+        listModelLines(uploadName).associateBy { it.cmmsModelLine }
+      }
+    for ((replacementName, steps) in replacementSteps) {
+      val modelLines = modelLinesByUpload.getValue(replacementName)
+      for (step in steps.distinctBy { it.cmmsModelLine }) {
         val modelLine =
           checkNotNull(modelLines[step.cmmsModelLine]) {
             "Replacement $replacementName has no model line ${step.cmmsModelLine}"
           }
         when (modelLine.state) {
-          RawImpressionUploadModelLine.State.COMPLETED -> continue
-          RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING -> {
+          RawImpressionUploadModelLine.State.COMPLETED -> {}
+          RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING ->
             check(modelLine.pendingAvailabilityDatesCount > 0) {
               "${modelLine.name} is AVAILABILITY_SYNCING without pending dates"
             }
-          }
           RawImpressionUploadModelLine.State.STATE_UNSPECIFIED,
           RawImpressionUploadModelLine.State.CREATED,
           RawImpressionUploadModelLine.State.POOL_ASSIGNING,
@@ -725,6 +760,18 @@ class VidLabelingHealingController(
           RawImpressionUploadModelLine.State.FAILED,
           RawImpressionUploadModelLine.State.UNRECOGNIZED ->
             error("${modelLine.name} cannot finalize availability from ${modelLine.state}")
+        }
+      }
+    }
+    val traceContext = traceContextProvider()
+    for ((uploadName, modelLinesByName) in modelLinesByUpload) {
+      val modelLines = modelLinesByName.values.sortedBy { it.cmmsModelLine }
+      for (modelLine in modelLines) {
+        if (modelLine.state != RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING) {
+          continue
+        }
+        check(modelLine.pendingAvailabilityDatesCount > 0) {
+          "${modelLine.name} is AVAILABILITY_SYNCING without pending dates"
         }
         val eventDates =
           modelLine.pendingAvailabilityDatesList
@@ -735,7 +782,7 @@ class VidLabelingHealingController(
           val doneUri =
             LabeledImpressionsBlobKeys.forDoneUri(
               operation.labeledImpressionsBlobPrefix,
-              replacementName,
+              uploadName,
               modelLine.cmmsModelLine,
               eventDate,
             )
@@ -758,7 +805,7 @@ class VidLabelingHealingController(
           }
           dataAvailabilitySyncWorkItemPublisher.ensure(
             operationKey.parentKey.toName(),
-            replacementName,
+            uploadName,
             modelLine.name,
             modelLine.cmmsModelLine,
             eventDate,
@@ -771,6 +818,20 @@ class VidLabelingHealingController(
       }
     }
     advanceOperation(operation, UploadHealingOperation.State.COMPLETE)
+  }
+
+  private suspend fun availabilityHandoffUploadNames(
+    operation: UploadHealingOperation
+  ): List<String> {
+    val replacementNames =
+      operation.stepsList.map { it.replacementRawImpressionUpload }.filter { it.isNotEmpty() }
+    val failedSourceNames =
+      operation.stepsList
+        .map { it.sourceRawImpressionUpload }
+        .filter { it.isNotEmpty() }
+        .distinct()
+        .filter { getUpload(it).state == RawImpressionUpload.State.FAILED }
+    return (replacementNames + failedSourceNames).distinct().sorted()
   }
 
   private suspend fun correctionReplay(
@@ -818,7 +879,17 @@ class VidLabelingHealingController(
   private fun nextRecoveryGroup(operation: UploadHealingOperation): List<UploadHealingStep>? =
     operation.stepsList
       .filter { it.recoveryTarget }
-      .groupBy { it.sourceRawImpressionUpload to it.recoveryAction }
+      .groupBy {
+        val scope =
+          if (
+            it.recoveryAction ==
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION &&
+              it.rawImpressionUploadCorrectionCandidate.isNotEmpty()
+          )
+            it.rawImpressionUploadCorrectionCandidate
+          else it.sourceRawImpressionUpload
+        scope to it.recoveryAction
+      }
       .values
       .filterNot { steps -> steps.all { it.state == UploadHealingStep.State.COMPLETE } }
       .minByOrNull { steps -> steps.minOf { it.sequenceNumber } }
@@ -890,6 +961,9 @@ class VidLabelingHealingController(
           uploadHealingOperation = revision.uploadHealingOperation,
           registrationComplete = revision.registrationComplete,
           failed = revision.state == RawImpressionUpload.State.FAILED,
+          quarantined = revision.state == RawImpressionUpload.State.CORRECTION_REQUIRED,
+          manifestBoundary =
+            revision.state == RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT,
           files = listPersistedFiles(revision.name),
         )
       }
@@ -1093,7 +1167,8 @@ class VidLabelingHealingController(
         (approvedUpload == null || it.name == approvedUpload) &&
           (recordedGeneration == null || it.doneBlobGeneration == recordedGeneration) &&
           (approvedUpload != null || recordedGeneration != null) &&
-          it.uploadHealingOperation == operation.name
+          it.uploadHealingOperation == operation.name &&
+          (approvedUpload != null || it.replacesRawImpressionUpload == sourceName)
       }
     val latest = exactReplacement ?: findLatestUpload(revisions) ?: return null
     val inPlaceRecovery =
@@ -1207,7 +1282,13 @@ class VidLabelingHealingController(
     val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
     return if (timestamped.isNotEmpty()) {
       timestamped.maxWithOrNull { left, right ->
-        Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+        val doneTime = Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+        if (doneTime != 0) {
+          doneTime
+        } else {
+          val createTime = Timestamps.compare(left.createTime, right.createTime)
+          if (createTime != 0) createTime else left.name.compareTo(right.name)
+        }
       }
     } else {
       uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
@@ -1257,12 +1338,6 @@ class VidLabelingHealingController(
           this@toPublicPlan.outputManifestState.number
         )
       reason = this@toPublicPlan.reason
-      labeledImpressionsBlobPrefix = this@toPublicPlan.labeledImpressionsBlobPrefix
-      badRawImpressionUploads +=
-        badRawImpressionUploadResourceIdsList.map {
-          RawImpressionUploadKey(dataProviderResourceId, it).toName()
-        }
-      cutoffTime = this@toPublicPlan.cutoffTime
       rawImpressionUploadCorrectionCandidates +=
         rawImpressionUploadCorrectionCandidateIdsList.map {
           RawImpressionUploadCorrectionCandidateKey(dataProviderResourceId, it).toName()
@@ -1320,7 +1395,7 @@ class VidLabelingHealingController(
         error("Planner produced an unspecified recovery action")
     }
 
-  private fun UploadHealingOperation.toEvictionPlan(): EvictUploader.EvictionPlan {
+  private fun UploadHealingOperation.toPersistedEvictionPlan(): EvictUploader.EvictionPlan {
     val operationId =
       requireNotNull(UploadHealingOperationKey.fromName(name)).uploadHealingOperationId
     val cascade =
@@ -1337,7 +1412,11 @@ class VidLabelingHealingController(
             step.labeledOutputManifest,
           )
         }
-    val badUploads = badRawImpressionUploadsList.toSet()
+    val badUploads =
+      stepsList
+        .filter { it.rawImpressionUploadCorrectionCandidate.isNotEmpty() }
+        .mapTo(linkedSetOf()) { it.sourceRawImpressionUpload }
+    check(badUploads.isNotEmpty()) { "Correction plan $name has no candidate-owned uploads" }
     fun recoveryTargets(action: RawImpressionUploadModelLine.RecoveryAction) =
       stepsList
         .filter { it.recoveryTarget && it.recoveryAction == action }
@@ -1350,14 +1429,14 @@ class VidLabelingHealingController(
       cascade.map { it.uploadName }.filter { it !in badUploads }.distinct(),
       cascade.filter { it.memoized }.mapTo(mutableSetOf()) { it.cmmsModelLine },
       cascade.filterNot { it.memoized }.mapTo(mutableSetOf()) { it.cmmsModelLine },
-      badRawImpressionUploadsList,
+      badUploads.toList(),
       cascade
         .filter {
           it.recoveryAction ==
             RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
         }
         .mapTo(mutableSetOf()) { it.uploadName },
-      cutoffTime.toInstant(),
+      Instant.MIN,
       operationId,
       recoveryTargets(
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY

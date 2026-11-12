@@ -428,6 +428,33 @@ class SubpoolRankerTest {
     }
 
   @Test
+  fun `healing cascade ignores a newer unapproved availability-syncing snapshot`() =
+    runBlocking<Unit> {
+      val approvedUpload = "dataProviders/dp/rawImpressionUploads/approved-predecessor"
+      val unapprovedUpload = "dataProviders/dp/rawImpressionUploads/physical-future"
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90), Triple(20L to 0, 1, 90)),
+        uploadName = approvedUpload,
+        createTimeSeconds = 2L,
+      )
+      seedPriorSnapshot(
+        listOf(Triple(99L to 0, 2, 90)),
+        uploadName = unapprovedUpload,
+        createTimeSeconds = 3L,
+      )
+      modelLineStates[approvedUpload] = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      modelLineStates[unapprovedUpload] = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      val key = writePhase0(listOf(30L to 0))
+
+      val result =
+        ranker(allowedPriorSnapshotRawImpressionUploads = setOf(approvedUpload))
+          .rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.priorSnapshotName).isEqualTo("$approvedUpload/rankIndexBlobs/snap-2")
+      assertThat(readSnapshot().keys).containsExactly(10L to 0, 20L to 0, 30L to 0)
+    }
+
+  @Test
   fun `healing backfill consumes an approved availability-syncing old snapshot`() =
     runBlocking<Unit> {
       val correctedUpload = "dataProviders/dp/rawImpressionUploads/corrected-day-70"

@@ -156,7 +156,7 @@ internal fun parseGenerationMatchedPath(path: Path): GenerationMatchedPath? {
   if (objectName.isEmpty())
     throw IOException("Missing GCS object name in raw-impression path: $path")
   val cleanPath = Path(removeGenerationQualifier(uri))
-  return GenerationMatchedPath(cleanPath, BlobId.of(bucket, objectName), generation)
+  return GenerationMatchedPath(cleanPath, BlobId.of(bucket, objectName, generation), generation)
 }
 
 private fun removeGenerationQualifier(uri: URI): URI {
