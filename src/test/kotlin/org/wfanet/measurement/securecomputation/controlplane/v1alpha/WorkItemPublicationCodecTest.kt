@@ -30,6 +30,24 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.workItem a
 @RunWith(JUnit4::class)
 class WorkItemPublicationCodecTest {
   @Test
+  fun `parse preserves public publication fields`() {
+    val publication = workItem {
+      name = "workItems/work-item-id"
+      queue = "queue-id"
+      workItemParams = Any.pack(StringValue.of("params"))
+      state = WorkItem.State.QUEUED
+      createTime = timestamp { seconds = 123L }
+      updateTime = timestamp { seconds = 456L }
+      generation = 7L
+      serializationKey = "serialization-key"
+    }
+
+    val actual = WorkItemPublicationCodec.parse(ByteArrayInputStream(publication.toByteArray()))
+
+    assertThat(actual).isEqualTo(publication)
+  }
+
+  @Test
   fun `parse converts internal publication to public WorkItem`() {
     val params = Any.pack(StringValue.of("params"))
     val createTime = timestamp { seconds = 123L }

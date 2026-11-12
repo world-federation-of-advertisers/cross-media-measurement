@@ -471,7 +471,7 @@ class EventGroupSyncFunctionTest() {
         )
       )
     val task = workItem {
-      name = "egs-http-test"
+      name = "workItems/egs-http-test"
       queue = "event-group-sync-queue"
       generation = 1L
       workItemParams =

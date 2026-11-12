@@ -19,7 +19,14 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 import java.io.InputStream
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 
-/** Decodes the internal WorkItem representation published to processing queues. */
+/** Decodes public WorkItems and the internal format used by older queue publishers. */
 object WorkItemPublicationCodec {
-  fun parse(input: InputStream): WorkItem = InternalWorkItem.parseFrom(input).toWorkItem()
+  fun parse(input: InputStream): WorkItem {
+    val publication = WorkItem.parseFrom(input)
+    return if (publication.name.contains('/')) {
+      publication
+    } else {
+      InternalWorkItem.parseFrom(publication.toByteArray()).toWorkItem()
+    }
+  }
 }
