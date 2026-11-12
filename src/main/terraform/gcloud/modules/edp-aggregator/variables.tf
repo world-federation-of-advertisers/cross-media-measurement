@@ -615,6 +615,7 @@ variable "vid_labeling_dispatch_scheduler_config" {
 variable "vid_labeling_healing_controller_scheduler_config" {
   description = "Configuration for the five-minute VID-labeling healing controller schedule."
   type = object({
+    paused                    = optional(bool, false)
     schedule                  = string
     time_zone                 = string
     name                      = string

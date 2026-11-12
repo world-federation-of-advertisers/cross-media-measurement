@@ -1,0 +1,10 @@
+load("@rules_python//python:defs.bzl", "py_test")
+
+py_test(
+    name = "deployment_test",
+    srcs = ["deployment_test.py"],
+    data = [
+        "//:vid_labeling_deployment_test_files",
+        "//src/main/terraform/gcloud/cmms:vid_labeling_healing_test_configs",
+    ],
+)

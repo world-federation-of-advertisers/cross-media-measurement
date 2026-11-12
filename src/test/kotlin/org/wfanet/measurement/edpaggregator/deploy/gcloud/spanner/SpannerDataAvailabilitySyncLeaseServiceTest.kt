@@ -42,9 +42,6 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLeaseState
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.acquireDataAvailabilitySyncLeaseRequest
-import org.wfanet.measurement.internal.edpaggregator.expireDataAvailabilitySyncLeasesRequest
-import org.wfanet.measurement.internal.edpaggregator.getDataAvailabilitySyncLeaseRequest
-import org.wfanet.measurement.internal.edpaggregator.hasActiveDataAvailabilitySyncLeasesRequest
 import org.wfanet.measurement.internal.edpaggregator.releaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.internal.edpaggregator.renewDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.internal.edpaggregator.validateDataAvailabilitySyncLeaseRequest
@@ -61,10 +58,11 @@ class SpannerDataAvailabilitySyncLeaseServiceTest {
 
     val lease = service.acquireDataAvailabilitySyncLease(acquireRequest())
     val fetched =
-      service.getDataAvailabilitySyncLease(
-        getDataAvailabilitySyncLeaseRequest {
+      service.validateDataAvailabilitySyncLease(
+        validateDataAvailabilitySyncLeaseRequest {
           dataProviderResourceId = DATA_PROVIDER_ID
           synchronizationAttemptId = ATTEMPT_ID
+          etag = lease.etag
         }
       )
 
@@ -465,52 +463,6 @@ class SpannerDataAvailabilitySyncLeaseServiceTest {
   }
 
   @Test
-  fun `expire marks elapsed active leases`() = runBlocking {
-    serviceAt(START_TIME).acquireDataAvailabilitySyncLease(acquireRequest())
-    val service = serviceAt(START_TIME.plus(LEASE_DURATION))
-
-    service.expireDataAvailabilitySyncLeases(
-      expireDataAvailabilitySyncLeasesRequest { dataProviderResourceId = DATA_PROVIDER_ID }
-    )
-    val lease =
-      service.getDataAvailabilitySyncLease(
-        getDataAvailabilitySyncLeaseRequest {
-          dataProviderResourceId = DATA_PROVIDER_ID
-          synchronizationAttemptId = ATTEMPT_ID
-        }
-      )
-
-    assertThat(lease.state)
-      .isEqualTo(DataAvailabilitySyncLeaseState.DATA_AVAILABILITY_SYNC_LEASE_STATE_EXPIRED)
-  }
-
-  @Test
-  fun `has active excludes released and expired leases`() = runBlocking {
-    val service = serviceAt(START_TIME)
-    val active = service.acquireDataAvailabilitySyncLease(acquireRequest())
-    assertThat(hasActive(service)).isTrue()
-
-    service.releaseDataAvailabilitySyncLease(
-      releaseDataAvailabilitySyncLeaseRequest {
-        dataProviderResourceId = DATA_PROVIDER_ID
-        synchronizationAttemptId = ATTEMPT_ID
-        etag = active.etag
-        requestId = RELEASE_REQUEST_ID
-      }
-    )
-    assertThat(hasActive(service)).isFalse()
-
-    service.acquireDataAvailabilitySyncLease(
-      acquireDataAvailabilitySyncLeaseRequest {
-        dataProviderResourceId = DATA_PROVIDER_ID
-        synchronizationAttemptId = OTHER_ATTEMPT_ID
-        requestId = OTHER_REQUEST_ID
-      }
-    )
-    assertThat(hasActive(serviceAt(START_TIME.plus(LEASE_DURATION)))).isFalse()
-  }
-
-  @Test
   fun `concurrent acquire retries create one lease`() = runBlocking {
     val service = serviceAt(START_TIME)
     val request = acquireRequest()
@@ -557,13 +509,6 @@ class SpannerDataAvailabilitySyncLeaseServiceTest {
       synchronizationAttemptId = ATTEMPT_ID
       this.requestId = requestId
     }
-
-  private suspend fun hasActive(service: SpannerDataAvailabilitySyncLeaseService): Boolean =
-    service
-      .hasActiveDataAvailabilitySyncLeases(
-        hasActiveDataAvailabilitySyncLeasesRequest { dataProviderResourceId = DATA_PROVIDER_ID }
-      )
-      .hasActiveLeases
 
   private suspend fun insertFence(
     state: VidLabelingEvictionFenceState =
