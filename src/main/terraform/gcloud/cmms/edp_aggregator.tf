@@ -294,6 +294,7 @@ locals {
     schedule                  = "*/5 * * * *" # Every 5 minutes
     time_zone                 = "UTC"
     name                      = "requisition-fetcher-scheduler"
+    scheduler_job_name        = var.requisition_fetcher_scheduler_job_name
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/requisition-fetcher"
     paused                    = !var.requisition_fetcher_enabled
     scheduler_sa_display_name = "Requisition Fetcher Scheduler"
