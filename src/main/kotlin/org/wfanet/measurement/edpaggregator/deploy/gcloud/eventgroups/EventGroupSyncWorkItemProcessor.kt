@@ -136,7 +136,7 @@ internal class EventGroupSyncWorkItemProcessor(
             }
           )
         }
-        if (e is IllegalArgumentException) {
+        if (generateSequence<Throwable>(e) { it.cause }.any { it is IllegalArgumentException }) {
           update {
             workItems.failWorkItem(
               failWorkItemRequest {

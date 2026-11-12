@@ -139,6 +139,20 @@ class EventGroupSyncWorkItemProcessorTest {
   }
 
   @Test
+  fun `wrapped invalid source is terminal and is not retried`() = runBlocking {
+    process { _, _ ->
+      throw IllegalStateException(
+        "batch synchronization failed",
+        IllegalArgumentException("superseded source"),
+      )
+    }
+    process { _, _ -> error("terminal source must not sync") }
+    assertThat(controlPlane.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(controlPlane.failedGeneration).isEqualTo(1L)
+    assertThat(controlPlane.claims).hasSize(1)
+  }
+
+  @Test
   fun `process accepts finalized sources below the configured directory`() = runBlocking {
     var syncs = 0
     processor(

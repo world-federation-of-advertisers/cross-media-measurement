@@ -173,6 +173,15 @@ class EventGroupSyncFunction() : HttpFunction {
             null
           }
 
+        val guardedThrottler =
+          object : Throttler {
+            override suspend fun <T> onReady(block: suspend () -> T): T =
+              kingdomThrottler.onReady {
+                beforePublish()
+                block()
+              }
+          }
+
         writeEventGroupMapToStorage(
           mappedData =
             EventGroupSync(
@@ -181,7 +190,7 @@ class EventGroupSyncFunction() : HttpFunction {
                 clientAccountsStub = clientAccountsClient,
                 unlinkedClientAccountsStub = unlinkedClientAccountsClient,
                 eventGroups = eventGroups,
-                throttler = kingdomThrottler,
+                throttler = guardedThrottler,
                 listEventGroupPageSize,
                 entityKeyTypes = eventGroupSyncConfig.entityKeyTypesList,
                 eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
