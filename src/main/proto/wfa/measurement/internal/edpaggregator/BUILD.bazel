@@ -45,7 +45,6 @@ proto_library(
     deps = [
         ":data_availability_sync_lease_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
-        "@com_google_protobuf//:empty_proto",
     ],
 )
 

@@ -294,6 +294,7 @@ locals {
     schedule                  = "*/5 * * * *" # Every 5 minutes
     time_zone                 = "UTC"
     name                      = "requisition-fetcher-scheduler"
+    scheduler_job_name        = var.requisition_fetcher_scheduler_job_name
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/requisition-fetcher"
     paused                    = !var.requisition_fetcher_enabled
     scheduler_sa_display_name = "Requisition Fetcher Scheduler"
@@ -500,6 +501,7 @@ locals {
   }
 
   vid_labeling_healing_controller_scheduler_config = {
+    paused                    = !var.tee_consumers_enabled
     schedule                  = "*/5 * * * *"
     time_zone                 = "UTC"
     name                      = "vid-labeling-healing-sched"

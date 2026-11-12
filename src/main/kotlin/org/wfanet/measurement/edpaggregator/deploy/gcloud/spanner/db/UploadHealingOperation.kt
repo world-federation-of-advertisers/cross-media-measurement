@@ -48,7 +48,7 @@ import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep
 
 data class UploadHealingOperationResult(
   val uploadHealingOperation: UploadHealingOperation,
-  val createRequestId: String,
+  val reconcileRequestId: String,
   val mutationRequestIds: List<String>,
   val mutationRequestFingerprints: List<ByteString>,
 )
@@ -97,18 +97,16 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadHealingOperation(
     SELECT
       DataProviderResourceId,
       UploadHealingOperationId,
-      CreateRequestId,
+      ReconcileRequestId,
       State,
       ResumeState,
       PlanFormatVersion,
       OutputManifestState,
       Reason,
       LabeledImpressionsBlobPrefix,
-      BadRawImpressionUploadResourceIds,
       RawImpressionUploadCorrectionCandidateIds,
       MutationRequestIds,
       MutationRequestFingerprints,
-      CutoffTime,
       CompleteTime,
       CreateTime,
       UpdateTime,
@@ -173,18 +171,16 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadHealingOperationByMutation
     SELECT
       DataProviderResourceId,
       UploadHealingOperationId,
-      CreateRequestId,
+      ReconcileRequestId,
       State,
       ResumeState,
       PlanFormatVersion,
       OutputManifestState,
       Reason,
       LabeledImpressionsBlobPrefix,
-      BadRawImpressionUploadResourceIds,
       RawImpressionUploadCorrectionCandidateIds,
       MutationRequestIds,
       MutationRequestFingerprints,
-      CutoffTime,
       CompleteTime,
       CreateTime,
       UpdateTime,
@@ -225,18 +221,16 @@ fun AsyncDatabaseClient.ReadContext.readUploadHealingOperations(
       SELECT
         DataProviderResourceId,
         UploadHealingOperationId,
-        CreateRequestId,
+        ReconcileRequestId,
         State,
         ResumeState,
         PlanFormatVersion,
         OutputManifestState,
         Reason,
         LabeledImpressionsBlobPrefix,
-        BadRawImpressionUploadResourceIds,
         RawImpressionUploadCorrectionCandidateIds,
         MutationRequestIds,
         MutationRequestFingerprints,
-        CutoffTime,
         CompleteTime,
         CreateTime,
         UpdateTime,
@@ -319,12 +313,12 @@ private suspend fun AsyncDatabaseClient.ReadContext.readUploadHealingStepRows(
 /** Buffers one operation and all of its steps in the caller's transaction. */
 fun AsyncDatabaseClient.TransactionContext.insertUploadHealingOperation(
   operation: UploadHealingOperation,
-  createRequestId: String,
+  reconcileRequestId: String,
 ) {
   bufferInsertMutation("UploadHealingOperation") {
     set("DataProviderResourceId").to(operation.dataProviderResourceId)
     set("UploadHealingOperationId").to(operation.uploadHealingOperationId)
-    set("CreateRequestId").to(createRequestId)
+    set("ReconcileRequestId").to(reconcileRequestId)
     set("State")
       .to(
         if (
@@ -355,13 +349,10 @@ fun AsyncDatabaseClient.TransactionContext.insertUploadHealingOperation(
     }
     set("Reason").to(operation.reason)
     set("LabeledImpressionsBlobPrefix").to(operation.labeledImpressionsBlobPrefix)
-    set("BadRawImpressionUploadResourceIds")
-      .toStringArray(operation.badRawImpressionUploadResourceIdsList)
     set("RawImpressionUploadCorrectionCandidateIds")
       .toStringArray(operation.rawImpressionUploadCorrectionCandidateIdsList)
     set("MutationRequestIds").toStringArray(emptyList())
     set("MutationRequestFingerprints").toBytesArray(emptyList())
-    set("CutoffTime").to(operation.cutoffTime.toGcloudTimestamp())
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -371,16 +362,14 @@ fun AsyncDatabaseClient.TransactionContext.insertUploadHealingOperation(
 /** Replaces the mutable fields and steps of a draft upload-healing operation. */
 fun AsyncDatabaseClient.TransactionContext.replaceUploadHealingOperationPlan(
   operation: UploadHealingOperation,
-  mutationRequestIds: List<String>? = null,
-  mutationRequestFingerprints: List<ByteString>? = null,
+  mutationRequestIds: List<String>,
+  mutationRequestFingerprints: List<ByteString>,
 ) {
   bufferUpdateMutation("UploadHealingOperation") {
     set("DataProviderResourceId").to(operation.dataProviderResourceId)
     set("UploadHealingOperationId").to(operation.uploadHealingOperationId)
     set("Reason").to(operation.reason)
     set("LabeledImpressionsBlobPrefix").to(operation.labeledImpressionsBlobPrefix)
-    set("BadRawImpressionUploadResourceIds")
-      .toStringArray(operation.badRawImpressionUploadResourceIdsList)
     set("RawImpressionUploadCorrectionCandidateIds")
       .toStringArray(operation.rawImpressionUploadCorrectionCandidateIdsList)
     set("State").to(operation.state.number.toLong())
@@ -405,14 +394,9 @@ fun AsyncDatabaseClient.TransactionContext.replaceUploadHealingOperationPlan(
     } else {
       set("OutputManifestState").to(operation.outputManifestState.number.toLong())
     }
-    if (mutationRequestIds != null) {
-      set("MutationRequestIds").toStringArray(mutationRequestIds)
-    }
-    if (mutationRequestFingerprints != null) {
-      set("MutationRequestFingerprints")
-        .toBytesArray(mutationRequestFingerprints.map { it.toGcloudByteArray() })
-    }
-    set("CutoffTime").to(operation.cutoffTime.toGcloudTimestamp())
+    set("MutationRequestIds").toStringArray(mutationRequestIds)
+    set("MutationRequestFingerprints")
+      .toBytesArray(mutationRequestFingerprints.map { it.toGcloudByteArray() })
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   buffer(
@@ -652,17 +636,14 @@ private fun buildUploadHealingOperationResult(
       }
       reason = operationRow.getString("Reason")
       labeledImpressionsBlobPrefix = operationRow.getString("LabeledImpressionsBlobPrefix")
-      badRawImpressionUploadResourceIds +=
-        operationRow.getStringList("BadRawImpressionUploadResourceIds")
       rawImpressionUploadCorrectionCandidateIds +=
         operationRow.getStringList("RawImpressionUploadCorrectionCandidateIds")
-      cutoffTime = operationRow.getTimestamp("CutoffTime").toProto()
       createTime = operationRow.getTimestamp("CreateTime").toProto()
       updateTime = operationUpdateTime
       etag = ETags.computeETag(operationUpdateTime.toInstant())
       steps += stepRows.map { buildUploadHealingStep(it) }
     },
-    createRequestId = operationRow.getString("CreateRequestId"),
+    reconcileRequestId = operationRow.getString("ReconcileRequestId"),
     mutationRequestIds = operationRow.getStringList("MutationRequestIds"),
     mutationRequestFingerprints =
       operationRow.getBytesList("MutationRequestFingerprints").map {

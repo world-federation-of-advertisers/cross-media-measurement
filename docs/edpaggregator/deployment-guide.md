@@ -564,7 +564,8 @@ the standard OpenTelemetry variables `OTEL_SERVICE_NAME`, `OTEL_METRICS_EXPORTER
 | `data_availability_sync` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_cleanup` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_monitor` | `IMPRESSION_METADATA_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `CONFIG_BLOB_KEY` |
-| `vid_labeling_healing_controller` | `RAW_IMPRESSION_UPLOAD_TARGET`, `CONTROL_PLANE_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `CONFIG_BLOB_KEY`, `DATA_WATCHER_CONFIG_BLOB_KEY`, `HEALING_RETENTION_DAYS`, `HEALING_STALL_MINUTES` |
+| `vid_labeling_dispatcher` | `RAW_IMPRESSION_UPLOAD_TARGET`, `RAW_IMPRESSION_UPLOAD_CERT_HOST` (optional), `CONTROL_PLANE_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `CONFIG_BLOB_KEY` |
+| `vid_labeling_healing_controller` | `RAW_IMPRESSION_UPLOAD_TARGET`, `RAW_IMPRESSION_UPLOAD_CERT_HOST` (optional), `CONTROL_PLANE_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `CONFIG_BLOB_KEY`, `DATA_WATCHER_CONFIG_BLOB_KEY`, `HEALING_RETENTION_DAYS`, `HEALING_STALL_MINUTES` |
 
 **`secret_mappings` — path/secret consistency is critical.** Each mounted path must
 match, character for character, the path referenced in the corresponding config
@@ -724,6 +725,15 @@ supply:
 Leave `vid_labeling_workers = {}` to skip the phase workers/queues; provide worker
 entries only once your market has adopted VID labeling.
 
+Each `VidLabelingConfig` must set `raw_impressions_blob_prefix` to that DataProvider's dedicated,
+bucket-relative raw-only root, without leading or trailing `/` characters. Keep labeled output,
+rank-index, and temporary work prefixes outside it. Configured labeled-output descendants are
+explicitly excluded from classification, while the storage-config preflight rejects overlapping
+raw roots. The daily Monitor lists object metadata below this prefix to detect upload directories
+that never reached the metadata service. Its
+`staleness_threshold` is also the quiet period before an unfinalized raw directory or late file
+becomes alertable.
+
 Set `vid_labeling_healing_labeled_output_object_prefixes` to the bucket-relative
 `edp_impression_path` values from `VidLabelingConfigs`, each ending in `/`. The controller can read
 the shared EDPA bucket but can delete objects only below these prefixes; its dedicated environment
@@ -758,7 +768,10 @@ The dispatcher, monitor, and healing controller each load one throttler bundle s
 their helpers. Healing metadata pagination, fence/step mutations, and availability WorkItem calls
 use the same metadata-read, metadata-write, and control-plane budgets, respectively.
 
-The Terraform module caps the dispatcher, monitor, and healing controller at one instance. The checked-in Kingdom
+The Terraform module caps the dispatcher, monitor, and healing controller at one instance. Monitor
+health requests have a 29-minute function timeout, 2 GiB of memory (and therefore one vCPU), and the
+Cloud Scheduler HTTP maximum of 30 minutes; dispatch requests retain their shorter 660-second
+deadline. The checked-in Kingdom
 `RateLimitConfig` gives each VID Repository method its own 5-QPS average / 20-request burst bucket,
 so the two functions' worst-case 4 QPS leaves 20 percent headroom without competing with
 ResultsFulfiller, RequisitionFetcher, EventGroupSync, or DataAvailabilitySync in the shared default
@@ -1307,33 +1320,39 @@ exclusion and required control-plane settings. An environment-scoped concurrency
 two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
 performs the required order:
 
-1. Roll `secure-computation-internal-api-server` and
+1. Pause the RequisitionFetcher scheduler after image publication and configuration validation.
+   Record the confirmed pause time; control-plane and Terraform preparation count toward the
+   existing ten-minute drain window.
+2. Roll `secure-computation-internal-api-server` and
    `secure-computation-public-api-server` with WorkItem publication, legacy reconciliation, and
    dead-letter consumption paused. The APIs remain available to producers and existing workers;
    transactions continue creating durable outbox rows without publishing them.
-2. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
+3. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
    its autoscaler, sets its target size to zero, and writes a process-level consumption gate into
    the replacement instance template so a surge instance cannot pull work while quiescing.
-3. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
-   then verify that each has target size zero and no remaining instances.
-4. Roll Kingdom, then roll the Secure Computation APIs again with WorkItem publication,
+4. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
+   then verify that each has target size zero and no remaining instances. Wait only the remaining
+   part of the RequisitionFetcher drain window before rolling Kingdom. For an initial deployment,
+   Terraform creates the scheduler paused and the full window starts after that apply.
+5. Roll Kingdom, then roll the Secure Computation APIs again with WorkItem publication,
    reconciliation, and dead-letter consumption enabled. The DLQ listener defers a delivery while a
    current-generation WorkItem still has a valid leased attempt; otherwise it terminalizes the
    exhausted WorkItem.
-5. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
-6. Apply Terraform again with RequisitionFetcher and WorkItem TEE consumers enabled. This recreates
+6. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
+7. Apply Terraform again with RequisitionFetcher and WorkItem TEE consumers enabled. This recreates
    the TEE autoscalers, changes both process-level gates to enabled, and starts only the new worker
    version.
-7. Continue the remaining deployment and tests normally.
+8. Continue the remaining deployment and tests normally.
 
-If the workflow fails after quiescing workers but before the final Terraform apply, leave the TEE
-consumers disabled and rerun the complete **Update CMMS** workflow. Do not enable a TEE MIG
+If the workflow fails after pausing RequisitionFetcher but before the final Terraform apply, leave
+RequisitionFetcher and any quiesced TEE consumers paused and rerun the complete **Update CMMS** workflow. Do not enable a TEE MIG
 independently. Do not manually scale the API deployments to zero: their manifests do not
 explicitly restore replica counts, so manual scaling can leave them stopped.
 
-DataWatcher and Pub/Sub remain running during this process. Terraform pauses the RequisitionFetcher
-Cloud Scheduler job, and the workflow then waits for invocations that started before the pause to
-finish. Unclaimed messages remain queued and must not be drained. Old
+DataWatcher and Pub/Sub remain running during this process. The workflow pauses the RequisitionFetcher
+Cloud Scheduler job early and Terraform keeps it paused during preparation. The existing ten-minute
+wait is measured from the confirmed pause, with preparation time deducted; it does not shorten the
+drain window or treat a Cloud Run request timeout as proof that application work has stopped. Unclaimed messages remain queued and must not be drained. Old
 and new API replicas may overlap in the first Kubernetes rolling update while old TEE workers are
 still running. Publication and legacy reconciliation are disabled on every new internal API replica
 during that rollout, preventing a new replica from introducing duplicate legacy deliveries. After

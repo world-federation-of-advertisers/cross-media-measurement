@@ -33,6 +33,37 @@ object RequestIds {
   fun forRawImpressionUpload(doneBlobPath: String, generation: Long): String =
     fromKey("rawImpressionUpload:$doneBlobPath:$generation")
 
+  /** `request_id` for replaying an exact upload generation during healing. */
+  fun forRawImpressionUploadRecovery(
+    doneBlobPath: String,
+    generation: Long,
+    operationId: String,
+    sourceUpload: String? = null,
+  ): String =
+    if (sourceUpload == null) {
+      fromKey("rawImpressionUploadRecovery:$doneBlobPath:$generation:$operationId")
+    } else {
+      fromKey("rawImpressionUploadRecovery:$doneBlobPath:$generation:$operationId:$sourceUpload")
+    }
+
+  /** Resource ID for a correction candidate detected from one done-object generation. */
+  fun forRawImpressionUploadCorrectionCandidate(doneBlobPath: String, generation: Long): String =
+    fromKey("rawImpressionUploadCorrectionCandidate:$doneBlobPath:$generation")
+
+  /** `request_id` for registering one correction candidate. */
+  fun forRegisterRawImpressionUploadCorrectionCandidate(
+    doneBlobPath: String,
+    generation: Long,
+  ): String = fromKey("registerRawImpressionUploadCorrectionCandidate:$doneBlobPath:$generation")
+
+  /** `request_id` for resolving a correction superseded by a healthy revision. */
+  fun forResolveRawImpressionUploadCorrectionCandidate(candidateId: String): String =
+    fromKey("resolveRawImpressionUploadCorrectionCandidate:$candidateId")
+
+  /** `request_id` for activating one approved quarantined upload. */
+  fun forActivateQuarantinedRawImpressionUpload(uploadName: String, operationId: String): String =
+    fromKey("activateQuarantinedRawImpressionUpload:$uploadName:$operationId")
+
   /** `request_id` for completing one observed version of a `RawImpressionUpload`. */
   fun forRawImpressionUploadRegistrationComplete(uploadName: String, etag: String): String =
     fromKey("rawImpressionUploadRegistrationComplete:$uploadName:$etag")
@@ -127,13 +158,9 @@ object RequestIds {
   fun forMarkRawImpressionUploadModelLineFailed(modelLineName: String, etag: String): String =
     fromKey("markRawImpressionUploadModelLineFailed:$modelLineName:$etag")
 
-  /** `request_id` for invalidating a model line during operator eviction. */
+  /** `request_id` for invalidating a model line during correction eviction. */
   fun forEvictRawImpressionUploadModelLine(modelLineName: String, etag: String): String =
     fromKey("evictRawImpressionUploadModelLine:$modelLineName:$etag")
-
-  /** `request_id` for creating a durable upload-healing operation. */
-  fun forUploadHealingOperation(operationId: String): String =
-    fromKey("uploadHealingOperation:$operationId")
 
   /** `request_id` for approving one version of an upload-healing operation. */
   fun forApproveUploadHealingOperation(
@@ -173,10 +200,6 @@ object RequestIds {
   /** `request_id` for advancing an upload-eviction fence. */
   fun forAdvanceUploadEvictionFence(operationId: String, state: String, etag: String): String =
     fromKey("advanceUploadEvictionFence:$operationId:$state:$etag")
-
-  /** `request_id` for releasing an upload-eviction fence. */
-  fun forReleaseUploadEvictionFence(operationId: String, etag: String): String =
-    fromKey("releaseUploadEvictionFence:$operationId:$etag")
 
   /** `request_id` for recording one durable upload-healing checkpoint and its evidence. */
   fun forUploadHealingStep(stepName: String, checkpoint: String, evidence: String): String =

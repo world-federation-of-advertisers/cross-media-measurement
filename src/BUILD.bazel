@@ -5,3 +5,15 @@ package_group(
         "//src/main/k8s/...",
     ],
 )
+
+filegroup(
+    name = "vid_labeling_deployment_test_files",
+    testonly = True,
+    srcs = [
+        "main/terraform/gcloud/modules/edp-aggregator/main.tf",
+        "main/terraform/gcloud/modules/http-cloud-function/deploy_with_retry.sh",
+        "main/terraform/gcloud/modules/http-cloud-function/main.tf",
+        "main/terraform/gcloud/modules/http-cloud-function/variables.tf",
+    ],
+    visibility = ["//:__pkg__"],
+)
