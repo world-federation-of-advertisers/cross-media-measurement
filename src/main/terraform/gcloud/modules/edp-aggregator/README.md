@@ -20,9 +20,10 @@ Ordered publication and attempt leases protect redeliveries; they do not promise
 side effects after a crash between publishing a mapping and recording task completion.
 
 The source must remain the current generation under the configured input directory. EGS downloads
-that exact generation and checks it again before publishing the mapping. Superseded sources are
-terminal failures; the newer finalize event supplies the current task. The existing HTTP JSON
-formats remain supported for migration and manual invocations.
+that exact generation and checks the source and attempt lease before each Kingdom request and
+before publishing the mapping. Superseded sources are terminal failures; the newer finalize event
+supplies the current task. Existing HTTP JSON formats remain supported for migration and manual
+invocations.
 
 The consumer uses `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`, optional
 `SECURE_COMPUTATION_CERT_HOST`, and the `SECURE_COMPUTATION_CERT_FILE`,

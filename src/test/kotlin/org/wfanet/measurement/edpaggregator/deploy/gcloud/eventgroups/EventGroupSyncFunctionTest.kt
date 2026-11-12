@@ -98,6 +98,7 @@ import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfigs
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
@@ -130,6 +131,7 @@ class EventGroupSyncFunctionTest() {
   private lateinit var controlPlaneServer: CommonServer
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
   private var workItemCompleted = false
+  @Volatile private var workItemLeaseLost = false
   private val workItemAttemptsService =
     object : WorkItemAttemptsCoroutineImplBase() {
       override suspend fun createWorkItemAttempt(
@@ -146,9 +148,15 @@ class EventGroupSyncFunctionTest() {
 
       override suspend fun renewWorkItemAttempt(
         request: RenewWorkItemAttemptRequest
-      ): WorkItemAttempt = workItemAttempt {
-        name = request.name
-        state = WorkItemAttempt.State.ACTIVE
+      ): WorkItemAttempt {
+        if (workItemLeaseLost) {
+          throw Status.FAILED_PRECONDITION.withDescription("Attempt lease lost")
+            .asRuntimeException()
+        }
+        return workItemAttempt {
+          name = request.name
+          state = WorkItemAttempt.State.ACTIVE
+        }
       }
 
       override suspend fun completeWorkItemAttempt(
@@ -356,6 +364,80 @@ class EventGroupSyncFunctionTest() {
 
   @Test
   fun `binary push WorkItem publishes mapping and records completion`() = runBlocking {
+    val response = invokeBinaryWorkItem(listOf(buildConcurrentEventGroup("work-item-reference")))
+    assertThat(response.statusCode()).isEqualTo(200)
+    assertThat(workItemCompleted).isTrue()
+    val mapping =
+      checkNotNull(
+          MesosRecordIoStorageClient(FileSystemStorageClient(tempFolder.root))
+            .getBlob("mapped/event-groups.binpb")
+        )
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+    assertThat(mapping.single().eventGroupReferenceId).isEqualTo("work-item-reference")
+  }
+
+  @Test
+  fun `binary push WorkItem stops before Kingdom mutations when the attempt lease is lost`() =
+    runBlocking {
+      eventGroupsServiceMock.stub {
+        onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
+          .thenAnswer {
+            workItemLeaseLost = true
+            listEventGroupsResponse {}
+          }
+      }
+
+      assertThat(
+          invokeBinaryWorkItem(listOf(buildConcurrentEventGroup("work-item-reference")))
+            .statusCode()
+        )
+        .isEqualTo(500)
+      verifyBlocking(eventGroupsServiceMock, times(0)) {
+        batchCreateEventGroups(any<BatchCreateEventGroupsRequest>())
+      }
+      verifyBlocking(eventGroupsServiceMock, times(0)) {
+        batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>())
+      }
+      verifyBlocking(eventGroupsServiceMock, times(0)) {
+        deleteEventGroup(any<DeleteEventGroupRequest>())
+      }
+      assertThat(workItemCompleted).isFalse()
+      assertThat(File(tempFolder.root, "mapped/event-groups.binpb").exists()).isFalse()
+    }
+
+  @Test
+  fun `binary push WorkItem stops subsequent mutations when the attempt lease is lost`() =
+    runBlocking {
+      eventGroupsServiceMock.stub {
+        onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
+          .thenAnswer { invocation ->
+            workItemLeaseLost = true
+            batchCreateEventGroupsResponse {
+              eventGroups +=
+                invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map {
+                  it.eventGroup.copy {
+                    name = "resource-name-for-" + it.eventGroup.eventGroupReferenceId
+                  }
+                }
+            }
+          }
+      }
+
+      val eventGroups = List(51) { buildConcurrentEventGroup("work-item-reference-" + it) }
+      assertThat(invokeBinaryWorkItem(eventGroups).statusCode()).isEqualTo(500)
+      verifyBlocking(eventGroupsServiceMock) {
+        batchCreateEventGroups(any<BatchCreateEventGroupsRequest>())
+      }
+      verifyBlocking(eventGroupsServiceMock, times(0)) {
+        deleteEventGroup(any<DeleteEventGroupRequest>())
+      }
+      assertThat(workItemCompleted).isFalse()
+      assertThat(File(tempFolder.root, "mapped/event-groups.binpb").exists()).isFalse()
+    }
+
+  private suspend fun invokeBinaryWorkItem(eventGroups: List<EventGroup>): HttpResponse<String> {
     val config = eventGroupSyncConfig {
       dataProvider = "dataProviders/example"
       eventGroupsBlobUri = "file:///source/event-groups.binpb"
@@ -373,10 +455,7 @@ class EventGroupSyncFunctionTest() {
     File(configDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(eventGroupSyncConfigs { configs += config }))
     MesosRecordIoStorageClient(FileSystemStorageClient(tempFolder.root))
-      .writeBlob(
-        "source/event-groups.binpb",
-        flowOf(buildConcurrentEventGroup("work-item-reference").toByteString()),
-      )
+      .writeBlob("source/event-groups.binpb", eventGroups.asFlow().map { it.toByteString() })
     val port =
       startFunction(
         mapOf(
@@ -413,18 +492,7 @@ class EventGroupSyncFunctionTest() {
         .header("x-goog-pubsub-message-id", "synthetic-message-id")
         .POST(HttpRequest.BodyPublishers.ofByteArray(task.toByteArray()))
         .build()
-    val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
-    assertThat(response.statusCode()).isEqualTo(200)
-    assertThat(workItemCompleted).isTrue()
-    val mapping =
-      checkNotNull(
-          MesosRecordIoStorageClient(FileSystemStorageClient(tempFolder.root))
-            .getBlob("mapped/event-groups.binpb")
-        )
-        .read()
-        .map { MappedEventGroup.parseFrom(it) }
-        .toList()
-    assertThat(mapping.single().eventGroupReferenceId).isEqualTo("work-item-reference")
+    return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
   }
 
   private data class FailedInvocation(val statusCode: Int, val failureMetricLog: String?)

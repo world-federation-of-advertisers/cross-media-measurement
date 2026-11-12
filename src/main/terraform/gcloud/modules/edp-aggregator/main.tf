@@ -1103,7 +1103,7 @@ module "vid_labeling_monitor_cloud_function" {
   timeout_seconds = 1740
   max_instances   = 1
   concurrency     = 1
-  memory          = "2048MB"
+  memory          = "2GiB"
 }
 
 module "vid_labeling_monitor_cloud_scheduler" {

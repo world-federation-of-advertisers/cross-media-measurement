@@ -474,9 +474,8 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
 
-  # Runs after run-edpa-reporting-integration-test, which seeds EventGroups for the same EDPs;
-  # concurrent EventGroupSync runs for one EDP race. That job is skipped unless requested and may
-  # fail independently, so each deployment job is required explicitly instead.
+  # Reporting reads the separately seeded high-overlap dataset, so these suites can run together.
+  # Each deployment must succeed before the EDPA cloud test starts.
   run-edpa-cloud-test:
     if: >-
       ${{ inputs.run-tests && !cancelled()
@@ -498,8 +497,7 @@ jobs:
       update-simulators,
       update-reporting-v2,
       update-secure-computation,
-      update-edp-aggregator-service,
-      run-edpa-reporting-integration-test
+      update-edp-aggregator-service
     ]
     uses: ./.github/workflows/edpa-cloud-test.yml
     secrets: inherit
@@ -511,7 +509,7 @@ jobs:
 
   run-event-group-sync-scale-test:
     if: inputs.run-tests && inputs.environment != 'dev'
-    needs: [run-edpa-cloud-test]
+    needs: [run-edpa-cloud-test, run-edpa-reporting-integration-test]
     uses: ./.github/workflows/event-group-sync-scale-test.yml
     secrets: inherit
     permissions:
@@ -545,7 +543,7 @@ jobs:
 
   run-dashboard-isolation-test:
     if: inputs.run-tests
-    needs: [terraform, run-tests, run-edpa-cloud-test]
+    needs: [terraform, run-tests, run-edpa-cloud-test, run-edpa-reporting-integration-test]
     uses: ./.github/workflows/dashboard-isolation-test.yml
     secrets: inherit
     permissions:
@@ -556,7 +554,7 @@ jobs:
 
   run-dashboard-compliance-check:
     if: inputs.run-tests
-    needs: [terraform, run-tests, run-edpa-cloud-test]
+    needs: [terraform, run-tests, run-edpa-cloud-test, run-edpa-reporting-integration-test]
     runs-on: ubuntu-22.04
     permissions:
       contents: read
