@@ -188,6 +188,12 @@ variable "requisition_fetcher_enabled" {
   default     = true
 }
 
+variable "requisition_fetcher_scheduler_job_name" {
+  description = "RequisitionFetcher scheduler job name. Uses the module's existing name when unset."
+  type        = string
+  default     = null
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string

@@ -208,8 +208,8 @@ class VidLabelingHealingControllerIntegrationTest {
         deleteBlob = { _, _ -> true },
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
-    val plan = evictUploader.plan(listOf(d1.upload.name), Instant.EPOCH)
-    evictUploader.evict(plan, "invalid raw impressions")
+    val plan = evictUploader.planCorrection(listOf(d1.upload.name), Instant.EPOCH)
+    evictUploader.evict(evictUploader.finalizeOutputManifests(plan), "invalid raw impressions") {}
     completeReplacement(d1, registerEdpCorrection(d1))
     val failedModelLine = getModelLine(d2.modelLine.name)
     assertThat(failedModelLine.recoveryAction)
