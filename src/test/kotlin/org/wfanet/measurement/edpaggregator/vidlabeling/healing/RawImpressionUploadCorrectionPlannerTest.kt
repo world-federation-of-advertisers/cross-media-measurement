@@ -72,7 +72,6 @@ class RawImpressionUploadCorrectionPlannerTest {
         planner.plan(
           listOf(candidate(C4, 4, D4), candidate(C2, 2, D2), candidate(C2, 2, D2)),
           CUTOFF,
-          mapOf(DATA_PROVIDER to RawImpressionUploadCorrectionPlanner.DataProviderConfig(PREFIX)),
         )
 
       val operation = operations.single()
@@ -88,9 +87,6 @@ class RawImpressionUploadCorrectionPlannerTest {
         )
       assertThat(operation.rawImpressionUploadCorrectionCandidateIdsList)
         .containsExactly("candidate-d2", "candidate-d4")
-        .inOrder()
-      assertThat(operation.badRawImpressionUploadResourceIdsList)
-        .containsExactly("d2", "d4")
         .inOrder()
       assertThat(
           operation.stepsList.map {
@@ -138,10 +134,6 @@ class RawImpressionUploadCorrectionPlannerTest {
             ),
           ),
           CUTOFF,
-          mapOf(
-            DATA_PROVIDER to RawImpressionUploadCorrectionPlanner.DataProviderConfig(PREFIX),
-            OTHER_DATA_PROVIDER to RawImpressionUploadCorrectionPlanner.DataProviderConfig(PREFIX),
-          ),
         )
 
       assertThat(operations).hasSize(2)
@@ -186,11 +178,7 @@ class RawImpressionUploadCorrectionPlannerTest {
 
       val operation =
         planner
-          .plan(
-            listOf(candidate(C2, 2, D2).copy(supersedingRevisions = setOf(D3, D4))),
-            CUTOFF,
-            mapOf(DATA_PROVIDER to RawImpressionUploadCorrectionPlanner.DataProviderConfig(PREFIX)),
-          )
+          .plan(listOf(candidate(C2, 2, D2).copy(supersedingRevisions = setOf(D3, D4))), CUTOFF)
           .single()
 
       assertThat(operation.stepsList.map { it.rawImpressionUploadCorrectionCandidateId })
@@ -212,14 +200,7 @@ class RawImpressionUploadCorrectionPlannerTest {
       val oldOwner =
         RawImpressionUploadCorrectionPlanner.HistoricalOwner(D2, CUTOFF.minusSeconds(1L))
 
-      val operation =
-        planner
-          .plan(
-            listOf(candidate(C2, 2, oldOwner)),
-            CUTOFF,
-            mapOf(DATA_PROVIDER to RawImpressionUploadCorrectionPlanner.DataProviderConfig(PREFIX)),
-          )
-          .single()
+      val operation = planner.plan(listOf(candidate(C2, 2, oldOwner)), CUTOFF).single()
 
       assertThat(plannerCalled).isFalse()
       assertThat(operation.state)
@@ -298,7 +279,6 @@ class RawImpressionUploadCorrectionPlannerTest {
     private const val C4 = "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/candidate-d4"
     private const val MEMOIZED_MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/memoized"
     private const val DIRECT_MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/direct"
-    private const val PREFIX = "gs://output/vid"
     private const val OPERATION_ID = "11111111-1111-4111-8111-111111111111"
     private val CUTOFF = Instant.ofEpochSecond(1L)
   }

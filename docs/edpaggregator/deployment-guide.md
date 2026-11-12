@@ -564,7 +564,8 @@ the standard OpenTelemetry variables `OTEL_SERVICE_NAME`, `OTEL_METRICS_EXPORTER
 | `data_availability_sync` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_cleanup` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_monitor` | `IMPRESSION_METADATA_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `CONFIG_BLOB_KEY` |
-| `vid_labeling_healing_controller` | `RAW_IMPRESSION_UPLOAD_TARGET`, `CONTROL_PLANE_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `CONFIG_BLOB_KEY`, `DATA_WATCHER_CONFIG_BLOB_KEY`, `HEALING_RETENTION_DAYS`, `HEALING_STALL_MINUTES` |
+| `vid_labeling_dispatcher` | `RAW_IMPRESSION_UPLOAD_TARGET`, `RAW_IMPRESSION_UPLOAD_CERT_HOST` (optional), `CONTROL_PLANE_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `CONFIG_BLOB_KEY` |
+| `vid_labeling_healing_controller` | `RAW_IMPRESSION_UPLOAD_TARGET`, `RAW_IMPRESSION_UPLOAD_CERT_HOST` (optional), `CONTROL_PLANE_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `CONFIG_BLOB_KEY`, `DATA_WATCHER_CONFIG_BLOB_KEY`, `HEALING_RETENTION_DAYS`, `HEALING_STALL_MINUTES` |
 
 **`secret_mappings` — path/secret consistency is critical.** Each mounted path must
 match, character for character, the path referenced in the corresponding config
@@ -724,6 +725,15 @@ supply:
 Leave `vid_labeling_workers = {}` to skip the phase workers/queues; provide worker
 entries only once your market has adopted VID labeling.
 
+Each `VidLabelingConfig` must set `raw_impressions_blob_prefix` to that DataProvider's dedicated,
+bucket-relative raw-only root, without leading or trailing `/` characters. Keep labeled output,
+rank-index, and temporary work prefixes outside it. Configured labeled-output descendants are
+explicitly excluded from classification, while the storage-config preflight rejects overlapping
+raw roots. The daily Monitor lists object metadata below this prefix to detect upload directories
+that never reached the metadata service. Its
+`staleness_threshold` is also the quiet period before an unfinalized raw directory or late file
+becomes alertable.
+
 Set `vid_labeling_healing_labeled_output_object_prefixes` to the bucket-relative
 `edp_impression_path` values from `VidLabelingConfigs`, each ending in `/`. The controller can read
 the shared EDPA bucket but can delete objects only below these prefixes; its dedicated environment
@@ -758,7 +768,10 @@ The dispatcher, monitor, and healing controller each load one throttler bundle s
 their helpers. Healing metadata pagination, fence/step mutations, and availability WorkItem calls
 use the same metadata-read, metadata-write, and control-plane budgets, respectively.
 
-The Terraform module caps the dispatcher, monitor, and healing controller at one instance. The checked-in Kingdom
+The Terraform module caps the dispatcher, monitor, and healing controller at one instance. Monitor
+health requests have a 29-minute function timeout, 2 GiB of memory (and therefore one vCPU), and the
+Cloud Scheduler HTTP maximum of 30 minutes; dispatch requests retain their shorter 660-second
+deadline. The checked-in Kingdom
 `RateLimitConfig` gives each VID Repository method its own 5-QPS average / 20-request burst bucket,
 so the two functions' worst-case 4 QPS leaves 20 percent headroom without competing with
 ResultsFulfiller, RequisitionFetcher, EventGroupSync, or DataAvailabilitySync in the shared default
