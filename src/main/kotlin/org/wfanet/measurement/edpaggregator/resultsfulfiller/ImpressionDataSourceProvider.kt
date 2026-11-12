@@ -135,7 +135,12 @@ class ImpressionDataSourceProvider(
           blobGeneration = metadata.impressionsBlobGeneration,
         )
       }
-      .distinctBy { it.blobDetails.blobUri to it.blobGeneration }
+      .groupBy { it.blobDetails.blobUri }
+      .values
+      .flatMap { aliases ->
+        val pinned = aliases.filter { it.blobGeneration > 0L }
+        pinned.ifEmpty { aliases }.distinctBy { it.blobGeneration }
+      }
   }
 
   /** Queries impression metadata using [filter]. */

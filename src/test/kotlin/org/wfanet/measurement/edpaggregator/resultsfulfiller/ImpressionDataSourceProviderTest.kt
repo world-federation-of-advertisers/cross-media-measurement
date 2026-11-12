@@ -106,6 +106,62 @@ class ImpressionDataSourceProviderTest {
   }
 
   @Test
+  fun `listImpressionDataSources prefers pinned output after metadata upgrade between queries`():
+    Unit = runBlocking {
+    val bucketName = "meta-bucket"
+    val key = "metadata.binpb"
+    val outputUri = "file:///impressions/shared"
+    val bucketDir = File(tmp.root, bucketName).apply { mkdirs() }
+    FileSystemStorageClient(bucketDir)
+      .writeBlob(key, blobDetails { blobUri = outputUri }.toByteString())
+    val period = interval {
+      startTime = timestamp { seconds = 1 }
+      endTime = timestamp { seconds = 2 }
+    }
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            blobUri = "file:///$bucketName/$key"
+            interval = period
+          }
+        },
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            blobUri = "file:///$bucketName/$key"
+            interval = period
+            impressionsBlobGeneration = 7L
+          }
+        },
+      )
+
+    val sources =
+      createService()
+        .listImpressionDataSources(
+          modelLine,
+          listOf(
+            ResolvedEventGroup(
+              collectionIntervals = listOf(period),
+              eventGroupReferenceId = "ref/123",
+              entityKey =
+                LabeledImpressionKt.entityKey {
+                  entityType = "campaign"
+                  entityId = "entity/123"
+                },
+            )
+          ),
+        )
+
+    assertThat(sources).hasSize(1)
+    assertThat(sources.single().blobDetails.blobUri).isEqualTo(outputUri)
+    assertThat(sources.single().blobGeneration).isEqualTo(7L)
+    val requests = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(requests.capture())
+    assertThat(requests.firstValue.filter.entityKeysList).hasSize(1)
+    assertThat(requests.secondValue.filter.eventGroupReferenceIdsList).containsExactly("ref/123")
+  }
+
+  @Test
   fun `storage-backed retains distinct output generations at the same metadata URI`(): Unit =
     runBlocking {
       val svc = createService()

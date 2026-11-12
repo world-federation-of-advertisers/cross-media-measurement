@@ -581,9 +581,9 @@ class DataAvailabilitySync(
         }
       }
       onStage(Stage.KINGDOM_PUBLICATION)
-      externalSnapshot?.validate()
-      ensureLeaseActive()
       throttler.onReady {
+        externalSnapshot?.validate()
+        ensureLeaseActive()
         try {
           dataProvidersStub
             .withDeadlineAfter(kingdomPublicationTimeout.toNanos(), TimeUnit.NANOSECONDS)
