@@ -20,6 +20,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
@@ -111,12 +112,14 @@ internal class EventGroupSyncWorkItemProcessor(
     try {
       coroutineScope {
         check(attempt.hasLeaseExpirationTime()) { "Control plane must support attempt leases" }
-        val renewal = launch {
-          while (isActive) {
-            renewalDelay()
-            renew(attempt)
+        // Keep lease renewal independent of blocking or CPU-bound sync work.
+        val renewal =
+          launch(Dispatchers.IO) {
+            while (isActive) {
+              renewalDelay()
+              renew(attempt)
+            }
           }
-        }
         try {
           synchronize(input) { renew(attempt) }
           complete(attempt)

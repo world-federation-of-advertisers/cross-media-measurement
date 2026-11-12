@@ -24,6 +24,8 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.protobuf.StatusProto
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
@@ -231,6 +233,26 @@ class EventGroupSyncWorkItemProcessorTest {
         { _, _ -> renewed.await() },
         { error("unexpected active") },
         { if (waits++ > 0) awaitCancellation() },
+        {},
+      )
+      .process(input())
+    assertThat(controlPlane.renewals).isEqualTo(1)
+    assertThat(controlPlane.state).isEqualTo(WorkItem.State.SUCCEEDED)
+  }
+
+  @Test
+  fun `lease renews while sync blocks its thread`() = runBlocking {
+    val syncStarted = CompletableDeferred<Unit>()
+    val renewed = CountDownLatch(1)
+    controlPlane.onRenew = renewed::countDown
+    var waits = 0
+    processor(
+        { _, _ ->
+          syncStarted.complete(Unit)
+          check(renewed.await(10, TimeUnit.SECONDS)) { "Lease renewal was blocked by sync" }
+        },
+        { error("unexpected active") },
+        { if (waits++ == 0) syncStarted.await() else awaitCancellation() },
         {},
       )
       .process(input())
