@@ -37,18 +37,12 @@ service RawImpressionUploadCorrectionCandidateService {
   rpc ResolveDetectedRawImpressionUploadCorrectionCandidate(
       ResolveDetectedRawImpressionUploadCorrectionCandidateRequest)
       returns (ResolveDetectedRawImpressionUploadCorrectionCandidateResponse);
-  rpc CreateRawImpressionUploadCorrectionCandidate(
-      CreateRawImpressionUploadCorrectionCandidateRequest)
-      returns (RawImpressionUploadCorrectionCandidate);
   rpc GetRawImpressionUploadCorrectionCandidate(
       GetRawImpressionUploadCorrectionCandidateRequest)
       returns (RawImpressionUploadCorrectionCandidate);
   rpc ListRawImpressionUploadCorrectionCandidates(
       ListRawImpressionUploadCorrectionCandidatesRequest)
       returns (ListRawImpressionUploadCorrectionCandidatesResponse);
-  rpc AdvanceRawImpressionUploadCorrectionCandidate(
-      AdvanceRawImpressionUploadCorrectionCandidateRequest)
-      returns (RawImpressionUploadCorrectionCandidate);
   rpc PurgeExpiredRawImpressionUploadCorrectionCandidates(
       PurgeExpiredRawImpressionUploadCorrectionCandidatesRequest)
       returns (PurgeExpiredRawImpressionUploadCorrectionCandidatesResponse);
@@ -94,14 +88,6 @@ message ResolveDetectedRawImpressionUploadCorrectionCandidateResponse {
   bool newly_resolved = 1;
 }
 
-message CreateRawImpressionUploadCorrectionCandidateRequest {
-  string data_provider_resource_id = 1;
-  string raw_impression_upload_correction_candidate_id = 2;
-  RawImpressionUploadCorrectionCandidate
-      raw_impression_upload_correction_candidate = 3;
-  string request_id = 4;
-}
-
 message GetRawImpressionUploadCorrectionCandidateRequest {
   string data_provider_resource_id = 1;
   string raw_impression_upload_correction_candidate_id = 2;
@@ -132,26 +118,6 @@ message ListRawImpressionUploadCorrectionCandidatesPageToken {
     string raw_impression_upload_correction_candidate_id = 2;
   }
   After after = 1;
-}
-
-message AdvanceRawImpressionUploadCorrectionCandidateRequest {
-  enum Action {
-    ACTION_UNSPECIFIED = 0;
-    ASSIGN_PLAN = 1;
-    APPROVE_APPLY_CANDIDATE = 2;
-    APPROVE_REMOVE_WITHOUT_REPLACEMENT = 3;
-    COMPLETE = 4;
-    SUPERSEDE = 5;
-    REQUIRE_MANUAL_INTERVENTION = 6;
-  }
-
-  string data_provider_resource_id = 1;
-  string raw_impression_upload_correction_candidate_id = 2;
-  string etag = 3;
-  Action action = 4;
-  string upload_healing_operation_id = 5;
-  string superseding_raw_impression_upload_correction_candidate_id = 6;
-  string request_id = 7;
 }
 
 message PurgeExpiredRawImpressionUploadCorrectionCandidatesRequest {

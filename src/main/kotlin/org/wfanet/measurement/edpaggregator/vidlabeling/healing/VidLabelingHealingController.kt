@@ -1430,13 +1430,6 @@ class VidLabelingHealingController(
       cascade.filter { it.memoized }.mapTo(mutableSetOf()) { it.cmmsModelLine },
       cascade.filterNot { it.memoized }.mapTo(mutableSetOf()) { it.cmmsModelLine },
       badUploads.toList(),
-      cascade
-        .filter {
-          it.recoveryAction ==
-            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
-        }
-        .mapTo(mutableSetOf()) { it.uploadName },
-      Instant.MIN,
       operationId,
       recoveryTargets(
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY

@@ -255,12 +255,12 @@ class VidLabelingHealingChronologyIntegrationTest {
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
-    val plan = evictUploader.plan(listOf(d2.upload.name, d4.upload.name), Instant.EPOCH)
+    val plan = evictUploader.planCorrection(listOf(d2.upload.name, d4.upload.name), Instant.EPOCH)
 
     assertThat(plan.cascade.map { it.uploadName })
       .containsExactly(d2.upload.name, d3.upload.name, d4.upload.name, d5.upload.name)
       .inOrder()
-    val prepared = evictUploader.prepare(plan)
+    val prepared = evictUploader.finalizeOutputManifests(plan)
     val operationName = "$DATA_PROVIDER/uploadHealingOperations/${prepared.evictionOperationId}"
     spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
       txn.insertUploadHealingOperation(
