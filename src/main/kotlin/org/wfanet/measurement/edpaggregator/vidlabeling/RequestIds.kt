@@ -158,13 +158,9 @@ object RequestIds {
   fun forMarkRawImpressionUploadModelLineFailed(modelLineName: String, etag: String): String =
     fromKey("markRawImpressionUploadModelLineFailed:$modelLineName:$etag")
 
-  /** `request_id` for invalidating a model line during operator eviction. */
+  /** `request_id` for invalidating a model line during correction eviction. */
   fun forEvictRawImpressionUploadModelLine(modelLineName: String, etag: String): String =
     fromKey("evictRawImpressionUploadModelLine:$modelLineName:$etag")
-
-  /** `request_id` for creating a durable upload-healing operation. */
-  fun forUploadHealingOperation(operationId: String): String =
-    fromKey("uploadHealingOperation:$operationId")
 
   /** `request_id` for approving one version of an upload-healing operation. */
   fun forApproveUploadHealingOperation(
@@ -204,10 +200,6 @@ object RequestIds {
   /** `request_id` for advancing an upload-eviction fence. */
   fun forAdvanceUploadEvictionFence(operationId: String, state: String, etag: String): String =
     fromKey("advanceUploadEvictionFence:$operationId:$state:$etag")
-
-  /** `request_id` for releasing an upload-eviction fence. */
-  fun forReleaseUploadEvictionFence(operationId: String, etag: String): String =
-    fromKey("releaseUploadEvictionFence:$operationId:$etag")
 
   /** `request_id` for recording one durable upload-healing checkpoint and its evidence. */
   fun forUploadHealingStep(stepName: String, checkpoint: String, evidence: String): String =

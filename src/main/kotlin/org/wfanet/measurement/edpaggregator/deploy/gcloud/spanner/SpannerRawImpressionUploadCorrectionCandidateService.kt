@@ -61,9 +61,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploa
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.ActivateQuarantinedRawImpressionUploadRequest
-import org.wfanet.measurement.internal.edpaggregator.AdvanceRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.CreateQuarantinedRawImpressionUploadRequest
-import org.wfanet.measurement.internal.edpaggregator.CreateRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.GetRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequest
@@ -401,8 +399,7 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
   override suspend fun registerDetectedRawImpressionUploadCorrectionCandidate(
     request: RegisterDetectedRawImpressionUploadCorrectionCandidateRequest
   ): RegisterDetectedRawImpressionUploadCorrectionCandidateResponse {
-    val createRequest = createRequest(request)
-    validateCreateRequest(createRequest)
+    validateRegistrationRequest(request)
     if (request.supersededRawImpressionUploadCorrectionCandidateId.isNotEmpty()) {
       requireUuid(
         request.supersededRawImpressionUploadCorrectionCandidateId,
@@ -420,195 +417,207 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
         Options.tag("action=registerDetectedRawImpressionUploadCorrectionCandidate")
       )
     val newlyCreated =
-      transactionRunner.run { txn ->
-        val existing =
-          txn.findRawImpressionUploadCorrectionCandidate(
-            request.dataProviderResourceId,
-            request.rawImpressionUploadCorrectionCandidateId,
-          )
-            ?: txn.findRawImpressionUploadCorrectionCandidateByCreateRequestId(
+      try {
+        transactionRunner.run { txn ->
+          val existing =
+            txn.findRawImpressionUploadCorrectionCandidate(
               request.dataProviderResourceId,
-              request.requestId,
+              request.rawImpressionUploadCorrectionCandidateId,
             )
-        if (existing != null) {
-          if (isIdempotentCreate(existing, createRequest)) {
-            val supersededId = request.supersededRawImpressionUploadCorrectionCandidateId
-            if (supersededId.isEmpty()) return@run false
-            val superseded =
-              txn
-                .findRawImpressionUploadCorrectionCandidate(
-                  request.dataProviderResourceId,
-                  supersededId,
-                )
-                ?.rawImpressionUploadCorrectionCandidate
-            if (
-              superseded?.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED &&
-                superseded.supersedingRawImpressionUploadCorrectionCandidateId ==
-                  request.rawImpressionUploadCorrectionCandidateId
-            ) {
-              return@run false
-            }
-            if (superseded != null && ownsCommittedPlan(txn, superseded)) {
-              val priorUpload =
-                txn
-                  .getRawImpressionUploadByResourceId(
-                    request.dataProviderResourceId,
-                    superseded.rawImpressionUploadResourceId,
-                  )
-                  .rawImpressionUpload
-              val existingUpload =
-                txn
-                  .getRawImpressionUploadByResourceId(
-                    request.dataProviderResourceId,
-                    existing.rawImpressionUploadCorrectionCandidate.rawImpressionUploadResourceId,
-                  )
-                  .rawImpressionUpload
-              if (
-                priorUpload.doneBlobUri == existingUpload.doneBlobUri &&
-                  priorUpload.hasDoneBlobCreateTime() &&
-                  existingUpload.hasDoneBlobCreateTime() &&
-                  Timestamps.compare(
-                    existingUpload.doneBlobCreateTime,
-                    priorUpload.doneBlobCreateTime,
-                  ) > 0
+              ?: txn.findRawImpressionUploadCorrectionCandidateByCreateRequestId(
+                request.dataProviderResourceId,
+                request.requestId,
               )
+          if (existing != null) {
+            if (isIdempotentRegistration(existing, request)) {
+              val supersededId = request.supersededRawImpressionUploadCorrectionCandidateId
+              if (supersededId.isEmpty()) return@run false
+              val superseded =
+                txn
+                  .findRawImpressionUploadCorrectionCandidate(
+                    request.dataProviderResourceId,
+                    supersededId,
+                  )
+                  ?.rawImpressionUploadCorrectionCandidate
+              if (
+                superseded?.state ==
+                  RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED &&
+                  superseded.supersedingRawImpressionUploadCorrectionCandidateId ==
+                    request.rawImpressionUploadCorrectionCandidateId
+              ) {
                 return@run false
+              }
+              if (superseded != null && ownsCommittedPlan(txn, superseded)) {
+                val priorUpload =
+                  txn
+                    .getRawImpressionUploadByResourceId(
+                      request.dataProviderResourceId,
+                      superseded.rawImpressionUploadResourceId,
+                    )
+                    .rawImpressionUpload
+                val existingUpload =
+                  txn
+                    .getRawImpressionUploadByResourceId(
+                      request.dataProviderResourceId,
+                      existing.rawImpressionUploadCorrectionCandidate.rawImpressionUploadResourceId,
+                    )
+                    .rawImpressionUpload
+                if (
+                  priorUpload.doneBlobUri == existingUpload.doneBlobUri &&
+                    priorUpload.hasDoneBlobCreateTime() &&
+                    existingUpload.hasDoneBlobCreateTime() &&
+                    Timestamps.compare(
+                      existingUpload.doneBlobCreateTime,
+                      priorUpload.doneBlobCreateTime,
+                    ) > 0
+                )
+                  return@run false
+              }
             }
+            throw alreadyExists(request.rawImpressionUploadCorrectionCandidateId)
           }
-          throw alreadyExists(request.rawImpressionUploadCorrectionCandidateId)
-        }
 
-        val uploadResult =
-          txn.getRawImpressionUploadByResourceId(
-            request.dataProviderResourceId,
-            request.rawImpressionUploadCorrectionCandidate.rawImpressionUploadResourceId,
-          )
-        val upload = uploadResult.rawImpressionUpload
-        if (
-          upload.state == RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED &&
-            !upload.registrationComplete
-        ) {
+          val uploadResult =
+            txn.getRawImpressionUploadByResourceId(
+              request.dataProviderResourceId,
+              request.rawImpressionUploadCorrectionCandidate.rawImpressionUploadResourceId,
+            )
+          val upload = uploadResult.rawImpressionUpload
           if (
-            txn.rawImpressionUploadHasModelLines(
+            upload.state == RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED &&
+              !upload.registrationComplete
+          ) {
+            if (
+              txn.rawImpressionUploadHasModelLines(
+                request.dataProviderResourceId,
+                uploadResult.rawImpressionUploadId,
+              )
+            ) {
+              throw Status.FAILED_PRECONDITION.withDescription(
+                  "A quarantined RawImpressionUpload cannot have model lines"
+                )
+                .asRuntimeException()
+            }
+            txn.updateRawImpressionUploadRegistrationComplete(
               request.dataProviderResourceId,
               uploadResult.rawImpressionUploadId,
+              request.requestId,
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
             )
+          } else if (
+            upload.state !=
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED ||
+              !upload.registrationComplete
           ) {
             throw Status.FAILED_PRECONDITION.withDescription(
-                "A quarantined RawImpressionUpload cannot have model lines"
+                "RawImpressionUpload ${upload.rawImpressionUploadResourceId} cannot be quarantined"
               )
               .asRuntimeException()
           }
-          txn.updateRawImpressionUploadRegistrationComplete(
-            request.dataProviderResourceId,
-            uploadResult.rawImpressionUploadId,
-            request.requestId,
-            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-          )
-        } else if (
-          upload.state !=
-            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED ||
-            !upload.registrationComplete
-        ) {
-          throw Status.FAILED_PRECONDITION.withDescription(
-              "RawImpressionUpload ${upload.rawImpressionUploadResourceId} cannot be quarantined"
-            )
-            .asRuntimeException()
-        }
 
-        val supersededResult =
-          request.supersededRawImpressionUploadCorrectionCandidateId
-            .takeIf { it.isNotEmpty() }
-            ?.let {
-              txn.findRawImpressionUploadCorrectionCandidate(request.dataProviderResourceId, it)
-                ?: throw notFound(it)
+          val supersededResult =
+            request.supersededRawImpressionUploadCorrectionCandidateId
+              .takeIf { it.isNotEmpty() }
+              ?.let {
+                txn.findRawImpressionUploadCorrectionCandidate(request.dataProviderResourceId, it)
+                  ?: throw notFound(it)
+              }
+          if (supersededResult != null) {
+            val superseded = supersededResult.rawImpressionUploadCorrectionCandidate
+            val supersededUpload =
+              txn
+                .getRawImpressionUploadByResourceId(
+                  request.dataProviderResourceId,
+                  superseded.rawImpressionUploadResourceId,
+                )
+                .rawImpressionUpload
+            if (
+              upload.doneBlobUri != supersededUpload.doneBlobUri ||
+                !upload.hasDoneBlobCreateTime() ||
+                !supersededUpload.hasDoneBlobCreateTime() ||
+                Timestamps.compare(
+                  upload.doneBlobCreateTime,
+                  supersededUpload.doneBlobCreateTime,
+                ) <= 0
+            ) {
+              throw Status.FAILED_PRECONDITION.withDescription(
+                  "Superseded candidate must be an older revision of the same done object"
+                )
+                .asRuntimeException()
             }
-        if (supersededResult != null) {
-          val superseded = supersededResult.rawImpressionUploadCorrectionCandidate
-          val supersededUpload =
-            txn
-              .getRawImpressionUploadByResourceId(
-                request.dataProviderResourceId,
-                superseded.rawImpressionUploadResourceId,
+            val alreadyResolved =
+              superseded.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED &&
+                superseded.supersedingRawImpressionUploadCorrectionCandidateId.isEmpty()
+            if (
+              superseded.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED &&
+                !alreadyResolved
+            ) {
+              throw Status.FAILED_PRECONDITION.withDescription(
+                  "The previous correction candidate is already superseded"
+                )
+                .asRuntimeException()
+            }
+            if (!alreadyResolved && !ownsCommittedPlan(txn, superseded)) {
+              txn.updateRawImpressionUploadCorrectionCandidate(
+                superseded.copy {
+                  state = RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED
+                  supersedingRawImpressionUploadCorrectionCandidateId =
+                    request.rawImpressionUploadCorrectionCandidateId
+                },
+                supersededResult.advanceRequestIds,
+                supersededResult.advanceRequestFingerprints,
               )
-              .rawImpressionUpload
-          if (
-            upload.doneBlobUri != supersededUpload.doneBlobUri ||
-              !upload.hasDoneBlobCreateTime() ||
-              !supersededUpload.hasDoneBlobCreateTime() ||
-              Timestamps.compare(upload.doneBlobCreateTime, supersededUpload.doneBlobCreateTime) <=
-                0
-          ) {
-            throw Status.FAILED_PRECONDITION.withDescription(
-                "Superseded candidate must be an older revision of the same done object"
-              )
-              .asRuntimeException()
+            }
           }
-          val alreadyResolved =
-            superseded.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED &&
-              superseded.supersedingRawImpressionUploadCorrectionCandidateId.isEmpty()
-          if (
-            superseded.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED &&
-              !alreadyResolved
-          ) {
-            throw Status.FAILED_PRECONDITION.withDescription(
-                "The previous correction candidate is already superseded"
-              )
-              .asRuntimeException()
-          }
-          if (!alreadyResolved && !ownsCommittedPlan(txn, superseded)) {
-            txn.updateRawImpressionUploadCorrectionCandidate(
-              superseded.copy {
-                state = RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED
-                supersedingRawImpressionUploadCorrectionCandidateId =
-                  request.rawImpressionUploadCorrectionCandidateId
-              },
-              supersededResult.advanceRequestIds,
-              supersededResult.advanceRequestFingerprints,
-            )
-          }
-        }
 
-        val fence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
-        if (fence == null) {
-          throw Status.FAILED_PRECONDITION.withDescription(
-              "The DataProvider correction fence is not active"
-            )
-            .asRuntimeException()
-        }
-        val superseded = supersededResult?.rawImpressionUploadCorrectionCandidate
-        when {
-          fence.evictionOperationId == request.rawImpressionUploadCorrectionCandidateId -> Unit
-          superseded != null &&
-            superseded.uploadHealingOperationId.isEmpty() &&
-            fence.evictionOperationId == superseded.rawImpressionUploadCorrectionCandidateId ->
-            txn.transferVidLabelingEvictionFence(
-              request.dataProviderResourceId,
-              request.rawImpressionUploadCorrectionCandidateId,
-            )
-          txn.findRawImpressionUploadCorrectionCandidate(
-            request.dataProviderResourceId,
-            fence.evictionOperationId,
-          ) == null &&
-            txn.findUploadHealingOperation(
+          val fence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
+          if (fence == null) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "The DataProvider correction fence is not active"
+              )
+              .asRuntimeException()
+          }
+          val superseded = supersededResult?.rawImpressionUploadCorrectionCandidate
+          when {
+            fence.evictionOperationId == request.rawImpressionUploadCorrectionCandidateId -> Unit
+            superseded != null &&
+              superseded.uploadHealingOperationId.isEmpty() &&
+              fence.evictionOperationId == superseded.rawImpressionUploadCorrectionCandidateId ->
+              txn.transferVidLabelingEvictionFence(
+                request.dataProviderResourceId,
+                request.rawImpressionUploadCorrectionCandidateId,
+              )
+            txn.findRawImpressionUploadCorrectionCandidate(
               request.dataProviderResourceId,
               fence.evictionOperationId,
-            ) == null ->
-            txn.transferVidLabelingEvictionFence(
-              request.dataProviderResourceId,
-              request.rawImpressionUploadCorrectionCandidateId,
-            )
-        }
+            ) == null &&
+              txn.findUploadHealingOperation(
+                request.dataProviderResourceId,
+                fence.evictionOperationId,
+              ) == null ->
+              txn.transferVidLabelingEvictionFence(
+                request.dataProviderResourceId,
+                request.rawImpressionUploadCorrectionCandidateId,
+              )
+          }
 
-        txn.insertRawImpressionUploadCorrectionCandidate(
-          request.rawImpressionUploadCorrectionCandidate.copy {
-            dataProviderResourceId = request.dataProviderResourceId
-            rawImpressionUploadCorrectionCandidateId =
-              request.rawImpressionUploadCorrectionCandidateId
-          },
-          request.requestId,
-        )
-        true
+          txn.insertRawImpressionUploadCorrectionCandidate(
+            request.rawImpressionUploadCorrectionCandidate.copy {
+              dataProviderResourceId = request.dataProviderResourceId
+              rawImpressionUploadCorrectionCandidateId =
+                request.rawImpressionUploadCorrectionCandidateId
+            },
+            request.requestId,
+          )
+          true
+        }
+      } catch (e: RawImpressionUploadNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: SpannerException) {
+        if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
+          throw alreadyExists(request.rawImpressionUploadCorrectionCandidateId)
+        }
+        throw e
       }
     return registerDetectedRawImpressionUploadCorrectionCandidateResponse {
       rawImpressionUploadCorrectionCandidate =
@@ -764,92 +773,6 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
     return resolveDetectedRawImpressionUploadCorrectionCandidateResponse {
       this.newlyResolved = newlyResolved
     }
-  }
-
-  override suspend fun createRawImpressionUploadCorrectionCandidate(
-    request: CreateRawImpressionUploadCorrectionCandidateRequest
-  ): RawImpressionUploadCorrectionCandidate {
-    validateCreateRequest(request)
-    val transactionRunner =
-      databaseClient.readWriteTransaction(
-        Options.tag("action=createRawImpressionUploadCorrectionCandidate")
-      )
-    try {
-      transactionRunner.run { txn ->
-        val existingById =
-          txn.findRawImpressionUploadCorrectionCandidate(
-            request.dataProviderResourceId,
-            request.rawImpressionUploadCorrectionCandidateId,
-          )
-        if (existingById != null) {
-          if (isIdempotentCreate(existingById, request)) return@run
-          throw alreadyExists(request.rawImpressionUploadCorrectionCandidateId)
-        }
-        val existingByRequestId =
-          txn.findRawImpressionUploadCorrectionCandidateByCreateRequestId(
-            request.dataProviderResourceId,
-            request.requestId,
-          )
-        if (existingByRequestId != null) {
-          if (isIdempotentCreate(existingByRequestId, request)) return@run
-          throw alreadyExists(
-            existingByRequestId.rawImpressionUploadCorrectionCandidate
-              .rawImpressionUploadCorrectionCandidateId
-          )
-        }
-        val upload =
-          txn
-            .getRawImpressionUploadByResourceId(
-              request.dataProviderResourceId,
-              request.rawImpressionUploadCorrectionCandidate.rawImpressionUploadResourceId,
-            )
-            .rawImpressionUpload
-        if (
-          upload.state !=
-            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED ||
-            !upload.registrationComplete ||
-            !upload.hasDoneBlobCreateTime()
-        ) {
-          throw Status.FAILED_PRECONDITION.withDescription(
-              "RawImpressionUpload ${upload.rawImpressionUploadResourceId} is not a finalized quarantined manifest"
-            )
-            .asRuntimeException()
-        }
-        txn.insertRawImpressionUploadCorrectionCandidate(
-          request.rawImpressionUploadCorrectionCandidate.copy {
-            dataProviderResourceId = request.dataProviderResourceId
-            rawImpressionUploadCorrectionCandidateId =
-              request.rawImpressionUploadCorrectionCandidateId
-          },
-          request.requestId,
-        )
-      }
-    } catch (e: RawImpressionUploadNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-    } catch (e: SpannerException) {
-      if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-        val existing =
-          databaseClient.singleUse().use { txn ->
-            txn.findRawImpressionUploadCorrectionCandidate(
-              request.dataProviderResourceId,
-              request.rawImpressionUploadCorrectionCandidateId,
-            )
-              ?: txn.findRawImpressionUploadCorrectionCandidateByCreateRequestId(
-                request.dataProviderResourceId,
-                request.requestId,
-              )
-          }
-        if (existing != null && isIdempotentCreate(existing, request)) {
-          return existing.rawImpressionUploadCorrectionCandidate
-        }
-        throw alreadyExists(request.rawImpressionUploadCorrectionCandidateId)
-      }
-      throw e
-    }
-    return getCandidate(
-      request.dataProviderResourceId,
-      request.rawImpressionUploadCorrectionCandidateId,
-    )
   }
 
   override suspend fun getRawImpressionUploadCorrectionCandidate(
@@ -1015,221 +938,6 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
     }
   }
 
-  override suspend fun advanceRawImpressionUploadCorrectionCandidate(
-    request: AdvanceRawImpressionUploadCorrectionCandidateRequest
-  ): RawImpressionUploadCorrectionCandidate {
-    validateAdvanceRequest(request)
-    val requestFingerprint = request.fingerprint()
-    val transactionRunner =
-      databaseClient.readWriteTransaction(
-        Options.tag("action=advanceRawImpressionUploadCorrectionCandidate")
-      )
-    try {
-      transactionRunner.run { txn ->
-        val existingByRequestId =
-          txn.findRawImpressionUploadCorrectionCandidateByAdvanceRequestId(
-            request.dataProviderResourceId,
-            request.requestId,
-          )
-        if (existingByRequestId != null) {
-          if (isIdempotentAdvance(existingByRequestId, request, requestFingerprint)) return@run
-          throw requestIdAlreadyUsed()
-        }
-        val result =
-          txn.findRawImpressionUploadCorrectionCandidate(
-            request.dataProviderResourceId,
-            request.rawImpressionUploadCorrectionCandidateId,
-          ) ?: throw notFound(request.rawImpressionUploadCorrectionCandidateId)
-        val current = result.rawImpressionUploadCorrectionCandidate
-        if (current.etag != request.etag) {
-          throw Status.ABORTED.withDescription(
-              "raw_impression_upload_correction_candidate etag mismatch"
-            )
-            .asRuntimeException()
-        }
-        val updated = transitionCandidate(txn, current, request)
-        txn.updateRawImpressionUploadCorrectionCandidate(
-          updated,
-          result.advanceRequestIds + request.requestId,
-          result.advanceRequestFingerprints + listOf(requestFingerprint),
-        )
-      }
-    } catch (e: SpannerException) {
-      if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-        throw requestIdAlreadyUsed()
-      }
-      throw e
-    }
-    return getCandidate(
-      request.dataProviderResourceId,
-      request.rawImpressionUploadCorrectionCandidateId,
-    )
-  }
-
-  private suspend fun transitionCandidate(
-    txn: AsyncDatabaseClient.TransactionContext,
-    current: RawImpressionUploadCorrectionCandidate,
-    request: AdvanceRawImpressionUploadCorrectionCandidateRequest,
-  ): RawImpressionUploadCorrectionCandidate {
-    val allowedActions = allowedActions(current)
-    if (request.action !in allowedActions) {
-      throw Status.FAILED_PRECONDITION.withDescription(
-          "Action ${request.action} is not valid from ${current.state}"
-        )
-        .asRuntimeException()
-    }
-    val supersedingCandidate =
-      if (request.action == AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE) {
-        txn
-          .findRawImpressionUploadCorrectionCandidate(
-            request.dataProviderResourceId,
-            request.supersedingRawImpressionUploadCorrectionCandidateId,
-          )
-          ?.rawImpressionUploadCorrectionCandidate
-          ?: throw notFound(request.supersedingRawImpressionUploadCorrectionCandidateId)
-      } else {
-        null
-      }
-    if (supersedingCandidate != null) {
-      val currentUpload =
-        txn
-          .getRawImpressionUploadByResourceId(
-            request.dataProviderResourceId,
-            current.rawImpressionUploadResourceId,
-          )
-          .rawImpressionUpload
-      val supersedingUpload =
-        txn
-          .getRawImpressionUploadByResourceId(
-            request.dataProviderResourceId,
-            supersedingCandidate.rawImpressionUploadResourceId,
-          )
-          .rawImpressionUpload
-      if (
-        supersedingUpload.doneBlobUri != currentUpload.doneBlobUri ||
-          !supersedingUpload.hasDoneBlobCreateTime() ||
-          !currentUpload.hasDoneBlobCreateTime() ||
-          Timestamps.compare(
-            supersedingUpload.doneBlobCreateTime,
-            currentUpload.doneBlobCreateTime,
-          ) <= 0
-      ) {
-        throw Status.FAILED_PRECONDITION.withDescription(
-            "Superseding candidate must be a newer revision of the same done object"
-          )
-          .asRuntimeException()
-      }
-      if (
-        supersedingCandidate.state !in
-          setOf(
-            RawImpressionUploadCorrectionCandidate.State.STATE_PENDING,
-            RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED,
-          ) ||
-          supersedingCandidate.decision !=
-            RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED
-      ) {
-        throw Status.FAILED_PRECONDITION.withDescription(
-            "Superseding candidate must still be pending approval"
-          )
-          .asRuntimeException()
-      }
-      if (current.uploadHealingOperationId.isEmpty()) {
-        val fence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
-        if (fence?.evictionOperationId == current.rawImpressionUploadCorrectionCandidateId) {
-          txn.transferVidLabelingEvictionFence(
-            request.dataProviderResourceId,
-            supersedingCandidate.rawImpressionUploadCorrectionCandidateId,
-          )
-        }
-      }
-    }
-    return current.copy {
-      when (request.action) {
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN -> {
-          val operation =
-            txn
-              .findUploadHealingOperation(
-                request.dataProviderResourceId,
-                request.uploadHealingOperationId,
-              )
-              ?.uploadHealingOperation
-              ?: throw Status.FAILED_PRECONDITION.withDescription(
-                  "The assigned upload-healing operation does not exist"
-                )
-                .asRuntimeException()
-          if (
-            operation.state !=
-              UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
-          ) {
-            throw Status.FAILED_PRECONDITION.withDescription(
-                "The assigned upload-healing operation is not active"
-              )
-              .asRuntimeException()
-          }
-          if (
-            current.rawImpressionUploadCorrectionCandidateId !in
-              operation.rawImpressionUploadCorrectionCandidateIdsList
-          ) {
-            throw Status.FAILED_PRECONDITION.withDescription(
-                "The upload-healing operation does not contain this correction candidate"
-              )
-              .asRuntimeException()
-          }
-          state = RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED
-          uploadHealingOperationId = request.uploadHealingOperationId
-        }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_APPLY_CANDIDATE -> {
-          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
-        }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action
-          .APPROVE_REMOVE_WITHOUT_REPLACEMENT -> {
-          decision =
-            RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
-        }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE -> {
-          val operation =
-            txn
-              .findUploadHealingOperation(
-                request.dataProviderResourceId,
-                current.uploadHealingOperationId,
-              )
-              ?.uploadHealingOperation
-              ?: throw Status.FAILED_PRECONDITION.withDescription(
-                  "The assigned upload-healing operation does not exist"
-                )
-                .asRuntimeException()
-          if (
-            operation.state != UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
-          ) {
-            throw Status.FAILED_PRECONDITION.withDescription(
-                "The assigned upload-healing operation is not complete"
-              )
-              .asRuntimeException()
-          }
-          state = RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE
-        }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE -> {
-          val superseding = checkNotNull(supersedingCandidate)
-          if (
-            superseding.rawImpressionUploadCorrectionCandidateId ==
-              current.rawImpressionUploadCorrectionCandidateId
-          ) {
-            invalid("a candidate cannot supersede itself")
-          }
-          state = RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED
-          supersedingRawImpressionUploadCorrectionCandidateId =
-            request.supersedingRawImpressionUploadCorrectionCandidateId
-        }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION -> {
-          state = RawImpressionUploadCorrectionCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED
-        }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ACTION_UNSPECIFIED,
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.UNRECOGNIZED ->
-          error("action was validated")
-      }
-    }
-  }
-
   private suspend fun getCandidate(
     dataProviderResourceId: String,
     rawImpressionUploadCorrectionCandidateId: String,
@@ -1244,7 +952,9 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
         ?: throw notFound(rawImpressionUploadCorrectionCandidateId)
     }
 
-  private fun validateCreateRequest(request: CreateRawImpressionUploadCorrectionCandidateRequest) {
+  private fun validateRegistrationRequest(
+    request: RegisterDetectedRawImpressionUploadCorrectionCandidateRequest
+  ) {
     requireField(request.dataProviderResourceId, "data_provider_resource_id")
     requireUuid(
       request.rawImpressionUploadCorrectionCandidateId,
@@ -1289,104 +999,9 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
     }
   }
 
-  private fun createRequest(
-    request: RegisterDetectedRawImpressionUploadCorrectionCandidateRequest
-  ): CreateRawImpressionUploadCorrectionCandidateRequest =
-    org.wfanet.measurement.internal.edpaggregator
-      .createRawImpressionUploadCorrectionCandidateRequest {
-        dataProviderResourceId = request.dataProviderResourceId
-        rawImpressionUploadCorrectionCandidateId = request.rawImpressionUploadCorrectionCandidateId
-        rawImpressionUploadCorrectionCandidate = request.rawImpressionUploadCorrectionCandidate
-        requestId = request.requestId
-      }
-
-  private fun validateAdvanceRequest(
-    request: AdvanceRawImpressionUploadCorrectionCandidateRequest
-  ) {
-    requireField(request.dataProviderResourceId, "data_provider_resource_id")
-    requireUuid(
-      request.rawImpressionUploadCorrectionCandidateId,
-      "raw_impression_upload_correction_candidate_id",
-    )
-    requireField(request.etag, "etag")
-    requireUuid(request.requestId, "request_id")
-    if (
-      request.action ==
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ACTION_UNSPECIFIED ||
-        request.action == AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.UNRECOGNIZED
-    ) {
-      invalid("action is required")
-    }
-    when (request.action) {
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN -> {
-        requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
-        if (request.supersedingRawImpressionUploadCorrectionCandidateId.isNotEmpty())
-          invalid("superseding_raw_impression_upload_correction_candidate_id must be empty")
-      }
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE -> {
-        requireUuid(
-          request.supersedingRawImpressionUploadCorrectionCandidateId,
-          "superseding_raw_impression_upload_correction_candidate_id",
-        )
-        if (request.uploadHealingOperationId.isNotEmpty())
-          invalid("upload_healing_operation_id must be empty")
-      }
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_APPLY_CANDIDATE,
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action
-        .APPROVE_REMOVE_WITHOUT_REPLACEMENT,
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION -> {
-        if (request.uploadHealingOperationId.isNotEmpty())
-          invalid("upload_healing_operation_id must be empty")
-        if (request.supersedingRawImpressionUploadCorrectionCandidateId.isNotEmpty())
-          invalid("superseding_raw_impression_upload_correction_candidate_id must be empty")
-      }
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ACTION_UNSPECIFIED,
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.UNRECOGNIZED ->
-        error("action was validated")
-    }
-  }
-
-  private fun allowedActions(
-    candidate: RawImpressionUploadCorrectionCandidate
-  ): Set<AdvanceRawImpressionUploadCorrectionCandidateRequest.Action> =
-    when (candidate.state) {
-      RawImpressionUploadCorrectionCandidate.State.STATE_PENDING ->
-        setOf(
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
-        )
-      RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED ->
-        if (
-          candidate.decision == RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED
-        ) {
-          setOf(
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_APPLY_CANDIDATE,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action
-              .APPROVE_REMOVE_WITHOUT_REPLACEMENT,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
-          )
-        } else {
-          setOf(
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
-          )
-        }
-      RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE,
-      RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED,
-      RawImpressionUploadCorrectionCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED ->
-        setOf(AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE)
-      RawImpressionUploadCorrectionCandidate.State.STATE_UNSPECIFIED,
-      RawImpressionUploadCorrectionCandidate.State.UNRECOGNIZED ->
-        error("Invalid stored raw-impression-upload-correction-candidate state")
-    }
-
-  private fun isIdempotentCreate(
+  private fun isIdempotentRegistration(
     result: RawImpressionUploadCorrectionCandidateResult,
-    request: CreateRawImpressionUploadCorrectionCandidateRequest,
+    request: RegisterDetectedRawImpressionUploadCorrectionCandidateRequest,
   ): Boolean {
     val existing = result.rawImpressionUploadCorrectionCandidate
     val requested = request.rawImpressionUploadCorrectionCandidate
@@ -1529,25 +1144,6 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
     }
     return digest.digest().toByteString()
   }
-
-  private fun isIdempotentAdvance(
-    result: RawImpressionUploadCorrectionCandidateResult,
-    request: AdvanceRawImpressionUploadCorrectionCandidateRequest,
-    requestFingerprint: ByteString,
-  ): Boolean {
-    if (
-      result.rawImpressionUploadCorrectionCandidate.rawImpressionUploadCorrectionCandidateId !=
-        request.rawImpressionUploadCorrectionCandidateId
-    ) {
-      return false
-    }
-    val requestIndex = result.advanceRequestIds.indexOf(request.requestId)
-    return requestIndex >= 0 &&
-      result.advanceRequestFingerprints.getOrNull(requestIndex) == requestFingerprint
-  }
-
-  private fun AdvanceRawImpressionUploadCorrectionCandidateRequest.fingerprint(): ByteString =
-    MessageDigest.getInstance("SHA-256").digest(toByteArray()).toByteString()
 
   private fun requireField(value: String, field: String) {
     if (value.isEmpty()) invalid("$field is required")
