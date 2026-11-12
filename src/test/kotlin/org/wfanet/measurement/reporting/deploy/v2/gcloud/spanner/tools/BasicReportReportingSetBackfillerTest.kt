@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 import com.google.cloud.spanner.Struct
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.dateTime
 import com.google.type.timeZone
 import kotlinx.coroutines.flow.map
@@ -3748,6 +3749,251 @@ class BasicReportReportingSetBackfillerTest {
       assertThat(readReportingSet(COMPOSITE_NON_CAMPAIGN_GROUP_ID)).isEqualTo(sharedBefore)
       assertThat(newBackfiller(dryRun = false).run().updated).isEqualTo(0)
     }
+
+  @Test
+  fun `run migrates a composite Campaign Group when every component ID is populated`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroup(externalCampaignGroupId = "")
+      insertTestBasicReport(
+        basicReportId = BASIC_REPORT_ID,
+        externalBasicReportId = EXTERNAL_BASIC_REPORT_ID,
+        externalCampaignGroupId = COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        components =
+          listOf(
+            ComponentSpec(externalReportingSetId = INVALID_CAMPAIGN_GROUP_ID),
+            ComponentSpec(
+              cmmsDataProviderId = OTHER_CMMS_DATA_PROVIDER_ID,
+              cmmsEventGroupIds = listOf(OTHER_EVENT_GROUP_ID),
+              externalReportingSetId = OTHER_NON_CAMPAIGN_GROUP_ID,
+            ),
+          ),
+      )
+      val before = readInternalBasicReport()
+      val setsBefore = readAllReportingSets()
+      val dryRun = newBackfiller(dryRun = true).run()
+      assertThat(dryRun.updated).isEqualTo(1)
+      assertThat(dryRun.compositeCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(dryRun.alreadyValid).isEqualTo(0)
+      assertThat(dryRun.readyToRemoveReadPathFallback).isFalse()
+      assertThat(readInternalBasicReport()).isEqualTo(before)
+      assertThat(readAllReportingSets()).containsExactlyElementsIn(setsBefore)
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.compositeCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(result.alreadyValid).isEqualTo(0)
+      assertThat(result.readyToRemoveReadPathFallback).isTrue()
+      val migrated = readInternalBasicReport()
+      assertThat(migrated.externalCampaignGroupId).isNotEqualTo(COMPOSITE_NON_CAMPAIGN_GROUP_ID)
+      assertThat(migrated.details).isEqualTo(before.details)
+      assertThat(migrated.state).isEqualTo(before.state)
+      assertThat(migrated.createTime).isEqualTo(before.createTime)
+      for (id in readComponentSummaryReportingSetIds()) {
+        assertThat(readReportingSet(id).externalCampaignGroupId)
+          .isEqualTo(migrated.externalCampaignGroupId)
+      }
+      assertThat(readReportingSet(migrated.externalCampaignGroupId).primitive.eventGroupKeysList)
+        .containsExactly(
+          eventGroupKey(EVENT_GROUP_ID_1),
+          eventGroupKey(EVENT_GROUP_ID_2),
+          eventGroupKey(OTHER_EVENT_GROUP_ID, OTHER_CMMS_DATA_PROVIDER_ID),
+        )
+      assertThat(readReportingSet(COMPOSITE_NON_CAMPAIGN_GROUP_ID))
+        .isEqualTo(
+          setsBefore.single { it.externalReportingSetId == COMPOSITE_NON_CAMPAIGN_GROUP_ID }
+        )
+      val rerun = newBackfiller(dryRun = false).run()
+      assertThat(rerun.updated).isEqualTo(0)
+      assertThat(rerun.alreadyValid).isEqualTo(1)
+      assertThat(rerun.readyToRemoveReadPathFallback).isTrue()
+    }
+
+  @Test
+  fun `run migrates a composite Campaign Group with a populated filtered custom component`() =
+    runBlocking<Unit> {
+      createCompositeCustomComponent()
+      insertIdentityBasicReport(
+        customReportingUnit(listOf(CUSTOM_COMPONENT_ID)),
+        listOf(
+          ComponentSpec(cmmsDataProviderId = "", externalReportingSetId = CUSTOM_COMPONENT_ID)
+        ),
+        listOf(CUSTOM_COMPONENT_ID),
+        emptyList(),
+        CUSTOM_COMPONENT_ID,
+      )
+      val before = readInternalBasicReport()
+      val sourceBefore = readReportingSet(CUSTOM_COMPONENT_ID)
+      val setsBefore = readAllReportingSets()
+      val dryRun = newBackfiller(dryRun = true).run()
+      assertThat(dryRun.updated).isEqualTo(1)
+      assertThat(readInternalBasicReport()).isEqualTo(before)
+      assertThat(readAllReportingSets()).containsExactlyElementsIn(setsBefore)
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.compositeCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(result.componentSummariesFilled).isEqualTo(0)
+      assertThat(result.dataProviderIdsFilled).isEqualTo(0)
+      assertThat(result.readyToRemoveReadPathFallback).isTrue()
+      val migrated = readInternalBasicReport()
+      assertThat(migrated.externalCampaignGroupId).isNotEqualTo(CUSTOM_COMPONENT_ID)
+      assertThat(migrated)
+        .isEqualTo(before.copy { externalCampaignGroupId = migrated.externalCampaignGroupId })
+      assertThat(readReportingSet(CUSTOM_COMPONENT_ID)).isEqualTo(sourceBefore)
+      assertThat(newBackfiller(dryRun = false).run().updated).isEqualTo(0)
+    }
+
+  @Test
+  fun `run blocks a composite Campaign Group whose weighted union lost all bases`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroup(externalCampaignGroupId = "")
+      removeStoredCompositeBases(COMPOSITE_NON_CAMPAIGN_GROUP_ID)
+      insertTestBasicReport(
+        BASIC_REPORT_ID,
+        EXTERNAL_BASIC_REPORT_ID,
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        compositeUniverseComponents(),
+      )
+      assertBlockingIdentityRuns()
+      val source = readReportingSet(COMPOSITE_NON_CAMPAIGN_GROUP_ID)
+      assertThat(source.weightedSubsetUnionsCount).isEqualTo(1)
+      assertThat(source.weightedSubsetUnionsList.single().primitiveReportingSetBasesCount)
+        .isEqualTo(0)
+    }
+
+  @Test
+  fun `run blocks a custom composite component whose weighted union lost all bases`() =
+    runBlocking<Unit> {
+      createCampaignGroup()
+      createCompositeCustomComponent()
+      removeStoredCompositeBases(CUSTOM_COMPONENT_ID)
+      insertIdentityBasicReport(
+        customReportingUnit(listOf(CUSTOM_COMPONENT_ID)),
+        listOf(
+          ComponentSpec(cmmsDataProviderId = "", externalReportingSetId = CUSTOM_COMPONENT_ID)
+        ),
+        listOf(CUSTOM_COMPONENT_ID),
+        emptyList(),
+        CAMPAIGN_GROUP_ID,
+      )
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `run blocks a composite Campaign Group with an unspecified operation`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroup(externalCampaignGroupId = "")
+      setStoredCompositeOperation(
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        operation = 0,
+        rootExpression = true,
+      )
+      insertTestBasicReport(
+        BASIC_REPORT_ID,
+        EXTERNAL_BASIC_REPORT_ID,
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        compositeUniverseComponents(),
+      )
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `run blocks a composite Campaign Group with an unrecognized operation`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroup(externalCampaignGroupId = "")
+      setStoredCompositeOperation(
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        operation = 999,
+        rootExpression = true,
+      )
+      insertTestBasicReport(
+        BASIC_REPORT_ID,
+        EXTERNAL_BASIC_REPORT_ID,
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        compositeUniverseComponents(),
+      )
+      assertBlockingIdentityRuns()
+    }
+
+  @Test
+  fun `run blocks a nested composite expression with an unspecified operation`() =
+    runBlocking<Unit> {
+      createCompositeNonCampaignGroup(externalCampaignGroupId = "")
+      setStoredCompositeOperation(
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        operation = 0,
+        rootExpression = false,
+      )
+      insertTestBasicReport(
+        BASIC_REPORT_ID,
+        EXTERNAL_BASIC_REPORT_ID,
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        compositeUniverseComponents(),
+      )
+      assertBlockingIdentityRuns()
+    }
+
+  private suspend fun removeStoredCompositeBases(externalReportingSetId: String) {
+    val transaction = postgresClient.readWriteTransaction()
+    try {
+      transaction.executeStatement(
+        boundStatement(
+          """
+        DELETE FROM WeightedSubsetUnionPrimitiveReportingSetBases
+        USING ReportingSets, MeasurementConsumers
+        WHERE WeightedSubsetUnionPrimitiveReportingSetBases.MeasurementConsumerId = ReportingSets.MeasurementConsumerId
+          AND WeightedSubsetUnionPrimitiveReportingSetBases.ReportingSetId = ReportingSets.ReportingSetId
+          AND ReportingSets.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId
+          AND MeasurementConsumers.CmmsMeasurementConsumerId = $1
+          AND ReportingSets.ExternalReportingSetId = $2
+        """
+            .trimIndent()
+        ) {
+          bind("$1", CMMS_MEASUREMENT_CONSUMER_ID)
+          bind("$2", externalReportingSetId)
+        }
+      )
+      transaction.commit()
+    } finally {
+      transaction.close()
+    }
+  }
+
+  private suspend fun setStoredCompositeOperation(
+    externalReportingSetId: String,
+    operation: Int,
+    rootExpression: Boolean,
+  ) {
+    val comparison = if (rootExpression) "=" else "<>"
+    val transaction = postgresClient.readWriteTransaction()
+    try {
+      transaction.executeStatement(
+        boundStatement(
+          """
+        UPDATE SetExpressions
+        SET Operation = $1
+        FROM ReportingSets, MeasurementConsumers
+        WHERE SetExpressions.MeasurementConsumerId = ReportingSets.MeasurementConsumerId
+          AND SetExpressions.ReportingSetId = ReportingSets.ReportingSetId
+          AND ReportingSets.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId
+          AND MeasurementConsumers.CmmsMeasurementConsumerId = $2
+          AND ReportingSets.ExternalReportingSetId = $3
+          AND SetExpressions.SetExpressionId $comparison ReportingSets.SetExpressionId
+        """
+            .trimIndent()
+        ) {
+          bind("$1", operation)
+          bind("$2", CMMS_MEASUREMENT_CONSUMER_ID)
+          bind("$3", externalReportingSetId)
+        }
+      )
+      transaction.commit()
+    } finally {
+      transaction.close()
+    }
+  }
 
   private suspend fun invalidateCompositeLeftOperand(
     externalReportingSetId: String,

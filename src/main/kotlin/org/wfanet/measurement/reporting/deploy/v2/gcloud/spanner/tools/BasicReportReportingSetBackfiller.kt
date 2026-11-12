@@ -1401,6 +1401,14 @@ class BasicReportReportingSetBackfiller(
       when {
         reportingSet.hasPrimitive() -> reportingSet.primitive.eventGroupKeysList.toSet()
         reportingSet.hasComposite() -> {
+          if (
+            reportingSet.weightedSubsetUnionsList.any { it.primitiveReportingSetBasesCount == 0 }
+          ) {
+            throw CampaignGroupInvalidException(
+              campaignGroupKey.cmmsMeasurementConsumerId,
+              campaignGroupKey.externalCampaignGroupId,
+            )
+          }
           val expressionMembership =
             collectExpressionEventGroupKeys(
               campaignGroupKey,
@@ -1447,6 +1455,17 @@ class BasicReportReportingSetBackfiller(
     membershipByReportingSetId: MutableMap<String, Set<ReportingSet.Primitive.EventGroupKey>>,
     visitingReportingSetIds: MutableSet<String>,
   ): Set<ReportingSet.Primitive.EventGroupKey> {
+    when (expression.operation) {
+      ReportingSet.SetExpression.Operation.UNION,
+      ReportingSet.SetExpression.Operation.DIFFERENCE,
+      ReportingSet.SetExpression.Operation.INTERSECTION -> Unit
+      ReportingSet.SetExpression.Operation.OPERATION_UNSPECIFIED,
+      ReportingSet.SetExpression.Operation.UNRECOGNIZED ->
+        throw CampaignGroupInvalidException(
+          campaignGroupKey.cmmsMeasurementConsumerId,
+          campaignGroupKey.externalCampaignGroupId,
+        )
+    }
     val lhs: Set<ReportingSet.Primitive.EventGroupKey> =
       collectOperandEventGroupKeys(
         campaignGroupKey,

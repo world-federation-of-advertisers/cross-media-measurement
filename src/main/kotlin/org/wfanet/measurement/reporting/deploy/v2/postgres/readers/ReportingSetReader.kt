@@ -68,7 +68,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
   )
 
   private data class SetExpressionInfo(
-    val operation: SetExpression.Operation,
+    val operationValue: Int,
     val leftHandSetExpressionId: InternalId?,
     val leftHandExternalReportingSetId: String?,
     val rightHandSetExpressionId: InternalId?,
@@ -390,7 +390,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       if (setExpressionId != null && operation != null) {
         reportingSetInfo.setExpressionInfoMap.computeIfAbsent(setExpressionId) {
           SetExpressionInfo(
-            operation = SetExpression.Operation.forNumber(operation),
+            operationValue = operation,
             leftHandSetExpressionId = leftHandSetExpressionId,
             leftHandExternalReportingSetId = leftHandExternalReportingSetId,
             rightHandSetExpressionId = rightHandSetExpressionId,
@@ -408,13 +408,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
         )
       }
 
-      if (
-        weightedSubsetUnionId != null &&
-          weight != null &&
-          binaryRepresentation != null &&
-          primitiveReportingSetBasisId != null &&
-          primitiveExternalReportingSetId != null
-      ) {
+      if (weightedSubsetUnionId != null && weight != null && binaryRepresentation != null) {
         val weightedSubsetUnionInfo =
           reportingSetInfo.weightedSubsetUnionInfoMap.computeIfAbsent(weightedSubsetUnionId) {
             WeightedSubsetUnionInfo(
@@ -424,18 +418,20 @@ class ReportingSetReader(private val readContext: ReadContext) {
             )
           }
 
-        val primitiveReportingSetBasisInfo =
-          weightedSubsetUnionInfo.primitiveReportingSetBasisInfoMap.computeIfAbsent(
-            primitiveReportingSetBasisId
-          ) {
-            PrimitiveReportingSetBasisInfo(
-              primitiveExternalReportingSetId = primitiveExternalReportingSetId,
-              filterSet = mutableSetOf(),
-            )
-          }
+        if (primitiveReportingSetBasisId != null && primitiveExternalReportingSetId != null) {
+          val primitiveReportingSetBasisInfo =
+            weightedSubsetUnionInfo.primitiveReportingSetBasisInfoMap.computeIfAbsent(
+              primitiveReportingSetBasisId
+            ) {
+              PrimitiveReportingSetBasisInfo(
+                primitiveExternalReportingSetId = primitiveExternalReportingSetId,
+                filterSet = mutableSetOf(),
+              )
+            }
 
-        if (primitiveReportingSetBasisFilter != null) {
-          primitiveReportingSetBasisInfo.filterSet.add(primitiveReportingSetBasisFilter)
+          if (primitiveReportingSetBasisFilter != null) {
+            primitiveReportingSetBasisInfo.filterSet.add(primitiveReportingSetBasisFilter)
+          }
         }
       }
     }
@@ -450,7 +446,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
     setExpressionInfoMap: Map<InternalId, SetExpressionInfo>,
   ): SetExpression {
     return ReportingSetKt.setExpression {
-      operation = setExpressionInfo.operation
+      operationValue = setExpressionInfo.operationValue
 
       if (setExpressionInfo.leftHandExternalReportingSetId != null) {
         lhs =

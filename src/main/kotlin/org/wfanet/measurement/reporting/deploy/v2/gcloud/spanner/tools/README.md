@@ -187,7 +187,10 @@ The replacement Campaign Group contains the complete report union. Stored
 measurement bases must resolve to primitives whose EventGroups are contained in
 the expression's universe. Missing or nonprimitive bases, or bases introducing
 other EventGroups, block the report. Compiled bases may omit expression leaves
-that cancel algebraically.
+that cancel algebraically. Every stored weighted union must retain at least
+one primitive basis, and every expression operation must be a recognized union,
+difference, or intersection. These checks also apply to custom composite
+components. Incomplete unions and invalid operations block the whole report.
 
 The original primitive or composite ReportingSet is never modified. The
 Campaign Group change and all component IDs are written to the `BasicReport` in
