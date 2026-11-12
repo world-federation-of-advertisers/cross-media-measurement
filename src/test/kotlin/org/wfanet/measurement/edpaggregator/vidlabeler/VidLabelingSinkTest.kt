@@ -370,6 +370,19 @@ class VidLabelingSinkTest {
     }
 
   @Test
+  fun `commit writes no output when every impression is filtered out`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val sink = sink(listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))))
+
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = 2_000L, idByte = 1)))
+      sink.commit()
+      sink.close()
+
+      assertThat(tempFolder.root.walkTopDown().filter { it.isFile }.toList()).isEmpty()
+    }
+
+  @Test
   fun `commit fails without metadata when the exclusive interval end is unrepresentable`() =
     runBlocking<Unit> {
       tempFolder.root.resolve("labeled").mkdirs()

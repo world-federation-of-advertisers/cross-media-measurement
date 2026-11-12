@@ -14,3 +14,5 @@ Halo workflows read non-secret per-environment configuration from committed file
 Secret mapping values committed in tfvars name Secret Manager resources and filesystem mount paths; secret contents must remain in GitHub or Google Secret Manager.
 
 Set Spanner capacity with `spanner_processing_units` in the selected tfvars file. Terraform reapplies that value during deployment, so commit sustained capacity increases there to preserve them across deployments.
+
+`REQUISITION_FETCHER_SCHEDULER_JOB_NAME` in `cmms.json` selects the scheduler paused by Update CMMS. The workflow also passes this value to Terraform as `requisition_fetcher_scheduler_job_name`, so both operations address the same job.
