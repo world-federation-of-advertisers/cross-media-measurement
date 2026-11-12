@@ -29,6 +29,26 @@ both configured paths. Existing external data does not need to be moved or
 regenerated. Healing earlier internal output may require its earlier labeling
 configuration and prefix.
 
+## Upgrade legacy healing operations
+
+Before the obsolete-field migration, keep older healing controllers and clients quiesced so they
+cannot create or advance legacy plans during the schema update. The migration halts before changing
+the table if a version-one operation, including a row with `NULL` plan format, is not `COMPLETE`.
+Inspect the affected operations before upgrading:
+
+```sql
+SELECT DataProviderResourceId, UploadHealingOperationId, State, PlanFormatVersion
+FROM UploadHealingOperation
+WHERE (PlanFormatVersion IS NULL OR PlanFormatVersion = 1)
+  AND State <> 2;
+```
+
+`2` is the stored `COMPLETE` state. Complete any returned legacy repairs using a compatible release
+before retrying the upgrade. Do not mark an interrupted repair complete or release its fence merely
+to bypass the guard. Completed legacy rows and active candidate-backed version-two plans can
+migrate; their remaining operation and step data stay readable, and each old `CreateRequestId`
+becomes its `ReconcileRequestId`.
+
 ## Inspect a correction
 
 Alerts identify the affected DataProvider and plan. List the plans requiring a decision or manual
@@ -53,10 +73,13 @@ vid-labeling-heal get-correction-plan \
 
 The plan contains every correction candidate, historical owner, memoized cascade step, and
 non-memoized local step. Its `etag` changes whenever a pending candidate or computed step changes.
-Output locations and retention policy remain controller configuration; they are not copied into the
-persisted operation. Candidate-linked steps identify the uploads whose derived state is invalid.
-Retention is enforced while the draft remains mutable; approval freezes the step graph, so later
-controller progression does not reject it merely because the configured window advanced.
+The controller supplies the labeled-output prefix when it creates or reconciles a draft, and the
+operation persists that prefix. Availability handoff checks it against current controller
+configuration; restore the matching configuration if that check fails on resume. Candidate-linked
+steps identify the uploads whose derived state is invalid. Retention remains controller
+configuration; an operation does not persist a retention cutoff. Retention is enforced while the
+draft remains mutable; approval freezes the step graph, so later controller progression does not
+reject it merely because the configured window advanced.
 
 List candidate summaries when the plan needs more investigation:
 

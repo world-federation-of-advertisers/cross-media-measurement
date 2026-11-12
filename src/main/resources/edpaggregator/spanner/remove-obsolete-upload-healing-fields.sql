@@ -15,6 +15,8 @@
 -- limitations under the License.
 
 -- changeset marcopremier:26 dbms:cloudspanner
+-- preconditions onFail:HALT onError:HALT
+-- precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM UploadHealingOperation WHERE (PlanFormatVersion IS NULL OR PlanFormatVersion = 1) AND State <> 2
 -- comment: Remove obsolete client-authored upload-healing fields.
 
 ALTER TABLE UploadHealingOperation
