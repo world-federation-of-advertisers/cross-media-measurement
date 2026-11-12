@@ -986,7 +986,8 @@ resource "google_storage_bucket_object" "upload_vid_labeling_dispatcher_config" 
 }
 
 module "vid_labeling_dispatcher_cloud_function" {
-  source = "../http-cloud-function"
+  source             = "../http-cloud-function"
+  deployment_enabled = var.tee_consumers_enabled
 
   depends_on = [
     module.secrets,
@@ -1097,7 +1098,8 @@ module "vid_labeling_dispatch_cloud_scheduler" {
 
 # ---- VidLabelingHealingController (scheduled HTTP Cloud Function) ----
 module "vid_labeling_healing_controller_cloud_function" {
-  source = "../http-cloud-function"
+  source             = "../http-cloud-function"
+  deployment_enabled = var.tee_consumers_enabled
 
   depends_on = [
     module.secrets,
@@ -1127,6 +1129,7 @@ module "vid_labeling_healing_controller_cloud_scheduler" {
     google_storage_bucket_iam_member.vid_labeling_healing_controller_config_viewer,
     google_storage_bucket_iam_member.vid_labeling_healing_controller_output_deleter,
     google_storage_bucket_iam_member.vid_labeling_healing_controller_storage_viewer,
+    google_storage_bucket_iam_member.vid_labeling_healing_controller_done_writer,
   ]
 }
 
@@ -1141,6 +1144,17 @@ resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_sto
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_done_writer" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+
+  condition {
+    title      = "write_recovery_done_markers"
+    expression = "resource.name.endsWith('/done')"
+  }
 }
 
 resource "google_project_iam_custom_role" "vid_labeling_healing_output_deleter" {

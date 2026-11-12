@@ -60,6 +60,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.transferVid
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.unassignRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadModelLineState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingOperationState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingStep
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateVidLabelingEvictionFenceState
@@ -1366,6 +1367,34 @@ class SpannerUploadHealingOperationService(
       ) {
         "completed plan candidate has no decision"
       }
+      if (
+        candidate.decision ==
+          RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
+      ) {
+        val upload =
+          txn.getRawImpressionUploadByResourceId(
+            operation.dataProviderResourceId,
+            candidate.rawImpressionUploadResourceId,
+          )
+        check(
+          upload.rawImpressionUpload.state ==
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED ||
+            upload.rawImpressionUpload.state ==
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT
+        ) {
+          "no-replacement candidate upload is not quarantined"
+        }
+        if (
+          upload.rawImpressionUpload.state ==
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
+        ) {
+          txn.updateRawImpressionUploadState(
+            operation.dataProviderResourceId,
+            upload.rawImpressionUploadId,
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT,
+          )
+        }
+      }
       txn.completeRawImpressionUploadCorrectionCandidate(candidate)
     }
   }
@@ -1738,6 +1767,7 @@ class SpannerUploadHealingOperationService(
           .map { it.rawImpressionUpload }
           .filter {
             it.rawImpressionUploadResourceId != replacement.rawImpressionUploadResourceId &&
+              it.doneBlobGeneration != replacement.doneBlobGeneration &&
               Timestamps.compare(
                 if (it.hasDoneBlobCreateTime()) it.doneBlobCreateTime else it.createTime,
                 if (replacement.hasDoneBlobCreateTime()) replacement.doneBlobCreateTime
@@ -1746,12 +1776,13 @@ class SpannerUploadHealingOperationService(
           }
           .all {
             it.processingDeferred &&
-              it.state !in
+              (it.state in
                 setOf(
-                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
-                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
-                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
-                )
+                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
+                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+                ) ||
+                it.state == RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED &&
+                  !it.registrationComplete)
           }
       } else {
         false

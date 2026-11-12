@@ -86,6 +86,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
@@ -161,6 +162,9 @@ class VidLabelingMonitorTest {
     mockService()
   private val rankerJobService: RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase =
     mockService()
+  private val rankIndexBlobService:
+    RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase =
+    mockService()
   private val uploadHealingOperationService:
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase =
     mockService()
@@ -177,6 +181,7 @@ class VidLabelingMonitorTest {
     addService(rawImpressionUploadFileService)
     addService(vidLabelingJobService)
     addService(rankerJobService)
+    addService(rankIndexBlobService)
     addService(uploadHealingOperationService)
   }
 
@@ -215,6 +220,9 @@ class VidLabelingMonitorTest {
   }
   private val rankerJobStub by lazy {
     RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val rankIndexBlobStub by lazy {
+    RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(grpcTestServerRule.channel)
   }
   private val uploadHealingOperationStub by lazy {
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
@@ -292,6 +300,8 @@ class VidLabelingMonitorTest {
     VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+      rankIndexBlobStub = rankIndexBlobStub,
+      uploadHealingOperationStub = uploadHealingOperationStub,
       workItemsStub = workItemsStub,
       poolAssignmentJobStub = poolAssignmentJobStub,
       modelRolloutsStub = modelRolloutsStub,

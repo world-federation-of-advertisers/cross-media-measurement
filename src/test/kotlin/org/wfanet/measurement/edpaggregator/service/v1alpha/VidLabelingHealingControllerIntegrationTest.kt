@@ -98,6 +98,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManif
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.AdvanceUploadHealingStepCommand
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionCandidateCleaner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManifestReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
@@ -151,6 +152,8 @@ class VidLabelingHealingControllerIntegrationTest {
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
   private lateinit var dataAvailabilitySyncLeasesStub:
     DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
+  private lateinit var correctionDetectionStub:
+    RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
   private lateinit var dispatchSequencer: VidLabelingDispatchSequencer
 
   private val rawStorage = InMemoryStorageClient()
@@ -175,6 +178,9 @@ class VidLabelingHealingControllerIntegrationTest {
       ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel)
     dataAvailabilitySyncLeasesStub =
       DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub(channel)
+    correctionDetectionStub =
+      RawImpressionUploadCorrectionCandidateServiceGrpcKt
+        .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(publicServer.channel)
     dispatchSequencer = mock()
     dispatchSequencer.stub {
       onBlocking { resolveShardInfo(any()) } doReturn
@@ -278,6 +284,7 @@ class VidLabelingHealingControllerIntegrationTest {
         ),
         RawImpressionUploadCorrectionCandidateServiceGrpcKt
           .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(controllerServer.channel),
+        CorrectionCandidateCleaner { _ -> },
         operationsService,
         uploadsStub,
         filesStub,
@@ -422,6 +429,7 @@ class VidLabelingHealingControllerIntegrationTest {
         storageClient = rawStorage,
         rawImpressionUploadStub = uploadsStub,
         rawImpressionUploadFilesStub = filesStub,
+        correctionDetectionStub = correctionDetectionStub,
         rawImpressionUploadModelLineStub = modelLinesStub,
         rankIndexBlobStub = rankIndexBlobsStub,
         modelLinesStub = ModelLinesGrpcKt.ModelLinesCoroutineStub(publicServer.channel),

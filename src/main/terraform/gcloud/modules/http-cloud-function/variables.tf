@@ -87,3 +87,9 @@ variable "concurrency" {
   nullable    = true
   default     = null
 }
+
+variable "deployment_enabled" {
+  description = "Whether to deploy the function revision. The service account and IAM remain provisioned when false."
+  type        = bool
+  default     = true
+}

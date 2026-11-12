@@ -4,9 +4,15 @@ The VID-labeling dispatcher automatically quarantines a raw-upload revision when
 removes a previously registered object. The healing controller combines pending candidates into
 one DataProvider-scoped plan, pauses ordinary processing, and waits for one operator decision.
 
-Set `HEALING_INTERNAL_API_TARGET` to the controller-only persistence endpoint and
-`HEALING_INTERNAL_API_CERT_HOST` when its TLS authority differs from that endpoint.
-Keep the public raw-upload endpoint configured for reads and operator actions.
+The dispatcher and healing controller use `RAW_IMPRESSION_UPLOAD_TARGET` and
+`RAW_IMPRESSION_UPLOAD_CERT_HOST` for the public EDP Aggregator API. Their existing
+mTLS certificate and CA mappings also authenticate correction and healing calls.
+Controller environment values, secret mappings, and labeled-output deletion prefixes
+are configured in each environment's Terraform variables file.
+
+The update workflow prepares IAM and configuration while consumers are quiesced,
+rolls out the API server, and then deploys the function revisions. The healing
+schedule remains paused during that preparation.
 
 
 ## Deployment configuration

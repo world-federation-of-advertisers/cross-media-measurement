@@ -141,6 +141,24 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
+  fun `run purges expired candidates after processing a DataProvider`() = runBlocking {
+    whenever(candidatesService.listRawImpressionUploadCorrectionCandidates(any()))
+      .thenReturn(ListRawImpressionUploadCorrectionCandidatesResponse.getDefaultInstance())
+    whenever(operationsService.listUploadHealingOperations(any()))
+      .thenReturn(ListUploadHealingOperationsResponse.getDefaultInstance())
+    val purgedDataProviders = mutableListOf<String>()
+
+    val result =
+      newController(candidateCleaner = CorrectionCandidateCleaner { purgedDataProviders += it })
+        .run()
+
+    assertThat(result.processedDataProviders).isEqualTo(1)
+    assertThat(result.failedDataProviders).isEqualTo(0)
+    assertThat(purgedDataProviders).containsExactly(DATA_PROVIDER)
+    Unit
+  }
+
+  @Test
   fun `run combines pending candidates into one draft plan`() = runBlocking {
     whenever(candidatesService.listRawImpressionUploadCorrectionCandidates(any()))
       .thenReturn(
@@ -530,6 +548,94 @@ class VidLabelingHealingControllerTest {
     assertThat(operation.stepsList.single().state)
       .isEqualTo(UploadHealingStep.State.RECOVERY_STARTED)
     Unit
+  }
+
+  @Test
+  fun `completed recovery wins a done-object timestamp tie with its candidate`() = runBlocking {
+    val sharedDoneTime = timestamp { seconds = 150L }
+    val candidateUpload =
+      CANDIDATE_UPLOAD.copy {
+        doneBlobCreateTime = sharedDoneTime
+        createTime = timestamp { seconds = 200L }
+        registrationComplete = true
+      }
+    val recoveryName = "$DATA_PROVIDER/rawImpressionUploads/recovery"
+    val recoveryUpload =
+      candidateUpload.copy {
+        name = recoveryName
+        createTime = timestamp { seconds = 201L }
+        state = RawImpressionUpload.State.COMPLETED
+        uploadHealingOperation = OPERATION_NAME
+      }
+    val recoveryStartedStep =
+      EVICTING_OPERATION.stepsList.single().copy {
+        state = UploadHealingStep.State.RECOVERY_STARTED
+        recoveryDoneBlobGeneration = recoveryUpload.doneBlobGeneration
+      }
+    var operation =
+      EVICTING_OPERATION.copy {
+        state = UploadHealingOperation.State.REPLAYING
+        steps[0] = recoveryStartedStep
+      }
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val states =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+          .filter
+          .stateInList
+      listUploadHealingOperationsResponse {
+        if (operation.state in states) uploadHealingOperations += operation
+      }
+    }
+    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.vidlabeling.healing.AdvanceUploadHealingStepCommand
+        >(
+          0
+        )
+      val completedStep =
+        operation.stepsList.single().copy {
+          state = UploadHealingStep.State.COMPLETE
+          replacementRawImpressionUpload = request.replacementRawImpressionUpload
+        }
+      operation =
+        operation.copy {
+          state = UploadHealingOperation.State.COMPLETE
+          steps[0] = completedStep
+          etag = "complete"
+        }
+      completedStep
+    }
+    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+      .thenReturn(CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED })
+    whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(SOURCE_UPLOAD)
+    whenever(uploadsService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += listOf(candidateUpload, recoveryUpload)
+        }
+      )
+    whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$recoveryName/rawImpressionUploadModelLines/ml"
+            cmmsModelLine = CMMS_MODEL_LINE
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+        }
+      )
+
+    newController().run()
+
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertThat(operation.stepsList.single().replacementRawImpressionUpload).isEqualTo(recoveryName)
   }
 
   @Test
@@ -1477,6 +1583,122 @@ class VidLabelingHealingControllerTest {
     }
 
   @Test
+  fun `pending handoff publishes surviving source availability before completion`() = runBlocking {
+    val completedStep =
+      EVICTING_OPERATION.stepsList.single().copy {
+        state = UploadHealingStep.State.COMPLETE
+        replacementRawImpressionUpload = CANDIDATE_UPLOAD_NAME
+      }
+    var operation =
+      EVICTING_OPERATION.copy {
+        state = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+        steps[0] = completedStep
+      }
+    val replacement =
+      CANDIDATE_UPLOAD.copy {
+        registrationComplete = true
+        state = RawImpressionUpload.State.ACTIVE
+        uploadHealingOperation = OPERATION_NAME
+      }
+    val failedSource = SOURCE_UPLOAD.copy { state = RawImpressionUpload.State.FAILED }
+    val createRequests = mutableListOf<CreateWorkItemRequest>()
+    val publisher =
+      DataAvailabilitySyncWorkItemPublisher(
+        createWorkItem = { _, request ->
+          createRequests += request
+          request.workItem
+            .toBuilder()
+            .setName("workItems/${request.workItemId}")
+            .setState(WorkItem.State.QUEUED)
+            .setGeneration(1)
+            .build()
+        },
+        getWorkItem = { _, _ -> error("unexpected get") },
+      )
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val states =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+          .filter
+          .stateInList
+      listUploadHealingOperationsResponse {
+        if (operation.state in states) uploadHealingOperations += operation
+      }
+    }
+    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(operationsService.advanceUploadHealingOperation(any())).thenAnswer {
+      operation = operation.copy { state = UploadHealingOperation.State.COMPLETE }
+      operation
+    }
+    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+      .thenReturn(CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED })
+    whenever(uploadsService.getRawImpressionUpload(any())).thenAnswer { invocation ->
+      when (
+        invocation
+          .getArgument<org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest>(
+            0
+          )
+          .name
+      ) {
+        SOURCE_UPLOAD_NAME -> failedSource
+        CANDIDATE_UPLOAD_NAME -> replacement
+        else -> error("unexpected upload")
+      }
+    }
+    val survivingModelLine = "modelProviders/mp/modelSuites/ms/modelLines/surviving"
+    whenever(modelLinesService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+      val parent =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+          >(
+            0
+          )
+          .parent
+      listRawImpressionUploadModelLinesResponse {
+        rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+          name = "$parent/rawImpressionUploadModelLines/availability"
+          cmmsModelLine = if (parent == SOURCE_UPLOAD_NAME) survivingModelLine else CMMS_MODEL_LINE
+          state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+          pendingAvailabilityDates += date {
+            year = 2026
+            month = 11
+            day = 1
+          }
+        }
+      }
+    }
+
+    newController(
+        dataAvailabilitySyncWorkItemPublisher = publisher,
+        doneObjectMetadataReader =
+          DoneObjectMetadataReader { uri ->
+            DoneObjectMetadata(
+              if (survivingModelLine.substringAfterLast('/') in uri) 101L else 102L,
+              Instant.parse("2026-11-01T00:00:00Z"),
+            )
+          },
+      )
+      .run()
+
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    val triggeringUploads =
+      createRequests.map {
+        it.workItem.workItemParams
+          .unpack(WorkItem.WorkItemParams::class.java)
+          .appParams
+          .unpack(DataAvailabilitySyncParams::class.java)
+          .triggeringRawImpressionUpload
+      }
+    assertThat(triggeringUploads).containsExactly(SOURCE_UPLOAD_NAME, CANDIDATE_UPLOAD_NAME)
+    Unit
+  }
+
+  @Test
   fun `pending handoff retries after transient publication failure`() = runBlocking {
     val completedStep =
       EVICTING_OPERATION.stepsList.single().copy {
@@ -1764,7 +1986,7 @@ class VidLabelingHealingControllerTest {
 
   @Test
   fun `failed replacement moves the operation to needs attention`() = runBlocking {
-    val recoveryStep =
+    val recoveryStartedStep =
       EVICTING_OPERATION.stepsList.single().copy {
         state = UploadHealingStep.State.RECOVERY_STARTED
         recoveryDoneBlobGeneration = CANDIDATE_UPLOAD.doneBlobGeneration
@@ -1772,7 +1994,7 @@ class VidLabelingHealingControllerTest {
     var operation =
       EVICTING_OPERATION.copy {
         state = UploadHealingOperation.State.REPLAYING
-        steps[0] = recoveryStep
+        steps[0] = recoveryStartedStep
       }
     whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =
@@ -1853,6 +2075,7 @@ class VidLabelingHealingControllerTest {
       ),
     doneObjectMetadataReader: DoneObjectMetadataReader = DoneObjectMetadataReader { null },
     eventSink: VidLabelingHealingControllerEventSink = VidLabelingHealingControllerEventSink {},
+    candidateCleaner: CorrectionCandidateCleaner = CorrectionCandidateCleaner { _ -> },
     stallTimeout: Duration = Duration.ofHours(1),
   ): VidLabelingHealingController {
     val planner =
@@ -1895,6 +2118,7 @@ class VidLabelingHealingControllerTest {
       ),
       RawImpressionUploadCorrectionCandidateServiceGrpcKt
         .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(grpcTestServerRule.channel),
+      candidateCleaner,
       operationsService,
       RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
         grpcTestServerRule.channel
