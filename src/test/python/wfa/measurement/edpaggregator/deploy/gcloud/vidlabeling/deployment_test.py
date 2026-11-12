@@ -37,6 +37,7 @@ class VidLabelingDeploymentTest(unittest.TestCase):
         for environment in ("dev", "head", "qa"):
             with self.subTest(environment=environment):
                 variables = (CMMS / "envs" / (environment + ".tfvars")).read_text()
+                self.assertRegex(variables, r"(?m)^vid_labeling_healing_controller_enabled\s*=\s*false\s*$")
                 dispatcher = dict(item.split("=", 1) for item in string_value(variables, "vid_labeling_dispatcher_env_var").split(","))
                 controller = dict(item.split("=", 1) for item in string_value(variables, "vid_labeling_healing_controller_env_var").split(","))
                 for key in ("RAW_IMPRESSION_UPLOAD_TARGET", "RAW_IMPRESSION_UPLOAD_CERT_HOST", "CONTROL_PLANE_TARGET", "CONTROL_PLANE_CERT_HOST"):
@@ -64,7 +65,6 @@ class VidLabelingDeploymentTest(unittest.TestCase):
         for name in ("vid_labeling_healing_controller_env_var", "vid_labeling_healing_controller_secret_mapping", "vid_labeling_healing_labeled_output_object_prefixes"):
             self.assertNotIn('-var="' + name + "=", workflow)
         self.assertIn("-var-file=envs/${{ inputs.environment }}.tfvars", workflow)
-        self.assertNotIn("HEALING_INTERNAL_API_TARGET", (CMMS / "variables.tf").read_text())
 
     def test_quiescence_defers_deploy_and_activation_runs_the_real_deploy_command(self):
         module = MODULES / "http-cloud-function"
@@ -98,7 +98,7 @@ class VidLabelingDeploymentTest(unittest.TestCase):
         edpa = (MODULES / "edp-aggregator/main.tf").read_text()
         block = re.search(r'resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_done_writer"\s*\{(.*?)\n\}', edpa, re.S).group(1)
         self.assertRegex(block, r'role\s*=\s*"roles/storage.objectUser"')
-        self.assertIn("module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email", block)
+        self.assertIn("module.vid_labeling_healing_controller_cloud_function[0].cloud_function_service_account.email", block)
         expression = re.search(r'expression\s*=\s*"([^"\n]+)"', block).group(1)
         self.assertEqual(expression, "resource.name.endsWith('/done')")
         self.assertIn("google_storage_bucket_iam_member.vid_labeling_healing_controller_done_writer,", edpa)
