@@ -84,7 +84,6 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.ReconcileUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.RetryUploadHealingOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.UpdateUploadHealingOperationPlanRequest
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep
@@ -234,48 +233,6 @@ class SpannerUploadHealingOperationService(
           }
       }
     }
-  }
-
-  override suspend fun updateUploadHealingOperationPlan(
-    request: UpdateUploadHealingOperationPlanRequest
-  ): UploadHealingOperation {
-    requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
-    requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
-    requireNotBlank(request.etag, "etag")
-    require(request.hasUploadHealingOperation()) { "upload_healing_operation is required" }
-    val requested =
-      request.uploadHealingOperation.copy {
-        dataProviderResourceId = request.dataProviderResourceId
-        uploadHealingOperationId = request.uploadHealingOperationId
-      }
-    validatePlan(requested)
-    databaseClient
-      .readWriteTransaction(Options.tag("action=updateUploadHealingOperationPlan"))
-      .run { txn ->
-        val existing =
-          txn.findUploadHealingOperation(
-            request.dataProviderResourceId,
-            request.uploadHealingOperationId,
-          ) ?: throw notFound(request.uploadHealingOperationId)
-        if (hasSamePlan(existing.uploadHealingOperation, requested)) return@run
-        precondition(
-          existing.uploadHealingOperation.state ==
-            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED ||
-            existing.uploadHealingOperation.state ==
-              UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION &&
-              existing.uploadHealingOperation.resumeState ==
-                UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED
-        ) {
-          "only a pre-approval plan can be changed"
-        }
-        if (existing.uploadHealingOperation.etag != request.etag) {
-          throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
-            .asRuntimeException()
-        }
-        syncCandidateAssignments(txn, existing.uploadHealingOperation, requested)
-        txn.replaceUploadHealingOperationPlan(requested)
-      }
-    return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
   }
 
   override suspend fun advanceUploadHealingOperation(

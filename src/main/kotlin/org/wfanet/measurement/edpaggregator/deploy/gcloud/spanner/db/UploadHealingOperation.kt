@@ -362,8 +362,8 @@ fun AsyncDatabaseClient.TransactionContext.insertUploadHealingOperation(
 /** Replaces the mutable fields and steps of a draft upload-healing operation. */
 fun AsyncDatabaseClient.TransactionContext.replaceUploadHealingOperationPlan(
   operation: UploadHealingOperation,
-  mutationRequestIds: List<String>? = null,
-  mutationRequestFingerprints: List<ByteString>? = null,
+  mutationRequestIds: List<String>,
+  mutationRequestFingerprints: List<ByteString>,
 ) {
   bufferUpdateMutation("UploadHealingOperation") {
     set("DataProviderResourceId").to(operation.dataProviderResourceId)
@@ -394,13 +394,9 @@ fun AsyncDatabaseClient.TransactionContext.replaceUploadHealingOperationPlan(
     } else {
       set("OutputManifestState").to(operation.outputManifestState.number.toLong())
     }
-    if (mutationRequestIds != null) {
-      set("MutationRequestIds").toStringArray(mutationRequestIds)
-    }
-    if (mutationRequestFingerprints != null) {
-      set("MutationRequestFingerprints")
-        .toBytesArray(mutationRequestFingerprints.map { it.toGcloudByteArray() })
-    }
+    set("MutationRequestIds").toStringArray(mutationRequestIds)
+    set("MutationRequestFingerprints")
+      .toBytesArray(mutationRequestFingerprints.map { it.toGcloudByteArray() })
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   buffer(

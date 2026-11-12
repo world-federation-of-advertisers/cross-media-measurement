@@ -47,24 +47,23 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.ActivateQuarantinedRawImpressionUploadRequest
-import org.wfanet.measurement.internal.edpaggregator.AdvanceRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequestKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.RegisterDetectedRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.activateQuarantinedRawImpressionUploadRequest
-import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createQuarantinedRawImpressionUploadRequest
-import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadCorrectionCandidatesRequest
 import org.wfanet.measurement.internal.edpaggregator.purgeExpiredRawImpressionUploadCorrectionCandidatesRequest
@@ -254,7 +253,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
       RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
       processingDeferred = true,
     )
-    service.createRawImpressionUploadCorrectionCandidate(createRequest())
+    insertCandidate(registerRequest())
     insertEvictionFence(CANDIDATE_ID)
     val request = resolveDetectedRawImpressionUploadCorrectionCandidateRequest {
       dataProviderResourceId = DATA_PROVIDER_ID
@@ -302,15 +301,19 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
   }
 
   @Test
-  fun `create persists candidate`() =
+  fun `register persists candidate`() =
     runBlocking<Unit> {
       insertRawUpload(
         1L,
         UPLOAD_ID,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
+      insertEvictionFence(CANDIDATE_ID)
 
-      val created = service.createRawImpressionUploadCorrectionCandidate(createRequest())
+      val created =
+        service
+          .registerDetectedRawImpressionUploadCorrectionCandidate(registerRequest())
+          .rawImpressionUploadCorrectionCandidate
       val fetched =
         service.getRawImpressionUploadCorrectionCandidate(
           getRawImpressionUploadCorrectionCandidateRequest {
@@ -338,31 +341,16 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     }
 
   @Test
-  fun `create is idempotent`() =
+  fun `register rejects reused request ID with reordered manifest comparison`() =
     runBlocking<Unit> {
       insertRawUpload(
         1L,
         UPLOAD_ID,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      val request = createRequest()
-
-      val first = service.createRawImpressionUploadCorrectionCandidate(request)
-      val second = service.createRawImpressionUploadCorrectionCandidate(request)
-
-      assertThat(second).isEqualTo(first)
-    }
-
-  @Test
-  fun `create rejects reused request ID with reordered manifest comparison`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      val request = createRequest()
-      service.createRawImpressionUploadCorrectionCandidate(request)
+      insertEvictionFence(CANDIDATE_ID)
+      val request = registerRequest()
+      service.registerDetectedRawImpressionUploadCorrectionCandidate(request)
       val reorderedComparison =
         mixedManifestComparison
           .toBuilder()
@@ -381,14 +369,14 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUploadCorrectionCandidate(changedRequest)
+          service.registerDetectedRawImpressionUploadCorrectionCandidate(changedRequest)
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
     }
 
   @Test
-  fun `create rejects reused request ID with different candidate`() =
+  fun `register rejects reused request ID with different candidate`() =
     runBlocking<Unit> {
       insertRawUpload(
         1L,
@@ -400,12 +388,13 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         UPLOAD_ID_2,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      service.createRawImpressionUploadCorrectionCandidate(createRequest())
+      insertEvictionFence(CANDIDATE_ID)
+      service.registerDetectedRawImpressionUploadCorrectionCandidate(registerRequest())
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUploadCorrectionCandidate(
-            createRequest(CANDIDATE_ID_2, UPLOAD_ID_2).copy { requestId = CREATE_REQUEST_ID }
+          service.registerDetectedRawImpressionUploadCorrectionCandidate(
+            registerRequest(CANDIDATE_ID_2, UPLOAD_ID_2).copy { requestId = CREATE_REQUEST_ID }
           )
         }
 
@@ -413,20 +402,21 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     }
 
   @Test
-  fun `create rejects upload that is not quarantined`() =
+  fun `register rejects upload that cannot be quarantined`() =
     runBlocking<Unit> {
       insertRawUpload(1L, UPLOAD_ID, RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED)
+      insertEvictionFence(CANDIDATE_ID)
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUploadCorrectionCandidate(createRequest())
+          service.registerDetectedRawImpressionUploadCorrectionCandidate(registerRequest())
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   @Test
-  fun `create rejects quarantined upload before manifest registration completes`() =
+  fun `register rejects correction-required upload before manifest registration completes`() =
     runBlocking<Unit> {
       insertRawUpload(
         1L,
@@ -434,35 +424,18 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
         registrationComplete = false,
       )
+      insertEvictionFence(CANDIDATE_ID)
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUploadCorrectionCandidate(createRequest())
+          service.registerDetectedRawImpressionUploadCorrectionCandidate(registerRequest())
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   @Test
-  fun `create rejects quarantined upload without done creation time`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-        includeDoneBlobCreateTime = false,
-      )
-
-      val error =
-        assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUploadCorrectionCandidate(createRequest())
-        }
-
-      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    }
-
-  @Test
-  fun `create rejects invalid manifest digest`() =
+  fun `register rejects invalid manifest digest`() =
     runBlocking<Unit> {
       insertRawUpload(
         1L,
@@ -470,7 +443,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
       val request =
-        createRequest().copy {
+        registerRequest().copy {
           rawImpressionUploadCorrectionCandidate =
             rawImpressionUploadCorrectionCandidate.copy {
               priorManifestDigest = ByteString.copyFromUtf8("not-sha256")
@@ -479,14 +452,14 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUploadCorrectionCandidate(request)
+          service.registerDetectedRawImpressionUploadCorrectionCandidate(request)
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
 
   @Test
-  fun `create rejects a manifest comparison that does not match its digest`() =
+  fun `register rejects a manifest comparison that does not match its digest`() =
     runBlocking<Unit> {
       insertRawUpload(
         1L,
@@ -494,7 +467,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
       val request =
-        createRequest().copy {
+        registerRequest().copy {
           rawImpressionUploadCorrectionCandidate =
             rawImpressionUploadCorrectionCandidate.copy {
               manifestComparison =
@@ -513,14 +486,14 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUploadCorrectionCandidate(request)
+          service.registerDetectedRawImpressionUploadCorrectionCandidate(request)
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
 
   @Test
-  fun `create rejects a manifest entry without an event date`() =
+  fun `register rejects a manifest entry without an event date`() =
     runBlocking<Unit> {
       insertRawUpload(
         1L,
@@ -528,7 +501,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
       val request =
-        createRequest().copy {
+        registerRequest().copy {
           rawImpressionUploadCorrectionCandidate =
             rawImpressionUploadCorrectionCandidate.copy {
               manifestComparison =
@@ -547,14 +520,14 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUploadCorrectionCandidate(request)
+          service.registerDetectedRawImpressionUploadCorrectionCandidate(request)
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
 
   @Test
-  fun `create rejects a manifest entry with year zero`() =
+  fun `register rejects a manifest entry with year zero`() =
     runBlocking<Unit> {
       insertRawUpload(
         1L,
@@ -562,7 +535,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
       val request =
-        createRequest().copy {
+        registerRequest().copy {
           rawImpressionUploadCorrectionCandidate =
             rawImpressionUploadCorrectionCandidate.copy {
               manifestComparison =
@@ -587,20 +560,21 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUploadCorrectionCandidate(request)
+          service.registerDetectedRawImpressionUploadCorrectionCandidate(request)
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
 
   @Test
-  fun `create persists an event-date change as one mixed difference`() =
+  fun `register persists an event-date change as one mixed difference`() =
     runBlocking<Unit> {
       insertRawUpload(
         1L,
         UPLOAD_ID,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
+      insertEvictionFence(CANDIDATE_ID)
       val priorDate = date {
         year = 2026
         month = 1
@@ -627,7 +601,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
             }
         }
       val request =
-        createRequest().copy {
+        registerRequest().copy {
           rawImpressionUploadCorrectionCandidate =
             rawImpressionUploadCorrectionCandidate.copy {
               classification =
@@ -638,7 +612,10 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
             }
         }
 
-      val created = service.createRawImpressionUploadCorrectionCandidate(request)
+      val created =
+        service
+          .registerDetectedRawImpressionUploadCorrectionCandidate(request)
+          .rawImpressionUploadCorrectionCandidate
 
       assertThat(created.manifestComparison.differencesList.single().type)
         .isEqualTo(
@@ -647,44 +624,61 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     }
 
   @Test
-  fun `create persists prior legacy manifest with unknown generation`() =
+  fun `register persists prior legacy manifest with unknown generation`() =
     runBlocking<Unit> {
       insertRawUpload(
         1L,
         UPLOAD_ID,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
+      insertEvictionFence(CANDIDATE_ID)
 
       val created =
-        service.createRawImpressionUploadCorrectionCandidate(
-          createRequest(
-            classification =
-              RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED,
-            priorGeneration = 0L,
+        service
+          .registerDetectedRawImpressionUploadCorrectionCandidate(
+            registerRequest(
+              classification =
+                RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED,
+              priorGeneration = 0L,
+            )
           )
-        )
+          .rawImpressionUploadCorrectionCandidate
 
       assertThat(created.manifestComparison.priorManifestList.single().blobGeneration).isEqualTo(0L)
     }
 
   @Test
-  fun `create rejects second candidate for same upload`() =
+  fun `register rejects second candidate for same upload`() =
     runBlocking<Unit> {
       insertRawUpload(
         1L,
         UPLOAD_ID,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      service.createRawImpressionUploadCorrectionCandidate(createRequest())
+      insertEvictionFence(CANDIDATE_ID)
+      service.registerDetectedRawImpressionUploadCorrectionCandidate(registerRequest())
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUploadCorrectionCandidate(
-            createRequest(CANDIDATE_ID_2, UPLOAD_ID)
+          service.registerDetectedRawImpressionUploadCorrectionCandidate(
+            registerRequest(CANDIDATE_ID_2, UPLOAD_ID, CREATE_REQUEST_IDS[1])
           )
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
+
+  @Test
+  fun `register rejects unknown upload`() =
+    runBlocking<Unit> {
+      insertEvictionFence(CANDIDATE_ID)
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.registerDetectedRawImpressionUploadCorrectionCandidate(registerRequest())
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.NOT_FOUND)
     }
 
   @Test
@@ -729,13 +723,9 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
   fun `list filters by state`() =
     runBlocking<Unit> {
       createCandidates(2)
-      val pending = getCandidate(CANDIDATE_IDS[0])
-      service.advanceRawImpressionUploadCorrectionCandidate(
-        advanceRequest(
-          CANDIDATE_IDS[0],
-          pending.etag,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
-        )
+      setCandidateState(
+        CANDIDATE_IDS[0],
+        RawImpressionUploadCorrectionCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED,
       )
 
       val response =
@@ -771,16 +761,16 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         UPLOAD_IDS[1],
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      service.createRawImpressionUploadCorrectionCandidate(
-        createRequest(
+      insertCandidate(
+        registerRequest(
           CANDIDATE_IDS[0],
           UPLOAD_IDS[0],
           CREATE_REQUEST_IDS[0],
           RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED,
         )
       )
-      service.createRawImpressionUploadCorrectionCandidate(
-        createRequest(
+      insertCandidate(
+        registerRequest(
           CANDIDATE_IDS[1],
           UPLOAD_IDS[1],
           CREATE_REQUEST_IDS[1],
@@ -825,382 +815,6 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     }
 
   @Test
-  fun `correct lifecycle completes`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      insertHealingOperation()
-      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
-
-      val assigned =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            pending.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-            operationId = OPERATION_ID,
-          )
-        )
-      val approved =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            assigned.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_APPLY_CANDIDATE,
-          )
-        )
-      completeHealingOperation()
-      val complete =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            approved.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
-          )
-        )
-
-      assertThat(assigned.uploadHealingOperationId).isEqualTo(OPERATION_ID)
-      assertThat(approved.decision)
-        .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE)
-      assertThat(complete.state)
-        .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE)
-      assertThat(complete.manifestComparison).isEqualTo(mixedManifestComparison)
-    }
-
-  @Test
-  fun `no replacement lifecycle completes without replay state`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      insertHealingOperation()
-      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
-      val assigned =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            pending.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-            operationId = OPERATION_ID,
-          )
-        )
-      val approved =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            assigned.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action
-              .APPROVE_REMOVE_WITHOUT_REPLACEMENT,
-          )
-        )
-      completeHealingOperation()
-      val complete =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            approved.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
-          )
-        )
-
-      assertThat(complete.state)
-        .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE)
-      assertThat(complete.decision)
-        .isEqualTo(
-          RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
-        )
-    }
-
-  @Test
-  fun `approved decision is immutable`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      insertHealingOperation()
-      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
-      val assigned =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            pending.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-            operationId = OPERATION_ID,
-          )
-        )
-      val approved =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            assigned.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_APPLY_CANDIDATE,
-          )
-        )
-
-      val error =
-        assertFailsWith<StatusRuntimeException> {
-          service.advanceRawImpressionUploadCorrectionCandidate(
-            advanceRequest(
-              CANDIDATE_ID,
-              approved.etag,
-              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action
-                .APPROVE_REMOVE_WITHOUT_REPLACEMENT,
-            )
-          )
-        }
-
-      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    }
-
-  @Test
-  fun `advance is idempotent`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      insertHealingOperation()
-      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
-      val request =
-        advanceRequest(
-          CANDIDATE_ID,
-          pending.etag,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-          operationId = OPERATION_ID,
-        )
-
-      val first = service.advanceRawImpressionUploadCorrectionCandidate(request)
-      val second = service.advanceRawImpressionUploadCorrectionCandidate(request)
-      val approved =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            first.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_APPLY_CANDIDATE,
-          )
-        )
-      val delayedRetry = service.advanceRawImpressionUploadCorrectionCandidate(request)
-
-      assertThat(second).isEqualTo(first)
-      assertThat(delayedRetry).isEqualTo(approved)
-    }
-
-  @Test
-  fun `advance rejects request ID reused for another action`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      insertHealingOperation()
-      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
-      val assignRequest =
-        advanceRequest(
-          CANDIDATE_ID,
-          pending.etag,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-          operationId = OPERATION_ID,
-        )
-      val assigned = service.advanceRawImpressionUploadCorrectionCandidate(assignRequest)
-
-      val error =
-        assertFailsWith<StatusRuntimeException> {
-          service.advanceRawImpressionUploadCorrectionCandidate(
-            assignRequest.copy {
-              etag = assigned.etag
-              action =
-                AdvanceRawImpressionUploadCorrectionCandidateRequest.Action
-                  .REQUIRE_MANUAL_INTERVENTION
-              uploadHealingOperationId = ""
-            }
-          )
-        }
-
-      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-    }
-
-  @Test
-  fun `advance rejects request ID reused for another candidate`() =
-    runBlocking<Unit> {
-      createCandidates(2)
-      insertHealingOperation()
-      val first = getCandidate(CANDIDATE_IDS[0])
-      val second = getCandidate(CANDIDATE_IDS[1])
-      service.advanceRawImpressionUploadCorrectionCandidate(
-        advanceRequest(
-          CANDIDATE_IDS[0],
-          first.etag,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-          operationId = OPERATION_ID,
-        )
-      )
-
-      val error =
-        assertFailsWith<StatusRuntimeException> {
-          service.advanceRawImpressionUploadCorrectionCandidate(
-            advanceRequest(
-              CANDIDATE_IDS[1],
-              second.etag,
-              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-              operationId = OPERATION_ID,
-            )
-          )
-        }
-
-      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-    }
-
-  @Test
-  fun `assign plan rejects missing healing operation`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
-
-      val error =
-        assertFailsWith<StatusRuntimeException> {
-          service.advanceRawImpressionUploadCorrectionCandidate(
-            advanceRequest(
-              CANDIDATE_ID,
-              pending.etag,
-              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-              operationId = OPERATION_ID,
-            )
-          )
-        }
-
-      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    }
-
-  @Test
-  fun `assign plan rejects operation without candidate membership`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      insertHealingOperation(candidateIds = emptyList())
-      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
-
-      val error =
-        assertFailsWith<StatusRuntimeException> {
-          service.advanceRawImpressionUploadCorrectionCandidate(
-            advanceRequest(
-              CANDIDATE_ID,
-              pending.etag,
-              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-              operationId = OPERATION_ID,
-            )
-          )
-        }
-
-      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    }
-
-  @Test
-  fun `complete rejects active healing operation`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      insertHealingOperation()
-      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
-      val assigned =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            pending.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-            operationId = OPERATION_ID,
-          )
-        )
-      val approved =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            assigned.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_APPLY_CANDIDATE,
-          )
-        )
-      val error =
-        assertFailsWith<StatusRuntimeException> {
-          service.advanceRawImpressionUploadCorrectionCandidate(
-            advanceRequest(
-              CANDIDATE_ID,
-              approved.etag,
-              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
-            )
-          )
-        }
-
-      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    }
-
-  @Test
-  fun `advance rejects stale etag`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      service.createRawImpressionUploadCorrectionCandidate(createRequest())
-
-      val error =
-        assertFailsWith<StatusRuntimeException> {
-          service.advanceRawImpressionUploadCorrectionCandidate(
-            advanceRequest(
-              CANDIDATE_ID,
-              "stale",
-              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-              operationId = OPERATION_ID,
-            )
-          )
-        }
-
-      assertThat(error.status.code).isEqualTo(Status.Code.ABORTED)
-    }
-
-  @Test
-  fun `advance rejects invalid lifecycle transition`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
-
-      val error =
-        assertFailsWith<StatusRuntimeException> {
-          service.advanceRawImpressionUploadCorrectionCandidate(
-            advanceRequest(
-              CANDIDATE_ID,
-              pending.etag,
-              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
-            )
-          )
-        }
-
-      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    }
-
-  @Test
   fun `supersede records newer candidate`() =
     runBlocking<Unit> {
       insertRawUpload(
@@ -1216,9 +830,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         doneBlobUri = SHARED_DONE_BLOB_URI,
         registrationComplete = false,
       )
-      service.createRawImpressionUploadCorrectionCandidate(
-        createRequest(CANDIDATE_IDS[0], UPLOAD_IDS[0], CREATE_REQUEST_IDS[0])
-      )
+      insertCandidate(registerRequest(CANDIDATE_IDS[0], UPLOAD_IDS[0], CREATE_REQUEST_IDS[0]))
       insertEvictionFence(CANDIDATE_IDS[0])
 
       val registration =
@@ -1242,108 +854,6 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
           it.getVidLabelingEvictionFence(DATA_PROVIDER_ID)
         }
       assertThat(fence?.evictionOperationId).isEqualTo(CANDIDATE_IDS[1])
-    }
-
-  @Test
-  fun `supersede rejects candidate for another done object`() =
-    runBlocking<Unit> {
-      createCandidates(2)
-      val current = getCandidate(CANDIDATE_IDS[0])
-
-      val error =
-        assertFailsWith<StatusRuntimeException> {
-          service.advanceRawImpressionUploadCorrectionCandidate(
-            advanceRequest(
-              CANDIDATE_IDS[0],
-              current.etag,
-              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
-              supersedingCandidateId = CANDIDATE_IDS[1],
-            )
-          )
-        }
-
-      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    }
-
-  @Test
-  fun `supersede active candidate preserves the plan fence`() = runBlocking {
-    insertRawUpload(
-      1L,
-      UPLOAD_IDS[0],
-      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      doneBlobUri = SHARED_DONE_BLOB_URI,
-    )
-    insertRawUpload(
-      2L,
-      UPLOAD_IDS[1],
-      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      doneBlobUri = SHARED_DONE_BLOB_URI,
-    )
-    service.createRawImpressionUploadCorrectionCandidate(
-      createRequest(CANDIDATE_IDS[0], UPLOAD_IDS[0], CREATE_REQUEST_IDS[0])
-    )
-    service.createRawImpressionUploadCorrectionCandidate(
-      createRequest(CANDIDATE_IDS[1], UPLOAD_IDS[1], CREATE_REQUEST_IDS[1])
-    )
-    insertHealingOperation()
-    setCandidateState(
-      CANDIDATE_IDS[0],
-      RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED,
-      OPERATION_ID,
-    )
-    insertEvictionFence(OPERATION_ID)
-    val current = getCandidate(CANDIDATE_IDS[0])
-
-    val superseded =
-      service.advanceRawImpressionUploadCorrectionCandidate(
-        advanceRequest(
-          CANDIDATE_IDS[0],
-          current.etag,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
-          supersedingCandidateId = CANDIDATE_IDS[1],
-        )
-      )
-
-    assertThat(superseded.state)
-      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED)
-    val fence =
-      spannerDatabase.databaseClient.singleUse().use {
-        it.getVidLabelingEvictionFence(DATA_PROVIDER_ID)
-      }
-    assertThat(fence?.evictionOperationId).isEqualTo(OPERATION_ID)
-  }
-
-  @Test
-  fun `terminal candidate rejects further transition`() =
-    runBlocking<Unit> {
-      insertRawUpload(
-        1L,
-        UPLOAD_ID,
-        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
-      )
-      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
-      val manual =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            pending.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
-          )
-        )
-
-      val error =
-        assertFailsWith<StatusRuntimeException> {
-          service.advanceRawImpressionUploadCorrectionCandidate(
-            advanceRequest(
-              CANDIDATE_ID,
-              manual.etag,
-              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-              operationId = OPERATION_ID,
-            )
-          )
-        }
-
-      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   @Test
@@ -1565,8 +1075,8 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
       state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       correctionCandidateId = candidateId,
     )
-    service.createRawImpressionUploadCorrectionCandidate(
-      createRequest(
+    insertCandidate(
+      registerRequest(
         candidateId = candidateId,
         uploadId = uploadId,
         requestId = requestId,
@@ -1597,8 +1107,8 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         UPLOAD_IDS[index],
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      service.createRawImpressionUploadCorrectionCandidate(
-        createRequest(CANDIDATE_IDS[index], UPLOAD_IDS[index], CREATE_REQUEST_IDS[index])
+      insertCandidate(
+        registerRequest(CANDIDATE_IDS[index], UPLOAD_IDS[index], CREATE_REQUEST_IDS[index])
       )
     }
   }
@@ -1804,27 +1314,25 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
   private suspend fun setCandidateState(
     candidateId: String,
     state: RawImpressionUploadCorrectionCandidate.State,
-    operationId: String,
+    operationId: String? = null,
   ) {
-    spannerDatabase.databaseClient.write(
-      listOf(
-        Mutation.newUpdateBuilder("RawImpressionUploadCorrectionCandidate")
-          .set("DataProviderResourceId")
-          .to(DATA_PROVIDER_ID)
-          .set("RawImpressionUploadCorrectionCandidateId")
-          .to(candidateId)
-          .set("State")
-          .to(Value.protoEnum(state))
-          .set("UploadHealingOperationId")
-          .to(operationId)
-          .set("UpdateTime")
-          .to(Value.COMMIT_TIMESTAMP)
-          .build()
-      )
-    )
+    val mutation =
+      Mutation.newUpdateBuilder("RawImpressionUploadCorrectionCandidate")
+        .set("DataProviderResourceId")
+        .to(DATA_PROVIDER_ID)
+        .set("RawImpressionUploadCorrectionCandidateId")
+        .to(candidateId)
+        .set("State")
+        .to(Value.protoEnum(state))
+        .set("UpdateTime")
+        .to(Value.COMMIT_TIMESTAMP)
+    if (operationId != null) {
+      mutation.set("UploadHealingOperationId").to(operationId)
+    }
+    spannerDatabase.databaseClient.write(listOf(mutation.build()))
   }
 
-  private fun createRequest(
+  private fun registerRequest(
     candidateId: String = CANDIDATE_ID,
     uploadId: String = UPLOAD_ID,
     requestId: String = CREATE_REQUEST_ID,
@@ -1832,7 +1340,8 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
       RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED,
     priorGeneration: Long = 1L,
     expireTime: com.google.protobuf.Timestamp = EXPIRY_TIME,
-  ) = createRawImpressionUploadCorrectionCandidateRequest {
+    supersededCandidateId: String = "",
+  ) = registerDetectedRawImpressionUploadCorrectionCandidateRequest {
     val comparison = manifestComparison(classification, uploadId, priorGeneration)
     dataProviderResourceId = DATA_PROVIDER_ID
     rawImpressionUploadCorrectionCandidateId = candidateId
@@ -1844,48 +1353,24 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
       manifestComparison = comparison
       this.expireTime = expireTime
     }
-    this.requestId = requestId
-  }
-
-  private fun registerRequest(
-    candidateId: String = CANDIDATE_ID,
-    uploadId: String = UPLOAD_ID,
-    requestId: String = CREATE_REQUEST_ID,
-    supersededCandidateId: String = "",
-  ) = registerDetectedRawImpressionUploadCorrectionCandidateRequest {
-    val comparison =
-      manifestComparison(
-        RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED,
-        uploadId,
-      )
-    dataProviderResourceId = DATA_PROVIDER_ID
-    rawImpressionUploadCorrectionCandidateId = candidateId
-    rawImpressionUploadCorrectionCandidate = rawImpressionUploadCorrectionCandidate {
-      rawImpressionUploadResourceId = uploadId
-      classification = RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED
-      priorManifestDigest = manifestDigest(comparison.priorManifestList)
-      currentManifestDigest = manifestDigest(comparison.currentManifestList)
-      manifestComparison = comparison
-      expireTime = EXPIRY_TIME
-    }
     supersededRawImpressionUploadCorrectionCandidateId = supersededCandidateId
     this.requestId = requestId
   }
 
-  private fun advanceRequest(
-    candidateId: String,
-    etag: String,
-    action: AdvanceRawImpressionUploadCorrectionCandidateRequest.Action,
-    operationId: String = "",
-    supersedingCandidateId: String = "",
-  ) = advanceRawImpressionUploadCorrectionCandidateRequest {
-    dataProviderResourceId = DATA_PROVIDER_ID
-    rawImpressionUploadCorrectionCandidateId = candidateId
-    this.etag = etag
-    this.action = action
-    uploadHealingOperationId = operationId
-    supersedingRawImpressionUploadCorrectionCandidateId = supersedingCandidateId
-    requestId = REQUEST_IDS.getValue(action)
+  /** Inserts the candidate row directly, without the registration side effects. */
+  private suspend fun insertCandidate(
+    request: RegisterDetectedRawImpressionUploadCorrectionCandidateRequest
+  ) {
+    spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
+      txn.insertRawImpressionUploadCorrectionCandidate(
+        request.rawImpressionUploadCorrectionCandidate.copy {
+          dataProviderResourceId = request.dataProviderResourceId
+          rawImpressionUploadCorrectionCandidateId =
+            request.rawImpressionUploadCorrectionCandidateId
+        },
+        request.requestId,
+      )
+    }
   }
 
   private fun manifestComparison(
@@ -2125,21 +1610,6 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         CREATE_REQUEST_ID,
         "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
         "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-      )
-    private val REQUEST_IDS =
-      mapOf(
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN to
-          "00000000-0000-4000-8000-000000000001",
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_APPLY_CANDIDATE to
-          "00000000-0000-4000-8000-000000000002",
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action
-          .APPROVE_REMOVE_WITHOUT_REPLACEMENT to "00000000-0000-4000-8000-000000000003",
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE to
-          "00000000-0000-4000-8000-000000000005",
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE to
-          "00000000-0000-4000-8000-000000000007",
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION to
-          "00000000-0000-4000-8000-000000000008",
       )
     private val TERMINAL_STATES =
       listOf(
