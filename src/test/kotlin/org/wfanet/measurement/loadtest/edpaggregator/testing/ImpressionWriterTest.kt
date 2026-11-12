@@ -27,6 +27,7 @@ import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import java.io.File
 import java.security.GeneralSecurityException
 import java.time.LocalDate
 import java.time.ZoneId
@@ -547,24 +548,40 @@ class ImpressionWriterTest {
     }
 
   @Test
-  fun `writeLabeledImpressionData retries unavailable KMS unwrapping`() = runTest {
-    val aead = FailingAead(kmsHttpFailure(503), failuresRemaining = 1)
+  fun `writeLabeledImpressionData retries each transient KMS unwrapping failure`() = runTest {
+    for (code in listOf(429, 500, 502, 503, 504)) {
+      val aead = FailingAead(kmsHttpFailure(code), failuresRemaining = 1)
+      val written =
+        writeAndReadImpressions(
+          "",
+          emptyList(),
+          false,
+          aead,
+          tempFolder.newFolder("unwrapping-$code"),
+        )
 
-    val written = writeAndReadImpressions("", emptyList(), false, aead)
-
-    assertThat(written.impressions).hasSize(2)
-    assertThat(aead.encryptCalls).isEqualTo(1)
-    assertThat(aead.decryptCalls).isEqualTo(3)
+      assertThat(written.impressions).hasSize(2)
+      assertThat(aead.encryptCalls).isEqualTo(1)
+      assertThat(aead.decryptCalls).isEqualTo(3)
+    }
   }
 
   @Test
-  fun `writeLabeledImpressionData retries unavailable KMS key wrapping`() = runTest {
-    val aead = FailingAead(kmsHttpFailure(503), failuresRemaining = 1, failEncrypt = true)
+  fun `writeLabeledImpressionData retries each transient KMS key wrapping failure`() = runTest {
+    for (code in listOf(429, 500, 502, 503, 504)) {
+      val aead = FailingAead(kmsHttpFailure(code), failuresRemaining = 1, failEncrypt = true)
+      val written =
+        writeAndReadImpressions(
+          "",
+          emptyList(),
+          false,
+          aead,
+          tempFolder.newFolder("wrapping-$code"),
+        )
 
-    val written = writeAndReadImpressions("", emptyList(), false, aead)
-
-    assertThat(written.impressions).hasSize(2)
-    assertThat(aead.encryptCalls).isEqualTo(2)
+      assertThat(written.impressions).hasSize(2)
+      assertThat(aead.encryptCalls).isEqualTo(2)
+    }
   }
 
   @Test
@@ -646,6 +663,7 @@ class ImpressionWriterTest {
     entityKeys: List<EntityKey>,
     includeEventGroupReferenceIdInImpressions: Boolean,
     aead: Aead? = null,
+    storageRoot: File = tempFolder.root,
   ): WrittenImpressions {
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
     val kmsClient =
@@ -658,8 +676,8 @@ class ImpressionWriterTest {
       }
     val impressionsBucket = "identifier-impressions-bucket"
     val metadataBucket = "identifier-metadata-bucket"
-    tempFolder.root.resolve(impressionsBucket).mkdirs()
-    tempFolder.root.resolve(metadataBucket).mkdirs()
+    storageRoot.resolve(impressionsBucket).mkdirs()
+    storageRoot.resolve(metadataBucket).mkdirs()
     val impressionWriter =
       ImpressionsWriter(
         eventGroupReferenceId = eventGroupReferenceId,
@@ -668,7 +686,7 @@ class ImpressionWriterTest {
         kmsClient = kmsClient,
         impressionsBucket = impressionsBucket,
         impressionsMetadataBucket = metadataBucket,
-        storagePath = tempFolder.root,
+        storagePath = storageRoot,
         schema = "file:///",
         includeEventGroupReferenceIdInImpressions = includeEventGroupReferenceIdInImpressions,
       )
@@ -697,12 +715,12 @@ class ImpressionWriterTest {
       flatOutputBasePath = basePath,
     )
 
-    val storageClient = FileSystemStorageClient(tempFolder.root)
+    val storageClient = FileSystemStorageClient(storageRoot)
     val blobDetails =
       BlobDetails.parseFrom(
         storageClient.getBlob("$metadataBucket/$basePath/$date/metadata.binpb")!!.read().flatten()
       )
-    val selectedStorageClient = SelectedStorageClient(blobDetails.blobUri, tempFolder.root)
+    val selectedStorageClient = SelectedStorageClient(blobDetails.blobUri, storageRoot)
     val decryptionClient =
       selectedStorageClient.withEnvelopeEncryption(
         kmsClient,
