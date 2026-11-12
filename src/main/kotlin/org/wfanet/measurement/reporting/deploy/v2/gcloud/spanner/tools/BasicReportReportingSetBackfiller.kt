@@ -55,7 +55,7 @@ import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidExc
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 /**
- * Backfills `ReportingUnitComponentSummary.external_reporting_set_id` on stored `BasicReport`s.
+ * Repairs Campaign Group references and component ReportingSet IDs on stored `BasicReport`s.
  *
  * Every SUCCEEDED `BasicReport`, across all `MeasurementConsumer`s, is examined. Each component
  * summary missing the field is resolved to the Campaign Group child `ReportingSet` whose membership
@@ -620,7 +620,7 @@ class BasicReportReportingSetBackfiller(
       return
     }
 
-    if (componentIndexesNeedingRepair.isEmpty()) {
+    if (!campaignGroupChanged && componentIndexesNeedingRepair.isEmpty()) {
       alreadyValid++
       return
     }

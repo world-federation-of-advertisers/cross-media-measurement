@@ -99,16 +99,10 @@ class EventGroupReader(private val readContext: ReadContext) {
       return emptyFlow()
     }
 
-    val parameters: List<String> = distinctCmmsEventGroupIds.indices.map { "\$${it + 2}" }
     val statement =
-      boundStatement(
-        "$baseSql WHERE MeasurementConsumerId = \$1 " +
-          "AND CmmsEventGroupId IN (${parameters.joinToString()})"
-      ) {
+      boundStatement("$baseSql WHERE MeasurementConsumerId = \$1 AND CmmsEventGroupId = ANY(\$2)") {
         bind("\$1", measurementConsumerId)
-        distinctCmmsEventGroupIds.forEachIndexed { index, cmmsEventGroupId ->
-          bind(parameters[index], cmmsEventGroupId)
-        }
+        bind("\$2", distinctCmmsEventGroupIds.toTypedArray())
       }
 
     return readContext.executeQuery(statement).consume(::translate)
