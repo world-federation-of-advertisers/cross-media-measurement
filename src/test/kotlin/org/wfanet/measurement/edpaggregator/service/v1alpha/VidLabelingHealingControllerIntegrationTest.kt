@@ -98,6 +98,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManif
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.AdvanceUploadHealingStepCommand
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionCandidateCleaner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManifestReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
@@ -132,7 +133,6 @@ class VidLabelingHealingControllerIntegrationTest {
     mockService<
       RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase
     >()
-  private val operationsService = mock<HealingOperationStore>()
   private val controllerServer = GrpcTestServerRule { addService(candidatesService) }
 
   @get:Rule
@@ -151,6 +151,8 @@ class VidLabelingHealingControllerIntegrationTest {
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
   private lateinit var dataAvailabilitySyncLeasesStub:
     DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
+  private lateinit var correctionDetectionStub:
+    RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
   private lateinit var dispatchSequencer: VidLabelingDispatchSequencer
 
   private val rawStorage = InMemoryStorageClient()
@@ -175,6 +177,9 @@ class VidLabelingHealingControllerIntegrationTest {
       ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel)
     dataAvailabilitySyncLeasesStub =
       DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub(channel)
+    correctionDetectionStub =
+      RawImpressionUploadCorrectionCandidateServiceGrpcKt
+        .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(publicServer.channel)
     dispatchSequencer = mock()
     dispatchSequencer.stub {
       onBlocking { resolveShardInfo(any()) } doReturn
@@ -228,7 +233,8 @@ class VidLabelingHealingControllerIntegrationTest {
         etag = "step-etag"
       }
     }
-    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+    val operationStore = mock<HealingOperationStore>()
+    whenever(operationStore.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =
         invocation
           .getArgument<
@@ -242,8 +248,8 @@ class VidLabelingHealingControllerIntegrationTest {
         if (operation.state in states) uploadHealingOperations += operation
       }
     }
-    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
-    whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+    whenever(operationStore.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(operationStore.advanceUploadHealingStep(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
       val updated =
         operation.stepsList.single().copy {
@@ -278,7 +284,8 @@ class VidLabelingHealingControllerIntegrationTest {
         ),
         RawImpressionUploadCorrectionCandidateServiceGrpcKt
           .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(controllerServer.channel),
-        operationsService,
+        CorrectionCandidateCleaner { _ -> },
+        operationStore,
         uploadsStub,
         filesStub,
         modelLinesStub,
@@ -422,6 +429,7 @@ class VidLabelingHealingControllerIntegrationTest {
         storageClient = rawStorage,
         rawImpressionUploadStub = uploadsStub,
         rawImpressionUploadFilesStub = filesStub,
+        correctionDetectionStub = correctionDetectionStub,
         rawImpressionUploadModelLineStub = modelLinesStub,
         rankIndexBlobStub = rankIndexBlobsStub,
         modelLinesStub = ModelLinesGrpcKt.ModelLinesCoroutineStub(publicServer.channel),

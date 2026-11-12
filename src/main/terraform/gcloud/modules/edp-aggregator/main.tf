@@ -988,7 +988,8 @@ resource "google_storage_bucket_object" "upload_vid_labeling_dispatcher_config" 
 }
 
 module "vid_labeling_dispatcher_cloud_function" {
-  source = "../http-cloud-function"
+  source             = "../http-cloud-function"
+  deployment_enabled = var.tee_consumers_enabled
 
   depends_on = [
     module.secrets,
@@ -1060,21 +1061,23 @@ module "vid_labeling_monitor_cloud_function" {
   config_path                              = var.vid_labeling_monitor_config.local_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
 
-  # See the dispatcher cap above. Together the two functions can run at most two 2-QPS clients.
-  # Health scans may traverse multiple metadata pages, so retain the same timeout headroom.
-  timeout_seconds = 600
+  # Storage-first health scans may enumerate the complete retained raw-input history. Keep one
+  # minute of response headroom under Cloud Scheduler's 30-minute HTTP deadline. Two GiB gives the
+  # metadata indexes enough heap and allocates one vCPU for the CPU-bound object-metadata decode.
+  timeout_seconds = 1740
   max_instances   = 1
   concurrency     = 1
+  memory          = "2048MB"
 }
 
 module "vid_labeling_monitor_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
-  # Wait beyond the function's 600-second timeout so Scheduler can receive its terminal response.
+  # Cloud Scheduler HTTP targets allow at most a 30-minute attempt deadline.
   scheduler_config = merge(
     var.vid_labeling_monitor_scheduler_config,
     {
-      attempt_deadline = "660s"
+      attempt_deadline = "1800s"
       retry_config = {
         retry_count          = 3
         min_backoff_duration = "300s"
@@ -1089,7 +1092,7 @@ module "vid_labeling_monitor_cloud_scheduler" {
 module "vid_labeling_dispatch_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
-  # This job invokes the same function in dispatch mode and needs the same response headroom.
+  # Dispatch mode performs no storage crawl and retains its existing 10-minute execution budget.
   scheduler_config = merge(
     var.vid_labeling_dispatch_scheduler_config,
     { attempt_deadline = "660s" },
@@ -1136,7 +1139,8 @@ moved {
 module "vid_labeling_healing_controller_cloud_function" {
   count = var.vid_labeling_healing_controller_enabled ? 1 : 0
 
-  source = "../http-cloud-function"
+  source             = "../http-cloud-function"
+  deployment_enabled = var.tee_consumers_enabled
 
   depends_on = [
     module.secrets,
@@ -1168,6 +1172,7 @@ module "vid_labeling_healing_controller_cloud_scheduler" {
     google_storage_bucket_iam_member.vid_labeling_healing_controller_config_viewer,
     google_storage_bucket_iam_member.vid_labeling_healing_controller_output_deleter,
     google_storage_bucket_iam_member.vid_labeling_healing_controller_storage_viewer,
+    google_storage_bucket_iam_member.vid_labeling_healing_controller_done_writer,
   ]
 }
 
@@ -1186,6 +1191,17 @@ resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_sto
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function[0].cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_done_writer" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+
+  condition {
+    title      = "write_recovery_done_markers"
+    expression = "resource.name.endsWith('/done')"
+  }
 }
 
 resource "google_project_iam_custom_role" "vid_labeling_healing_output_deleter" {

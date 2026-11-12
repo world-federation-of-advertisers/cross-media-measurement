@@ -45,8 +45,11 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinP
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
@@ -54,6 +57,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
@@ -64,6 +70,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
@@ -77,17 +86,20 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 internal fun availabilitySyncingBlocksDispatch(
-  blockingUploadHealingOperation: String,
-  candidateUploadHealingOperation: String,
-): Boolean =
-  candidateUploadHealingOperation.isEmpty() ||
-    blockingUploadHealingOperation != candidateUploadHealingOperation
+  blockingRawImpressionUpload: String,
+  allowedPredecessorRawImpressionUploads: Set<String>,
+): Boolean = blockingRawImpressionUpload !in allowedPredecessorRawImpressionUploads
 
-private data class AvailabilityHandoff(
-  val rawImpressionUpload: String,
-  val uploadHealingOperation: String,
-  val uploadIndex: Int,
-)
+private data class AvailabilityHandoff(val rawImpressionUpload: String)
+
+private data class HealingDispatchDependencies(
+  val allowedAvailabilityHandoffs: Set<String>,
+  val allowedPriorSnapshotUploads: List<String>,
+) {
+  companion object {
+    val NONE = HealingDispatchDependencies(emptySet(), emptyList())
+  }
+}
 
 /**
  * Sequences VID labeling dispatch for one `DataProvider`.
@@ -143,6 +155,9 @@ class VidLabelingDispatchSequencer(
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadModelLineStub:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub,
+  private val rankIndexBlobStub: RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub,
+  private val uploadHealingOperationStub:
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val poolAssignmentJobStub:
     PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub,
@@ -182,6 +197,220 @@ class VidLabelingDispatchSequencer(
     val shardInfo: ResolvedShardInfo,
   )
 
+  /** One consistent, RPC-cached view of healing dependencies for a [dispatchNext] scan. */
+  private inner class DispatchScan(
+    uploads: List<RawImpressionUpload>,
+    modelLinesByUpload: Map<String, List<RawImpressionUploadModelLine>>,
+  ) {
+    private val uploadsByName = uploads.associateByTo(mutableMapOf()) { it.name }
+    private val modelLinesByUpload = modelLinesByUpload.toMutableMap()
+    private val operationsByName = mutableMapOf<String, UploadHealingOperation>()
+    private val liveSnapshots = mutableMapOf<Pair<String, String>, Boolean>()
+
+    suspend fun resolve(
+      upload: RawImpressionUpload,
+      modelLine: RawImpressionUploadModelLine,
+    ): HealingDispatchDependencies {
+      if (upload.uploadHealingOperation.isEmpty()) return HealingDispatchDependencies.NONE
+
+      val operation = getOperation(upload.uploadHealingOperation)
+      val scopedSteps = operation.stepsList.filter { it.cmmsModelLine == modelLine.cmmsModelLine }
+      val lineage = getRevisionLineage(upload)
+      val currentSteps =
+        scopedSteps.filter { it.recoveryTarget && it.sourceRawImpressionUpload in lineage }
+      check(currentSteps.size == 1) {
+        "Expected one recovery target for ${upload.name} and ${modelLine.cmmsModelLine} in " +
+          "${operation.name}, found ${currentSteps.size}"
+      }
+      val currentStep = currentSteps.single()
+
+      val allowedAvailabilityHandoffs = mutableSetOf<String>()
+      for (step in
+        scopedSteps.filter {
+          it.recoveryTarget &&
+            it.sequenceNumber < currentStep.sequenceNumber &&
+            it.recoveryAction !=
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+        }) {
+        allowedAvailabilityHandoffs +=
+          requireReadyReplacement(operation, step, requireSnapshot = false)
+      }
+
+      if (!currentStep.memoized) {
+        return HealingDispatchDependencies(allowedAvailabilityHandoffs, emptyList())
+      }
+
+      val predecessorReplacements = mutableListOf<String>()
+      val stepsBySource = scopedSteps.groupBy { it.sourceRawImpressionUpload }
+      val visited = mutableSetOf<String>()
+      var cursor = currentStep
+      var predecessor = currentStep.recoveryPredecessorRawImpressionUpload
+      while (predecessor.isNotEmpty()) {
+        check(visited.add(predecessor)) {
+          "Recovery predecessor cycle for ${upload.name} and ${modelLine.cmmsModelLine}"
+        }
+        val matchingSteps = stepsBySource[predecessor].orEmpty()
+        if (matchingSteps.isEmpty()) {
+          requireExternalPredecessorReady(predecessor, modelLine.cmmsModelLine)
+          break
+        }
+        check(matchingSteps.size == 1) {
+          "Expected one healing step for predecessor $predecessor and " +
+            "${modelLine.cmmsModelLine}, found ${matchingSteps.size}"
+        }
+        val predecessorStep = matchingSteps.single()
+        check(predecessorStep.sequenceNumber < cursor.sequenceNumber) {
+          "Recovery predecessor $predecessor is not earlier than ${cursor.sourceRawImpressionUpload}"
+        }
+        check(predecessorStep.state == UploadHealingStep.State.COMPLETE) {
+          "Recovery predecessor step ${predecessorStep.name} is not COMPLETE"
+        }
+        if (
+          predecessorStep.recoveryAction ==
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+        ) {
+          check(predecessorStep.replacementRawImpressionUpload.isEmpty()) {
+            "NO_REPLACEMENT step ${predecessorStep.name} has a replacement"
+          }
+        } else {
+          predecessorReplacements +=
+            requireReadyReplacement(operation, predecessorStep, requireSnapshot = true)
+        }
+        cursor = predecessorStep
+        predecessor = predecessorStep.recoveryPredecessorRawImpressionUpload
+      }
+
+      return HealingDispatchDependencies(
+        predecessorReplacements.toSet(),
+        predecessorReplacements.asReversed(),
+      )
+    }
+
+    private suspend fun getOperation(name: String): UploadHealingOperation {
+      operationsByName[name]?.let {
+        return it
+      }
+      val operation =
+        rpcThrottlers.metadataRead.onReady {
+          uploadHealingOperationStub.getUploadHealingOperation(
+            getUploadHealingOperationRequest { this.name = name }
+          )
+        }
+      check(operation.name == name) {
+        "UploadHealingOperation lookup for $name returned ${operation.name}"
+      }
+      operationsByName[name] = operation
+      return operation
+    }
+
+    private suspend fun getRevisionLineage(upload: RawImpressionUpload): Set<String> {
+      val lineage = linkedSetOf<String>()
+      var current = upload
+      while (true) {
+        check(lineage.add(current.name)) { "RawImpressionUpload revision cycle at ${current.name}" }
+        val predecessor = current.replacesRawImpressionUpload
+        if (predecessor.isEmpty()) return lineage
+        current = getUpload(predecessor)
+      }
+    }
+
+    private suspend fun getUpload(name: String): RawImpressionUpload {
+      uploadsByName[name]?.let {
+        return it
+      }
+      val upload =
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionUploadStub.getRawImpressionUpload(
+            getRawImpressionUploadRequest { this.name = name }
+          )
+        }
+      check(upload.name == name) { "RawImpressionUpload lookup for $name returned ${upload.name}" }
+      uploadsByName[name] = upload
+      return upload
+    }
+
+    private suspend fun getModelLine(
+      uploadName: String,
+      cmmsModelLine: String,
+    ): RawImpressionUploadModelLine {
+      val rows =
+        modelLinesByUpload[uploadName]
+          ?: listUploadModelLines(uploadName).also { modelLinesByUpload[uploadName] = it }
+      val matches = rows.filter { it.cmmsModelLine == cmmsModelLine }
+      check(matches.size == 1) {
+        "Expected one model-line row for $cmmsModelLine under $uploadName, found ${matches.size}"
+      }
+      return matches.single()
+    }
+
+    private suspend fun requireReadyReplacement(
+      operation: UploadHealingOperation,
+      step: UploadHealingStep,
+      requireSnapshot: Boolean,
+    ): String {
+      check(step.state == UploadHealingStep.State.COMPLETE) {
+        "Healing step ${step.name} is not COMPLETE"
+      }
+      val replacementName = step.replacementRawImpressionUpload
+      check(replacementName.isNotEmpty()) { "Healing step ${step.name} has no replacement" }
+      val replacement = getUpload(replacementName)
+      check(replacement.uploadHealingOperation == operation.name) {
+        "Replacement $replacementName does not belong to ${operation.name}"
+      }
+      val replacementModelLine = getModelLine(replacementName, step.cmmsModelLine)
+      check(
+        replacementModelLine.state in
+          setOf(
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+      ) {
+        "Replacement $replacementName has no durable output for ${step.cmmsModelLine}"
+      }
+      if (requireSnapshot) {
+        check(hasLiveSnapshot(replacementName, step.cmmsModelLine)) {
+          "Replacement $replacementName has no live snapshot for ${step.cmmsModelLine}"
+        }
+      }
+      return replacementName
+    }
+
+    private suspend fun requireExternalPredecessorReady(uploadName: String, cmmsModelLine: String) {
+      val predecessorModelLine = getModelLine(uploadName, cmmsModelLine)
+      check(predecessorModelLine.state == RawImpressionUploadModelLine.State.COMPLETED) {
+        "External recovery predecessor $uploadName is not COMPLETED for $cmmsModelLine"
+      }
+      check(hasLiveSnapshot(uploadName, cmmsModelLine)) {
+        "External recovery predecessor $uploadName has no live snapshot for $cmmsModelLine"
+      }
+    }
+
+    private suspend fun hasLiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
+      val key = uploadName to cmmsModelLine
+      liveSnapshots[key]?.let {
+        return it
+      }
+      val found =
+        rpcThrottlers.metadataRead
+          .onReady {
+            rankIndexBlobStub.listRankIndexBlobs(
+              listRankIndexBlobsRequest {
+                parent = uploadName
+                pageSize = 1
+                filter =
+                  ListRankIndexBlobsRequestKt.filter {
+                    blobType = RankIndexBlob.BlobType.SNAPSHOT
+                    this.cmmsModelLine = cmmsModelLine
+                  }
+              }
+            )
+          }
+          .rankIndexBlobsCount > 0
+      liveSnapshots[key] = found
+      return found
+    }
+  }
+
   /**
    * Dispatches each `CREATED` model line whose `(DataProvider, ModelLine)` is not already running.
    *
@@ -215,10 +444,11 @@ class VidLabelingDispatchSequencer(
       (listUploads(RawImpressionUpload.State.CREATED) +
           listUploads(RawImpressionUpload.State.ACTIVE))
         .filter { it.registrationComplete }
-        .filter { !it.processingDeferred }
+        .filter { it.state == RawImpressionUpload.State.ACTIVE || !it.processingDeferred }
         .sortedBy { Timestamps.toNanos(it.createTime) }
     val modelLinesByUpload: Map<String, List<RawImpressionUploadModelLine>> =
       uploads.associate { it.name to listUploadModelLines(it.name) }
+    val dispatchScan = DispatchScan(uploads, modelLinesByUpload)
 
     // Phase 0-2 work always serializes per model line. Availability handoff also serializes normal
     // uploads, but it does not block the next recovery step in the same healing operation: Phase 2
@@ -231,33 +461,70 @@ class VidLabelingDispatchSequencer(
         .map { it.cmmsModelLine }
         .toMutableSet()
     val availabilityHandoffsByModelLine = mutableMapOf<String, MutableList<AvailabilityHandoff>>()
-    for ((uploadIndex, upload) in uploads.withIndex()) {
+    for (upload in uploads) {
       for (modelLine in
         modelLinesByUpload.getValue(upload.name).filter {
           it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
         }) {
         availabilityHandoffsByModelLine
           .getOrPut(modelLine.cmmsModelLine) { mutableListOf() }
-          .add(AvailabilityHandoff(upload.name, upload.uploadHealingOperation, uploadIndex))
+          .add(AvailabilityHandoff(upload.name))
       }
     }
 
     var dispatchedUpload: String? = null
     var queuedModelLines = 0
-    for ((uploadIndex, upload) in uploads.withIndex()) {
+    for (upload in uploads) {
       // Memoized model lines are dispatched individually (Phase-0 fan-out); non-memoized lines of
       // this upload are collected and dispatched together as one bundled Phase-2 fan-out.
       val nonMemoized = mutableListOf<BundledModelLine>()
+      val resumedNonMemoized = mutableListOf<BundledModelLine>()
       for (modelLine in modelLinesByUpload.getValue(upload.name)) {
-        if (modelLine.state != RawImpressionUploadModelLine.State.CREATED) continue
+        if (
+          modelLine.state !in
+            setOf(
+              RawImpressionUploadModelLine.State.CREATED,
+              RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+              RawImpressionUploadModelLine.State.LABELING,
+            )
+        ) {
+          continue
+        }
         val availabilityHandoffs =
           availabilityHandoffsByModelLine[modelLine.cmmsModelLine].orEmpty()
+        val healingDependencies = dispatchScan.resolve(upload, modelLine)
+        if (
+          modelLine.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING ||
+            modelLine.state == RawImpressionUploadModelLine.State.LABELING
+        ) {
+          val shardInfo = resolveShardInfo(modelLine.cmmsModelLine) ?: continue
+          if (
+            modelLine.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING &&
+              shardInfo.memoizationEnabled
+          ) {
+            dispatchMemoized(
+              upload.name,
+              modelLine,
+              shardInfo,
+              healingDependencies.allowedPriorSnapshotUploads,
+              alreadyClaimed = true,
+            )
+          } else if (
+            modelLine.state == RawImpressionUploadModelLine.State.LABELING &&
+              !shardInfo.memoizationEnabled
+          ) {
+            resumedNonMemoized += BundledModelLine(modelLine, shardInfo)
+          }
+          continue
+        }
+        if (modelLine.state != RawImpressionUploadModelLine.State.CREATED) continue
+        if (upload.processingDeferred) continue
         val blockedByAvailability =
           availabilityHandoffs.any {
             availabilitySyncingBlocksDispatch(
-              it.uploadHealingOperation,
-              upload.uploadHealingOperation,
-            ) || it.uploadIndex >= uploadIndex
+              it.rawImpressionUpload,
+              healingDependencies.allowedAvailabilityHandoffs,
+            )
           }
         if (modelLine.cmmsModelLine in busyModelLines || blockedByAvailability) {
           queuedModelLines++
@@ -271,27 +538,29 @@ class VidLabelingDispatchSequencer(
           continue
         }
         if (shardInfo.memoizationEnabled) {
-          val allowedPriorSnapshotUploads =
-            availabilityHandoffs
-              .filter {
-                it.uploadIndex < uploadIndex &&
-                  it.uploadHealingOperation == upload.uploadHealingOperation &&
-                  upload.uploadHealingOperation.isNotEmpty()
-              }
-              .map { it.rawImpressionUpload }
-          dispatchMemoized(upload.name, modelLine, shardInfo, allowedPriorSnapshotUploads)
-          busyModelLines += modelLine.cmmsModelLine
-          if (dispatchedUpload == null) dispatchedUpload = upload.name
+          if (
+            dispatchMemoized(
+              upload.name,
+              modelLine,
+              shardInfo,
+              healingDependencies.allowedPriorSnapshotUploads,
+            )
+          ) {
+            busyModelLines += modelLine.cmmsModelLine
+            if (dispatchedUpload == null) dispatchedUpload = upload.name
+          }
         } else {
           nonMemoized += BundledModelLine(modelLine, shardInfo)
         }
       }
       if (nonMemoized.isNotEmpty()) {
-        val dispatched = dispatchNonMemoizedBundle(upload.name, nonMemoized)
-        for (bundled in nonMemoized) busyModelLines += bundled.modelLine.cmmsModelLine
-        if (dispatched) {
+        if (dispatchNonMemoizedBundle(upload.name, nonMemoized)) {
+          for (bundled in nonMemoized) busyModelLines += bundled.modelLine.cmmsModelLine
           if (dispatchedUpload == null) dispatchedUpload = upload.name
         }
+      }
+      if (resumedNonMemoized.isNotEmpty()) {
+        dispatchNonMemoizedBundle(upload.name, resumedNonMemoized, alreadyClaimed = true)
       }
     }
 
@@ -315,16 +584,14 @@ class VidLabelingDispatchSequencer(
   }
 
   /**
-   * Non-memoized (Phase-2) dispatch for all bundled non-memoized model lines of [uploadName]:
-   * bin-pack the upload's `RawImpressionUploadFile`s by size into batches, create one
-   * `VidLabelingJob` per batch (each job covering every bundled model line), publish one VidLabeler
-   * `WorkItem` per job on [queueName], then transition every bundled model line to `LABELING`.
+   * Non-memoized (Phase-2) dispatch for all bundled non-memoized model lines of [uploadName]: claim
+   * every bundled model line as `LABELING`, bin-pack its files, create one `VidLabelingJob` per
+   * batch, and publish one VidLabeler `WorkItem` per job on [queueName].
    *
    * Mirrors the Phase-1 `VidRankBuilder` fan-out (shared [RawImpressionFileBinPacker]). The
-   * last-out `MarkVidLabelingJobSucceeded` flips each covered model line to `COMPLETED`. Create
-   * order is jobs -> WorkItems -> mark, so all rows exist before the line is advanced; every create
-   * is idempotent (deterministic `request_id`s / `workItemId`s), so a caller that loses the
-   * per-model-line etag CAS at [markLabeling] has only repeated harmless creates.
+   * last-out `MarkVidLabelingJobSucceeded` flips each covered model line to `COMPLETED`. The claim
+   * occurs before external publication so a correction fence cannot race a WorkItem; every later
+   * create is deterministic and resumable.
    *
    * Bundle-set stability under partial failure: the job `request_id` is keyed by the *sorted bundle
    * set* ([RequestIds.forVidLabelingJob]), so if [markLabeling] succeeds for some lines but throws
@@ -341,12 +608,13 @@ class VidLabelingDispatchSequencer(
   private suspend fun dispatchNonMemoizedBundle(
     uploadName: String,
     bundle: List<BundledModelLine>,
+    alreadyClaimed: Boolean = false,
   ): Boolean =
     Tracing.traceSuspending(
       spanName = "edpa.vid_labeling.dispatch",
       attributes = dispatchAttributes(uploadName, "phase2"),
     ) {
-      val dispatched = dispatchNonMemoizedBundleInternal(uploadName, bundle)
+      val dispatched = dispatchNonMemoizedBundleInternal(uploadName, bundle, alreadyClaimed)
       if (dispatched) {
         recordDispatched(uploadName, "phase2")
       } else {
@@ -358,40 +626,44 @@ class VidLabelingDispatchSequencer(
   private suspend fun dispatchNonMemoizedBundleInternal(
     uploadName: String,
     bundle: List<BundledModelLine>,
+    alreadyClaimed: Boolean = false,
   ): Boolean {
     require(maxFileBatchSizeBytes > 0) {
       "max_file_batch_size_bytes missing for non-memoized model lines under $uploadName; " +
         "set it on VidLabelingConfig for this DataProvider"
     }
-    val modelLineNames: List<String> = bundle.map { it.modelLine.cmmsModelLine }
+    val files: List<RawImpressionUploadFile> = listUploadFiles(uploadName)
+    if (files.isEmpty()) {
+      // Unclaimed lines remain CREATED; claimed lines resume when files are available.
+      logger.warning("No registered raw impression files under $uploadName; delaying dispatch")
+      return false
+    }
+    val batches: List<List<String>> = RawImpressionFileBinPacker.pack(files, maxFileBatchSizeBytes)
+
+    val claimedBundle =
+      if (alreadyClaimed) {
+        bundle
+      } else {
+        buildList {
+          for (bundled in bundle) {
+            if (markLabeling(bundled.modelLine.name, bundled.modelLine.etag)) add(bundled)
+          }
+        }
+      }
+    if (claimedBundle.isEmpty()) return false
+    val modelLineNames: List<String> = claimedBundle.map { it.modelLine.cmmsModelLine }
     // The active window is read per ModelLine so the TEE can drop out-of-window impressions; the
     // model blob path comes from each line's resolved ModelShard.
     val resolvedModelLines: Map<String, ModelLine> =
       modelLineNames.associateWith { getModelLine(it) }
     val modelBlobPathByLine: Map<String, String> =
-      bundle.associate { it.modelLine.cmmsModelLine to it.shardInfo.modelBlobPath }
+      claimedBundle.associate { it.modelLine.cmmsModelLine to it.shardInfo.modelBlobPath }
 
-    val files: List<RawImpressionUploadFile> = listUploadFiles(uploadName)
-    if (files.isEmpty()) {
-      // Do NOT advance the model lines to LABELING: with no files there are no VidLabelingJobs, so
-      // the last-job-out MarkVidLabelingJobSucceeded would never fire and the lines would strand in
-      // LABELING with no completion path. Leave them CREATED so a later dispatch retries (an empty
-      // listing is anomalous/transient because files are registered before dispatch); the Monitor
-      // surfaces uploads that stay CREATED.
-      logger.warning(
-        "No RawImpressionUploadFiles under $uploadName; nothing to label for non-memoized model " +
-          "lines $modelLineNames; leaving them CREATED for retry"
-      )
-      return false
-    }
-
-    val batches: List<List<String>> = RawImpressionFileBinPacker.pack(files, maxFileBatchSizeBytes)
     val labelingJobs: List<VidLabelingJob> =
       createVidLabelingJobs(uploadName, modelLineNames, batches)
     for (job in labelingJobs) {
       createWorkItem(uploadName, modelLineNames, modelBlobPathByLine, resolvedModelLines, job.name)
     }
-    for (bundled in bundle) markLabeling(bundled.modelLine.name, bundled.modelLine.etag)
     return true
   }
 
@@ -484,21 +756,18 @@ class VidLabelingDispatchSequencer(
   }
 
   /**
-   * Memoized (Phase-0) dispatch: pre-create a `PoolAssignmentJob` per shard, publish one
-   * SubpoolAssigner `WorkItem` per shard on [poolAssignerQueueName] (each carrying the resource
-   * name of its pre-created job), then transition the model line to `POOL_ASSIGNING`.
+   * Memoized (Phase-0) dispatch: claim `POOL_ASSIGNING`, create one `PoolAssignmentJob` per shard,
+   * and publish one SubpoolAssigner `WorkItem` per shard on [poolAssignerQueueName].
    *
-   * Mirrors [dispatchNonMemoized]'s create-then-mark order. Every create is idempotent
-   * (deterministic `request_id` for the jobs, deterministic `workItemId` for the WorkItems), so a
-   * caller that loses the per-model-line etag CAS at [markPoolAssigning] has only repeated harmless
-   * creates.
+   * Every create is idempotent, so a claimed phase resumes safely after interruption.
    */
   private suspend fun dispatchMemoized(
     uploadName: String,
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
     allowedPriorSnapshotUploads: List<String>,
-  ) =
+    alreadyClaimed: Boolean = false,
+  ): Boolean =
     Tracing.traceSuspending(
       spanName = "edpa.vid_labeling.dispatch",
       attributes =
@@ -508,8 +777,20 @@ class VidLabelingDispatchSequencer(
           .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME, modelLine.name)
           .build(),
     ) {
-      dispatchMemoizedInternal(uploadName, modelLine, shardInfo, allowedPriorSnapshotUploads)
-      recordDispatched(uploadName, "phase0", modelLine.cmmsModelLine)
+      val dispatched =
+        dispatchMemoizedInternal(
+          uploadName,
+          modelLine,
+          shardInfo,
+          allowedPriorSnapshotUploads,
+          alreadyClaimed,
+        )
+      if (dispatched) {
+        recordDispatched(uploadName, "phase0", modelLine.cmmsModelLine)
+      } else {
+        Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "no_work")
+      }
+      dispatched
     }
 
   private suspend fun dispatchMemoizedInternal(
@@ -517,7 +798,8 @@ class VidLabelingDispatchSequencer(
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
     allowedPriorSnapshotUploads: List<String>,
-  ) {
+    alreadyClaimed: Boolean = false,
+  ): Boolean {
     // `vid_rank_map_storage_params`, `subpool_map_storage_params`, and `model_storage_params` are
     // REQUIRED on `SubpoolAssignerParams` but OPTIONAL on `VidLabelingConfig` (only required for
     // EDPs with at least one memoized model line). Enforce that intent here: fail fast at the first
@@ -547,6 +829,8 @@ class VidLabelingDispatchSequencer(
     // The active window is read from the ModelLine so the TEE can drop out-of-window impressions.
     val resolvedModelLine: ModelLine = getModelLine(modelLine.cmmsModelLine)
 
+    if (!alreadyClaimed && !markPoolAssigning(modelLine.name, modelLine.etag)) return false
+
     // Pre-create the shard rows first; the server assigns each a name we thread into its WorkItem.
     val poolAssignmentJobsByShard: Map<Int, String> =
       createPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
@@ -568,7 +852,7 @@ class VidLabelingDispatchSequencer(
         allowedPriorSnapshotUploads = allowedPriorSnapshotUploads,
       )
     }
-    markPoolAssigning(modelLine.name, modelLine.etag)
+    return true
   }
 
   /** Lists this DataProvider's uploads in [state]. */
@@ -800,7 +1084,7 @@ class VidLabelingDispatchSequencer(
     )
   }
 
-  private suspend fun markLabeling(modelLineName: String, etag: String) {
+  private suspend fun markLabeling(modelLineName: String, etag: String): Boolean {
     try {
       rpcThrottlers.metadataWrite.onReady {
         rawImpressionUploadModelLineStub.markRawImpressionUploadModelLineLabeling(
@@ -827,7 +1111,7 @@ class VidLabelingDispatchSequencer(
           VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
           XmmTraceAttributes.OUTCOME to "superseded",
         )
-        return
+        return false
       }
       recordDispatchFailure(
         "transition",
@@ -845,10 +1129,11 @@ class VidLabelingDispatchSequencer(
       )
       throw e
     }
+    return true
   }
 
   /** Retries the phase claim when child completion changed only the parent etag. */
-  private suspend fun markPoolAssigning(modelLineName: String, initialEtag: String) {
+  private suspend fun markPoolAssigning(modelLineName: String, initialEtag: String): Boolean {
     var etag = initialEtag
     while (true) {
       try {
@@ -866,7 +1151,7 @@ class VidLabelingDispatchSequencer(
           VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
           XmmTraceAttributes.OUTCOME to "pool_assigning",
         )
-        return
+        return true
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.FAILED_PRECONDITION) {
           logger.info(
@@ -877,7 +1162,7 @@ class VidLabelingDispatchSequencer(
             VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
             XmmTraceAttributes.OUTCOME to "superseded",
           )
-          return
+          return false
         }
         if (e.status.code != Status.Code.ABORTED) {
           recordDispatchFailure(
@@ -915,7 +1200,7 @@ class VidLabelingDispatchSequencer(
             VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
             XmmTraceAttributes.OUTCOME to "superseded",
           )
-          return
+          return false
         }
         etag = current.etag
       }
