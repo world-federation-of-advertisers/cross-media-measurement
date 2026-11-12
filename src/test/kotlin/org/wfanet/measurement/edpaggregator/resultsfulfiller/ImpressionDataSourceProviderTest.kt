@@ -45,6 +45,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
@@ -53,7 +54,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class ImpressionDataSourceProviderTest {
@@ -76,13 +81,38 @@ class ImpressionDataSourceProviderTest {
     )
   }
 
-  private fun createService(modelLineDataSources: Map<String, ModelLineDataSource> = emptyMap()) =
-    ImpressionDataSourceProvider(
+  private fun createService(
+    modelLineDataSources: Map<String, ModelLineDataSource> = emptyMap(),
+    modelLineStorageClient: StorageClient? = null,
+  ): ImpressionDataSourceProvider {
+    val storageClientFactory: (BlobUri) -> StorageClient =
+      modelLineStorageClient?.let { storageClient -> { _: BlobUri -> storageClient } }
+        ?: { blobUri ->
+          SelectedStorageClient(blobUri, tmp.root).underlyingClient
+        }
+    return ImpressionDataSourceProvider(
       impressionMetadataStub = impressionMetadataStub,
       dataProvider = "dataProviders/123",
       impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmp.root),
       modelLineDataSources = modelLineDataSources,
+      modelLineStorageClientFactory = storageClientFactory,
     )
+  }
+
+  private suspend fun writeDoneMarker(
+    storageClient: InMemoryStorageClient,
+    blobKey: String,
+    synced: Boolean,
+  ) {
+    storageClient.writeBlob(blobKey, ByteString.copyFromUtf8("done"))
+    if (synced) {
+      storageClient.updateBlobMetadata(
+        blobKey,
+        metadata =
+          mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+      )
+    }
+  }
 
   private fun referenceEventGroup(referenceId: String, period: Interval): ResolvedEventGroup {
     return ResolvedEventGroup(
@@ -143,41 +173,132 @@ class ImpressionDataSourceProviderTest {
   }
 
   @Test
-  fun `selected model line permits finalized zero impressions without metadata`(): Unit =
+  fun `selected model line accepts synced legacy and upload markers for zero impressions`(): Unit =
     runBlocking {
       whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
         .thenReturn(listImpressionMetadataResponse {})
       val date = LocalDate.of(2026, 10, 5)
-      val availabilityDir = File(tmp.root, "availability").also(File::mkdirs)
-      val storageClient = FileSystemStorageClient(availabilityDir)
-      storageClient.writeBlob(
-        "root/model-line/model-line-1/$date/done",
-        ByteString.copyFromUtf8("done"),
-      )
       val period = interval {
         startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
         endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
       }
+      for (markerName in listOf("done", "done-${"a".repeat(64)}")) {
+        val storageClient = InMemoryStorageClient()
+        writeDoneMarker(
+          storageClient,
+          "root/model-line/model-line-1/$date/$markerName",
+          synced = true,
+        )
 
-      val sources =
-        createService(
-            mapOf(
-              fullModelLine to
-                ModelLineDataSource(
-                  "file:///availability/root",
-                  validStartDate = date,
-                  validEndDate = null,
-                )
+        val sources =
+          createService(
+              mapOf(
+                fullModelLine to
+                  ModelLineDataSource(
+                    "file:///availability/root",
+                    validStartDate = date,
+                    validEndDate = null,
+                  )
+              ),
+              storageClient,
             )
-          )
-          .listImpressionDataSources(
-            fullModelLine,
-            listOf(referenceEventGroup("eg-zero", period)),
-            reportInterval = period,
-            requireModelLineFinalization = true,
-          )
+            .listImpressionDataSources(
+              fullModelLine,
+              listOf(referenceEventGroup("eg-zero", period)),
+              reportInterval = period,
+              requireModelLineFinalization = true,
+            )
 
-      assertThat(sources).isEmpty()
+        assertThat(sources).isEmpty()
+      }
+    }
+
+  @Test
+  fun `selected model line rejects unprocessed completion markers`(): Unit = runBlocking {
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse {})
+    val date = LocalDate.of(2026, 10, 5)
+    val period = interval {
+      startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+    }
+    for (markerName in listOf("done", "done-${"a".repeat(64)}")) {
+      val storageClient = InMemoryStorageClient()
+      writeDoneMarker(
+        storageClient,
+        "root/model-line/model-line-1/$date/$markerName",
+        synced = false,
+      )
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          createService(
+              mapOf(
+                fullModelLine to
+                  ModelLineDataSource(
+                    "file:///availability/root",
+                    validStartDate = date,
+                    validEndDate = null,
+                  )
+              ),
+              storageClient,
+            )
+            .listImpressionDataSources(
+              fullModelLine,
+              listOf(referenceEventGroup("eg-unprocessed", period)),
+              reportInterval = period,
+              requireModelLineFinalization = true,
+            )
+        }
+
+      assertThat(exception).hasMessageThat().contains("unprocessed completion marker")
+    }
+  }
+
+  @Test
+  fun `selected model line rejects date when any completion marker is unprocessed`(): Unit =
+    runBlocking {
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+      val date = LocalDate.of(2026, 10, 5)
+      val period = interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+      val storageClient = InMemoryStorageClient()
+      writeDoneMarker(
+        storageClient,
+        "root/model-line/model-line-1/$date/done-${"a".repeat(64)}",
+        synced = true,
+      )
+      writeDoneMarker(
+        storageClient,
+        "root/model-line/model-line-1/$date/done-${"b".repeat(64)}",
+        synced = false,
+      )
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          createService(
+              mapOf(
+                fullModelLine to
+                  ModelLineDataSource(
+                    "file:///availability/root",
+                    validStartDate = date,
+                    validEndDate = null,
+                  )
+              ),
+              storageClient,
+            )
+            .listImpressionDataSources(
+              fullModelLine,
+              listOf(referenceEventGroup("eg-partial", period)),
+              reportInterval = period,
+              requireModelLineFinalization = true,
+            )
+        }
+
+      assertThat(exception).hasMessageThat().contains("unprocessed completion marker")
     }
 
   @Test

@@ -36,6 +36,7 @@ import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
@@ -44,7 +45,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Describes an impression data source for a specific time interval.
@@ -68,6 +71,7 @@ data class ModelLineDataSource(
  * @param impressionMetadataStub used to sync impressions with the ImpressionsMetadataStorage
  * @param dataProvider The DataProvider resource name
  * @param impressionsMetadataStorageConfig configuration for metadata storage
+ * @param modelLineStorageClientFactory builds a client for a configured model-line storage prefix
  * @param listMaxAttempts maximum total attempts for each `ListImpressionMetadata` page before
  *   giving up. Transient gRPC failures (`UNAVAILABLE` / `DEADLINE_EXCEEDED`, e.g. a server-side
  *   rate limit or an overloaded metadata service) are retried so they do not fail the whole report.
@@ -78,6 +82,14 @@ class ImpressionDataSourceProvider(
   private val dataProvider: String,
   private val impressionsMetadataStorageConfig: StorageConfig,
   private val modelLineDataSources: Map<String, ModelLineDataSource> = emptyMap(),
+  private val modelLineStorageClientFactory: (BlobUri) -> StorageClient = { blobUri ->
+    SelectedStorageClient(
+        blobUri,
+        impressionsMetadataStorageConfig.rootDirectory,
+        impressionsMetadataStorageConfig.projectId,
+      )
+      .underlyingClient
+  },
   private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
@@ -232,13 +244,7 @@ class ImpressionDataSourceProvider(
   ) {
     val modelLineId = checkNotNull(ModelLineKey.fromName(modelLine)).modelLineId
     val prefixUri = SelectedStorageClient.parseBlobUri(dataSource.blobUriPrefix)
-    val storageClient =
-      SelectedStorageClient(
-          prefixUri,
-          impressionsMetadataStorageConfig.rootDirectory,
-          impressionsMetadataStorageConfig.projectId,
-        )
-        .underlyingClient
+    val storageClient = modelLineStorageClientFactory(prefixUri)
     val prefix = prefixUri.key.trimEnd('/')
     require(reportInterval.hasStartTime() && reportInterval.hasEndTime()) {
       "Invalid Report interval for selected model line $modelLine"
@@ -256,12 +262,15 @@ class ImpressionDataSourceProvider(
       require(dataSource.validEndDate == null || date <= dataSource.validEndDate) {
         "Selected model line $modelLine is not valid on $date"
       }
-      val doneBlobKey =
-        listOf(prefix, "model-line/$modelLineId/$date/done")
-          .filter(String::isNotEmpty)
-          .joinToString("/")
-      checkNotNull(storageClient.getBlob(doneBlobKey)) {
-        "Selected model line $modelLine is not finalized on $date"
+      val dateFolderPrefix =
+        listOf(prefix, "model-line/$modelLineId/$date").filter(String::isNotEmpty).joinToString("/")
+      val doneBlobs =
+        storageClient.listBlobs("$dateFolderPrefix/").toList().filter {
+          DataAvailabilityBlobs.isDoneBlob(it.blobKey)
+        }
+      check(doneBlobs.isNotEmpty()) { "Selected model line $modelLine is not finalized on $date" }
+      check(doneBlobs.all(DataAvailabilityBlobs::isSynced)) {
+        "Selected model line $modelLine has an unprocessed completion marker on $date"
       }
     }
   }
