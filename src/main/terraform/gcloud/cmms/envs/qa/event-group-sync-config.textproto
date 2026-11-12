@@ -26,7 +26,7 @@ configs {
 }
 configs {
   data_provider: "dataProviders/WLb7yRONEO4"
-  event_groups_blob_uri: "gs://secure-computation-storage-qa-bucket/edpa_meta/event-groups/2025-10-14/event_groups.binpb"
+  event_groups_blob_uri: "gs://secure-computation-storage-qa-bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb"
   event_group_map_blob_uri: "gs://secure-computation-storage-qa-bucket/edpa_meta/event-groups-map/edpa_meta-event-group.binpb"
   cmms_connection {
     cert_file_path: "/secrets/cert-edp2/edpa_meta_tls.pem"
