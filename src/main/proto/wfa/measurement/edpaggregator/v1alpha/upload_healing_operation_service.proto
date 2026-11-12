@@ -19,7 +19,6 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
-import "google/protobuf/timestamp.proto";
 import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload_model_line.proto";
 import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload_correction_candidate.proto";
 import "wfa/measurement/edpaggregator/v1alpha/upload_healing_operation.proto";
@@ -241,16 +240,8 @@ message ReconcileUploadHealingOperationRequest {
     // Absolute prefix containing labeled output.
     string labeled_impressions_blob_prefix = 2
         [(google.api.field_behavior) = REQUIRED];
-    // Uploads whose derived output is invalidated.
-    repeated string bad_raw_impression_uploads = 3 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.resource_reference) = {
-        type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
-      }
-    ];
-    // Earliest upload creation time included in retention.
-    google.protobuf.Timestamp cutoff_time = 4
-        [(google.api.field_behavior) = REQUIRED];
+    reserved 3, 4;
+    reserved "bad_raw_impression_uploads", "cutoff_time";
     // Ordered controller-computed steps; empty for a plan needing attention.
     repeated Step steps = 5 [(google.api.field_behavior) = OPTIONAL];
     // Complete candidate set.

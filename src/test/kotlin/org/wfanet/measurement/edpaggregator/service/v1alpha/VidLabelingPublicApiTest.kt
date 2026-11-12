@@ -660,8 +660,9 @@ class VidLabelingPublicApiTest {
           base.publicCopy {
             plan =
               base.plan.publicCopy {
-                badRawImpressionUploads.clear()
-                badRawImpressionUploads += "dataProviders/other/rawImpressionUploads/old"
+                rawImpressionUploadCorrectionCandidates.clear()
+                rawImpressionUploadCorrectionCandidates +=
+                  "dataProviders/other/rawImpressionUploadCorrectionCandidates/$CANDIDATE_ID"
               }
           }
         )
@@ -941,8 +942,7 @@ class VidLabelingPublicApiTest {
         listOf(
           base.plan.publicCopy { reason = "" },
           base.plan.publicCopy { labeledImpressionsBlobPrefix = "" },
-          base.plan.publicCopy { badRawImpressionUploads.clear() },
-          base.plan.publicCopy { clearCutoffTime() },
+          base.plan.publicCopy { rawImpressionUploadCorrectionCandidates.clear() },
           base.plan.publicCopy { rawImpressionUploadCorrectionCandidates.clear() },
           base.plan.publicCopy { planFormatVersion = 0 },
           base.plan.publicCopy {
@@ -1073,8 +1073,6 @@ class VidLabelingPublicApiTest {
       PublicPlanKt.plan {
         reason = OPERATION.reason
         labeledImpressionsBlobPrefix = OPERATION.labeledImpressionsBlobPrefix
-        badRawImpressionUploads += "$PARENT/rawImpressionUploads/old"
-        cutoffTime = OPERATION.cutoffTime
         rawImpressionUploadCorrectionCandidates += CANDIDATE_NAME
         planFormatVersion = 2
         outputManifestState =
@@ -1285,8 +1283,6 @@ class VidLabelingPublicApiTest {
       state = InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
       reason = "correct raw revision"
       labeledImpressionsBlobPrefix = "gs://labeled/"
-      badRawImpressionUploadResourceIds += "old"
-      cutoffTime = NOW.minusSeconds(86400).toProtoTime()
       steps += STEP
       rawImpressionUploadCorrectionCandidateIds += CANDIDATE_ID
       planFormatVersion = 2
