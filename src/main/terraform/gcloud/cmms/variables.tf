@@ -188,6 +188,12 @@ variable "requisition_fetcher_enabled" {
   default     = true
 }
 
+variable "requisition_fetcher_scheduler_job_name" {
+  description = "RequisitionFetcher scheduler job name. Uses the module's existing name when unset."
+  type        = string
+  default     = null
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string
@@ -518,13 +524,6 @@ variable "vid_labeling_healing_controller_env_var" {
   description = "VidLabelingHealingController extra environment variables."
   type        = string
 
-  validation {
-    condition = can(regex(
-      "(^|,)HEALING_INTERNAL_API_TARGET=[^,]+",
-      var.vid_labeling_healing_controller_env_var,
-    ))
-    error_message = "VidLabelingHealingController environment must define HEALING_INTERNAL_API_TARGET."
-  }
 }
 
 variable "vid_labeling_healing_controller_secret_mapping" {

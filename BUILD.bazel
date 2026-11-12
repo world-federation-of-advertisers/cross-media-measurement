@@ -13,3 +13,12 @@ compile_pip_requirements(
     requirements_txt = "requirements_lock.txt",
     tags = ["manual"],
 )
+
+filegroup(
+    name = "vid_labeling_deployment_test_files",
+    testonly = True,
+    srcs = [
+        ".github/workflows/terraform-cmms-v2.yml",
+        "//src:vid_labeling_deployment_test_files",
+    ],
+)

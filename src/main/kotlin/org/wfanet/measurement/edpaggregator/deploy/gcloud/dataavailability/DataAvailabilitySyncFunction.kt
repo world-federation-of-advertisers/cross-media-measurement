@@ -76,6 +76,8 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
+import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -216,7 +218,18 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   private fun serviceWorkItem(request: HttpRequest) {
-    val input = DataAvailabilitySyncWorkItem.parse(WorkItem.parseFrom(request.inputStream))
+    val queuedWorkItem = WorkItem.parseFrom(request.inputStream)
+    // Messages queued before the publisher used public WorkItems contain bare identifiers.
+    val workItem =
+      if (queuedWorkItem.name.contains('/')) {
+        queuedWorkItem
+      } else {
+        queuedWorkItem.copy {
+          name = WorkItemKey(queuedWorkItem.name).toName()
+          generation = queuedWorkItem.generation.takeUnless { it == 0L } ?: 1L
+        }
+      }
+    val input = DataAvailabilitySyncWorkItem.parse(workItem)
     val providerConfig =
       runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
     val internalPath = providerConfig.vidLabeledImpressionPath
