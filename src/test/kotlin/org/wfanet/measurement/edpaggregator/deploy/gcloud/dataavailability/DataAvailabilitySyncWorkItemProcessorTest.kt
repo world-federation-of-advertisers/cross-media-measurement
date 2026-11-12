@@ -25,6 +25,8 @@ import io.grpc.Metadata
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.protobuf.StatusProto
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
@@ -285,6 +287,42 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     verifyBlocking(workItemsStub) { failWorkItem(workItemFailure.capture(), any<Metadata>()) }
     assertThat(workItemFailure.firstValue.name).isEqualTo(WORK_ITEM_NAME)
     assertThat(workItemFailure.firstValue.expectedWorkItemGeneration).isEqualTo(1L)
+  }
+
+  @Test
+  fun `process renews attempt lease while sync blocks its thread`() = runBlocking {
+    val syncStarted = CompletableDeferred<Unit>()
+    val renewed = CountDownLatch(1)
+    stubAttemptCreation(withLease = true)
+    whenever(workItemAttemptsStub.renewWorkItemAttempt(any(), any<Metadata>())) doAnswer
+      {
+        renewed.countDown()
+        workItemAttempt {
+          name = ATTEMPT_NAME
+          state = WorkItemAttempt.State.ACTIVE
+          leaseExpirationTime = timestamp { seconds = 1_800_000_000L }
+        }
+      }
+    whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.SUCCEEDED
+      }
+    var renewalDelayCalls = 0
+    processor(
+        synchronize = { _, _, _ ->
+          syncStarted.complete(Unit)
+          check(renewed.await(10, TimeUnit.SECONDS)) { "Attempt lease renewal was blocked by sync" }
+          DataAvailabilitySync.Outcome.PUBLISHED
+        },
+        attemptLeaseRenewalDelay = {
+          if (renewalDelayCalls++ == 0) syncStarted.await() else awaitCancellation()
+        },
+      )
+      .process(externalInput())
+
+    verifyBlocking(workItemAttemptsStub) { renewWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemAttemptsStub) { completeWorkItemAttempt(any(), any<Metadata>()) }
   }
 
   @Test

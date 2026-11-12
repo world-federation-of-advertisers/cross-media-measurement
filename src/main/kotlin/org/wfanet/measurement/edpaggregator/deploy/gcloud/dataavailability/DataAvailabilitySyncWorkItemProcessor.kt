@@ -29,6 +29,7 @@ import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -356,12 +357,14 @@ internal class DataAvailabilitySyncWorkItemProcessor(
     if (!attempt.hasLeaseExpirationTime()) {
       return@coroutineScope block()
     }
-    val renewalJob = launch {
-      while (isActive) {
-        attemptLeaseRenewalDelay()
-        renewWorkItemAttempt(attempt)
+    // Keep attempt lease renewal independent of blocking or CPU-bound sync work.
+    val renewalJob =
+      launch(Dispatchers.IO) {
+        while (isActive) {
+          attemptLeaseRenewalDelay()
+          renewWorkItemAttempt(attempt)
+        }
       }
-    }
     try {
       block()
     } finally {

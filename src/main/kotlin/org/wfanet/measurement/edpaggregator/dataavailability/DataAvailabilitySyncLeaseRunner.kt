@@ -21,6 +21,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
@@ -142,12 +143,14 @@ class DataAvailabilitySyncLeaseRunner(
     var failure: Throwable? = null
     return try {
       coroutineScope {
-        val renewalJob = launch {
-          while (true) {
-            delay(renewalInterval)
-            withContext(NonCancellable) { renewLease() }
+        // Keep synchronization lease renewal independent of blocking or CPU-bound sync work.
+        val renewalJob =
+          launch(Dispatchers.IO) {
+            while (true) {
+              delay(renewalInterval)
+              withContext(NonCancellable) { renewLease() }
+            }
           }
-        }
         try {
           synchronize(DataAvailabilitySyncLeaseContext(lease.name, ::ensureLeaseActive))
         } finally {
