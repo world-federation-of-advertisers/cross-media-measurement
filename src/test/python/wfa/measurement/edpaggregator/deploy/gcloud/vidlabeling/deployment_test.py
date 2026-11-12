@@ -77,7 +77,7 @@ class VidLabelingDeploymentTest(unittest.TestCase):
             binary = directory / "gcloud"
             binary.write_text("#!/usr/bin/env python3\nimport json,os,sys\nwith open(os.environ['DEPLOY_TEST_LOG'], 'a') as f: f.write(json.dumps(sys.argv[1:])+'\\n')\n")
             binary.chmod(0o755)
-            environment = dict(os.environ, PATH=str(directory) + os.pathsep + os.environ["PATH"], DEPLOY_TEST_LOG=str(log), FUNCTION_NAME="test-dispatcher", ENTRY_POINT="test.Dispatcher", CLOUD_REGION="us-central1", RUN_SERVICE_ACCOUNT="test@example.invalid", EXTRA_ENV_VARS="RAW_IMPRESSION_UPLOAD_TARGET=system.example:8443", SECRET_MAPPINGS="", UBER_JAR_DIRECTORY=str(directory), TIMEOUT_SECONDS="600", MAX_INSTANCES="1", CONCURRENCY="1")
+            environment = dict(os.environ, PATH=str(directory) + os.pathsep + os.environ["PATH"], DEPLOY_TEST_LOG=str(log), FUNCTION_NAME="test-dispatcher", FUNCTION_MEMORY="512MB", ENTRY_POINT="test.Dispatcher", CLOUD_REGION="us-central1", RUN_SERVICE_ACCOUNT="test@example.invalid", EXTRA_ENV_VARS="RAW_IMPRESSION_UPLOAD_TARGET=system.example:8443", SECRET_MAPPINGS="", UBER_JAR_DIRECTORY=str(directory), TIMEOUT_SECONDS="600", MAX_INSTANCES="1", CONCURRENCY="1")
             for enabled in ("false", "true"):
                 subprocess.run(["bash", "-c", command], env=dict(environment, DEPLOYMENT_ENABLED=enabled), check=True, timeout=15)
                 if enabled == "false":
@@ -87,6 +87,7 @@ class VidLabelingDeploymentTest(unittest.TestCase):
             self.assertEqual(calls[0][:3], ["functions", "deploy", "test-dispatcher"])
             self.assertIn("--no-allow-unauthenticated", calls[0])
             self.assertIn("--run-service-account=test@example.invalid", calls[0])
+            self.assertIn("--memory=512MB", calls[0])
         edpa = (MODULES / "edp-aggregator/main.tf").read_text()
         for name in ("vid_labeling_dispatcher_cloud_function", "vid_labeling_healing_controller_cloud_function"):
             block = re.search(r'module "' + name + r'"\s*\{(.*?)\n\}', edpa, re.S).group(1)
