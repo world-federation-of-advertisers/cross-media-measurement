@@ -15,6 +15,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.protobuf.util.Timestamps
+import java.util.Locale
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -143,6 +144,7 @@ internal data class VidLabelingAuthoritativeGraph(
   val expectedWorkItems: List<ExpectedWorkItemGroup> = emptyList(),
   val counts: Map<String, Long> = emptyMap(),
   val availabilityWorkItems: List<VidLabelingAvailabilityWorkItem> = emptyList(),
+  val availabilityLookupComplete: Boolean = true,
 ) {
   val correlationValues: Set<String>
     get() =
@@ -272,7 +274,11 @@ internal fun VidLabelingAuthoritativeGraph.withAvailabilityWorkItems(
       }
     }
   }
-  return copy(nodes = nodes + availabilityNodes, availabilityWorkItems = workItems)
+  return copy(
+    nodes = nodes + availabilityNodes,
+    availabilityWorkItems = workItems,
+    availabilityLookupComplete = lookupComplete,
+  )
 }
 
 private val AVAILABILITY_STATES =
@@ -344,7 +350,11 @@ private fun WorkItem.parseAvailabilityParams():
   if (
     !params.appParams.`is`(DataAvailabilitySyncParams::class.java) ||
       !params.hasDataPathParams() ||
-      !params.dataPathParams.hasGeneration()
+      !params.dataPathParams.hasGeneration() ||
+      params.dataPathParams.dataPath.isEmpty() ||
+      params.dataPathParams.generation <= 0L ||
+      params.dataPathParams.eventType !=
+        WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
   ) {
     return null
   }
@@ -602,6 +612,52 @@ internal class GcsKingdomFinalStateResolver(
     availabilityWorkItems: List<VidLabelingAvailabilityWorkItem>,
     gcsSemaphore: Semaphore,
   ): FinalModelLineResult {
+    val currentAvailabilityNodes = coroutineScope {
+      availabilityWorkItems
+        .groupBy { it.doneBlobUri }
+        .toSortedMap()
+        .map { (uri, workItems) ->
+          async {
+            val doneBlob = gcsSemaphore.withPermit { readObjectMetadata(uri, null) }
+            val current = workItems.filter { it.doneBlobGeneration == doneBlob?.generation }
+            val identifiers =
+              mapOf(
+                RAW_UPLOAD to upload.name,
+                MODEL_LINE to modelLine.cmmsModelLine,
+                GCS_PATH_HASH to hash(uri),
+                GCS_GENERATION to (doneBlob?.generation?.toString() ?: "0"),
+              )
+            if (current.isEmpty()) {
+              listOf(
+                ExpectedTraceNode(
+                  "gcs:" + hash(uri) + ":availability_work_item_status",
+                  modelLine.cmmsModelLine,
+                  "availability_work_item_status",
+                  "MISSING",
+                  identifiers,
+                  ExpectedNodeDisposition.AUTHORITATIVE_ONLY,
+                )
+              )
+            } else {
+              current.map { workItem ->
+                ExpectedTraceNode(
+                  workItem.name + ":current",
+                  modelLine.cmmsModelLine,
+                  "availability_work_item_status",
+                  workItem.state,
+                  identifiers + (WORK_ITEM to workItem.name),
+                  ExpectedNodeDisposition.AUTHORITATIVE_ONLY,
+                )
+              }
+            }
+          }
+        }
+        .awaitAll()
+        .flatten()
+    }
+    val hasSucceededAvailability =
+      currentAvailabilityNodes.isNotEmpty() &&
+        currentAvailabilityNodes.all { it.authoritativeState == WorkItem.State.SUCCEEDED.name }
     val availabilityDoneNodes = coroutineScope {
       availabilityWorkItems
         .sortedBy { it.name }
@@ -655,11 +711,10 @@ internal class GcsKingdomFinalStateResolver(
         .awaitAll()
     }
     val nodes = buildList {
+      addAll(currentAvailabilityNodes)
       addAll(availabilityDoneNodes)
       if (
-        modelLine.state in AVAILABILITY_STATES &&
-          availabilityWorkItems.any { it.state == WorkItem.State.SUCCEEDED.name } &&
-          objectRows.isEmpty()
+        modelLine.state in AVAILABILITY_STATES && hasSucceededAvailability && objectRows.isEmpty()
       ) {
         add(
           ExpectedTraceNode(
@@ -709,8 +764,10 @@ internal class GcsKingdomFinalStateResolver(
       objectRows.map { it.row },
       nodes,
       metadataRows.pages,
-      objectRows.size * 2 + availabilityWorkItems.size,
-      availabilityWorkItems.any { it.state == WorkItem.State.SUCCEEDED.name },
+      objectRows.size * 2 +
+        availabilityWorkItems.size +
+        availabilityWorkItems.map { it.doneBlobUri }.distinct().size,
+      hasSucceededAvailability,
     )
   }
 
@@ -1386,11 +1443,7 @@ private fun hash(value: String): String =
   }
 
 private fun com.google.type.Date.toIsoDate(): String =
-  year.toString().padStart(4, '0') +
-    "-" +
-    month.toString().padStart(2, '0') +
-    "-" +
-    day.toString().padStart(2, '0')
+  "%04d-%02d-%02d".format(Locale.ROOT, year, month, day)
 
 private const val MODEL_LINE_CONCURRENCY = 4
 private const val GCS_CONCURRENCY = 8
