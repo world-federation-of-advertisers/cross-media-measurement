@@ -18,7 +18,7 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import kotlinx.coroutines.delay
+import java.time.Instant
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -69,9 +69,17 @@ internal class VidLabelingMonitorIntegrationTest : VidLabelingPipelineTestHarnes
       writeRawFile("quiet", "input.parquet", listOf("quiet-person"))
       fileStorage.writeBlob("$rootKey/raw/empty/done", flowOf(ByteString.EMPTY))
 
-      fileStorage.writeBlob("$rootKey/raw/late/done", flowOf(ByteString.EMPTY))
-      delay(5)
-      writeRawFile("late", "input.parquet", listOf("late-person"))
+      val doneCreateTime = Instant.parse("2026-10-06T12:00:00Z")
+      val lateDone = fileStorage.writeBlob("$rootKey/raw/late/done", flowOf(ByteString.EMPTY))
+      fileStorage.setCreateTime(lateDone, doneCreateTime)
+      val lateInputUri = writeRawFile("late", "input.parquet", listOf("late-person"))
+      val lateInput = checkNotNull(fileStorage.getBlob(blobKey(lateInputUri)))
+      fileStorage.setCreateTime(lateInput, doneCreateTime.plusSeconds(1))
+
+      assertThat(checkNotNull(fileStorage.getBlob(lateDone.blobKey)).createTime)
+        .isEqualTo(doneCreateTime)
+      assertThat(checkNotNull(fileStorage.getBlob(lateInput.blobKey)).createTime)
+        .isEqualTo(doneCreateTime.plusSeconds(1))
 
       writeRawFile("overlap/child", "input.parquet", listOf("overlap-person"))
       fileStorage.writeBlob("$rootKey/raw/overlap/done", flowOf(ByteString.EMPTY))
@@ -89,7 +97,7 @@ internal class VidLabelingMonitorIntegrationTest : VidLabelingPipelineTestHarnes
       assertThat(before.dataQualityCheckFailed).isFalse()
       assertThat(before.missingDoneBlobs).isAtLeast(1L)
       assertThat(before.zeroImpressionDates).isAtLeast(1L)
-      assertThat(before.lateArrivingFiles).isAtLeast(1L)
+      assertThat(before.lateArrivingFiles).isEqualTo(1L)
       assertThat(before.unregisteredDoneBlobs).isAtLeast(1L)
       assertThat(before.ambiguousDoneMarkerLayouts).isAtLeast(1L)
       assertThat(before.missingRawFiles).isEqualTo(1L)

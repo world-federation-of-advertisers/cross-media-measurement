@@ -2285,6 +2285,16 @@ abstract class VidLabelingPipelineTestHarness(
   ) : ConditionalOperationStorageClient {
     private val failNextDeletes = ConcurrentHashMap.newKeySet<String>()
 
+    private val createTimeOverrides = ConcurrentHashMap<BlobVersion, Instant>()
+
+    private data class BlobVersion(val blobKey: String, val freshnessToken: String)
+
+    /** Overrides creation time for subsequent observations of [blob]'s exact version. */
+    fun setCreateTime(blob: StorageClient.Blob, createTime: Instant) {
+      require(blob is ConditionalOperationStorageClient.Blob && blob.storageClient === this)
+      createTimeOverrides[BlobVersion(blob.blobKey, blob.freshnessToken)] = createTime
+    }
+
     fun failNextDelete(blobKey: String) {
       check(failNextDeletes.add(blobKey)) { "Delete failure already armed for $blobKey" }
     }
@@ -2329,38 +2339,44 @@ abstract class VidLabelingPipelineTestHarness(
 
     private suspend fun wrap(blob: StorageClient.Blob): StorageClient.Blob {
       val freshnessToken = (blob as ConditionalOperationStorageClient.Blob).freshnessToken
-      return object : ConditionalOperationStorageClient.Blob {
-        override val storageClient: StorageClient
-          get() = this@GenerationEnforcingStorageClient
+      val wrapped =
+        object : ConditionalOperationStorageClient.Blob {
+          override val storageClient: StorageClient
+            get() = this@GenerationEnforcingStorageClient
 
-        override val blobKey: String = blob.blobKey
-        override val size: Long = blob.size
-        override val createTime: Instant = blob.createTime
-        override val updateTime: Instant = blob.updateTime
-        override val metadata: Map<String, String> = blob.metadata
-        override val freshnessToken: String = freshnessToken
+          override val blobKey: String = blob.blobKey
+          override val size: Long = blob.size
+          override val createTime: Instant = blob.createTime
+          override val updateTime: Instant = blob.updateTime
+          override val metadata: Map<String, String> = blob.metadata
+          override val freshnessToken: String = freshnessToken
 
-        override fun read(): Flow<ByteString> = flow {
-          verifyGeneration()
-          emitAll(blob.read())
-        }
-
-        override suspend fun delete() {
-          verifyGeneration()
-          if (failNextDeletes.remove(blobKey)) {
-            throw IOException("injected storage deletion failure")
+          override fun read(): Flow<ByteString> = flow {
+            verifyGeneration()
+            emitAll(blob.read())
           }
-          blob.delete()
-        }
 
-        private suspend fun verifyGeneration() {
-          val current = delegate.getFreshnessToken(blobKey)
-          if (current != freshnessToken) {
-            throw BlobChangedException(
-              "Blob $blobKey is at generation $current, not $freshnessToken"
-            )
+          override suspend fun delete() {
+            verifyGeneration()
+            if (failNextDeletes.remove(blobKey)) {
+              throw IOException("injected storage deletion failure")
+            }
+            blob.delete()
+          }
+
+          private suspend fun verifyGeneration() {
+            val current = delegate.getFreshnessToken(blobKey)
+            if (current != freshnessToken) {
+              throw BlobChangedException(
+                "Blob $blobKey is at generation $current, not $freshnessToken"
+              )
+            }
           }
         }
+      val createTimeOverride =
+        createTimeOverrides[BlobVersion(blob.blobKey, freshnessToken)] ?: return wrapped
+      return object : ConditionalOperationStorageClient.Blob by wrapped {
+        override val createTime: Instant = createTimeOverride
       }
     }
   }
