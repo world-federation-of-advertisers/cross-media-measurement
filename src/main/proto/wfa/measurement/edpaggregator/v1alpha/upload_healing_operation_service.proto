@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload_model_line.proto";
 import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload_correction_candidate.proto";
 import "wfa/measurement/edpaggregator/v1alpha/upload_healing_operation.proto";
 
@@ -28,6 +29,22 @@ option java_outer_classname = "UploadHealingOperationServiceProto";
 
 // Service for persisting and resuming VID-labeling upload healing workflows.
 service UploadHealingOperationService {
+  // Reconciles a complete controller-computed draft.
+  rpc ReconcileUploadHealingOperation(ReconcileUploadHealingOperationRequest)
+      returns (ReconcileUploadHealingOperationResponse) {}
+
+  // Advances a durable operation checkpoint.
+  rpc AdvanceUploadHealingOperation(AdvanceUploadHealingOperationRequest)
+      returns (UploadHealingOperation) {}
+
+  // Freezes the exact output manifests after draining.
+  rpc FinalizeUploadHealingOperation(FinalizeUploadHealingOperationRequest)
+      returns (UploadHealingOperation) {}
+
+  // Advances a durable eviction or recovery step.
+  rpc AdvanceUploadHealingStep(AdvanceUploadHealingStepRequest)
+      returns (UploadHealingStep) {}
+
   // Retrieves a healing operation and its ordered steps.
   rpc GetUploadHealingOperation(GetUploadHealingOperationRequest)
       returns (UploadHealingOperation) {}
@@ -164,4 +181,209 @@ message RetryUploadHealingOperationRequest {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
+}
+
+// Request message for `ReconcileUploadHealingOperation`.
+message ReconcileUploadHealingOperationRequest {
+  // Controller-owned inputs for one draft step.
+  message Step {
+    // Stable order in the recovery graph. Zero is valid for the first step.
+    int64 sequence_number = 1 [(google.api.field_behavior) = OPTIONAL];
+    // Upload owning the invalid output.
+    string source_raw_impression_upload = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+      }
+    ];
+    // Source model-line execution.
+    string raw_impression_upload_model_line = 3 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+      }
+    ];
+    // CMMS ModelLine.
+    string cmms_model_line = 4 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    ];
+    // Whether this step invalidates cumulative memoized state.
+    bool memoized = 5 [(google.api.field_behavior) = OPTIONAL];
+    // Recovery action for this step.
+    RawImpressionUploadModelLine.RecoveryAction recovery_action = 6
+        [(google.api.field_behavior) = REQUIRED];
+    // Predecessor whose replacement must complete first, when present.
+    string recovery_predecessor_raw_impression_upload = 7 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+      }
+    ];
+    // Whether this is the revision on which recovery runs.
+    bool recovery_target = 8 [(google.api.field_behavior) = OPTIONAL];
+    // Complete provisional output manifest.
+    LabeledOutputManifest labeled_output_manifest = 9
+        [(google.api.field_behavior) = REQUIRED];
+    // Correction candidate responsible for this step, when present.
+    string raw_impression_upload_correction_candidate = 10 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+      }
+    ];
+  }
+  // Complete controller-computed plan inputs.
+  message Plan {
+    // Diagnosis recorded on evicted model lines.
+    string reason = 1 [(google.api.field_behavior) = REQUIRED];
+    // Absolute prefix containing labeled output.
+    string labeled_impressions_blob_prefix = 2
+        [(google.api.field_behavior) = REQUIRED];
+    reserved 3, 4;
+    reserved "bad_raw_impression_uploads", "cutoff_time";
+    // Ordered controller-computed steps; empty for a plan needing attention.
+    repeated Step steps = 5 [(google.api.field_behavior) = OPTIONAL];
+    // Complete candidate set.
+    repeated string raw_impression_upload_correction_candidates = 6 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+      }
+    ];
+    // Format version of the plan.
+    int32 plan_format_version = 7 [(google.api.field_behavior) = REQUIRED];
+    // State of the provisional output manifests.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a controller plan input, distinct from
+    //     the persisted resource state. --)
+    UploadHealingOperation.OutputManifestState output_manifest_state = 8
+        [(google.api.field_behavior) = REQUIRED];
+  }
+  // Parent DataProvider.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+  // Operation resource ID.
+  string upload_healing_operation_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+  // Complete draft inputs.
+  Plan plan = 3 [(google.api.field_behavior) = REQUIRED];
+  // Expected draft etag; empty for the initial draft.
+  string etag = 4 [(google.api.field_behavior) = OPTIONAL];
+  // Idempotency request ID.
+  string request_id = 5 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `AdvanceUploadHealingOperation`.
+message AdvanceUploadHealingOperationRequest {
+  // Healing operation.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+  // Next operation state.
+  // (-- api-linter: core::0216::state-field-output-only=disabled
+  //     aip.dev/not-precedent: This is an etag-guarded checkpoint input; the
+  //     resource state remains output-only. --)
+  UploadHealingOperation.State state = 2
+      [(google.api.field_behavior) = REQUIRED];
+  // Expected operation etag.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+  // Idempotency request ID.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `FinalizeUploadHealingOperation`.
+message FinalizeUploadHealingOperationRequest {
+  // Exact output versions for one step.
+  message StepManifest {
+    // Healing step.
+    string upload_healing_step = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/UploadHealingStep"
+      }
+    ];
+    // Captured output manifest.
+    LabeledOutputManifest labeled_output_manifest = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
+  // Healing operation.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+  // Exact manifests for every step.
+  repeated StepManifest step_manifests = 2
+      [(google.api.field_behavior) = REQUIRED];
+  // Expected operation etag.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+  // Idempotency request ID.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `AdvanceUploadHealingStep`.
+message AdvanceUploadHealingStepRequest {
+  // Controller checkpoint action.
+  enum Action {
+    // Unspecified action.
+    ACTION_UNSPECIFIED = 0;
+    // Records completed eviction.
+    CONFIRM_EVICTION = 1;
+    // Records the exact recovery generation.
+    RECORD_RECOVERY = 2;
+    // Records the durable replacement upload.
+    CONFIRM_REPLACEMENT = 3;
+  }
+  // Healing step.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingStep"
+    }
+  ];
+  // Checkpoint action.
+  Action action = 2 [(google.api.field_behavior) = REQUIRED];
+  // Replacement upload when confirming replacement.
+  string replacement_raw_impression_upload = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+  // Positive generation when recording recovery.
+  int64 recovery_done_blob_generation = 4
+      [(google.api.field_behavior) = OPTIONAL];
+  // Expected step etag.
+  string etag = 5 [(google.api.field_behavior) = REQUIRED];
+  // Idempotency request ID.
+  string request_id = 6 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Result of reconciling the controller-computed draft.
+message ReconcileUploadHealingOperationResponse {
+  // Persisted operation and ordered steps.
+  UploadHealingOperation upload_healing_operation = 1;
 }
