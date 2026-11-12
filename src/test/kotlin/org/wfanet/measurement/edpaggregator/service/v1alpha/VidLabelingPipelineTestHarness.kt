@@ -796,10 +796,16 @@ abstract class VidLabelingPipelineTestHarness(
         val blob = fileStorage.writeBlob(key, flowOf(ByteString.EMPTY))
         val generation =
           checkNotNull((blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken).toLong()
-        rawWatcher.receivePath(
-          doneBlobUri,
-          metadata + (DataWatcher.GENERATION_METADATA_KEY to generation.toString()),
-        )
+        // Storage notifications are asynchronous in production, so a notification that arrives
+        // before the recovery checkpoint is retried there; the controller's replay delivers it.
+        try {
+          rawWatcher.receivePath(
+            doneBlobUri,
+            metadata + (DataWatcher.GENERATION_METADATA_KEY to generation.toString()),
+          )
+        } catch (e: Exception) {
+          endpointFailure.set(null)
+        }
         generation
       }
     return VidLabelingHealingController(
@@ -1516,7 +1522,16 @@ abstract class VidLabelingPipelineTestHarness(
 
   protected suspend fun finalizeRawUpload(folder: String): Long {
     val key = "$rootKey/raw/$folder/done"
-    val blob = rawEventStorage.writeBlob(key, flowOf(ByteString.EMPTY))
+    val blob =
+      try {
+        rawEventStorage.writeBlob(key, flowOf(ByteString.EMPTY))
+      } catch (e: Exception) {
+        // DataWatcher rethrows retryable endpoint failures, so consume the recorded failure here.
+        throw AssertionError(
+          "Finalized-object delivery failed",
+          endpointFailure.getAndSet(null) ?: e,
+        )
+      }
     endpointFailure.getAndSet(null)?.let {
       throw AssertionError("Finalized-object delivery failed", it)
     }
