@@ -500,6 +500,7 @@ locals {
   }
 
   vid_labeling_healing_controller_scheduler_config = {
+    paused                    = !var.tee_consumers_enabled
     schedule                  = "*/5 * * * *"
     time_zone                 = "UTC"
     name                      = "vid-labeling-healing-sched"

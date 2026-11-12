@@ -300,9 +300,6 @@ jobs:
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         RESULTS_FULFILLER_TRUSTED_CA_FILE: ${{ runner.temp }}/results-fulfiller-trusted-root-ca.pem
         IMAGE_TAG: ${{ inputs.image-tag }}
-        VID_LABELING_HEALING_CONTROLLER_ENV_VAR: ${{ vars.VID_LABELING_HEALING_CONTROLLER_ENV_VAR }}
-        VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING: ${{ vars.VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING }}
-        VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES: ${{ vars.VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES }}
         DUCHY_WORKER1_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER2_PUBLIC_API_TARGET }}
         DUCHY_AGGREGATOR_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).AGGREGATOR_PUBLIC_API_TARGET }}
@@ -329,9 +326,6 @@ jobs:
         -var="vid_labeling_dispatcher_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_dispatcher_source_path }}"
         -var="vid_labeling_monitor_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_monitor_source_path }}"
         -var="vid_labeling_healing_controller_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_healing_controller_source_path }}"
-        -var="vid_labeling_healing_controller_env_var=$VID_LABELING_HEALING_CONTROLLER_ENV_VAR"
-        -var="vid_labeling_healing_controller_secret_mapping=$VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING"
-        -var="vid_labeling_healing_labeled_output_object_prefixes=$VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES"
         -var="dashboard_compliance_uber_jar_path=${{ steps.download-uber-jars.outputs.dashboard_compliance_check_source_path }}"
         -var="image_tag=$IMAGE_TAG"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"
