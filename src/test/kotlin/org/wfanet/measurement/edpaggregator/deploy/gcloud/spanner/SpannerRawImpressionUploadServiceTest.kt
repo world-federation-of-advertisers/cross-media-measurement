@@ -572,6 +572,28 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
   }
 
   @Test
+  fun `direct evicting fence accepts an elapsed data-availability lease`() = runBlocking {
+    insertActiveDataAvailabilitySyncLease(
+      expireTime = com.google.cloud.Timestamp.ofTimeSecondsAndNanos(1L, 0)
+    )
+
+    val fence =
+      newService()
+        .acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = TEST_DATA_PROVIDER_ID
+            evictionOperationId = EVICTION_OPERATION_ID
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+    assertThat(fence.newlyAcquired).isTrue()
+    assertThat(fence.state)
+      .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING)
+  }
+
+  @Test
   fun `approval-pending fence rejects replacement replay`() = runBlocking {
     val doneBlobUri = "gs://bucket/corrected/done"
     createEvictedUpload(TEST_DATA_PROVIDER_ID, "evicted-upload", doneBlobUri, EVICTION_OPERATION_ID)
@@ -691,7 +713,10 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
     assertThat(replay.processingDeferred).isFalse()
   }
 
-  private suspend fun insertActiveDataAvailabilitySyncLease() {
+  private suspend fun insertActiveDataAvailabilitySyncLease(
+    expireTime: com.google.cloud.Timestamp =
+      com.google.cloud.Timestamp.ofTimeSecondsAndNanos(4_102_444_800L, 0)
+  ) {
     spannerDatabase.databaseClient.write(
       listOf(
         insertMutation("DataAvailabilitySyncLease") {
@@ -703,7 +728,7 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
                 DataAvailabilitySyncLeaseState.DATA_AVAILABILITY_SYNC_LEASE_STATE_ACTIVE
               )
             )
-          set("ExpireTime").to(com.google.cloud.Timestamp.ofTimeSecondsAndNanos(4_102_444_800L, 0))
+          set("ExpireTime").to(expireTime)
           set("MutationRequestIds").toStringArray(emptyList())
           set("MutationRequestFingerprints").toBytesArray(emptyList())
           set("CreateTime").to(Value.COMMIT_TIMESTAMP)

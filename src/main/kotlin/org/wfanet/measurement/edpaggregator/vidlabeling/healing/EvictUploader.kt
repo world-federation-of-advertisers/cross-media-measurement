@@ -20,13 +20,11 @@ import com.google.type.interval
 import java.time.Instant
 import java.util.UUID
 import java.util.logging.Logger
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoTime
@@ -62,7 +60,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.releaseRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
@@ -131,9 +128,6 @@ class EvictUploader(
     val memoizedModelLines: Set<String>,
     val nonMemoizedModelLines: Set<String>,
     val badUploads: List<String>,
-    /** Explicitly bad uploads that are permanently removed instead of replaced by the EDP. */
-    val noReplacementUploads: Set<String>,
-    val cutoffTime: Instant,
     /** UUID4 that owns the fence and identifies every model-line row in this eviction. */
     val evictionOperationId: String,
     /** Latest revisions evicted only because their memoized rank state depended on a bad upload. */
@@ -153,61 +147,28 @@ class EvictUploader(
   )
 
   /**
-   * Builds one eviction plan for every model line attached to [badUploads]. Memoized lines cascade
-   * from their earliest bad upload; non-memoized lines contain only explicitly bad uploads.
-   * Snapshot presence identifies the memoized path because completed memoized processing always
-   * writes a cumulative `SNAPSHOT`, while non-memoized processing never does.
+   * Builds a correction plan for [historicalOwners] and the completed revisions that supersede
+   * them. Memoized lines cascade from their earliest affected upload; non-memoized lines contain
+   * only the affected uploads. Snapshot presence identifies the memoized path because completed
+   * memoized processing always writes a cumulative `SNAPSHOT`, while non-memoized processing never
+   * does.
    *
-   * @param badUploads `RawImpressionUpload` resource names of the bad uploads (all under the same
-   *   DataProvider).
-   * @param noReplacementUploads subset of [badUploads] that the operator is permanently removing.
-   * @throws IllegalArgumentException if [badUploads] is empty, spans multiple DataProviders, names
-   *   an unknown upload, names an upload older than [cutoffTime], or the DataProvider still has
-   *   queued or running model-line work.
-   */
-  suspend fun plan(
-    badUploads: List<String>,
-    cutoffTime: Instant,
-    evictionOperationId: String = UUID.randomUUID().toString(),
-    noReplacementUploads: Set<String> = emptySet(),
-  ): EvictionPlan =
-    plan(
-      badUploads,
-      cutoffTime,
-      evictionOperationId,
-      noReplacementUploads,
-      includeSupersedingRevisions = false,
-      requirePipelineIdle = true,
-      captureOutputGenerations = true,
-    )
-
-  /**
-   * Builds a correction plan that also evicts completed revisions superseding [historicalOwners].
+   * @param historicalOwners `RawImpressionUpload` resource names of the affected uploads, all under
+   *   the same DataProvider.
+   * @throws IllegalArgumentException if [historicalOwners] is empty, spans multiple DataProviders,
+   *   names an unknown upload or one older than [cutoffTime], or omits active model-line work that
+   *   can publish planned output.
    */
   suspend fun planCorrection(
     historicalOwners: List<String>,
     cutoffTime: Instant,
     evictionOperationId: String = UUID.randomUUID().toString(),
-    noReplacementOwners: Set<String> = emptySet(),
-  ): EvictionPlan =
-    plan(
-      historicalOwners,
-      cutoffTime,
-      evictionOperationId,
-      noReplacementOwners,
-      includeSupersedingRevisions = true,
-      requirePipelineIdle = false,
-      captureOutputGenerations = false,
-    )
+  ): EvictionPlan = plan(historicalOwners, cutoffTime, evictionOperationId)
 
   private suspend fun plan(
     badUploads: List<String>,
     cutoffTime: Instant,
     evictionOperationId: String,
-    noReplacementUploads: Set<String>,
-    includeSupersedingRevisions: Boolean,
-    requirePipelineIdle: Boolean,
-    captureOutputGenerations: Boolean,
   ): EvictionPlan {
     require(badUploads.isNotEmpty()) { "at least one bad upload is required" }
     require(runCatching { UUID.fromString(evictionOperationId) }.isSuccess) {
@@ -216,10 +177,6 @@ class EvictUploader(
     val dataProvider = dataProviderOf(badUploads.first())
     require(badUploads.all { dataProviderOf(it) == dataProvider }) {
       "all bad uploads must be under the same DataProvider"
-    }
-    require(noReplacementUploads.all { it in badUploads }) {
-      "no-replacement upload(s) must also be listed in badUploads: " +
-        noReplacementUploads.filter { it !in badUploads }
     }
 
     val uploadsByName: Map<String, RawImpressionUpload> = listUploads(dataProvider, cutoffTime)
@@ -237,22 +194,11 @@ class EvictUploader(
     }
 
     val queuedOrRunningRows = listQueuedOrRunningModelLines(dataProvider)
-    if (requirePipelineIdle) {
-      require(queuedOrRunningRows.isEmpty()) {
-        "The VID-labeling pipeline is currently processing data for $dataProvider, so eviction " +
-          "cannot run. Retry after all VID-labeling processing for this data provider has " +
-          "finished. Active upload/model-line resources: ${queuedOrRunningRows.map { it.name }}"
-      }
-    }
 
     val candidateSupersedingUploads =
-      if (includeSupersedingRevisions) {
-        uploadsByName.keys.filter { candidate ->
-          candidate !in badUploads &&
-            badUploads.any { owner -> replacesUpload(candidate, owner, uploadsByName) }
-        }
-      } else {
-        emptyList()
+      uploadsByName.keys.filter { candidate ->
+        candidate !in badUploads &&
+          badUploads.any { owner -> replacesUpload(candidate, owner, uploadsByName) }
       }
     val candidateSupersedingRows = candidateSupersedingUploads.associateWith { listModelLines(it) }
     val supersedingUploads =
@@ -298,17 +244,6 @@ class EvictUploader(
     val memoizedRequestedRows = requestedRows.filter { isMemoized(it, snapshotRows) }
     val nonMemoizedRequestedRows = requestedRows - memoizedRequestedRows.toSet()
     val requestedNames = plannedBadUploads.toSet()
-    val plannedNoReplacementUploads =
-      if (includeSupersedingRevisions) {
-        plannedBadUploads
-          .filter { upload ->
-            upload in noReplacementUploads ||
-              noReplacementUploads.any { owner -> replacesUpload(upload, owner, uploadsByName) }
-          }
-          .toSet()
-      } else {
-        noReplacementUploads
-      }
     val completedReplacements =
       requestedRows.flatMap { badRow ->
         val badUploadName = uploadNameOf(badRow.name)
@@ -321,7 +256,7 @@ class EvictUploader(
       }
     require(completedReplacements.isEmpty()) {
       "bad upload(s) have completed replacement rows that own the current " +
-        "deterministic output; evict the replacement explicitly if it is also invalid: " +
+        "deterministic output but are missing from the correction plan: " +
         completedReplacements.map { it.name }
     }
     val memoizedModelLines = memoizedRequestedRows.mapTo(mutableSetOf()) { it.cmmsModelLine }
@@ -349,9 +284,7 @@ class EvictUploader(
               cmmsModelLine = cmmsModelLine,
               memoized = true,
               recoveryAction =
-                if (uploadName in plannedNoReplacementUploads) {
-                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
-                } else if (uploadName in requestedNames) {
+                if (uploadName in requestedNames) {
                   RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
                 } else {
                   RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
@@ -371,11 +304,7 @@ class EvictUploader(
             row.cmmsModelLine,
             memoized = false,
             recoveryAction =
-              if (uploadName in plannedNoReplacementUploads) {
-                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
-              } else {
-                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
-              },
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
             recoveryPredecessorUploadName = "",
           )
     }
@@ -433,12 +362,7 @@ class EvictUploader(
                   add((cmmsModelLine to sameRevision.uploadName) to predecessorName)
                 }
               }
-              if (
-                entry.recoveryAction !=
-                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
-              ) {
-                predecessorName = entry.uploadName
-              }
+              predecessorName = entry.uploadName
             }
           }
         }
@@ -457,29 +381,26 @@ class EvictUploader(
     val cascadeWithOutputManifests =
       cascade.map { entry ->
         entry.copy(
-          labeledOutputManifest =
-            resolveLabeledOutputManifest(entry, captureGeneration = captureOutputGenerations)
+          labeledOutputManifest = resolveLabeledOutputManifest(entry, captureGeneration = false)
         )
       }
-    if (!requirePipelineIdle) {
-      val approvedOutputUris =
-        cascadeWithOutputManifests
-          .flatMap { it.labeledOutputManifest.blobsList }
-          .mapTo(mutableSetOf()) { it.blobUri }
-      val scopedModelLines = cascadeWithOutputManifests.mapTo(mutableSetOf()) { it.modelLineName }
-      val overlappingActiveRows = buildList {
-        for (row in queuedOrRunningRows) {
-          if (row.state == RawImpressionUploadModelLine.State.CREATED) continue
-          val activeOutputUris = resolveLabeledOutputUris(uploadNameOf(row.name), row.cmmsModelLine)
-          if (row.name !in scopedModelLines && activeOutputUris.any { it in approvedOutputUris }) {
-            add(row)
-          }
+    val approvedOutputUris =
+      cascadeWithOutputManifests
+        .flatMap { it.labeledOutputManifest.blobsList }
+        .mapTo(mutableSetOf()) { it.blobUri }
+    val scopedModelLines = cascadeWithOutputManifests.mapTo(mutableSetOf()) { it.modelLineName }
+    val overlappingActiveRows = buildList {
+      for (row in queuedOrRunningRows) {
+        if (row.state == RawImpressionUploadModelLine.State.CREATED) continue
+        val activeOutputUris = resolveLabeledOutputUris(uploadNameOf(row.name), row.cmmsModelLine)
+        if (row.name !in scopedModelLines && activeOutputUris.any { it in approvedOutputUris }) {
+          add(row)
         }
       }
-      require(overlappingActiveRows.isEmpty()) {
-        "Correction scope omits active model-line work that can publish approved output: " +
-          overlappingActiveRows.map { it.name }
-      }
+    }
+    require(overlappingActiveRows.isEmpty()) {
+      "Correction scope omits active model-line work that can publish approved output: " +
+        overlappingActiveRows.map { it.name }
     }
     val extraUploads =
       cascadeWithOutputManifests.map { it.uploadName }.filter { it !in requestedNames }.distinct()
@@ -521,12 +442,10 @@ class EvictUploader(
       memoizedModelLines,
       nonMemoizedModelLines,
       plannedBadUploads,
-      plannedNoReplacementUploads,
-      cutoffTime,
       evictionOperationId,
       recoveryTargets,
       replacementTargets,
-      outputManifestsFinalized = captureOutputGenerations,
+      outputManifestsFinalized = false,
     )
   }
 
@@ -564,75 +483,17 @@ class EvictUploader(
    * and labeled-output metadata, then removes the labeled-output data and sidecar blobs. Model
    * lines already failed for another reason are reclassified as evicted before their output is
    * deleted, so `retry-failed` cannot recreate invalidated output. Raw inputs are retained so a
-   * replacement upload can calculate its delta against the evicted upload. Before refreshing the
-   * plan, this acquires a durable DataProvider-wide fence that verifies the pipeline is idle and
-   * defers unrelated upload processing until the complete healing workflow finishes. A partial
-   * failure leaves the fence in place so the same operation ID can safely resume. Synchronization
-   * leases prevent eviction from crossing in-flight `DataAvailabilitySync` mutations.
+   * replacement upload can calculate its delta against the evicted upload. This first acquires the
+   * DataProvider-wide `EVICTING` fence, which is granted only after the pipeline and
+   * synchronization leases drain and which defers unrelated upload processing until the complete
+   * healing workflow finishes. A partial failure leaves the fence in place so the same operation ID
+   * can safely resume. Synchronization leases prevent eviction from crossing in-flight
+   * `DataAvailabilitySync` mutations.
    *
    * Metadata is deleted before its GCS object. This makes `DataAvailabilityCleanup` harmless when
    * the object-deletion event arrives: its active-only lookup finds no row, and a cleanup event
    * carrying the resource ID treats the already-deleted row as an idempotent `NOT_FOUND`.
    */
-  suspend fun evict(plan: EvictionPlan, reason: String): EvictionResult {
-    val preparedPlan = prepare(plan)
-    return evict(preparedPlan, reason) {}
-  }
-
-  /** Acquires the eviction fence and rejects a plan that changed after operator confirmation. */
-  override suspend fun prepare(plan: EvictionPlan): EvictionPlan {
-    val dataProvider = dataProviderOf(plan.badUploads.first())
-    val acquireResponse =
-      rpcThrottlers.metadataWrite.onReady {
-        uploadsStub.acquireRawImpressionUploadEvictionFence(
-          acquireRawImpressionUploadEvictionFenceRequest {
-            parent = dataProvider
-            evictionOperationId = plan.evictionOperationId
-            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-            requestId =
-              RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, state.name)
-          }
-        )
-      }
-    try {
-      val refreshed =
-        plan(
-          plan.badUploads,
-          plan.cutoffTime,
-          evictionOperationId = plan.evictionOperationId,
-          noReplacementUploads = plan.noReplacementUploads,
-        )
-      require(refreshed.cascade == plan.cascade) {
-        "eviction plan changed after confirmation; review the new plan and retry"
-      }
-      return refreshed
-    } catch (e: Throwable) {
-      if (acquireResponse.newlyAcquired) {
-        try {
-          withContext(NonCancellable) {
-            rpcThrottlers.metadataWrite.onReady {
-              uploadsStub.releaseRawImpressionUploadEvictionFence(
-                releaseRawImpressionUploadEvictionFenceRequest {
-                  parent = dataProvider
-                  evictionOperationId = plan.evictionOperationId
-                  etag = acquireResponse.etag
-                  requestId =
-                    RequestIds.forReleaseUploadEvictionFence(
-                      plan.evictionOperationId,
-                      acquireResponse.etag,
-                    )
-                }
-              )
-            }
-          }
-        } catch (releaseException: Throwable) {
-          e.addSuppressed(releaseException)
-        }
-      }
-      throw e
-    }
-  }
-
   override suspend fun evict(
     plan: EvictionPlan,
     reason: String,

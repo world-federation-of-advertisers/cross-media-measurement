@@ -1909,7 +1909,7 @@ class VidLabelingDispatcher(
           RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
       }
     ) {
-      "${previousRevision.name} requires the operator recovery command, not an EDP upload"
+      "${previousRevision.name} requires upload-healing recovery, not an EDP upload"
     }
     check(
       evictedRows.none {

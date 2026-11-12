@@ -46,6 +46,11 @@ kt_jvm_library(
         "DataAvailabilitySyncWorkItemPublisher.kt",
         "DataAvailabilitySyncWorkItems.kt",
     ],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:__pkg__",
+    ],
     deps = [
         ":request_ids",
         ":work_item_ids",
