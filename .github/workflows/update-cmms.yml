@@ -300,6 +300,8 @@ jobs:
           echo "::error::RequisitionFetcher scheduler is not paused"
           exit 1
         fi
+        # A first deployment has no confirmed pause timestamp before Terraform.
+        # Keep its full drain window instead of estimating the scheduler creation time.
         if [[ "$PAUSED_AT" == "terraform" ]]; then
           PAUSED_AT=$(date +%s)
         fi
