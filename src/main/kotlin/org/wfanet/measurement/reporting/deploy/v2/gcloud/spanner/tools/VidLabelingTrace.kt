@@ -366,7 +366,16 @@ internal class VidLabelingTraceCollector(
           )
         }
       }
-      workItems.await() to routes.await()
+      val finalState = async {
+        val availabilityWorkItems =
+          workItems.await().value?.workItems.orEmpty().mapNotNull {
+            it.toAvailabilityWorkItem(request.rawImpressionUpload)
+          }
+        readSource(request.authoritativeSourceTimeout) {
+          finalStateResolver.resolve(baseGraph.upload, baseGraph.modelLines, availabilityWorkItems)
+        }
+      }
+      Triple(workItems.await(), routes.await(), finalState.await())
     }
     val workItemAttempt = authoritativeAttempts.first
     val workItemResolution = workItemAttempt.value
@@ -403,22 +412,15 @@ internal class VidLabelingTraceCollector(
       }
     var authoritativeGraph =
       baseGraph.copy(nodes = baseGraph.nodes + workItemResolution?.nodes.orEmpty())
-    if (workItemResolution?.availabilityLookupEnabled == true) {
+    if (workItemResolution == null || workItemResolution.availabilityLookupEnabled) {
       authoritativeGraph =
         authoritativeGraph.withAvailabilityWorkItems(
           availabilityWorkItems,
-          lookupComplete = !workItemResolution.truncated,
+          lookupComplete = workItemResolution != null && !workItemResolution.truncated,
         )
     }
     if (routeResolution != null) authoritativeGraph = authoritativeGraph.withRoutes(routeResolution)
-    val finalStateAttempt =
-      readSource(request.authoritativeSourceTimeout) {
-        finalStateResolver.resolve(
-          authoritativeGraph.upload,
-          authoritativeGraph.modelLines,
-          availabilityWorkItems,
-        )
-      }
+    val finalStateAttempt = authoritativeAttempts.third
     val finalState = finalStateAttempt.value
     sourceStatuses.record(
       "gcs_and_availability_state",
@@ -607,6 +609,12 @@ internal class VidLabelingTraceCollector(
         orderedEvidence.any { it.outcome?.lowercase() in FAILED_OUTCOMES }
     ) {
       warnings += "Earlier failed attempts were followed by successful terminal evidence."
+    }
+    if (
+      executionStatus == VidLabelingExecutionStatus.SUCCEEDED &&
+        availabilityWorkItems.any { it.state == "FAILED" }
+    ) {
+      warnings += "Failed availability WorkItems for older done generations remain in history."
     }
     val traceStatus =
       when {
@@ -914,18 +922,44 @@ internal class VidLabelingTraceCollector(
     if (graph.modelLines.any { it.state.name == "FAILED" }) {
       return VidLabelingExecutionStatus.FAILED
     }
+    val currentAvailability = graph.nodes.filter { it.stage == "availability_work_item_status" }
+    val requiresAvailabilityWorkItems =
+      graph.nodes.any { it.stage == "availability_work_item_create" }
+    if (requiresAvailabilityWorkItems) {
+      if (!graph.availabilityLookupComplete) return VidLabelingExecutionStatus.UNKNOWN
+      if (currentAvailability.any { it.authoritativeState == "FAILED" }) {
+        return VidLabelingExecutionStatus.FAILED
+      }
+      if (currentAvailability.any { it.authoritativeState in setOf("QUEUED", "RUNNING") }) {
+        return VidLabelingExecutionStatus.IN_PROGRESS
+      }
+      if (
+        currentAvailability.isEmpty() ||
+          currentAvailability.any { it.authoritativeState != "SUCCEEDED" } ||
+          graph.nodes.any {
+            it.stage == "availability_work_item_create" &&
+              it.authoritativeState in setOf("MISSING", "UNRESOLVED") &&
+              it.disposition != ExpectedNodeDisposition.AUTHORITATIVE_ONLY
+          }
+      ) {
+        return VidLabelingExecutionStatus.UNKNOWN
+      }
+    }
     val availabilityNodes = graph.nodes.filter { it.stage == "data_availability_publish" }
     if (
       graph.modelLines.isNotEmpty() &&
         graph.modelLines.all { it.state.name == "COMPLETED" } &&
         availabilityNodes.isNotEmpty() &&
-        availabilityNodes.all { it.authoritativeState == "PUBLISHED" }
+        availabilityNodes.all {
+          it.authoritativeState == "PUBLISHED" && it.disposition == ExpectedNodeDisposition.REQUIRED
+        }
     ) {
       return VidLabelingExecutionStatus.SUCCEEDED
     }
     if (graph.modelLines.any { it.state.name in ACTIVE_MODEL_LINE_STATES }) {
       return VidLabelingExecutionStatus.IN_PROGRESS
     }
+    if (requiresAvailabilityWorkItems) return VidLabelingExecutionStatus.UNKNOWN
     val latestByUnit =
       evidence
         .filter { it.stage != null }
@@ -1230,7 +1264,8 @@ internal class VidLabelingTraceCollector(
       listOf("upload_registration", "dispatch") + PHASE_ONE_STAGES.sorted() + COMMON_STAGES.drop(2)
     private val FAILED_OUTCOMES = setOf("failed", "error", "aborted")
     private val SUCCEEDED_OUTCOMES = setOf("succeeded", "completed", "published", "resolved")
-    private val ACTIVE_MODEL_LINE_STATES = setOf("CREATED", "POOL_ASSIGNING", "RANKING", "LABELING")
+    private val ACTIVE_MODEL_LINE_STATES =
+      setOf("CREATED", "POOL_ASSIGNING", "RANKING", "LABELING", "AVAILABILITY_SYNCING")
     private val NODE_MATCH_KEY_PRIORITY =
       listOf(
         "xmm.edpa.impression_metadata.name",

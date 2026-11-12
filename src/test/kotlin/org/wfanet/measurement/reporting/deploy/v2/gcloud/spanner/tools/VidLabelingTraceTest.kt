@@ -27,10 +27,13 @@ import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import org.junit.Test
@@ -49,6 +52,46 @@ private fun main(args: Array<String>, dependencies: VidLabelingTraceDependencies
   runVidLabelingTrace(args, dependencies)
 
 class VidLabelingTraceTest {
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun `collect starts final state after WorkItems without waiting for routes`() = runTest {
+    val workItemsReady = CompletableDeferred<Unit>()
+    val routesReady = CompletableDeferred<Unit>()
+    val finalStateStarted = CompletableDeferred<Unit>()
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(emptyList()) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        workItemResolver =
+          VidLabelingWorkItemResolver { _, _, _ ->
+            workItemsReady.await()
+            VidLabelingWorkItemResolution(emptyList(), emptyList(), false, emptyMap())
+          },
+        routeResolver =
+          VidLabelingRouteResolver { _, _ ->
+            routesReady.await()
+            VidLabelingRouteResolution(emptyMap(), emptyMap())
+          },
+        finalStateResolver =
+          VidLabelingFinalStateResolver { _, _, _ ->
+            finalStateStarted.complete(Unit)
+            VidLabelingFinalStateResolution(emptyList(), emptyMap())
+          },
+      )
+    val collection = async { collector.collect(request()) }
+    try {
+      runCurrent()
+      assertThat(finalStateStarted.isCompleted).isFalse()
+      workItemsReady.complete(Unit)
+      runCurrent()
+      assertThat(finalStateStarted.isCompleted).isTrue()
+    } finally {
+      routesReady.complete(Unit)
+    }
+    collection.await()
+  }
+
   @Test
   fun `collect joins separate traces by exact GCS object identity`() = runBlocking {
     val uri = "gs://output-bucket/model-line/direct/2026-09-01/done"
