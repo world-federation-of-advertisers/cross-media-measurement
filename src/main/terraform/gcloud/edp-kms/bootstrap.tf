@@ -41,3 +41,9 @@ resource "google_iam_workload_identity_pool" "deployment" {
   workload_identity_pool_id = "edp-kms-deployment"
   display_name              = "EDP KMS deployment"
 }
+
+resource "google_project_iam_member" "deployment_job_identity_admin" {
+  project = local.project_id
+  role    = "roles/iam.serviceAccountAdmin"
+  member  = "serviceAccount:terraform@${local.project_id}.iam.gserviceaccount.com"
+}

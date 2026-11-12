@@ -30,11 +30,30 @@ class TrusTeeConfigTest {
 
   private val trusTeeConfig =
     TrusTeeConfig(
+      kmsKekUri = null,
       kmsClient = fakeKmsClient,
       workloadIdentityProvider = "test-provider",
       impersonatedServiceAccount = "test-sa@example.com",
       awsKmsParams = null,
     )
+
+  @Test
+  fun `buildEncryptionParams uses an explicit recipient KEK for either cloud`() {
+    for (uri in
+      listOf(
+        "gcp-kms://projects/recipient/locations/global/keyRings/trustee/cryptoKeys/frequency-vector",
+        "aws-kms://arn:aws:kms:us-east-1:123456789012:key/frequency-vector",
+      )) {
+      val config = trusTeeConfig.copy(kmsKekUri = uri)
+      val params =
+        config.buildEncryptionParams(
+          "fake-kms://input",
+          mapOf("fake-kms://input" to "legacy-output"),
+        )
+      assertThat(params.kmsKekUri).isEqualTo(uri)
+      assertThat(params.impersonatedServiceAccount).isEqualTo("test-sa@example.com")
+    }
+  }
 
   @Test
   fun `buildEncryptionParams remaps GCP KMS KEK URI`() {
@@ -117,6 +136,7 @@ class TrusTeeConfigTest {
   fun `buildEncryptionParams with AWS type passes AWS fields`() {
     val awsConfig =
       TrusTeeConfig(
+        kmsKekUri = null,
         kmsClient = fakeKmsClient,
         workloadIdentityProvider = "test-provider",
         impersonatedServiceAccount = "test-sa@example.com",

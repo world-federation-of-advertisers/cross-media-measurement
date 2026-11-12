@@ -71,6 +71,14 @@ requires Confidential Space, stable images, approved projects and identities, an
 an approved image signature. Configure the Mill's `signed_image_repo` so the
 Confidential Space launcher can read its image signatures.
 
+To restrict admission to the Mill's repository across releases, use the
+[purpose-specific workload module and example](../../src/main/terraform/gcloud/examples/tee-workload-kms).
+Supply the Mill's dedicated signing fingerprint and approved `image_repositories`.
+The condition accepts a tag or digest in those repositories and verifies the
+job's signature; a globally shared Halo signing key alone does not distinguish
+the Mill from other Halo jobs. Add approved mirrors explicitly. The module
+enforces the same conditions for AWS KMS through Google federation.
+
 For Halo-managed test deployments, use the
 [shared roots and workflow](../edpaggregator/README.md#halo-managed-test-deployments).
 See [EDP KMS onboarding](../edpaggregator/README.md#3-set-up-kms-and-workload-trust)

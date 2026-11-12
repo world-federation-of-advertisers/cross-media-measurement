@@ -27,6 +27,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 
 internal class VidLabelingPipelineHappyPathIntegrationTest : VidLabelingPipelineTestHarness() {
+  override val usePurposeSpecificKeks: Boolean = true
+
   @Test
   fun `five chronological days preserve memoized VIDs through availability`() = runBlocking {
     val dates = (0L..4L).map(EVENT_DATE::plusDays)
@@ -45,6 +47,8 @@ internal class VidLabelingPipelineHappyPathIntegrationTest : VidLabelingPipeline
     assertThat(uploads).hasSize(5)
     for ((index, upload) in uploads.withIndex()) {
       assertCompletedForBothPaths(upload)
+      assertThat(listRankIndexBlobs(upload.name).map { it.encryptedDek.kekUri }.toSet())
+        .containsExactly(rankIndexKekUri)
       val tasks = listAvailabilityTasks(upload.name)
       assertThat(tasks).hasSize(2)
       assertThat(tasks.map { it.state }.toSet()).containsExactly(WorkItem.State.SUCCEEDED)
@@ -59,8 +63,18 @@ internal class VidLabelingPipelineHappyPathIntegrationTest : VidLabelingPipeline
       assertThat(listMetadata().count { it.rawImpressionUpload == upload.name }).isEqualTo(2)
     }
 
-    val memoized = readLabeledPeople(MEMOIZED_MODEL_LINE)
-    val direct = readLabeledPeople(DIRECT_MODEL_LINE)
+    // A reader holding only the labeled-output KEK must decrypt both paths.
+    // Reusing the rank-index or raw-input KEK would fail here.
+    val pipelineKmsClient = kmsClient
+    kmsClient = labeledKmsClient
+    val memoized: List<LabeledPersonImpression>
+    val direct: List<LabeledPersonImpression>
+    try {
+      memoized = readLabeledPeople(MEMOIZED_MODEL_LINE)
+      direct = readLabeledPeople(DIRECT_MODEL_LINE)
+    } finally {
+      kmsClient = pipelineKmsClient
+    }
     assertThat(memoized).hasSize(10)
     assertThat(direct).hasSize(10)
     assertThat(memoized.map { it.eventDate }.toSet()).containsExactlyElementsIn(dates)

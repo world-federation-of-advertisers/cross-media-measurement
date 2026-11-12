@@ -1,0 +1,111 @@
+{
+  "activate_environments": {
+    "dev": true,
+    "head": true,
+    "qa": true
+  },
+  "jobs": {
+    "trustee-mill": {
+      "workload": "TRUSTEE_MILL",
+      "launch_service_account_name": "trustee-mill-mig-sa",
+      "output_purpose": "trustee_frequency_vector",
+      "image_repositories": [
+        "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
+      ],
+      "key_permissions": {
+        "trustee_frequency_vector": [
+          "decrypt"
+        ]
+      }
+    },
+    "results-fulfiller": {
+      "workload": "RESULTS_FULFILLER",
+      "launch_service_account_name": "results-fulfiller-sa",
+      "output_purpose": "trustee_frequency_vector",
+      "image_repositories": [
+        "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
+      ],
+      "key_permissions": {
+        "raw_input": [
+          "decrypt"
+        ],
+        "labeled_impressions": [
+          "decrypt"
+        ],
+        "trustee_frequency_vector": [
+          "encrypt"
+        ]
+      }
+    },
+    "subpool-assigner": {
+      "workload": "SUBPOOL_ASSIGNER",
+      "launch_service_account_name": "subpool-assigner-sa",
+      "output_purpose": "subpool_map",
+      "image_repositories": [
+        "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner"
+      ],
+      "key_permissions": {
+        "subpool_map": [
+          "encrypt"
+        ]
+      }
+    },
+    "vid-rank-builder": {
+      "workload": "VID_RANK_BUILDER",
+      "launch_service_account_name": "vid-rank-builder-sa",
+      "output_purpose": "rank_index",
+      "image_repositories": [
+        "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder"
+      ],
+      "key_permissions": {
+        "raw_input": [
+          "decrypt"
+        ],
+        "subpool_map": [
+          "decrypt"
+        ],
+        "rank_index": [
+          "encrypt",
+          "decrypt"
+        ]
+      }
+    },
+    "vid-labeler": {
+      "workload": "VID_LABELER",
+      "launch_service_account_name": "vid-labeler-sa",
+      "output_purpose": "labeled_impressions",
+      "image_repositories": [
+        "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler"
+      ],
+      "key_permissions": {
+        "raw_input": [
+          "decrypt"
+        ],
+        "rank_index": [
+          "decrypt"
+        ],
+        "labeled_impressions": [
+          "encrypt"
+        ]
+      }
+    }
+  },
+  "signing": {
+    "dev": {
+      "environment": "dev",
+      "key_suffix": "test",
+      "service_account_name": "tee-job-image-signing"
+    },
+    "head": {
+      "environment": "dev",
+      "key_suffix": "test",
+      "service_account_name": "tee-job-image-signing"
+    },
+    "qa": {
+      "environment": "qa",
+      "key_suffix": "release",
+      "service_account_name": "tee-job-image-signing"
+    }
+  },
+  "retire_legacy_federation": false
+}

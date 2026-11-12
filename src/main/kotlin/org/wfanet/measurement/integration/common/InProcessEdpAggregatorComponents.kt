@@ -238,6 +238,7 @@ class InProcessEdpAggregatorComponents(
       trusTeeConfigs =
         kmsClients.mapValues { (_, kmsClient) ->
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",

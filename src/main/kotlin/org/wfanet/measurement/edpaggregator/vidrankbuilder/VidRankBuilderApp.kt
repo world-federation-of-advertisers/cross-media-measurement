@@ -90,6 +90,7 @@ class VidRankBuilderApp(
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val kmsClients: Map<String, KmsClient>,
   private val retentionDaysByDataProvider: Map<String, Int>,
+  private val getRankIndexKekUri: (String) -> String?,
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
@@ -177,7 +178,7 @@ class VidRankBuilderApp(
           params.allowedPriorSnapshotRawImpressionUploadsList.toSet(),
         vidRankMapBlobPrefix =
           SelectedStorageClient.parseBlobUri(params.vidRankMapStorageParams.blobPrefix).key,
-        kekUri = params.encryptedSubpoolMapsDek.kekUri,
+        kekUri = getRankIndexKekUri(dataProvider) ?: params.encryptedSubpoolMapsDek.kekUri,
         encryptedSubpoolMapsDek = params.encryptedSubpoolMapsDek,
         maxEventDate = params.maxEventDate,
         retentionDays = retentionDays,

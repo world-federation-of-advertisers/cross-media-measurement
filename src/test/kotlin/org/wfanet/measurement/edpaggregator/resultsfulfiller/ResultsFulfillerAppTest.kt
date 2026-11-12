@@ -517,6 +517,7 @@ class ResultsFulfillerAppTest {
           mapOf(
             EDP_NAME to
               TrusTeeConfig(
+                kmsKekUri = null,
                 kmsClient = kmsClient,
                 workloadIdentityProvider = "test-wip",
                 impersonatedServiceAccount = "test-sa@example.com",
@@ -798,6 +799,7 @@ class ResultsFulfillerAppTest {
         mapOf(
           EDP_NAME to
             TrusTeeConfig(
+              kmsKekUri = null,
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
@@ -1240,6 +1242,7 @@ class ResultsFulfillerAppTest {
         mapOf(
           EDP_NAME to
             TrusTeeConfig(
+              kmsKekUri = null,
               kmsClient = kmsClients.getValue(EDP_NAME),
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
@@ -1386,6 +1389,7 @@ class ResultsFulfillerAppTest {
       mapOf(
         EDP_NAME to
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",

@@ -24,6 +24,7 @@ import java.time.Duration
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig.TeeWorkload
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetEncryptionConfig
 import org.wfanet.measurement.storage.ParquetStorageClient
@@ -91,11 +92,11 @@ abstract class BaseVidLabelingTeeAppRunner(
   }
 
   /** The per-EDP KEK URI ("the EDP's KMS key") from [EventDataProviderConfig.kms_config]. */
-  protected fun kekUriFor(dataProvider: String): String {
+  protected fun kekUriFor(dataProvider: String, workload: TeeWorkload): String {
     val edpConfig =
       edpsConfig.eventDataProviderConfigList.firstOrNull { it.dataProvider == dataProvider }
     require(edpConfig != null) { "No EventDataProviderConfig for $dataProvider" }
-    val kekUri = edpConfig.kmsConfig.kekUri
+    val kekUri = WorkloadKmsConfigs.select(edpConfig, workload).kekUri
     require(kekUri.isNotEmpty()) { "kms_config.kek_uri must be set for $dataProvider" }
     return kekUri
   }
@@ -106,11 +107,11 @@ abstract class BaseVidLabelingTeeAppRunner(
    * `kms_config.kek_uri` unset in the shared all-EDP config and never produce pipeline work, so
    * callers skip them rather than eagerly requiring a KEK URI that will never be used.
    */
-  protected fun kekUriForOrNull(dataProvider: String): String? {
+  protected fun kekUriForOrNull(dataProvider: String, workload: TeeWorkload): String? {
     val edpConfig =
       edpsConfig.eventDataProviderConfigList.firstOrNull { it.dataProvider == dataProvider }
         ?: return null
-    val kekUri = edpConfig.kmsConfig.kekUri
+    val kekUri = WorkloadKmsConfigs.select(edpConfig, workload).kekUri
     return if (kekUri.isNotEmpty()) kekUri else null
   }
 

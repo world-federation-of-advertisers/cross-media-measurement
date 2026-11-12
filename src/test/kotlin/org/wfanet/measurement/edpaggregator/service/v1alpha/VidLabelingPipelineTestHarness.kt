@@ -16,6 +16,7 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.auth.oauth2.IdTokenProvider
 import com.google.common.truth.Truth.assertThat
+import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.devtools.build.runfiles.Runfiles
@@ -408,6 +409,17 @@ abstract class VidLabelingPipelineTestHarness(
   protected lateinit var externalOutputPrefix: String
   protected lateinit var modelBlobUri: String
   protected lateinit var kekUri: String
+  protected open val usePurposeSpecificKeks: Boolean = false
+  protected val subpoolKekUri: String
+    get() = if (usePurposeSpecificKeks) "$kekUri/subpool-map" else kekUri
+
+  protected val rankIndexKekUri: String
+    get() = if (usePurposeSpecificKeks) "$kekUri/rank-index" else kekUri
+
+  protected val labeledKekUri: String
+    get() = if (usePurposeSpecificKeks) "$kekUri/labeled-impressions" else kekUri
+
+  protected lateinit var labeledKmsClient: KmsClient
   protected lateinit var fileStorage: GenerationEnforcingStorageClient
   protected lateinit var mapStorage: UriNormalizingStorageClient
   protected lateinit var rawEventStorage: DataWatcherSubscribingStorageClient
@@ -466,7 +478,20 @@ abstract class VidLabelingPipelineTestHarness(
       GenerationEnforcingStorageClient(FileSystemStorageClient(fileStorageRoot), fileStorageRoot)
     mapStorage = UriNormalizingStorageClient(fileStorage)
     metadataStorage = RecordingBlobMetadataStorageClient(fileStorage)
-    kmsClient = TestEncryptedStorage.buildFakeKmsClient(kekUri, keyTemplate = "AES128_GCM")
+    val keys = setOf(kekUri, subpoolKekUri, rankIndexKekUri, labeledKekUri)
+    val clients =
+      keys.associateWith { TestEncryptedStorage.buildFakeKmsClient(it, keyTemplate = "AES128_GCM") }
+    labeledKmsClient = clients.getValue(labeledKekUri)
+    kmsClient =
+      object : KmsClient {
+        override fun doesSupport(keyUri: String): Boolean = keyUri in clients
+
+        override fun withCredentials(credentialPath: String): KmsClient = this
+
+        override fun withDefaultCredentials(): KmsClient = this
+
+        override fun getAead(keyUri: String): Aead = clients.getValue(keyUri).getAead(keyUri)
+      }
 
     runBlocking {
       val modelPath =
@@ -1018,7 +1043,7 @@ abstract class VidLabelingPipelineTestHarness(
         params.modelLine,
         params.allowedPriorSnapshotRawImpressionUploadsList.toSet(),
         SelectedStorageClient.parseBlobUri(params.vidRankMapStorageParams.blobPrefix).key,
-        params.encryptedSubpoolMapsDek.kekUri,
+        if (usePurposeSpecificKeks) rankIndexKekUri else params.encryptedSubpoolMapsDek.kekUri,
         params.encryptedSubpoolMapsDek,
         params.maxEventDate,
         pipelineConfig.retentionDays,
@@ -1298,10 +1323,11 @@ abstract class VidLabelingPipelineTestHarness(
           loadPoolEmitLabeler = { _, uri ->
             VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBytes(uri))
           },
-          getSubpoolMapKekUri = { kekUri },
+          getSubpoolMapKekUri = { subpoolKekUri },
           rpcThrottlers = throttlers,
         ),
         VidRankBuilderApp(
+          getRankIndexKekUri = { if (usePurposeSpecificKeks) rankIndexKekUri else null },
           subscriptionId = RANK_BUILDER_QUEUE,
           queueSubscriber = workItemTransport,
           parser = WorkItem.parser(),
@@ -1333,7 +1359,7 @@ abstract class VidLabelingPipelineTestHarness(
           workItemsClient = workItemsStub,
           workItemAttemptsClient = workItemAttemptsStub,
           kmsClients = mapOf(DATA_PROVIDER to kmsClient),
-          encryptKekUris = mapOf(DATA_PROVIDER to kekUri),
+          encryptKekUris = mapOf(DATA_PROVIDER to labeledKekUri),
           getStorageConfig = {
             StorageConfig(rootDirectory = File("/"), blobPrefix = it.impressionsBlobPrefix)
           },

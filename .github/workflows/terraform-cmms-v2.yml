@@ -37,6 +37,9 @@ on:
         description: Tag of container images
         type: string
         required: true
+      edp-kms-config-artifact:
+        description: Generated per-job KMS config from the trusted deployment workflow
+        type: string
       tee-consumers-enabled:
         description: Whether Secure Computation WorkItem TEE consumers may run
         type: boolean
@@ -76,6 +79,25 @@ jobs:
       uses: ./.github/actions/load-cmms-environment
       with:
         environment: ${{ inputs.environment }}
+
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      if: ${{ inputs.edp-kms-config-artifact != '' }}
+      with:
+        name: ${{ inputs.edp-kms-config-artifact }}
+        path: ${{ runner.temp }}/tee-runtime
+
+    - name: Select EDP runtime configuration
+      env:
+        CONFIG_ARTIFACT: ${{ inputs.edp-kms-config-artifact }}
+        ENVIRONMENT: ${{ inputs.environment }}
+      run: |
+        set -euo pipefail
+        path="envs/$ENVIRONMENT/event-data-provider-configs.textproto"
+        if [[ -n "$CONFIG_ARTIFACT" ]]; then
+          path="$RUNNER_TEMP/tee-runtime/$ENVIRONMENT.textproto"
+          test -s "$path"
+        fi
+        echo "EDP_KMS_RUNTIME_CONFIG_PATH=$path" >> "$GITHUB_ENV"
 
     - name: Compute commit age
       id: compute-commit-age
@@ -309,6 +331,7 @@ jobs:
         terraform plan
         -input=false
         -var-file=envs/${{ inputs.environment }}.tfvars
+        -var="event_data_provider_configs_file_path=$EDP_KMS_RUNTIME_CONFIG_PATH"
         -var="spanner_instance_name=$SPANNER_INSTANCE"
         -var="storage_bucket_name=$STORAGE_BUCKET"
         -var="terraform_service_account=$TERRAFORM_SERVICE_ACCOUNT"

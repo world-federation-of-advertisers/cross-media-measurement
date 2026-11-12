@@ -65,6 +65,23 @@ message EventDataProviderConfig {
     string kek_uri = 8;
   }
 
+  // The attested TEE job that will use the KMS credentials.
+  enum TeeWorkload {
+    TEE_WORKLOAD_UNSPECIFIED = 0;
+    RESULTS_FULFILLER = 1;
+    SUBPOOL_ASSIGNER = 2;
+    VID_RANK_BUILDER = 3;
+    VID_LABELER = 4;
+    TRUSTEE_MILL = 5;
+  }
+
+  message WorkloadKmsConfig {
+    TeeWorkload workload = 1;
+    // The job's credentials and output-purpose KEK. Input KEKs remain in
+    // encrypted object metadata; IAM must permit the job to decrypt them.
+    KmsConfig kms_config = 2;
+  }
+
   // Tls Config
   message TlsConfig {
     // Secret ID for the EDP TLS key.
@@ -128,6 +145,12 @@ message EventDataProviderConfig {
   // collision memoization exists to prevent). Only set for EDPs that use the
   // memoized VID ranker; read by VidRankBuilderAppRunner at startup.
   int32 retention_days = 6;
+
+  // Explicit job identities. When this list is nonempty, every executing job
+  // must have exactly one entry; missing jobs never fall back to kms_config.
+  // TRUSTEE_MILL describes the recipient credentials and frequency-vector KEK
+  // sent by Results Fulfiller in the TrusTEE envelope-encryption header.
+  repeated WorkloadKmsConfig workload_kms_configs = 7;
 }
 
 message EventDataProviderConfigs {

@@ -56,3 +56,9 @@ variable "export_google_subjects" {
   type     = set(string)
   nullable = false
 }
+
+variable "legacy_federation_enabled" {
+  description = "Retain legacy shared federation during the staged per-job rollout."
+  type        = bool
+  nullable    = false
+}

@@ -24,6 +24,10 @@ on:
         type: string
       candidate-image-tag:
         type: string
+    outputs:
+      runtime-config-artifact:
+        description: Per-job runtime configurations after the staged activation is enabled
+        value: ${{ jobs.workload-kms.outputs.runtime-config-artifact }}
   workflow_dispatch:
     inputs:
       apply:
@@ -45,6 +49,11 @@ on:
       - 'src/main/terraform/gcloud/modules/edp-aggregator-edp-deployment/**'
       - 'src/main/terraform/gcloud/modules/confidential-space-workload-identity/**'
       - 'src/main/terraform/aws/modules/edp-kms/**'
+      - '.github/env-configs/tee-workloads.json'
+      - '.github/workflows/scripts/prepare_tee_workloads.py'
+      - 'src/main/terraform/gcloud/tee-image-signing/**'
+      - 'src/main/terraform/gcloud/tee-workload-kms/**'
+      - 'src/main/terraform/gcloud/modules/tee-workload-kms/**'
 
 permissions:
   contents: read
@@ -158,3 +167,211 @@ jobs:
           set -euo pipefail
           terraform -chdir=src/main/terraform/gcloud/edp-kms apply -input=false -lock-timeout=5m "$KMS_INPUTS/google.tfplan"
           terraform -chdir=src/main/terraform/aws/edp-kms apply -input=false -lock-timeout=5m "$KMS_INPUTS/aws.tfplan"
+
+
+  signing-keys:
+    needs: terraform
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, qa]
+    runs-on: ubuntu-24.04
+    environment: ${{ matrix.environment }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+      - uses: ./.github/actions/load-cmms-environment
+        id: config
+        with:
+          environment: ${{ matrix.environment }}
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ fromJSON(steps.config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.config.outputs.config).TF_SERVICE_ACCOUNT }}
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+      - name: Provision stable signing keys for each TEE job
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+          PROJECT_ID: ${{ fromJSON(steps.config.outputs.config).GCLOUD_PROJECT }}
+          APPLY: ${{ inputs.apply || github.event_name == 'push' }}
+        run: |
+          set -euo pipefail
+          path=src/main/terraform/gcloud/tee-image-signing
+          jq --arg project "$PROJECT_ID" --arg env "$ENVIRONMENT"             '{project_id:$project, signing_service_account:.signing[$env].service_account_name, jobs:(.jobs|keys), key_suffix:.signing[$env].key_suffix}'             .github/env-configs/tee-workloads.json > "$RUNNER_TEMP/signing.tfvars.json"
+          backend="$GITHUB_WORKSPACE/src/main/terraform/gcloud/cmms/envs/$ENVIRONMENT.backend.hcl"
+          terraform -chdir="$path" init -input=false -lockfile=readonly -backend-config="$backend" -backend-config="prefix=terraform/state/edp-kms/signing/$ENVIRONMENT"
+          terraform -chdir="$path" plan -input=false -lock-timeout=5m -var-file="$RUNNER_TEMP/signing.tfvars.json" -out="$RUNNER_TEMP/signing.tfplan"
+          terraform -chdir="$path" show -json "$RUNNER_TEMP/signing.tfplan" | python3 -c 'import json,sys; p=json.load(sys.stdin); assert all("delete" not in r["change"]["actions"] for r in p.get("resource_changes", [])), "Signing key removal or replacement is prohibited"'
+          if [[ "$APPLY" == true ]]; then
+            terraform -chdir="$path" apply -input=false -lock-timeout=5m "$RUNNER_TEMP/signing.tfplan"
+          fi
+          # On the initial dry run these public keys do not exist yet. Review the
+          # signing-key plans first; provision them before planning derived trust.
+          terraform -chdir="$path" output -json > "$RUNNER_TEMP/$ENVIRONMENT.json"
+          jq -e '.signing_keys.value | length == 5' "$RUNNER_TEMP/$ENVIRONMENT.json" > /dev/null
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tee-signing-keys-${{ matrix.environment }}
+          path: ${{ runner.temp }}/${{ matrix.environment }}.json
+          if-no-files-found: error
+          retention-days: 1
+
+  sign-workload-images:
+    needs: signing-keys
+    if: ${{ inputs.apply || github.event_name == 'push' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, head, qa]
+    runs-on: ubuntu-24.04
+    environment: ${{ matrix.environment }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+      - uses: ./.github/actions/load-cmms-environment
+        id: config
+        with:
+          environment: ${{ matrix.environment }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: tee-signing-keys-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/tee-signing
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ fromJSON(steps.config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.config.outputs.config).TF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.0.2
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Collect immutable deployed image references
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: |
+          # The following signing step uses the signing identity. Its compute
+          # reads retain these CMMS credentials through a separate file.
+          echo "TEE_COMPUTE_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS" >> "$GITHUB_ENV"
+      - name: Select the dedicated job-signing identity
+        id: signer
+        env:
+          SIGNING_ENVIRONMENT: ${{ matrix.environment == 'qa' && 'qa' || 'dev' }}
+        run: |
+          set -euo pipefail
+          jq -r '.signing_identity.value | to_entries[] | "\(.key)=\(.value)"' "$RUNNER_TEMP/tee-signing/$SIGNING_ENVIRONMENT.json" >> "$GITHUB_OUTPUT"
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ steps.signer.outputs.workload_identity_provider }}
+          service_account: ${{ steps.signer.outputs.service_account }}
+      - name: Add the matching workload signature
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+          CANDIDATE_ENVIRONMENT: ${{ inputs.candidate-environment }}
+          CANDIDATE_TAG: ${{ inputs.candidate-image-tag }}
+        run: |
+          set -euo pipefail
+          args=(--directory "$RUNNER_TEMP/tee-inputs" --signing-directory "$RUNNER_TEMP/tee-signing" --environment "$ENVIRONMENT")
+          if [[ -n "$CANDIDATE_TAG" ]]; then
+            args+=(--candidate-tag "$CANDIDATE_TAG" --candidate-environment "$CANDIDATE_ENVIRONMENT")
+          fi
+          python3 .github/workflows/scripts/prepare_tee_workloads.py sign "${args[@]}"
+
+  workload-kms:
+    needs: [signing-keys, sign-workload-images]
+    if: ${{ always() && needs.signing-keys.result == 'success' && (needs.sign-workload-images.result == 'success' || needs.sign-workload-images.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    environment: dev
+    outputs:
+      runtime-config-artifact: ${{ steps.runtime-config.outputs.artifact }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+      - uses: ./.github/actions/load-cmms-environment
+        id: config
+        with:
+          environment: dev
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: tee-signing-keys-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/tee-signing
+      - name: Prepare workload policies and deployment identity
+        id: kms-config
+        run: |
+          set -euo pipefail
+          python3 .github/workflows/scripts/prepare_edp_kms.py --output-directory "$RUNNER_TEMP/tee-inputs" --github-output "$GITHUB_OUTPUT"
+          python3 .github/workflows/scripts/prepare_tee_workloads.py prepare --directory "$RUNNER_TEMP/tee-inputs" --signing-directory "$RUNNER_TEMP/tee-signing"
+      - name: Authenticate for Terraform state
+        id: state-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ fromJSON(steps.config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.config.outputs.config).TF_SERVICE_ACCOUNT }}
+      - name: Authenticate to the EDP-owned Google project
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ steps.kms-config.outputs.google_workload_identity_provider }}
+          service_account: ${{ steps.kms-config.outputs.google_service_account }}
+      - uses: aws-actions/configure-aws-credentials@5579c002bb4778aa43395ef1df492868a9a1c83f # v4.0.2
+        with:
+          role-to-assume: ${{ steps.kms-config.outputs.aws_deployment_role }}
+          aws-region: ${{ steps.kms-config.outputs.aws_region }}
+          role-session-name: tee-kms-terraform
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+      - name: Plan and provision purpose-specific keys in both clouds
+        env:
+          GOOGLE_BACKEND_CREDENTIALS: ${{ steps.state-auth.outputs.credentials_file_path }}
+          BACKEND_BUCKET: ${{ steps.kms-config.outputs.backend_bucket }}
+          APPLY: ${{ inputs.apply || github.event_name == 'push' }}
+        run: |
+          set -euo pipefail
+          path=src/main/terraform/gcloud/tee-workload-kms
+          terraform -chdir="$path" init -input=false -lockfile=readonly -backend-config="bucket=$BACKEND_BUCKET"
+          terraform -chdir="$path" plan -input=false -lock-timeout=5m -var-file="$RUNNER_TEMP/tee-inputs/workloads.tfvars.json" -out="$RUNNER_TEMP/workloads.tfplan"
+          terraform -chdir="$path" show -json "$RUNNER_TEMP/workloads.tfplan" | python3 -c 'import json,sys; p=json.load(sys.stdin); assert all("delete" not in r["change"]["actions"] or (r["type"] == "google_kms_crypto_key_iam_member" and r["change"]["actions"] == ["delete"]) for r in p.get("resource_changes", [])), "Workload key or identity removal/replacement is prohibited"'
+          if [[ "$APPLY" == true ]]; then
+            terraform -chdir="$path" apply -input=false -lock-timeout=5m "$RUNNER_TEMP/workloads.tfplan"
+            terraform -chdir="$path" output -json > "$RUNNER_TEMP/workloads.json"
+          fi
+      - name: Render the staged runtime configuration
+        id: runtime-config
+        if: ${{ inputs.apply || github.event_name == 'push' }}
+        env:
+          CANDIDATE_ENVIRONMENT: ${{ inputs.candidate-environment }}
+          CANDIDATE_TAG: ${{ inputs.candidate-image-tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          args=(--directory "$RUNNER_TEMP/tee-runtime" --terraform-output "$RUNNER_TEMP/workloads.json")
+          if [[ -n "$CANDIDATE_ENVIRONMENT" ]]; then
+            args+=(--candidate-environment "$CANDIDATE_ENVIRONMENT" --candidate-tag "$CANDIDATE_TAG")
+          fi
+          python3 .github/workflows/scripts/prepare_tee_workloads.py render "${args[@]}"
+          if [[ -n "$CANDIDATE_ENVIRONMENT" ]] && jq -e --arg env "$CANDIDATE_ENVIRONMENT" '.activate_environments[$env]' .github/env-configs/tee-workloads.json > /dev/null; then
+            echo "artifact=tee-kms-runtime-config" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ steps.runtime-config.outputs.artifact != '' }}
+        with:
+          name: tee-kms-runtime-config
+          path: ${{ runner.temp }}/tee-runtime/*.textproto
+          if-no-files-found: error
+          retention-days: 1

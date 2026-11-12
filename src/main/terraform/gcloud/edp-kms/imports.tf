@@ -60,3 +60,8 @@ import {
   to = google_kms_crypto_key_iam_member.trustee
   id = "projects/${local.project_id}/locations/${local.key_location}/keyRings/${local.key_ring}/cryptoKeys/${var.trustee_key_name} roles/cloudkms.cryptoKeyEncrypterDecrypter serviceAccount:${var.service_account_name}@${local.project_id}.iam.gserviceaccount.com"
 }
+
+import {
+  to = google_project_iam_binding.project_administration
+  id = "${local.project_id} roles/resourcemanager.projectIamAdmin"
+}

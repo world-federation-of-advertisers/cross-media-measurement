@@ -30,7 +30,7 @@ locals {
   key_ring             = local.key_parts[5]
   key_name             = local.key_parts[7]
   provider_prefix      = "projects/${var.project_number}/locations/global/workloadIdentityPools/${var.workload_identity_pool_id}/providers"
-  attribute_conditions = module.attestation_policy.attribute_conditions
+  attribute_conditions = var.legacy_federation_enabled ? module.attestation_policy.attribute_conditions : { for env in keys(var.workloads) : env => "false" }
 }
 
 module "edp_kms" {
@@ -95,4 +95,12 @@ module "attestation_policy" {
   source                         = "../modules/edp-kms-attestation-policy"
   workloads                      = var.workloads
   workload_service_account_names = var.workload_service_account_names
+}
+
+# Own this role so the historical runtime grant cannot bypass per-key policies.
+# Key-owner administrators remain responsible for reviewing this member list.
+resource "google_project_iam_binding" "project_administration" {
+  project = local.project_id
+  role    = "roles/resourcemanager.projectIamAdmin"
+  members = var.project_iam_admin_members
 }

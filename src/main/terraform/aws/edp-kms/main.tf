@@ -26,9 +26,6 @@ locals {
   account_id = split(":", local.key_arn)[4]
   key_id     = split("/", local.key_arn)[1]
   key_ids    = sort(tolist(var.image_signature_key_ids))
-  key_id_tags = concat(local.key_ids, [
-    for pair in setproduct(local.key_ids, local.key_ids) : join("=", pair) if pair[0] != pair[1]
-  ])
 }
 
 module "edp_kms" {
@@ -41,11 +38,13 @@ module "edp_kms" {
   role_name                  = var.role_name
   sts_actions                = ["sts:AssumeRoleWithWebIdentity", "sts:TagSession"]
   trust_condition = jsonencode({
+    StringLike = {
+      "aws:RequestTag/container.signatures.key_ids" = flatten([for id in local.key_ids : [id, "${id}=*", "*=${id}", "*=${id}=*"]])
+    }
     StringEquals = {
-      "confidentialcomputing.googleapis.com:aud"             = var.audience
+      "confidentialcomputing.googleapis.com:aud"             = var.legacy_federation_enabled ? var.audience : "urn:halo:retired-legacy-kms"
       "aws:RequestTag/swname"                                = "CONFIDENTIAL_SPACE"
       "aws:RequestTag/confidential_space.support_attributes" = "LATEST=STABLE=USABLE"
-      "aws:RequestTag/container.signatures.key_ids"          = local.key_id_tags
       "aws:RequestTag/gce.project_id"                        = var.workload_project_ids
     }
   })

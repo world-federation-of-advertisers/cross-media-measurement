@@ -128,3 +128,16 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "WorkloadKmsConfigsTest",
+    srcs = ["WorkloadKmsConfigsTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.WorkloadKmsConfigsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:workload_kms_configs",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:event_data_provider_configs_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

@@ -767,6 +767,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -1045,6 +1046,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -1185,6 +1187,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
             TrusTeeConfig(
+              kmsKekUri = null,
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
@@ -1336,6 +1339,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
             TrusTeeConfig(
+              kmsKekUri = null,
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
@@ -1475,6 +1479,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
             TrusTeeConfig(
+              kmsKekUri = null,
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
@@ -1612,6 +1617,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -1735,6 +1741,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -1850,6 +1857,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -1987,6 +1995,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -2104,6 +2113,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -2219,6 +2229,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -2342,6 +2353,7 @@ class ResultsFulfillerTest {
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
           trusTeeConfig =
             TrusTeeConfig(
+              kmsKekUri = null,
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
@@ -2481,6 +2493,7 @@ class ResultsFulfillerTest {
           setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -2718,6 +2731,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
             TrusTeeConfig(
+              kmsKekUri = null,
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
@@ -2830,6 +2844,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
             TrusTeeConfig(
+              kmsKekUri = null,
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
@@ -2964,6 +2979,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
             TrusTeeConfig(
+              kmsKekUri = null,
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
@@ -3096,6 +3112,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -3299,6 +3316,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -3429,6 +3447,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -3577,6 +3596,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -3839,6 +3859,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
             TrusTeeConfig(
+              kmsKekUri = null,
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
@@ -3952,6 +3973,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
             TrusTeeConfig(
+              kmsKekUri = null,
               kmsClient = kmsClient,
               workloadIdentityProvider = "test-wip",
               impersonatedServiceAccount = "test-sa@example.com",
@@ -4065,6 +4087,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -4267,6 +4290,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
+            kmsKekUri = null,
             kmsClient = kmsClient,
             workloadIdentityProvider = "test-wip",
             impersonatedServiceAccount = "test-sa@example.com",
@@ -4587,6 +4611,7 @@ class ResultsFulfillerTest {
     val kmsClient = FakeKmsClient()
     val trusTeeConfig =
       TrusTeeConfig(
+        kmsKekUri = null,
         kmsClient = kmsClient,
         workloadIdentityProvider = "test-wip",
         impersonatedServiceAccount = "test-sa@example.com",
@@ -4610,6 +4635,7 @@ class ResultsFulfillerTest {
     val kmsClient = FakeKmsClient()
     val trusTeeConfig =
       TrusTeeConfig(
+        kmsKekUri = null,
         kmsClient = kmsClient,
         workloadIdentityProvider = "test-wip",
         impersonatedServiceAccount = "test-sa@example.com",

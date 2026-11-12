@@ -35,6 +35,13 @@ on:
       - 'src/main/terraform/gcloud/cmms/envs/*/event-data-provider-configs.textproto'
       - '.github/workflows/scripts/prepare_edp_kms.py'
       - '.github/workflows/deploy-edp-kms.yml'
+      - '.github/env-configs/tee-workloads.json'
+      - '.github/workflows/scripts/prepare_tee_workloads.py'
+      - 'src/test/python/github_workflows/**'
+      - 'src/main/terraform/gcloud/tee-image-signing/**'
+      - 'src/main/terraform/gcloud/tee-workload-kms/**'
+      - 'src/main/terraform/gcloud/modules/tee-workload-kms/**'
+      - 'src/main/terraform/gcloud/examples/tee-workload-kms/**'
   push:
     branches: [main]
     paths:
@@ -55,6 +62,13 @@ on:
       - 'src/main/terraform/gcloud/cmms/envs/*/event-data-provider-configs.textproto'
       - '.github/workflows/scripts/prepare_edp_kms.py'
       - '.github/workflows/deploy-edp-kms.yml'
+      - '.github/env-configs/tee-workloads.json'
+      - '.github/workflows/scripts/prepare_tee_workloads.py'
+      - 'src/test/python/github_workflows/**'
+      - 'src/main/terraform/gcloud/tee-image-signing/**'
+      - 'src/main/terraform/gcloud/tee-workload-kms/**'
+      - 'src/main/terraform/gcloud/modules/tee-workload-kms/**'
+      - 'src/main/terraform/gcloud/examples/tee-workload-kms/**'
   workflow_dispatch:
 
 permissions:
@@ -80,8 +94,14 @@ jobs:
           export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/edp-tf-plugins"
           mkdir -p "$TF_PLUGIN_CACHE_DIR"
           python3 .github/workflows/scripts/prepare_edp_kms.py --output-directory "$RUNNER_TEMP/kms-inputs"
+          python3 -m unittest discover -s src/test/python/github_workflows -p "*_test.py"
           paths=(
             src/main/terraform/gcloud/edp-kms
+            src/main/terraform/gcloud/tee-image-signing
+            src/main/terraform/gcloud/tee-workload-kms
+            src/main/terraform/gcloud/modules/tee-workload-kms
+            src/main/terraform/gcloud/examples/tee-workload-kms
+            src/test/terraform/gcloud/tee-workload-kms
             src/main/terraform/gcloud/modules/edp-kms-attestation-policy
             src/main/terraform/aws/edp-kms
             src/main/terraform/gcloud/modules/confidential-space-workload-identity

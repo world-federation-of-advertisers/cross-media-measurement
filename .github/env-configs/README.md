@@ -25,3 +25,9 @@ and verifies provider/role references against committed runtime textprotos.
 Signing fingerprints are derived from the repository's public keys. All three
 environments share one state per cloud; these resources are not owned by their
 individual CMMS states.
+
+`tee-workloads.json` defines the shared TEE job repositories, purpose permissions,
+signing identities, and per-environment activation controls. Private signing keys
+and Terraform state are not committed. Follow the
+[workload KMS rollout guide](../../docs/operations/tee-workload-kms.md) before
+activation or retiring legacy federation.
