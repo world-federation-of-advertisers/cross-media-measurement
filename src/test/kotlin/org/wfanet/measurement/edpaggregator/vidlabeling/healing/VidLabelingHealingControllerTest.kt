@@ -558,7 +558,6 @@ class VidLabelingHealingControllerTest {
     assertThat(replay!!.doneBlobGeneration).isEqualTo(CANDIDATE_UPLOAD.doneBlobGeneration)
     assertThat(replay!!.sourceRawImpressionUpload).isEqualTo(SOURCE_UPLOAD_NAME)
     assertThat(executedPlan.badUploads).containsExactly(SOURCE_UPLOAD_NAME)
-    assertThat(executedPlan.cutoffTime).isEqualTo(Instant.MIN)
     assertThat(operation.stepsList.single().state)
       .isEqualTo(UploadHealingStep.State.RECOVERY_STARTED)
     Unit
@@ -2111,8 +2110,6 @@ class VidLabelingHealingControllerTest {
             memoizedModelLines = emptySet(),
             nonMemoizedModelLines = setOf(CMMS_MODEL_LINE),
             badUploads = owners,
-            noReplacementUploads = emptySet(),
-            cutoffTime = cutoff,
             evictionOperationId = operationId,
             recoveryTargets = emptyList(),
             replacementTargets =

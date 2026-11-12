@@ -31,8 +31,6 @@ service UploadHealingOperationService {
       returns (UploadHealingOperation);
   rpc ListUploadHealingOperations(ListUploadHealingOperationsRequest)
       returns (ListUploadHealingOperationsResponse);
-  rpc UpdateUploadHealingOperationPlan(UpdateUploadHealingOperationPlanRequest)
-      returns (UploadHealingOperation);
   rpc ApproveUploadHealingOperation(ApproveUploadHealingOperationRequest)
       returns (UploadHealingOperation);
   rpc FinalizeUploadHealingOperation(FinalizeUploadHealingOperationRequest)
@@ -83,13 +81,6 @@ message ListUploadHealingOperationsPageToken {
     string upload_healing_operation_id = 2;
   }
   After after = 3;
-}
-
-message UpdateUploadHealingOperationPlanRequest {
-  string data_provider_resource_id = 1;
-  string upload_healing_operation_id = 2;
-  UploadHealingOperation upload_healing_operation = 3;
-  string etag = 4;
 }
 
 message ApproveUploadHealingOperationRequest {

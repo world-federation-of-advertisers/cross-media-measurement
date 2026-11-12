@@ -50,8 +50,6 @@ class RawImpressionUploadCorrectionPlannerTest {
               memoizedModelLines = setOf(MEMOIZED_MODEL_LINE),
               nonMemoizedModelLines = setOf(DIRECT_MODEL_LINE),
               badUploads = badUploads,
-              noReplacementUploads = emptySet(),
-              cutoffTime = cutoffTime,
               evictionOperationId = operationId,
               recoveryTargets =
                 listOf(
@@ -165,8 +163,6 @@ class RawImpressionUploadCorrectionPlannerTest {
               memoizedModelLines = emptySet(),
               nonMemoizedModelLines = setOf(DIRECT_MODEL_LINE),
               badUploads = badUploads,
-              noReplacementUploads = emptySet(),
-              cutoffTime = cutoffTime,
               evictionOperationId = operationId,
               recoveryTargets = emptyList(),
               replacementTargets =
@@ -262,8 +258,6 @@ class RawImpressionUploadCorrectionPlannerTest {
       memoizedModelLines = emptySet(),
       nonMemoizedModelLines = setOf(DIRECT_MODEL_LINE),
       badUploads = badUploads,
-      noReplacementUploads = emptySet(),
-      cutoffTime = cutoffTime,
       evictionOperationId = operationId,
       recoveryTargets = emptyList(),
     )

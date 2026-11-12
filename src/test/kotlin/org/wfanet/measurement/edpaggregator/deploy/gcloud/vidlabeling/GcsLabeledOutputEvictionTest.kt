@@ -22,7 +22,6 @@ import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageException
 import com.google.common.truth.Truth.assertThat
 import com.google.type.date
-import java.time.Instant
 import java.time.LocalDate
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
@@ -319,8 +318,6 @@ class GcsLabeledOutputEvictionTest {
       memoizedModelLines = emptySet(),
       nonMemoizedModelLines = setOf(MODEL_LINE),
       badUploads = listOf(UPLOAD),
-      noReplacementUploads = emptySet(),
-      cutoffTime = Instant.EPOCH,
       evictionOperationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       recoveryTargets = emptyList(),
     )

@@ -437,12 +437,6 @@ class VidLabelingMonitor(
         !it.processingDeferred && it.state != RawImpressionUpload.State.CORRECTION_REQUIRED
       }
 
-    /** Every non-deferred, non-correction upload across all states. */
-    fun allUploads(): List<RawImpressionUpload> =
-      everyUpload().filter {
-        !it.processingDeferred && it.state != RawImpressionUpload.State.CORRECTION_REQUIRED
-      }
-
     /** Every upload, including deferred and correction-required revisions. */
     fun everyUpload(): List<RawImpressionUpload> = uploadsByState.values.flatten()
 
