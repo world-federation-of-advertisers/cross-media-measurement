@@ -97,6 +97,28 @@ class SelectedImageWorkflowsTest(unittest.TestCase):
                 self.assertEqual(calls[0][:2], ["query", "//src/main/docker:sign_" + name])
                 self.assertEqual(calls[1][:2], ["run", "//src/main/docker:" + operation + "_" + name])
 
+    def test_secure_computation_apps_can_be_published_and_signed(self):
+        targets = generated_targets()
+        for name in [
+            "gcloud_results_fulfiller_app",
+            "gcloud_subpool_assigner_app",
+            "gcloud_vid_rank_builder_app",
+            "gcloud_vid_labeler_app",
+        ]:
+            with self.subTest(image=name):
+                self.assertIn("//src/main/docker:push_" + name, targets)
+                self.assertIn("//src/main/docker:sign_" + name, targets)
+            for file, step, operation in [
+                ("push-images.yml", "Build and push selected image", "push"),
+                ("sign-images.yml", "Sign images", "sign"),
+            ]:
+                with self.subTest(image=name, file=file):
+                    result, calls = self.run_step(file, step, name)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(len(calls), 2)
+                    self.assertEqual(calls[0][:2], ["query", "//src/main/docker:sign_" + name])
+                    self.assertEqual(calls[1][:2], ["run", "//src/main/docker:" + operation + "_" + name])
+
     def test_local_image_with_push_target_is_rejected_before_publish_or_sign(self):
         name = "forwarded_storage_herald_daemon_image"
         self.assertIn("//src/main/docker:push_" + name, generated_targets())
