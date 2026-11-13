@@ -121,12 +121,15 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpointSink
 import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
+import org.wfanet.measurement.edpaggregator.dataavailability.ExternalDataAvailabilitySnapshotChangedException
+import org.wfanet.measurement.edpaggregator.dataavailability.GenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncWorkItem
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncWorkItemProcessor
@@ -178,6 +181,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.approveUploadHealingOperatio
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.bucketLookup
 import org.wfanet.measurement.edpaggregator.v1alpha.enumLookup
+import org.wfanet.measurement.edpaggregator.v1alpha.externalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.labelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
@@ -421,6 +425,7 @@ abstract class VidLabelingPipelineTestHarness(
   protected val appJobs = mutableListOf<Job>()
   protected val endpointFailure = AtomicReference<Throwable?>()
   protected val externalAvailabilityDeliveries = AtomicInteger()
+  private val externalAvailabilityStagePause = AtomicReference<AvailabilityStagePause?>()
   private val outputDeleteHook = AtomicReference<OutputDeleteHook?>()
 
   protected lateinit var uploadsStub:
@@ -444,6 +449,34 @@ abstract class VidLabelingPipelineTestHarness(
   protected lateinit var dispatchSequencer: VidLabelingDispatchSequencer
   protected lateinit var internalDataAvailabilitySync: DataAvailabilitySync
   private lateinit var availabilityWorkItemProcessor: DataAvailabilitySyncWorkItemProcessor
+
+  protected class AvailabilityStagePause
+  internal constructor(
+    internal val stage: DataAvailabilitySync.Stage,
+    internal val reached: CompletableDeferred<Unit> = CompletableDeferred(),
+    internal val resume: CompletableDeferred<Unit> = CompletableDeferred(),
+  ) {
+    suspend fun awaitReached() = reached.await()
+
+    fun release() {
+      resume.complete(Unit)
+    }
+  }
+
+  protected fun pauseNextExternalAvailabilityStage(
+    stage: DataAvailabilitySync.Stage
+  ): AvailabilityStagePause {
+    val pause = AvailabilityStagePause(stage)
+    check(externalAvailabilityStagePause.compareAndSet(null, pause))
+    return pause
+  }
+
+  private fun pauseExternalAvailabilityStage(stage: DataAvailabilitySync.Stage) {
+    val pause = externalAvailabilityStagePause.get() ?: return
+    if (pause.stage != stage || !externalAvailabilityStagePause.compareAndSet(pause, null)) return
+    pause.reached.complete(Unit)
+    runBlocking { pause.resume.await() }
+  }
 
   @Before
   fun setUp() {
@@ -586,6 +619,11 @@ abstract class VidLabelingPipelineTestHarness(
         modelLineMap = emptyMap(),
         errorIfGapsExist = false,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths =
+          listOf(
+            SelectedStorageClient.parseBlobUri(outputPrefix).key,
+            SelectedStorageClient.parseBlobUri(externalOutputPrefix).key,
+          ),
       )
     val externalDataAvailabilitySync =
       DataAvailabilitySync(
@@ -600,6 +638,12 @@ abstract class VidLabelingPipelineTestHarness(
         modelLineMap = emptyMap(),
         errorIfGapsExist = false,
         publishEventGroupActivities = null,
+        generationMatchedMetadataUpdater = metadataStorage.generationMatchedMetadataUpdater,
+        availabilityImpressionPaths =
+          listOf(
+            SelectedStorageClient.parseBlobUri(outputPrefix).key,
+            SelectedStorageClient.parseBlobUri(externalOutputPrefix).key,
+          ),
       )
 
     httpServer = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -611,30 +655,6 @@ abstract class VidLabelingPipelineTestHarness(
             checkNotNull(exchange.requestHeaders.getFirst(DATA_WATCHER_PATH_HEADER)),
             checkNotNull(exchange.requestHeaders.getFirst(DATA_WATCHER_GENERATION_HEADER)).toLong(),
           )
-      },
-    )
-    httpServer.createContext(
-      "/labeled",
-      SuspendingHttpHandler(endpointFailure::set) { exchange ->
-        externalAvailabilityDeliveries.incrementAndGet()
-        val leaseRunner =
-          DataAvailabilitySyncLeaseRunner(
-            GrpcDataAvailabilitySyncLeaseClient(
-              DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub(
-                edpaPublicServer.channel
-              )
-            )
-          )
-        leaseRunner.run(DATA_PROVIDER) { lease ->
-          externalDataAvailabilitySync.sync(
-            checkNotNull(exchange.requestHeaders.getFirst(DATA_WATCHER_PATH_HEADER)),
-            dataAvailabilitySyncLease = lease.name,
-            ensureLeaseActive = lease::invoke,
-            doneBlobGeneration =
-              checkNotNull(exchange.requestHeaders.getFirst(DATA_WATCHER_GENERATION_HEADER))
-                .toLong(),
-          )
-        }
       },
     )
     httpServer.start()
@@ -663,9 +683,11 @@ abstract class VidLabelingPipelineTestHarness(
           watchedPath {
             identifier = "labeled-output"
             sourcePathRegex = "${Regex.escape(externalOutputPrefix)}/model-line/.+/done"
-            httpEndpointSink = httpEndpointSink {
-              endpointUri = "$endpoint/labeled"
-              appParams = Struct.getDefaultInstance()
+            controlPlaneQueueSink = controlPlaneQueueSink {
+              queue = DataAvailabilitySyncWorkItems.QUEUE
+              serializationKey = "data-availability:$DATA_PROVIDER"
+              appParams =
+                ProtoAny.pack(externalDataAvailabilitySyncParams { dataProvider = DATA_PROVIDER })
             }
           }
         ),
@@ -685,28 +707,44 @@ abstract class VidLabelingPipelineTestHarness(
             DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub(
               edpaPublicServer.channel
             )
-          )
+          ),
+          renewalDelay = { delay(it) },
         ),
         synchronize = { workItem, lease, onStage ->
-          val rawImpressionBlobUris =
-            listUploadFiles(workItem.appParams.triggeringRawImpressionUpload)
-              .filter { it.eventDate.toLocalDate() == workItem.eventDate }
-              .map { it.blobUri }
-          check(rawImpressionBlobUris.isNotEmpty())
-          internalDataAvailabilitySync.sync(
-            workItem.doneBlobUri,
-            dataAvailabilitySyncLease = lease.name,
-            doneBlobGeneration = workItem.doneBlobGeneration,
-            discoveryMode =
-              DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
-                rawImpressionUpload = workItem.appParams.triggeringRawImpressionUpload,
-                rawImpressionBlobUris = rawImpressionBlobUris,
-                modelLine = workItem.appParams.modelLine,
-                eventDate = workItem.eventDate,
-              ),
-            onStage = onStage,
-            ensureLeaseActive = lease::invoke,
-          )
+          if (workItem.isExternal) {
+            externalAvailabilityDeliveries.incrementAndGet()
+            externalDataAvailabilitySync.sync(
+              workItem.doneBlobUri,
+              dataAvailabilitySyncLease = lease.name,
+              doneBlobGeneration = workItem.doneBlobGeneration,
+              externalDoneBlobCreateTime = workItem.doneBlobCreateTime,
+              onStage = { stage ->
+                onStage(stage)
+                pauseExternalAvailabilityStage(stage)
+              },
+              ensureLeaseActive = lease::invoke,
+            )
+          } else {
+            val rawImpressionBlobUris =
+              listUploadFiles(workItem.appParams.triggeringRawImpressionUpload)
+                .filter { it.eventDate.toLocalDate() == workItem.eventDate }
+                .map { it.blobUri }
+            check(rawImpressionBlobUris.isNotEmpty())
+            internalDataAvailabilitySync.sync(
+              workItem.doneBlobUri,
+              dataAvailabilitySyncLease = lease.name,
+              doneBlobGeneration = workItem.doneBlobGeneration,
+              discoveryMode =
+                DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                  rawImpressionUpload = workItem.appParams.triggeringRawImpressionUpload,
+                  rawImpressionBlobUris = rawImpressionBlobUris,
+                  modelLine = workItem.appParams.modelLine,
+                  eventDate = workItem.eventDate,
+                ),
+              onStage = onStage,
+              ensureLeaseActive = lease::invoke,
+            )
+          }
         },
         verifyDoneObject = { workItem ->
           val key = SelectedStorageClient.parseBlobUri(workItem.doneBlobUri).key
@@ -1748,6 +1786,19 @@ abstract class VidLabelingPipelineTestHarness(
       }
       .filter { it.rawImpressionUpload == upload }
 
+  protected fun listExternalAvailabilityTasks(): List<ExternalAvailabilityWorkItemRecord> =
+    workItemTransport.workItemsForQueue(DataAvailabilitySyncWorkItems.QUEUE).mapNotNull { workItem
+      ->
+      val input = DataAvailabilitySyncWorkItem.parse(workItem)
+      if (!input.isExternal) return@mapNotNull null
+      ExternalAvailabilityWorkItemRecord(
+        workItem = workItem,
+        attemptCount = workItemTransport.attemptCount(workItem.name),
+        doneBlobUri = input.doneBlobUri,
+        doneBlobGeneration = input.doneBlobGeneration,
+      )
+    }
+
   protected fun poolAssignmentWorkItems(): List<WorkItem> =
     workItemTransport.workItemsForQueue(POOL_ASSIGNER_QUEUE)
 
@@ -1758,6 +1809,10 @@ abstract class VidLabelingPipelineTestHarness(
     workItemTransport.workItemsForQueue(VID_LABELER_QUEUE)
 
   protected suspend fun processAvailabilityTask(task: AvailabilityWorkItemRecord) {
+    availabilityWorkItemProcessor.process(DataAvailabilitySyncWorkItem.parse(task.workItem))
+  }
+
+  protected suspend fun processExternalAvailabilityTask(task: ExternalAvailabilityWorkItemRecord) {
     availabilityWorkItemProcessor.process(DataAvailabilitySyncWorkItem.parse(task.workItem))
   }
 
@@ -1840,6 +1895,7 @@ abstract class VidLabelingPipelineTestHarness(
         )
       val impressions =
         StorageEventReader(
+            blobGeneration = 0L,
             blobDetails = details,
             kmsClient = kmsClient,
             impressionsStorageConfig = StorageConfig(rootDirectory = File("/")),
@@ -1931,6 +1987,7 @@ abstract class VidLabelingPipelineTestHarness(
         val details =
           BlobDetails.parseFrom(checkNotNull(fileStorage.getBlob(sidecarKey)).read().flatten())
         StorageEventReader(
+            blobGeneration = 0L,
             blobDetails = details,
             kmsClient = kmsClient,
             impressionsStorageConfig = StorageConfig(rootDirectory = File("/")),
@@ -2216,14 +2273,34 @@ abstract class VidLabelingPipelineTestHarness(
       get() = VidLabelingTraceAttributes.gcsObjectPathHash(doneBlobUri)
   }
 
-  protected class RecordingBlobMetadataStorageClient(private val delegate: StorageClient) :
-    BlobMetadataStorageClient, StorageClient by delegate {
+  protected data class ExternalAvailabilityWorkItemRecord(
+    val workItem: WorkItem,
+    val attemptCount: Int,
+    val doneBlobUri: String,
+    val doneBlobGeneration: Long,
+  ) {
+    val state: WorkItem.State
+      get() = workItem.state
+  }
+
+  protected class RecordingBlobMetadataStorageClient(
+    private val delegate: ConditionalOperationStorageClient
+  ) : BlobMetadataStorageClient, ConditionalOperationStorageClient by delegate {
     private data class BlobVersion(val blobKey: String, val freshnessToken: String)
 
     private val metadata = ConcurrentHashMap<BlobVersion, Map<String, String>>()
     private val pauseNextSyncStart = AtomicBoolean()
     private var pausedSyncStart = CompletableDeferred<Unit>()
     private var pausedSyncRelease = CompletableDeferred<Unit>()
+
+    val generationMatchedMetadataUpdater =
+      GenerationMatchedBlobMetadataUpdater { blobKey, generation, customCreateTime, metadata ->
+        val currentGeneration = delegate.getFreshnessToken(blobKey)?.toLongOrNull()
+        if (currentGeneration != generation) {
+          throw ExternalDataAvailabilitySnapshotChangedException()
+        }
+        updateBlobMetadata(blobKey, customCreateTime, metadata)
+      }
 
     fun pauseNextSyncStart() {
       check(pauseNextSyncStart.compareAndSet(false, true))
@@ -2261,14 +2338,19 @@ abstract class VidLabelingPipelineTestHarness(
       this.metadata.compute(versionOf(blob)) { _, current -> current.orEmpty() + metadata }
     }
 
-    private fun withMetadata(blob: StorageClient.Blob): StorageClient.Blob =
-      object : StorageClient.Blob by blob {
+    private fun withMetadata(blob: StorageClient.Blob): StorageClient.Blob {
+      val versionedBlob = blob as ConditionalOperationStorageClient.Blob
+      return object : ConditionalOperationStorageClient.Blob, StorageClient.Blob by blob {
         override val storageClient: StorageClient
           get() = this@RecordingBlobMetadataStorageClient
+
+        override val freshnessToken: String
+          get() = versionedBlob.freshnessToken
 
         override val metadata: Map<String, String>
           get() = this@RecordingBlobMetadataStorageClient.metadata[versionOf(blob)].orEmpty()
       }
+    }
 
     private fun versionOf(blob: StorageClient.Blob): BlobVersion =
       BlobVersion(
@@ -2346,7 +2428,7 @@ abstract class VidLabelingPipelineTestHarness(
 
           override val blobKey: String = blob.blobKey
           override val size: Long = blob.size
-          override val createTime: Instant = blob.createTime
+          override val createTime: Instant = blob.updateTime
           override val updateTime: Instant = blob.updateTime
           override val metadata: Map<String, String> = blob.metadata
           override val freshnessToken: String = freshnessToken

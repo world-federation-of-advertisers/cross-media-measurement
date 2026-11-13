@@ -68,7 +68,12 @@ class DataWatcherSubscribingStorageClient(
   ) {
     val finalizedObjectMetadata =
       if (blob is ConditionalOperationStorageClient.Blob) {
-        objectMetadata + (DataWatcher.GENERATION_METADATA_KEY to blob.freshnessToken)
+        objectMetadata +
+          mapOf(
+            DataWatcher.GENERATION_METADATA_KEY to blob.freshnessToken,
+            DataWatcher.CREATE_TIME_METADATA_KEY to blob.createTime.toString(),
+            DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE,
+          )
       } else {
         objectMetadata
       }

@@ -106,6 +106,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.externalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
@@ -447,6 +448,108 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
+  fun `external WorkItem scans external folder without raw-upload discovery or bookkeeping`() =
+    runBlocking {
+      val config =
+        fileSystemDataAvailabilitySyncConfig()
+          .toBuilder()
+          .setEdpImpressionPath("edp/edp_name/vid-labeler")
+          .setExternalImpressionPath("edp/edp_name")
+          .setDataAvailabilityStorage(
+            storageParams {
+              gcs =
+                org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage {
+                  bucketName = "bucket"
+                }
+            }
+          )
+          .build()
+      val configDir = File(tempFolder.root, "configbucket").apply { mkdirs() }
+      File(configDir, "config.textproto")
+        .writeText(
+          TextFormat.printer().printToString(dataAvailabilitySyncConfigs { configs += config })
+        )
+      val folder = "edp/edp_name/model-line/some-model-line/2025-01-05"
+      val outputKey = "$folder/external-output"
+      val storage = FileSystemStorageClient(tempFolder.root)
+      storage.writeBlob(outputKey, emptyFlow())
+      storage.writeBlob(
+        "$outputKey.metadata.binpb",
+        flowOf(
+          blobDetails {
+              blobUri = "gs://bucket/$outputKey"
+              eventGroupReferenceId = "external-reference"
+              modelLine = MODEL_LINE
+              interval = interval {
+                startTime = timestamp { seconds = 1736035200 }
+                endTime = timestamp { seconds = 1736121600 }
+              }
+            }
+            .toByteString()
+        ),
+      )
+      val port =
+        functionProcess.start(
+          mapOf(
+            "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+            "KINGDOM_CERT_HOST" to "localhost",
+            "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+            "IMPRESSION_METADATA_CERT_HOST" to "localhost",
+            "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+            "SECURE_COMPUTATION_CERT_HOST" to "localhost",
+            "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+            "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configDir.absolutePath}",
+            "CONFIG_BLOB_KEY" to "config.textproto",
+            "OTEL_METRICS_EXPORTER" to "none",
+            "OTEL_TRACES_EXPORTER" to "none",
+            "OTEL_LOGS_EXPORTER" to "none",
+          )
+        )
+      val task = workItem {
+        name = WORK_ITEM_NAME
+        generation = 1L
+        workItemParams =
+          Any.pack(
+            workItemParams {
+              appParams =
+                Any.pack(externalDataAvailabilitySyncParams { dataProvider = DATA_PROVIDER })
+              dataPathParams = dataPathParams {
+                dataPath = "gs://bucket/$folder/done"
+                generation = 123L
+                createTime = timestamp { seconds = 1_800_000_000L }
+                eventType = StorageEventType.FINALIZED
+              }
+            }
+          )
+      }
+      val request =
+        HttpRequest.newBuilder()
+          .uri(URI.create("http://localhost:$port"))
+          .header("Content-Type", "application/octet-stream")
+          .POST(HttpRequest.BodyPublishers.ofByteArray(task.toByteArray()))
+          .build()
+      val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+      assertThat(response.statusCode()).isEqualTo(200)
+      verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+      verifyBlocking(rawImpressionUploadFileServiceMock, times(0)) {
+        listRawImpressionUploadFiles(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+        markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+      }
+      val metadata = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchCreateImpressionMetadata(metadata.capture())
+      }
+      assertThat(
+          metadata.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+        )
+        .isEqualTo(123L)
+      assertThat(metadata.firstValue.requestsList.single().impressionMetadata.blobUri)
+        .isEqualTo("gs://bucket/$outputKey.metadata.binpb")
+    }
+
+  @Test
   fun `Secure Computation connection is independent from metadata connection`() {
     val config =
       fileSystemDataAvailabilitySyncConfig()
@@ -552,6 +655,7 @@ class DataAvailabilitySyncFunctionTest {
                 dataPathParams = dataPathParams {
                   dataPath = "gs://output-bucket/done"
                   generation = DONE_BLOB_GENERATION
+                  createTime = timestamp { seconds = 1_800_000_000L }
                   eventType = StorageEventType.FINALIZED
                 }
               }
@@ -845,11 +949,19 @@ class DataAvailabilitySyncFunctionTest {
     )
   }
 
+  @Test
+  fun `queued internal WorkItem on the old root tolerates an external override`() {
+    runInternalPathWorkItem(legacyRoot = true, externalOverride = true)
+  }
+
   private fun runInternalPathWorkItem(
     blockedByGaps: Boolean = false,
+    legacyRoot: Boolean = false,
+    externalOverride: Boolean = false,
     workItemGeneration: Long = 1L,
     legacyMessage: Boolean = false,
   ) {
+    val outputRoot = if (legacyRoot) "edp/edp_name" else "vid-labeled-impressions/edp/edp_name"
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     File(configBucketDir, "config.textproto")
@@ -861,19 +973,19 @@ class DataAvailabilitySyncFunctionTest {
                 fileSystemDataAvailabilitySyncConfig().copy {
                   vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
                   errorIfGapsExist = blockedByGaps
+                  if (externalOverride) externalImpressionPath = "external/edp_name"
                 }
             }
           )
       )
-    val outputDirectory =
-      "vid-labeled-impressions/edp/edp_name/model-line/some-model-line/2025-01-05"
+    val outputDirectory = "$outputRoot/model-line/some-model-line/2025-01-05"
     File(tempFolder.root, outputDirectory).mkdirs()
     val workItemEventDate = LocalDate.of(2025, 1, 5)
     val expectedOutputKey =
-      "vid-labeled-impressions/edp/edp_name/" +
+      "$outputRoot/" +
         LabeledImpressionsBlobKeys.forInput(RAW_INPUT_BLOB_URI, MODEL_LINE, workItemEventDate)
     val otherDateOutputKey =
-      "vid-labeled-impressions/edp/edp_name/" +
+      "$outputRoot/" +
         LabeledImpressionsBlobKeys.forInput(
           OTHER_DATE_RAW_INPUT_BLOB_URI,
           MODEL_LINE,
@@ -927,6 +1039,9 @@ class DataAvailabilitySyncFunctionTest {
       externalDone.writeBytes(byteArrayOf())
       File(tempFolder.root, "$outputDirectory/done").writeBytes(byteArrayOf())
     }
+    val internalDoneKey =
+      "$outputRoot/" + LabeledImpressionsBlobKeys.forDone(RAW_UPLOAD, MODEL_LINE, workItemEventDate)
+    File(tempFolder.root, internalDoneKey).writeBytes(byteArrayOf())
     val port = startFunction(configBucketDir)
     val workItem = workItem {
       name = WORK_ITEM_NAME
@@ -952,12 +1067,13 @@ class DataAvailabilitySyncFunctionTest {
             dataPathParams = dataPathParams {
               dataPath =
                 LabeledImpressionsBlobKeys.forDoneUri(
-                  "file:////vid-labeled-impressions/edp/edp_name",
+                  "file:////$outputRoot",
                   RAW_UPLOAD,
                   MODEL_LINE,
                   LocalDate.of(2025, 1, 5),
                 )
               generation = 123L
+              createTime = timestamp { seconds = 1_800_000_000L }
               eventType = StorageEventType.FINALIZED
             }
             traceContext["traceparent"] = "00-1af7651916cd43dd8448eb211c80319c-0123456789abcdef-01"
@@ -1597,7 +1713,7 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `sync returns error when date gaps are detected`() {
+  fun `sync blocks a gap between external and internal output roots`() {
     val modelLineResourceName = "modelProviders/mp1/modelSuites/ms1/modelLines/modelLine1"
     val modelLineId = "modelLine1"
     val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
@@ -1634,6 +1750,7 @@ class DataAvailabilitySyncFunctionTest {
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"
+      vidLabeledImpressionPath = "edp/edp_name/vid-labeler"
       modelLineMap[modelLineResourceName] = modelLineList { modelLines += "some-model-line-mapped" }
       errorIfGapsExist = true
     }
@@ -1648,12 +1765,13 @@ class DataAvailabilitySyncFunctionTest {
     // Set up model-line date paths with a gap (missing 2026-03-14)
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     for (date in listOf("2026-03-13", "2026-03-15")) {
-      val donePath = "edp/edp_name/model-line/$modelLineId/$date/done"
+      val outputPath = if (date == "2026-03-13") "edp/edp_name" else "edp/edp_name/vid-labeler"
+      val donePath = "$outputPath/model-line/$modelLineId/$date/done"
       File(tempFolder.root, donePath).parentFile.mkdirs()
       runBlocking {
         storageClient.writeBlob(donePath, emptyFlow())
         storageClient.writeBlob(
-          "edp/edp_name/model-line/$modelLineId/$date/data_campaign_1",
+          "$outputPath/model-line/$modelLineId/$date/data_campaign_1",
           emptyFlow(),
         )
       }
