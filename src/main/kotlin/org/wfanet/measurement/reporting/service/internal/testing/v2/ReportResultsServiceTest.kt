@@ -129,9 +129,9 @@ abstract class ReportResultsServiceTest {
     )
   }
 
-  private val basicReportsStub by lazy { BasicReportsGrpc.newBlockingV2Stub(grpcChannel) }
+  protected val basicReportsStub by lazy { BasicReportsGrpc.newBlockingV2Stub(grpcChannel) }
 
-  private val reportResultsStub by lazy { ReportResultsGrpc.newBlockingV2Stub(grpcChannel) }
+  protected val reportResultsStub by lazy { ReportResultsGrpc.newBlockingV2Stub(grpcChannel) }
 
   protected abstract fun createServices(
     idGenerator: IdGenerator,
@@ -735,12 +735,101 @@ abstract class ReportResultsServiceTest {
     assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
   }
 
+  @Test
+  fun `addProcessedResultValues validates later windows before writing a prefix`() {
+    ensureMeasurementConsumer()
+    val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val results =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+            reportResult.externalReportResultId
+          )
+        )
+        .reportingSetResultsList
+    val valid = buildAddProcessedResultValuesRequest(results)
+    val secondKey = results[1].externalReportingSetResultId
+    val request =
+      valid.copy {
+        reportingSetResults[secondKey] =
+          valid.reportingSetResultsMap.getValue(secondKey).copy {
+            reportingWindowResults[0] =
+              reportingWindowResults[0].copy {
+                key =
+                  key.copy {
+                    end = date {
+                      year = 2025
+                      month = 12
+                      day = 31
+                    }
+                  }
+              }
+          }
+      }
+
+    val error =
+      assertFailsWith<StatusException> { reportResultsStub.addProcessedResultValues(request) }
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    val full =
+      reportResultsStub.listReportingSetResults(
+        listReportingSetResultsRequest {
+          cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+          externalReportResultId = reportResult.externalReportResultId
+          view = ReportingSetResultView.REPORTING_SET_RESULT_VIEW_FULL
+        }
+      )
+    assertThat(
+        full.reportingSetResultsList
+          .flatMap { it.reportingWindowResultsList }
+          .any { it.value.hasProcessedReportResultValues() }
+      )
+      .isFalse()
+  }
+
+  @Test
+  fun `addProcessedResultValues cannot overwrite a completed report`() {
+    val basicReport = ensureMeasurementConsumer()
+    basicReportsStub.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        externalReportId = "report-completed"
+      }
+    )
+    val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val results =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+              reportResult.externalReportResultId
+            )
+            .copy { externalBasicReportId = basicReport.externalBasicReportId }
+        )
+        .reportingSetResultsList
+    val request = buildAddProcessedResultValuesRequest(results)
+    reportResultsStub.addProcessedResultValues(request)
+    val listRequest = listReportingSetResultsRequest {
+      cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+      externalReportResultId = reportResult.externalReportResultId
+      view = ReportingSetResultView.REPORTING_SET_RESULT_VIEW_FULL
+    }
+    val before = reportResultsStub.listReportingSetResults(listRequest)
+
+    val error =
+      assertFailsWith<StatusException> { reportResultsStub.addProcessedResultValues(request) }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(reportResultsStub.listReportingSetResults(listRequest))
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELDS)
+      .isEqualTo(before)
+  }
+
   /**
    * Builds a test [AddProcessedResultValuesRequest].
    *
    * @param reportingSetResults Results created from [BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST].
    */
-  private fun buildAddProcessedResultValuesRequest(
+  protected fun buildAddProcessedResultValuesRequest(
     reportingSetResults: List<ReportingSetResult>
   ): AddProcessedResultValuesRequest {
     val cmmsMeasurementConsumerId = reportingSetResults.first().cmmsMeasurementConsumerId
@@ -791,7 +880,7 @@ abstract class ReportResultsServiceTest {
   /**
    * Ensures that a MeasurementConsumer exists in the DB accessible by the ReportResults service.
    */
-  private fun ensureMeasurementConsumer(): BasicReport {
+  protected fun ensureMeasurementConsumer(): BasicReport {
     val reportingSetsStub = ReportingSetsGrpc.newBlockingV2Stub(grpcChannel)
     val measurementConsumersStub = MeasurementConsumersGrpc.newBlockingV2Stub(grpcChannel)
 
@@ -879,6 +968,18 @@ abstract class ReportResultsServiceTest {
         }
       }
     )
+  }
+
+  protected fun BatchCreateReportingSetResultsRequest.withExternalReportResultId(
+    externalReportResultId: Long
+  ): BatchCreateReportingSetResultsRequest {
+    return copy {
+      this.externalReportResultId = externalReportResultId
+      requests.mapIndexed { index, createRequest ->
+        requests[index] =
+          createRequest.copy { this.externalReportResultId = externalReportResultId }
+      }
+    }
   }
 
   companion object {
@@ -1114,17 +1215,6 @@ abstract class ReportResultsServiceTest {
           }
         }
       }
-    }
-  }
-}
-
-private fun BatchCreateReportingSetResultsRequest.withExternalReportResultId(
-  externalReportResultId: Long
-): BatchCreateReportingSetResultsRequest {
-  return copy {
-    this.externalReportResultId = externalReportResultId
-    requests.mapIndexed { index, createRequest ->
-      requests[index] = createRequest.copy { this.externalReportResultId = externalReportResultId }
     }
   }
 }
