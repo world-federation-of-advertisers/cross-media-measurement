@@ -468,6 +468,73 @@ class VidLabelingSinkTest {
     }
 
   @Test
+  fun `emitted event leaves population attribute omitted by the model unspecified`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val writerWithoutSocialGrade =
+        PopulationAttributeWriter(
+          TestEvent.getDescriptor(),
+          populationSpec {
+            subpopulations +=
+              PopulationSpecKt.subPopulation {
+                attributes +=
+                  Any.pack(
+                    person {
+                      gender = Person.Gender.FEMALE
+                      ageGroup = Person.AgeGroup.YEARS_35_TO_54
+                    }
+                  )
+                vidRanges +=
+                  PopulationSpecKt.vidRange {
+                    startVid = 1L
+                    endVidInclusive = 1_000L
+                  }
+              }
+          },
+        )
+      val sink =
+        sink(
+          contexts = listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))),
+          converter =
+            ImpressionConverter { event, _ ->
+              ConvertedImpression(
+                labelerInput =
+                  LabelerInput.newBuilder()
+                    .setTimestampUsec(event.row.getValue(EVENT_TIME_COLUMN).int64Value)
+                    .build(),
+                buildEvent = {
+                  testEvent {
+                    person = person {
+                      gender = Person.Gender.MALE
+                      ageGroup = Person.AgeGroup.YEARS_18_TO_34
+                    }
+                  }
+                },
+                entityKeys =
+                  listOf(
+                    LabeledImpressionKt.entityKey {
+                      entityType = "person"
+                      entityId = "p-1"
+                    }
+                  ),
+                populationAttributeWriter = writerWithoutSocialGrade,
+              )
+            },
+        )
+
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_000L, idByte = 1)))
+      sink.commit()
+      sink.close()
+
+      val event =
+        readImpressions(readSoleBlobDetails()).single().event.unpack(TestEvent::class.java)
+      assertThat(event.person.gender).isEqualTo(Person.Gender.FEMALE)
+      assertThat(event.person.ageGroup).isEqualTo(Person.AgeGroup.YEARS_35_TO_54)
+      assertThat(event.person.socialGradeGroup)
+        .isEqualTo(Person.SocialGradeGroup.SOCIAL_GRADE_GROUP_UNSPECIFIED)
+    }
+
+  @Test
   fun `commit normalizes trailing slash in output prefix`() =
     runBlocking<Unit> {
       tempFolder.root.resolve("labeled").mkdirs()
