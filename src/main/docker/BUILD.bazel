@@ -15,6 +15,8 @@ package(
     ],
 )
 
+PUSHABLE_IMAGES = ALL_IMAGES + ALL_TEE_APP_GKE_IMAGES
+
 # These rules push Docker images to the container registry.
 # 'bazel build' builds the image, 'bazel run' will actually push it.
 [
@@ -29,7 +31,7 @@ package(
             "no-remote",
         ],
     )
-    for image_spec in ALL_IMAGES
+    for image_spec in PUSHABLE_IMAGES
 ]
 
 container_push_all(
@@ -136,7 +138,7 @@ container_push_all(
     ],
 )
 
-IMAGES_TO_SIGN = ALL_GKE_IMAGES + ALL_TEE_APP_GKE_IMAGES + ALL_EKS_IMAGES
+IMAGES_TO_SIGN = {image_spec.name: image_spec for image_spec in ALL_GKE_IMAGES + ALL_TEE_APP_GKE_IMAGES + ALL_EKS_IMAGES}.values()
 
 sign_all(
     name = "sign_all_images",
@@ -149,3 +151,18 @@ sign_all(
         "no-remote",
     ],
 )
+
+[
+    sign_all(
+        name = "sign_" + image_spec.name,
+        images = {"{registry}/{name}".format(
+            name = image_spec.repository,
+            registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
+        ): image_spec.image},
+        tags = [
+            "manual",
+            "no-remote",
+        ],
+    )
+    for image_spec in IMAGES_TO_SIGN
+]

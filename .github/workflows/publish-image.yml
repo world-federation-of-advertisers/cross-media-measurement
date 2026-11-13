@@ -1,0 +1,123 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Build, push and sign a single component image
+
+run-name: Publish component image | image-name=${{ inputs.image-name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      image-name:
+        description: "Bazel image name to publish and sign with the test key"
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      image-name:
+        description: "Bazel image name to publish and sign with the test key"
+        type: string
+        required: true
+    outputs:
+      image-tag:
+        description: "Tag of the selected component image"
+        value: ${{ jobs.publish-image.outputs.image-tag }}
+
+permissions:
+  contents: read
+
+jobs:
+  publish-image:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    outputs:
+      image-tag: ${{ steps.configure-bazel.outputs.image-tag }}
+    env:
+      CONTAINER_REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ inputs.image-name }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: ./.github/actions/free-disk-space
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - id: configure-bazel
+        name: Configure image tag and registry
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
+            image_tag="${GITHUB_REF_NAME#v}"
+            image_tag="${image_tag//\//-}"
+          else
+            image_tag="$GITHUB_SHA"
+          fi
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          build --define container_registry=$CONTAINER_REGISTRY
+          build --define image_repo_prefix=$GITHUB_REPOSITORY_OWNER
+          build --define image_tag=$image_tag
+          EOF
+          echo "image-tag=$image_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Validate selected image
+        run: bash .github/workflows/scripts/validate-selected-image.sh "$IMAGE_NAME"
+
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Authenticate to Google Cloud for image signing
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.IMAGE_SIGNING_TEST_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.IMAGE_SIGNING_TEST_SA }}
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - id: get-public-key
+        name: Get public key for cosign annotation
+        env:
+          GCP_KMS_KEY_RESOURCE_NAME: ${{ vars.IMAGE_SIGNING_TEST_KEY_RESOURCE_NAME }}
+        run: |
+          set -euo pipefail
+          gcloud kms keys versions get-public-key "$GCP_KMS_KEY_RESOURCE_NAME" --output-file pubkey.pem
+          encoded_pub_key=$(openssl base64 -in pubkey.pem | tr -d '[:space:]' | sed 's/[=]*$//')
+          echo "encoded_pub_key=$encoded_pub_key" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push selected image
+        run: bazelisk run "//src/main/docker:push_$IMAGE_NAME"
+
+      - name: Sign selected image
+        env:
+          GCP_KMS_KEY_FOR_SIGNING: "gcpkms://${{ vars.IMAGE_SIGNING_TEST_KEY_RESOURCE_NAME }}"
+          PUBLIC_KEY: ${{ steps.get-public-key.outputs.encoded_pub_key }}
+        run: |
+          bazelisk run "//src/main/docker:sign_$IMAGE_NAME" -- \
+            --tlog-upload=false \
+            "--key=$GCP_KMS_KEY_FOR_SIGNING" \
+            -a "dev.cosignproject.cosign/sigalg=ECDSA_P256_SHA256" \
+            -a "dev.cosignproject.cosign/pub=$PUBLIC_KEY"
