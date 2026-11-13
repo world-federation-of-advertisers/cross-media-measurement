@@ -24,6 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 
 @RunWith(JUnit4::class)
@@ -45,11 +46,31 @@ class PopulationAttributeWriterLoaderTest {
     """
       .trimIndent()
 
-  private fun config(specBlobUri: String = "gs://configs/spec.textproto") =
+  private val versionedSpecTextProto =
+    """
+    subpopulations {
+      attributes {
+        [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.VersionedCommon] {
+          original: SEGMENT_A
+          later: SEGMENT_A
+          retired: SEGMENT_B
+        }
+      }
+      vid_ranges { start_vid: 1 end_vid_inclusive: 1000 }
+    }
+    """
+      .trimIndent()
+
+  private fun config(
+    specBlobUri: String = "gs://configs/spec.textproto",
+    eventTemplateType: String = eventDescriptor.fullName,
+    eventTemplateVersion: Int = 1,
+  ) =
     VidLabelerParamsKt.modelLineConfig {
       eventTemplateDescriptorBlobUri = "gs://descriptors/set.binpb"
-      eventTemplateType = TestEvent.getDescriptor().fullName
+      this.eventTemplateType = eventTemplateType
       populationSpecBlobUri = specBlobUri
+      this.eventTemplateVersion = eventTemplateVersion
     }
 
   @Test
@@ -82,6 +103,27 @@ class PopulationAttributeWriterLoaderTest {
   }
 
   @Test
+  fun `getWriter caches writers separately by event template version`() = runBlocking {
+    val reads = AtomicInteger()
+    val loader = PopulationAttributeWriterLoader {
+      reads.incrementAndGet()
+      versionedSpecTextProto.toByteArray()
+    }
+    val eventType = VersionedEvent.getDescriptor().fullName
+
+    val versionOne =
+      loader.getWriter(config(eventTemplateType = eventType), VersionedEvent.getDescriptor())
+    val versionTwo =
+      loader.getWriter(
+        config(eventTemplateType = eventType, eventTemplateVersion = 2),
+        VersionedEvent.getDescriptor(),
+      )
+
+    assertThat(versionTwo).isNotSameInstanceAs(versionOne)
+    assertThat(reads.get()).isEqualTo(2)
+  }
+
+  @Test
   fun `getWriter throws when population_spec_blob_uri is empty`() = runBlocking {
     // Without the spec the labeled output would carry the DataProvider's uploaded demographics
     // instead of the model-assigned ones, so this must fail rather than skip the writer.
@@ -92,5 +134,17 @@ class PopulationAttributeWriterLoaderTest {
         loader.getWriter(config(specBlobUri = ""), eventDescriptor)
       }
     assertThat(exception).hasMessageThat().contains("population_spec_blob_uri must be set")
+  }
+
+  @Test
+  fun `getWriter throws when event_template_version is missing`() = runBlocking {
+    val loader = PopulationAttributeWriterLoader { specTextProto.toByteArray() }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        loader.getWriter(config(eventTemplateVersion = 0), eventDescriptor)
+      }
+
+    assertThat(exception).hasMessageThat().contains("event_template_version must be set")
   }
 }
