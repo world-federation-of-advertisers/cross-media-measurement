@@ -355,6 +355,43 @@ class TrusTeeMillTest {
   }
 
   @Test
+  fun `claimAndProcessWork initializes all queued work before ready computation`() = runBlocking {
+    writeRequisitionData()
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = COMPUTATION_DETAILS,
+      requisitions = REQUISITIONS,
+    )
+    for (localId in 1L..6L) {
+      fakeComputationDb.addComputation(
+        localId,
+        Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = REQUISITIONS,
+      )
+    }
+    val mill = createMill()
+
+    repeat(6) {
+      assertThat(mill.claimAndProcessWork()).isTrue()
+      assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
+        .isEqualTo(Stage.COMPUTING.toProtocolStage())
+    }
+    for (localId in 1L..6L) {
+      assertThat(fakeComputationDb[localId]!!.computationStage)
+        .isEqualTo(Stage.WAIT_TO_START.toProtocolStage())
+    }
+
+    assertThat(mill.claimAndProcessWork()).isTrue()
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
+      .isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+  }
+
+  @Test
   fun `initializationPhase sends params to Kingdom and advance stage`() = runBlocking {
     val computationParticipant = computationParticipant {
       name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ID).toName()
