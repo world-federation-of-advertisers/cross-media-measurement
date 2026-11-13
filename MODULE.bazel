@@ -42,6 +42,15 @@ bazel_dep(
     version = "0.161.0",
     repo_name = "wfa_common_jvm",
 )
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#427): Use a release containing this PR.
+archive_override(
+    module_name = "common-jvm",
+    integrity = "sha256-G9pzd7CY6fU3N/goJWVmyE56zOKETEsnz5Msrj9H2t8=",
+    strip_prefix = "common-jvm-f1033b316d000d0452769d94374ad5f5a7885161",
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/f1033b316d000d0452769d94374ad5f5a7885161.tar.gz"],
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",
