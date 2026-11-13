@@ -32,6 +32,12 @@ resource ID is a hash of the spec's serialized bytes, so any semantic change
 provisions a **new** Population and invalidates every expected reach in
 [`EdpAggregatorReportingIntegrationTest`](../../src/test/kotlin/org/wfanet/measurement/integration/k8s/EdpAggregatorReportingIntegrationTest.kt).
 
+Seeding can take longer than the one-hour lifetime of its Google identity token
+for AWS KMS. The seeding workflow renews the private token file every 30 minutes;
+the AWS SDK reads the current token when renewing its STS session. A renewal
+failure stops seeding rather than allowing an incomplete fixture to be declared
+ready.
+
 ## The Noise Floor, and Why It Sets Everything
 
 Every reach measurement has noise added with a **fixed standard deviation**, in
@@ -319,8 +325,22 @@ in `EdpAggregatorCorrectnessTest`. It has its own test, `EdpAggregatorReportingI
 reads back a `BasicReport` over the dataset. Seeding is separate: the
 `SeedHighOverlapDataset` tool provisions the model resources, registers the
 EventGroups and writes the impressions, and the test refuses to run unless the
-seeded dataset matches its specs. `EdpAggregatorCorrectnessTest` is left on the
-low overlap data set, untouched.
+seeded dataset matches its specs and every expected date has published data
+availability. `EdpAggregatorCorrectnessTest` is left on the low overlap data set,
+untouched.
+
+Seeding writes each path's completion notifications in date order and waits for
+registration and Kingdom availability publication before advancing to the next
+date. At most four notifications are outstanding across paths. The ready
+manifest is written after every date has completed; a publication timeout fails
+seeding and leaves the manifest absent.
+
+A completion file's presence alone does not establish readiness. Reporting
+preflight checks the publication markers on all expected completion files. For
+failed notifications, inspect the DataWatcher dead-letter queue and use
+[Replay DataAvailabilitySync](../gke/replay-data-availability-sync.md) to recover
+availability before retrying reporting. If seeding failed before writing the
+manifest, rerun seeding to regenerate and publish the fixture.
 
 The split exists because the two datasets have no reason to share a test run:
 
