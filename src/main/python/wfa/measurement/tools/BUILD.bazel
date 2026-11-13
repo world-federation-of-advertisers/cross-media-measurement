@@ -1,0 +1,16 @@
+load("@rules_python//python:defs.bzl", "py_library")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+py_library(
+    name = "aws_web_identity",
+    srcs = ["aws_web_identity.py"],
+    imports = ["."],
+)
+
+py_binary(
+    name = "run_with_aws_web_identity",
+    srcs = ["aws_web_identity.py"],
+    main = "aws_web_identity.py",
+)
