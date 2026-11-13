@@ -126,7 +126,7 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
     assertRunningBasicReport(createBasicReportRequest, createdBasicReport, retrievedBasicReport)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient
