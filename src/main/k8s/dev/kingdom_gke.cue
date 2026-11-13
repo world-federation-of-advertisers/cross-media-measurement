@@ -105,6 +105,10 @@ kingdom: #Kingdom & {
 
 	configMaps: "java": #JavaConfigMap
 
+	deploymentPodDisruptionBudgets: {
+		"gcp-kingdom-data-server": spec: minAvailable: 1
+	}
+
 	deployments: {
 		"gcp-kingdom-data-server": {
 			_container: {
@@ -112,8 +116,19 @@ kingdom: #Kingdom & {
 				resources:           #InternalServerResourceRequirements
 				_javaOptions: maxHeapSize: #InternalServerMaxHeapSize
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
+			spec: {
+				replicas: 2
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+					// Prefer separate nodes for availability during drains without blocking
+					// scheduling when capacity is limited.
+					topologySpreadConstraints: [{
+						maxSkew:           1
+						topologyKey:       "kubernetes.io/hostname"
+						whenUnsatisfiable: "ScheduleAnyway"
+						labelSelector:     kingdom.deployments["gcp-kingdom-data-server"].spec.selector
+					}]
+				}
 			}
 		}
 		"system-api-server": {
