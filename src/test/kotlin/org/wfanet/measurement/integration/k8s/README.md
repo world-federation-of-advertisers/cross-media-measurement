@@ -14,5 +14,4 @@ gcloud auth application-default login --impersonate-service-account=SERVICE_ACCO
 ```
 
 The ID token audience is the configured RequisitionFetcher endpoint. Google's
-credential library refreshes the token as needed throughout the test. The
-deprecated `auth_id_token` test setting is no longer used.
+credential library refreshes the token as needed throughout the test.
