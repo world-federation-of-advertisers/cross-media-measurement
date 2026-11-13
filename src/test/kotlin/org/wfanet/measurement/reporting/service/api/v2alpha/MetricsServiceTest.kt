@@ -2775,6 +2775,7 @@ class MetricsServiceTest {
   private fun createService(
     variances: Variances,
     signingPrivateKeyDir: File = SECRETS_DIR,
+    measurementPreparationConcurrency: Int = 1,
   ): MetricsService {
     return MetricsService(
       METRIC_SPEC_CONFIG,
@@ -2799,6 +2800,7 @@ class MetricsServiceTest {
       MEASUREMENT_CONSUMER_MODEL_LINES,
       POPULATION_DATA_PROVIDER_NAME,
       kingdomMeasurementBatchConcurrency = 8,
+      measurementPreparationConcurrency = measurementPreparationConcurrency,
     )
   }
 
@@ -5443,6 +5445,7 @@ class MetricsServiceTest {
 
   @Test
   fun `batchCreateMetrics translates CMMS request index to Metric request index`() = runBlocking {
+    service = createService(variancesMock, measurementPreparationConcurrency = 4)
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
     } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
@@ -5717,7 +5720,8 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `batchCreateMetrics creates CMMS measurements`() = runBlocking {
+  fun `batchCreateMetrics prepares signed measurements in parallel`() = runBlocking {
+    service = createService(variancesMock, measurementPreparationConcurrency = 4)
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
     } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
@@ -5902,7 +5906,8 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `batchCreateMetrics creates CMMS measurements with 1 out of 2 population`() = runBlocking {
+  fun `batchCreateMetrics prepares mixed measurements in parallel`() = runBlocking {
+    service = createService(variancesMock, measurementPreparationConcurrency = 4)
     wheneverBlocking { internalMetricsMock.batchCreateMetrics(any()) } doReturn
       internalBatchCreateMetricsResponse {
         metrics += INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC

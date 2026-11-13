@@ -63,6 +63,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
 import org.jetbrains.annotations.NonBlockingExecutor
@@ -113,6 +115,7 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.crypto.PublicKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -121,14 +124,17 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.mapConcurrently
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.consent.client.common.encryptMessage
+import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
-import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
@@ -279,10 +285,13 @@ class MetricsService(
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   kingdomMeasurementBatchConcurrency: Int,
+  measurementPreparationConcurrency: Int = 1,
+  measurementPreparationContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
 ) : MetricsCoroutineImplBase(coroutineContext) {
   private data class DataProviderInfo(
     val dataProviderName: String,
     val publicKey: SignedMessage,
+    val encryptionPublicKeyHandle: PublicKeyHandle,
     val certificateName: String,
   )
 
@@ -303,6 +312,8 @@ class MetricsService(
       cacheLoaderContext,
       populationDataProvider,
       kingdomMeasurementBatchConcurrency,
+      measurementPreparationConcurrency,
+      measurementPreparationContext,
     )
 
   private class MeasurementSupplier(
@@ -321,7 +332,11 @@ class MetricsService(
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
     private val populationDataProvider: String,
     private val kingdomMeasurementBatchConcurrency: Int,
+    private val measurementPreparationConcurrency: Int,
+    private val measurementPreparationContext: @NonBlockingExecutor CoroutineContext,
   ) {
+    private val preparationPermits = Semaphore(measurementPreparationConcurrency)
+
     data class RunningMetric(
       val internalMetric: InternalMetric,
       val effectiveModelLineName: String,
@@ -391,6 +406,13 @@ class MetricsService(
               dataProviderNames.add(DataProviderKey(eventGroupKey.cmmsDataProviderId).toName())
             }
           }
+          if (
+            pendingMeasurements.any { (_, metric) ->
+              metric.internalMetric.metricSpec.hasPopulationCount()
+            }
+          ) {
+            dataProviderNames.add(populationDataProvider)
+          }
           val dataProviderInfoMap: Map<String, DataProviderInfo> =
             buildDataProviderInfoMap(measurementConsumerCreds.callCredentials, dataProviderNames)
           val measurementConsumerSigningKey =
@@ -422,32 +444,51 @@ class MetricsService(
             measurementCreationTraceAttributes(internalMeasurement, runningMetric)
         }
 
-      val pendingCmmsMeasurements: Flow<PendingCmmsMeasurement> = flow {
-        for ((internalMeasurement, runningMetric) in pendingMeasurements) {
-          emit(
-            PendingCmmsMeasurement(
-              request =
-                ReportTracing.traceSuspending(
-                  spanName = "reporting.measurement.prepare",
-                  attributes =
-                    measurementCreationTraceAttributes(internalMeasurement, runningMetric),
-                ) {
-                  buildCreateMeasurementRequest(
-                      internalMeasurement,
-                      runningMetric,
-                      internalPrimitiveReportingSetMap,
-                      preparation.measurementConsumer,
-                      measurementConsumerCreds,
-                      preparation.dataProviderInfoMap,
-                      preparation.measurementConsumerSigningKey,
-                    )
-                    .also { Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared") }
-                },
-              requestMetricFieldPath = runningMetric.requestMetricFieldPath,
-            )
-          )
-        }
+      suspend fun preparePendingMeasurement(
+        pending: Pair<InternalMeasurement, RunningMetric>
+      ): PendingCmmsMeasurement {
+        val (internalMeasurement, runningMetric) = pending
+        return PendingCmmsMeasurement(
+          request =
+            ReportTracing.traceSuspending(
+              spanName = "reporting.measurement.prepare",
+              attributes = measurementCreationTraceAttributes(internalMeasurement, runningMetric),
+            ) {
+              buildCreateMeasurementRequest(
+                  internalMeasurement,
+                  runningMetric,
+                  internalPrimitiveReportingSetMap,
+                  preparation.measurementConsumer,
+                  measurementConsumerCreds,
+                  preparation.dataProviderInfoMap,
+                  preparation.measurementConsumerSigningKey,
+                )
+                .also { Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared") }
+            },
+          requestMetricFieldPath = runningMetric.requestMetricFieldPath,
+        )
       }
+
+      val pendingCmmsMeasurements: Flow<PendingCmmsMeasurement> =
+        if (measurementPreparationConcurrency == 1) {
+          // Retain the existing caller context and serial preparation within each batch by default.
+          pendingMeasurements.asFlow().map { preparePendingMeasurement(it) }
+        } else {
+          flow {
+            coroutineScope {
+              pendingMeasurements
+                .asFlow()
+                .mapConcurrently(this, measurementPreparationConcurrency) { pending ->
+                  preparationPermits.withPermit {
+                    withContext(measurementPreparationContext) {
+                      preparePendingMeasurement(pending)
+                    }
+                  }
+                }
+                .collect { emit(it) }
+            }
+          }
+        }
 
       // Create CMMS measurements.
       val callBatchCreateMeasurementsRpc:
@@ -718,7 +759,7 @@ class MetricsService(
                 packedMeasurementEncryptionPublicKey,
                 measurementConsumerSigningKey,
                 internalMeasurement,
-                measurementConsumerCreds,
+                dataProviderInfoMap,
                 internalMetric,
               )
           } else {
@@ -901,7 +942,12 @@ class MetricsService(
                   .asRuntimeException()
               }
 
-              DataProviderInfo(dataProvider.name, dataProvider.publicKey, certificate.name)
+              DataProviderInfo(
+                dataProvider.name,
+                dataProvider.publicKey,
+                dataProvider.publicKey.unpack<EncryptionPublicKey>().toPublicKeyHandle(),
+                certificate.name,
+              )
             }
           )
         }
@@ -919,16 +965,10 @@ class MetricsService(
       packedMeasurementEncryptionPublicKey: ProtoAny,
       measurementConsumerSigningKey: SigningKeyHandle,
       measurement: InternalMeasurement,
-      measurementConsumerCreds: MeasurementConsumerCredentials,
+      dataProviderInfoMap: Map<String, DataProviderInfo>,
       metric: InternalMetric,
     ): Measurement.DataProviderEntry {
-      val dataProviderInfo =
-        buildDataProviderInfoMap(
-            measurementConsumerCreds.callCredentials,
-            listOf(populationDataProvider),
-          )
-          .values
-          .first()
+      val dataProviderInfo = dataProviderInfoMap.getValue(populationDataProvider)
 
       val filtersList =
         measurement.primitiveReportingSetBasesList
@@ -957,9 +997,8 @@ class MetricsService(
         nonce = secureRandom.nextLong()
       }
       val encryptRequisitionSpec =
-        encryptRequisitionSpec(
-          signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-          dataProviderInfo.publicKey.unpack(),
+        dataProviderInfo.encryptionPublicKeyHandle.encryptMessage(
+          signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey).pack()
         )
 
       return dataProviderEntry {
@@ -994,9 +1033,8 @@ class MetricsService(
           nonce = secureRandom.nextLong()
         }
         val encryptRequisitionSpec =
-          encryptRequisitionSpec(
-            signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-            dataProviderInfo.publicKey.unpack(),
+          dataProviderInfo.encryptionPublicKeyHandle.encryptMessage(
+            signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey).pack()
           )
 
         dataProviderEntry {

@@ -198,4 +198,30 @@ class ReportingApiServerFlags {
       require(value > 0) { "--kingdom-measurement-batch-concurrency must be greater than 0" }
       field = value
     }
+
+  @set:CommandLine.Option(
+    names = ["--report-metric-batch-concurrency"],
+    description = ["Concurrent metric creation batches per Report."],
+    defaultValue = "3",
+  )
+  var reportMetricBatchConcurrency: Int = 3
+    private set(value) {
+      require(value > 0) { "--report-metric-batch-concurrency must be greater than 0" }
+      field = value
+    }
+
+  @set:CommandLine.Option(
+    names = ["--measurement-preparation-concurrency"],
+    description =
+      [
+        "Signing/encryption concurrency; one retains serial preparation per batch, " +
+          "higher values bound parallel preparation across the server."
+      ],
+    defaultValue = "1",
+  )
+  var measurementPreparationConcurrency: Int = 1
+    private set(value) {
+      require(value > 0) { "--measurement-preparation-concurrency must be greater than 0" }
+      field = value
+    }
 }
