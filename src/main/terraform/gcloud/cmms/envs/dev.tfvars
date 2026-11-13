@@ -1,4 +1,4 @@
-spanner_processing_units                          = 100
+spanner_processing_units                          = 1000
 secure_computation_storage_bucket_name            = "secure-computation-storage-dev-bucket"
 edpa_config_files_bucket_name                     = "edpa-configs-storage-dev-bucket"
 data_watcher_config_file_path                     = "envs/dev/data-watcher-config.textproto"

@@ -54,7 +54,6 @@ import org.wfanet.measurement.internal.edpaggregator.labeledOutputManifest
 import org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsRequest
 import org.wfanet.measurement.internal.edpaggregator.reconcileUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.retryUploadHealingOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.updateUploadHealingOperationPlanRequest
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep
 
@@ -905,7 +904,7 @@ class SpannerUploadHealingOperationServiceTest {
   }
 
   @Test
-  fun `update draft replaces steps and candidate membership`() = runBlocking {
+  fun `reconcile replaces draft steps and candidate membership`() = runBlocking {
     CANDIDATE_IDS.forEach { insertCorrectionCandidate(it) }
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     val created =
@@ -926,13 +925,8 @@ class SpannerUploadHealingOperationServiceTest {
         steps += planStep(1L, SOURCE_UPLOAD_ID, candidateId = CANDIDATE_IDS[1])
       }
     val candidateUpdated =
-      service.updateUploadHealingOperationPlan(
-        updateUploadHealingOperationPlanRequest {
-          dataProviderResourceId = DATA_PROVIDER_ID
-          uploadHealingOperationId = OPERATION_ID
-          uploadHealingOperation = candidateUpdatedPlan
-          etag = created.etag
-        }
+      service.reconcileUploadHealingOperation(
+        replanRequest(candidateUpdatedPlan, etag = created.etag)
       )
     val stepsUpdatedPlan =
       candidateUpdated.copy {
@@ -940,13 +934,8 @@ class SpannerUploadHealingOperationServiceTest {
         steps += planStep(2L, SUCCESSOR_UPLOAD_ID, candidateId = CANDIDATE_IDS[2])
       }
     val stepsUpdated =
-      service.updateUploadHealingOperationPlan(
-        updateUploadHealingOperationPlanRequest {
-          dataProviderResourceId = DATA_PROVIDER_ID
-          uploadHealingOperationId = OPERATION_ID
-          uploadHealingOperation = stepsUpdatedPlan
-          etag = candidateUpdated.etag
-        }
+      service.reconcileUploadHealingOperation(
+        replanRequest(stepsUpdatedPlan, etag = candidateUpdated.etag)
       )
 
     assertThat(candidateUpdated.etag).isNotEqualTo(created.etag)
@@ -994,18 +983,14 @@ class SpannerUploadHealingOperationServiceTest {
 
     val error =
       assertFailsWith<StatusRuntimeException> {
-        service.updateUploadHealingOperationPlan(
-          updateUploadHealingOperationPlanRequest {
-            dataProviderResourceId = DATA_PROVIDER_ID
-            uploadHealingOperationId = OPERATION_ID
-            uploadHealingOperation =
-              approved.copy {
-                state =
-                  UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
-                reason = "changed"
-              }
-            etag = approved.etag
-          }
+        service.reconcileUploadHealingOperation(
+          replanRequest(
+            approved.copy {
+              state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
+              reason = "changed"
+            },
+            etag = approved.etag,
+          )
         )
       }
 
@@ -1235,21 +1220,16 @@ class SpannerUploadHealingOperationServiceTest {
           requestId = UUID.randomUUID().toString()
         }
       )
-    val updateError =
+    val reconcileError =
       assertFailsWith<StatusRuntimeException> {
-        service.updateUploadHealingOperationPlan(
-          updateUploadHealingOperationPlanRequest {
-            dataProviderResourceId = DATA_PROVIDER_ID
-            uploadHealingOperationId = OPERATION_ID
-            uploadHealingOperation =
-              failed.copy {
-                state =
-                  UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
-                resumeState =
-                  UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED
-              }
-            etag = failed.etag
-          }
+        service.reconcileUploadHealingOperation(
+          replanRequest(
+            failed.copy {
+              state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
+              resumeState = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED
+            },
+            etag = failed.etag,
+          )
         )
       }
     val resumed =
@@ -1262,7 +1242,7 @@ class SpannerUploadHealingOperationServiceTest {
         }
       )
 
-    assertThat(updateError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(reconcileError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(failed.resumeState)
       .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING)
     assertThat(resumed.resumeState)
@@ -1313,14 +1293,7 @@ class SpannerUploadHealingOperationServiceTest {
       }
 
     val needsAttention =
-      service.updateUploadHealingOperationPlan(
-        updateUploadHealingOperationPlanRequest {
-          dataProviderResourceId = DATA_PROVIDER_ID
-          uploadHealingOperationId = OPERATION_ID
-          uploadHealingOperation = needsAttentionPlan
-          etag = draft.etag
-        }
-      )
+      service.reconcileUploadHealingOperation(replanRequest(needsAttentionPlan, etag = draft.etag))
 
     assertThat(needsAttention.state)
       .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION)
@@ -1329,7 +1302,7 @@ class SpannerUploadHealingOperationServiceTest {
   }
 
   @Test
-  fun `retry replaces needs-attention plan and restores approval state`() = runBlocking {
+  fun `reconcile replaces needs-attention plan and restores approval state`() = runBlocking {
     insertCorrectionCandidate(CANDIDATE_IDS[0])
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     val needsAttention =
@@ -1343,17 +1316,14 @@ class SpannerUploadHealingOperationServiceTest {
       )
 
     val retried =
-      service.updateUploadHealingOperationPlan(
-        updateUploadHealingOperationPlanRequest {
-          dataProviderResourceId = DATA_PROVIDER_ID
-          uploadHealingOperationId = OPERATION_ID
-          uploadHealingOperation =
-            needsAttention.copy {
-              state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
-              steps += planStep(1L, SOURCE_UPLOAD_ID)
-            }
-          etag = needsAttention.etag
-        }
+      service.reconcileUploadHealingOperation(
+        replanRequest(
+          needsAttention.copy {
+            state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
+            steps += planStep(1L, SOURCE_UPLOAD_ID)
+          },
+          etag = needsAttention.etag,
+        )
       )
 
     assertThat(retried.state)
@@ -2732,6 +2702,18 @@ class SpannerUploadHealingOperationServiceTest {
         requestId = UUID.randomUUID().toString()
       }
     )
+  }
+
+  private fun replanRequest(
+    operation: UploadHealingOperation,
+    etag: String,
+    requestId: String = UUID.randomUUID().toString(),
+  ) = reconcileUploadHealingOperationRequest {
+    dataProviderResourceId = DATA_PROVIDER_ID
+    uploadHealingOperationId = operation.uploadHealingOperationId
+    this.etag = etag
+    this.requestId = requestId
+    uploadHealingOperation = operation
   }
 
   private fun draftRequest(
