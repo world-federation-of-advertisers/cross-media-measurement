@@ -1,7 +1,4 @@
-package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:__pkg__",
-    "//src/test/kotlin/org/wfanet/measurement/duchy/mill/trustee:__pkg__",
-])
+package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "http",

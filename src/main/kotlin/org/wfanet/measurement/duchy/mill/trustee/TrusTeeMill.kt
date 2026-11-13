@@ -102,9 +102,12 @@ class TrusTeeMill(
     clock = clock,
   ) {
 
-  // Reuse the clients' refreshable credentials across requisitions and computations. Creating a
-  // new provider for every requisition exhausts Confidential Space attestation quotas.
-  private val kmsClients =
+  /**
+   * Cache of [KmsClient] instances by [WifCredentials].
+   *
+   * Reusing refreshable credentials avoids exhausting Confidential Space attestation quotas.
+   */
+  private val kmsClientCache =
     object : LinkedHashMap<WifCredentials, KmsClient>(16, 0.75f, true) {
       override fun removeEldestEntry(eldest: MutableMap.MutableEntry<WifCredentials, KmsClient>) =
         size > MAX_CACHED_KMS_CLIENTS
@@ -297,11 +300,13 @@ class TrusTeeMill(
     factory: KmsClientFactory<T>,
     credentials: T,
   ): KmsClient =
-    synchronized(kmsClients) {
-      kmsClients.getOrPut(credentials) { factory.getKmsClient(credentials) }
+    synchronized(kmsClientCache) {
+      kmsClientCache.getOrPut(credentials) { factory.getKmsClient(credentials) }
     }
 
   private fun keyAccessException(message: String, cause: GeneralSecurityException): Exception {
+    // TODO(world-federation-of-advertisers/common-jvm#426): Use documented KMS retry information
+    // instead of inspecting SDK causes.
     // HTTP status and authentication retry hints take precedence over generic I/O failures.
     val httpFailure =
       generateSequence<Throwable>(cause) { it.cause }
