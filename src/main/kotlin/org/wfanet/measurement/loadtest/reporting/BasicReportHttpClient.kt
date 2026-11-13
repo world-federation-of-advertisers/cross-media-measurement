@@ -18,8 +18,13 @@ package org.wfanet.measurement.loadtest.reporting
 
 import com.google.protobuf.util.JsonFormat
 import java.io.IOException
+import java.io.InterruptedIOException
+import java.net.ProtocolException
+import java.net.SocketTimeoutException
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
+import javax.net.ssl.SSLException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -29,7 +34,10 @@ import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.coerceAtMost
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 
-/** Reads BasicReports from the HTTP gateway with bounded retries for transient HTTP responses. */
+/**
+ * Reads BasicReports from the HTTP gateway with bounded retries for transient HTTP and transport
+ * failures.
+ */
 class BasicReportHttpClient(
   private val httpClient: OkHttpClient,
   private val retryBackoff: ExponentialBackoff,
@@ -47,31 +55,41 @@ class BasicReportHttpClient(
     var attempt = 1
     while (true) {
       val json: String? =
-        withContext(Dispatchers.IO) {
-          httpClient.newCall(request).execute().use { response ->
-            if (response.isSuccessful) {
-              checkNotNull(response.body).string()
-            } else {
-              val retryable = response.code in TRANSIENT_HTTP_CODES
-              if (!retryable || attempt >= maxAttempts) {
-                val statusMessage =
-                  "Error retrieving BasicReport: ${response.code} ${response.message}"
-                val message =
-                  try {
-                    "$statusMessage ${response.body?.string().orEmpty()}"
-                  } catch (e: IOException) {
-                    if (!retryable) throw IllegalStateException(statusMessage, e)
-                    throw IOException(statusMessage, e)
-                  }
-                if (!retryable) throw IllegalStateException(message)
-                throw IOException(message)
+        try {
+          withContext(Dispatchers.IO) {
+            httpClient.newCall(request).execute().use { response ->
+              if (response.isSuccessful) {
+                checkNotNull(response.body).string()
+              } else {
+                val retryable = response.code in TRANSIENT_HTTP_CODES
+                if (!retryable || attempt >= maxAttempts) {
+                  val statusMessage =
+                    "Error retrieving BasicReport: ${response.code} ${response.message}"
+                  val message =
+                    try {
+                      "$statusMessage ${response.body?.string().orEmpty()}"
+                    } catch (e: IOException) {
+                      if (!retryable) throw IllegalStateException(statusMessage, e)
+                      throw IOException(statusMessage, e)
+                    }
+                  if (!retryable) throw IllegalStateException(message)
+                  throw IOException(message)
+                }
+                logger.warning(
+                  "Transient BasicReport HTTP ${response.code} on attempt $attempt of $maxAttempts; retrying"
+                )
+                null
               }
-              logger.warning(
-                "Transient BasicReport HTTP ${response.code} on attempt $attempt of $maxAttempts; retrying"
-              )
-              null
             }
           }
+        } catch (e: IOException) {
+          if (attempt >= maxAttempts || !isRetryableTransportFailure(e)) throw e
+          logger.log(
+            Level.WARNING,
+            "Transient BasicReport transport failure on attempt $attempt of $maxAttempts; retrying",
+            e,
+          )
+          null
         }
       if (json != null) {
         return BasicReport.newBuilder()
@@ -87,5 +105,11 @@ class BasicReportHttpClient(
   companion object {
     private val logger = Logger.getLogger(BasicReportHttpClient::class.java.name)
     private val TRANSIENT_HTTP_CODES = setOf(429, 500, 502, 503, 504)
+
+    // OkHttp uses ProtocolException when a fixed-length or chunked body ends prematurely.
+    private fun isRetryableTransportFailure(failure: IOException): Boolean =
+      failure !is SSLException &&
+        (failure !is ProtocolException || failure.message == "unexpected end of stream") &&
+        (failure !is InterruptedIOException || failure is SocketTimeoutException)
   }
 }

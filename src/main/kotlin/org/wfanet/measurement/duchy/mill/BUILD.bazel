@@ -33,6 +33,12 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "mill_work_loop",
+    srcs = ["MillWorkLoop.kt"],
+    deps = ["@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core"],
+)
+
+kt_jvm_library(
     name = "mill_flags",
     srcs = ["MillFlags.kt"],
     deps = [

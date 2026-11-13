@@ -1,0 +1,16 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__"],
+)
+
+kt_jvm_library(
+    name = "testing",
+    srcs = ["RequisitionFetcherClient.kt"],
+    deps = [
+        "//imports/java/com/google/api/client/http",
+        "//imports/java/com/google/auth:oauth_http2",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
