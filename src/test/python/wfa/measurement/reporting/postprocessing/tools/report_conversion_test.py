@@ -72,7 +72,7 @@ class ReportConversionTest(unittest.TestCase):
         # The zero-reach fallback contributes reach variance / 12 to each bin.
         standard_deviation = 50 / (12 ** 0.5)
         summary = self._zero_reach_summary(standard_deviation)
-        result = ReportSummaryV2Processor(summary, []).process()
+        result = ReportSummaryV2Processor(summary, [], enable_validation=True, enable_correction=True).process()
 
         self.assertFalse(result.large_corrections)
         self.assertLessEqual(result.status.primal_equality_residual, 1e-6)
@@ -90,7 +90,7 @@ class ReportConversionTest(unittest.TestCase):
 
     def test_known_zero_frequency_variance_remains_exact(self):
         summary = self._zero_reach_summary(0.0)
-        result = ReportSummaryV2Processor(summary, []).process()
+        result = ReportSummaryV2Processor(summary, [], enable_validation=True, enable_correction=True).process()
 
         self.assertEqual(
             result.updated_measurements["reach_1_cumulative_2025_01_08"], 0

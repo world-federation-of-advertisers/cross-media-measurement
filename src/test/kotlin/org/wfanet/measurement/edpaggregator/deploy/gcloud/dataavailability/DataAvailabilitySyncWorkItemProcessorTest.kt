@@ -19,14 +19,20 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.timestamp
+import com.google.rpc.ErrorInfo
 import com.google.type.date
 import io.grpc.Metadata
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.protobuf.StatusProto
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -41,9 +47,11 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
+import org.wfanet.measurement.edpaggregator.dataavailability.ExternalDataAvailabilitySnapshotChangedException
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.externalDataAvailabilitySyncParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -65,6 +73,7 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     DataAvailabilitySyncLeaseRunner(
       leaseClient,
       uuidGenerator = { "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
+      renewalDelay = { delay(it) },
     )
 
   @Test
@@ -283,6 +292,42 @@ class DataAvailabilitySyncWorkItemProcessorTest {
   }
 
   @Test
+  fun `process renews attempt lease while sync blocks its thread`() = runBlocking {
+    val syncStarted = CompletableDeferred<Unit>()
+    val renewed = CountDownLatch(1)
+    stubAttemptCreation(withLease = true)
+    whenever(workItemAttemptsStub.renewWorkItemAttempt(any(), any<Metadata>())) doAnswer
+      {
+        renewed.countDown()
+        workItemAttempt {
+          name = ATTEMPT_NAME
+          state = WorkItemAttempt.State.ACTIVE
+          leaseExpirationTime = timestamp { seconds = 1_800_000_000L }
+        }
+      }
+    whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.SUCCEEDED
+      }
+    var renewalDelayCalls = 0
+    processor(
+        synchronize = { _, _, _ ->
+          syncStarted.complete(Unit)
+          check(renewed.await(10, TimeUnit.SECONDS)) { "Attempt lease renewal was blocked by sync" }
+          DataAvailabilitySync.Outcome.PUBLISHED
+        },
+        attemptLeaseRenewalDelay = {
+          if (renewalDelayCalls++ == 0) syncStarted.await() else awaitCancellation()
+        },
+      )
+      .process(externalInput())
+
+    verifyBlocking(workItemAttemptsStub) { renewWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemAttemptsStub) { completeWorkItemAttempt(any(), any<Metadata>()) }
+  }
+
+  @Test
   fun `process renews leased WorkItemAttempt while synchronizing`() = runBlocking {
     val renewalStarted = CompletableDeferred<Unit>()
     stubAttemptCreation(withLease = true)
@@ -373,6 +418,160 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     assertThat(error).hasMessageThat().contains("raw_impression_upload")
   }
 
+  @Test
+  fun `external task completes without VID Labeler pipeline bookkeeping`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.SUCCEEDED
+      }
+    val external = externalInput()
+    assertThat(external.isExternal).isTrue()
+    assertThat(external.appParams.dataProvider).isEqualTo(DATA_PROVIDER)
+    assertThat(external.appParams.triggeringRawImpressionUpload).isEmpty()
+    assertThat(external.appParams.hasEventDate()).isFalse()
+    processor(
+        synchronize = { task, _, _ ->
+          assertThat(task.doneBlobGeneration).isEqualTo(7L)
+          DataAvailabilitySync.Outcome.PUBLISHED
+        },
+        markAvailabilitySynchronized = {
+          error("External tasks must not update internal pipeline rows")
+        },
+      )
+      .process(external)
+    verifyBlocking(workItemAttemptsStub) { completeWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+  }
+
+  @Test
+  fun `external transient failure leaves the WorkItem retryable`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.FAILED
+      }
+    assertFailsWith<StatusException> {
+      processor(synchronize = { _, _, _ -> throw Status.UNAVAILABLE.asException() })
+        .process(externalInput())
+    }
+    verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+  }
+
+  @Test
+  fun `external validation failure releases synchronization lease`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.FAILED
+      }
+    val releasesBefore = leaseClient.releaseCount
+
+    assertFailsWith<ExternalDataAvailabilitySnapshotChangedException> {
+      processor(
+          synchronize = { _, _, _ -> throw ExternalDataAvailabilitySnapshotChangedException() }
+        )
+        .process(externalInput())
+    }
+
+    assertThat(leaseClient.releaseCount).isEqualTo(releasesBefore + 1)
+    verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+  }
+
+  @Test
+  fun `successful external task redelivery does not synchronize again`() = runBlocking {
+    val terminal =
+      StatusProto.toStatusException(
+        com.google.rpc.Status.newBuilder()
+          .setCode(Status.Code.FAILED_PRECONDITION.value())
+          .addDetails(
+            Any.pack(
+              ErrorInfo.newBuilder()
+                .setReason("INVALID_WORK_ITEM_STATE")
+                .putMetadata("workItemState", WorkItem.State.SUCCEEDED.name)
+                .build()
+            )
+          )
+          .build()
+      )
+    var claimed = false
+    whenever(workItemAttemptsStub.createWorkItemAttempt(any(), any<Metadata>())) doAnswer
+      {
+        if (claimed) throw terminal
+        claimed = true
+        workItemAttempt {
+          name = ATTEMPT_NAME
+          state = WorkItemAttempt.State.ACTIVE
+        }
+      }
+    whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.SUCCEEDED
+      }
+    var syncs = 0
+    val consumer =
+      processor(
+        synchronize = { _, _, _ ->
+          syncs++
+          DataAvailabilitySync.Outcome.PUBLISHED
+        }
+      )
+    consumer.process(externalInput())
+    consumer.process(externalInput())
+    assertThat(syncs).isEqualTo(1)
+  }
+
+  @Test
+  fun `process keeps attempt lease while recording synchronization result`() = runBlocking {
+    val renewal = CompletableDeferred<Unit>()
+    stubAttemptCreation(withLease = true)
+    whenever(workItemAttemptsStub.renewWorkItemAttempt(any(), any<Metadata>())) doAnswer
+      {
+        renewal.complete(Unit)
+        workItemAttempt {
+          name = ATTEMPT_NAME
+          state = WorkItemAttempt.State.ACTIVE
+          leaseExpirationTime = timestamp { seconds = 1_800_000_000L }
+        }
+      }
+    whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.SUCCEEDED
+      }
+    var renewalDelays = 0
+    val consumer =
+      processor(
+        synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.PUBLISHED },
+        markAvailabilitySynchronized = { renewal.await() },
+        attemptLeaseRenewalDelay = { if (renewalDelays++ == 0) Unit else awaitCancellation() },
+      )
+
+    withTimeout(2_000L) { consumer.process(input()) }
+
+    assertThat(renewal.isCompleted).isTrue()
+    verifyBlocking(workItemAttemptsStub) { completeWorkItemAttempt(any(), any<Metadata>()) }
+  }
+
+  private fun externalInput(): DataAvailabilitySyncWorkItem {
+    val work = workItem()
+    val params =
+      work.workItemParams
+        .unpack(WorkItem.WorkItemParams::class.java)
+        .toBuilder()
+        .setAppParams(Any.pack(externalDataAvailabilitySyncParams { dataProvider = DATA_PROVIDER }))
+        .build()
+    return DataAvailabilitySyncWorkItem.parse(
+      work.toBuilder().setWorkItemParams(Any.pack(params)).build()
+    )
+  }
+
   private fun processor(
     synchronize:
       suspend (
@@ -432,6 +631,7 @@ class DataAvailabilitySyncWorkItemProcessorTest {
           dataPathParams = dataPathParams {
             dataPath = DONE_BLOB_URI
             generation = 7L
+            createTime = timestamp { seconds = 1_800_000_000L }
             eventType = StorageEventType.FINALIZED
           }
         }

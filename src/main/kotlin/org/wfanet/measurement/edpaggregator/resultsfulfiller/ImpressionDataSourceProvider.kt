@@ -52,6 +52,8 @@ data class ImpressionDataSource(
   val modelLine: String,
   val interval: Interval,
   val blobDetails: BlobDetails,
+  /** Finalized impressions generation, or zero for legacy current-object reads. */
+  val blobGeneration: Long,
 )
 
 /**
@@ -122,17 +124,23 @@ class ImpressionDataSourceProvider(
     }
 
     return metadata
-      .distinctBy { it.blobUri }
+      .distinctBy { Triple(it.blobUri, it.metadataBlobGeneration, it.impressionsBlobGeneration) }
       .map { metadata ->
         logger.info("Processing impression metadata: $metadata")
-        val blobDetails = readBlobDetails(metadata.blobUri)
+        val blobDetails = readBlobDetails(metadata.blobUri, metadata.metadataBlobGeneration)
         ImpressionDataSource(
           modelLine = modelLine,
           interval = metadata.interval,
           blobDetails = blobDetails,
+          blobGeneration = metadata.impressionsBlobGeneration,
         )
       }
-      .distinctBy { it.blobDetails.blobUri }
+      .groupBy { it.blobDetails.blobUri }
+      .values
+      .flatMap { aliases ->
+        val pinned = aliases.filter { it.blobGeneration > 0L }
+        pinned.ifEmpty { aliases }.distinctBy { it.blobGeneration }
+      }
   }
 
   /** Queries impression metadata using [filter]. */
@@ -207,13 +215,14 @@ class ImpressionDataSourceProvider(
    * Reads `BlobDetails` from a metadata blob.
    *
    * @param metadataPath blob URI for the metadata (e.g., `file:///bucket/key`).
+   * @param generation finalized metadata generation, or zero for a legacy current-object read.
    * @return parsed [BlobDetails].
    * @throws ImpressionReadException with [ImpressionReadException.Code.BLOB_NOT_FOUND] when the
    *   blob is missing.
    * @throws com.google.protobuf.InvalidProtocolBufferException if parsing fails due to invalid
    *   metadata contents.
    */
-  private suspend fun readBlobDetails(metadataPath: String): BlobDetails {
+  private suspend fun readBlobDetails(metadataPath: String, generation: Long): BlobDetails {
     val storageClientUri = SelectedStorageClient.parseBlobUri(metadataPath)
     val storageClient =
       SelectedStorageClient(
@@ -223,7 +232,7 @@ class ImpressionDataSourceProvider(
       )
     logger.info("Reading impression metadata from $metadataPath")
     val blob =
-      storageClient.getBlob(storageClientUri.key)
+      GenerationMatchedStorageClient(storageClient, generation).getBlob(storageClientUri.key)
         ?: throw ImpressionReadException(
           metadataPath,
           ImpressionReadException.Code.BLOB_NOT_FOUND,

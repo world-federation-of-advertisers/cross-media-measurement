@@ -114,6 +114,7 @@ kt_jvm_library(
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:event_group_config",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:high_overlap_data_availability",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:high_overlap_dataset",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:impression_test_data_configs",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:population_setup",

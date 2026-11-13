@@ -235,6 +235,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
   private fun eventSourceFor(blobDetails: BlobDetails): SingleGroupEventSource =
     SingleGroupEventSource(
       StorageEventReader(
+        blobGeneration = 0L,
         blobDetails = blobDetails,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = tempFolder.root),

@@ -90,7 +90,7 @@ Kingdom requisitions ◄── Cloud Scheduler ──► RequisitionFetcher ─�
         writes requisitions/* ──► Secure Computation API ──► Pub/Sub
                                                                   │
 edp/<edp-id>/<date>/{impressions,metadata,done}                               ▼
-        done ── finalize ──► DataWatcher ──► DataAvailabilitySync ──► ResultsFulfiller MIG
+        done ── finalize ──► DataWatcher ──► WorkItem ──► DataAvailabilitySync ──► ResultsFulfiller MIG
                                                     │                    (Confidential Space)
                                                     ▼                         │
                                         EDP Aggregator (Metadata) API ◄───────┘
@@ -186,7 +186,7 @@ the correct pipeline.
 The two watched-path types per EDP:
 
 1. **Event group detection** — an event-group blob creates an EventGroupSync WorkItem.
-2. **Impressions / data availability** — a `done` marker invokes DataAvailabilitySync.
+2. **Impressions / data availability** — an external `done` marker creates a DataAvailabilitySync WorkItem.
 
 Requisition blobs are not watched in the recommended configuration. RequisitionFetcher creates
 their WorkItems directly after the blob and all associated metadata rows are durable.
@@ -237,11 +237,22 @@ Config: [`RequisitionFetcherConfig`](#requisitionfetcher-config-requisitionfetch
 
 ### DataAvailabilitySync
 
-A Cloud Function invoked by the DataWatcher when an empty `done` file is written
-under an impressions date directory, signaling that a day's impressions and metadata
-have finished uploading. It locates the directory, scans metadata (including
-subfolders), records impression availability in the Metadata Storage database, and
-notifies the Kingdom that impressions for that day are available.
+A Cloud Function consuming external done-blob WorkItems from DataWatcher and internal
+WorkItems created directly by VID Labeler. DataWatcher returns after durable task creation.
+External tasks scan the finalized date folder; internal tasks use their raw-upload contract.
+Both publish metadata and Kingdom availability under the provider synchronization lease and
+record durable attempt completion. External tasks do not update VID Labeler pipeline rows.
+
+External WorkItems retain the metadata and impression object generations finalized by `done`.
+These generations come from storage; external writers keep the existing `BlobDetails` format.
+Fulfillment rejects an overwritten object instead of following unfinalized contents. Legacy
+records without these generations retain current-object reads. Apply the
+`add-impression-metadata-blob-generations.sql` migration and deploy the updated metadata service,
+DataAvailabilitySync, and fulfillment consumers before enabling external WorkItem routes.
+Write a new `done` marker after an intentional overwrite to register the new snapshot.
+Gap checks include both configured output prefixes. Legacy HTTP invocation remains supported
+for external folders with unversioned metadata; use WorkItems or snapshot-aware replay for
+metadata that already has stored generations.
 When `event_group_activity_publishing` is configured, the same sync also derives
 positive EventGroup activity from the finalized metadata and appends it in the Kingdom.
 
@@ -684,6 +695,8 @@ provided; override as needed:
 * `spanner_database_name` — defaults to `edp-aggregator`.
 * `edp_aggregator_service_account_name` — internal API server SA (bound to the GKE
   service account `internal-edp-aggregator-server` via Workload Identity).
+  This identity can consume the VID-labeling and Data Availability dead-letter
+  subscriptions and publish to their origin topics for `vid-labeling-heal redeliver-dlq`.
 * `edp_aggregator_api_server_ip_address` — optional static IP for the API server.
 
 ### Service accounts
@@ -846,17 +859,17 @@ watched_paths {
   }
 }
 
-# 2) Data availability -> DataAvailabilitySync (HTTP), fires on the `done` marker
+# 2) External data availability -> DataAvailabilitySync (durable WorkItem)
 watched_paths {
   identifier: "data-availability"
-  source_path_regex: "^gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/.+/done$"
-  http_endpoint_sink {
-    endpoint_uri: "https://REGION-PROJECT_ID.cloudfunctions.net/data-availability-sync"
+  source_path_regex: "^gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/model-line/[^/]+/[^/]+/done$"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/DATA_PROVIDER_ID"
     app_params {
-      fields { key: "dataProvider" value { string_value: "dataProviders/DATA_PROVIDER_ID" } }
-      # dataAvailabilityStorage.gcs { projectId, bucketName }
-      # cmmsConnection.{certFilePath, privateKeyFilePath, certCollectionFilePath}
-      # impressionMetadataStorageConnection.{certFilePath, privateKeyFilePath, certCollectionFilePath}
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/DATA_PROVIDER_ID"
+      }
     }
   }
 }
@@ -1064,6 +1077,11 @@ VID labeling disabled may omit `vid_labeled_impression_path` and use only `edp_i
 Upload the matching configuration and deploy the updated availability functions before resuming
 VidLabeler output at the new root.
 
+The deployment validator checks HTTP and queued external routes for overlap. Drain active tasks
+before migrating dispatcher, monitor, and sync configs together, and keep historical impression
+metadata. When `external_impression_path` is empty, external and legacy HTTP syncs use
+`edp_impression_path`.
+
 `event_group_activity_publishing` is optional. When present, `DataAvailabilitySync`:
 
 * reads the Mesos RecordIO `MappedEventGroup` output produced by `EventGroupSync`;
@@ -1113,16 +1131,21 @@ One `configs` entry per monitored impression path.
 # proto-message: wfa.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 configs {
   storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
-  edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"
+  edp_impression_path: "edp/<edp-id>"
   model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/ML" }
   max_stale_days: 3                       # optional (default 3)
   time_zone: "UTC"
-  data_provider_name: "dataProviders/DATA_PROVIDER_ID"          # required for the spurious-deletion check
+  data_provider_name: "dataProviders/DATA_PROVIDER_ID"
   impression_metadata_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   # spurious_deletion_lookback_days: 7    # optional; > 0 enables the spurious-deletion check
   # unprocessed_done_threshold { seconds: 86400 }   # optional (default 24h)
 }
 ```
+
+For every nonempty DataAvailabilitySync `external_impression_path`, configure the same
+`data_provider_name`, storage backend and root, and normalized `edp_impression_path` here.
+`data_provider_name` is also required when the spurious-deletion check is enabled. Do not add the
+internal VID Labeler output to this monitor; VidLabelingMonitor owns that prefix.
 
 ### EDP config (`event_data_provider_configs`)
 
@@ -1635,7 +1658,7 @@ needs. The following examples use `time_zone = "UTC"`:
 
 | Deployment | Dispatch schedule | Purpose |
 |---|---|---|
-| CMMS development/cloud tests | `*/5 * * * *` | Allow another dispatch attempt during the 30-minute setup timeout |
+| CMMS development/cloud tests | `*/5 * * * *` | Allow another dispatch attempt during the bounded fixture setup wait |
 | Long-lived deployment, four runs per day | `0 */6 * * *` | Check every six hours |
 | Long-lived deployment, one run per day | `0 0 * * *` | Check daily |
 

@@ -70,6 +70,18 @@ _LOG_NOISE_CORRECTION_VALUES = flags.DEFINE_boolean(
 flags.DEFINE_alias(
     "log-noise-correction-values", "log_noise_correction_values"
 )
+_ENABLE_VALIDATION = flags.DEFINE_boolean(
+    "enable_validation",
+    True,
+    "Validate report results and check for large corrections. Assembly always runs.",
+)
+flags.DEFINE_alias("enable-validation", "enable_validation")
+_ENABLE_CORRECTION = flags.DEFINE_boolean(
+    "enable_correction",
+    True,
+    "Correct report measurements. When disabled, assemble the uncorrected values.",
+)
+flags.DEFINE_alias("enable-correction", "enable_correction")
 _AMI_MRC_EXEMPTED_EDPS = flags.DEFINE_list(
     "ami_mrc_exempted_edps",
     [],
@@ -248,6 +260,8 @@ def main(argv):
                 log_noise_correction_values=(
                     _LOG_NOISE_CORRECTION_VALUES.value
                 ),
+                enable_validation=_ENABLE_VALIDATION.value,
+                enable_correction=_ENABLE_CORRECTION.value,
                 ami_mrc_exempted_edps=_AMI_MRC_EXEMPTED_EDPS.value,
                 potential_direct_result_minimum_thresholds=(
                     potential_direct_result_minimum_thresholds

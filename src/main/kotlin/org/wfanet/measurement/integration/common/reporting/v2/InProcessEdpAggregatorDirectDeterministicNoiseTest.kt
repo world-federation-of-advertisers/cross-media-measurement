@@ -171,7 +171,7 @@ abstract class InProcessEdpAggregatorDirectDeterministicNoiseTest(
         )
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient

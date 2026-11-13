@@ -18,8 +18,14 @@ package org.wfanet.measurement.loadtest.reporting
 
 import com.google.common.truth.Truth.assertThat
 import java.io.IOException
+import java.io.InterruptedIOException
+import java.net.ProtocolException
+import java.net.SocketTimeoutException
 import java.time.Duration
+import javax.net.ssl.SSLHandshakeException
+import javax.net.ssl.SSLPeerUnverifiedException
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import okhttp3.Interceptor
@@ -69,7 +75,7 @@ class BasicReportHttpClientTest {
   }
 
   @Test
-  fun `getBasicReport propagates IOException without additional retries`() = runTest {
+  fun `getBasicReport retries connection failures`() = runTest {
     val interceptor =
       ScriptedInterceptor(
         listOf(
@@ -77,8 +83,85 @@ class BasicReportHttpClientTest {
           Result.success(response(200, "{\"state\":\"SUCCEEDED\"}")),
         )
       )
-    val failure = assertFailsWith<IOException> { createClient(interceptor).getBasicReport(REQUEST) }
-    assertThat(failure.message).contains("connection reset")
+    assertThat(createClient(interceptor).getBasicReport(REQUEST).state)
+      .isEqualTo(BasicReport.State.SUCCEEDED)
+    assertThat(interceptor.calls).isEqualTo(2)
+  }
+
+  @Test
+  fun `getBasicReport retries socket timeouts`() = runTest {
+    val interceptor =
+      ScriptedInterceptor(
+        listOf(
+          Result.failure(SocketTimeoutException("read timeout")),
+          Result.success(response(200, "{\"state\":\"SUCCEEDED\"}")),
+        )
+      )
+    assertThat(createClient(interceptor).getBasicReport(REQUEST).state)
+      .isEqualTo(BasicReport.State.SUCCEEDED)
+    assertThat(interceptor.calls).isEqualTo(2)
+  }
+
+  @Test
+  fun `getBasicReport retries truncated successful response bodies`() = runTest {
+    val interceptor =
+      ScriptedInterceptor(
+        listOf(
+          Result.success(
+            response(200, UnreadableResponseBody(ProtocolException("unexpected end of stream")))
+          ),
+          Result.success(response(200, "{\"state\":\"SUCCEEDED\"}")),
+        )
+      )
+    assertThat(createClient(interceptor).getBasicReport(REQUEST).state)
+      .isEqualTo(BasicReport.State.SUCCEEDED)
+    assertThat(interceptor.calls).isEqualTo(2)
+  }
+
+  @Test
+  @OptIn(ExperimentalCoroutinesApi::class)
+  fun `getBasicReport shares attempt limit across HTTP and transport failures`() = runTest {
+    val finalFailure = SocketTimeoutException("final timeout")
+    val interceptor =
+      ScriptedInterceptor(
+        listOf(
+          Result.failure(IOException("connection reset")),
+          Result.success(response(503, "unavailable")),
+          Result.failure(finalFailure),
+        )
+      )
+    assertThat(
+        assertFailsWith<SocketTimeoutException> {
+          createClient(interceptor).getBasicReport(REQUEST)
+        }
+      )
+      .isSameInstanceAs(finalFailure)
+    assertThat(interceptor.calls).isEqualTo(3)
+    assertThat(testScheduler.currentTime).isEqualTo(3000L)
+  }
+
+  @Test
+  fun `getBasicReport rejects TLS and protocol failures without retry`() = runTest {
+    for (failure in
+      listOf(
+        SSLHandshakeException("invalid certificate"),
+        SSLPeerUnverifiedException("untrusted peer"),
+        ProtocolException("invalid HTTP response"),
+        InterruptedIOException("interrupted"),
+      )) {
+      val interceptor = ScriptedInterceptor(listOf(Result.failure(failure)))
+      val actual =
+        assertFailsWith<IOException> { createClient(interceptor).getBasicReport(REQUEST) }
+      assertThat(actual).isInstanceOf(failure.javaClass)
+      assertThat(interceptor.calls).isEqualTo(1)
+    }
+  }
+
+  @Test
+  fun `getBasicReport propagates cancellation without retry`() = runTest {
+    val interceptor =
+      ScriptedInterceptor(listOf(Result.failure(CancellationException("cancelled"))))
+    assertFailsWith<CancellationException> { createClient(interceptor).getBasicReport(REQUEST) }
     assertThat(interceptor.calls).isEqualTo(1)
   }
 
