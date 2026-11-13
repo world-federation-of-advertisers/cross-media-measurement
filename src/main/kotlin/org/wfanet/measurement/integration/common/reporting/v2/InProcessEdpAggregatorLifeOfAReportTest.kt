@@ -103,6 +103,7 @@ import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
@@ -215,6 +216,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   /** EDPs that start without campaigns, impression objects, metadata, or availability intervals. */
   protected open val edpsWithDeferredUploads: Set<String>
     get() = emptySet()
+
+  protected open val metricSpecConfigOverride: MetricSpecConfig
+    get() = NO_SAMPLING_METRIC_SPEC_CONFIG
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
     when {
@@ -588,7 +592,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           TestEvent.getDescriptor(),
           defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
           verboseGrpcLogging = false,
-          metricSpecConfigOverride = NO_SAMPLING_METRIC_SPEC_CONFIG,
+          metricSpecConfigOverride = metricSpecConfigOverride,
           populationDataProviderName =
             inProcessCmmsComponents.getPopulationData().populationDataProviderName,
         )

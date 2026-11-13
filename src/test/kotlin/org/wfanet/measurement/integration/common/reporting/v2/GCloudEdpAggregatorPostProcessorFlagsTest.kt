@@ -15,14 +15,18 @@
 package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.math.round
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.Timeout
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.config.reporting.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
@@ -56,24 +60,90 @@ class GCloudEdpAggregatorPostProcessorFlagsTest :
 
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
+  override val metricSpecConfigOverride: MetricSpecConfig
+    get() =
+      super.metricSpecConfigOverride.copy {
+        impressionCountParams =
+          impressionCountParams.copy {
+            // The frequency measurement still counts multiple impressions per person.
+            maximumFrequencyPerUser = 1
+          }
+      }
+
   @Test
-  fun `inconsistent deterministic noisy results succeed with correction disabled`() = runBlocking {
+  fun `report rejected with both flags enabled succeeds with correction disabled`() = runBlocking {
     assertCompletedReport(enableValidation = true, enableCorrection = false)
   }
 
   @Test
-  fun `inconsistent deterministic noisy results succeed with validation and correction disabled`() =
+  fun `report rejected with both flags enabled succeeds with validation and correction disabled`() =
     runBlocking {
       assertCompletedReport(enableValidation = false, enableCorrection = false)
     }
 
   @Test
-  fun `inconsistent deterministic noisy results are corrected with validation disabled`() =
+  fun `report rejected with both flags enabled is corrected with validation disabled`() =
     runBlocking {
       assertCompletedReport(enableValidation = false, enableCorrection = true)
     }
 
   private suspend fun assertCompletedReport(enableValidation: Boolean, enableCorrection: Boolean) {
+    val rejectedReport =
+      createAndProcessReport(
+        enableValidation = true,
+        enableCorrection = true,
+        basicReportId = "flags-enabled-basicreport",
+      )
+    assertThat(rejectedReport.basicReport.state).isEqualTo(BasicReport.State.FAILED)
+
+    val processedReport =
+      createAndProcessReport(enableValidation, enableCorrection, "flags-disabled-basicreport")
+    assertThat(processedReport.reachAndFrequency).isEqualTo(rejectedReport.reachAndFrequency)
+    assertThat(processedReport.impression).isEqualTo(rejectedReport.impression)
+
+    val completedBasicReport = processedReport.basicReport
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertStructuralResults(completedBasicReport)
+
+    val metricSet =
+      completedBasicReport.resultGroupsList
+        .single()
+        .resultsList
+        .single {
+          it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+        }
+        .metricSet
+    val cumulative = metricSet.reportingUnit.cumulative
+    if (enableCorrection) {
+      assertThat(cumulative.reach).isGreaterThan(0L)
+      assertThat(cumulative.kPlusReachList).hasSize(processedReport.expectedKPlusReach.size)
+      assertThat(cumulative.kPlusReachList.first()).isEqualTo(cumulative.reach)
+      for ((lowerFrequencyReach, higherFrequencyReach) in cumulative.kPlusReachList.zipWithNext()) {
+        assertThat(lowerFrequencyReach).isAtLeast(higherFrequencyReach)
+      }
+      assertThat(cumulative.kPlusReachList.last()).isAtLeast(0L)
+      assertThat(cumulative.kPlusReachList.sum()).isAtMost(cumulative.impressions)
+    } else {
+      assertThat(cumulative.reach).isEqualTo(processedReport.reachAndFrequency.reach.value)
+      assertThat(cumulative.impressions).isEqualTo(processedReport.impression.impression.value)
+      assertThat(cumulative.kPlusReachList)
+        .containsExactlyElementsIn(processedReport.expectedKPlusReach)
+        .inOrder()
+      assertThat(cumulative.kPlusReachList.sum()).isGreaterThan(cumulative.impressions)
+    }
+    assertThat(cumulative.percentReach)
+      .isWithin(FLOAT_TOLERANCE)
+      .of((cumulative.reach.toDouble() / metricSet.populationSize * 100).toFloat())
+    assertThat(cumulative.averageFrequency)
+      .isWithin(FLOAT_TOLERANCE)
+      .of((cumulative.impressions.toDouble() / cumulative.reach).toFloat())
+  }
+
+  private suspend fun createAndProcessReport(
+    enableValidation: Boolean,
+    enableCorrection: Boolean,
+    basicReportId: String,
+  ): ProcessedReport {
     val eventGroups =
       listReportingEventGroups().filter { it.eventGroupReferenceId == "campaign/sparse-frequency" }
     assertThat(eventGroups).hasSize(1)
@@ -84,8 +154,8 @@ class GCloudEdpAggregatorPostProcessorFlagsTest :
         .createBasicReport(
           buildCreateBasicReportRequest(
             eventGroups,
-            "postprocessor-flags-campaign",
-            "postprocessor-flags-basicreport",
+            "$basicReportId-campaign",
+            basicReportId,
             includeIqfFilter = false,
           )
         )
@@ -99,7 +169,8 @@ class GCloudEdpAggregatorPostProcessorFlagsTest :
         measurements.filter { it.dataProvidersList.singleOrNull()?.key == dataProviderName("edp2") }
       )
     val reachAndFrequency = directResults.single { it.hasReach() && it.hasFrequency() }
-    val impression = directResults.single { it.hasImpression() }.impression
+    val impressionResult = directResults.single { it.hasImpression() }
+    val impression = impressionResult.impression
     val deterministicNoise = ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
     assertThat(reachAndFrequency.reach.noiseMechanism).isEqualTo(deterministicNoise)
     assertThat(reachAndFrequency.frequency.noiseMechanism).isEqualTo(deterministicNoise)
@@ -121,7 +192,7 @@ class GCloudEdpAggregatorPostProcessorFlagsTest :
       (0 until requestedKPlusReach).map { index ->
         round(frequencyCounts.drop(index).sum()).toLong()
       }
-    // Independently drawn noise violates the impressions >= sum(k+ reach) identity.
+    // The capped impression count is below the frequency histogram's weighted total.
     assertThat(expectedKPlusReach.sum()).isGreaterThan(impression.value)
 
     executeReportProcessorJob(enableValidation, enableCorrection)
@@ -130,40 +201,20 @@ class GCloudEdpAggregatorPostProcessorFlagsTest :
       reportingBasicReportsClient
         .withCallCredentials(credentials)
         .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-    assertStructuralResults(completedBasicReport)
-
-    val metricSet =
-      completedBasicReport.resultGroupsList
-        .single()
-        .resultsList
-        .single {
-          it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
-        }
-        .metricSet
-    val cumulative = metricSet.reportingUnit.cumulative
-    if (enableCorrection) {
-      assertThat(cumulative.reach).isGreaterThan(0L)
-      assertThat(cumulative.kPlusReachList).hasSize(requestedKPlusReach)
-      assertThat(cumulative.kPlusReachList.first()).isEqualTo(cumulative.reach)
-      for ((lowerFrequencyReach, higherFrequencyReach) in cumulative.kPlusReachList.zipWithNext()) {
-        assertThat(lowerFrequencyReach).isAtLeast(higherFrequencyReach)
-      }
-      assertThat(cumulative.kPlusReachList.last()).isAtLeast(0L)
-      assertThat(cumulative.kPlusReachList.sum()).isAtMost(cumulative.impressions)
-    } else {
-      assertThat(cumulative.reach).isEqualTo(reachAndFrequency.reach.value)
-      assertThat(cumulative.impressions).isEqualTo(impression.value)
-      assertThat(cumulative.kPlusReachList).containsExactlyElementsIn(expectedKPlusReach).inOrder()
-      assertThat(cumulative.kPlusReachList.sum()).isGreaterThan(cumulative.impressions)
-    }
-    assertThat(cumulative.percentReach)
-      .isWithin(FLOAT_TOLERANCE)
-      .of((cumulative.reach.toDouble() / metricSet.populationSize * 100).toFloat())
-    assertThat(cumulative.averageFrequency)
-      .isWithin(FLOAT_TOLERANCE)
-      .of((cumulative.impressions.toDouble() / cumulative.reach).toFloat())
+    return ProcessedReport(
+      completedBasicReport,
+      reachAndFrequency,
+      impressionResult,
+      expectedKPlusReach,
+    )
   }
+
+  private data class ProcessedReport(
+    val basicReport: BasicReport,
+    val reachAndFrequency: Measurement.Result,
+    val impression: Measurement.Result,
+    val expectedKPlusReach: List<Long>,
+  )
 
   companion object {
     private const val FLOAT_TOLERANCE = 1e-5f
