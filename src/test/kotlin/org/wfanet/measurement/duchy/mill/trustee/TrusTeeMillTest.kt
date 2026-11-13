@@ -72,7 +72,6 @@ import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCreden
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
-import org.wfanet.measurement.common.crypto.tink.KmsKeyAccessException
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -659,148 +658,33 @@ class TrusTeeMillTest {
   }
 
   @Test
-  fun `computingPhase retries attestation quota failures without failing the computation`(): Unit =
-    runBlocking {
-      writeRequisitionData()
-      fakeComputationDb.addComputation(
-        LOCAL_ID,
-        Stage.COMPUTING.toProtocolStage(),
-        computationDetails = COMPUTATION_DETAILS,
-        requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE),
-      )
-      val unavailableKmsClient: KmsClient = mock()
-      whenever(unavailableKmsClient.getAead(KEK_URI_1))
-        .thenThrow(
-          KmsKeyAccessException(
-            "Failed to obtain Confidential Space attestation token",
-            isRetryable = true,
-            cause = IOException("Launcher token request failed: CreateChallenge quota exceeded"),
-          )
-        )
-        .thenReturn(KEK_AEAD_1)
-      whenever(mockConfidentialSpaceToAwsKmsClientFactory.getKmsClient(any()))
-        .thenReturn(unavailableKmsClient)
-      whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
-
-      val mill = createMill()
-      mill.claimAndProcessWork()
-
-      val finalToken = fakeComputationDb[LOCAL_ID]!!
-      assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
-      assertThat(finalToken.computationDetails.endingState)
-        .isNotEqualTo(ComputationDetails.CompletedReason.FAILED)
-      verify(mockComputationParticipants, never()).failComputationParticipant(any())
-      verify(mockSystemComputations, never()).setComputationResult(any())
-
-      mill.claimAndProcessWork()
-
-      assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
-        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
-      verify(mockConfidentialSpaceToAwsKmsClientFactory, times(1)).getKmsClient(any())
-      verify(mockSystemComputations, times(1)).setComputationResult(any())
-    }
-
-  @Test
-  fun `computingPhase retries key access failures marked retryable`(): Unit = runBlocking {
-    assertKeyDecryptionFailure(
-      KmsKeyAccessException("temporary key access failure", isRetryable = true),
-      retryable = true,
-    )
-  }
-
-  @Test
-  fun `computingPhase fails permanently when adapter marks an IOException nonretryable`(): Unit =
-    runBlocking {
-      assertKeyDecryptionFailure(
-        KmsKeyAccessException(
-          "invalid credentials",
-          isRetryable = false,
-          cause = IOException("token exchange rejected"),
-        ),
-        retryable = false,
-      )
-    }
-
-  @Test
-  fun `computingPhase does not infer retry information from an opaque key access failure`(): Unit =
-    runBlocking {
-      assertKeyDecryptionFailure(
-        GeneralSecurityException("decryption failed", IOException("hidden I/O failure")),
-        retryable = false,
-      )
-    }
-
-  @Test
-  fun `computingPhase retries client creation failures marked retryable`(): Unit = runBlocking {
-    assertKeyDecryptionFailure(
-      KmsKeyAccessException("temporary client creation failure", isRetryable = true),
-      retryable = true,
-      duringClientCreation = true,
-    )
-  }
-
-  @Test
-  fun `computingPhase fails permanently for client creation failures marked nonretryable`(): Unit =
-    runBlocking {
-      assertKeyDecryptionFailure(
-        KmsKeyAccessException("invalid client configuration", isRetryable = false),
-        retryable = false,
-        duringClientCreation = true,
-      )
-    }
-
-  private suspend fun assertKeyDecryptionFailure(
-    failure: GeneralSecurityException,
-    retryable: Boolean,
-    duringClientCreation: Boolean = false,
-  ) {
+  fun `computingPhase fails when credential retries are exhausted`(): Unit = runBlocking {
     writeRequisitionData()
     fakeComputationDb.addComputation(
       LOCAL_ID,
       Stage.COMPUTING.toProtocolStage(),
       computationDetails = COMPUTATION_DETAILS,
-      requisitions = listOf(REQUISITION_1),
+      requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE),
     )
-    val kekAead: Aead = mock()
-    val decryption = whenever(kekAead.decrypt(any(), any()))
-    val decryptionResult = if (duringClientCreation) decryption else decryption.thenThrow(failure)
-    decryptionResult.thenAnswer { invocation ->
-      KEK_AEAD_1.decrypt(invocation.getArgument(0), invocation.getArgument(1))
-    }
-    val kmsClient: KmsClient = mock()
-    whenever(kmsClient.getAead(KEK_URI_1)).thenReturn(kekAead)
-    val creation = whenever(mockGcloudKmsClientFactory.getKmsClient(any()))
-    val creationResult =
-      if (duringClientCreation) creation.thenAnswer { throw failure } else creation
-    creationResult.thenReturn(kmsClient)
-    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+    val unavailableClient: KmsClient = mock()
+    whenever(unavailableClient.getAead(KEK_URI_1))
+      .thenThrow(
+        GeneralSecurityException(
+          "credential retry budget exhausted",
+          IOException("quota remains exceeded"),
+        )
+      )
+    whenever(mockConfidentialSpaceToAwsKmsClientFactory.getKmsClient(any()))
+      .thenReturn(unavailableClient)
 
-    val mill = createMill()
-    mill.claimAndProcessWork()
+    createMill().claimAndProcessWork()
 
-    verify(mockProcessor, never()).addFrequencyVector(any())
-    verify(mockProcessor, never()).computeResult()
-    verify(mockSystemComputations, never()).setComputationResult(any())
     val token = fakeComputationDb[LOCAL_ID]!!
-    if (retryable) {
-      assertThat(token.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
-      assertThat(token.computationDetails.endingState)
-        .isNotEqualTo(ComputationDetails.CompletedReason.FAILED)
-      verify(mockComputationParticipants, never()).failComputationParticipant(any())
-
-      mill.claimAndProcessWork()
-
-      assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
-        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
-      verify(mockSystemComputations, times(1)).setComputationResult(any())
-    } else {
-      assertThat(token.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-      assertThat(token.computationDetails.endingState)
-        .isEqualTo(ComputationDetails.CompletedReason.FAILED)
-      verify(mockComputationParticipants, times(1)).failComputationParticipant(any())
-    }
-    verify(mockGcloudKmsClientFactory, times(if (duringClientCreation && retryable) 2 else 1))
-      .getKmsClient(any())
+    assertThat(token.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(token.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+    verify(mockComputationParticipants).failComputationParticipant(any())
+    verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
   @Test

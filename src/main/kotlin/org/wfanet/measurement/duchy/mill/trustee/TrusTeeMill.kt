@@ -32,12 +32,10 @@ import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCreden
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
-import org.wfanet.measurement.common.crypto.tink.KmsKeyAccessException
 import org.wfanet.measurement.common.crypto.tink.WifCredentials
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
-import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.TransientErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeParams
@@ -290,7 +288,7 @@ class TrusTeeMill(
         getCachedKmsClient(gcloudKmsClientFactory, credentials)
       }
     } catch (e: GeneralSecurityException) {
-      throw keyAccessException("Failed to create KMS client", e)
+      throw PermanentErrorException("Failed to create KMS client", e)
     }
   }
 
@@ -300,13 +298,6 @@ class TrusTeeMill(
   ): KmsClient =
     synchronized(kmsClientCache) {
       kmsClientCache.getOrPut(credentials) { factory.getKmsClient(credentials) }
-    }
-
-  private fun keyAccessException(message: String, cause: GeneralSecurityException): Exception =
-    if (cause is KmsKeyAccessException && cause.isRetryable) {
-      TransientErrorException(message, cause)
-    } else {
-      PermanentErrorException(message, cause)
     }
 
   private fun getDekKeysetHandle(
@@ -321,7 +312,7 @@ class TrusTeeMill(
         kekAead,
       )
     } catch (e: GeneralSecurityException) {
-      throw keyAccessException("Failed to get DEK keyset", e)
+      throw PermanentErrorException("Failed to get DEK keyset due to a cryptographic error", e)
     }
   }
 
