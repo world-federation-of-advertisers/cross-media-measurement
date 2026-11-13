@@ -408,6 +408,62 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `external sync rejects overwritten impressions during publication lease renewal`() =
+    runBlocking {
+      val storageClient = VersionedBlobMetadataStorageClient()
+      val dateFolder = "edp/edpa_edp/model-line/modelLine1/2026-03-15"
+      val dataKey = "labeled/data.recordio"
+      val initialTime = Instant.parse("2026-03-15T00:01:00Z")
+      val doneTime = initialTime.plusSeconds(60)
+      storageClient.writeVersion(dataKey, ByteString.copyFromUtf8("data"), initialTime)
+      storageClient.writeVersion(
+        "$dateFolder/metadata.binpb",
+        externalBlobDetails(dataKey).toByteString(),
+        initialTime,
+      )
+      val done = storageClient.writeVersion("$dateFolder/done", ByteString.EMPTY, doneTime)
+      var publishing = false
+      val sync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          RecordingThrottler(),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+          publishEventGroupActivities = null,
+          generationMatchedMetadataUpdater = storageClient.generationMatchedMetadataUpdater,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
+        )
+
+      assertFailsWith<ExternalDataAvailabilitySnapshotChangedException> {
+        sync.sync(
+          "$bucket/$dateFolder/done",
+          TestDataAvailabilitySyncLease.NAME,
+          doneBlobGeneration = done.generation,
+          externalDoneBlobCreateTime = done.createTime,
+          onStage = { publishing = it == DataAvailabilitySync.Stage.KINGDOM_PUBLICATION },
+          ensureLeaseActive = {
+            if (publishing) {
+              storageClient.writeVersion(
+                dataKey,
+                ByteString.copyFromUtf8("overwritten"),
+                doneTime.plusSeconds(1),
+              )
+            }
+          },
+        )
+      }
+
+      verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+      assertThat(storageClient.currentMetadata(blobKey = "$dateFolder/done"))
+        .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+    }
+
+  @Test
   fun `sync rejects lost lease after Kingdom throttle wait`() = runBlocking {
     val storageClient = VersionedBlobMetadataStorageClient()
     val dateFolder = "edp/edpa_edp/model-line/modelLine1/2026-03-15"
