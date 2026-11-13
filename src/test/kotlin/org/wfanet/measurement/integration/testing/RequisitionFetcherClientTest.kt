@@ -61,25 +61,7 @@ class RequisitionFetcherClientTest {
   @Test
   fun `trigger uses the federated identity to mint a service account ID token`() = runTest {
     val transport = RecordingTransport(200)
-    val credentials =
-      GoogleCredentials.fromStream(
-        """
-        {
-          "type": "external_account",
-          "audience": "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/test/providers/test",
-          "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
-          "token_url": "https://sts.googleapis.com/v1/token",
-          "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/test@example.test:generateAccessToken",
-          "credential_source": {
-            "url": "https://tokens.example.test/subject",
-            "format": {"type": "json", "subject_token_field_name": "token"}
-          }
-        }
-        """
-          .trimIndent()
-          .byteInputStream(),
-        HttpTransportFactory { transport },
-      )
+    val credentials = identityPoolCredentials(transport)
 
     RequisitionFetcherClient(ENDPOINT, credentials, transport).trigger()
 
@@ -97,6 +79,30 @@ class RequisitionFetcherClientTest {
     assertThat(mintRequest.content).contains("\"includeEmail\":true")
     assertThat(transport.requests.last().authorization).isEqualTo("Bearer " + token(4102444800))
   }
+
+  @Test
+  fun `trigger exchanges a federated token when credentials already contain an impersonated token`() =
+    runTest {
+      val transport = RecordingTransport(200)
+      val credentials = identityPoolCredentials(transport)
+      credentials.refresh()
+      assertThat(credentials.accessToken.tokenValue).isEqualTo("impersonated-token")
+      transport.requests.clear()
+
+      RequisitionFetcherClient(ENDPOINT, credentials, transport).trigger()
+
+      assertThat(transport.requests.map { it.url })
+        .containsExactly(
+          "https://tokens.example.test/subject",
+          "https://sts.googleapis.com/v1/token",
+          "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/test@example.test:generateIdToken",
+          ENDPOINT.toString(),
+        )
+        .inOrder()
+      val mintRequest = transport.requests.single { it.url.endsWith(":generateIdToken") }
+      assertThat(mintRequest.authorization).isEqualTo("Bearer federated-token")
+      assertThat(credentials.accessToken.tokenValue).isEqualTo("impersonated-token")
+    }
 
   @Test
   fun `trigger fails promptly when the function rejects authentication`() = runTest {
@@ -136,6 +142,26 @@ class RequisitionFetcherClientTest {
     assertThat(transport.requests).isEmpty()
   }
 
+  private fun identityPoolCredentials(transport: HttpTransport): GoogleCredentials =
+    GoogleCredentials.fromStream(
+      """
+        {
+          "type": "external_account",
+          "audience": "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/test/providers/test",
+          "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+          "token_url": "https://sts.googleapis.com/v1/token",
+          "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/test@example.test:generateAccessToken",
+          "credential_source": {
+            "url": "https://tokens.example.test/subject",
+            "format": {"type": "json", "subject_token_field_name": "token"}
+          }
+        }
+        """
+        .trimIndent()
+        .byteInputStream(),
+      HttpTransportFactory { transport },
+    )
+
   private class TokenCredentials(private val tokens: List<Result<String>>) :
     GoogleCredentials(), IdTokenProvider {
     val audiences = mutableListOf<String>()
@@ -169,6 +195,8 @@ class RequisitionFetcherClientTest {
               url == "https://tokens.example.test/subject" -> "{\"token\":\"subject-token\"}"
               url == "https://sts.googleapis.com/v1/token" ->
                 """{"access_token":"federated-token","token_type":"Bearer","expires_in":3600,"issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}"""
+              url.endsWith(":generateAccessToken") ->
+                """{"accessToken":"impersonated-token","expireTime":"2100-01-01T00:00:00Z"}"""
               url.endsWith(":generateIdToken") -> "{\"token\":\"" + token(4102444800) + "\"}"
               url == ENDPOINT.toString() -> "{}"
               else -> error("Unexpected request URL: $url")

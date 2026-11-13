@@ -84,6 +84,7 @@ class RequisitionFetcherClient(
       // Use the federated identity directly, avoiding a service account impersonating itself.
       val sourceCredentials =
         IdentityPoolCredentials.newBuilder(credentials)
+          .apply { setAccessToken(null) }
           .setServiceAccountImpersonationUrl(null)
           .setScopes(SCOPES)
           .build()
