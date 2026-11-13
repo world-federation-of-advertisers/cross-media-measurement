@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
@@ -27,20 +28,32 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 
+/** Starts or resumes one memoized recovery upload. */
+fun interface RecoveryExecutor {
+  suspend fun recover(
+    sourceUploadName: String,
+    cmmsModelLines: List<String>,
+  ): RecoverUploader.Result
+}
+
 /**
- * Registers a fresh done-object generation for operator recovery of an evicted upload on the
- * memoized path only.
+ * Registers a fresh done-object generation for an evicted upload whose model lines are marked
+ * `RECOVERY_ACTION_OPERATOR_RECOVERY`, on the memoized path only.
  */
 class RecoverUploader(
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
+  private val getHealingOperation: suspend (name: String) -> UploadHealingOperation? = { null },
   private val rewriteDoneBlob:
     suspend (doneBlobUri: String, expectedGeneration: Long, metadata: Map<String, String>) -> Long,
 ) : RecoveryExecutor {
@@ -69,7 +82,11 @@ class RecoverUploader(
     }
 
     val source =
-      uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = sourceUploadName })
+      rpcThrottlers.metadataRead.onReady {
+        uploadsStub.getRawImpressionUpload(
+          getRawImpressionUploadRequest { name = sourceUploadName }
+        )
+      }
     require(source.doneBlobGeneration > 0L) {
       "$sourceUploadName does not have a valid done-object generation"
     }
@@ -79,10 +96,16 @@ class RecoverUploader(
       latest != null &&
         latest.replacesRawImpressionUpload == source.name &&
         !isRegistrationComplete(latest)
-    require(latest?.name == source.name || isResumableIncompleteRecovery) {
+    require(
+      latest?.name == source.name ||
+        isResumableIncompleteRecovery ||
+        (latest != null &&
+          latest.processingDeferred &&
+          latest.state in
+            setOf(RawImpressionUpload.State.CREATED, RawImpressionUpload.State.CORRECTION_REQUIRED))
+    ) {
       "$sourceUploadName has been superseded by ${latest?.name}; recover the latest revision"
     }
-
     val rowsByCmmsModelLine = listModelLines(sourceUploadName).associateBy { it.cmmsModelLine }
     val missing = cmmsModelLines.filter { it !in rowsByCmmsModelLine }
     require(missing.isEmpty()) { "$sourceUploadName has no model-line rows for: $missing" }
@@ -92,7 +115,7 @@ class RecoverUploader(
         .map { rowsByCmmsModelLine.getValue(it) }
         .filter { it.state != RawImpressionUploadModelLine.State.FAILED }
     require(notFailed.isEmpty()) {
-      "recover-upload only accepts FAILED model-line rows: ${notFailed.map { it.name to it.state }}"
+      "Recovery only accepts FAILED model-line rows: ${notFailed.map { it.name to it.state }}"
     }
 
     val requestedRows = cmmsModelLines.map { rowsByCmmsModelLine.getValue(it) }
@@ -102,12 +125,42 @@ class RecoverUploader(
           RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
       }
     require(notOperatorRecovery.isEmpty()) {
-      "recover-upload only accepts model lines marked for operator recovery: " +
+      "Recovery only accepts model lines marked for operator recovery: " +
         notOperatorRecovery.map { it.name to it.recoveryAction }
     }
     val evictionOperationIds = requestedRows.map { it.evictionOperationId }.toSet()
     require(evictionOperationIds.size == 1 && evictionOperationIds.single().isNotEmpty()) {
       "all requested model lines must belong to one eviction operation"
+    }
+    val operationName =
+      sourceKey.parentKey.toName() + "/uploadHealingOperations/" + evictionOperationIds.single()
+    val operation = getHealingOperation(operationName)
+    val laterDeferredSource =
+      latest != null &&
+        latest.name != source.name &&
+        latest.processingDeferred &&
+        latest.state in
+          setOf(RawImpressionUpload.State.CREATED, RawImpressionUpload.State.CORRECTION_REQUIRED) &&
+        operation?.name == operationName &&
+        operation.state == UploadHealingOperation.State.RECOVERING
+    if (laterDeferredSource) {
+      val planned =
+        checkNotNull(operation).stepsList.filter {
+          it.recoveryTarget && it.sourceRawImpressionUpload == source.name
+        }
+      require(
+        planned.map { it.cmmsModelLine }.toSet() == cmmsModelLines.toSet() &&
+          planned.all {
+            it.state == UploadHealingStep.State.WAITING_FOR_REPLACEMENT &&
+              it.recoveryAction ==
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+          }
+      ) {
+        "Deferred-source recovery does not match the approved operation"
+      }
+    }
+    require(latest?.name == source.name || isResumableIncompleteRecovery || laterDeferredSource) {
+      "$sourceUploadName has been superseded by ${latest?.name}; recover the latest revision"
     }
     for (row in requestedRows) {
       requireRecoveryPredecessorReady(sourceKey.parentKey.toName(), row)
@@ -123,7 +176,7 @@ class RecoverUploader(
         .filter { hasDeletedSnapshotHistory(sourceUploadName, it.cmmsModelLine) }
         .mapTo(mutableSetOf()) { it.cmmsModelLine }
     require(cmmsModelLines.toSet() == recoverableModelLines) {
-      "recover-upload requires the complete set of FAILED memoized model lines whose snapshots " +
+      "Recovery requires the complete set of FAILED memoized model lines whose snapshots " +
         "were deleted; requested=$cmmsModelLines, recoverable=$recoverableModelLines"
     }
 
@@ -133,8 +186,10 @@ class RecoverUploader(
         WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to source.name,
         WatchedBlobs.EVICTION_OPERATION_ID_KEY to evictionOperationIds.single(),
       )
-    val generation = rewriteDoneBlob(source.doneBlobUri, source.doneBlobGeneration, metadata)
-    require(generation > 0L && generation != source.doneBlobGeneration) {
+    val generation =
+      if (laterDeferredSource) source.doneBlobGeneration
+      else rewriteDoneBlob(source.doneBlobUri, source.doneBlobGeneration, metadata)
+    require(generation > 0L && (generation != source.doneBlobGeneration || laterDeferredSource)) {
       "rewriting ${source.doneBlobUri} did not create a distinct valid generation: $generation"
     }
     return Result(source.name, source.doneBlobUri, generation, cmmsModelLines)
@@ -145,13 +200,15 @@ class RecoverUploader(
     var latest: RawImpressionUpload? = null
     do {
       val response =
-        uploadsStub.listRawImpressionUploads(
-          listRawImpressionUploadsRequest {
-            this.parent = parent
-            filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          uploadsStub.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              this.parent = parent
+              filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
+              this.pageToken = pageToken
+            }
+          )
+        }
       latest = findLatestUpload(response.rawImpressionUploadsList + listOfNotNull(latest))
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -162,7 +219,13 @@ class RecoverUploader(
     val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
     return if (timestamped.isNotEmpty()) {
       timestamped.maxWithOrNull { left, right ->
-        Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+        val doneTime = Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+        if (doneTime != 0) {
+          doneTime
+        } else {
+          val createTime = Timestamps.compare(left.createTime, right.createTime)
+          if (createTime != 0) createTime else left.name.compareTo(right.name)
+        }
       }
     } else {
       uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
@@ -180,12 +243,73 @@ class RecoverUploader(
     val predecessorName = row.recoveryPredecessorRawImpressionUpload
     if (predecessorName.isEmpty()) return
     val predecessor =
-      uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = predecessorName })
-    val revisions = listUploads(dataProviderName, predecessor.doneBlobUri)
-    val latest =
-      requireNotNull(findLatestUpload(revisions)) {
-        "No upload revision found for recovery predecessor $predecessorName"
+      rpcThrottlers.metadataRead.onReady {
+        uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = predecessorName })
       }
+    val revisions = listUploads(dataProviderName, predecessor.doneBlobUri)
+    val operationName = "$dataProviderName/uploadHealingOperations/" + row.evictionOperationId
+    val operation = getHealingOperation(operationName)
+    if (operation != null) {
+      require(operation.name == operationName) { "Recovery operation identity does not match" }
+      require(
+        operation.state in
+          setOf(UploadHealingOperation.State.REPLAYING, UploadHealingOperation.State.RECOVERING)
+      ) {
+        "Recovery operation is not executing its approved plan"
+      }
+      require(
+        operation.stepsList.any {
+          it.rawImpressionUploadModelLine == row.name &&
+            it.cmmsModelLine == row.cmmsModelLine &&
+            it.recoveryTarget &&
+            it.recoveryAction ==
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
+      ) {
+        "Recovery model line is not part of the active operation"
+      }
+    }
+    val plannedPredecessor =
+      operation?.stepsList?.singleOrNull {
+        it.sourceRawImpressionUpload == predecessorName &&
+          it.cmmsModelLine == row.cmmsModelLine &&
+          it.recoveryTarget &&
+          it.state == UploadHealingStep.State.COMPLETE
+      }
+    if (
+      operation?.stepsList?.any {
+        it.sourceRawImpressionUpload == predecessorName && it.cmmsModelLine == row.cmmsModelLine
+      } == true
+    ) {
+      require(plannedPredecessor != null) { "The planned recovery predecessor has not completed" }
+    }
+    val latest =
+      plannedPredecessor
+        ?.replacementRawImpressionUpload
+        ?.takeIf { it.isNotEmpty() }
+        ?.let { replacementName ->
+          checkNotNull(revisions.singleOrNull { it.name == replacementName }) {
+              "Planned recovery predecessor replacement is missing"
+            }
+            .also {
+              require(it.uploadHealingOperation == operationName) {
+                "Planned predecessor replacement belongs to another operation"
+              }
+            }
+        }
+        ?: requireNotNull(
+          findLatestUpload(
+            if (operation != null) {
+              revisions.filter {
+                it.registrationComplete && it.state == RawImpressionUpload.State.COMPLETED
+              }
+            } else {
+              revisions
+            }
+          )
+        ) {
+          "No upload revision found for recovery predecessor $predecessorName"
+        }
     require(
       latest.name == predecessorName || replacesUpload(latest.name, predecessorName, revisions)
     ) {
@@ -193,8 +317,14 @@ class RecoverUploader(
     }
     val replacementRow =
       listModelLines(latest.name).firstOrNull { it.cmmsModelLine == row.cmmsModelLine }
-    require(replacementRow?.state == RawImpressionUploadModelLine.State.COMPLETED) {
-      "Recovery predecessor $predecessorName has not been replaced by a completed upload for " +
+    require(
+      replacementRow?.state in
+        setOf(
+          RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+          RawImpressionUploadModelLine.State.COMPLETED,
+        )
+    ) {
+      "Recovery predecessor $predecessorName has not produced durable labeled output for " +
         row.cmmsModelLine
     }
     require(hasActiveSnapshot(latest.name, row.cmmsModelLine)) {
@@ -208,13 +338,15 @@ class RecoverUploader(
     var pageToken = ""
     do {
       val response =
-        uploadsStub.listRawImpressionUploads(
-          listRawImpressionUploadsRequest {
-            this.parent = parent
-            filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          uploadsStub.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              this.parent = parent
+              filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
+              this.pageToken = pageToken
+            }
+          )
+        }
       uploads += response.rawImpressionUploadsList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -241,12 +373,14 @@ class RecoverUploader(
     var pageToken = ""
     do {
       val response =
-        modelLinesStub.listRawImpressionUploadModelLines(
-          listRawImpressionUploadModelLinesRequest {
-            parent = uploadName
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          modelLinesStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              parent = uploadName
+              this.pageToken = pageToken
+            }
+          )
+        }
       rows += response.rawImpressionUploadModelLinesList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -261,18 +395,20 @@ class RecoverUploader(
     var found = false
     do {
       val response =
-        rankIndexBlobsStub.listRankIndexBlobs(
-          listRankIndexBlobsRequest {
-            parent = uploadName
-            showDeleted = true
-            filter =
-              ListRankIndexBlobsRequestKt.filter {
-                blobType = RankIndexBlob.BlobType.SNAPSHOT
-                this.cmmsModelLine = cmmsModelLine
-              }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          rankIndexBlobsStub.listRankIndexBlobs(
+            listRankIndexBlobsRequest {
+              parent = uploadName
+              showDeleted = true
+              filter =
+                ListRankIndexBlobsRequestKt.filter {
+                  blobType = RankIndexBlob.BlobType.SNAPSHOT
+                  this.cmmsModelLine = cmmsModelLine
+                }
+              this.pageToken = pageToken
+            }
+          )
+        }
       if (response.rankIndexBlobsList.any { !it.hasDeleteTime() }) return false
       found = found || response.rankIndexBlobsCount > 0
       pageToken = response.nextPageToken
@@ -282,17 +418,19 @@ class RecoverUploader(
 
   private suspend fun hasActiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
     val response =
-      rankIndexBlobsStub.listRankIndexBlobs(
-        listRankIndexBlobsRequest {
-          parent = uploadName
-          pageSize = 1
-          filter =
-            ListRankIndexBlobsRequestKt.filter {
-              blobType = RankIndexBlob.BlobType.SNAPSHOT
-              this.cmmsModelLine = cmmsModelLine
-            }
-        }
-      )
+      rpcThrottlers.metadataRead.onReady {
+        rankIndexBlobsStub.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            parent = uploadName
+            pageSize = 1
+            filter =
+              ListRankIndexBlobsRequestKt.filter {
+                blobType = RankIndexBlob.BlobType.SNAPSHOT
+                this.cmmsModelLine = cmmsModelLine
+              }
+          }
+        )
+      }
     return response.rankIndexBlobsCount > 0
   }
 }

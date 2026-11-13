@@ -32,6 +32,12 @@ resource ID is a hash of the spec's serialized bytes, so any semantic change
 provisions a **new** Population and invalidates every expected reach in
 [`EdpAggregatorReportingIntegrationTest`](../../src/test/kotlin/org/wfanet/measurement/integration/k8s/EdpAggregatorReportingIntegrationTest.kt).
 
+Seeding can take longer than the one-hour lifetime of its Google identity token
+for AWS KMS. The seeding workflow renews the private token file every 30 minutes;
+the AWS SDK reads the current token when renewing its STS session. A renewal
+failure stops seeding rather than allowing an incomplete fixture to be declared
+ready.
+
 ## The Noise Floor, and Why It Sets Everything
 
 Every reach measurement has noise added with a **fixed standard deviation**, in
@@ -319,8 +325,22 @@ in `EdpAggregatorCorrectnessTest`. It has its own test, `EdpAggregatorReportingI
 reads back a `BasicReport` over the dataset. Seeding is separate: the
 `SeedHighOverlapDataset` tool provisions the model resources, registers the
 EventGroups and writes the impressions, and the test refuses to run unless the
-seeded dataset matches its specs. `EdpAggregatorCorrectnessTest` is left on the
-low overlap data set, untouched.
+seeded dataset matches its specs and every expected date has published data
+availability. `EdpAggregatorCorrectnessTest` is left on the low overlap data set,
+untouched.
+
+Seeding writes each path's completion notifications in date order and waits for
+registration and Kingdom availability publication before advancing to the next
+date. At most four notifications are outstanding across paths. The ready
+manifest is written after every date has completed; a publication timeout fails
+seeding and leaves the manifest absent.
+
+A completion file's presence alone does not establish readiness. Reporting
+preflight checks the publication markers on all expected completion files. For
+failed notifications, inspect the DataWatcher dead-letter queue and use
+[Replay DataAvailabilitySync](../gke/replay-data-availability-sync.md) to recover
+availability before retrying reporting. If seeding failed before writing the
+manifest, rerun seeding to regenerate and publish the fixture.
 
 The split exists because the two datasets have no reason to share a test run:
 
@@ -339,14 +359,20 @@ line, not its VID-labeling configuration, and not its config file. It carries it
 own `edpa_reporting_integration_test_config.textproto`.
 
 It runs from `.github/workflows/edpa-reporting-integration-test.yml` as a job in
-`update-cmms`. `run-edpa-cloud-test` lists it in `needs`, so the two run serially:
-both seed EventGroups for the same EDPs, and concurrent `EventGroupSync` runs for
-one EDP race. The job is gated on `run-tests`, like every other test in
-`update-cmms`. To update an environment without running it, dispatch `update-cmms`
-with `run-tests: false` and then launch whichever test workflow you want directly.
+`update-cmms`. Once deployment completes, it runs concurrently with
+`run-edpa-cloud-test`: reporting reads the separately seeded high-overlap data,
+while the EDPA cloud test provisions its distinct low-overlap entities and model lines.
+Reporting does not upload EventGroups or invoke `EventGroupSync`, so it does not
+share the low-overlap test's sync operation. The suites still share processing capacity.
 
-Opting an environment in is a second, independent switch: the
-`HIGH_OVERLAP_MODEL_LINE` GitHub variable, which the workflow passes as the
+Run `high-overlap-seeding.yml` for the environment before these tests when specs
+change or an EDP is added. Do not reseed while either test is running, because
+seeding replaces the dataset. Both jobs are gated on `run-tests`. To update an
+environment without running them, dispatch `update-cmms` with `run-tests: false`
+and then launch whichever test workflow you want directly.
+
+The environment's `HIGH_OVERLAP_MODEL_LINE` is committed in
+`.github/env-configs/<environment>/cmms.json`. The workflow passes it as the
 `high_overlap_model_line` Bazel Make var. That lands in the generated
 `edpa_reporting_integration_test_config.textproto` as `model_line`, so Bazel sees
 it as a build input and a changed ModelLine re-runs the test rather than reusing

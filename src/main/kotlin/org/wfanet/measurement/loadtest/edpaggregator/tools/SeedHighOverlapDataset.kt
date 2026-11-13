@@ -38,7 +38,6 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -64,6 +63,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.EventGroupConfig
+import org.wfanet.measurement.integration.common.HighOverlapDataAvailability
 import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.integration.common.PopulationSetup
@@ -77,7 +77,7 @@ import picocli.CommandLine.Option
  * Seeds the high overlap synthetic dataset for one ModelLine.
  *
  * Provisions the ModelLine's Population and rollout, uploads the EventGroups, writes the
- * impressions and exports them to BigQuery, writes the `done` blobs, and finally writes the
+ * impressions and exports them to BigQuery, waits for data availability publication, and writes the
  * [HighOverlapDatasetManifest]. Before seeding, removes the previous manifest and clears each
  * ModelLine impression prefix. A new manifest is written only once everything else has succeeded.
  *
@@ -297,13 +297,12 @@ class SeedHighOverlapDataset : Runnable {
             )
             .write()
         }
-        writeDoneBlobs(datesByImpressionPath)
-
         val exportedRowCount = exportedRowCount(bigQuery)
         check(exportedRowCount == exporter.rowCount) {
           "BigQuery holds $exportedRowCount row(s) for $modelLine, but ${exporter.rowCount} " +
             "impression(s) were written"
         }
+        writeDoneBlobs(datesByImpressionPath)
         writeManifest(
           highOverlapDatasetManifest {
             this.specFingerprint = specFingerprint
@@ -479,24 +478,8 @@ class SeedHighOverlapDataset : Runnable {
    * complete and available.
    */
   private suspend fun writeDoneBlobs(datesByImpressionPath: Map<String, Set<LocalDate>>) {
-    val paths: List<String> =
-      datesByImpressionPath.flatMap { (impressionPath, dates) ->
-        dates.map { date ->
-          "gs://$storageBucket/$impressionPath/model-line/$modelLineId/$date/done"
-        }
-      }
-    logger.info("Creating ${paths.size} high overlap done blob(s)...")
-    for (path in paths) {
-      val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
-      val storageClient =
-        SelectedStorageClient(
-          blobUri = doneBlobUri,
-          rootDirectory = null,
-          projectId = googleProjectId,
-        )
-      storageClient.getBlob(doneBlobUri.key)?.delete()
-      storageClient.writeBlob(doneBlobUri.key, emptyFlow())
-    }
+    HighOverlapDataAvailability(GcsStorageClient(storage, storageBucket), modelLineId)
+      .publishDates(datesByImpressionPath)
   }
 
   /** Number of rows BigQuery holds for [modelLine]. */

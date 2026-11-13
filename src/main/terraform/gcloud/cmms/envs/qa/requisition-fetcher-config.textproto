@@ -8,7 +8,6 @@ configs {
       bucket_name: "secure-computation-storage-qa-bucket"
     }
   }
-  storage_path_prefix: "edp7/requisitions"
   cmms_connection {
     cert_file_path: "/secrets/cert/edp7_tls.pem"
     private_key_file_path: "/secrets/key/edp7_tls.key"
@@ -64,7 +63,6 @@ configs {
       bucket_name: "secure-computation-storage-qa-bucket"
     }
   }
-  storage_path_prefix: "edpa_meta/requisitions"
   cmms_connection {
     cert_file_path: "/secrets/cert-edp2/edpa_meta_tls.pem"
     private_key_file_path: "/secrets/key-edp2/edpa_meta_tls.key"
@@ -115,7 +113,6 @@ configs {
       bucket_name: "secure-computation-storage-qa-bucket"
     }
   }
-  storage_path_prefix: "edpa_video_pub/requisitions"
   cmms_connection {
     cert_file_path: "/secrets/cert-video/edpa_video_pub_tls.pem"
     private_key_file_path: "/secrets/key-video/edpa_video_pub_tls.key"
@@ -172,7 +169,6 @@ configs {
       bucket_name: "secure-computation-storage-qa-bucket"
     }
   }
-  storage_path_prefix: "edpa_retail_pub/requisitions"
   cmms_connection {
     cert_file_path: "/secrets/cert-retail/edpa_retail_pub_tls.pem"
     private_key_file_path: "/secrets/key-retail/edpa_retail_pub_tls.key"
