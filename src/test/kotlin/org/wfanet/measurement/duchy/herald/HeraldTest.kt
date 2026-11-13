@@ -21,6 +21,8 @@ import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
+import com.google.protobuf.DescriptorProtos.FileDescriptorProto
+import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import com.google.protobuf.Empty
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
@@ -59,6 +61,7 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.multiMeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -105,6 +108,8 @@ import org.wfanet.measurement.internal.duchy.EncryptionKeyPair
 import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
+import org.wfanet.measurement.internal.duchy.PopulationSpecKt as InternalPopulationSpecKt
+import org.wfanet.measurement.internal.duchy.VidFilterKt as InternalVidFilterKt
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
@@ -112,12 +117,15 @@ import org.wfanet.measurement.internal.duchy.config.honestMajorityShareShuffleSe
 import org.wfanet.measurement.internal.duchy.config.liquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.config.protocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.config.trusTeeSetupConfig
+import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams as duchyDifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.elGamalPublicKey as internalElgamalPublicKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
+import org.wfanet.measurement.internal.duchy.populationAttributeValue as internalPopulationAttributeValue
+import org.wfanet.measurement.internal.duchy.populationSpec as internalPopulationSpec
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffleKt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
@@ -128,9 +136,14 @@ import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSket
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt.ComputationDetailsKt.resultMinimumThresholds as internalResultMinimumThresholds
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
+import org.wfanet.measurement.internal.duchy.query as internalQuery
 import org.wfanet.measurement.internal.duchy.setContinuationTokenRequest
+import org.wfanet.measurement.internal.duchy.vectorSet as internalVectorSet
+import org.wfanet.measurement.internal.duchy.vidFilter as internalVidFilter
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.Computation
@@ -143,7 +156,10 @@ import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.T
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.trusTee
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.trusTeeV2
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MultimeasurementKt.eventDescriptor
 import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
+import org.wfanet.measurement.system.v1alpha.ComputationKt.multimeasurement
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
@@ -157,15 +173,22 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.PopulationSpecKt
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.VidFilterKt
 import org.wfanet.measurement.system.v1alpha.computation
 import org.wfanet.measurement.system.v1alpha.computationParticipant as systemComputationParticipant
 import org.wfanet.measurement.system.v1alpha.computationParticipant
 import org.wfanet.measurement.system.v1alpha.copy
 import org.wfanet.measurement.system.v1alpha.differentialPrivacyParams as systemDifferentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.populationAttributeValue
+import org.wfanet.measurement.system.v1alpha.populationSpec
+import org.wfanet.measurement.system.v1alpha.query
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.vectorSet
+import org.wfanet.measurement.system.v1alpha.vidFilter
 
 private const val PUBLIC_API_VERSION = "v2alpha"
 private const val PUBLIC_MEASUREMENT_NAME =
@@ -410,6 +433,67 @@ private val HMSS_FIRST_NON_AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
 
 private val TRUS_TEE_COMPUTATION_DETAILS = computationDetails {
   trusTee = TrusTeeKt.computationDetails { role = RoleInComputation.AGGREGATOR }
+}
+
+private val PUBLIC_API_MULTI_MEASUREMENT_SPEC = measurementSpec {
+  measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.pack()
+  multi = multiMeasurementSpec {}
+  vidSamplingInterval = vidSamplingInterval {
+    start = 0.1f
+    width = 0.5f
+  }
+}
+private val SERIALIZED_MULTI_MEASUREMENT_SPEC: ByteString =
+  PUBLIC_API_MULTI_MEASUREMENT_SPEC.toByteString()
+
+private val MULTI_REQUISITION_1 = TestRequisition("1") { SERIALIZED_MULTI_MEASUREMENT_SPEC }
+private val MULTI_REQUISITION_2 = TestRequisition("2") { SERIALIZED_MULTI_MEASUREMENT_SPEC }
+
+private val TRUS_TEE_V2_MPC_PROTOCOL_CONFIG = mpcProtocolConfig { trusTeeV2 = trusTeeV2 {} }
+
+private val EVENT_DESCRIPTOR_SET: FileDescriptorSet =
+  FileDescriptorSet.newBuilder()
+    .addFile(FileDescriptorProto.newBuilder().setName("event.proto").setPackage("test"))
+    .build()
+
+private val SYSTEM_MULTIMEASUREMENT = multimeasurement {
+  queries += query {
+    id = "union"
+    summands = vectorSet {
+      baseVectors += 0
+      baseVectors += 1
+    }
+    groupingPaths += "person.gender"
+    maxFrequency = 10
+  }
+  queries += query {
+    id = "unique-0"
+    summands = vectorSet { baseVectors += 0 }
+    vidFilter = vidFilter {
+      reachClauses += VidFilterKt.reachClause { unreachedSet = vectorSet { baseVectors += 1 } }
+      attributes["person.age_group"] = populationAttributeValue { enumValue = "YEARS_18_TO_34" }
+    }
+    maxFrequency = 5
+  }
+  populationSpec = populationSpec {
+    subpopulations +=
+      PopulationSpecKt.subPopulation {
+        attributes += PUBLIC_API_ENCRYPTION_PUBLIC_KEY.pack()
+        vidRanges +=
+          PopulationSpecKt.vidRange {
+            startVid = 1
+            endVidInclusive = 100
+          }
+      }
+  }
+  eventDescriptor = eventDescriptor {
+    descriptorSet = EVENT_DESCRIPTOR_SET
+    eventMessageType = "test.Event"
+  }
+}
+
+private val TRUS_TEE_V2_COMPUTATION_DETAILS = computationDetails {
+  trusTeeV2 = TrusTeeV2Kt.computationDetails { role = RoleInComputation.AGGREGATOR }
 }
 
 private const val COMPUTATION_GLOBAL_ID = "123"
@@ -2608,6 +2692,128 @@ class HeraldTest {
       .containsExactly(
         waitingToStart.key.computationId.toLong(),
         TrusTee.Stage.COMPUTING.toProtocolStage(),
+      )
+  }
+
+  @Test
+  fun `syncStatuses creates new TrusTEE v2 computation`() = runTest {
+    val systemApiRequisition1 =
+      MULTI_REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED).copy {
+        vectorIndex = 0
+      }
+    val systemApiRequisition2 =
+      MULTI_REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED).copy {
+        vectorIndex = 1
+      }
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisition1, systemApiRequisition2),
+          serializedMeasurementSpec = SERIALIZED_MULTI_MEASUREMENT_SPEC,
+          mpcProtocolConfig = TRUS_TEE_V2_MPC_PROTOCOL_CONFIG,
+          systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
+        )
+        .copy { multimeasurement = SYSTEM_MULTIMEASUREMENT }
+    mockStreamActiveComputationsToReturn(confirmingUnknown)
+
+    aggregatorHerald.syncStatuses()
+
+    val globalId = confirmingUnknown.key.computationId.toLong()
+    assertThat(fakeComputationDatabase.getValue(globalId).computationStage)
+      .isEqualTo(TrusTeeV2.Stage.INITIALIZED.toProtocolStage())
+    assertThat(fakeComputationDatabase.getValue(globalId).requisitionsList)
+      .containsExactly(
+        MULTI_REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED).copy {
+          details = details.copy { vectorIndex = 0 }
+        },
+        MULTI_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED).copy {
+          details = details.copy { vectorIndex = 1 }
+        },
+      )
+    val computationDetails = fakeComputationDatabase.getValue(globalId).computationDetails
+    assertThat(computationDetails)
+      .ignoringFields(ComputationDetails.TRUS_TEE_V2_FIELD_NUMBER)
+      .isEqualTo(
+        computationDetails {
+          blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID/2"
+          kingdomComputation = kingdomComputationDetails {
+            publicApiVersion = PUBLIC_API_VERSION
+            measurementSpec = SERIALIZED_MULTI_MEASUREMENT_SPEC
+            measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+            participantCount = 1
+          }
+        }
+      )
+    assertThat(computationDetails.trusTeeV2)
+      .isEqualTo(
+        TrusTeeV2Kt.computationDetails {
+          role = RoleInComputation.AGGREGATOR
+          queries += internalQuery {
+            id = "union"
+            summands = internalVectorSet {
+              baseVectors += 0
+              baseVectors += 1
+            }
+            groupingPaths += "person.gender"
+            maxFrequency = 10
+          }
+          queries += internalQuery {
+            id = "unique-0"
+            summands = internalVectorSet { baseVectors += 0 }
+            vidFilter = internalVidFilter {
+              reachClauses +=
+                InternalVidFilterKt.reachClause {
+                  unreachedSet = internalVectorSet { baseVectors += 1 }
+                }
+              attributes["person.age_group"] = internalPopulationAttributeValue {
+                enumValue = "YEARS_18_TO_34"
+              }
+            }
+            maxFrequency = 5
+          }
+          populationSpec = internalPopulationSpec {
+            subpopulations +=
+              InternalPopulationSpecKt.subPopulation {
+                attributes += PUBLIC_API_ENCRYPTION_PUBLIC_KEY.pack()
+                vidRanges +=
+                  InternalPopulationSpecKt.vidRange {
+                    startVid = 1
+                    endVidInclusive = 100
+                  }
+              }
+          }
+          eventDescriptor =
+            TrusTeeV2Kt.eventDescriptor {
+              descriptorSet = EVENT_DESCRIPTOR_SET
+              eventMessageType = "test.Event"
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `syncStatuses starts TrusTEE v2 computations`() = runTest {
+    val waitingToStart =
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
+    mockStreamActiveComputationsToReturn(waitingToStart)
+
+    fakeComputationDatabase.addComputation(
+      globalId = waitingToStart.key.computationId,
+      stage = TrusTeeV2.Stage.WAIT_TO_START.toProtocolStage(),
+      computationDetails = TRUS_TEE_V2_COMPUTATION_DETAILS,
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        waitingToStart.key.computationId.toLong(),
+        TrusTeeV2.Stage.COMPUTING.toProtocolStage(),
       )
   }
 
