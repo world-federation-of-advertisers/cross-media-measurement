@@ -251,7 +251,7 @@ class BasicReportsReportsJobTest {
       .thenAnswer(
         Answer { invocation ->
           val request: ListBasicReportsRequest = invocation.getArgument(0)
-          if (request.filter.state == BasicReport.State.CREATED) {
+          if (request.filter.state == BasicReport.State.CREATED_LEGACY) {
             listBasicReportsResponse { this.basicReports += basicReports }
           } else {
             ListBasicReportsResponse.getDefaultInstance()
@@ -2902,7 +2902,7 @@ class BasicReportsReportsJobTest {
           filter =
             ListBasicReportsRequestKt.filter {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              state = BasicReport.State.CREATED
+              state = BasicReport.State.CREATED_LEGACY
             }
           pageSize = BATCH_SIZE
         },
@@ -2918,7 +2918,7 @@ class BasicReportsReportsJobTest {
           filter =
             ListBasicReportsRequestKt.filter {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
-              state = BasicReport.State.CREATED
+              state = BasicReport.State.CREATED_LEGACY
             }
           pageSize = BATCH_SIZE
         },
@@ -2992,7 +2992,7 @@ class BasicReportsReportsJobTest {
     val stuckBasicReport =
       INTERNAL_BASIC_REPORT.copy {
         externalBasicReportId = "br-stuck-01"
-        state = BasicReport.State.CREATED
+        state = BasicReport.State.CREATED_LEGACY
         clearExternalReportId()
         createTime = STUCK_CREATE_TIME
       }
@@ -3029,7 +3029,7 @@ class BasicReportsReportsJobTest {
   fun `execute does not fail basic report in CREATED younger than stuck age`(): Unit = runBlocking {
     val recentBasicReport =
       INTERNAL_BASIC_REPORT.copy {
-        state = BasicReport.State.CREATED
+        state = BasicReport.State.CREATED_LEGACY
         clearExternalReportId()
         createTime = RECENT_CREATE_TIME
       }
@@ -3045,7 +3045,7 @@ class BasicReportsReportsJobTest {
     val stuckBasicReports =
       (1..2).map {
         INTERNAL_BASIC_REPORT.copy {
-          state = BasicReport.State.CREATED
+          state = BasicReport.State.CREATED_LEGACY
           externalBasicReportId = "br-stuck-0$it"
           clearExternalReportId()
           createTime = STUCK_CREATE_TIME

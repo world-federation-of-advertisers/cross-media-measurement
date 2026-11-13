@@ -343,7 +343,7 @@ class SpannerBasicReportsService(
               basicReportId = basicReportId,
               measurementConsumerId = measurementConsumerResult.measurementConsumerId,
               basicReport = request.basicReport,
-              state = BasicReport.State.CREATED,
+              state = BasicReport.State.CREATED_LEGACY,
               requestId = request.requestId.ifEmpty { null },
             )
 
@@ -398,7 +398,7 @@ class SpannerBasicReportsService(
       return request.basicReport.copy {
         campaignGroupDisplayName = campaignGroup.displayName
         createTime = commitTimestamp
-        state = BasicReport.State.CREATED
+        state = BasicReport.State.CREATED_LEGACY
       }
     }
   }
@@ -430,7 +430,7 @@ class SpannerBasicReportsService(
               externalBasicReportId = request.externalBasicReportId,
             )
             .also {
-              if (it.basicReport.state != BasicReport.State.CREATED) {
+              if (it.basicReport.state != BasicReport.State.CREATED_LEGACY) {
                 throw BasicReportStateInvalidException(
                   request.cmmsMeasurementConsumerId,
                   request.externalBasicReportId,
@@ -906,7 +906,7 @@ class SpannerBasicReportsService(
     /** States from which a [BasicReport] can transition to [BasicReport.State.FAILED]. */
     private val FAILABLE_STATES =
       setOf(
-        BasicReport.State.CREATED,
+        BasicReport.State.CREATED_LEGACY,
         BasicReport.State.REPORT_CREATED,
         BasicReport.State.UNPROCESSED_RESULTS_READY,
       )
