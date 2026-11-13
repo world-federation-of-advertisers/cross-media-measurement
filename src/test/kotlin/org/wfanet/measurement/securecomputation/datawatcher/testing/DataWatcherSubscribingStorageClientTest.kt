@@ -58,10 +58,13 @@ class DataWatcherSubscribingStorageClientTest :
     verify(dataWatcher, times(1))
       .receivePath(eq("file:///some-bucket/some-blob-key"), metadata.capture())
     assertThat(metadata.firstValue)
-      .containsEntry(
+      .containsAtLeast(
         DataWatcher.GENERATION_METADATA_KEY,
         checkNotNull(storageClient.getFreshnessToken("some-blob-key")),
+        DataWatcher.EVENT_TYPE_METADATA_KEY,
+        DataWatcher.FINALIZED_EVENT_TYPE,
       )
+    assertThat(metadata.firstValue[DataWatcher.CREATE_TIME_METADATA_KEY]).isNotEmpty()
   }
 
   @Test
@@ -86,7 +89,10 @@ class DataWatcherSubscribingStorageClientTest :
           "upload-1",
           DataWatcher.GENERATION_METADATA_KEY,
           checkNotNull(storageClient.getFreshnessToken("some-blob-key")),
+          DataWatcher.EVENT_TYPE_METADATA_KEY,
+          DataWatcher.FINALIZED_EVENT_TYPE,
         )
+      assertThat(metadata.firstValue[DataWatcher.CREATE_TIME_METADATA_KEY]).isNotEmpty()
     }
 
   @Test
@@ -117,6 +123,9 @@ class DataWatcherSubscribingStorageClientTest :
           "upload-1",
           DataWatcher.GENERATION_METADATA_KEY,
           rewritten.freshnessToken,
+          DataWatcher.EVENT_TYPE_METADATA_KEY,
+          DataWatcher.FINALIZED_EVENT_TYPE,
         )
+      assertThat(metadata.firstValue[DataWatcher.CREATE_TIME_METADATA_KEY]).isNotEmpty()
     }
 }

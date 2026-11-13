@@ -71,6 +71,11 @@ message DataAvailabilitySyncConfig {
   // impression metadata.
   EventGroupActivityPublishingConfig event_group_activity_publishing = 8;
 
+  // External labeled-output prefix within the storage bucket. When empty,
+  // external and legacy HTTP syncs use edp_impression_path. When set, external
+  // routes use this prefix, which must not overlap vid_labeled_impression_path.
+  string external_impression_path = 9 [(google.api.field_behavior) = OPTIONAL];
+
   // How DataAvailabilitySync connects to the Secure Computation public API.
   TransportLayerSecurityParams secure_computation_control_plane_connection = 10;
 

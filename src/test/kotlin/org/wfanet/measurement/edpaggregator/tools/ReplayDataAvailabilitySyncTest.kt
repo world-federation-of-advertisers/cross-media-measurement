@@ -184,12 +184,12 @@ class ReplayDataAvailabilitySyncTest {
   }
 
   @Test
-  fun `main prefix replay processes changes with exact done generation`() {
+  fun `main prefix replay rejects late changes then preserves finalized generations`() {
     runDataAvailabilityOnlyReplay(arrayOf("--blob-prefix=$EDP_IMPRESSION_PATH"))
   }
 
   @Test
-  fun `main explicit completion blob replay processes changes with exact done generation`() {
+  fun `main explicit replay rejects late changes then preserves finalized generations`() {
     runDataAvailabilityOnlyReplay(arrayOf("--done-blob-uri=gs://$BUCKET_NAME/$DONE_BLOB_KEY"))
   }
 
@@ -319,7 +319,7 @@ class ReplayDataAvailabilitySyncTest {
         }
         .thenReturn(DataProvider.getDefaultInstance())
     }
-    val existingMetadata = impressionMetadata {
+    var existingMetadata = impressionMetadata {
       name = "$DATA_PROVIDER_NAME/impressionMetadata/existing"
       blobUri = "gs://$BUCKET_NAME/$METADATA_BLOB_KEY"
       blobTypeUrl = BLOB_DETAILS_TYPE_URL
@@ -332,7 +332,7 @@ class ReplayDataAvailabilitySyncTest {
     }
     val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
-        .thenReturn(listImpressionMetadataResponse { impressionMetadata += existingMetadata })
+        .thenAnswer { listImpressionMetadataResponse { impressionMetadata += existingMetadata } }
       onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
@@ -382,23 +382,42 @@ class ReplayDataAvailabilitySyncTest {
     storageEmulator.createBucket(BUCKET_NAME)
     try {
       seedInitialFinalizedFolder()
-      val doneGeneration =
+      existingMetadata =
+        existingMetadata.copy {
+          metadataBlobGeneration =
+            storageEmulator.storage.get(BUCKET_NAME, METADATA_BLOB_KEY).generation
+          impressionsBlobGeneration =
+            storageEmulator.storage.get(BUCKET_NAME, IMPRESSIONS_BLOB_KEY).generation
+        }
+      val originalDoneGeneration =
         checkNotNull(storageEmulator.storage.get(BUCKET_NAME, DONE_BLOB_KEY)).generation
       overwriteAndAddBlobsWithoutCompletionBlob()
       assertThat(storageEmulator.storage.get(BUCKET_NAME, DONE_BLOB_KEY).generation)
-        .isEqualTo(doneGeneration)
+        .isEqualTo(originalDoneGeneration)
       val configFile = writeConfigFile(validConfig(includeActivityPublishing = true))
       val apiTarget = "localhost:${server.port}"
 
-      val capturedOutput =
-        CommandLineTesting.capturingOutput(
-          connectionArgs(configFile, apiTarget) +
-            "--mode=${ReplayDataAvailabilitySync.Mode.DATA_AVAILABILITY_ONLY}" +
-            selectionArgs +
-            storageArgs,
-          ::main,
-        )
+      val replayArgs =
+        connectionArgs(configFile, apiTarget) +
+          "--mode=DATA_AVAILABILITY_ONLY" +
+          selectionArgs +
+          storageArgs
+      val rejected = CommandLineTesting.capturingOutput(replayArgs, ::main)
+      CommandLineTesting.assertThat(rejected).status().isNotEqualTo(0)
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchCreateImpressionMetadata(any())
+      }
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchUpdateImpressionMetadata(any())
+      }
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
 
+      val doneGeneration =
+        storageEmulator.storage
+          .create(BlobInfo.newBuilder(BUCKET_NAME, DONE_BLOB_KEY).build(), byteArrayOf(1))
+          .generation
+      assertThat(doneGeneration).isNotEqualTo(originalDoneGeneration)
+      val capturedOutput = CommandLineTesting.capturingOutput(replayArgs, ::main)
       CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
       val availabilityRequest = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
       verifyBlocking(dataProvidersServiceMock, times(1)) {
@@ -416,7 +435,12 @@ class ReplayDataAvailabilitySyncTest {
       assertThat(createdMetadata.blobUri).isEqualTo("gs://$BUCKET_NAME/$NEW_METADATA_BLOB_KEY")
       assertThat(createdMetadata.eventGroupReferenceId).isEqualTo(NEW_EVENT_GROUP_REFERENCE_ID)
       assertThat(createdMetadata.outputDoneBlobGeneration).isEqualTo(doneGeneration)
-      val leaseName = leaseService.acquiredNames.single()
+      assertThat(createdMetadata.metadataBlobGeneration)
+        .isEqualTo(storageEmulator.storage.get(BUCKET_NAME, NEW_METADATA_BLOB_KEY).generation)
+      assertThat(createdMetadata.impressionsBlobGeneration)
+        .isEqualTo(storageEmulator.storage.get(BUCKET_NAME, NEW_IMPRESSIONS_BLOB_KEY).generation)
+      assertThat(leaseService.acquiredNames).hasSize(2)
+      val leaseName = leaseService.acquiredNames.last()
       assertThat(leaseName).startsWith("$DATA_PROVIDER_NAME/dataAvailabilitySyncLeases/")
       assertThat(createRequest.firstValue.dataAvailabilitySyncLease).isEqualTo(leaseName)
       assertThat(createRequest.firstValue.requestsList.single().dataAvailabilitySyncLease)
@@ -433,11 +457,15 @@ class ReplayDataAvailabilitySyncTest {
       assertThat(updatedMetadata.interval.startTime.seconds)
         .isEqualTo(UPDATED_INTERVAL_START_SECONDS)
       assertThat(updatedMetadata.outputDoneBlobGeneration).isEqualTo(doneGeneration)
+      assertThat(updatedMetadata.metadataBlobGeneration)
+        .isEqualTo(storageEmulator.storage.get(BUCKET_NAME, METADATA_BLOB_KEY).generation)
+      assertThat(updatedMetadata.impressionsBlobGeneration)
+        .isEqualTo(storageEmulator.storage.get(BUCKET_NAME, IMPRESSIONS_BLOB_KEY).generation)
       assertThat(updateRequest.firstValue.dataAvailabilitySyncLease).isEqualTo(leaseName)
       assertThat(updateRequest.firstValue.requestsList.single().dataAvailabilitySyncLease)
         .isEqualTo(leaseName)
       assertThat(leaseService.renewalCount).isGreaterThan(0)
-      assertThat(leaseService.releasedNames).containsExactly(leaseName)
+      assertThat(leaseService.releasedNames).containsExactlyElementsIn(leaseService.acquiredNames)
 
       verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
       verifyBlocking(activitiesServiceMock, never()) { batchUpdateEventGroupActivities(any()) }
