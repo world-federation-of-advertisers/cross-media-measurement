@@ -342,10 +342,12 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertTrue(result)
         self.assertTrue(
             any(
-                call.args[0]
+                call.args[0] % call.args[1:]
                 == "xmm.lifecycle.stage=noise_correction "
                 "xmm.outcome=succeeded "
-                "xmm.operation.result=no_update_required"
+                "xmm.operation.result=no_update_required "
+                "xmm.noise_correction.validation_enabled=true "
+                "xmm.noise_correction.correction_enabled=true"
                 for call in mock_logging.call_args_list
             )
         )

@@ -141,14 +141,18 @@ configuration, set `_reportResultValidationEnabled` and
 Validation runs report quality checks and, when correction is enabled,
 large-correction checks. Disabling validation skips these checks; correction
 still enforces the solver's mathematical constraints and requires a solution.
-With correction disabled, validation checks the original results and reports
-quality issues without changing measurements.
+With validation enabled and correction disabled, the original results are
+checked. Quality issues are logged without changing measurements or failing
+the BasicReport.
 
 Report assembly and processed-result writeback run in every mode. Disabling
 correction skips the solver and consistency adjustments, preserving the original
 reach, impression, and frequency values while calculating derived metrics.
 Set both options to `false` for assembly only. The job still requires valid
 input structure and a positive population.
+
+Per-report lifecycle logs include `xmm.noise_correction.validation_enabled` and
+`xmm.noise_correction.correction_enabled` to identify the selected flags.
 
 ### Configure noise-correction diagnostic logging
 

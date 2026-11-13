@@ -251,6 +251,12 @@ class PostProcessReportResultJob:
             )
         )
         self._log_noise_correction_values = log_noise_correction_values
+        self._processing_flags = (
+            "xmm.noise_correction.validation_enabled="
+            f"{str(enable_validation).lower()} "
+            "xmm.noise_correction.correction_enabled="
+            f"{str(enable_correction).lower()}"
+        )
         self._ami_mrc_exempted_edps = ami_mrc_exempted_edps or []
 
     def _process_basic_report(
@@ -283,7 +289,8 @@ class PostProcessReportResultJob:
         try:
             logging.info(
                 "xmm.lifecycle.stage=noise_correction xmm.outcome=started "
-                "Processing ReportResult %s",
+                "%s Processing ReportResult %s",
+                self._processing_flags,
                 basic_report.external_report_result_id,
             )
             add_processed_result_values_request = self._post_processor.process(
@@ -317,12 +324,15 @@ class PostProcessReportResultJob:
         if not add_processed_result_values_request:
             logging.info(
                 "xmm.lifecycle.stage=noise_correction "
-                "xmm.outcome=succeeded xmm.operation.result=no_update_required"
+                "xmm.outcome=succeeded xmm.operation.result=no_update_required "
+                "%s",
+                self._processing_flags,
             )
             return succeeded
 
         logging.info(
-            "xmm.lifecycle.stage=noise_correction xmm.outcome=succeeded"
+            "xmm.lifecycle.stage=noise_correction xmm.outcome=succeeded %s",
+            self._processing_flags,
         )
 
         logging.info(
