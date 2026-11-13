@@ -70,6 +70,7 @@ _SUCCESS_STATUS_CODES = frozenset({
     ReportPostProcessorStatus.SOLUTION_FOUND_WITH_OSQP,
     ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_HIGHS,
     ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_OSQP,
+    ReportPostProcessorStatus.CORRECTION_SKIPPED,
 })
 
 
@@ -491,9 +492,14 @@ class PostProcessReportResult:
             PotentialDirectResultMinimumThresholds | None
         ) = None,
         potential_direct_thresholding_edps: Iterable[str] | None = None,
+        *,
+        enable_validation: bool,
+        enable_correction: bool,
     ):
         self._report_results_stub = report_results_stub
         self._reporting_sets_stub = reporting_sets_stub
+        self._enable_validation = enable_validation
+        self._enable_correction = enable_correction
         self._potential_direct_result_minimum_thresholds = (
             potential_direct_result_minimum_thresholds
         )
@@ -750,7 +756,12 @@ class PostProcessReportResult:
         # Runs report post processor on each report summary v2.
         all_updated_measurements: dict[str, float] = {}
         summary_results: list[ReportSummaryProcessingResult] = []
-        for report_summary_index, report_summary in enumerate(report_summaries):
+        summaries_to_process = (
+            report_summaries
+            if self._enable_validation or self._enable_correction
+            else []
+        )
+        for report_summary_index, report_summary in enumerate(summaries_to_process):
             internal_error_type = None
             internal_error_traceback = None
             constraint_violations = ()
@@ -758,6 +769,8 @@ class PostProcessReportResult:
                 summary_processor = ReportSummaryV2Processor(
                     report_summary,
                     ami_mrc_exempted_reporting_set_ids,
+                    enable_validation=self._enable_validation,
+                    enable_correction=self._enable_correction,
                     potential_direct_result_minimum_thresholds=(
                         self._potential_direct_result_minimum_thresholds
                     ),
@@ -769,6 +782,12 @@ class PostProcessReportResult:
                     ),
                 )
                 result = summary_processor.process()
+                if self._enable_validation and not self._enable_correction:
+                    issues = _issue_codes(result)
+                    if issues:
+                        logging.warning(
+                            "Report summary %d has validation issues: %s",
+                            report_summary_index, ",".join(issues))
                 constraint_violations = (
                     summary_processor.pre_correction_constraint_violations
                 )
@@ -926,7 +945,7 @@ class PostProcessReportResult:
         # `ami >= [custom, mrc]` across IQF-varying RSRs that share
         # (reporting_set, venn_region, grouping, event_filters,
         # metric_frequency_spec).
-        if request is not None:
+        if request is not None and self._enable_correction:
             self._reconcile_cross_window_identities(request,
                                                     reporting_set_results)
 
@@ -1404,10 +1423,12 @@ class PostProcessReportResult:
 
             if result.HasField('reach'):
                 results_by_window[window_key_str][f'{prefix}_reach'] = (
-                    updated_measurements[result.reach.metric])
+                    updated_measurements[result.reach.metric]
+                    if self._enable_correction else result.reach.value)
             if result.HasField('impression_count'):
                 results_by_window[window_key_str][f'{prefix}_impressions'] = (
-                    updated_measurements[result.impression_count.metric])
+                    updated_measurements[result.impression_count.metric]
+                    if self._enable_correction else result.impression_count.value)
             if result.HasField('frequency'):
                 frequency_key = f'{prefix}_frequency'
                 if frequency_key not in results_by_window[window_key_str]:
@@ -1416,7 +1437,8 @@ class PostProcessReportResult:
                     name = f'{result.frequency.metric}-bin-{bin_label}'
                     results_by_window[window_key_str][frequency_key][
                         bin_label] = updated_measurements.get(
-                            name, bin_result.value)
+                            name, bin_result.value
+                        ) if self._enable_correction else bin_result.value
 
     def _group_results_by_window(
         self,
@@ -1471,7 +1493,7 @@ class PostProcessReportResult:
                 "No report summaries were provided; skipping update.")
             return None
 
-        if not updated_measurements:
+        if self._enable_correction and not updated_measurements:
             logging.warning(
                 "No updated measurements were provided; skipping update.")
             return None
@@ -1578,8 +1600,10 @@ class PostProcessReportResult:
             sorted_freqs = sorted(window_data[frequency_key].items())
             frequency_values = [val for _, val in sorted_freqs]
 
-        computed_metrics = compute_basic_metric_set(reach, frequency_values,
-                                                    impressions, population)
+        computed_metrics = compute_basic_metric_set(
+            reach, frequency_values, impressions, population,
+            enable_correction=self._enable_correction,
+        )
 
         basic_metric_set.CopyFrom(computed_metrics)
 
@@ -1589,6 +1613,7 @@ def compute_basic_metric_set(
     frequency_values: list[int] | None,
     impressions: int | None,
     population: int,
+    enable_correction: bool,
 ) -> BasicMetricSet:
     """Computes a BasicMetricSet from reach, frequencies, and impressions.
  
@@ -1597,6 +1622,7 @@ def compute_basic_metric_set(
         frequency_values: The frequency histogram.
         impressions: The impressions.
         population: The total population for the demographic group.
+        enable_correction: Whether to reconcile frequency and impression identities.
 
     Returns:
         A populated BasicMetricSet message. If population is not provided, an
@@ -1643,7 +1669,7 @@ def compute_basic_metric_set(
         # total capacity of all higher-frequency buckets. The forward-
         # clamp must run before the cascade because clamping reduces
         # sum(k_plus_reach) and thus changes the excess. See Issue #4049.
-        if k_plus_reach_values:
+        if enable_correction and k_plus_reach_values:
             if reach is not None:
                 k_plus_reach_values[0] = reach
                 for i in range(1, len(k_plus_reach_values)):
