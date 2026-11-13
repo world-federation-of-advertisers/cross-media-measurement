@@ -46,9 +46,9 @@ bazel_dep(
 # DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#427): Use a release containing this PR.
 archive_override(
     module_name = "common-jvm",
-    integrity = "sha256-zwMFm6sWzPlvpb/d2pk7CiQoyYbGYs7cpOgkAGaSpHQ=",
-    strip_prefix = "common-jvm-1715448389c43c23cb45d8258bad246d459b6374",
-    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/1715448389c43c23cb45d8258bad246d459b6374.tar.gz"],
+    integrity = "sha256-oOqZyKHnYiE6HzfUlmXzCpqMmi/RWkK2+F/myxf0e9I=",
+    strip_prefix = "common-jvm-517763188c5885d66fac34e353c0c1cd0eff011c",
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/517763188c5885d66fac34e353c0c1cd0eff011c.tar.gz"],
 )
 
 bazel_dep(
