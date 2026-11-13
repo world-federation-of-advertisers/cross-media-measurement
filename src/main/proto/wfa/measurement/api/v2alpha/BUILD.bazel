@@ -12,7 +12,7 @@ package(default_visibility = ["//visibility:public"])
 filegroup(
     name = "360m_population_spec_us",
     testonly = True,
-    srcs = ["360m_population_spec_us.textproto"],
+    srcs = ["population_specs/360m_population_spec_us.textproto"],
 )
 
 MAVEN_COORDINATES = "org.wfanet.measurement.api:v2alpha-kotlin:" + artifact_version()

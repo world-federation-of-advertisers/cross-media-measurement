@@ -266,7 +266,7 @@ object GenerateHighOverlapSpecs {
     )
 
   private const val POPULATION_SPEC_RESOURCE_PATH =
-    "../../api/v2alpha/360m_population_spec_us.textproto"
+    "../../api/v2alpha/population_specs/360m_population_spec_us.textproto"
   private const val CONFIG_FILE = "high_overlap_impression_test_data_config.textproto"
 
   /**

@@ -1,7 +1,7 @@
 # High overlap dataset specs
 
 The population spec is committed at
-`src/main/proto/wfa/measurement/api/v2alpha/360m_population_spec_us.textproto`
+`src/main/proto/wfa/measurement/api/v2alpha/population_specs/360m_population_spec_us.textproto`
 and is read directly by tests and seeding. `GenerateHighOverlapSpecs` generates
 the impression specs and config through the genrule in that package.
 
