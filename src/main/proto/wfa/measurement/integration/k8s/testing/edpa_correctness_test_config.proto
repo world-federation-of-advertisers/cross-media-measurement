@@ -39,8 +39,9 @@ message EdpaCorrectnessTestConfig {
   // Authentication key for the CMMS public API.
   string api_authentication_key = 4;
 
-  // JWT used to authenticate requests to the RequisitionFetcher Cloud Function.
-  string auth_id_token = 5;
+  // Deprecated. Cloud tests obtain refreshable ID tokens from Application
+  // Default Credentials.
+  string auth_id_token = 5 [deprecated = true];
 
   // Full HTTP endpoint URL of the RequisitionFetcher Cloud Function.
   string requisition_fetcher_endpoint = 6;
