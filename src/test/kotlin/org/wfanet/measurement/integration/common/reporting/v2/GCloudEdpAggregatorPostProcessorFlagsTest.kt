@@ -72,22 +72,6 @@ class GCloudEdpAggregatorPostProcessorFlagsTest :
 
   @Test
   fun `report rejected with both flags enabled succeeds with correction disabled`() = runBlocking {
-    assertCompletedReport(enableValidation = true, enableCorrection = false)
-  }
-
-  @Test
-  fun `report rejected with both flags enabled succeeds with validation and correction disabled`() =
-    runBlocking {
-      assertCompletedReport(enableValidation = false, enableCorrection = false)
-    }
-
-  @Test
-  fun `report rejected with both flags enabled is corrected with validation disabled`() =
-    runBlocking {
-      assertCompletedReport(enableValidation = false, enableCorrection = true)
-    }
-
-  private suspend fun assertCompletedReport(enableValidation: Boolean, enableCorrection: Boolean) {
     val rejectedReport =
       createAndProcessReport(
         enableValidation = true,
@@ -97,12 +81,65 @@ class GCloudEdpAggregatorPostProcessorFlagsTest :
     assertThat(rejectedReport.basicReport.state).isEqualTo(BasicReport.State.FAILED)
 
     val processedReport =
-      createAndProcessReport(enableValidation, enableCorrection, "flags-disabled-basicreport")
+      createAndProcessReport(
+        enableValidation = true,
+        enableCorrection = false,
+        basicReportId = "flags-disabled-basicreport",
+      )
+    assertThat(processedReport.basicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
     assertThat(processedReport.reachAndFrequency).isEqualTo(rejectedReport.reachAndFrequency)
     assertThat(processedReport.impression).isEqualTo(rejectedReport.impression)
+    assertAssembledResults(processedReport, enableCorrection = false)
+  }
 
+  @Test
+  fun `report rejected with both flags enabled succeeds with validation and correction disabled`() =
+    runBlocking {
+      val rejectedReport =
+        createAndProcessReport(
+          enableValidation = true,
+          enableCorrection = true,
+          basicReportId = "flags-enabled-basicreport",
+        )
+      assertThat(rejectedReport.basicReport.state).isEqualTo(BasicReport.State.FAILED)
+
+      val processedReport =
+        createAndProcessReport(
+          enableValidation = false,
+          enableCorrection = false,
+          basicReportId = "flags-disabled-basicreport",
+        )
+      assertThat(processedReport.basicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertThat(processedReport.reachAndFrequency).isEqualTo(rejectedReport.reachAndFrequency)
+      assertThat(processedReport.impression).isEqualTo(rejectedReport.impression)
+      assertAssembledResults(processedReport, enableCorrection = false)
+    }
+
+  @Test
+  fun `report rejected with both flags enabled is corrected with validation disabled`() =
+    runBlocking {
+      val rejectedReport =
+        createAndProcessReport(
+          enableValidation = true,
+          enableCorrection = true,
+          basicReportId = "flags-enabled-basicreport",
+        )
+      assertThat(rejectedReport.basicReport.state).isEqualTo(BasicReport.State.FAILED)
+
+      val processedReport =
+        createAndProcessReport(
+          enableValidation = false,
+          enableCorrection = true,
+          basicReportId = "flags-disabled-basicreport",
+        )
+      assertThat(processedReport.basicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertThat(processedReport.reachAndFrequency).isEqualTo(rejectedReport.reachAndFrequency)
+      assertThat(processedReport.impression).isEqualTo(rejectedReport.impression)
+      assertAssembledResults(processedReport, enableCorrection = true)
+    }
+
+  private fun assertAssembledResults(processedReport: ProcessedReport, enableCorrection: Boolean) {
     val completedBasicReport = processedReport.basicReport
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
     assertStructuralResults(completedBasicReport)
 
     val metricSet =
