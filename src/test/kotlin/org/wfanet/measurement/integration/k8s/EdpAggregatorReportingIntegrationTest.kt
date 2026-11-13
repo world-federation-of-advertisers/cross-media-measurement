@@ -65,6 +65,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.integration.common.HighOverlapDataAvailability
 import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.integration.common.HighOverlapExpectedReach
 import org.wfanet.measurement.integration.common.HighOverlapExpectedReach.ExpectedMetrics
@@ -120,7 +121,10 @@ class EdpAggregatorReportingIntegrationTest {
           if (MODEL_LINE.isEmpty()) {
             logger.info("No high overlap model line configured; skipping the dataset check.")
           } else {
-            runBlocking { verify(readManifest()) }
+            runBlocking {
+              verify(readManifest())
+              verifyDataAvailability()
+            }
           }
           base.evaluate()
         }
@@ -142,6 +146,21 @@ class EdpAggregatorReportingIntegrationTest {
             "No seeded dataset for $MODEL_LINE: $key is absent. Run the high overlap seeding job."
           )
       return HighOverlapDatasetManifest.parseFrom(blob.read().flatten())
+    }
+
+    private suspend fun verifyDataAvailability() {
+      val modelLineId = requireNotNull(ModelLineKey.fromName(MODEL_LINE)).modelLineId
+      val blobUri = SelectedStorageClient.parseBlobUri("gs://${TEST_CONFIG.storageBucket}/")
+      HighOverlapDataAvailability(
+          SelectedStorageClient(
+              blobUri = blobUri,
+              rootDirectory = null,
+              projectId = googleProjectId,
+            )
+            .underlyingClient,
+          modelLineId,
+        )
+        .requirePublished(HighOverlapDataset.datesByImpressionPath(IMPRESSION_TEST_DATA_CONFIG))
     }
 
     /**
