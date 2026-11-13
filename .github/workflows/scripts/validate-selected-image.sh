@@ -14,9 +14,10 @@
 # limitations under the License.
 
 set -euo pipefail
-if [[ ! "${IMAGE_NAME:-}" =~ ^[a-z][a-z0-9_]*$ ]]; then
+image_name="${1:-}"
+if [[ "$#" -ne 1 || ! "$image_name" =~ ^[a-z][a-z0-9_]*$ ]]; then
   echo "Invalid selected image name" >&2
   exit 1
 fi
 # Signing targets are generated from IMAGES_TO_SIGN in the Docker BUILD file.
-bazelisk query "//src/main/docker:sign_$IMAGE_NAME" --output=label >/dev/null
+bazelisk query "//src/main/docker:sign_$image_name" --output=label >/dev/null

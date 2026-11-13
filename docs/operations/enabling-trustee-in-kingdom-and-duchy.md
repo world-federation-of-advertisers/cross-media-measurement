@@ -47,20 +47,6 @@ available in the specified repository. It is signed by the
 build process. The signature is stored along with the images in the GitHub image
 repository.
 
-For a manual deployment iteration on one changed component, run the
-[conditional image workflow](../../.github/workflows/maybe-push-images.yml) with
-`image-name` set to its Bazel image name. For example:
-
-```shell
-gh workflow run maybe-push-images.yml --ref <branch> -f image-name=duchy_trus_tee_mill_image
-```
-
-This builds, publishes and signs the selected image. Selected images must have
-an individual signing target; local-only images are rejected before publication.
-The reusable publishing and signing workflows also accept `image-name` for
-callers that need to select one component. The standard `Update CMMS` workflow
-omits this input and publishes the full image collection.
-
 #### MIG Configuration
 
 The MIG is configured via the `trustee_config` variable in the Terraform module.
