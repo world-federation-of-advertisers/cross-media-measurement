@@ -1900,6 +1900,7 @@ abstract class VidLabelingPipelineTestHarness(
             kmsClient = kmsClient,
             impressionsStorageConfig = StorageConfig(rootDirectory = File("/")),
             descriptor = TestEvent.getDescriptor(),
+            mapping = null,
           )
           .readEvents()
           .toList()
@@ -1992,6 +1993,7 @@ abstract class VidLabelingPipelineTestHarness(
             kmsClient = kmsClient,
             impressionsStorageConfig = StorageConfig(rootDirectory = File("/")),
             descriptor = TestEvent.getDescriptor(),
+            mapping = null,
           )
           .readEvents()
           .toList()

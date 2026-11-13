@@ -240,6 +240,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = tempFolder.root),
         descriptor = TestEvent.getDescriptor(),
+        mapping = null,
       ),
       EVENT_GROUP,
     )
@@ -261,7 +262,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
                   entityKey = null,
                 )
             ),
-          mappedEntityType = null,
+          mapping = null,
           wholeBlobEntityTypes = emptySet(),
         ),
       config =

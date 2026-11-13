@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.ExponentialBackoff
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
@@ -149,12 +150,13 @@ class StorageEventSource(
   private val readRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val eventReaderFactory: (ImpressionDataSource) -> EventReader<Message> = { source ->
     StorageEventReader(
-      source.blobDetails,
-      source.blobGeneration,
-      kmsClient,
-      impressionsStorageConfig,
-      descriptor,
-      batchSize,
+      blobDetails = source.blobDetails,
+      blobGeneration = source.blobGeneration,
+      kmsClient = kmsClient,
+      impressionsStorageConfig = impressionsStorageConfig,
+      descriptor = descriptor,
+      mapping = resolvedEventGroups.mapping,
+      batchSize = batchSize,
     )
   },
 ) : EventSource<Message> {
@@ -238,8 +240,40 @@ class StorageEventSource(
         modelLine,
         resolvedEventGroups.eventGroupsByKey.values,
       )
+    result.forEach { validateBlobDetailsMapping(it.blobDetails) }
     cachedImpressionDataSources = result
     return result
+  }
+
+  private fun validateBlobDetailsMapping(blobDetails: BlobDetails) {
+    val mapping: EventGroupReferenceIdEntityKeyMapping = resolvedEventGroups.mapping ?: return
+    if (
+      blobDetails.entityKeysCount > 0 &&
+        blobDetails.entityKeysList.none { it.entityType == mapping.entityType }
+    ) {
+      return
+    }
+    val referenceId: String = blobDetails.eventGroupReferenceId
+    if (referenceId.isNotEmpty()) {
+      mapping.validateEventGroupReferenceId(referenceId)
+    }
+    var hasMappedEntityId = false
+    var hasEquivalentEntityId = false
+    for (group in blobDetails.entityKeysList) {
+      if (group.entityType == mapping.entityType) {
+        for (entityId in group.entityIdsList) {
+          mapping.validateEntityId(group.entityType, entityId)
+          hasMappedEntityId = true
+          if (referenceId.isNotEmpty() && mapping.areEquivalent(referenceId, entityId)) {
+            hasEquivalentEntityId = true
+          }
+        }
+      }
+    }
+    require(referenceId.isEmpty() || !hasMappedEntityId || hasEquivalentEntityId) {
+      "BlobDetails for ${blobDetails.blobUri} has a reference ID that is not equivalent to " +
+        "any mapped entity ID under event_group_reference_id_entity_key_mapping"
+    }
   }
 
   private fun validateAndCanonicalizeEntityKeyGroups(

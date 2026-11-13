@@ -272,7 +272,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   // Each event group config combines the synthetic data spec with entity key configuration.
-  //   - edp1-eg-ref-1: no entity key (legacy; Kingdom defaults entity_type="campaign").
+  //   - campaign/edp1-eg-ref-1: no entity key (legacy; Kingdom defaults entity_type="campaign").
   //   - edp1-eg-creative-1: entity_type="creative-id".
   //   - edp1-eg-multi-creative: two creative-id entity keys in the same blob.
   //   - edp2-eg-ref-1, edp3-eg-ref-1: entity_type="campaign" + entity_id.
@@ -285,7 +285,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     mapOf(
       "edp1" to
         (mapOf(
-          "edp1-eg-ref-1" to EventGroupConfig.LegacySpec(syntheticEventGroupSpec2),
+          EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to
+            EventGroupConfig.LegacySpec(syntheticEventGroupSpec2),
           EDP1_CREATIVE_EVENT_GROUP_REF_ID to
             EventGroupConfig.MultiEntityKey(
               entityKeySpecs =
@@ -1570,7 +1571,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"
     // EDP for the no-noise failure path tests; the same EDP also carries the non-default
     // entity_type ("ad_group") in this fixture.
-    internal const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
+    internal const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "campaign/edp1-eg-ref-1"
     internal const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
     internal const val AD_GROUP_EDP_ENTITY_ID = "edp4-eg-ref-1"
     internal const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "ad_group/$AD_GROUP_EDP_ENTITY_ID"
@@ -1600,8 +1601,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     internal const val MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID =
       "campaign/mixed-history-dual-identifier"
     internal const val MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID = "mixed-history-dual-identifier"
-    internal const val HIERARCHY_BLOB_REFERENCE_ID = "blob-hierarchy"
     internal const val HIERARCHY_CAMPAIGN_ENTITY_ID = "blob-hierarchy-campaign"
+    internal const val HIERARCHY_BLOB_REFERENCE_ID = "campaign/$HIERARCHY_CAMPAIGN_ENTITY_ID"
     internal val HIERARCHY_LOWER_ENTITY_IDS =
       mapOf(
         "adset-id" to setOf("blob-hierarchy-adset-a", "blob-hierarchy-adset-b"),
