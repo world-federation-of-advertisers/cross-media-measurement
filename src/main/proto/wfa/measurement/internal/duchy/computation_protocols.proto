@@ -20,6 +20,7 @@ import "wfa/measurement/internal/duchy/protocol/honest_majority_share_shuffle.pr
 import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_aggregation_v2.proto";
 import "wfa/measurement/internal/duchy/protocol/reach_only_liquid_legions_sketch_aggregation_v2.proto";
 import "wfa/measurement/internal/duchy/protocol/trus_tee.proto";
+import "wfa/measurement/internal/duchy/protocol/trus_tee_v2.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
@@ -45,6 +46,9 @@ message ComputationStage {
 
     // Stage of TrusTEE computation.
     protocol.TrusTee.Stage trus_tee = 4;
+
+    // Stage of TrusTEE multimeasurement computation.
+    protocol.TrusTeeV2.Stage trus_tee_v2 = 5;
   }
 }
 
@@ -76,5 +80,8 @@ message ComputationTypeEnum {
 
     // TrusTEE protocol.
     TRUS_TEE = 4;
+
+    // TrusTEE multimeasurement protocol.
+    TRUS_TEE_V2 = 5;
   }
 }
