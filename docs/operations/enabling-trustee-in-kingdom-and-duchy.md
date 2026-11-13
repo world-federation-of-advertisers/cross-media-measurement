@@ -62,9 +62,10 @@ Key parameters include:
     efficient.
 
 Each mill processes one work item at a time and immediately claims the next
-available item. Initialization has priority; ready computations are selected
-when no initialization work is available. `--polling-interval` controls the
-wait after an empty claim or an exception escaping the claim/processing call.
+available item. Initialization has priority so EDPs can begin fulfilling
+requisitions. Ready computations are selected when no initialization work is
+available. `--polling-interval` controls the wait after an empty claim or an
+exception escaping the claim/processing call.
 Handled computation failures retain their existing retry scheduling.
 
 `duchy_aggregator_trustee_replicas` sets the MIG size and defaults to one; dev
