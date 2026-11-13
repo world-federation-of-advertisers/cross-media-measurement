@@ -103,9 +103,10 @@ class BasicReportHttpClient(
     private val logger = Logger.getLogger(BasicReportHttpClient::class.java.name)
     private val TRANSIENT_HTTP_CODES = setOf(429, 500, 502, 503, 504)
 
+    // OkHttp uses ProtocolException when a fixed-length or chunked body ends prematurely.
     private fun isRetryableTransportFailure(failure: IOException): Boolean =
       failure !is SSLException &&
-        failure !is ProtocolException &&
+        (failure !is ProtocolException || failure.message == "unexpected end of stream") &&
         (failure !is InterruptedIOException || failure is SocketTimeoutException)
   }
 }

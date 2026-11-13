@@ -107,7 +107,9 @@ class BasicReportHttpClientTest {
     val interceptor =
       ScriptedInterceptor(
         listOf(
-          Result.success(response(200, UnreadableResponseBody(IOException("truncated response")))),
+          Result.success(
+            response(200, UnreadableResponseBody(ProtocolException("unexpected end of stream")))
+          ),
           Result.success(response(200, "{\"state\":\"SUCCEEDED\"}")),
         )
       )
