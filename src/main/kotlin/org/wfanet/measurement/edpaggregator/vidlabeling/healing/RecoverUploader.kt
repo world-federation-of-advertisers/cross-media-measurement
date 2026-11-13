@@ -45,8 +45,8 @@ fun interface RecoveryExecutor {
 }
 
 /**
- * Registers a fresh done-object generation for operator recovery of an evicted upload on the
- * memoized path only.
+ * Registers a fresh done-object generation for an evicted upload whose model lines are marked
+ * `RECOVERY_ACTION_OPERATOR_RECOVERY`, on the memoized path only.
  */
 class RecoverUploader(
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
@@ -115,7 +115,7 @@ class RecoverUploader(
         .map { rowsByCmmsModelLine.getValue(it) }
         .filter { it.state != RawImpressionUploadModelLine.State.FAILED }
     require(notFailed.isEmpty()) {
-      "recover-upload only accepts FAILED model-line rows: ${notFailed.map { it.name to it.state }}"
+      "Recovery only accepts FAILED model-line rows: ${notFailed.map { it.name to it.state }}"
     }
 
     val requestedRows = cmmsModelLines.map { rowsByCmmsModelLine.getValue(it) }
@@ -125,7 +125,7 @@ class RecoverUploader(
           RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
       }
     require(notOperatorRecovery.isEmpty()) {
-      "recover-upload only accepts model lines marked for operator recovery: " +
+      "Recovery only accepts model lines marked for operator recovery: " +
         notOperatorRecovery.map { it.name to it.recoveryAction }
     }
     val evictionOperationIds = requestedRows.map { it.evictionOperationId }.toSet()
@@ -176,7 +176,7 @@ class RecoverUploader(
         .filter { hasDeletedSnapshotHistory(sourceUploadName, it.cmmsModelLine) }
         .mapTo(mutableSetOf()) { it.cmmsModelLine }
     require(cmmsModelLines.toSet() == recoverableModelLines) {
-      "recover-upload requires the complete set of FAILED memoized model lines whose snapshots " +
+      "Recovery requires the complete set of FAILED memoized model lines whose snapshots " +
         "were deleted; requested=$cmmsModelLines, recoverable=$recoverableModelLines"
     }
 

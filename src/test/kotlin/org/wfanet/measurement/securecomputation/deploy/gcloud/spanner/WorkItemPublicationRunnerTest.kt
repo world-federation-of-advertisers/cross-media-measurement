@@ -44,6 +44,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem as PublicWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemSourceObject
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.claimWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.deleteWorkItemPublication
@@ -83,13 +84,15 @@ class WorkItemPublicationRunnerTest {
 
     assertThat(runner.publishPendingWorkItems()).isEqualTo(1)
     assertThat(publisher.messages).hasSize(1)
-    assertThat((publisher.messages.single() as WorkItem).workItemResourceId)
-      .isEqualTo("work-item-1")
+    assertThat((publisher.messages.single() as PublicWorkItem).name)
+      .isEqualTo("workItems/work-item-1")
+    assertThat((publisher.messages.single() as PublicWorkItem).workItemParams)
+      .isEqualTo(created.workItemParams)
     assertThat(publicationCount()).isEqualTo(0L)
   }
 
   @Test
-  fun `publication forwards the WorkItem serialization key`() =
+  fun `publication sends a public WorkItem with its serialization key`() =
     runBlocking<Unit> {
       insertPendingWorkItem(
         WORK_ITEM_ID,
@@ -101,6 +104,10 @@ class WorkItemPublicationRunnerTest {
       assertThat(newRunner(publisher, MutableClock(Instant.now())).publishPendingWorkItems())
         .isEqualTo(1)
 
+      val published = PublicWorkItem.parseFrom(publisher.messages.single().toByteString())
+      assertThat(published.name).isEqualTo("workItems/work-item-1")
+      assertThat(published.generation).isEqualTo(1L)
+      assertThat(published.serializationKey).isEqualTo("data-availability:dataProviders/provider-1")
       assertThat(publisher.orderingKeys)
         .containsExactly("data-availability:dataProviders/provider-1")
     }
@@ -138,8 +145,8 @@ class WorkItemPublicationRunnerTest {
       )
       .isEqualTo(2)
 
-    assertThat(publisher.messages.map { (it as WorkItem).workItemResourceId })
-      .containsExactly("work-item-earlier", "work-item-later")
+    assertThat(publisher.messages.map { (it as PublicWorkItem).name })
+      .containsExactly("workItems/work-item-earlier", "workItems/work-item-later")
       .inOrder()
   }
 
@@ -180,8 +187,8 @@ class WorkItemPublicationRunnerTest {
     publisher.fail = false
     clock.advance(Duration.ofSeconds(2))
     assertThat(runner.publishPendingWorkItems(limit = 2)).isEqualTo(2)
-    assertThat(publisher.messages.map { (it as WorkItem).workItemResourceId })
-      .containsExactly("work-item-earlier", "work-item-later")
+    assertThat(publisher.messages.map { (it as PublicWorkItem).name })
+      .containsExactly("workItems/work-item-earlier", "workItems/work-item-later")
       .inOrder()
   }
 
@@ -345,7 +352,7 @@ class WorkItemPublicationRunnerTest {
 
     assertThat(publisher.callCount).isEqualTo(1)
     assertThat(publisher.messages).hasSize(1)
-    assertThat((publisher.messages.single() as WorkItem).generation).isEqualTo(2L)
+    assertThat((publisher.messages.single() as PublicWorkItem).generation).isEqualTo(2L)
     assertThat(publicationCount()).isEqualTo(0L)
     assertThat(publicationScheduledGeneration(WORK_ITEM_ID)).isEqualTo(2L)
   }
@@ -515,8 +522,8 @@ class WorkItemPublicationRunnerTest {
     assertThat(runner.publishPendingWorkItems()).isEqualTo(1)
 
     assertThat(publisher.messages).hasSize(1)
-    assertThat((publisher.messages.single() as WorkItem).workItemResourceId)
-      .isEqualTo("work-item-valid")
+    assertThat((publisher.messages.single() as PublicWorkItem).name)
+      .isEqualTo("workItems/work-item-valid")
     assertThat(publicationCount()).isEqualTo(unresolvableCount.toLong())
   }
 
@@ -533,8 +540,8 @@ class WorkItemPublicationRunnerTest {
     }
 
     assertThat(runner.publishPendingWorkItems(limit = 1)).isEqualTo(1)
-    assertThat((publisher.messages.single() as WorkItem).workItemResourceId)
-      .isEqualTo("work-item-retry")
+    assertThat((publisher.messages.single() as PublicWorkItem).name)
+      .isEqualTo("workItems/work-item-retry")
   }
 
   @Test

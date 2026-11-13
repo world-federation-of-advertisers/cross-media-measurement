@@ -188,6 +188,12 @@ variable "requisition_fetcher_enabled" {
   default     = true
 }
 
+variable "requisition_fetcher_scheduler_job_name" {
+  description = "RequisitionFetcher scheduler job name. Uses the module's existing name when unset."
+  type        = string
+  default     = null
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string
@@ -556,4 +562,11 @@ variable "dashboard_alert_notification_channels" {
   description = "Cloud Monitoring notification channel IDs (Slack/PagerDuty) to notify on dashboard compliance check failures. Empty creates the policy without notifications."
   type        = list(string)
   default     = []
+}
+
+variable "event_group_sync_memory" {
+  description = "EventGroupSync function memory; retain the allocation required by the input size."
+  type        = string
+  nullable    = true
+  default     = null
 }

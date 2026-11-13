@@ -84,7 +84,7 @@ services:
 ```
 EDP uploads                          Operator services                     TEE
 -----------                          -----------------                     ---
-event-groups/*  ── finalize ──► DataWatcher ──► EventGroupSync ──► Kingdom public API
+event-groups/*  ── finalize ──► DataWatcher ──► WorkItem ──► EventGroupSync ──► Kingdom public API
                                                                        │
 Kingdom requisitions ◄── Cloud Scheduler ──► RequisitionFetcher ──────┘
         writes requisitions/* ──► Secure Computation API ──► Pub/Sub
@@ -185,7 +185,7 @@ the correct pipeline.
 
 The two watched-path types per EDP:
 
-1. **Event group detection** — an event-group blob invokes EventGroupSync.
+1. **Event group detection** — an event-group blob creates an EventGroupSync WorkItem.
 2. **Impressions / data availability** — a `done` marker invokes DataAvailabilitySync.
 
 Requisition blobs are not watched in the recommended configuration. RequisitionFetcher creates
@@ -203,12 +203,19 @@ DataWatcher.
 
 ### EventGroupSync
 
-A Cloud Function invoked by the DataWatcher when a new event-group file is written.
+A Cloud Function consuming WorkItems created by DataWatcher when a new event-group file is
+written. DataWatcher returns after durable task creation. The consumer renews its attempt lease
+during the sync, publishes the mapping, and records completion; terminal task redeliveries skip
+the sync. Legacy HTTP invocation remains supported.
 It registers or updates the EDP's event groups in the Kingdom public API. To onboard
 a new EDP, add an `event-groups` watched path in the DataWatcher config and a
 per-EDP entry in the EventGroupSync config.
 
 Config: [`EventGroupSyncConfigs`](#eventgroupsync-config-eventgroupsyncconfigs).
+Deploy the lease-aware control plane and queue registry, then the consumer infrastructure,
+then the DataWatcher routes. Drain legacy HTTP deliveries before cutover. See the
+[WorkItem deployment instructions](../../src/main/terraform/gcloud/modules/edp-aggregator/README.md#durable-eventgroupsync-workitems)
+for invocation IAM, TLS, and task outcome monitoring.
 
 ### RequisitionFetcher
 
@@ -824,22 +831,17 @@ exactly one sink — either an `http_endpoint_sink` (JSON `app_params`) or a
 # proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
 # proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
 
-# 1) Event groups -> EventGroupSync (HTTP)
+# 1) Event groups -> EventGroupSync (durable WorkItem)
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups/(.*)"
-  http_endpoint_sink {
-    endpoint_uri: "https://REGION-PROJECT_ID.cloudfunctions.net/event-group-sync"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/DATA_PROVIDER_ID"
     app_params {
-      fields { key: "dataProvider" value { string_value: "dataProviders/DATA_PROVIDER_ID" } }
-      fields { key: "eventGroupMapBlobUri"
-               value { string_value: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb" } }
-      fields { key: "cmmsConnection" value { struct_value {
-        fields { key: "certFilePath"           value { string_value: "/secrets/cert/<edp-id>_tls.pem" } }
-        fields { key: "privateKeyFilePath"     value { string_value: "/secrets/key/<edp-id>_tls.key" } }
-        fields { key: "certCollectionFilePath" value { string_value: "/secrets/ca/kingdom_root.pem" } }
-      } } }
-      # eventGroupStorage / eventGroupMapStorage: gcs { projectId, bucketName }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/DATA_PROVIDER_ID"
+      }
     }
   }
 }
@@ -979,6 +981,8 @@ One `configs` entry per EDP (each `data_provider` must be unique).
 # proto-message: wfa.measurement.config.edpaggregator.EventGroupSyncConfigs
 configs {
   data_provider: "dataProviders/DATA_PROVIDER_ID"
+  # Queued GCS sources must be beneath this object's bucket and directory, including subfolders.
+  event_groups_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups/event_groups.json"
   event_group_map_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb"
   cmms_connection {
     cert_file_path: "/secrets/cert/<edp-id>_tls.pem"
@@ -1320,33 +1324,39 @@ exclusion and required control-plane settings. An environment-scoped concurrency
 two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
 performs the required order:
 
-1. Roll `secure-computation-internal-api-server` and
+1. Pause the RequisitionFetcher scheduler after image publication and configuration validation.
+   Record the confirmed pause time; control-plane and Terraform preparation count toward the
+   existing ten-minute drain window.
+2. Roll `secure-computation-internal-api-server` and
    `secure-computation-public-api-server` with WorkItem publication, legacy reconciliation, and
    dead-letter consumption paused. The APIs remain available to producers and existing workers;
    transactions continue creating durable outbox rows without publishing them.
-2. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
+3. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
    its autoscaler, sets its target size to zero, and writes a process-level consumption gate into
    the replacement instance template so a surge instance cannot pull work while quiescing.
-3. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
-   then verify that each has target size zero and no remaining instances.
-4. Roll Kingdom, then roll the Secure Computation APIs again with WorkItem publication,
+4. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
+   then verify that each has target size zero and no remaining instances. Wait only the remaining
+   part of the RequisitionFetcher drain window before rolling Kingdom. For an initial deployment,
+   Terraform creates the scheduler paused and the full window starts after that apply.
+5. Roll Kingdom, then roll the Secure Computation APIs again with WorkItem publication,
    reconciliation, and dead-letter consumption enabled. The DLQ listener defers a delivery while a
    current-generation WorkItem still has a valid leased attempt; otherwise it terminalizes the
    exhausted WorkItem.
-5. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
-6. Apply Terraform again with RequisitionFetcher and WorkItem TEE consumers enabled. This recreates
+6. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
+7. Apply Terraform again with RequisitionFetcher and WorkItem TEE consumers enabled. This recreates
    the TEE autoscalers, changes both process-level gates to enabled, and starts only the new worker
    version.
-7. Continue the remaining deployment and tests normally.
+8. Continue the remaining deployment and tests normally.
 
-If the workflow fails after quiescing workers but before the final Terraform apply, leave the TEE
-consumers disabled and rerun the complete **Update CMMS** workflow. Do not enable a TEE MIG
+If the workflow fails after pausing RequisitionFetcher but before the final Terraform apply, leave
+RequisitionFetcher and any quiesced TEE consumers paused and rerun the complete **Update CMMS** workflow. Do not enable a TEE MIG
 independently. Do not manually scale the API deployments to zero: their manifests do not
 explicitly restore replica counts, so manual scaling can leave them stopped.
 
-DataWatcher and Pub/Sub remain running during this process. Terraform pauses the RequisitionFetcher
-Cloud Scheduler job, and the workflow then waits for invocations that started before the pause to
-finish. Unclaimed messages remain queued and must not be drained. Old
+DataWatcher and Pub/Sub remain running during this process. The workflow pauses the RequisitionFetcher
+Cloud Scheduler job early and Terraform keeps it paused during preparation. The existing ten-minute
+wait is measured from the confirmed pause, with preparation time deducted; it does not shorten the
+drain window or treat a Cloud Run request timeout as proof that application work has stopped. Unclaimed messages remain queued and must not be drained. Old
 and new API replicas may overlap in the first Kubernetes rolling update while old TEE workers are
 still running. Publication and legacy reconciliation are disabled on every new internal API replica
 during that rollout, preventing a new replica from introducing duplicate legacy deliveries. After

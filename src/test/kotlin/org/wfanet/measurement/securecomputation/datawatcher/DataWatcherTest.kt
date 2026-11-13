@@ -45,6 +45,9 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.time.Instant
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -138,6 +141,7 @@ class DataWatcherTest() {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
         this.controlPlaneQueueSink = controlPlaneQueueSink {
           queue = topicId
+          serializationKey = "event-group-sync:dataProviders/example"
           this.appParams = Any.pack(appParams)
         }
       }
@@ -171,6 +175,8 @@ class DataWatcherTest() {
       assertThat(ensureWorkItemRequestCaptor.allValues.single().workItemId)
         .isEqualTo("some-work-item-id")
       assertThat(ensureWorkItemRequestCaptor.allValues.single().workItem.queue).isEqualTo(topicId)
+      assertThat(ensureWorkItemRequestCaptor.firstValue.workItem.serializationKey)
+        .isEqualTo("event-group-sync:dataProviders/example")
       val workItemParams =
         ensureWorkItemRequestCaptor.allValues
           .single()
@@ -230,6 +236,7 @@ class DataWatcherTest() {
       org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
         name = "workItems/deterministic-id"
         this.queue = queue
+        serializationKey = "event-group-sync:dataProviders/example"
         workItemParams =
           workItemParams {
               this.appParams = appParams
@@ -249,6 +256,7 @@ class DataWatcherTest() {
       sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
       controlPlaneQueueSink = controlPlaneQueueSink {
         this.queue = queue
+        serializationKey = "event-group-sync:dataProviders/example"
         this.appParams = appParams
       }
     }
@@ -274,6 +282,11 @@ class DataWatcherTest() {
 
     val requestCaptor = argumentCaptor<EnsureWorkItemRequest>()
     verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(requestCaptor.capture()) }
+    assertThat(requestCaptor.allValues.map { it.workItem.serializationKey })
+      .containsExactly(
+        "event-group-sync:dataProviders/example",
+        "event-group-sync:dataProviders/example",
+      )
     val firstParams = requestCaptor.firstValue.workItem.workItemParams.unpack<WorkItemParams>()
     val retryParams = requestCaptor.secondValue.workItem.workItemParams.unpack<WorkItemParams>()
     assertThat(firstParams.traceContextMap)
@@ -898,11 +911,34 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
           controlPlaneThrottler = rpcThrottlers.controlPlane,
         )
+      val path = "test-schema://test-bucket/path-to-watch/some-data"
+      val logMessages = mutableListOf<String>()
+      val handler =
+        object : Handler() {
+          override fun publish(record: LogRecord) {
+            logMessages += record.message
+          }
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+          override fun flush() {}
+
+          override fun close() {}
+        }
+      val dataWatcherLogger = Logger.getLogger(DataWatcher::class.java.name)
+      dataWatcherLogger.addHandler(handler)
+
+      try {
+        dataWatcher.receivePath(path, emptyMap())
+      } finally {
+        dataWatcherLogger.removeHandler(handler)
+        server.stop()
+      }
 
       assertThat(server.getLastRequest()).isNotEmpty()
-      server.stop()
+      val combinedLogs = logMessages.joinToString("\n")
+      assertThat(combinedLogs).doesNotContain(path)
+      assertThat(combinedLogs).doesNotContain("returned 500")
+      assertThat(combinedLogs).contains(VidLabelingTraceAttributes.gcsObjectPathHash(path))
+      assertThat(combinedLogs).contains("errorCode=400")
     }
   }
 

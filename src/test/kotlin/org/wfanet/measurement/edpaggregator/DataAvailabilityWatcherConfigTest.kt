@@ -31,6 +31,7 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingStorageConfigValidator
+import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
 @RunWith(JUnit4::class)
@@ -211,6 +212,9 @@ class DataAvailabilityWatcherConfigTest {
     private val ENVIRONMENTS = listOf("dev", "head", "qa")
     private val RUNFILES = Runfiles.preload().withSourceRepository("")
     private val TYPE_REGISTRY =
-      TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build()
+      TypeRegistry.newBuilder()
+        .add(ResultsFulfillerParams.getDescriptor())
+        .add(EventGroupSyncParams.getDescriptor())
+        .build()
   }
 }
