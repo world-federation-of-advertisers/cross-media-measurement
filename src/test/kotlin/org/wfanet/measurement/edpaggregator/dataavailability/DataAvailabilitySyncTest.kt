@@ -52,6 +52,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -2940,6 +2941,246 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `cutover publication recovers after internal output arrives before external history`() =
+    runBlocking {
+      assertCutoverPublicationRecovers(externalFirst = false)
+    }
+
+  @Test
+  fun `cutover publication recovers after external history arrives before internal output`() =
+    runBlocking {
+      assertCutoverPublicationRecovers(externalFirst = true)
+    }
+
+  @Test
+  fun `cutover publication waits for external metadata after both sources upload done`() =
+    runBlocking {
+      assertCutoverPublicationRecovers(externalFirst = false, allMarkersUploaded = true)
+    }
+
+  @Test
+  fun `cutover publication waits for internal metadata after both sources upload done`() =
+    runBlocking {
+      assertCutoverPublicationRecovers(externalFirst = true, allMarkersUploaded = true)
+    }
+
+  @Test
+  fun `cutover publication waits until every done marker has synchronized metadata`() =
+    runBlocking {
+      assertCutoverPublicationRecovers(
+        externalFirst = true,
+        allMarkersUploaded = true,
+        additionalPendingMarker = true,
+      )
+    }
+
+  private suspend fun assertCutoverPublicationRecovers(
+    externalFirst: Boolean,
+    allMarkersUploaded: Boolean = false,
+    additionalPendingMarker: Boolean = false,
+  ) {
+    val storage = VersionedBlobMetadataStorageClient()
+    val historicalPath = "edp/history"
+    val replacementPath = "vid-labeled-impressions/edp/replacement"
+    val historicalLine = "modelProviders/provider1/modelSuites/suite1/modelLines/historical"
+    val replacementLine = "modelProviders/provider1/modelSuites/suite1/modelLines/replacement"
+    val visibleLine = "modelProviders/provider1/modelSuites/suite1/modelLines/visible"
+    val eventDate = LocalDate.of(2026, 10, 1)
+    val start = eventDate.atStartOfDay(ZoneOffset.UTC).toInstant()
+    val eventInterval = interval {
+      startTime = start.toProtoTime()
+      endTime = start.plusSeconds(86400).toProtoTime()
+    }
+    val createdAt = start.plusSeconds(3600)
+    val historicalFolder = "$historicalPath/model-line/historical/$eventDate"
+    val replacementFolder = "$replacementPath/model-line/replacement/$eventDate"
+    val historicalDoneKey = "$historicalFolder/done"
+    val replacementDoneKey = "$replacementFolder/done-${"b".repeat(64)}"
+    val registered = mutableMapOf<String, ImpressionMetadata>()
+    wheneverBlocking { impressionMetadataServiceMock.listImpressionMetadata(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+        listImpressionMetadataResponse {
+          impressionMetadata += request.filter.blobUrisList.mapNotNull(registered::get)
+        }
+      }
+    wheneverBlocking { impressionMetadataServiceMock.batchCreateImpressionMetadata(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
+        batchCreateImpressionMetadataResponse {
+          impressionMetadata +=
+            request.requestsList.map { create ->
+              create.impressionMetadata
+                .copy {
+                  name =
+                    "dataProviders/dataProvider123/impressionMetadata/metadata-${registered.size}"
+                  state = ImpressionMetadata.State.ACTIVE
+                }
+                .also { registered[it.blobUri] = it }
+            }
+        }
+      }
+    wheneverBlocking { impressionMetadataServiceMock.batchUpdateImpressionMetadata(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<BatchUpdateImpressionMetadataRequest>(0)
+        batchUpdateImpressionMetadataResponse {
+          impressionMetadata +=
+            request.requestsList.map { update ->
+              update.impressionMetadata.also { registered[it.blobUri] = it }
+            }
+        }
+      }
+    wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+      .thenAnswer {
+        computeModelLineBoundsResponse {
+          for ((line, metadata) in registered.values.groupBy { it.modelLine }) {
+            modelLineBounds += modelLineBoundMapEntry {
+              key = line
+              value = interval {
+                startTime = metadata.minBy { it.interval.startTime.seconds }.interval.startTime
+                endTime = metadata.maxBy { it.interval.endTime.seconds }.interval.endTime
+              }
+            }
+          }
+        }
+      }
+
+    val historicalZeroKey = "$historicalPath/model-line/historical/${eventDate.minusDays(1)}/done"
+    val historicalZero = storage.writeVersion(historicalZeroKey, ByteString.EMPTY, createdAt)
+    storage.generationMatchedMetadataUpdater.update(
+      historicalZeroKey,
+      historicalZero.generation,
+      customCreateTime = null,
+      metadata =
+        mapOf(
+          DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+          DataAvailabilityBlobs.SYNC_ID_KEY to "existing",
+          DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to "existing",
+        ),
+    )
+
+    fun writeSource(external: Boolean): VersionedBlobMetadataStorageClient.TestBlob {
+      val folder = if (external) historicalFolder else replacementFolder
+      val line = if (external) historicalLine else replacementLine
+      val dataKey = "$folder/impressions"
+      storage.writeVersion(dataKey, ByteString.copyFromUtf8("impressions"), createdAt)
+      storage.writeVersion(
+        "$dataKey.metadata.binpb",
+        externalBlobDetails(dataKey)
+          .copy {
+            modelLine = line
+            interval = eventInterval
+          }
+          .toByteString(),
+        createdAt.plusSeconds(1),
+      )
+      return storage.writeVersion(
+        if (external) historicalDoneKey else replacementDoneKey,
+        ByteString.EMPTY,
+        createdAt.plusSeconds(2),
+      )
+    }
+
+    fun synchronizer(external: Boolean): DataAvailabilitySync =
+      DataAvailabilitySync(
+        if (external) historicalPath else replacementPath,
+        storage,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = false,
+        modelLineCutovers =
+          listOf(
+            ModelLineCutover(
+              visibleLine,
+              historicalLine,
+              replacementLine,
+              eventDate,
+              eventDate.plusDays(2),
+              Duration.ofDays(2),
+            )
+          ),
+        modelLineDataSources =
+          mapOf(
+            historicalLine to DataAvailabilitySync.ModelLineDataSource(storage, historicalPath),
+            replacementLine to DataAvailabilitySync.ModelLineDataSource(storage, replacementPath),
+          ),
+        generationMatchedMetadataUpdater = storage.generationMatchedMetadataUpdater,
+        availabilityImpressionPaths = listOf(historicalPath, replacementPath),
+        publishEventGroupActivities = null,
+      )
+
+    suspend fun synchronize(external: Boolean, done: VersionedBlobMetadataStorageClient.TestBlob) =
+      synchronizer(external)
+        .sync(
+          "$bucket/${done.blobKey}",
+          TestDataAvailabilitySyncLease.NAME,
+          done.generation,
+          externalDoneBlobCreateTime = done.createTime.takeIf { external },
+          ensureLeaseActive = {},
+        )
+
+    val firstDone = writeSource(externalFirst)
+    val uploadedSecond = if (allMarkersUploaded) writeSource(!externalFirst) else null
+    val pendingDone =
+      if (additionalPendingMarker) {
+        storage.writeVersion(
+          "$replacementFolder/done-${"c".repeat(64)}",
+          ByteString.EMPTY,
+          createdAt.plusSeconds(2),
+        )
+      } else null
+    assertThat(synchronize(externalFirst, firstDone))
+      .isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+    verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+    assertThat(storage.currentMetadata(firstDone.blobKey))
+      .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+    assertThat(registered).hasSize(1)
+
+    val secondDone = uploadedSecond ?: writeSource(!externalFirst)
+    assertThat(synchronize(!externalFirst, secondDone))
+      .isEqualTo(
+        if (pendingDone == null) DataAvailabilitySync.Outcome.PUBLISHED
+        else DataAvailabilitySync.Outcome.BLOCKED_GAPS
+      )
+    if (pendingDone != null) {
+      verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+      storage.generationMatchedMetadataUpdater.update(
+        pendingDone.blobKey,
+        pendingDone.generation,
+        customCreateTime = null,
+        metadata =
+          mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+      )
+    }
+    assertThat(synchronize(externalFirst, firstDone))
+      .isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    assertThat(registered).hasSize(2)
+    val externalMetadata =
+      registered.getValue("$bucket/$historicalFolder/impressions.metadata.binpb")
+    assertThat(externalMetadata.metadataBlobGeneration)
+      .isEqualTo(storage.currentGeneration("$historicalFolder/impressions.metadata.binpb"))
+    assertThat(externalMetadata.impressionsBlobGeneration)
+      .isEqualTo(storage.currentGeneration("$historicalFolder/impressions"))
+    val completion = storage.currentMetadata(firstDone.blobKey)
+    assertThat(completion[DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY])
+      .isEqualTo(completion[DataAvailabilityBlobs.SYNC_ID_KEY])
+    val publications = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+    verifyBlocking(dataProvidersServiceMock, times(if (pendingDone == null) 2 else 1)) {
+      replaceDataAvailabilityIntervals(publications.capture())
+    }
+    for (publication in publications.allValues) {
+      assertThat(publication.dataAvailabilityIntervalsList.map { it.key })
+        .containsExactly(visibleLine)
+      assertThat(publication.dataAvailabilityIntervalsList.single().value.endTime)
+        .isEqualTo(eventInterval.endTime)
+    }
+  }
+
+  @Test
   fun `sync blocks cutover when historical contributor misses cutover date`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
@@ -2994,6 +3235,7 @@ class DataAvailabilitySyncTest {
         legacyRequiredThroughDate = LocalDate.of(2026, 12, 31),
         maximumReportDuration = Duration.ofDays(90),
       )
+    storageClient.markExistingDoneBlobsSynced()
     val dataAvailabilitySync =
       DataAvailabilitySync(
         edpPath,
@@ -3091,6 +3333,8 @@ class DataAvailabilitySyncTest {
           }
         }
       )
+    historicalStorageClient.markExistingDoneBlobsSynced()
+    replacementStorageClient.markExistingDoneBlobsSynced()
     val dataAvailabilitySync =
       DataAvailabilitySync(
         edpPath,
@@ -3193,6 +3437,7 @@ class DataAvailabilitySyncTest {
             }
           }
         )
+      storageClient.markExistingDoneBlobsSynced()
       val dataAvailabilitySync =
         DataAvailabilitySync(
           edpPath,
@@ -3265,6 +3510,7 @@ class DataAvailabilitySyncTest {
     )
     wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
       .thenReturn(computeModelLineBoundsResponse {})
+    storageClient.markExistingDoneBlobsSynced()
     val dataAvailabilitySync =
       DataAvailabilitySync(
         edpPath,
@@ -5235,6 +5481,33 @@ class DataAvailabilitySyncTest {
 
     val updateBlobMetadataCalls = mutableListOf<UpdateBlobMetadataCall>()
     val blobMetadata = mutableMapOf<String, MutableMap<String, String>>()
+
+    private fun withDoneMetadata(blob: StorageClient.Blob): StorageClient.Blob =
+      if (DataAvailabilityBlobs.isDoneBlob(blob.blobKey)) {
+        object : StorageClient.Blob by blob {
+          override val metadata: Map<String, String>
+            get() = blobMetadata[blob.blobKey].orEmpty()
+        }
+      } else blob
+
+    override suspend fun getBlob(blobKey: String): StorageClient.Blob? =
+      delegate.getBlob(blobKey)?.let(::withDoneMetadata)
+
+    override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> =
+      delegate.listBlobs(prefix).map(::withDoneMetadata)
+
+    suspend fun markExistingDoneBlobsSynced() {
+      delegate
+        .listBlobs(null)
+        .toList()
+        .filter { DataAvailabilityBlobs.isDoneBlob(it.blobKey) }
+        .forEach {
+          mergeBlobMetadata(
+            it.blobKey,
+            mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+          )
+        }
+    }
 
     fun mergeBlobMetadata(blobKey: String, metadata: Map<String, String>) {
       blobMetadata.getOrPut(blobKey) { mutableMapOf() }.putAll(metadata)

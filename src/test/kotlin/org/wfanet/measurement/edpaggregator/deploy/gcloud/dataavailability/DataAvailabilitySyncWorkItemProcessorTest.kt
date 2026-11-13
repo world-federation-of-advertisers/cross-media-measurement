@@ -135,6 +135,43 @@ class DataAvailabilitySyncWorkItemProcessorTest {
   }
 
   @Test
+  fun `process leaves availability pending when cutover coverage is blocked`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.FAILED
+      }
+    whenever(workItemsStub.failWorkItem(any(), any<Metadata>())) doReturn
+      workItem {
+        name = WORK_ITEM_NAME
+        state = WorkItem.State.FAILED
+        generation = 1L
+      }
+    var availabilityMarked = false
+    processor(
+        synchronize = { _, _, onStage ->
+          onStage(DataAvailabilitySync.Stage.GAP_POLICY)
+          DataAvailabilitySync.Outcome.BLOCKED_GAPS
+        },
+        markAvailabilitySynchronized = { availabilityMarked = true },
+      )
+      .process(input())
+
+    val failure = argumentCaptor<FailWorkItemRequest>()
+    verifyBlocking(workItemsStub) { failWorkItem(failure.capture(), any<Metadata>()) }
+    assertThat(failure.firstValue.name).isEqualTo(WORK_ITEM_NAME)
+    assertThat(failure.firstValue.expectedWorkItemGeneration).isEqualTo(1L)
+    verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemAttemptsStub, never()) {
+      completeWorkItemAttempt(any(), any<Metadata>())
+    }
+    assertThat(availabilityMarked).isFalse()
+    assertThat(leaseClient.active).isFalse()
+    assertThat(leaseClient.releaseCount).isEqualTo(1)
+  }
+
+  @Test
   fun `process fails attempt and propagates retryable error`() = runBlocking {
     stubAttemptCreation()
     whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn

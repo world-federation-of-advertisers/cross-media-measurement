@@ -1090,15 +1090,15 @@ configs {
   # model_line_data_sources {
   #   key: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
   #   value {
-  #     storage { gcs { project_id: "PROJECT_ID" bucket_name: "LEGACY_BUCKET" } }
-  #     edp_impression_path: "edp/<edp-id>/legacy-impressions"
+  #     storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
+  #     edp_impression_path: "edp/<edp-id>"
   #   }
   # }
   # model_line_data_sources {
   #   key: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
   #   value {
-  #     storage { gcs { project_id: "PROJECT_ID" bucket_name: "VID_LABELER_BUCKET" } }
-  #     edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"
+  #     storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
+  #     edp_impression_path: "vid-labeled-impressions/edp/<edp-id>"
   #   }
   # }
   # event_group_activity_publishing {
@@ -1120,7 +1120,10 @@ retains metadata while a live object version exists. Configure a DataAvailabilit
 each root.
 
 Retain the external root to process queued WorkItems and existing uploads at their original paths.
-Recovery scans both roots, and replay accepts completion blobs from either root. Providers with
+Recovery scans both roots, and replay accepts completion blobs from either root. The configured
+VID Labeler root accepts upload-specific `done-<hash>` and legacy `done` markers. External roots
+use `done` and snapshot-aware replay. Align each contributor's `model_line_data_sources` path with
+its configured external or VID Labeler root. Providers with
 VID labeling disabled may omit `vid_labeled_impression_path` and use only `edp_impression_path`.
 Upload the matching configuration and deploy the updated availability functions before resuming
 VidLabeler output at the new root.
@@ -1142,7 +1145,9 @@ pre-cutover WorkItems and unfulfilled Requisitions whose signed MeasurementSpec 
 that every Report starting before the cutover can finish on the historical line. Through
 `legacy_required_through_date`, DataAvailabilitySync advances the advertiser-visible end
 only through complete contiguous coverage in both contributing model lines. A gap in either line
-leaves Kingdom availability unchanged even when `error_if_gaps_exist` is false. After that date,
+leaves Kingdom availability unchanged even when `error_if_gaps_exist` is false. A producer's
+completion marker counts only after DataAvailabilitySync has persisted that marker's metadata;
+prior Kingdom publication from each contributor is not required. After that date,
 the replacement line advances the end independently. Each contributor can use a different bucket
 and path through `model_line_data_sources`. While the cutover is configured, DataAvailabilitySync
 publishes only the combined advertiser-visible model line; it does not expose the internal
@@ -1203,8 +1208,8 @@ One `configs` entry per monitored impression path.
 ```textproto
 # proto-message: wfa.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 configs {
-  storage { gcs { project_id: "PROJECT_ID" bucket_name: "LEGACY_BUCKET" } }
-  edp_impression_path: "edp/<edp-id>/legacy-impressions"
+  storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
+  edp_impression_path: "edp/<edp-id>"
   model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL" }
   max_stale_days: 3                       # optional (default 3)
   time_zone: "UTC"
@@ -1214,8 +1219,8 @@ configs {
   # unprocessed_done_threshold { seconds: 86400 }   # optional (default 24h)
 }
 configs {
-  storage { gcs { project_id: "PROJECT_ID" bucket_name: "VID_LABELER_BUCKET" } }
-  edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"
+  storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
+  edp_impression_path: "vid-labeled-impressions/edp/<edp-id>"
   model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT" }
   max_stale_days: 3
   time_zone: "UTC"
