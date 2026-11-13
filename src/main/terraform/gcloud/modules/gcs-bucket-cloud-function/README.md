@@ -1,8 +1,17 @@
 # GCS-Triggered Cloud Function
 
 Terraform module to deploy a Cloud Function (Gen2) triggered by GCS object
-events (finalize or delete), with a Pub/Sub dead letter queue for
-undeliverable notifications.
+events (finalize or delete, with optional additional events), with a Pub/Sub dead
+letter queue for undeliverable notifications.
+
+## Additional storage events
+
+Set `additional_trigger_event_types = ["archived"]` to send archive notifications
+from a versioned bucket to the same function. Deleting a live object without a
+generation archives it; overwriting an object also archives its previous version.
+A cleanup handler must check whether a live version remains before deleting its
+metadata. Additional triggers use the existing trigger identity and dead-letter
+queue.
 
 ## Dead Letter Queue
 
@@ -50,3 +59,18 @@ gcloud run services update <FUNCTION_NAME> \
 
 The VID-labeling DataWatcher waits for a dispatcher whose timeout is 480 seconds, leaving one minute
 of caller headroom.
+
+## Tests
+
+The native Terraform tests live under `src/test/terraform`. Terraform requires a
+local test directory, so run them from this module with a temporary copy:
+
+```bash
+archive_test_dir=$(mktemp -d tests.XXXXXX)
+trap 'rm -rf "$archive_test_dir"' EXIT
+cp ../../../../../test/terraform/gcloud/modules/gcs-bucket-cloud-function/*.tftest.hcl "$archive_test_dir/"
+terraform init -backend=false
+terraform test -test-directory="$archive_test_dir"
+```
+
+These tests use a mock Google provider and only plan resources.
