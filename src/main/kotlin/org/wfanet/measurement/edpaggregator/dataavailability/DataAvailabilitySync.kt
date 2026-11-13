@@ -561,6 +561,10 @@ class DataAvailabilitySync(
             datesWithoutDoneBlob = enumerated.flatMap { it.datesWithoutDoneBlob }.distinct(),
           )
       }
+      val cutoverAvailabilityPlans =
+        modelLineCutovers.associateWith { cutover ->
+          buildCutoverAvailabilityPlan(cutover, modelLineBounds, dateInfoByModelLine)
+        }
       val blockedDetails = mutableListOf<String>()
       var cutoverGapDetected = false
       for (modelLineKey in modelLinesToValidate) {
@@ -578,7 +582,8 @@ class DataAvailabilitySync(
               })
             .distinct()
         val presentDates = (finalized + unfinalized).toSet()
-        val requiredRange = requiredDateRange(modelLineName, dateInfoByModelLine)
+        val requiredRange = requiredDateRange(modelLineName, cutoverAvailabilityPlans)
+        if (modelLineName in cutoverContributorLines && requiredRange == null) continue
         val gaps =
           if (requiredRange == null) DataAvailabilityBlobs.findGaps(presentDates)
           else findMissingDates(requiredRange, presentDates)
@@ -592,7 +597,8 @@ class DataAvailabilitySync(
           }
         val missingContributor =
           modelLineName in cutoverContributorLines &&
-            (requiredRange == null || finalized.none { it in requiredRange })
+            requiredRange != null &&
+            finalized.none { it in requiredRange }
         val blocksThisGap = errorIfGapsExist || modelLineName in cutoverContributorLines
         if (gaps.isNotEmpty() || inRangeUnfinalized || missingContributor) {
           if (modelLineName in cutoverContributorLines) cutoverGapDetected = true
@@ -655,13 +661,24 @@ class DataAvailabilitySync(
         }
       }
       val availabilityEntries =
-        buildAvailabilityIntervals(modelLineBounds, dateInfoByModelLine).map {
+        buildAvailabilityIntervals(modelLineBounds, cutoverAvailabilityPlans).map {
           (modelLine, availabilityInterval) ->
           dataAvailabilityMapEntry {
             key = modelLine
             value = availabilityInterval
           }
         }
+      if (impressionMetadataMap.isEmpty() && availabilityEntries.isEmpty()) {
+        externalSnapshot?.validate()
+        ensureLeaseActive()
+        updateBlobMetadata(
+          blobKey = doneBlobUri.key,
+          expectedGeneration = doneBlobGeneration,
+          metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),
+        )
+        recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
+        return Outcome.NO_WORK
+      }
       check(availabilityEntries.isNotEmpty()) {
         "No data availability intervals were computed for $dataProviderName"
       }
@@ -857,7 +874,7 @@ class DataAvailabilitySync(
 
   private fun buildAvailabilityIntervals(
     modelLineBounds: ComputeModelLineBoundsResponse,
-    dateInfoByModelLine: Map<String, DataAvailabilityBlobs.EnumeratedDateInfo>,
+    cutoverAvailabilityPlans: Map<ModelLineCutover, CutoverAvailabilityPlan>,
   ): Map<String, Interval> {
     val boundsByModelLine =
       modelLineBounds.modelLineBoundsList.associate { bound ->
@@ -884,56 +901,104 @@ class DataAvailabilitySync(
       }
     }
 
-    for (cutover in modelLineCutovers) {
-      val historicalStartDate =
-        dateInfoByModelLine[cutover.historicalModelLine]?.datesWithDoneBlob?.keys?.minOrNull()
-          ?: continue
-      val replacementEndDate =
-        dateInfoByModelLine[cutover.replacementModelLine]
-          ?.datesWithDoneBlob
-          ?.keys
-          ?.filter { it >= cutover.cutoverDate }
-          ?.maxOrNull() ?: continue
-      val historicalStart = historicalStartDate.atStartOfDay(ZoneOffset.UTC).toInstant()
-      val replacementEnd = replacementEndDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
-      if (historicalStart < replacementEnd) {
-        availabilityByModelLine[cutover.externalModelLine] = interval {
-          startTime = historicalStart.toProtoTime()
-          endTime = replacementEnd.toProtoTime()
-        }
-      }
+    for ((cutover, plan) in cutoverAvailabilityPlans) {
+      val availabilityInterval = plan.availabilityInterval ?: continue
+      availabilityByModelLine[cutover.externalModelLine] = availabilityInterval
     }
     return availabilityByModelLine
   }
 
+  private data class CutoverAvailabilityPlan(
+    val historicalRequiredDates: ClosedRange<LocalDate>?,
+    val replacementRequiredDates: ClosedRange<LocalDate>?,
+    val availabilityInterval: Interval?,
+  )
+
+  private fun buildCutoverAvailabilityPlan(
+    cutover: ModelLineCutover,
+    modelLineBounds: ComputeModelLineBoundsResponse,
+    dateInfoByModelLine: Map<String, DataAvailabilityBlobs.EnumeratedDateInfo>,
+  ): CutoverAvailabilityPlan {
+    val boundsByModelLine = modelLineBounds.modelLineBoundsList.associate { it.key to it.value }
+    val historicalBounds = boundsByModelLine[cutover.historicalModelLine]
+    val replacementBounds = boundsByModelLine[cutover.replacementModelLine]
+    val historicalDates =
+      dateInfoByModelLine[cutover.historicalModelLine]?.datesWithDoneBlob?.keys.orEmpty()
+    val replacementDates =
+      dateInfoByModelLine[cutover.replacementModelLine]?.datesWithDoneBlob?.keys.orEmpty()
+    val historicalStart =
+      listOfNotNull(
+          historicalDates.minOrNull(),
+          historicalBounds?.startTime?.toInstant()?.atZone(ZoneOffset.UTC)?.toLocalDate(),
+        )
+        .minOrNull()
+    // Metadata bounds cover persisted data; done dates also include zero-impression output.
+    val historicalEnd =
+      listOfNotNull(
+          historicalDates.maxOrNull(),
+          historicalBounds
+            ?.endTime
+            ?.toInstant()
+            ?.minusNanos(1)
+            ?.atZone(ZoneOffset.UTC)
+            ?.toLocalDate(),
+        )
+        .maxOrNull()
+    val replacementEnd =
+      listOfNotNull(
+          replacementDates.filter { it >= cutover.cutoverDate }.maxOrNull(),
+          replacementBounds
+            ?.endTime
+            ?.toInstant()
+            ?.minusNanos(1)
+            ?.atZone(ZoneOffset.UTC)
+            ?.toLocalDate()
+            ?.takeIf { it >= cutover.cutoverDate },
+        )
+        .maxOrNull()
+    // Once replacement output exists at cutover, it owns the advancing availability end.
+    val publicationEnd =
+      replacementEnd ?: historicalEnd ?: return CutoverAvailabilityPlan(null, null, null)
+    val historicalRequiredStart = minOf(historicalStart ?: cutover.cutoverDate, cutover.cutoverDate)
+    val historicalRequiredEnd = minOf(publicationEnd, cutover.legacyRequiredThroughDate)
+    val historicalRequiredDates =
+      if (historicalRequiredStart <= historicalRequiredEnd) {
+        historicalRequiredStart..historicalRequiredEnd
+      } else {
+        null
+      }
+    val replacementRequiredDates =
+      if (publicationEnd >= cutover.cutoverDate) cutover.cutoverDate..publicationEnd else null
+    val availabilityInterval =
+      if (historicalStart != null && historicalStart <= publicationEnd) {
+        interval {
+          startTime = historicalStart.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+          endTime =
+            publicationEnd.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+        }
+      } else {
+        null
+      }
+    return CutoverAvailabilityPlan(
+      historicalRequiredDates,
+      replacementRequiredDates,
+      availabilityInterval,
+    )
+  }
+
   private fun requiredDateRange(
     modelLine: String,
-    dateInfoByModelLine: Map<String, DataAvailabilityBlobs.EnumeratedDateInfo>,
+    cutoverAvailabilityPlans: Map<ModelLineCutover, CutoverAvailabilityPlan>,
   ): ClosedRange<LocalDate>? {
     val cutover =
       modelLineCutovers.firstOrNull {
         modelLine == it.historicalModelLine || modelLine == it.replacementModelLine
       } ?: return null
-    return if (modelLine == cutover.replacementModelLine) {
-      val end =
-        maxOf(
-          cutover.cutoverDate,
-          dateInfoByModelLine[modelLine]?.datesWithDoneBlob?.keys?.maxOrNull()
-            ?: cutover.cutoverDate,
-        )
-      cutover.cutoverDate..end
+    val plan = cutoverAvailabilityPlans.getValue(cutover)
+    return if (modelLine == cutover.historicalModelLine) {
+      plan.historicalRequiredDates
     } else {
-      val start =
-        minOf(
-          cutover.cutoverDate,
-          dateInfoByModelLine[modelLine]?.datesWithDoneBlob?.keys?.minOrNull()
-            ?: cutover.cutoverDate,
-        )
-      val replacementDates =
-        dateInfoByModelLine[cutover.replacementModelLine]?.datesWithDoneBlob?.keys.orEmpty()
-      val replacementEnd = replacementDates.maxOrNull() ?: cutover.cutoverDate
-      val end = minOf(replacementEnd, cutover.legacyRequiredThroughDate)
-      start..maxOf(start, end)
+      plan.replacementRequiredDates
     }
   }
 

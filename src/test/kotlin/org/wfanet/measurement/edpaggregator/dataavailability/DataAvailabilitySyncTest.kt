@@ -3181,6 +3181,516 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `sync cutover publishes legacy metadata coverage before a future cutover`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario()
+    val start = LocalDate.of(2050, 11, 1)
+    val end = LocalDate.of(2050, 12, 1)
+    for (date in generateSequence(start) { it.plusDays(1) }.takeWhile { it < end }) {
+      scenario.writeDate(scenario.historicalLine, date, alreadySynced = true)
+    }
+    val done = scenario.writeDate(scenario.historicalLine, end)
+
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    scenario.assertPublications(start to end.plusDays(1))
+  }
+
+  @Test
+  fun `sync cutover caps legacy availability at the cutover boundary`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario()
+    val date = scenario.cutoverDate.minusDays(1)
+    val done = scenario.writeDate(scenario.historicalLine, date)
+
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    scenario.assertPublications(date to scenario.cutoverDate)
+  }
+
+  @Test
+  fun `sync cutover uses historical data dates when replayed after the cutover calendar date`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario(LocalDate.of(2000, 12, 5))
+      val date = scenario.cutoverDate.minusDays(4)
+      val done = scenario.writeDate(scenario.historicalLine, date)
+
+      assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      scenario.assertPublications(date to date.plusDays(1))
+    }
+
+  @Test
+  fun `sync cutover ignores replacement gaps and pending metadata before cutover`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario(errorIfGapsExist = true)
+    val date = scenario.cutoverDate.minusDays(4)
+    scenario.writeDate(scenario.replacementLine, date)
+    scenario.writeDate(scenario.replacementLine, date.plusDays(2), writeDone = false)
+    val done = scenario.writeDate(scenario.historicalLine, date)
+
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    scenario.assertPublications(date to date.plusDays(1))
+  }
+
+  @Test
+  fun `sync cutover blocks legacy alone at cutover then advances after replacement synchronizes`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario()
+      val start = scenario.cutoverDate.minusDays(1)
+      val previousDone = scenario.writeDate(scenario.historicalLine, start)
+      assertThat(scenario.sync(previousDone)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+
+      val historicalDone = scenario.writeDate(scenario.historicalLine, scenario.cutoverDate)
+      assertThat(scenario.sync(historicalDone)).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+      scenario.assertPublications(start to scenario.cutoverDate)
+
+      val replacementDone = scenario.writeDate(scenario.replacementLine, scenario.cutoverDate)
+      assertThat(scenario.sync(replacementDone)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      scenario.assertPublications(
+        start to scenario.cutoverDate,
+        start to scenario.cutoverDate.plusDays(1),
+      )
+    }
+
+  @Test
+  fun `sync cutover blocks replacement alone during the required overlap`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario()
+    scenario.writeDate(
+      scenario.historicalLine,
+      scenario.cutoverDate.minusDays(1),
+      alreadySynced = true,
+    )
+    val done = scenario.writeDate(scenario.replacementLine, scenario.cutoverDate)
+
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+    scenario.assertPublications()
+  }
+
+  @Test
+  fun `sync cutover keeps replacement frontier when legacy has later finalized dates`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario()
+      val start = scenario.cutoverDate.minusDays(1)
+      for (date in
+        generateSequence(start) { it.plusDays(1) }
+          .takeWhile { it <= scenario.cutoverDate.plusDays(2) }) {
+        scenario.writeDate(scenario.historicalLine, date, alreadySynced = true)
+      }
+      val done = scenario.writeDate(scenario.replacementLine, scenario.cutoverDate)
+
+      assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      scenario.assertPublications(start to scenario.cutoverDate.plusDays(1))
+    }
+
+  @Test
+  fun `sync cutover advances replacement without later legacy dates after overlap`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario()
+    val start = scenario.cutoverDate.minusDays(1)
+    for (date in
+      generateSequence(start) { it.plusDays(1) }
+        .takeWhile { it <= scenario.cutoverDate.plusDays(2) }) {
+      scenario.writeDate(scenario.historicalLine, date, alreadySynced = true)
+    }
+    for (date in
+      generateSequence(scenario.cutoverDate) { it.plusDays(1) }
+        .takeWhile { it < scenario.cutoverDate.plusDays(4) }) {
+      scenario.writeDate(scenario.replacementLine, date, alreadySynced = true)
+    }
+    val done = scenario.writeDate(scenario.replacementLine, scenario.cutoverDate.plusDays(4))
+
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    scenario.assertPublications(start to scenario.cutoverDate.plusDays(5))
+  }
+
+  @Test
+  fun `sync cutover publishes a finalized zero impression date before cutover`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario()
+    val date = scenario.cutoverDate.minusDays(4)
+    val done = scenario.writeDate(scenario.historicalLine, date, withMetadata = false)
+
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    scenario.assertPublications(date to date.plusDays(1))
+  }
+
+  @Test
+  fun `sync cutover accumulates coverage across separate pre cutover date invocations`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario()
+      val start = scenario.cutoverDate.minusDays(4)
+      val firstDone = scenario.writeDate(scenario.historicalLine, start)
+      assertThat(scenario.sync(firstDone)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+
+      val secondDone = scenario.writeDate(scenario.historicalLine, start.plusDays(1))
+      assertThat(scenario.sync(secondDone)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      scenario.assertPublications(start to start.plusDays(1), start to start.plusDays(2))
+    }
+
+  @Test
+  fun `sync cutover retains accumulated replacement coverage when replaying an older legacy date`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario()
+      val start = scenario.cutoverDate.minusDays(1)
+      val olderDone = scenario.writeDate(scenario.historicalLine, start, alreadySynced = true)
+      scenario.writeDate(scenario.historicalLine, scenario.cutoverDate, alreadySynced = true)
+      val done = scenario.writeDate(scenario.replacementLine, scenario.cutoverDate)
+      assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+
+      assertThat(scenario.sync(olderDone)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      scenario.assertPublications(
+        start to scenario.cutoverDate.plusDays(1),
+        start to scenario.cutoverDate.plusDays(1),
+      )
+    }
+
+  @Test
+  fun `sync cutover blocks a legacy metadata date missing its completion marker before cutover`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario()
+      val start = scenario.cutoverDate.minusDays(4)
+      scenario.writeDate(scenario.historicalLine, start, alreadySynced = true, writeDone = false)
+      val done = scenario.writeDate(scenario.historicalLine, start.plusDays(1))
+
+      assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+      scenario.assertPublications()
+    }
+
+  @Test
+  fun `sync cutover blocks legacy date gaps before cutover even with warning only policy`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario()
+      val start = scenario.cutoverDate.minusDays(4)
+      scenario.writeDate(scenario.historicalLine, start, alreadySynced = true)
+      val done = scenario.writeDate(scenario.historicalLine, start.plusDays(2))
+
+      assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+      scenario.assertPublications()
+    }
+
+  @Test
+  fun `sync cutover leaves ordinary identity availability unchanged with dormant contributors`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario()
+      val date = scenario.cutoverDate.minusDays(4)
+      val done = scenario.writeDate(scenario.ordinaryLine, date)
+
+      assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      scenario.assertPublications(date to date.plusDays(1), modelLine = scenario.ordinaryLine)
+    }
+
+  @Test
+  fun `sync cutover leaves ordinary mapped availability unchanged alongside legacy coverage`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario(mapOrdinaryLine = true)
+      val date = scenario.cutoverDate.minusDays(4)
+      scenario.writeDate(scenario.historicalLine, date, alreadySynced = true)
+      val done = scenario.writeDate(scenario.ordinaryLine, date)
+
+      assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      val publications = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+      verifyBlocking(dataProvidersServiceMock) {
+        replaceDataAvailabilityIntervals(publications.capture())
+      }
+      assertThat(publications.firstValue.dataAvailabilityIntervalsList.map { it.key })
+        .containsExactly(scenario.visibleLine, scenario.ordinaryAlias)
+      for (entry in publications.firstValue.dataAvailabilityIntervalsList) {
+        assertThat(entry.value.startTime)
+          .isEqualTo(date.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime())
+        assertThat(entry.value.endTime)
+          .isEqualTo(date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime())
+      }
+    }
+
+  @Test
+  fun `sync cutover waits for pending legacy metadata before cutover`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario()
+    val date = scenario.cutoverDate.minusDays(4)
+    scenario.writeDate(scenario.historicalLine, date, withMetadata = false)
+    val done = scenario.writeDate(scenario.historicalLine, date.plusDays(1))
+
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+    scenario.assertPublications()
+  }
+
+  @Test
+  fun `sync cutover does no publication when no contributor has covered data`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario()
+    val done =
+      scenario.writeDate(
+        scenario.ordinaryLine,
+        scenario.cutoverDate.minusDays(4),
+        withMetadata = false,
+      )
+
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.NO_WORK)
+    scenario.assertPublications()
+    scenario.assertCompleted(done)
+  }
+
+  @Test
+  fun `sync cutover preserves ordinary missing bounds errors with dormant cutovers`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario()
+      val done = scenario.writeDate(scenario.ordinaryLine, scenario.cutoverDate.minusDays(4))
+      wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+        .thenReturn(computeModelLineBoundsResponse {})
+
+      assertFailsWith<IllegalStateException> { scenario.sync(done) }
+      scenario.assertPublications()
+    }
+
+  @Test
+  fun `sync cutover blocks legacy metadata extending beyond the latest finalized date`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario()
+      val date = scenario.cutoverDate.minusDays(4)
+      scenario.writeDate(
+        scenario.historicalLine,
+        date.plusDays(1),
+        alreadySynced = true,
+        writeDone = false,
+      )
+      val done = scenario.writeDate(scenario.historicalLine, date)
+
+      assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+      scenario.assertPublications()
+    }
+
+  @Test
+  fun `sync cutover blocks replacement metadata extending beyond the latest finalized date`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario()
+      for (date in
+        listOf(
+          scenario.cutoverDate.minusDays(1),
+          scenario.cutoverDate,
+          scenario.cutoverDate.plusDays(1),
+        )) {
+        scenario.writeDate(scenario.historicalLine, date, alreadySynced = true)
+      }
+      scenario.writeDate(
+        scenario.replacementLine,
+        scenario.cutoverDate.plusDays(1),
+        alreadySynced = true,
+        writeDone = false,
+      )
+      val done = scenario.writeDate(scenario.replacementLine, scenario.cutoverDate)
+
+      assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+      scenario.assertPublications()
+    }
+
+  @Test
+  fun `sync cutover completes zero output VID labeler work with dormant contributors`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario()
+      val date = scenario.cutoverDate.minusDays(4)
+      val done = scenario.writeEmptyVidLabelerDate(date)
+
+      assertThat(scenario.syncEmptyVidLabelerOutput(done, date))
+        .isEqualTo(DataAvailabilitySync.Outcome.NO_WORK)
+      scenario.assertPublications()
+      scenario.assertCompleted(done)
+    }
+
+  private inner class CutoverAvailabilityScenario(
+    val cutoverDate: LocalDate = LocalDate.of(2050, 12, 5),
+    errorIfGapsExist: Boolean = false,
+    mapOrdinaryLine: Boolean = false,
+  ) {
+    val historicalLine = "modelProviders/provider1/modelSuites/suite1/modelLines/historical"
+    val replacementLine = "modelProviders/provider1/modelSuites/suite1/modelLines/replacement"
+    val visibleLine = "modelProviders/provider1/modelSuites/suite1/modelLines/visible"
+    val ordinaryLine = "modelProviders/provider1/modelSuites/suite1/modelLines/ordinary"
+    val ordinaryAlias = "modelProviders/provider1/modelSuites/suite1/modelLines/ordinary-alias"
+    private val path = "edp/cutover"
+    private val storage =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    private val registered = mutableMapOf<String, ImpressionMetadata>()
+    private val synchronizer: DataAvailabilitySync
+
+    init {
+      wheneverBlocking { impressionMetadataServiceMock.listImpressionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+          listImpressionMetadataResponse {
+            impressionMetadata += request.filter.blobUrisList.mapNotNull(registered::get)
+          }
+        }
+      wheneverBlocking { impressionMetadataServiceMock.batchCreateImpressionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
+          batchCreateImpressionMetadataResponse {
+            impressionMetadata +=
+              request.requestsList.map { create ->
+                create.impressionMetadata
+                  .copy {
+                    name =
+                      "dataProviders/dataProvider123/impressionMetadata/metadata-${registered.size}"
+                    state = ImpressionMetadata.State.ACTIVE
+                  }
+                  .also { registered[it.blobUri] = it }
+              }
+          }
+        }
+      wheneverBlocking { impressionMetadataServiceMock.batchUpdateImpressionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchUpdateImpressionMetadataRequest>(0)
+          batchUpdateImpressionMetadataResponse {
+            impressionMetadata +=
+              request.requestsList.map { update ->
+                update.impressionMetadata.also { registered[it.blobUri] = it }
+              }
+          }
+        }
+      wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+        .thenAnswer {
+          computeModelLineBoundsResponse {
+            for ((line, metadata) in registered.values.groupBy { it.modelLine }) {
+              modelLineBounds += modelLineBoundMapEntry {
+                key = line
+                value = interval {
+                  startTime = metadata.minBy { it.interval.startTime.seconds }.interval.startTime
+                  endTime = metadata.maxBy { it.interval.endTime.seconds }.interval.endTime
+                }
+              }
+            }
+          }
+        }
+      synchronizer =
+        DataAvailabilitySync(
+          path,
+          storage,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          RecordingThrottler(),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap =
+            if (mapOrdinaryLine) mapOf(ordinaryLine to listOf(ordinaryAlias)) else emptyMap(),
+          errorIfGapsExist = errorIfGapsExist,
+          modelLineCutovers =
+            listOf(
+              ModelLineCutover(
+                visibleLine,
+                historicalLine,
+                replacementLine,
+                cutoverDate,
+                cutoverDate.plusDays(2),
+                Duration.ofDays(2),
+              )
+            ),
+          modelLineDataSources =
+            mapOf(
+              historicalLine to DataAvailabilitySync.ModelLineDataSource(storage, path),
+              replacementLine to DataAvailabilitySync.ModelLineDataSource(storage, path),
+            ),
+          publishEventGroupActivities = null,
+        )
+    }
+
+    suspend fun writeDate(
+      modelLine: String,
+      date: LocalDate,
+      withMetadata: Boolean = true,
+      alreadySynced: Boolean = false,
+      writeDone: Boolean = true,
+    ): String {
+      val prefix = "$path/model-line/${modelLine.substringAfterLast('/')}/$date"
+      val doneKey = "$prefix/done"
+      if (withMetadata) {
+        val details = blobDetails {
+          blobUri = "$bucket/$prefix/impressions"
+          this.modelLine = modelLine
+          eventGroupReferenceId = "campaign-1"
+          interval = interval {
+            startTime = date.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+            endTime = date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+          }
+        }
+        storage.writeBlob("$prefix/impressions", ByteString.copyFromUtf8("impressions"))
+        storage.writeBlob("$prefix/metadata.binpb", details.toByteString())
+        if (alreadySynced) {
+          val metadata = impressionMetadata {
+            name = "dataProviders/dataProvider123/impressionMetadata/metadata-${registered.size}"
+            blobUri = "$bucket/$prefix/metadata.binpb"
+            this.modelLine = modelLine
+            interval = details.interval
+            eventGroupReferenceId = details.eventGroupReferenceId
+            state = ImpressionMetadata.State.ACTIVE
+          }
+          registered[metadata.blobUri] = metadata
+        }
+      }
+      if (writeDone) {
+        storage.writeBlob(doneKey, ByteString.EMPTY)
+        if (alreadySynced) {
+          storage.mergeBlobMetadata(
+            doneKey,
+            mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+          )
+        }
+      }
+      return "$bucket/$doneKey"
+    }
+
+    suspend fun sync(done: String): DataAvailabilitySync.Outcome = synchronizer.sync(done)
+
+    suspend fun writeEmptyVidLabelerDate(date: LocalDate): String {
+      val done =
+        LabeledImpressionsBlobKeys.forDoneUri(
+          "$bucket/$path",
+          RAW_IMPRESSION_UPLOAD,
+          ordinaryLine,
+          date,
+        )
+      storage.writeBlob(done.removePrefix("$bucket/"), ByteString.EMPTY)
+      return done
+    }
+
+    suspend fun syncEmptyVidLabelerOutput(
+      done: String,
+      date: LocalDate,
+    ): DataAvailabilitySync.Outcome =
+      synchronizer.sync(
+        done,
+        TestDataAvailabilitySyncLease.NAME,
+        DONE_BLOB_GENERATION,
+        discoveryMode =
+          DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+            RAW_IMPRESSION_UPLOAD,
+            listOf("$bucket/raw-impressions/input.parquet"),
+            ordinaryLine,
+            date,
+          ),
+        ensureLeaseActive = {},
+      )
+
+    suspend fun assertCompleted(done: String) {
+      val blob = checkNotNull(storage.getBlob(done.removePrefix("$bucket/")))
+      assertThat(DataAvailabilityBlobs.isDataAvailabilityPublished(blob)).isTrue()
+    }
+
+    fun assertPublications(
+      vararg expectedDates: Pair<LocalDate, LocalDate>,
+      modelLine: String = visibleLine,
+    ) {
+      if (expectedDates.isEmpty()) {
+        verifyBlocking(dataProvidersServiceMock, never()) {
+          replaceDataAvailabilityIntervals(any())
+        }
+        return
+      }
+      val publications = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+      verifyBlocking(dataProvidersServiceMock, times(expectedDates.size)) {
+        replaceDataAvailabilityIntervals(publications.capture())
+      }
+      for ((request, expected) in publications.allValues.zip(expectedDates)) {
+        assertThat(request.dataAvailabilityIntervalsList.map { it.key }).containsExactly(modelLine)
+        val actual = request.dataAvailabilityIntervalsList.single().value
+        assertThat(actual.startTime)
+          .isEqualTo(expected.first.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime())
+        assertThat(actual.endTime)
+          .isEqualTo(expected.second.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime())
+      }
+    }
+  }
+
+  @Test
   fun `sync blocks cutover when historical contributor misses cutover date`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
@@ -3282,7 +3792,7 @@ class DataAvailabilitySyncTest {
     val boundary = cutoverDate.atStartOfDay(ZoneOffset.UTC).toInstant()
 
     // A historical gap after the required-through date must not block replacement advancement.
-    for (date in listOf("2026-10-01", "2026-10-02", "2026-10-03", "2026-10-05")) {
+    for (date in listOf("2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-05")) {
       val prefix = "$historicalPath/model-line/historical/$date"
       historicalStorageClient.writeBlob("$prefix/data_campaign_1", ByteString.copyFromUtf8("data"))
       historicalStorageClient.writeBlob("$prefix/done", ByteString.copyFromUtf8("done"))
