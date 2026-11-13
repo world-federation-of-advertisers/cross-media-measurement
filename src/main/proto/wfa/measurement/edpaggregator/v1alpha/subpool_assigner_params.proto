@@ -219,4 +219,8 @@ message SubpoolAssignerParams {
   // siblings: Phase-2 rejects a WorkItem without it, so an omission here is a
   // dispatch bug that would otherwise only surface as a crash-looping TEE.
   string population_spec_blob_uri = 23 [(google.api.field_behavior) = REQUIRED];
+
+  // Event schema version against which the `PopulationSpec` was defined.
+  // Carried through Phase 0 and Phase 1 for the Phase-2 VidLabeler.
+  int32 event_template_version = 24 [(google.api.field_behavior) = REQUIRED];
 }

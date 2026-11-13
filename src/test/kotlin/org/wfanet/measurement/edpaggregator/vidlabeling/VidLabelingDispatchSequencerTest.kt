@@ -712,6 +712,7 @@ class VidLabelingDispatchSequencerTest {
         // Same for the PopulationSpec: Phase-2 rejects a WorkItem without it, so dropping it here
         // would strand the memoized fan-out on a crash-looping VidLabeler.
         assertThat(params.populationSpecBlobUri).isEqualTo(POPULATION_SPEC_BLOB_URI)
+        assertThat(params.eventTemplateVersion).isEqualTo(EVENT_TEMPLATE_VERSION)
       }
     }
 
@@ -1240,6 +1241,7 @@ class VidLabelingDispatchSequencerTest {
       // And the PopulationSpec, which Phase-2 requires to set the assigned VID's population
       // attributes. This rebuild silently drops anything not copied explicitly.
       assertThat(modelLineConfig.populationSpecBlobUri).isEqualTo(POPULATION_SPEC_BLOB_URI)
+      assertThat(modelLineConfig.eventTemplateVersion).isEqualTo(EVENT_TEMPLATE_VERSION)
     }
 
   @Test
@@ -1420,6 +1422,7 @@ class VidLabelingDispatchSequencerTest {
     private const val EVENT_TEMPLATE_TYPE =
       "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
     private const val POPULATION_SPEC_BLOB_URI = "gs://configs/population-spec.textproto"
+    private const val EVENT_TEMPLATE_VERSION = 1
     private val TRACE_CONTEXT =
       mapOf("traceparent" to "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
@@ -1494,6 +1497,7 @@ class VidLabelingDispatchSequencerTest {
             eventTemplateDescriptorBlobUri = EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI
             eventTemplateType = EVENT_TEMPLATE_TYPE
             populationSpecBlobUri = POPULATION_SPEC_BLOB_URI
+            eventTemplateVersion = EVENT_TEMPLATE_VERSION
           },
         MODEL_LINE_2 to
           VidLabelerParamsKt.modelLineConfig {

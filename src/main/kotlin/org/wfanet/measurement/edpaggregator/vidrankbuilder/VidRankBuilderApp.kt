@@ -225,6 +225,7 @@ class VidRankBuilderApp(
     // Phase-1 chain dropped the pass-through, which would otherwise surface only as a
     // crash-looping VidLabeler nacking every fan-out WorkItem.
     require(params.populationSpecBlobUri.isNotEmpty()) { "population_spec_blob_uri must be set" }
+    require(params.eventTemplateVersion > 0) { "event_template_version must be set" }
     return vidLabelerParams {
       dataProvider = params.dataProvider
       rawImpressionsStorageParams =
@@ -249,6 +250,7 @@ class VidRankBuilderApp(
           // Phase-2 resolves each assigned VID's population attributes from this spec and rejects
           // a WorkItem without it; stamp it alongside the descriptor.
           populationSpecBlobUri = params.populationSpecBlobUri
+          eventTemplateVersion = params.eventTemplateVersion
           // Per-impression entity-key columns for Phase-2 (read per row from these columns).
           requiredEntityKeyFieldMapping.putAll(params.requiredEntityKeyFieldMappingMap)
           optionalEntityKeyFieldMapping.putAll(params.optionalEntityKeyFieldMappingMap)

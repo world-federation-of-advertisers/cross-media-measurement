@@ -212,6 +212,7 @@ class VidRankBuilderAppTest {
         .build()
     eventTemplateFieldMapping.put("banner_ad.viewable", "raw_viewable")
     populationSpecBlobUri = POPULATION_SPEC_BLOB_URI
+    eventTemplateVersion = 1
     maxFileBatchSizeBytes = 1_000_000_000
     activeStartTime = timestamp { seconds = 1000 }
     activeEndTime = timestamp { seconds = 2000 }
@@ -392,6 +393,7 @@ class VidRankBuilderAppTest {
       // Phase-2 rejects a WorkItem whose ModelLineConfig omits this, so the memoized fan-out has
       // to carry it the same way it carries the descriptor and the active window.
       assertThat(modelLineConfig.populationSpecBlobUri).isEqualTo(POPULATION_SPEC_BLOB_URI)
+      assertThat(modelLineConfig.eventTemplateVersion).isEqualTo(1)
     }
 
   @Test
@@ -404,5 +406,15 @@ class VidRankBuilderAppTest {
       val exception =
         assertFailsWith<IllegalArgumentException> { createApp().runWork(buildMessage(params)) }
       assertThat(exception).hasMessageThat().contains("population_spec_blob_uri")
+    }
+
+  @Test
+  fun `runWork fails when event_template_version was dropped upstream`() =
+    runBlocking<Unit> {
+      val params = validParams().copy { clearEventTemplateVersion() }
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> { createApp().runWork(buildMessage(params)) }
+      assertThat(exception).hasMessageThat().contains("event_template_version")
     }
 }

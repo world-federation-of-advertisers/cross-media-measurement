@@ -110,6 +110,7 @@ object VidLabelingFunctionHelpers {
         requiredEntityKeyFieldMapping.putAll(configModelLine.requiredEntityKeyFieldMappingMap)
         optionalEntityKeyFieldMapping.putAll(configModelLine.optionalEntityKeyFieldMappingMap)
         populationSpecBlobUri = configModelLine.populationSpecBlobUri
+        eventTemplateVersion = configModelLine.eventTemplateVersion
       }
     }
   }

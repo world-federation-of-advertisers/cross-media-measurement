@@ -81,6 +81,8 @@ class SubpoolAssignerAppTest {
     eventTemplateFieldMapping.put("banner_ad.viewable", "raw_viewable")
     eventTemplateDescriptorBlobUri = "descriptor/event-template.pb"
     eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+    populationSpecBlobUri = "gs://configs/population-spec.textproto"
+    eventTemplateVersion = 1
     requiredEntityKeyFieldMapping.put("household", "hh_col")
     optionalEntityKeyFieldMapping.put("creative", "cr_col")
     totalShards = 4
@@ -174,6 +176,8 @@ class SubpoolAssignerAppTest {
     assertThat(template.eventTemplateDescriptorBlobUri).isEqualTo("descriptor/event-template.pb")
     assertThat(template.eventTemplateType)
       .isEqualTo("wfa.measurement.api.v2alpha.event_templates.testing.TestEvent")
+    assertThat(template.populationSpecBlobUri).isEqualTo("gs://configs/population-spec.textproto")
+    assertThat(template.eventTemplateVersion).isEqualTo(1)
     // Per-impression entity-key columns forwarded for the Phase-2 fan-out.
     assertThat(template.requiredEntityKeyFieldMappingMap).containsExactly("household", "hh_col")
     assertThat(template.optionalEntityKeyFieldMappingMap).containsExactly("creative", "cr_col")

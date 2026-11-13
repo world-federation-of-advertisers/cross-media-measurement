@@ -35,13 +35,14 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
  * came from but filtered by the bucket the `DataProvider` uploaded.
  *
  * The mapping is taken from the model line's [PopulationSpec] rather than from the model's
- * `LabelerOutput`: a `SubPopulation` already pairs its VID ranges with the event-template
- * attributes modeled for those VIDs, and it is the same artifact `ResultsFulfiller` builds its VID
+ * `LabelerOutput`: a `SubPopulation` already pairs its VID ranges with the fully-populated event
+ * template attributes for that demo, and it is the same artifact `ResultsFulfiller` builds its VID
  * index map from, so the two cannot drift. It also avoids inventing a translation from the model's
  * numeric `[min_age, max_age]` to the market's age-group enum, which nothing declares.
  *
- * Only fields annotated `population_attribute` and populated by every subpopulation are written.
- * Population fields omitted by the model are not written.
+ * Only fields annotated `population_attribute` are written, so event properties that share a
+ * template with them (e.g. `media_type` alongside `sex`/`age_group`) keep the value projected from
+ * the raw row.
  *
  * Ranges are flattened and sorted at construction, so [apply] is a binary search and no descriptor
  * lookups. Stateless after construction and therefore safe to share across threads.
@@ -49,17 +50,22 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 class PopulationAttributeWriter(
   private val eventDescriptor: Descriptors.Descriptor,
   populationSpec: PopulationSpec,
+  eventTemplateVersion: Int,
 ) {
+  constructor(
+    eventDescriptor: Descriptors.Descriptor,
+    populationSpec: PopulationSpec,
+  ) : this(
+    eventDescriptor,
+    populationSpec,
+    EventTemplates.getEventDescriptor(eventDescriptor).currentVersion,
+  )
+
   /** One population-attribute value to set: which template holds it, which field, what value. */
   private class AttributeValue(
     val templateField: FieldDescriptor,
     val populationField: FieldDescriptor,
     val value: kotlin.Any,
-  )
-
-  private class ParsedSubPopulation(
-    val source: PopulationSpec.SubPopulation,
-    val attributesByTemplate: Map<Descriptors.Descriptor, Message>,
   )
 
   /** One VID range and the attribute values every VID in it carries. */
@@ -91,12 +97,8 @@ class PopulationAttributeWriter(
   }
 
   /** Population-attribute fields of each event template, from the `population_attribute` option. */
-  private val annotatedPopulationFieldsByTemplate:
-    Map<Descriptors.Descriptor, List<FieldDescriptor>> =
-    EventTemplates.getPopulationFieldsByTemplateType(eventDescriptor)
-
-  /** Population fields modeled consistently by every subpopulation. */
-  private val modeledPopulationFieldsByTemplate: Map<Descriptors.Descriptor, List<FieldDescriptor>>
+  private val populationFieldsByTemplate: Map<Descriptors.Descriptor, List<FieldDescriptor>> =
+    EventTemplates.getPopulationFieldsByTemplateType(eventDescriptor, eventTemplateVersion)
 
   // VID ranges flattened across subpopulations and sorted by start, searched per impression.
   private val rangeStarts: LongArray
@@ -104,16 +106,17 @@ class PopulationAttributeWriter(
   private val rangeValues: Array<List<AttributeValue>>
 
   init {
-    // Disjoint ranges ensure that the binary search in [valuesFor] resolves to one subpopulation.
-    PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
-    val parsedSubpopulations = populationSpec.subpopulationsList.map(::parseSubPopulation)
-    modeledPopulationFieldsByTemplate = resolveModeledPopulationFields(parsedSubpopulations)
+    // Establishes both preconditions this class depends on: the VID ranges are disjoint (so the
+    // binary search in [valuesFor] resolves to exactly one subpopulation) and every population
+    // attribute is set on every subpopulation (so [attributeValues] never copies a proto3 default
+    // over a real value). Same check the Kingdom runs when a Population is registered.
+    PopulationSpecValidator.validate(populationSpec, eventDescriptor, eventTemplateVersion)
 
     val flattened =
-      parsedSubpopulations
+      populationSpec.subpopulationsList
         .flatMap { subPopulation ->
           val values = attributeValues(subPopulation)
-          subPopulation.source.vidRangesList.map { range ->
+          subPopulation.vidRangesList.map { range ->
             VidRangeAttributes(range.startVid, range.endVidInclusive, values)
           }
         }
@@ -168,57 +171,33 @@ class PopulationAttributeWriter(
     return null
   }
 
-  private fun parseSubPopulation(subPopulation: PopulationSpec.SubPopulation): ParsedSubPopulation {
-    val attributesByTemplate =
-      buildMap<Descriptors.Descriptor, Message> {
-        for (attribute in subPopulation.attributesList) {
-          val typeName = attribute.typeUrl.substringAfterLast('/')
-          val templateField =
-            requireNotNull(templateFieldsByTypeName[typeName]) {
-              "PopulationSpec attribute type '$typeName' is not an event template of " +
-                eventDescriptor.fullName
-            }
-          val templateDescriptor = templateField.messageType
-          require(templateDescriptor !in this) {
-            "PopulationSpec SubPopulation has more than one attribute of event template type " +
-              "'$typeName'; attributes are keyed by template type"
-          }
-          put(templateDescriptor, DynamicMessage.parseFrom(templateDescriptor, attribute.value))
-        }
-      }
-    return ParsedSubPopulation(subPopulation, attributesByTemplate)
-  }
-
-  private fun resolveModeledPopulationFields(
-    subPopulations: List<ParsedSubPopulation>
-  ): Map<Descriptors.Descriptor, List<FieldDescriptor>> = buildMap {
-    for ((templateDescriptor, populationFields) in annotatedPopulationFieldsByTemplate) {
-      val modeledFields =
-        populationFields.filter { populationField ->
-          val presentCount =
-            subPopulations.count { subPopulation ->
-              subPopulation.attributesByTemplate[templateDescriptor]?.hasValue(populationField) ==
-                true
-            }
-          require(presentCount == 0 || presentCount == subPopulations.size) {
-            "Population field ${templateDescriptor.name}.${populationField.name} must be set in " +
-              "every subpopulation or none; set in $presentCount of ${subPopulations.size}"
-          }
-          presentCount > 0
-        }
-      if (modeledFields.isNotEmpty()) {
-        put(templateDescriptor, modeledFields)
-      }
-    }
-  }
-
-  /** Reads the population-attribute values modeled for [subPopulation]. */
-  private fun attributeValues(subPopulation: ParsedSubPopulation): List<AttributeValue> =
+  /**
+   * Reads a subpopulation's population-attribute values, resolved against [eventDescriptor]'s own
+   * descriptors so the values can be set directly on the event.
+   */
+  private fun attributeValues(subPopulation: PopulationSpec.SubPopulation): List<AttributeValue> =
     buildList {
-      for ((templateDescriptor, populationFields) in modeledPopulationFieldsByTemplate) {
-        val templateField = templateFieldsByTypeName.getValue(templateDescriptor.fullName)
-        val attributeMessage = subPopulation.attributesByTemplate.getValue(templateDescriptor)
-        for (populationField in populationFields) {
+      val seenTypeNames = mutableSetOf<String>()
+      for (attribute in subPopulation.attributesList) {
+        val typeName = attribute.typeUrl.substringAfterLast('/')
+        // PopulationSpecValidator only inspects the first attribute of each template type, so a
+        // duplicate is neither checked for completeness nor rejected upstream; taking the last one
+        // silently would pick values nothing validated.
+        require(seenTypeNames.add(typeName)) {
+          "PopulationSpec SubPopulation has more than one attribute of event template type " +
+            "'$typeName'; attributes are keyed by template type"
+        }
+        val templateField =
+          requireNotNull(templateFieldsByTypeName[typeName]) {
+            "PopulationSpec attribute type '$typeName' is not an event template of " +
+              eventDescriptor.fullName
+          }
+        val templateDescriptor = templateField.messageType
+        // Parsed against the event's own template descriptor, so enum values below are already the
+        // descriptors of the field being set. Every population field is guaranteed present by the
+        // PopulationSpecValidator.validate call in init.
+        val attributeMessage = DynamicMessage.parseFrom(templateDescriptor, attribute.value)
+        for (populationField in populationFieldsByTemplate[templateDescriptor].orEmpty()) {
           add(
             AttributeValue(
               templateField,
@@ -229,16 +208,6 @@ class PopulationAttributeWriter(
         }
       }
     }
-
-  private fun Message.hasValue(field: FieldDescriptor): Boolean {
-    return if (field.hasPresence()) {
-      hasField(field)
-    } else if (field.isRepeated) {
-      (getField(field) as List<*>).isNotEmpty()
-    } else {
-      getField(field) != field.defaultValue
-    }
-  }
 
   private companion object {
     private const val TYPE_URL_PREFIX = "type.googleapis.com/"

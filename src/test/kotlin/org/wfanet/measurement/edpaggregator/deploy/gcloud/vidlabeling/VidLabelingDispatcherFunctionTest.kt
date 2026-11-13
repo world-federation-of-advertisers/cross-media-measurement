@@ -551,6 +551,7 @@ class VidLabelingDispatcherFunctionTest {
       eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       requiredEntityKeyFieldMapping["person"] = "person_col"
       populationSpecBlobUri = "gs://configs/population-spec.textproto"
+      eventTemplateVersion = 1
     }
     modelSuite = MODEL_SUITE
     numberOfShards = 2

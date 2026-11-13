@@ -74,6 +74,17 @@ class VidLabelingConfigValidationTest {
   }
 
   @Test
+  fun `throws when a model line omits event_template_version`() {
+    val config =
+      configWith(validModelLineConfig().toBuilder().apply { clearEventTemplateVersion() }.build())
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { requireValidModelLineConfigs(config) }
+    assertThat(exception).hasMessageThat().contains("event_template_version")
+    assertThat(exception).hasMessageThat().contains(MODEL_LINE)
+  }
+
+  @Test
   fun `throws when a model line has no entity-key mapping`() {
     val config =
       configWith(
@@ -168,6 +179,7 @@ class VidLabelingConfigValidationTest {
       eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       requiredEntityKeyFieldMapping["person"] = "person_col"
       populationSpecBlobUri = "gs://configs/population-spec.textproto"
+      eventTemplateVersion = 1
     }
 
   companion object {
