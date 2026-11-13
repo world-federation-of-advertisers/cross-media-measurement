@@ -162,47 +162,8 @@ class ReplayDataAvailabilitySyncTest {
   }
 
   @Test
-  fun `main accepts a replay prefix in a configured contributor bucket`() {
-    storageEmulator.createBucket(BUCKET_NAME)
-    storageEmulator.createBucket(CONTRIBUTOR_BUCKET_NAME)
-    try {
-      val configFile =
-        writeConfigFile(
-          validConfig(includeActivityPublishing = true) +
-            "\n" +
-            """
-            model_line_data_sources {
-              key: "$MODEL_LINE"
-              value {
-                storage {
-                  gcs {
-                    project_id: "test-project"
-                    bucket_name: "$CONTRIBUTOR_BUCKET_NAME"
-                  }
-                }
-                edp_impression_path: "$CONTRIBUTOR_IMPRESSION_PATH"
-              }
-            }
-            """
-              .trimIndent()
-        )
-
-      val capturedOutput =
-        CommandLineTesting.capturingOutput(
-          connectionArgs(configFile, UNREACHABLE_API_TARGET) +
-            arrayOf(
-              "--mode=${ReplayDataAvailabilitySync.Mode.EVENT_GROUP_ACTIVITY_ONLY}",
-              "--blob-prefix=gs://$CONTRIBUTOR_BUCKET_NAME/$CONTRIBUTOR_IMPRESSION_PATH",
-            ) +
-            storageArgs,
-          ::main,
-        )
-
-      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
-    } finally {
-      storageEmulator.deleteBucketRecursive(CONTRIBUTOR_BUCKET_NAME)
-      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
-    }
+  fun `main replays contributor prefix in another bucket`() {
+    runContributorReplay()
   }
 
   @Test
@@ -688,6 +649,497 @@ class ReplayDataAvailabilitySyncTest {
       server.shutdown()
       server.awaitTermination(1, SECONDS)
       storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
+  }
+
+  @Test
+  fun `main replays contributor exact URI in another bucket`() {
+    runContributorReplay(exactUri = true)
+  }
+
+  @Test
+  fun `main replays contributor prefix with a nondefault path in the default bucket`() {
+    runContributorReplay(replacementBucket = BUCKET_NAME)
+  }
+
+  @Test
+  fun `main replays contributor exact URI with a nondefault path in the default bucket`() {
+    runContributorReplay(replacementBucket = BUCKET_NAME, exactUri = true)
+  }
+
+  @Test
+  fun `main replays contributor prefix in another bucket using the standard internal path`() {
+    runContributorReplay(replacementPath = INTERNAL_IMPRESSION_PATH)
+  }
+
+  @Test
+  fun `main replays contributor exact URI in another bucket using the standard internal path`() {
+    runContributorReplay(replacementPath = INTERNAL_IMPRESSION_PATH, exactUri = true)
+  }
+
+  @Test
+  fun `main replays contributor legacy done marker in another bucket`() {
+    runContributorReplay(doneFileName = "done")
+  }
+
+  @Test
+  fun `main replays contributor with an empty base path by bucket prefix`() {
+    runContributorReplay(replacementPath = "", broadPrefix = true)
+  }
+
+  @Test
+  fun `main replays contributor with an empty base path by exact URI`() {
+    runContributorReplay(replacementPath = "", exactUri = true)
+  }
+
+  @Test
+  fun `main replays contributor shared root without duplicate selection`() {
+    runContributorReplay(
+      replacementBucket = BUCKET_NAME,
+      replacementPath = EDP_IMPRESSION_PATH,
+      broadPrefix = true,
+      preSynchronized = true,
+    )
+  }
+
+  @Test
+  fun `main rejects contributor external hash marker under a shared root`() {
+    runContributorReplay(
+      replacementBucket = BUCKET_NAME,
+      replacementPath = EDP_IMPRESSION_PATH,
+      historical = true,
+      exactUri = true,
+      rejectMarker = true,
+    )
+  }
+
+  @Test
+  fun `main keeps contributor external snapshot validation under a shared root`() {
+    runContributorReplay(
+      replacementBucket = BUCKET_NAME,
+      replacementPath = EDP_IMPRESSION_PATH,
+      historical = true,
+      doneFileName = "done",
+      mutateExternalDuringBounds = true,
+    )
+  }
+
+  @Test
+  fun `main replays contributor prefix without selecting another model line`() {
+    runContributorReplay(broadPrefix = true, includeOtherModelLine = true)
+  }
+
+  @Test
+  fun `main rejects contributor exact URI for an unconfigured model line`() {
+    runContributorReplay(exactUri = true, includeOtherModelLine = true, selectOtherModelLine = true)
+  }
+
+  @Test
+  fun `main replays contributor valid hash while ignoring malformed completion names`() {
+    runContributorReplay(
+      extraMarkerNames =
+        listOf(
+          "done-${"a".repeat(63)}",
+          "done-${"a".repeat(65)}",
+          "done-${"A".repeat(64)}",
+          "done-${"g".repeat(64)}",
+          "done-unrelated",
+        )
+    )
+  }
+
+  @Test
+  fun `main replays contributor repeated exact URI only once`() {
+    runContributorReplay(exactUri = true, duplicateExactUri = true)
+  }
+
+  @Test
+  fun `main replays contributor selection in full sync mode`() {
+    runContributorReplay(mode = ReplayDataAvailabilitySync.Mode.FULL_SYNC)
+  }
+
+  @Test
+  fun `main replays contributor hash selection in activity only mode`() {
+    runContributorReplay(mode = ReplayDataAvailabilitySync.Mode.EVENT_GROUP_ACTIVITY_ONLY)
+  }
+
+  @Test
+  fun `main keeps contributor ordinary external mapping without cutovers`() {
+    runContributorReplay(cutoverEnabled = false, doneFileName = "done")
+  }
+
+  @Test
+  fun `main rejects contributor cutover without its configured storage source`() {
+    runContributorReplay(
+      configuredReplacementLine = "$MODEL_LINE-missing",
+      expectedConfigurationError = "every cutover contributor",
+    )
+  }
+
+  @Test
+  fun `main rejects contributor model lines with an ambiguous replay directory`() {
+    runContributorReplay(
+      replacementBucket = BUCKET_NAME,
+      replacementPath = EDP_IMPRESSION_PATH,
+      configuredHistoricalLine =
+        "modelProviders/other-provider/modelSuites/other-suite/modelLines/model-line-1",
+      expectedConfigurationError = "distinct model-line replay paths",
+    )
+  }
+
+  private fun runContributorReplay(
+    replacementBucket: String = CONTRIBUTOR_BUCKET_NAME,
+    replacementPath: String = CONTRIBUTOR_IMPRESSION_PATH,
+    exactUri: Boolean = false,
+    doneFileName: String = "done-${"a".repeat(64)}",
+    broadPrefix: Boolean = false,
+    preSynchronized: Boolean = false,
+    historical: Boolean = false,
+    rejectMarker: Boolean = false,
+    mutateExternalDuringBounds: Boolean = false,
+    includeOtherModelLine: Boolean = false,
+    selectOtherModelLine: Boolean = false,
+    extraMarkerNames: List<String> = emptyList(),
+    duplicateExactUri: Boolean = false,
+    cutoverEnabled: Boolean = true,
+    configuredReplacementLine: String = MODEL_LINE,
+    configuredHistoricalLine: String = MODEL_LINE.substringBeforeLast("/") + "/historical",
+    expectedConfigurationError: String? = null,
+    mode: ReplayDataAvailabilitySync.Mode = ReplayDataAvailabilitySync.Mode.DATA_AVAILABILITY_ONLY,
+  ) {
+    val historicalLine = configuredHistoricalLine
+    val selectedBucket = if (historical) BUCKET_NAME else replacementBucket
+    val selectedPath = if (historical) EDP_IMPRESSION_PATH else replacementPath
+    val selectedLine = if (historical) historicalLine else MODEL_LINE
+    fun folder(path: String, line: String, date: String = "2026-01-01"): String {
+      val relative = "model-line/${line.substringAfterLast('/')}/$date"
+      return if (path.isEmpty()) relative else "$path/$relative"
+    }
+    val selectedFolder = folder(selectedPath, selectedLine)
+    val dataKey = "$selectedFolder/impressions"
+    val metadataKey = "$selectedFolder/metadata.json"
+    val doneKey = "$selectedFolder/$doneFileName"
+    val registered = mutableMapOf<String, ImpressionMetadata>()
+    val listRequests = mutableListOf<ListImpressionMetadataRequest>()
+    var mutated = false
+    val metadataService: ImpressionMetadataServiceCoroutineImplBase = mockService {
+      onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+          listRequests += request
+          listImpressionMetadataResponse {
+            impressionMetadata +=
+              registered.values.filter {
+                (request.filter.blobUriPrefix.isEmpty() ||
+                  it.blobUri.startsWith(request.filter.blobUriPrefix)) &&
+                  (request.filter.blobUrisList.isEmpty() ||
+                    it.blobUri in request.filter.blobUrisList)
+              }
+          }
+        }
+      onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
+          batchCreateImpressionMetadataResponse {
+            impressionMetadata +=
+              request.requestsList.map { create ->
+                create.impressionMetadata
+                  .copy {
+                    name = "$DATA_PROVIDER_NAME/impressionMetadata/created-${registered.size}"
+                    state = ImpressionMetadata.State.ACTIVE
+                  }
+                  .also { registered[it.blobUri] = it }
+              }
+          }
+        }
+      onBlocking { batchUpdateImpressionMetadata(any<BatchUpdateImpressionMetadataRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchUpdateImpressionMetadataRequest>(0)
+          batchUpdateImpressionMetadataResponse {
+            impressionMetadata +=
+              request.requestsList.map { update ->
+                update.impressionMetadata.also { registered[it.blobUri] = it }
+              }
+          }
+        }
+      onBlocking { computeModelLineBounds(any<ComputeModelLineBoundsRequest>()) }
+        .thenAnswer {
+          if (mutateExternalDuringBounds && !mutated) {
+            storageEmulator.storage.create(
+              BlobInfo.newBuilder(selectedBucket, dataKey).build(),
+              byteArrayOf(2),
+            )
+            mutated = true
+          }
+          computeModelLineBoundsResponse {
+            for ((line, entries) in registered.values.groupBy { it.modelLine }) {
+              modelLineBounds += modelLineBoundMapEntry {
+                key = line
+                value = entries.first().interval
+              }
+            }
+          }
+        }
+    }
+    val dataProvidersService: DataProvidersCoroutineImplBase = mockService {
+      onBlocking {
+          replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>())
+        }
+        .thenReturn(DataProvider.getDefaultInstance())
+    }
+    val activitiesService: EventGroupActivitiesCoroutineImplBase = mockService {
+      onBlocking { batchUpdateEventGroupActivities(any<BatchUpdateEventGroupActivitiesRequest>()) }
+        .thenReturn(batchUpdateEventGroupActivitiesResponse {})
+    }
+    val leaseService = ReplayLeaseService()
+    val server =
+      NettyServerBuilder.forPort(0)
+        .sslContext(serverCerts.toServerTlsContext())
+        .addService(metadataService)
+        .addService(dataProvidersService)
+        .addService(activitiesService)
+        .addService(leaseService)
+        .build()
+        .start()
+    val buckets = setOf(BUCKET_NAME, replacementBucket)
+    buckets.forEach(storageEmulator::createBucket)
+    try {
+      fun writeSyncedDone(bucket: String, key: String) {
+        storageEmulator.storage.create(
+          BlobInfo.newBuilder(bucket, key)
+            .setMetadata(
+              mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE)
+            )
+            .build(),
+          byteArrayOf(1),
+        )
+      }
+      if (cutoverEnabled) {
+        writeSyncedDone(
+          BUCKET_NAME,
+          folder(EDP_IMPRESSION_PATH, historicalLine, "2025-12-31") + "/done",
+        )
+        writeSyncedDone(BUCKET_NAME, folder(EDP_IMPRESSION_PATH, historicalLine) + "/done")
+        if (historical) {
+          writeSyncedDone(
+            replacementBucket,
+            folder(replacementPath, MODEL_LINE) + "/done-${"a".repeat(64)}",
+          )
+        }
+      }
+      val details =
+        """
+        {
+          "blobUri": "gs://$selectedBucket/$dataKey",
+          "eventGroupReferenceId": "$INITIAL_EVENT_GROUP_REFERENCE_ID",
+          "modelLine": "$selectedLine",
+          "interval": {
+            "startTime": "2026-01-01T00:00:00Z",
+            "endTime": "2026-01-02T00:00:00Z"
+          }
+        }
+      """
+          .trimIndent()
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(selectedBucket, metadataKey).build(),
+        details.toByteArray(),
+      )
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(selectedBucket, dataKey).build(),
+        byteArrayOf(1),
+      )
+      val done =
+        storageEmulator.storage.create(
+          BlobInfo.newBuilder(selectedBucket, doneKey)
+            .setMetadata(
+              if (preSynchronized)
+                mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE)
+              else emptyMap()
+            )
+            .build(),
+          byteArrayOf(1),
+        )
+      if (preSynchronized) {
+        val metadata = impressionMetadata {
+          name = "$DATA_PROVIDER_NAME/impressionMetadata/existing"
+          blobUri = "gs://$selectedBucket/$metadataKey"
+          blobTypeUrl = BLOB_DETAILS_TYPE_URL
+          eventGroupReferenceId = INITIAL_EVENT_GROUP_REFERENCE_ID
+          modelLine = selectedLine
+          interval = interval {
+            startTime = timestamp { seconds = INITIAL_INTERVAL_START_SECONDS }
+            endTime = timestamp { seconds = INITIAL_INTERVAL_END_SECONDS }
+          }
+          outputDoneBlobGeneration = done.generation
+          state = ImpressionMetadata.State.ACTIVE
+        }
+        registered[metadata.blobUri] = metadata
+      }
+      for (name in extraMarkerNames) {
+        storageEmulator.storage.create(
+          BlobInfo.newBuilder(selectedBucket, "$selectedFolder/$name").build(),
+          byteArrayOf(1),
+        )
+      }
+      val otherFolder = folder(replacementPath, MODEL_LINE + "0")
+      if (includeOtherModelLine) {
+        storageEmulator.storage.create(
+          BlobInfo.newBuilder(replacementBucket, "$otherFolder/done").build(),
+          byteArrayOf(1),
+        )
+      }
+      val configFile =
+        writeConfigFile(
+          validConfig(
+            includeActivityPublishing =
+              mode == ReplayDataAvailabilitySync.Mode.EVENT_GROUP_ACTIVITY_ONLY
+          ) +
+            """
+
+        vid_labeled_impression_path: "$INTERNAL_IMPRESSION_PATH"
+        model_line_data_sources {
+          key: "$MODEL_LINE"
+          value {
+            storage { gcs { project_id: "test-project" bucket_name: "$replacementBucket" } }
+            edp_impression_path: "$replacementPath"
+          }
+        }
+        """
+              .trimIndent() +
+            if (cutoverEnabled)
+              """
+
+        model_line_data_sources {
+          key: "$historicalLine"
+          value {
+            storage { gcs { project_id: "test-project" bucket_name: "$BUCKET_NAME" } }
+            edp_impression_path: "$EDP_IMPRESSION_PATH"
+          }
+        }
+        model_line_cutovers {
+          external_model_line: "$historicalLine"
+          historical_model_line: "$historicalLine"
+          replacement_model_line: "$configuredReplacementLine"
+          cutover_date { year: 2026 month: 1 day: 1 }
+          legacy_required_through_date { year: 2026 month: 1 day: 2 }
+          maximum_report_duration { seconds: 86400 }
+        }
+        """
+                .trimIndent()
+            else
+              """
+
+        model_line_map {
+          key: "$MODEL_LINE"
+          value { model_lines: "$MODEL_LINE-alias" }
+        }
+        """
+                .trimIndent()
+        )
+      val selectedUri =
+        if (selectOtherModelLine) "gs://$replacementBucket/$otherFolder/done"
+        else "gs://$selectedBucket/$doneKey"
+      val selectionArgs =
+        if (exactUri) {
+          List(if (duplicateExactUri) 2 else 1) { "--done-blob-uri=$selectedUri" }.toTypedArray()
+        } else {
+          val prefix = if (broadPrefix) selectedPath else selectedFolder
+          arrayOf("--blob-prefix=gs://$selectedBucket/$prefix")
+        }
+      val output =
+        CommandLineTesting.capturingOutput(
+          connectionArgs(configFile, "localhost:${server.port}") +
+            "--mode=$mode" +
+            selectionArgs +
+            storageArgs,
+          ::main,
+        )
+      val rejected = rejectMarker || selectOtherModelLine || expectedConfigurationError != null
+      CommandLineTesting.assertThat(output)
+        .status()
+        .isEqualTo(if (rejected || mutateExternalDuringBounds) 1 else 0)
+      if (rejected) {
+        CommandLineTesting.assertThat(output)
+          .err()
+          .contains(
+            expectedConfigurationError
+              ?: if (selectOtherModelLine) "below a configured impression path"
+              else "wrong completion filename"
+          )
+        assertThat(leaseService.acquiredNames).isEmpty()
+        assertThat(registered).isEmpty()
+        verifyBlocking(dataProvidersService, never()) { replaceDataAvailabilityIntervals(any()) }
+        return
+      }
+      if (mode == ReplayDataAvailabilitySync.Mode.EVENT_GROUP_ACTIVITY_ONLY) {
+        assertThat(listRequests.map { it.filter.blobUriPrefix })
+          .containsExactly("gs://$selectedBucket/$selectedFolder/")
+        assertThat(leaseService.acquiredNames).isEmpty()
+        assertThat(registered).isEmpty()
+        verifyBlocking(dataProvidersService, never()) { replaceDataAvailabilityIntervals(any()) }
+        verifyBlocking(metadataService, never()) { batchCreateImpressionMetadata(any()) }
+        assertThat(storageEmulator.storage.get(selectedBucket, doneKey).metadata.orEmpty())
+          .doesNotContainKey(DataAvailabilityBlobs.SYNCED_BY_KEY)
+        return
+      }
+      val expectedSynchronizations =
+        if (
+          broadPrefix && replacementBucket == BUCKET_NAME && replacementPath == EDP_IMPRESSION_PATH
+        )
+          3
+        else 1
+      if (mutateExternalDuringBounds) {
+        assertThat(mutated).isTrue()
+        verifyBlocking(dataProvidersService, never()) { replaceDataAvailabilityIntervals(any()) }
+        assertThat(storageEmulator.storage.get(selectedBucket, doneKey).metadata.orEmpty())
+          .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+      } else {
+        val publications = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+        verifyBlocking(dataProvidersService, times(expectedSynchronizations)) {
+          replaceDataAvailabilityIntervals(publications.capture())
+        }
+        for (publication in publications.allValues) {
+          val entry = publication.dataAvailabilityIntervalsList.single()
+          assertThat(entry.key)
+            .isEqualTo(if (cutoverEnabled) historicalLine else "$MODEL_LINE-alias")
+          assertThat(entry.value.startTime.seconds)
+            .isEqualTo(
+              if (cutoverEnabled) INITIAL_INTERVAL_START_SECONDS - 86400
+              else INITIAL_INTERVAL_START_SECONDS
+            )
+          assertThat(entry.value.endTime.seconds).isEqualTo(INITIAL_INTERVAL_END_SECONDS)
+        }
+        val completion = storageEmulator.storage.get(selectedBucket, doneKey)
+        assertThat(completion.generation).isEqualTo(done.generation)
+        val completionMetadata = checkNotNull(completion.metadata)
+        assertThat(completionMetadata[DataAvailabilityBlobs.SYNCED_BY_KEY])
+          .isEqualTo(DataAvailabilityBlobs.SYNCED_BY_VALUE)
+        assertThat(completionMetadata[DataAvailabilityBlobs.SYNC_ID_KEY]).isNotEmpty()
+        assertThat(completionMetadata[DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY])
+          .isEqualTo(completionMetadata[DataAvailabilityBlobs.SYNC_ID_KEY])
+      }
+      assertThat(registered.keys).containsExactly("gs://$selectedBucket/$metadataKey")
+      val metadata = registered.values.single()
+      assertThat(metadata.modelLine).isEqualTo(selectedLine)
+      assertThat(metadata.outputDoneBlobGeneration).isEqualTo(done.generation)
+      if (!mutateExternalDuringBounds) {
+        if (historical || !cutoverEnabled) {
+          assertThat(metadata.metadataBlobGeneration)
+            .isEqualTo(storageEmulator.storage.get(selectedBucket, metadataKey).generation)
+          assertThat(metadata.impressionsBlobGeneration)
+            .isEqualTo(storageEmulator.storage.get(selectedBucket, dataKey).generation)
+        } else {
+          assertThat(metadata.metadataBlobGeneration).isEqualTo(0L)
+          assertThat(metadata.impressionsBlobGeneration).isEqualTo(0L)
+        }
+      }
+      assertThat(leaseService.acquiredNames).hasSize(expectedSynchronizations)
+      assertThat(leaseService.releasedNames).containsExactlyElementsIn(leaseService.acquiredNames)
+      verifyBlocking(activitiesService, never()) { batchUpdateEventGroupActivities(any()) }
+    } finally {
+      server.shutdown()
+      server.awaitTermination(1, SECONDS)
+      buckets.forEach(storageEmulator::deleteBucketRecursive)
     }
   }
 

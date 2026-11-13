@@ -1149,7 +1149,10 @@ leaves Kingdom availability unchanged even when `error_if_gaps_exist` is false. 
 completion marker counts only after DataAvailabilitySync has persisted that marker's metadata;
 prior Kingdom publication from each contributor is not required. After that date,
 the replacement line advances the end independently. Each contributor can use a different bucket
-and path through `model_line_data_sources`. While the cutover is configured, DataAvailabilitySync
+and path through `model_line_data_sources`. Replacement contributors are produced by the internal
+VID Labeler. Replay uses each configured model line's completion-marker semantics, including when
+contributors share a base path or use separate buckets. While the cutover is configured,
+DataAvailabilitySync
 publishes only the combined advertiser-visible model line; it does not expose the internal
 historical or replacement lines to Kingdom.
 
