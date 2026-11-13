@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlin.properties.Delegates
 import kotlin.system.exitProcess
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.runBlocking
@@ -52,14 +53,17 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyn
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.DataDateSelection
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.GenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecovery
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -329,7 +333,8 @@ class RecoverMissingImpressionMetadata : Runnable {
               grpcTelemetry.newClientInterceptor(),
             )
           )
-        )
+        ),
+        renewalDelay = { delay(it) },
       )
     val results =
       try {
@@ -355,9 +360,26 @@ class RecoverMissingImpressionMetadata : Runnable {
                         metadataBlobKeys,
                         SelectedStorageClient.parseBlobUri(doneBlobUri).key.substringBeforeLast("/"),
                       )
+                    val external = impressionPath == externalPath
+                    val doneKey = SelectedStorageClient.parseBlobUri(doneBlobUri).key
+                    val doneBlob =
+                      checkNotNull(storageClient.getBlob(doneKey)) {
+                        "Completion blob not found: $doneBlobUri"
+                      }
+                    val doneGeneration =
+                      requireNotNull(
+                        (doneBlob as? ConditionalOperationStorageClient.Blob)
+                          ?.freshnessToken
+                          ?.toLongOrNull()
+                      ) {
+                        "Completion blob has no numeric generation"
+                      }
+                    val processedMetadataBlobKeys = mutableSetOf<String>()
+                    val metadataUpdater =
+                      GcsGenerationMatchedBlobMetadataUpdater(storage, storageConfig.bucketName)
                     DataAvailabilitySync(
                         edpImpressionPath = impressionPath,
-                        storageClient = filteringStorageClient,
+                        storageClient = if (external) storageClient else filteringStorageClient,
                         dataProvidersStub = dataProvidersStub,
                         impressionMetadataServiceStub = impressionMetadataStub,
                         dataProviderName = config.dataProvider,
@@ -368,14 +390,37 @@ class RecoverMissingImpressionMetadata : Runnable {
                         availabilityImpressionPaths = configuredPaths,
                         publishEventGroupActivities =
                           eventGroupActivityPublisher?.let { it::publish },
+                        generationMatchedMetadataUpdater =
+                          GenerationMatchedBlobMetadataUpdater {
+                            key,
+                            generation,
+                            createTime,
+                            metadata ->
+                            metadataUpdater.update(key, generation, createTime, metadata)
+                            if (
+                              key in metadataBlobKeys &&
+                                metadata[DataAvailabilityBlobs.SYNCED_BY_KEY] ==
+                                  DataAvailabilityBlobs.SYNCED_BY_VALUE
+                            ) {
+                              processedMetadataBlobKeys += key
+                            }
+                          },
                       )
                       .sync(
                         doneBlobUri,
                         lease.name,
-                        DoneBlobGenerationResolver.resolve(storage, doneBlobUri),
+                        doneGeneration,
+                        externalDoneBlobCreateTime = doneBlob.createTime.takeIf { external },
+                        discoveryMode =
+                          if (external)
+                            DataAvailabilitySync.DiscoveryMode.SelectedMetadataBlobs(
+                              metadataBlobKeys
+                            )
+                          else DataAvailabilitySync.DiscoveryMode.FolderScan,
                         ensureLeaseActive = lease::invoke,
                       )
-                    filteringStorageClient.processedMetadataBlobKeys
+                    if (external) processedMetadataBlobKeys
+                    else filteringStorageClient.processedMetadataBlobKeys
                   },
                   metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),
                 )

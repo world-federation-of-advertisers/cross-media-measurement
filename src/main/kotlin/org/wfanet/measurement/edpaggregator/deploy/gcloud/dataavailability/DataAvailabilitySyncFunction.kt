@@ -36,6 +36,7 @@ import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
@@ -268,7 +269,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         DataAvailabilitySyncLeaseRunner(
           GrpcDataAvailabilitySyncLeaseClient(
             DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedMetadataChannel)
-          )
+          ),
+          renewalDelay = { delay(it) },
         ),
         synchronize = { workItem, lease, onStage ->
           val discoveryMode =
@@ -488,7 +490,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     return DataAvailabilitySyncLeaseRunner(
       GrpcDataAvailabilitySyncLeaseClient(
         DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedMetadataChannel)
-      )
+      ),
+      renewalDelay = { delay(it) },
     )
   }
 

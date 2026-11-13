@@ -180,6 +180,9 @@ class DataAvailabilitySync(
     /** Lists the done object's folder. Used for externally uploaded labeled impressions. */
     object FolderScan : DiscoveryMode
 
+    /** Selects metadata sidecars from the done object's folder. */
+    data class SelectedMetadataBlobs(val blobKeys: Set<String>) : DiscoveryMode
+
     /**
      * Derives the exact VID Labeler output pair for each registered raw-impression input.
      *
@@ -307,7 +310,7 @@ class DataAvailabilitySync(
    * @param ensureLeaseActive validates the synchronization lease before each mutation.
    * @param doneBlobGeneration the immutable positive generation of that object.
    * @param externalDoneBlobCreateTime creation time of an externally produced completion marker.
-   *   When set for [DiscoveryMode.FolderScan], the folder is bound to that finalized revision.
+   *   When set for folder discovery, the whole folder is bound to that finalized revision.
    * @param discoveryMode folder scanning for external writes or exact deterministic output
    *   discovery for a VID Labeler WorkItem.
    * @param onStage called before synchronization enters a new stage.
@@ -344,7 +347,9 @@ class DataAvailabilitySync(
       val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
       val doneBlobFolderPrefix = "$doneBlobFolderPath/"
       val externalSnapshot =
-        if (discoveryMode == DiscoveryMode.FolderScan && externalDoneBlobCreateTime != null) {
+        if (
+          discoveryMode !is DiscoveryMode.VidLabelerOutputs && externalDoneBlobCreateTime != null
+        ) {
           captureExternalFolderSnapshot(
             doneBlobUri,
             doneBlobGeneration,
@@ -372,16 +377,26 @@ class DataAvailabilitySync(
           "doneBlobGeneration must be positive for VID Labeler output discovery"
         }
       }
+      val selectedMetadataKeys = (discoveryMode as? DiscoveryMode.SelectedMetadataBlobs)?.blobKeys
       val impressionMetadataBlobs: Flow<MetadataBlobCandidate> =
         when (discoveryMode) {
-          DiscoveryMode.FolderScan ->
-            externalSnapshot?.metadataBlobs?.asFlow()?.map { captured ->
-              MetadataBlobCandidate(
-                blob = captured.blob,
-                capturedBlob = captured,
-                content = readCapturedBlob(captured),
-              )
-            } ?: storageClient.listBlobs(doneBlobFolderPrefix).map { MetadataBlobCandidate(it) }
+          DiscoveryMode.FolderScan,
+          is DiscoveryMode.SelectedMetadataBlobs ->
+            externalSnapshot
+              ?.metadataBlobs
+              ?.asFlow()
+              ?.filter { selectedMetadataKeys == null || it.blob.blobKey in selectedMetadataKeys }
+              ?.map { captured ->
+                MetadataBlobCandidate(
+                  blob = captured.blob,
+                  capturedBlob = captured,
+                  content = readCapturedBlob(captured),
+                )
+              }
+              ?: storageClient
+                .listBlobs(doneBlobFolderPrefix)
+                .filter { selectedMetadataKeys == null || it.blobKey in selectedMetadataKeys }
+                .map { MetadataBlobCandidate(it) }
           is DiscoveryMode.VidLabelerOutputs ->
             discoverVidLabelerMetadataBlobs(discoveryMode, doneBlobUri)
         }

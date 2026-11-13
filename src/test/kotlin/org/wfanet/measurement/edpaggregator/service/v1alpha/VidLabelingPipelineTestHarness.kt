@@ -707,7 +707,8 @@ abstract class VidLabelingPipelineTestHarness(
             DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub(
               edpaPublicServer.channel
             )
-          )
+          ),
+          renewalDelay = { delay(it) },
         ),
         synchronize = { workItem, lease, onStage ->
           if (workItem.isExternal) {

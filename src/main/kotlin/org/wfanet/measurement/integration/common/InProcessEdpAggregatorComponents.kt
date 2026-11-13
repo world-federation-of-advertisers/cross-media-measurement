@@ -1009,7 +1009,8 @@ class InProcessEdpAggregatorComponents(
       )
     val leaseRunner =
       DataAvailabilitySyncLeaseRunner(
-        GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient)
+        GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient),
+        renewalDelay = { delay(it) },
       )
     val outcomes =
       doneKeys.associate { doneKey ->

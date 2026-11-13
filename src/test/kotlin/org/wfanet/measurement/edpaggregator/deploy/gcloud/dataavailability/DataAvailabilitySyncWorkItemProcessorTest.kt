@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Test
@@ -72,6 +73,7 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     DataAvailabilitySyncLeaseRunner(
       leaseClient,
       uuidGenerator = { "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
+      renewalDelay = { delay(it) },
     )
 
   @Test

@@ -22,10 +22,10 @@ import io.grpc.StatusRuntimeException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
@@ -88,6 +88,7 @@ class DataAvailabilitySyncLeaseRunnerTest {
       }
     }
     entered.await()
+    client.renewalTicks.send(Unit)
     withTimeout(10_000L) { client.renewalStarted.await() }
 
     complete.complete(Unit)
@@ -103,11 +104,13 @@ class DataAvailabilitySyncLeaseRunnerTest {
     val runner =
       DataAvailabilitySyncLeaseRunner(
         client,
-        renewalInterval = 10.milliseconds,
+        renewalDelay = { client.renewalTicks.receive() },
+        renewalInterval = 1.seconds,
         uuidGenerator = { SYNCHRONIZATION_ATTEMPT_ID },
       )
 
     runner.run(DATA_PROVIDER) {
+      client.renewalTicks.send(Unit)
       check(client.renewalEntered.await(10, TimeUnit.SECONDS)) {
         "Synchronization lease renewal was blocked by sync"
       }
@@ -157,6 +160,7 @@ class DataAvailabilitySyncLeaseRunnerTest {
     val runner = runner(client, renewalIntervalSeconds = 1)
     supervisorScope {
       val result = async { runner.run(DATA_PROVIDER) { kotlinx.coroutines.awaitCancellation() } }
+      client.renewalTicks.send(Unit)
 
       val error =
         assertFailsWith<StatusRuntimeException> { withTimeout(10_000L) { result.await() } }
@@ -172,6 +176,7 @@ class DataAvailabilitySyncLeaseRunnerTest {
     val synchronize = CompletableDeferred<Unit>()
     val runner = runner(client, renewalIntervalSeconds = 1)
     val result = async { runner.run(DATA_PROVIDER) { synchronize.await() } }
+    client.renewalTicks.send(Unit)
 
     withTimeout(10_000L) { client.renewalStarted.await() }
     synchronize.complete(Unit)
@@ -185,7 +190,7 @@ class DataAvailabilitySyncLeaseRunnerTest {
   }
 
   private fun runner(
-    client: DataAvailabilitySyncLeaseClient,
+    client: FakeLeaseClient,
     renewalIntervalSeconds: Int,
   ): DataAvailabilitySyncLeaseRunner {
     val ids =
@@ -194,7 +199,8 @@ class DataAvailabilitySyncLeaseRunnerTest {
         .iterator()
     return DataAvailabilitySyncLeaseRunner(
       client,
-      renewalIntervalSeconds.seconds,
+      renewalDelay = { client.renewalTicks.receive() },
+      renewalInterval = renewalIntervalSeconds.seconds,
       uuidGenerator = ids::next,
     )
   }
@@ -217,6 +223,7 @@ class DataAvailabilitySyncLeaseRunnerTest {
     var releasedEtag = ""
       private set
 
+    val renewalTicks = Channel<Unit>(Channel.UNLIMITED)
     val renewalEntered = CountDownLatch(1)
     val renewalStarted = CompletableDeferred<Unit>()
     val finishRenewal = CompletableDeferred<Unit>()

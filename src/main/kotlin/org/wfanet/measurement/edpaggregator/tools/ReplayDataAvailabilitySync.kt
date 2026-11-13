@@ -31,6 +31,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.properties.Delegates
 import kotlin.system.exitProcess
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
@@ -221,7 +222,8 @@ class ReplayDataAvailabilitySync : Runnable {
       DataAvailabilitySyncLeaseRunner(
         GrpcDataAvailabilitySyncLeaseClient(
           DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedMetadataChannel)
-        )
+        ),
+        renewalDelay = { delay(it) },
       )
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
     val eventGroupActivityPublisher =

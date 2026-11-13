@@ -437,34 +437,56 @@ class RecoverMissingImpressionMetadataTest {
 
   @Test
   fun `recovery registers both configured paths with exact done generations`() {
-    runRecoveryAcrossConfiguredPaths()
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE)
   }
 
   @Test
   fun `recovery blocks a missing date across both impression paths`() {
-    runRecoveryAcrossConfiguredPaths(blockedByGaps = true)
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, blockedByGaps = true)
   }
 
   @Test
   fun `recovery leaves synchronized generation-pinned neighbours unchanged`() {
-    runRecoveryAcrossConfiguredPaths(includeRegisteredNeighbour = true)
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, includeRegisteredNeighbour = true)
   }
 
   @Test
   fun `recovery scans an external override and the internal root`() {
-    runRecoveryAcrossConfiguredPaths(externalOverride = true)
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, externalOverride = true)
   }
 
   @Test
   fun `recovery checks gaps across an external override and the internal root`() {
-    runRecoveryAcrossConfiguredPaths(blockedByGaps = true, externalOverride = true)
+    runRecoveryAcrossConfiguredPaths(
+      ExternalMutation.NONE,
+      blockedByGaps = true,
+      externalOverride = true,
+    )
+  }
+
+  @Test
+  fun `recovery rejects an impressions overwrite under the old external done marker`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.OVERWRITTEN_IMPRESSIONS)
+  }
+
+  @Test
+  fun `recovery rejects metadata added outside the selected external snapshot`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.ADDED_METADATA)
+  }
+
+  private enum class ExternalMutation {
+    NONE,
+    OVERWRITTEN_IMPRESSIONS,
+    ADDED_METADATA,
   }
 
   private fun runRecoveryAcrossConfiguredPaths(
+    externalMutation: ExternalMutation,
     blockedByGaps: Boolean = false,
     includeRegisteredNeighbour: Boolean = false,
     externalOverride: Boolean = false,
   ) {
+    var externalMutationApplied = false
     val recoveredMetadata = mutableListOf<ImpressionMetadata>()
     val registeredNeighbours = mutableListOf<ImpressionMetadata>()
     val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
@@ -484,6 +506,36 @@ class RecoverMissingImpressionMetadataTest {
       onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
+          if (!externalMutationApplied && externalMutation != ExternalMutation.NONE) {
+            val metadata = request.requestsList.first().impressionMetadata
+            val metadataKey = metadata.blobUri.removePrefix("gs://$BUCKET_NAME/")
+            if (metadataKey.startsWith("$EDP_IMPRESSION_PATH/")) {
+              externalMutationApplied = true
+              val metadataBytes = storageEmulator.storage.readAllBytes(BUCKET_NAME, metadataKey)
+              when (externalMutation) {
+                ExternalMutation.OVERWRITTEN_IMPRESSIONS -> {
+                  val details =
+                    org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails.parseFrom(
+                      metadataBytes
+                    )
+                  storageEmulator.storage.create(
+                    BlobInfo.newBuilder(
+                        BUCKET_NAME,
+                        details.blobUri.removePrefix("gs://$BUCKET_NAME/"),
+                      )
+                      .build(),
+                    byteArrayOf(1),
+                  )
+                }
+                ExternalMutation.ADDED_METADATA ->
+                  storageEmulator.storage.create(
+                    BlobInfo.newBuilder(BUCKET_NAME, "$metadataKey.late.metadata.binpb").build(),
+                    metadataBytes,
+                  )
+                ExternalMutation.NONE -> error("No mutation requested")
+              }
+            }
+          }
           val created =
             request.requestsList.mapIndexed { index, createRequest ->
               createRequest.impressionMetadata.copy {
@@ -524,8 +576,14 @@ class RecoverMissingImpressionMetadataTest {
         .start()
     storageEmulator.createBucket(BUCKET_NAME)
     try {
+      val paths =
+        if (externalMutation == ExternalMutation.NONE) {
+          listOf(EDP_IMPRESSION_PATH, INTERNAL_IMPRESSION_PATH)
+        } else {
+          listOf(EDP_IMPRESSION_PATH)
+        }
       val doneGenerations =
-        listOf(EDP_IMPRESSION_PATH, INTERNAL_IMPRESSION_PATH).associate { path ->
+        paths.associate { path ->
           val date =
             if (blockedByGaps && path == INTERNAL_IMPRESSION_PATH) "2000-01-03" else "2000-01-01"
           val folder = "$path/model-line/model-line-1/$date"
@@ -639,12 +697,13 @@ class RecoverMissingImpressionMetadataTest {
           ::main,
         )
 
-      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(if (blockedByGaps) 1 else 0)
-      verifyBlocking(dataProvidersServiceMock, times(if (blockedByGaps) 0 else 2)) {
+      val failed = blockedByGaps || externalMutation != ExternalMutation.NONE
+      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(if (failed) 1 else 0)
+      verifyBlocking(dataProvidersServiceMock, times(if (failed) 0 else 2)) {
         replaceDataAvailabilityIntervals(any())
       }
       val request = argumentCaptor<BatchCreateImpressionMetadataRequest>()
-      verifyBlocking(impressionMetadataServiceMock, times(2)) {
+      verifyBlocking(impressionMetadataServiceMock, times(doneGenerations.size)) {
         batchCreateImpressionMetadata(request.capture())
       }
       val createdMetadata =
@@ -653,6 +712,23 @@ class RecoverMissingImpressionMetadataTest {
       for (metadata in createdMetadata) {
         assertThat(metadata.outputDoneBlobGeneration)
           .isEqualTo(doneGenerations.getValue(metadata.blobUri))
+      }
+      for (metadata in
+        createdMetadata.filter {
+          it.blobUri.startsWith("gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/")
+        }) {
+        assertThat(metadata.metadataBlobGeneration).isGreaterThan(0L)
+        assertThat(metadata.impressionsBlobGeneration).isGreaterThan(0L)
+      }
+      if (externalMutation != ExternalMutation.NONE) {
+        assertThat(externalMutationApplied).isTrue()
+        val externalDone =
+          storageEmulator.storage.get(
+            BUCKET_NAME,
+            "$EDP_IMPRESSION_PATH/model-line/model-line-1/2000-01-01/done",
+          )
+        assertThat(externalDone.metadata.orEmpty())
+          .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
       }
       for (existing in registeredNeighbours) {
         assertThat(recoveredMetadata.single { it.name == existing.name }).isEqualTo(existing)

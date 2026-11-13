@@ -25,7 +25,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -113,6 +112,7 @@ class GrpcDataAvailabilitySyncLeaseClient(
 /** Runs data-availability synchronization while holding a renewable lease. */
 class DataAvailabilitySyncLeaseRunner(
   private val leaseClient: DataAvailabilitySyncLeaseClient,
+  private val renewalDelay: suspend (Duration) -> Unit,
   private val renewalInterval: Duration = DEFAULT_RENEWAL_INTERVAL,
   private val uuidGenerator: () -> String = { UUID.randomUUID().toString() },
 ) {
@@ -147,7 +147,7 @@ class DataAvailabilitySyncLeaseRunner(
         val renewalJob =
           launch(Dispatchers.IO) {
             while (true) {
-              delay(renewalInterval)
+              renewalDelay(renewalInterval)
               withContext(NonCancellable) { renewLease() }
             }
           }
