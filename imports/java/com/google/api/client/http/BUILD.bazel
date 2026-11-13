@@ -1,6 +1,0 @@
-package(default_visibility = ["//visibility:public"])
-
-alias(
-    name = "http",
-    actual = "@maven//:com_google_http_client_google_http_client",
-)

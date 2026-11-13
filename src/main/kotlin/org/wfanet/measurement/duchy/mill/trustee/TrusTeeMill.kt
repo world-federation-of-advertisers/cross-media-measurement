@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.duchy.mill.trustee
 
-import com.google.api.client.http.HttpResponseException
-import com.google.auth.Retryable
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
@@ -23,7 +21,6 @@ import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
-import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import java.security.GeneralSecurityException
@@ -35,6 +32,7 @@ import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCreden
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
+import org.wfanet.measurement.common.crypto.tink.KmsKeyAccessException
 import org.wfanet.measurement.common.crypto.tink.WifCredentials
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -304,31 +302,12 @@ class TrusTeeMill(
       kmsClientCache.getOrPut(credentials) { factory.getKmsClient(credentials) }
     }
 
-  private fun keyAccessException(message: String, cause: GeneralSecurityException): Exception {
-    // TODO(world-federation-of-advertisers/common-jvm#426): Use documented KMS retry information
-    // instead of inspecting SDK causes.
-    // HTTP status and authentication retry hints take precedence over generic I/O failures.
-    val httpFailure =
-      generateSequence<Throwable>(cause) { it.cause }
-        .filterIsInstance<HttpResponseException>()
-        .firstOrNull()
-    val authFailure =
-      generateSequence<Throwable>(cause) { it.cause }.filterIsInstance<Retryable>().firstOrNull()
-    val retryable =
-      when {
-        httpFailure != null ->
-          httpFailure.statusCode == 408 ||
-            httpFailure.statusCode == 429 ||
-            httpFailure.statusCode in 500..599
-        authFailure != null -> authFailure.isRetryable
-        else -> generateSequence<Throwable>(cause) { it.cause }.any { it is IOException }
-      }
-    return if (retryable) {
+  private fun keyAccessException(message: String, cause: GeneralSecurityException): Exception =
+    if (cause is KmsKeyAccessException && cause.isRetryable) {
       TransientErrorException(message, cause)
     } else {
       PermanentErrorException(message, cause)
     }
-  }
 
   private fun getDekKeysetHandle(
     kmsClient: KmsClient,

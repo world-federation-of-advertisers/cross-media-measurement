@@ -14,9 +14,6 @@
 
 package org.wfanet.measurement.duchy.mill.trustee
 
-import com.google.api.client.http.HttpHeaders
-import com.google.api.client.http.HttpResponseException
-import com.google.auth.Retryable
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
@@ -75,6 +72,7 @@ import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCreden
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
+import org.wfanet.measurement.common.crypto.tink.KmsKeyAccessException
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -673,12 +671,10 @@ class TrusTeeMillTest {
       val unavailableKmsClient: KmsClient = mock()
       whenever(unavailableKmsClient.getAead(KEK_URI_1))
         .thenThrow(
-          GeneralSecurityException(
-            "KMS operation failed",
-            GeneralSecurityException(
-              "Failed to obtain Confidential Space attestation token",
-              IOException("Launcher token request failed: CreateChallenge quota exceeded"),
-            ),
+          KmsKeyAccessException(
+            "Failed to obtain Confidential Space attestation token",
+            isRetryable = true,
+            cause = IOException("Launcher token request failed: CreateChallenge quota exceeded"),
           )
         )
         .thenReturn(KEK_AEAD_1)
@@ -705,72 +701,59 @@ class TrusTeeMillTest {
     }
 
   @Test
-  fun `computingPhase fails permanently for invalid ciphertext HTTP 400`(): Unit = runBlocking {
-    assertHttpKeyDecryptionFailure(statusCode = 400, retryable = false)
-  }
-
-  @Test
-  fun `computingPhase fails permanently for unauthenticated HTTP 401`(): Unit = runBlocking {
-    assertHttpKeyDecryptionFailure(statusCode = 401, retryable = false)
-  }
-
-  @Test
-  fun `computingPhase fails permanently for permission denied HTTP 403`(): Unit = runBlocking {
-    assertHttpKeyDecryptionFailure(statusCode = 403, retryable = false)
-  }
-
-  @Test
-  fun `computingPhase fails permanently for missing KMS key HTTP 404`(): Unit = runBlocking {
-    assertHttpKeyDecryptionFailure(statusCode = 404, retryable = false)
-  }
-
-  @Test
-  fun `computingPhase retries request timeout HTTP 408`(): Unit = runBlocking {
-    assertHttpKeyDecryptionFailure(statusCode = 408, retryable = true)
-  }
-
-  @Test
-  fun `computingPhase retries quota exceeded HTTP 429`(): Unit = runBlocking {
-    assertHttpKeyDecryptionFailure(statusCode = 429, retryable = true)
-  }
-
-  @Test
-  fun `computingPhase retries internal server error HTTP 500`(): Unit = runBlocking {
-    assertHttpKeyDecryptionFailure(statusCode = 500, retryable = true)
-  }
-
-  @Test
-  fun `computingPhase retries service unavailable HTTP 503`(): Unit = runBlocking {
-    assertHttpKeyDecryptionFailure(statusCode = 503, retryable = true)
-  }
-
-  @Test
-  fun `computingPhase fails permanently for nonretryable authentication without HTTP cause`():
-    Unit = runBlocking {
-    assertKeyDecryptionFailure(AuthIOException(retryable = false), retryable = false)
-  }
-
-  @Test
-  fun `computingPhase retries authentication failures marked retryable without HTTP cause`(): Unit =
-    runBlocking {
-      assertKeyDecryptionFailure(AuthIOException(retryable = true), retryable = true)
-    }
-
-  private class AuthIOException(private val retryable: Boolean) :
-    IOException("Token exchange failed"), Retryable {
-    override fun isRetryable(): Boolean = retryable
-
-    override fun getRetryCount(): Int = 0
-  }
-
-  private suspend fun assertHttpKeyDecryptionFailure(statusCode: Int, retryable: Boolean) {
+  fun `computingPhase retries key access failures marked retryable`(): Unit = runBlocking {
     assertKeyDecryptionFailure(
-      HttpResponseException.Builder(statusCode, "KMS request failed", HttpHeaders()).build(),
-      retryable,
+      KmsKeyAccessException("temporary key access failure", isRetryable = true),
+      retryable = true,
     )
   }
 
-  private suspend fun assertKeyDecryptionFailure(cause: Throwable, retryable: Boolean) {
+  @Test
+  fun `computingPhase fails permanently when adapter marks an IOException nonretryable`(): Unit =
+    runBlocking {
+      assertKeyDecryptionFailure(
+        KmsKeyAccessException(
+          "invalid credentials",
+          isRetryable = false,
+          cause = IOException("token exchange rejected"),
+        ),
+        retryable = false,
+      )
+    }
+
+  @Test
+  fun `computingPhase does not infer retry information from an opaque key access failure`(): Unit =
+    runBlocking {
+      assertKeyDecryptionFailure(
+        GeneralSecurityException("decryption failed", IOException("hidden I/O failure")),
+        retryable = false,
+      )
+    }
+
+  @Test
+  fun `computingPhase retries client creation failures marked retryable`(): Unit = runBlocking {
+    assertKeyDecryptionFailure(
+      KmsKeyAccessException("temporary client creation failure", isRetryable = true),
+      retryable = true,
+      duringClientCreation = true,
+    )
+  }
+
+  @Test
+  fun `computingPhase fails permanently for client creation failures marked nonretryable`(): Unit =
+    runBlocking {
+      assertKeyDecryptionFailure(
+        KmsKeyAccessException("invalid client configuration", isRetryable = false),
+        retryable = false,
+        duringClientCreation = true,
+      )
+    }
+
+  private suspend fun assertKeyDecryptionFailure(
+    failure: GeneralSecurityException,
+    retryable: Boolean,
+    duringClientCreation: Boolean = false,
+  ) {
     writeRequisitionData()
     fakeComputationDb.addComputation(
       LOCAL_ID,
@@ -779,14 +762,17 @@ class TrusTeeMillTest {
       requisitions = listOf(REQUISITION_1),
     )
     val kekAead: Aead = mock()
-    whenever(kekAead.decrypt(any(), any()))
-      .thenThrow(GeneralSecurityException("decryption failed", cause))
-      .thenAnswer { invocation ->
-        KEK_AEAD_1.decrypt(invocation.getArgument(0), invocation.getArgument(1))
-      }
+    val decryption = whenever(kekAead.decrypt(any(), any()))
+    val decryptionResult = if (duringClientCreation) decryption else decryption.thenThrow(failure)
+    decryptionResult.thenAnswer { invocation ->
+      KEK_AEAD_1.decrypt(invocation.getArgument(0), invocation.getArgument(1))
+    }
     val kmsClient: KmsClient = mock()
     whenever(kmsClient.getAead(KEK_URI_1)).thenReturn(kekAead)
-    whenever(mockGcloudKmsClientFactory.getKmsClient(any())).thenReturn(kmsClient)
+    val creation = whenever(mockGcloudKmsClientFactory.getKmsClient(any()))
+    val creationResult =
+      if (duringClientCreation) creation.thenAnswer { throw failure } else creation
+    creationResult.thenReturn(kmsClient)
     whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
 
     val mill = createMill()
@@ -813,7 +799,8 @@ class TrusTeeMillTest {
         .isEqualTo(ComputationDetails.CompletedReason.FAILED)
       verify(mockComputationParticipants, times(1)).failComputationParticipant(any())
     }
-    verify(mockGcloudKmsClientFactory, times(1)).getKmsClient(any())
+    verify(mockGcloudKmsClientFactory, times(if (duringClientCreation && retryable) 2 else 1))
+      .getKmsClient(any())
   }
 
   @Test

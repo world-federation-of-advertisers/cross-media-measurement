@@ -42,6 +42,15 @@ bazel_dep(
     version = "0.161.0",
     repo_name = "wfa_common_jvm",
 )
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#427): Use a release containing this PR.
+archive_override(
+    module_name = "common-jvm",
+    integrity = "sha256-Fdog7JJxcU/15IYQY1sxCNXW8NCet3YTb99BLR1LNuY=",
+    strip_prefix = "common-jvm-9bdeb6dd84bc54468485b12c83351eb77c6dd6f9",
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/9bdeb6dd84bc54468485b12c83351eb77c6dd6f9.tar.gz"],
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",
@@ -270,8 +279,6 @@ maven.install(
         "it.unimi.dsi:fastutil:8.5.12",
 
         # Google Cloud
-        "com.google.auth:google-auth-library-credentials",
-        "com.google.http-client:google-http-client",
         "com.google.cloud:google-cloud-bigquery:2.51.0",
         "com.google.apis:google-api-services-bigquery:v2-rev20250511-2.0.0",
         "com.google.cloud:google-cloud-bigquerystorage",
