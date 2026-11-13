@@ -32,6 +32,7 @@ import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCreden
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
+import org.wfanet.measurement.common.crypto.tink.WifCredentials
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
@@ -96,6 +97,17 @@ class TrusTeeMill(
     maximumAttempts = maximumAttempts,
     clock = clock,
   ) {
+
+  /**
+   * Cache of [KmsClient] instances by [WifCredentials].
+   *
+   * Reusing refreshable credentials avoids exhausting Confidential Space attestation quotas.
+   */
+  private val kmsClientCache =
+    object : LinkedHashMap<WifCredentials, KmsClient>(16, 0.75f, true) {
+      override fun removeEldestEntry(eldest: MutableMap.MutableEntry<WifCredentials, KmsClient>) =
+        size > MAX_CACHED_KMS_CLIENTS
+    }
 
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
@@ -245,7 +257,7 @@ class TrusTeeMill(
               region = awsConfig.region,
               audience = awsConfig.audience,
             )
-          confidentialSpaceToAwsKmsClientFactory.getKmsClient(credentials)
+          getCachedKmsClient(confidentialSpaceToAwsKmsClientFactory, credentials)
         } else {
           // Two-hop: GCP WIF + service-account impersonation mints the OIDC token for AWS STS.
           val credentials =
@@ -261,7 +273,7 @@ class TrusTeeMill(
               region = awsConfig.region,
               awsAudience = awsConfig.audience,
             )
-          gcloudToAwsKmsClientFactory.getKmsClient(credentials)
+          getCachedKmsClient(gcloudToAwsKmsClientFactory, credentials)
         }
       } else {
         val credentials =
@@ -273,12 +285,20 @@ class TrusTeeMill(
             serviceAccountImpersonationUrl =
               IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
           )
-        gcloudKmsClientFactory.getKmsClient(credentials)
+        getCachedKmsClient(gcloudKmsClientFactory, credentials)
       }
     } catch (e: GeneralSecurityException) {
       throw PermanentErrorException("Failed to create KMS client", e)
     }
   }
+
+  private fun <T : WifCredentials> getCachedKmsClient(
+    factory: KmsClientFactory<T>,
+    credentials: T,
+  ): KmsClient =
+    synchronized(kmsClientCache) {
+      kmsClientCache.getOrPut(credentials) { factory.getKmsClient(credentials) }
+    }
 
   private fun getDekKeysetHandle(
     kmsClient: KmsClient,
@@ -335,6 +355,8 @@ class TrusTeeMill(
     }
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private const val MAX_CACHED_KMS_CLIENTS = 128
 
     private const val OAUTH_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token"
     private const val GOOGLE_STS_TOKEN_URL = "https://sts.googleapis.com/v1/token"
