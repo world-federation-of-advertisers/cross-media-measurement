@@ -22,6 +22,7 @@ import java.io.InterruptedIOException
 import java.net.ProtocolException
 import java.net.SocketTimeoutException
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import javax.net.ssl.SSLException
 import kotlinx.coroutines.Dispatchers
@@ -83,8 +84,10 @@ class BasicReportHttpClient(
           }
         } catch (e: IOException) {
           if (attempt >= maxAttempts || !isRetryableTransportFailure(e)) throw e
-          logger.warning(
-            "Transient BasicReport transport failure on attempt $attempt of $maxAttempts; retrying"
+          logger.log(
+            Level.WARNING,
+            "Transient BasicReport transport failure on attempt $attempt of $maxAttempts; retrying",
+            e,
           )
           null
         }
