@@ -314,8 +314,12 @@ class ReportingSetReader(private val readContext: ReadContext) {
       }
 
       if (reportingSetInfo.setExpressionInfoMap.isNotEmpty()) {
-        reportingSetInfo.setExpressionInfoMap[reportingSetInfo.setExpressionId]?.let {
-          composite = buildSetExpression(it, reportingSetInfo.setExpressionInfoMap)
+        val rootSetExpressionId = reportingSetInfo.setExpressionId
+        if (
+          rootSetExpressionId != null &&
+            rootSetExpressionId in reportingSetInfo.setExpressionInfoMap
+        ) {
+          composite = reportingSetInfo.buildSetExpression(rootSetExpressionId, mutableSetOf())
         }
 
         reportingSetInfo.weightedSubsetUnionInfoMap.values.forEach {
@@ -441,40 +445,56 @@ class ReportingSetReader(private val readContext: ReadContext) {
     return reportingSetInfoMap
   }
 
-  private fun buildSetExpression(
-    setExpressionInfo: SetExpressionInfo,
-    setExpressionInfoMap: Map<InternalId, SetExpressionInfo>,
+  private fun ReportingSetInfo.buildSetExpression(
+    setExpressionId: InternalId,
+    visitingSetExpressionIds: MutableSet<InternalId>,
   ): SetExpression {
-    return ReportingSetKt.setExpression {
-      operationValue = setExpressionInfo.operationValue
+    if (!visitingSetExpressionIds.add(setExpressionId)) {
+      throw CampaignGroupInvalidException(cmmsMeasurementConsumerId, externalReportingSetId)
+    }
+    val setExpressionInfo = setExpressionInfoMap.getValue(setExpressionId)
+    return try {
+      ReportingSetKt.setExpression {
+        operationValue = setExpressionInfo.operationValue
 
-      if (setExpressionInfo.leftHandExternalReportingSetId != null) {
-        lhs =
-          ReportingSetKt.SetExpressionKt.operand {
-            externalReportingSetId = setExpressionInfo.leftHandExternalReportingSetId
-          }
-      } else if (setExpressionInfo.leftHandSetExpressionId != null) {
-        setExpressionInfoMap[setExpressionInfo.leftHandSetExpressionId]?.let {
+        if (setExpressionInfo.leftHandExternalReportingSetId != null) {
           lhs =
             ReportingSetKt.SetExpressionKt.operand {
-              expression = buildSetExpression(it, setExpressionInfoMap)
+              externalReportingSetId = setExpressionInfo.leftHandExternalReportingSetId
             }
-        }
-      }
-
-      if (setExpressionInfo.rightHandExternalReportingSetId != null) {
-        rhs =
-          ReportingSetKt.SetExpressionKt.operand {
-            externalReportingSetId = setExpressionInfo.rightHandExternalReportingSetId
+        } else if (setExpressionInfo.leftHandSetExpressionId != null) {
+          if (setExpressionInfo.leftHandSetExpressionId in setExpressionInfoMap) {
+            lhs =
+              ReportingSetKt.SetExpressionKt.operand {
+                expression =
+                  buildSetExpression(
+                    setExpressionInfo.leftHandSetExpressionId,
+                    visitingSetExpressionIds,
+                  )
+              }
           }
-      } else if (setExpressionInfo.rightHandSetExpressionId != null) {
-        setExpressionInfoMap[setExpressionInfo.rightHandSetExpressionId]?.let {
+        }
+
+        if (setExpressionInfo.rightHandExternalReportingSetId != null) {
           rhs =
             ReportingSetKt.SetExpressionKt.operand {
-              expression = buildSetExpression(it, setExpressionInfoMap)
+              externalReportingSetId = setExpressionInfo.rightHandExternalReportingSetId
             }
+        } else if (setExpressionInfo.rightHandSetExpressionId != null) {
+          if (setExpressionInfo.rightHandSetExpressionId in setExpressionInfoMap) {
+            rhs =
+              ReportingSetKt.SetExpressionKt.operand {
+                expression =
+                  buildSetExpression(
+                    setExpressionInfo.rightHandSetExpressionId,
+                    visitingSetExpressionIds,
+                  )
+              }
+          }
         }
       }
+    } finally {
+      visitingSetExpressionIds.remove(setExpressionId)
     }
   }
 

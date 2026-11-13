@@ -3721,6 +3721,271 @@ class BasicReportReportingSetBackfillerTest {
     }
 
   @Test
+  fun `run blocks a self-referential nested expression without writes`() =
+    runBlocking<Unit> {
+      createNestedExpressionComposite()
+      setNestedExpressionReference(referenceSelf = true)
+      insertTestBasicReport(
+        BASIC_REPORT_ID,
+        EXTERNAL_BASIC_REPORT_ID,
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        listOf(ComponentSpec()),
+      )
+
+      assertBlockingNestedExpressionRuns()
+      assertThat(newBackfiller(dryRun = false).run().unresolvableCampaignGroupReferences)
+        .isEqualTo(1)
+    }
+
+  @Test
+  fun `run continues past mutually recursive nested expressions`() =
+    runBlocking<Unit> {
+      createNestedExpressionComposite()
+      setNestedExpressionReference(referenceSelf = false)
+      insertTestBasicReport(
+        BASIC_REPORT_ID,
+        EXTERNAL_BASIC_REPORT_ID,
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        listOf(ComponentSpec()),
+      )
+      createCampaignGroup()
+      insertTestBasicReport(
+        BASIC_REPORT_ID_2,
+        EXTERNAL_BASIC_REPORT_ID_2,
+        CAMPAIGN_GROUP_ID,
+        listOf(ComponentSpec()),
+      )
+      val blockedBefore = readStoredBasicReportRow(MEASUREMENT_CONSUMER_ID, BASIC_REPORT_ID)
+      val validBefore = readStoredBasicReportRow(MEASUREMENT_CONSUMER_ID, BASIC_REPORT_ID_2)
+      val storageBefore = readReportingSetStorage()
+
+      val dryRun = newBackfiller(dryRun = true).run()
+      assertThat(dryRun.updated).isEqualTo(1)
+      assertThat(dryRun.skipped).isEqualTo(1)
+      assertThat(dryRun.unresolvableCampaignGroupReferences).isEqualTo(1)
+      assertThat(dryRun.readyToRemoveReadPathFallback).isFalse()
+      assertThat(readStoredBasicReportRow(MEASUREMENT_CONSUMER_ID, BASIC_REPORT_ID))
+        .isEqualTo(blockedBefore)
+      assertThat(readStoredBasicReportRow(MEASUREMENT_CONSUMER_ID, BASIC_REPORT_ID_2))
+        .isEqualTo(validBefore)
+      assertThat(readReportingSetStorage()).containsExactlyElementsIn(storageBefore)
+
+      val result = newBackfiller(dryRun = false).run()
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.unresolvableCampaignGroupReferences).isEqualTo(1)
+      assertThat(result.compositeCampaignGroupsMigrated).isEqualTo(0)
+      assertThat(result.readyToRemoveReadPathFallback).isFalse()
+      assertThat(readStoredBasicReportRow(MEASUREMENT_CONSUMER_ID, BASIC_REPORT_ID))
+        .isEqualTo(blockedBefore)
+      assertThat(readComponentSummaryReportingSetId(EXTERNAL_BASIC_REPORT_ID_2)).isNotEmpty()
+      assertThat(newBackfiller(dryRun = false).run().updated).isEqualTo(0)
+    }
+
+  @Test
+  fun `run blocks a custom component with mutually recursive nested expressions`() =
+    runBlocking<Unit> {
+      createNestedExpressionComposite()
+      setNestedExpressionReference(referenceSelf = false)
+      insertIdentityBasicReport(
+        customReportingUnit(listOf(COMPOSITE_NON_CAMPAIGN_GROUP_ID)),
+        listOf(
+          ComponentSpec(
+            cmmsDataProviderId = "",
+            cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1, EVENT_GROUP_ID_2),
+          )
+        ),
+        listOf(COMPOSITE_NON_CAMPAIGN_GROUP_ID),
+        emptyList(),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+
+      assertBlockingNestedExpressionRuns()
+      assertThat(newBackfiller(dryRun = false).run().unresolvedComponents).isEqualTo(1)
+    }
+
+  @Test
+  fun `run blocks a DataProvider component with a cyclic nested ReportingSet ID`() =
+    runBlocking<Unit> {
+      createNestedExpressionComposite()
+      setNestedExpressionReference(referenceSelf = true)
+      insertIdentityBasicReport(
+        dataProviderReportingUnit(listOf(CMMS_DATA_PROVIDER_ID)),
+        listOf(ComponentSpec(externalReportingSetId = COMPOSITE_NON_CAMPAIGN_GROUP_ID)),
+        emptyList(),
+        listOf(CMMS_DATA_PROVIDER_ID),
+        INVALID_CAMPAIGN_GROUP_ID,
+      )
+
+      assertBlockingNestedExpressionRuns()
+      assertThat(newBackfiller(dryRun = false).run().unresolvedComponents).isEqualTo(1)
+    }
+
+  @Test
+  fun `run migrates a shared nested expression without treating it as a cycle`() =
+    runBlocking<Unit> {
+      createNestedExpressionComposite()
+      val transaction = postgresClient.readWriteTransaction()
+      try {
+        transaction.executeStatement(
+          boundStatement(
+            """
+            UPDATE SetExpressions
+            SET RightHandSetExpressionId = LeftHandSetExpressionId,
+              RightHandReportingSetId = NULL
+            FROM ReportingSets, MeasurementConsumers
+            WHERE SetExpressions.MeasurementConsumerId = ReportingSets.MeasurementConsumerId
+              AND SetExpressions.ReportingSetId = ReportingSets.ReportingSetId
+              AND SetExpressions.SetExpressionId = ReportingSets.SetExpressionId
+              AND ReportingSets.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId
+              AND MeasurementConsumers.CmmsMeasurementConsumerId = $1
+              AND ReportingSets.ExternalReportingSetId = $2
+            """
+              .trimIndent()
+          ) {
+            bind("$1", CMMS_MEASUREMENT_CONSUMER_ID)
+            bind("$2", COMPOSITE_NON_CAMPAIGN_GROUP_ID)
+          }
+        )
+        transaction.commit()
+      } finally {
+        transaction.close()
+      }
+      insertTestBasicReport(
+        BASIC_REPORT_ID,
+        EXTERNAL_BASIC_REPORT_ID,
+        COMPOSITE_NON_CAMPAIGN_GROUP_ID,
+        listOf(ComponentSpec()),
+      )
+      val sourceBefore = readReportingSet(COMPOSITE_NON_CAMPAIGN_GROUP_ID)
+      val reportBefore = readInternalBasicReport()
+      val storageBefore = readReportingSetStorage()
+
+      val dryRun = newBackfiller(dryRun = true).run()
+      assertThat(dryRun.updated).isEqualTo(1)
+      assertThat(readInternalBasicReport()).isEqualTo(reportBefore)
+      assertThat(readReportingSetStorage()).containsExactlyElementsIn(storageBefore)
+
+      val result = newBackfiller(dryRun = false).run()
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.compositeCampaignGroupsMigrated).isEqualTo(1)
+      assertThat(result.readyToRemoveReadPathFallback).isTrue()
+      assertThat(readReportingSet(COMPOSITE_NON_CAMPAIGN_GROUP_ID)).isEqualTo(sourceBefore)
+      assertThat(newBackfiller(dryRun = false).run().updated).isEqualTo(0)
+    }
+
+  private suspend fun createNestedExpressionComposite() {
+    createNonCampaignGroup()
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        externalReportingSetId = COMPOSITE_NON_CAMPAIGN_GROUP_ID
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          composite =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.UNION
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  expression =
+                    ReportingSetKt.setExpression {
+                      operation = ReportingSet.SetExpression.Operation.UNION
+                      lhs =
+                        ReportingSetKt.SetExpressionKt.operand {
+                          externalReportingSetId = INVALID_CAMPAIGN_GROUP_ID
+                        }
+                    }
+                }
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = INVALID_CAMPAIGN_GROUP_ID
+                }
+            }
+          weightedSubsetUnions += weightedUnion(1, 1, listOf(INVALID_CAMPAIGN_GROUP_ID))
+        }
+      }
+    )
+  }
+
+  private suspend fun setNestedExpressionReference(referenceSelf: Boolean) {
+    val referencedExpression =
+      if (referenceSelf) "SetExpressions.SetExpressionId" else "ReportingSets.SetExpressionId"
+    val transaction = postgresClient.readWriteTransaction()
+    try {
+      transaction.executeStatement(
+        boundStatement(
+          """
+          UPDATE SetExpressions
+          SET LeftHandSetExpressionId = $referencedExpression,
+            LeftHandReportingSetId = NULL
+          FROM ReportingSets, MeasurementConsumers
+          WHERE SetExpressions.MeasurementConsumerId = ReportingSets.MeasurementConsumerId
+            AND SetExpressions.ReportingSetId = ReportingSets.ReportingSetId
+            AND SetExpressions.SetExpressionId <> ReportingSets.SetExpressionId
+            AND ReportingSets.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId
+            AND MeasurementConsumers.CmmsMeasurementConsumerId = $1
+            AND ReportingSets.ExternalReportingSetId = $2
+          """
+            .trimIndent()
+        ) {
+          bind("$1", CMMS_MEASUREMENT_CONSUMER_ID)
+          bind("$2", COMPOSITE_NON_CAMPAIGN_GROUP_ID)
+        }
+      )
+      transaction.commit()
+    } finally {
+      transaction.close()
+    }
+  }
+
+  private suspend fun assertBlockingNestedExpressionRuns() {
+    val before = readStoredBasicReportRow(MEASUREMENT_CONSUMER_ID, BASIC_REPORT_ID)
+    val storageBefore = readReportingSetStorage()
+    for (dryRun in listOf(true, false)) {
+      val result = newBackfiller(dryRun).run()
+      assertThat(result.updated).isEqualTo(0)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.reportingSetsCreated).isEqualTo(0)
+      assertThat(result.componentSummariesFilled).isEqualTo(0)
+      assertThat(result.dataProviderIdsFilled).isEqualTo(0)
+      assertThat(result.readyToRemoveReadPathFallback).isFalse()
+      assertThat(readStoredBasicReportRow(MEASUREMENT_CONSUMER_ID, BASIC_REPORT_ID))
+        .isEqualTo(before)
+      assertThat(readReportingSetStorage()).containsExactlyElementsIn(storageBefore)
+    }
+  }
+
+  private suspend fun readReportingSetStorage(): List<String> {
+    val tables =
+      listOf(
+        "MeasurementConsumers",
+        "EventGroups",
+        "ReportingSets",
+        "ReportingSetEventGroups",
+        "SetExpressions",
+        "WeightedSubsetUnions",
+        "PrimitiveReportingSetBases",
+        "WeightedSubsetUnionPrimitiveReportingSetBases",
+        "PrimitiveReportingSetBasisFilters",
+      )
+    val sql =
+      tables.joinToString(" UNION ALL ") { table ->
+        "SELECT '$table:' || row_to_json(t)::text AS snapshot FROM $table AS t"
+      }
+    val readContext = postgresClient.singleUse()
+    return try {
+      readContext
+        .executeQuery(boundStatement(sql) {})
+        .consume { row ->
+          val snapshot: String = row["snapshot"]
+          snapshot
+        }
+        .toList()
+    } finally {
+      readContext.close()
+    }
+  }
+
+  @Test
   fun `composite migration rejects a missing left operand without writes`() =
     runBlocking<Unit> {
       createCompositeNonCampaignGroupWithMissingRhs()

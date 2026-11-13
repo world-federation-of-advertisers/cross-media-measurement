@@ -975,6 +975,11 @@ class BasicReportReportingSetBackfiller(
           null,
           "DataProvider ReportingSet $externalReportingSetId was not found",
         )
+      } catch (_: CampaignGroupInvalidException) {
+        return ComponentMembershipResolution(
+          null,
+          "DataProvider ReportingSet $externalReportingSetId has an invalid composite expression",
+        )
       }
     if (!reportingSet.hasPrimitive() || reportingSet.filter.isNotEmpty()) {
       return ComponentMembershipResolution(
@@ -997,6 +1002,11 @@ class BasicReportReportingSetBackfiller(
         return ComponentMembershipResolution(
           null,
           "custom ReportingSet $externalReportingSetId was not found",
+        )
+      } catch (_: CampaignGroupInvalidException) {
+        return ComponentMembershipResolution(
+          null,
+          "custom ReportingSet $externalReportingSetId has an invalid composite expression",
         )
       }
     val membership: Set<ReportingSet.Primitive.EventGroupKey> =
