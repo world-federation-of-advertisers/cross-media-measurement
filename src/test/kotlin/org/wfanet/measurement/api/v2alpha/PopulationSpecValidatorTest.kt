@@ -27,7 +27,10 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidR
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangesNotDisjointDetail
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.versionedCommon
 
 @RunWith(JUnit4::class)
 class PopulationSpecValidatorTest {
@@ -222,5 +225,83 @@ class PopulationSpecValidatorTest {
           0,
         )
       )
+  }
+
+  @Test
+  fun `validate checks only population fields present in configured version`() {
+    val populationSpec = versionedPopulationSpec(includeLater = false, includeRetired = true)
+
+    PopulationSpecValidator.validate(populationSpec, VersionedEvent.getDescriptor(), 1)
+
+    val exception =
+      assertFailsWith<PopulationSpecValidationException> {
+        PopulationSpecValidator.validate(populationSpec, VersionedEvent.getDescriptor(), 2)
+      }
+    assertThat(exception.details)
+      .containsExactly(
+        PopulationSpecValidationException.PopulationFieldNotSetDetail(
+          VersionedCommon.getDescriptor().findFieldByNumber(VersionedCommon.LATER_FIELD_NUMBER),
+          0,
+        )
+      )
+  }
+
+  @Test
+  fun `validate ignores population field removed in configured version`() {
+    val populationSpec = versionedPopulationSpec(includeLater = true, includeRetired = false)
+
+    PopulationSpecValidator.validate(populationSpec, VersionedEvent.getDescriptor(), 3)
+  }
+
+  @Test
+  fun `validate rejects non-positive event template version`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        PopulationSpecValidator.validate(
+          versionedPopulationSpec(includeLater = true, includeRetired = true),
+          VersionedEvent.getDescriptor(),
+          0,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("must be positive")
+  }
+
+  @Test
+  fun `validate rejects event template version newer than descriptor`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        PopulationSpecValidator.validate(
+          versionedPopulationSpec(includeLater = true, includeRetired = true),
+          VersionedEvent.getDescriptor(),
+          4,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("exceeds current version 3")
+  }
+
+  private fun versionedPopulationSpec(
+    includeLater: Boolean,
+    includeRetired: Boolean,
+  ): PopulationSpec = populationSpec {
+    subpopulations += subPopulation {
+      vidRanges += vidRange {
+        startVid = 1
+        endVidInclusive = 100
+      }
+      attributes +=
+        ProtoAny.pack(
+          versionedCommon {
+            original = VersionedCommon.Segment.SEGMENT_A
+            if (includeLater) {
+              later = VersionedCommon.Segment.SEGMENT_A
+            }
+            if (includeRetired) {
+              retired = VersionedCommon.Segment.SEGMENT_B
+            }
+          }
+        )
+    }
   }
 }
