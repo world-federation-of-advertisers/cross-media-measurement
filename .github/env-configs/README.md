@@ -16,3 +16,14 @@ Secret mapping values committed in tfvars name Secret Manager resources and file
 Set Spanner capacity with `spanner_processing_units` in the selected tfvars file. Terraform reapplies that value during deployment, so commit sustained capacity increases there to preserve them across deployments.
 
 `REQUISITION_FETCHER_SCHEDULER_JOB_NAME` in `cmms.json` selects the scheduler paused by Update CMMS. The workflow also passes this value to Terraform as `requisition_fetcher_scheduler_job_name`, so both operations address the same job.
+
+## Shared EDP KMS configuration
+
+`edp-kms.json` configures the EDP-owned Google Cloud and AWS deployment roots. It
+contains shared resource names, existing grants, deployment identity selection,
+and per-environment trusted signing keys. The preparation script reads input-key
+URIs, CMMS project IDs, and CI export subjects from the existing `cmms.json` files,
+and verifies provider/role references against committed runtime textprotos.
+Signing fingerprints are derived from the repository's public keys. All three
+environments share one state per cloud; these resources are not owned by their
+individual CMMS states.
