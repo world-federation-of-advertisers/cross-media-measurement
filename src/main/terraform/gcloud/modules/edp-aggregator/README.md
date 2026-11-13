@@ -70,3 +70,18 @@ outputs under `vid-labeled-impressions/edp/...`. Before adopting this configurat
 VID Labeler and availability tasks and migrate dispatcher, monitor, and sync configs together.
 Keep previously published impression metadata; new tasks derive their outputs from the new
 internal prefix. External upload producers do not need to change their paths.
+
+## Metadata cleanup in versioned buckets
+
+The metadata deletion watcher receives both object-deleted and object-archived
+events. In a versioned bucket, deleting a live object without specifying a
+generation makes that version noncurrent and emits an archive event. Overwriting
+an object also archives its previous version.
+
+Cleanup checks whether a live object still exists before deleting its impression
+metadata. An overwrite therefore keeps the live object's metadata. If no live
+object remains, cleanup deletes the metadata; repeated notifications are harmless.
+
+Both triggers use the same service account and dead-letter queue. Enabling archive
+events handles future removals; it does not repair metadata left behind by earlier
+missed notifications.

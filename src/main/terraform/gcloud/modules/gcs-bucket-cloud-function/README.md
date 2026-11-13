@@ -1,8 +1,8 @@
 # GCS-Triggered Cloud Function
 
 Terraform module to deploy a Cloud Function (Gen2) triggered by GCS object
-events (finalize or delete), with a Pub/Sub dead letter queue for
-undeliverable notifications.
+events (finalize or delete, with optional additional events), with a Pub/Sub dead
+letter queue for undeliverable notifications.
 
 ## Additional storage events
 
@@ -10,7 +10,8 @@ Set `additional_trigger_event_types = ["archived"]` to send archive notification
 from a versioned bucket to the same function. Deleting a live object without a
 generation archives it; overwriting an object also archives its previous version.
 A cleanup handler must check whether a live version remains before deleting its
-metadata. Additional triggers use the existing trigger identity and dead-letter queue.
+metadata. Additional triggers use the existing trigger identity and dead-letter
+queue.
 
 ## Dead Letter Queue
 
