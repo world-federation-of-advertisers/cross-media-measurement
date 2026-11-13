@@ -45,5 +45,8 @@ genrule(
 
 filegroup(
     name = "specs",
-    srcs = glob(["*.textproto"]) + [":gen_high_overlap_specs"],
+    srcs = glob(["*.textproto"]) + [
+        ":gen_high_overlap_specs",
+        "//src/main/proto/wfa/measurement/api/v2alpha:360m_population_spec_us",
+    ],
 )

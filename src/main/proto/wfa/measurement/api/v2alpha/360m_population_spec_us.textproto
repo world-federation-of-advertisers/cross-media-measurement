@@ -1,9 +1,9 @@
 # proto-file: wfa/measurement/api/v2alpha/population_spec.proto
 # proto-message: PopulationSpec
 
-# 360M VIDs covering all 50 states, three age groups and both genders.
-# Reached VIDs 1..10610000 retain the original five-state demographic stripes.
-# The remaining VIDs have no impressions and provide positive population for every cohort.
+# Synthetic 360M population covering all 50 states, three age groups and both genders.
+# VIDs 1..10610000 cycle through 10000-VID stripes across CA, NY, TX, FL and IL.
+# The remaining VIDs are distributed evenly across all 300 demographic cohorts.
 
 subpopulations {
   attributes {

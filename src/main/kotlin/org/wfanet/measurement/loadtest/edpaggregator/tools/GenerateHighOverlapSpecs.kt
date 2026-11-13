@@ -265,7 +265,8 @@ object GenerateHighOverlapSpecs {
       ),
     )
 
-  private const val POPULATION_SPEC_FILE = "high_overlap_population_spec.textproto"
+  private const val POPULATION_SPEC_RESOURCE_PATH =
+    "../../api/v2alpha/360m_population_spec_us.textproto"
   private const val CONFIG_FILE = "high_overlap_impression_test_data_config.textproto"
 
   /**
@@ -400,7 +401,7 @@ object GenerateHighOverlapSpecs {
 
   /** Builds the config: one entry per (segment, EDP) pair. */
   private fun buildConfig(): ImpressionTestDataConfig = impressionTestDataConfig {
-    populationSpecResourcePath = POPULATION_SPEC_FILE
+    populationSpecResourcePath = POPULATION_SPEC_RESOURCE_PATH
     for (segment in SEGMENTS) {
       for (edp in segment.edps) {
         eventGroups += syntheticEventGroup {
