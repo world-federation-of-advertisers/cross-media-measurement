@@ -271,23 +271,8 @@ system-api-server-deployment         1/1   1          1         1m
 v2alpha-public-api-server-deployment 1/1   1          1         1m
 ```
 
-The internal data server runs two replicas and prefers placing them on different
-nodes using hostname topology spreading (`ScheduleAnyway`). Both replicas can
-still run on one node when capacity is limited. Each replica requests 500m CPU
-and 640Mi memory; provide capacity for the second replica and a replacement.
-
-A PodDisruptionBudget with `minAvailable: 1` retains one available replica during
-voluntary eviction. Wait for both replicas to become ready and inspect their node
-placement before a planned drain:
-
-```shell
-kubectl rollout status deployment/gcp-kingdom-data-server-deployment
-kubectl get pods -o wide
-kubectl get poddisruptionbudgets
-```
-
-The budget can delay a node drain until a replacement is ready. It does not
-prevent involuntary node loss or guarantee that every RPC survives a drain.
+The default configuration uses multiple Kingdom internal API replicas with a
+`PodDisruptionBudget`. Ensure all replicas are ready before proceeding.
 
 ```
 NAME                      TYPE         CLUSTER-IP   EXTERNAL-IP  PORT(S)        AGE
