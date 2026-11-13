@@ -595,6 +595,68 @@ class TrusTeeMillTest {
   }
 
   @Test
+  fun `computingPhase reuses refreshable Confidential Space credentials across computations`():
+    Unit = runBlocking {
+    writeRequisitionData()
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+    val mill = createMill()
+
+    for (localId in listOf(LOCAL_ID, LOCAL_ID + 1)) {
+      fakeComputationDb.addComputation(
+        localId,
+        Stage.COMPUTING.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE),
+      )
+
+      mill.claimAndProcessWork()
+
+      assertThat(fakeComputationDb[localId]!!.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+      fakeComputationDb.deleteComputation(localId)
+    }
+
+    verify(mockConfidentialSpaceToAwsKmsClientFactory, times(1)).getKmsClient(any())
+    verify(mockSystemComputations, times(2)).setComputationResult(any())
+  }
+
+  @Test
+  fun `computingPhase keeps different Confidential Space audiences separate`(): Unit = runBlocking {
+    writeRequisitionData()
+    val otherAudienceRequisition =
+      REQUISITION_2.copy {
+        details =
+          REQUISITION_CONFIDENTIAL_SPACE.details.copy {
+            protocol =
+              protocol.copy {
+                trusTee =
+                  trusTee.copy {
+                    encryptedDekCiphertext = DEK_KEYSET_HANDLE_2.toEncryptedByteString(KEK_AEAD_2)
+                    kmsKekUri = KEK_URI_2
+                    awsKmsParams = awsKmsParams.copy { audience = "https://other.example.com" }
+                  }
+              }
+          }
+      }
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE, otherAudienceRequisition),
+    )
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+
+    createMill().claimAndProcessWork()
+
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+    val credentials = argumentCaptor<ConfidentialSpaceToAwsWifCredentials>()
+    verify(mockConfidentialSpaceToAwsKmsClientFactory, times(2)).getKmsClient(credentials.capture())
+    assertThat(credentials.allValues.map { it.audience })
+      .containsExactly("https://example.com", "https://other.example.com")
+  }
+
+  @Test
   fun `computingPhase fails when requisition data is missing`(): Unit = runBlocking {
     // Data for REQUISITION_2 is deliberately omitted.
     requisitionStore.write(
