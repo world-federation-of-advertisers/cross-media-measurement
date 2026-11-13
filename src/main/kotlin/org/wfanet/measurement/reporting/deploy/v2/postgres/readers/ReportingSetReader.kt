@@ -68,7 +68,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
   )
 
   private data class SetExpressionInfo(
-    val operation: SetExpression.Operation,
+    val operationValue: Int,
     val leftHandSetExpressionId: InternalId?,
     val leftHandExternalReportingSetId: String?,
     val rightHandSetExpressionId: InternalId?,
@@ -314,8 +314,12 @@ class ReportingSetReader(private val readContext: ReadContext) {
       }
 
       if (reportingSetInfo.setExpressionInfoMap.isNotEmpty()) {
-        reportingSetInfo.setExpressionInfoMap[reportingSetInfo.setExpressionId]?.let {
-          composite = buildSetExpression(it, reportingSetInfo.setExpressionInfoMap)
+        val rootSetExpressionId = reportingSetInfo.setExpressionId
+        if (
+          rootSetExpressionId != null &&
+            rootSetExpressionId in reportingSetInfo.setExpressionInfoMap
+        ) {
+          composite = reportingSetInfo.buildSetExpression(rootSetExpressionId, mutableSetOf())
         }
 
         reportingSetInfo.weightedSubsetUnionInfoMap.values.forEach {
@@ -390,7 +394,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       if (setExpressionId != null && operation != null) {
         reportingSetInfo.setExpressionInfoMap.computeIfAbsent(setExpressionId) {
           SetExpressionInfo(
-            operation = SetExpression.Operation.forNumber(operation),
+            operationValue = operation,
             leftHandSetExpressionId = leftHandSetExpressionId,
             leftHandExternalReportingSetId = leftHandExternalReportingSetId,
             rightHandSetExpressionId = rightHandSetExpressionId,
@@ -408,13 +412,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
         )
       }
 
-      if (
-        weightedSubsetUnionId != null &&
-          weight != null &&
-          binaryRepresentation != null &&
-          primitiveReportingSetBasisId != null &&
-          primitiveExternalReportingSetId != null
-      ) {
+      if (weightedSubsetUnionId != null && weight != null && binaryRepresentation != null) {
         val weightedSubsetUnionInfo =
           reportingSetInfo.weightedSubsetUnionInfoMap.computeIfAbsent(weightedSubsetUnionId) {
             WeightedSubsetUnionInfo(
@@ -424,18 +422,20 @@ class ReportingSetReader(private val readContext: ReadContext) {
             )
           }
 
-        val primitiveReportingSetBasisInfo =
-          weightedSubsetUnionInfo.primitiveReportingSetBasisInfoMap.computeIfAbsent(
-            primitiveReportingSetBasisId
-          ) {
-            PrimitiveReportingSetBasisInfo(
-              primitiveExternalReportingSetId = primitiveExternalReportingSetId,
-              filterSet = mutableSetOf(),
-            )
-          }
+        if (primitiveReportingSetBasisId != null && primitiveExternalReportingSetId != null) {
+          val primitiveReportingSetBasisInfo =
+            weightedSubsetUnionInfo.primitiveReportingSetBasisInfoMap.computeIfAbsent(
+              primitiveReportingSetBasisId
+            ) {
+              PrimitiveReportingSetBasisInfo(
+                primitiveExternalReportingSetId = primitiveExternalReportingSetId,
+                filterSet = mutableSetOf(),
+              )
+            }
 
-        if (primitiveReportingSetBasisFilter != null) {
-          primitiveReportingSetBasisInfo.filterSet.add(primitiveReportingSetBasisFilter)
+          if (primitiveReportingSetBasisFilter != null) {
+            primitiveReportingSetBasisInfo.filterSet.add(primitiveReportingSetBasisFilter)
+          }
         }
       }
     }
@@ -445,40 +445,56 @@ class ReportingSetReader(private val readContext: ReadContext) {
     return reportingSetInfoMap
   }
 
-  private fun buildSetExpression(
-    setExpressionInfo: SetExpressionInfo,
-    setExpressionInfoMap: Map<InternalId, SetExpressionInfo>,
+  private fun ReportingSetInfo.buildSetExpression(
+    setExpressionId: InternalId,
+    visitingSetExpressionIds: MutableSet<InternalId>,
   ): SetExpression {
-    return ReportingSetKt.setExpression {
-      operation = setExpressionInfo.operation
+    if (!visitingSetExpressionIds.add(setExpressionId)) {
+      throw CampaignGroupInvalidException(cmmsMeasurementConsumerId, externalReportingSetId)
+    }
+    val setExpressionInfo = setExpressionInfoMap.getValue(setExpressionId)
+    return try {
+      ReportingSetKt.setExpression {
+        operationValue = setExpressionInfo.operationValue
 
-      if (setExpressionInfo.leftHandExternalReportingSetId != null) {
-        lhs =
-          ReportingSetKt.SetExpressionKt.operand {
-            externalReportingSetId = setExpressionInfo.leftHandExternalReportingSetId
-          }
-      } else if (setExpressionInfo.leftHandSetExpressionId != null) {
-        setExpressionInfoMap[setExpressionInfo.leftHandSetExpressionId]?.let {
+        if (setExpressionInfo.leftHandExternalReportingSetId != null) {
           lhs =
             ReportingSetKt.SetExpressionKt.operand {
-              expression = buildSetExpression(it, setExpressionInfoMap)
+              externalReportingSetId = setExpressionInfo.leftHandExternalReportingSetId
             }
-        }
-      }
-
-      if (setExpressionInfo.rightHandExternalReportingSetId != null) {
-        rhs =
-          ReportingSetKt.SetExpressionKt.operand {
-            externalReportingSetId = setExpressionInfo.rightHandExternalReportingSetId
+        } else if (setExpressionInfo.leftHandSetExpressionId != null) {
+          if (setExpressionInfo.leftHandSetExpressionId in setExpressionInfoMap) {
+            lhs =
+              ReportingSetKt.SetExpressionKt.operand {
+                expression =
+                  buildSetExpression(
+                    setExpressionInfo.leftHandSetExpressionId,
+                    visitingSetExpressionIds,
+                  )
+              }
           }
-      } else if (setExpressionInfo.rightHandSetExpressionId != null) {
-        setExpressionInfoMap[setExpressionInfo.rightHandSetExpressionId]?.let {
+        }
+
+        if (setExpressionInfo.rightHandExternalReportingSetId != null) {
           rhs =
             ReportingSetKt.SetExpressionKt.operand {
-              expression = buildSetExpression(it, setExpressionInfoMap)
+              externalReportingSetId = setExpressionInfo.rightHandExternalReportingSetId
             }
+        } else if (setExpressionInfo.rightHandSetExpressionId != null) {
+          if (setExpressionInfo.rightHandSetExpressionId in setExpressionInfoMap) {
+            rhs =
+              ReportingSetKt.SetExpressionKt.operand {
+                expression =
+                  buildSetExpression(
+                    setExpressionInfo.rightHandSetExpressionId,
+                    visitingSetExpressionIds,
+                  )
+              }
+          }
         }
       }
+    } finally {
+      visitingSetExpressionIds.remove(setExpressionId)
     }
   }
 
