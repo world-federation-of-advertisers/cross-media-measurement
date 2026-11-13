@@ -45,6 +45,7 @@ vid_labeling_monitor_secret_mapping          = "/secrets/cert/edpa_tee_app_tls.p
 duchy_worker1_id                             = "worker1"
 duchy_worker2_id                             = "worker2"
 duchy_aggregator_id                          = "aggregator"
+duchy_aggregator_trustee_replicas            = 2
 duchy_aggregator_computations_service_target = "10.128.0.6:8443"
 
 # VID-labeling healing controller uses the same public API and TLS material as the dispatcher.
