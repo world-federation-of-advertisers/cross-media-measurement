@@ -24,6 +24,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
  *
  * The [code] property indicates the specific type of failure:
  * - [Code.BLOB_NOT_FOUND]: The requested blob does not exist in storage
+ * - [Code.BLOB_GENERATION_CHANGED]: The object differs from the finalized snapshot
  * - [Code.INVALID_FORMAT]: The blob exists but contains malformed or unparseable data
  *
  * @property blobKey the storage key or URI of the blob that caused the failure. This helps identify
@@ -53,6 +54,9 @@ class ImpressionReadException(
   enum class Code {
     /** The specified blob does not exist in storage. */
     BLOB_NOT_FOUND,
+
+    /** The blob generation differs from the finalized snapshot. */
+    BLOB_GENERATION_CHANGED,
 
     /** The blob exists but contains invalid or unparseable data. */
     INVALID_FORMAT,

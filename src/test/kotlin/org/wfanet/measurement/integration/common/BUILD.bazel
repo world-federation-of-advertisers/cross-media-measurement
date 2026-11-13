@@ -122,3 +122,21 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "HighOverlapDataAvailabilityTest",
+    size = "small",
+    srcs = ["HighOverlapDataAvailabilityTest.kt"],
+    test_class = "org.wfanet.measurement.integration.common.HighOverlapDataAvailabilityTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:high_overlap_data_availability",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)

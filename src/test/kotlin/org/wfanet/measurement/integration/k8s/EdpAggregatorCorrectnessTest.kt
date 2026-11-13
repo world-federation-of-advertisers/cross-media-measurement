@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.api.client.http.javanet.NetHttpTransport
+import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.common.truth.Truth.assertThat
@@ -24,9 +26,6 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
 import java.nio.file.Paths
 import java.time.Duration
 import java.time.LocalDate
@@ -83,6 +82,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
+import org.wfanet.measurement.integration.testing.RequisitionFetcherClient
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
@@ -109,7 +109,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     val doneBlobKey = "$EDP7_IMPRESSION_PATH/model-line/$modelLineId/$ACTIVITY_START_DATE/done"
     val storageClient = StorageOptions.getDefaultInstance().service
 
-    withTimeout(EVENT_GROUP_ACTIVITY_TIMEOUT) {
+    withTimeout(DATA_AVAILABILITY_PUBLICATION_TIMEOUT) {
       while (true) {
         val metadata = storageClient.get(TEST_CONFIG.storageBucket, doneBlobKey)?.metadata.orEmpty()
         val syncId = metadata[DATA_AVAILABILITY_SYNC_ID_METADATA_KEY]
@@ -409,10 +409,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       // drops an edp7 `done` for them too.
       private val EDP7_PIPELINED_DATES: Set<LocalDate> = Edp7PipelinedDates.DATES
 
-      // Per-EDP folder segment for VID-labeled impressions. MUST match each EDP's
-      // `output_base_path` (impression_test_data_config.textproto), the `edp_impression_path` in
-      // the deployed VidLabeling dispatcher/monitor + DataAvailabilitySync configs, and the
-      // data-watcher `data-availability` regex.
+      // External fixture paths match GenerateSyntheticData, DataAvailabilitySync's external
+      // configuration, and DataWatcher. The deployed VidLabeler uses its separate internal path.
       private const val EDP7_IMPRESSION_PATH = "edp/edp7"
       private const val EDPA_META_IMPRESSION_PATH = "edp/edpa_meta"
 
@@ -469,7 +467,16 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
+    private val requisitionFetcherClient: RequisitionFetcherClient by lazy {
+      RequisitionFetcherClient(
+        endpoint = URI.create(TEST_CONFIG.requisitionFetcherEndpoint),
+        credentials = GoogleCredentials.getApplicationDefault(),
+        transport = NetHttpTransport(),
+      )
+    }
+
     private fun triggerRequisitionFetcher() {
+      val client = requisitionFetcherClient
 
       // Snapshot existing direct-dispatch blobs so the readiness check observes this test's group
       // without deleting inputs that another WorkItem may still need.
@@ -486,21 +493,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           var areRequisitionsReady: Boolean
 
           do {
-            val jwt = TEST_CONFIG.authIdToken
-            val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
-
-            val client = HttpClient.newHttpClient()
-            val request =
-              HttpRequest.newBuilder()
-                .uri(URI.create(requisitionFetcherEndpoint))
-                .timeout(Duration.ofSeconds(120))
-                .header("Authorization", "Bearer $jwt")
-                .GET()
-                .build()
-            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-            check(response.statusCode() == 200) {
-              "RequisitionFetcher returned HTTP ${response.statusCode()}: ${response.body()}"
-            }
+            client.trigger()
 
             areRequisitionsReady =
               storageClient
@@ -592,6 +585,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
+    // Allow a full nine-minute sync request plus completion-marker delivery.
+    private val DATA_AVAILABILITY_PUBLICATION_TIMEOUT = 10.minutes
     private val EVENT_GROUP_ACTIVITY_TIMEOUT = 5.minutes
     private val EVENT_GROUP_ACTIVITY_POLLING_INTERVAL = 3.seconds
     private const val ACTIVITY_START_DATE = "2021-03-15"

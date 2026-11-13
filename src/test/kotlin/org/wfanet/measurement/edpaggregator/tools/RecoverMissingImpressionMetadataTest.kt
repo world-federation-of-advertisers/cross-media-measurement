@@ -47,6 +47,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.v1alpha.AcquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
@@ -58,12 +59,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata.State.ACT
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RenewDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ValidateDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.gcloud.gcs.testing.StorageEmulatorRule
 
@@ -79,6 +82,15 @@ class RecoverMissingImpressionMetadataTest {
           name = request.name
           state = DataAvailabilitySyncLease.State.ACTIVE
           etag = "etag"
+        }
+      }
+    onBlocking { renewDataAvailabilitySyncLease(any<RenewDataAvailabilitySyncLeaseRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<RenewDataAvailabilitySyncLeaseRequest>(0)
+        dataAvailabilitySyncLease {
+          name = request.name
+          state = DataAvailabilitySyncLease.State.ACTIVE
+          etag = "renewed-etag"
         }
       }
     onBlocking {
@@ -101,6 +113,23 @@ class RecoverMissingImpressionMetadataTest {
           etag = "released-etag"
         }
       }
+  }
+
+  @Test
+  fun `main rejects equal or nested impression paths`() {
+    for (internalPath in listOf(EDP_IMPRESSION_PATH, "$EDP_IMPRESSION_PATH/internal", "edp")) {
+      val configFile =
+        writeConfigFile(validConfig() + "\nvid_labeled_impression_path: \"$internalPath\"\n")
+      val output =
+        CommandLineTesting.capturingOutput(
+          requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0),
+          ::main,
+        )
+      CommandLineTesting.assertThat(output).status().isNotEqualTo(0)
+      CommandLineTesting.assertThat(output)
+        .err()
+        .contains("Configured impression paths must not overlap")
+    }
   }
 
   @Test
@@ -407,18 +436,111 @@ class RecoverMissingImpressionMetadataTest {
   }
 
   @Test
-  fun `recovery registers metadata with the exact done generation`() {
+  fun `recovery registers both configured paths with exact done generations`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE)
+  }
+
+  @Test
+  fun `recovery blocks a missing date across both impression paths`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, blockedByGaps = true)
+  }
+
+  @Test
+  fun `recovery leaves synchronized generation-pinned neighbours unchanged`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, includeRegisteredNeighbour = true)
+  }
+
+  @Test
+  fun `recovery scans an external override and the internal root`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, externalOverride = true)
+  }
+
+  @Test
+  fun `recovery checks gaps across an external override and the internal root`() {
+    runRecoveryAcrossConfiguredPaths(
+      ExternalMutation.NONE,
+      blockedByGaps = true,
+      externalOverride = true,
+    )
+  }
+
+  @Test
+  fun `recovery rejects an impressions overwrite under the old external done marker`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.OVERWRITTEN_IMPRESSIONS)
+  }
+
+  @Test
+  fun `recovery rejects metadata added outside the selected external snapshot`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.ADDED_METADATA)
+  }
+
+  private enum class ExternalMutation {
+    NONE,
+    OVERWRITTEN_IMPRESSIONS,
+    ADDED_METADATA,
+  }
+
+  private fun runRecoveryAcrossConfiguredPaths(
+    externalMutation: ExternalMutation,
+    blockedByGaps: Boolean = false,
+    includeRegisteredNeighbour: Boolean = false,
+    externalOverride: Boolean = false,
+  ) {
+    var externalMutationApplied = false
     val recoveredMetadata = mutableListOf<ImpressionMetadata>()
+    val registeredNeighbours = mutableListOf<ImpressionMetadata>()
     val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
-        .thenAnswer { listImpressionMetadataResponse { impressionMetadata += recoveredMetadata } }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+          listImpressionMetadataResponse {
+            impressionMetadata +=
+              recoveredMetadata.filter {
+                (request.filter.blobUriPrefix.isEmpty() ||
+                  it.blobUri.startsWith(request.filter.blobUriPrefix)) &&
+                  (request.filter.blobUrisList.isEmpty() ||
+                    it.blobUri in request.filter.blobUrisList)
+              }
+          }
+        }
       onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
+          if (!externalMutationApplied && externalMutation != ExternalMutation.NONE) {
+            val metadata = request.requestsList.first().impressionMetadata
+            val metadataKey = metadata.blobUri.removePrefix("gs://$BUCKET_NAME/")
+            if (metadataKey.startsWith("$EDP_IMPRESSION_PATH/")) {
+              externalMutationApplied = true
+              val metadataBytes = storageEmulator.storage.readAllBytes(BUCKET_NAME, metadataKey)
+              when (externalMutation) {
+                ExternalMutation.OVERWRITTEN_IMPRESSIONS -> {
+                  val details =
+                    org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails.parseFrom(
+                      metadataBytes
+                    )
+                  storageEmulator.storage.create(
+                    BlobInfo.newBuilder(
+                        BUCKET_NAME,
+                        details.blobUri.removePrefix("gs://$BUCKET_NAME/"),
+                      )
+                      .build(),
+                    byteArrayOf(1),
+                  )
+                }
+                ExternalMutation.ADDED_METADATA ->
+                  storageEmulator.storage.create(
+                    BlobInfo.newBuilder(BUCKET_NAME, "$metadataKey.late.metadata.binpb").build(),
+                    metadataBytes,
+                  )
+                ExternalMutation.NONE -> error("No mutation requested")
+              }
+            }
+          }
           val created =
             request.requestsList.mapIndexed { index, createRequest ->
               createRequest.impressionMetadata.copy {
-                name = "${request.parent}/impressionMetadata/recovered-$index"
+                name =
+                  "${request.parent}/impressionMetadata/recovered-${recoveredMetadata.size + index}"
                 state = ACTIVE
               }
             }
@@ -454,52 +576,237 @@ class RecoverMissingImpressionMetadataTest {
         .start()
     storageEmulator.createBucket(BUCKET_NAME)
     try {
-      val impressionsKey = "$DATE_FOLDER_PREFIX/impressions"
-      val metadataKey = "$impressionsKey.metadata.binpb"
-      storageEmulator.storage.create(
-        BlobInfo.newBuilder(BUCKET_NAME, impressionsKey).build(),
-        byteArrayOf(),
-      )
-      storageEmulator.storage.create(
-        BlobInfo.newBuilder(BUCKET_NAME, metadataKey).build(),
-        blobDetails {
-            blobUri = "gs://$BUCKET_NAME/$impressionsKey"
-            eventGroupReferenceId = "event-group"
-            modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
-            interval = interval {
-              startTime = timestamp { seconds = 1 }
-              endTime = timestamp { seconds = 2 }
+      val paths =
+        if (externalMutation == ExternalMutation.NONE) {
+          listOf(EDP_IMPRESSION_PATH, INTERNAL_IMPRESSION_PATH)
+        } else {
+          listOf(EDP_IMPRESSION_PATH)
+        }
+      val doneGenerations =
+        paths.associate { path ->
+          val date =
+            if (blockedByGaps && path == INTERNAL_IMPRESSION_PATH) "2000-01-03" else "2000-01-01"
+          val folder = "$path/model-line/model-line-1/$date"
+          val impressionsKey = "$folder/impressions"
+          val metadataKey = "$impressionsKey.metadata.binpb"
+          storageEmulator.storage.create(
+            BlobInfo.newBuilder(BUCKET_NAME, impressionsKey).build(),
+            byteArrayOf(),
+          )
+          storageEmulator.storage.create(
+            BlobInfo.newBuilder(BUCKET_NAME, metadataKey).build(),
+            blobDetails {
+                blobUri = "gs://$BUCKET_NAME/$impressionsKey"
+                eventGroupReferenceId = "event-group"
+                modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+                interval = interval {
+                  startTime = timestamp { seconds = 1 }
+                  endTime = timestamp { seconds = 2 }
+                }
+              }
+              .toByteArray(),
+          )
+          val neighbourData =
+            if (includeRegisteredNeighbour) {
+              storageEmulator.storage.create(
+                BlobInfo.newBuilder(BUCKET_NAME, "$folder/registered-impressions").build(),
+                byteArrayOf(1),
+              )
+            } else null
+          val neighbourMetadata =
+            neighbourData?.let { data ->
+              storageEmulator.storage.create(
+                BlobInfo.newBuilder(BUCKET_NAME, "${data.name}.metadata.binpb")
+                  .setMetadata(
+                    mapOf(
+                      DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE
+                    )
+                  )
+                  .build(),
+                blobDetails {
+                    blobUri = "gs://$BUCKET_NAME/${data.name}"
+                    eventGroupReferenceId = "event-group"
+                    modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+                    interval = interval {
+                      startTime = timestamp { seconds = 1 }
+                      endTime = timestamp { seconds = 2 }
+                    }
+                  }
+                  .toByteArray(),
+              )
             }
+          val doneBlob =
+            storageEmulator.storage.create(
+              BlobInfo.newBuilder(BUCKET_NAME, "$folder/done")
+                .setMetadata(
+                  if (includeRegisteredNeighbour)
+                    mapOf(
+                      DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+                      DataAvailabilityBlobs.SYNC_ID_KEY to "original-sync",
+                      DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to "original-sync",
+                    )
+                  else emptyMap()
+                )
+                .build(),
+              byteArrayOf(),
+            )
+          if (neighbourMetadata != null) {
+            val existing = impressionMetadata {
+              name =
+                "dataProviders/test-provider/impressionMetadata/registered-${registeredNeighbours.size}"
+              blobUri = "gs://$BUCKET_NAME/${neighbourMetadata.name}"
+              blobTypeUrl = "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.BlobDetails"
+              eventGroupReferenceId = "event-group"
+              modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+              interval = interval {
+                startTime = timestamp { seconds = 1 }
+                endTime = timestamp { seconds = 2 }
+              }
+              state = ACTIVE
+              metadataBlobGeneration = neighbourMetadata.generation
+              impressionsBlobGeneration = checkNotNull(neighbourData).generation
+              outputDoneBlobGeneration = doneBlob.generation
+            }
+            registeredNeighbours += existing
+            recoveredMetadata += existing
           }
-          .toByteArray(),
-      )
-      val doneBlob =
-        storageEmulator.storage.create(
-          BlobInfo.newBuilder(BUCKET_NAME, "$DATE_FOLDER_PREFIX/done").build(),
-          byteArrayOf(),
+          "gs://$BUCKET_NAME/$metadataKey" to doneBlob.generation
+        }
+      val configFile =
+        writeConfigFile(
+          (if (externalOverride) {
+            validConfig()
+              .replace(
+                "edp_impression_path: \"$EDP_IMPRESSION_PATH\"",
+                "edp_impression_path: \"unused/external\"",
+              ) + "\nexternal_impression_path: \"$EDP_IMPRESSION_PATH\"\n"
+          } else validConfig()) +
+            "\nvid_labeled_impression_path: \"$INTERNAL_IMPRESSION_PATH\"\n" +
+            "\nerror_if_gaps_exist: $blockedByGaps\n"
         )
-      val configFile = writeConfigFile(validConfig())
 
       val capturedOutput =
         CommandLineTesting.capturingOutput(
           connectionArgs(configFile, apiTarget = "localhost:${server.port}") +
             arrayOf(
               "--data-date=2000-01-01",
+              "--data-date=2000-01-03",
               "--storage-api-endpoint=${storageEmulator.storage.options.host}",
               "--throttler-minimum-interval=0s",
             ),
           ::main,
         )
 
-      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
+      val failed = blockedByGaps || externalMutation != ExternalMutation.NONE
+      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(if (failed) 1 else 0)
+      verifyBlocking(dataProvidersServiceMock, times(if (failed) 0 else 2)) {
+        replaceDataAvailabilityIntervals(any())
+      }
       val request = argumentCaptor<BatchCreateImpressionMetadataRequest>()
-      verifyBlocking(impressionMetadataServiceMock) {
+      verifyBlocking(impressionMetadataServiceMock, times(doneGenerations.size)) {
         batchCreateImpressionMetadata(request.capture())
       }
-      assertThat(
-          request.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+      val createdMetadata =
+        request.allValues.flatMap { it.requestsList }.map { it.impressionMetadata }
+      assertThat(createdMetadata.map { it.blobUri }).containsExactlyElementsIn(doneGenerations.keys)
+      for (metadata in createdMetadata) {
+        assertThat(metadata.outputDoneBlobGeneration)
+          .isEqualTo(doneGenerations.getValue(metadata.blobUri))
+      }
+      for (metadata in
+        createdMetadata.filter {
+          it.blobUri.startsWith("gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/")
+        }) {
+        assertThat(metadata.metadataBlobGeneration).isGreaterThan(0L)
+        assertThat(metadata.impressionsBlobGeneration).isGreaterThan(0L)
+      }
+      if (externalMutation != ExternalMutation.NONE) {
+        assertThat(externalMutationApplied).isTrue()
+        val externalDone =
+          storageEmulator.storage.get(
+            BUCKET_NAME,
+            "$EDP_IMPRESSION_PATH/model-line/model-line-1/2000-01-01/done",
+          )
+        assertThat(externalDone.metadata.orEmpty())
+          .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+      }
+      for (existing in registeredNeighbours) {
+        assertThat(recoveredMetadata.single { it.name == existing.name }).isEqualTo(existing)
+      }
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchUpdateImpressionMetadata(any())
+      }
+      val acquired = argumentCaptor<AcquireDataAvailabilitySyncLeaseRequest>()
+      verifyBlocking(leaseServiceMock, times(1)) {
+        acquireDataAvailabilitySyncLease(acquired.capture())
+      }
+      val released = argumentCaptor<ReleaseDataAvailabilitySyncLeaseRequest>()
+      verifyBlocking(leaseServiceMock, times(1)) {
+        releaseDataAvailabilitySyncLease(released.capture())
+      }
+      assertThat(released.firstValue.name).isEqualTo(acquired.firstValue.name)
+      assertThat(request.allValues.map { it.dataAvailabilitySyncLease }.distinct())
+        .containsExactly(acquired.firstValue.name)
+    } finally {
+      server.shutdown()
+      server.awaitTermination(1, SECONDS)
+      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
+  }
+
+  @Test
+  fun `main reports internal recovery failure after scanning both paths`() {
+    val metadataService: ImpressionMetadataServiceCoroutineImplBase = mockService {
+      onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
+        .thenReturn(listImpressionMetadataResponse {})
+    }
+    val server =
+      NettyServerBuilder.forPort(0)
+        .sslContext(serverCerts.toServerTlsContext())
+        .addService(metadataService)
+        .addService(leaseServiceMock)
+        .build()
+        .start()
+    storageEmulator.createBucket(BUCKET_NAME)
+    try {
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, "$DATE_FOLDER_PREFIX/placeholder").build(),
+        byteArrayOf(),
+      )
+      val internalFolder = "$INTERNAL_IMPRESSION_PATH/model-line/model-line-1/2000-01-01"
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, "$internalFolder/metadata-invalid.json").build(),
+        "{".toByteArray(),
+      )
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, "$internalFolder/done").build(),
+        byteArrayOf(),
+      )
+      val configFile =
+        writeConfigFile(
+          validConfig() + "\nvid_labeled_impression_path: \"$INTERNAL_IMPRESSION_PATH\"\n"
         )
-        .isEqualTo(doneBlob.generation)
+      val output =
+        CommandLineTesting.capturingOutput(
+          connectionArgs(configFile, "localhost:${server.port}") +
+            arrayOf(
+              "--data-date=2000-01-01",
+              "--throttler-minimum-interval=0s",
+              "--storage-api-endpoint=${storageEmulator.storage.options.host}",
+            ),
+          ::main,
+        )
+      CommandLineTesting.assertThat(output).status().isNotEqualTo(0)
+      val requests = argumentCaptor<ListImpressionMetadataRequest>()
+      verifyBlocking(metadataService, times(2)) { listImpressionMetadata(requests.capture()) }
+      for (path in listOf(EDP_IMPRESSION_PATH, INTERNAL_IMPRESSION_PATH)) {
+        assertThat(
+            requests.allValues.any {
+              it.filter.blobUriPrefix.startsWith("gs://$BUCKET_NAME/$path/")
+            }
+          )
+          .isTrue()
+      }
     } finally {
       server.shutdown()
       server.awaitTermination(1, SECONDS)
@@ -570,6 +877,7 @@ class RecoverMissingImpressionMetadataTest {
     private const val MODULE_REPO_NAME = "wfa_measurement_system"
     private const val BUCKET_NAME = "recovery-test"
     private const val EDP_IMPRESSION_PATH = "edp/test/vid-labeled-impressions"
+    private const val INTERNAL_IMPRESSION_PATH = "vid-labeled-impressions/edp/test"
     private const val DATE_FOLDER_PREFIX = "$EDP_IMPRESSION_PATH/model-line/model-line-1/2000-01-01"
     private val SECRETS_DIR: Path =
       getRuntimePath(Paths.get(MODULE_REPO_NAME, "src", "main", "k8s", "testing", "secretfiles"))!!

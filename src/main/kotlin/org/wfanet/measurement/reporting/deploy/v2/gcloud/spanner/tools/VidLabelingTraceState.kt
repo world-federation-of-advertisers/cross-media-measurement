@@ -15,6 +15,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.protobuf.util.Timestamps
+import java.util.Locale
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -32,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineSt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -95,11 +97,34 @@ internal data class ResolvedWorkItem(
   val attemptPages: Int,
 )
 
+internal data class VidLabelingAvailabilityAttempt(
+  val name: String,
+  val state: String,
+  val attemptNumber: Int,
+  val failureStage: String,
+  val errorType: String,
+)
+
+internal data class VidLabelingAvailabilityWorkItem(
+  val name: String,
+  val modelLine: String,
+  val state: String,
+  val generation: Long,
+  val attempts: List<VidLabelingAvailabilityAttempt>,
+  val eventDate: String,
+  val doneBlobUri: String,
+  val doneBlobPathHash: String,
+  val doneBlobGeneration: Long,
+  val rawImpressionUploadModelLine: String = "",
+  val createTimeNanos: Long = 0L,
+)
+
 internal data class VidLabelingWorkItemResolution(
   val nodes: List<ExpectedTraceNode>,
   val workItems: List<ResolvedWorkItem>,
   val truncated: Boolean,
   val counts: Map<String, Long>,
+  val availabilityLookupEnabled: Boolean = false,
 )
 
 internal data class VidLabelingRouteResolution(
@@ -118,6 +143,8 @@ internal data class VidLabelingAuthoritativeGraph(
   val nodes: List<ExpectedTraceNode>,
   val expectedWorkItems: List<ExpectedWorkItemGroup> = emptyList(),
   val counts: Map<String, Long> = emptyMap(),
+  val availabilityWorkItems: List<VidLabelingAvailabilityWorkItem> = emptyList(),
+  val availabilityLookupComplete: Boolean = true,
 ) {
   val correlationValues: Set<String>
     get() =
@@ -147,6 +174,119 @@ internal data class VidLabelingAuthoritativeGraph(
   }
 }
 
+internal fun VidLabelingAuthoritativeGraph.withAvailabilityWorkItems(
+  workItems: List<VidLabelingAvailabilityWorkItem>,
+  lookupComplete: Boolean,
+): VidLabelingAuthoritativeGraph {
+  val availabilityNodes = buildList {
+    for (modelLine in modelLines) {
+      val matching =
+        workItems.filter {
+          if (it.rawImpressionUploadModelLine.isNotEmpty()) {
+            it.rawImpressionUploadModelLine == modelLine.name
+          } else {
+            it.modelLine == modelLine.cmmsModelLine
+          }
+        }
+      if (modelLine.state in AVAILABILITY_STATES && matching.isEmpty()) {
+        add(
+          ExpectedTraceNode(
+            modelLine.name + ":availability_work_item",
+            modelLine.cmmsModelLine,
+            "availability_work_item_create",
+            if (lookupComplete) "MISSING" else "UNRESOLVED",
+            mapOf(
+              "xmm.edpa.raw_impression_upload.name" to upload.name,
+              "xmm.edpa.raw_impression_upload_model_line.name" to modelLine.name,
+              "xmm.model_line.name" to modelLine.cmmsModelLine,
+            ),
+            if (lookupComplete) {
+              ExpectedNodeDisposition.REQUIRED
+            } else {
+              ExpectedNodeDisposition.UNRESOLVED
+            },
+          )
+        )
+      }
+      for (workItem in matching) {
+        val baseIdentifiers =
+          mapOf(
+            "xmm.edpa.raw_impression_upload.name" to upload.name,
+            "xmm.edpa.raw_impression_upload_model_line.name" to modelLine.name,
+            "xmm.model_line.name" to modelLine.cmmsModelLine,
+            "xmm.work_item.name" to workItem.name,
+            "xmm.work_item.generation" to workItem.generation.toString(),
+            "xmm.gcs.object.path_hash" to workItem.doneBlobPathHash,
+            "xmm.gcs.object.generation" to workItem.doneBlobGeneration.toString(),
+            "xmm.edpa.label.event_date" to workItem.eventDate,
+          )
+        add(
+          ExpectedTraceNode(
+            workItem.name + ":create",
+            modelLine.cmmsModelLine,
+            "availability_work_item_create",
+            "CREATED",
+            baseIdentifiers - "xmm.work_item.generation",
+            ExpectedNodeDisposition.AUTHORITATIVE_ONLY,
+          )
+        )
+        add(
+          ExpectedTraceNode(
+            workItem.name + ":publication",
+            modelLine.cmmsModelLine,
+            "work_item_publication",
+            workItem.state,
+            baseIdentifiers - "xmm.work_item.generation",
+            if (workItem.state == WorkItem.State.QUEUED.name) {
+              ExpectedNodeDisposition.REQUIRED
+            } else {
+              ExpectedNodeDisposition.AUTHORITATIVE_ONLY
+            },
+          )
+        )
+        if (workItem.attempts.isEmpty()) {
+          add(
+            ExpectedTraceNode(
+              workItem.name + ":attempt",
+              modelLine.cmmsModelLine,
+              "availability_work_item_process",
+              if (workItem.state == WorkItem.State.QUEUED.name) "NOT_STARTED" else "MISSING",
+              baseIdentifiers,
+              if (workItem.state == WorkItem.State.QUEUED.name) {
+                ExpectedNodeDisposition.NOT_APPLICABLE
+              } else {
+                ExpectedNodeDisposition.REQUIRED
+              },
+            )
+          )
+        }
+        for (attempt in workItem.attempts) {
+          add(
+            ExpectedTraceNode(
+              attempt.name,
+              modelLine.cmmsModelLine,
+              "availability_work_item_process",
+              attempt.state,
+              baseIdentifiers + ("xmm.work_item_attempt.name" to attempt.name),
+            )
+          )
+        }
+      }
+    }
+  }
+  return copy(
+    nodes = nodes + availabilityNodes,
+    availabilityWorkItems = workItems,
+    availabilityLookupComplete = lookupComplete,
+  )
+}
+
+private val AVAILABILITY_STATES =
+  setOf(
+    RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+    RawImpressionUploadModelLine.State.COMPLETED,
+  )
+
 internal fun interface VidLabelingStateResolver {
   suspend fun resolve(rawImpressionUpload: String): VidLabelingAuthoritativeGraph
 }
@@ -161,6 +301,67 @@ internal fun interface VidLabelingWorkItemResolver {
 
 internal fun interface RelevantWorkItemSelector {
   fun isRelevant(rawImpressionUpload: String, workItem: WorkItem): Boolean
+}
+
+internal fun WorkItem.isAvailabilityWorkItemFor(rawImpressionUpload: String): Boolean {
+  return parseAvailabilityParams()?.second?.triggeringRawImpressionUpload == rawImpressionUpload
+}
+
+internal fun ResolvedWorkItem.toAvailabilityWorkItem(
+  rawImpressionUpload: String
+): VidLabelingAvailabilityWorkItem? {
+  val (params, appParams) = workItem.parseAvailabilityParams() ?: return null
+  if (
+    appParams.triggeringRawImpressionUpload != rawImpressionUpload || appParams.modelLine.isEmpty()
+  ) {
+    return null
+  }
+  val dataPath = params.dataPathParams
+  return VidLabelingAvailabilityWorkItem(
+    workItem.name,
+    appParams.modelLine,
+    workItem.state.name,
+    workItem.generation,
+    attempts.map { attempt ->
+      val errorParts = attempt.errorMessage.split(':', limit = 2)
+      VidLabelingAvailabilityAttempt(
+        attempt.name,
+        attempt.state.name,
+        attempt.attemptNumber,
+        errorParts.firstOrNull().orEmpty(),
+        errorParts.getOrNull(1).orEmpty(),
+      )
+    },
+    if (appParams.hasEventDate()) appParams.eventDate.toIsoDate() else "",
+    dataPath.dataPath,
+    hash(dataPath.dataPath),
+    dataPath.generation,
+    appParams.rawImpressionUploadModelLine,
+    Timestamps.toNanos(workItem.createTime),
+  )
+}
+
+private fun WorkItem.parseAvailabilityParams():
+  Pair<WorkItem.WorkItemParams, DataAvailabilitySyncParams>? {
+  if (queue != DATA_AVAILABILITY_SYNC_QUEUE) return null
+  val params =
+    runCatching { workItemParams.unpack(WorkItem.WorkItemParams::class.java) }.getOrNull()
+      ?: return null
+  if (
+    !params.appParams.`is`(DataAvailabilitySyncParams::class.java) ||
+      !params.hasDataPathParams() ||
+      !params.dataPathParams.hasGeneration() ||
+      params.dataPathParams.dataPath.isEmpty() ||
+      params.dataPathParams.generation <= 0L ||
+      params.dataPathParams.eventType !=
+        WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+  ) {
+    return null
+  }
+  val appParams =
+    runCatching { params.appParams.unpack(DataAvailabilitySyncParams::class.java) }.getOrNull()
+      ?: return null
+  return params to appParams
 }
 
 internal fun interface VidLabelingRouteResolver {
@@ -268,6 +469,7 @@ internal fun interface VidLabelingFinalStateResolver {
   suspend fun resolve(
     upload: RawImpressionUpload,
     modelLines: List<RawImpressionUploadModelLine>,
+    availabilityWorkItems: List<VidLabelingAvailabilityWorkItem>,
   ): VidLabelingFinalStateResolution
 }
 
@@ -283,6 +485,7 @@ internal class GcsKingdomFinalStateResolver(
   override suspend fun resolve(
     upload: RawImpressionUpload,
     modelLines: List<RawImpressionUploadModelLine>,
+    availabilityWorkItems: List<VidLabelingAvailabilityWorkItem>,
   ): VidLabelingFinalStateResolution = coroutineScope {
     require(modelLineConcurrency > 0) { "modelLineConcurrency must be positive" }
     require(gcsConcurrency > 0) { "gcsConcurrency must be positive" }
@@ -307,7 +510,19 @@ internal class GcsKingdomFinalStateResolver(
         .map { modelLine ->
           async {
             modelLineSemaphore.withPermit {
-              resolveModelLine(dataProviderName, upload, modelLine, gcsSemaphore)
+              resolveModelLine(
+                dataProviderName,
+                upload,
+                modelLine,
+                availabilityWorkItems.filter {
+                  if (it.rawImpressionUploadModelLine.isNotEmpty()) {
+                    it.rawImpressionUploadModelLine == modelLine.name
+                  } else {
+                    it.modelLine == modelLine.cmmsModelLine
+                  }
+                },
+                gcsSemaphore,
+              )
             }
           }
         }
@@ -341,7 +556,9 @@ internal class GcsKingdomFinalStateResolver(
               "data_availability_publish",
               "MISSING",
               mapOf(MODEL_LINE to result.modelLine.cmmsModelLine),
-              if (result.modelLine.state == RawImpressionUploadModelLine.State.COMPLETED) {
+              if (
+                result.modelLine.state in AVAILABILITY_STATES && result.hasSucceededAvailability
+              ) {
                 ExpectedNodeDisposition.REQUIRED
               } else {
                 ExpectedNodeDisposition.NOT_APPLICABLE
@@ -363,7 +580,9 @@ internal class GcsKingdomFinalStateResolver(
                 AVAILABILITY_INTERVAL_START to Timestamps.toString(evidenceInterval.startTime),
                 AVAILABILITY_INTERVAL_END to Timestamps.toString(evidenceInterval.endTime),
               ),
-              if (result.modelLine.state == RawImpressionUploadModelLine.State.COMPLETED) {
+              if (
+                result.modelLine.state in AVAILABILITY_STATES && result.hasSucceededAvailability
+              ) {
                 ExpectedNodeDisposition.REQUIRED
               } else {
                 ExpectedNodeDisposition.NOT_APPLICABLE
@@ -390,8 +609,82 @@ internal class GcsKingdomFinalStateResolver(
     dataProviderName: String,
     upload: RawImpressionUpload,
     modelLine: RawImpressionUploadModelLine,
+    availabilityWorkItems: List<VidLabelingAvailabilityWorkItem>,
     gcsSemaphore: Semaphore,
   ): FinalModelLineResult {
+    val currentAvailabilityNodes = coroutineScope {
+      availabilityWorkItems
+        .groupBy { it.doneBlobUri }
+        .toSortedMap()
+        .map { (uri, workItems) ->
+          async {
+            val doneBlob = gcsSemaphore.withPermit { readObjectMetadata(uri, null) }
+            val current = workItems.filter { it.doneBlobGeneration == doneBlob?.generation }
+            val identifiers =
+              mapOf(
+                RAW_UPLOAD to upload.name,
+                MODEL_LINE to modelLine.cmmsModelLine,
+                GCS_PATH_HASH to hash(uri),
+                GCS_GENERATION to (doneBlob?.generation?.toString() ?: "0"),
+              )
+            if (current.isEmpty()) {
+              listOf(
+                ExpectedTraceNode(
+                  "gcs:" + hash(uri) + ":availability_work_item_status",
+                  modelLine.cmmsModelLine,
+                  "availability_work_item_status",
+                  "MISSING",
+                  identifiers,
+                  ExpectedNodeDisposition.AUTHORITATIVE_ONLY,
+                )
+              )
+            } else {
+              current.map { workItem ->
+                ExpectedTraceNode(
+                  workItem.name + ":current",
+                  modelLine.cmmsModelLine,
+                  "availability_work_item_status",
+                  workItem.state,
+                  identifiers + (WORK_ITEM to workItem.name),
+                  ExpectedNodeDisposition.AUTHORITATIVE_ONLY,
+                )
+              }
+            }
+          }
+        }
+        .awaitAll()
+        .flatten()
+    }
+    val hasSucceededAvailability =
+      currentAvailabilityNodes.isNotEmpty() &&
+        currentAvailabilityNodes.all { it.authoritativeState == WorkItem.State.SUCCEEDED.name }
+    val availabilityDoneNodes = coroutineScope {
+      availabilityWorkItems
+        .sortedBy { it.name }
+        .map { workItem ->
+          async {
+            val doneBlob =
+              gcsSemaphore.withPermit {
+                readObjectMetadata(workItem.doneBlobUri, workItem.doneBlobGeneration)
+              }
+            ExpectedTraceNode(
+              workItem.name + ":done_object",
+              modelLine.cmmsModelLine,
+              "availability_work_item_create",
+              if (doneBlob?.generation == workItem.doneBlobGeneration) "PUBLISHED" else "MISSING",
+              mapOf(
+                RAW_UPLOAD to upload.name,
+                MODEL_LINE to modelLine.cmmsModelLine,
+                WORK_ITEM to workItem.name,
+                GCS_GENERATION to workItem.doneBlobGeneration.toString(),
+                GCS_PATH_HASH to workItem.doneBlobPathHash,
+              ),
+              ExpectedNodeDisposition.AUTHORITATIVE_ONLY,
+            )
+          }
+        }
+        .awaitAll()
+    }
     val metadataRows = listMetadata(dataProviderName, upload.name, modelLine.cmmsModelLine)
     val objectRows = coroutineScope {
       metadataRows.rows
@@ -400,47 +693,34 @@ internal class GcsKingdomFinalStateResolver(
           async {
             val sidecarUri = row.blobUri
             val labeledUri = sidecarUri.removeSuffix(".metadata.binpb")
-            val doneUri = doneUri(sidecarUri)
             val labeledDeferred = async {
               gcsSemaphore.withPermit { readObjectMetadata(labeledUri, null) != null }
             }
             val sidecarDeferred = async {
               gcsSemaphore.withPermit { readObjectMetadata(sidecarUri, null) != null }
             }
-            val doneDeferred = async {
-              gcsSemaphore.withPermit {
-                readObjectMetadata(doneUri, row.outputDoneBlobGeneration.takeIf { it != 0L })
-              }
-            }
             FinalObjectRow(
               row,
               labeledUri,
               sidecarUri,
-              doneUri,
               labeledDeferred.await(),
               sidecarDeferred.await(),
-              doneDeferred.await(),
             )
           }
         }
         .awaitAll()
     }
     val nodes = buildList {
-      if (modelLine.state == RawImpressionUploadModelLine.State.COMPLETED && objectRows.isEmpty()) {
+      addAll(currentAvailabilityNodes)
+      addAll(availabilityDoneNodes)
+      if (
+        modelLine.state in AVAILABILITY_STATES && hasSucceededAvailability && objectRows.isEmpty()
+      ) {
         add(
           ExpectedTraceNode(
             modelLine.name + ":impression_metadata",
             modelLine.cmmsModelLine,
             "data_availability_metadata",
-            "MISSING",
-            mapOf(MODEL_LINE to modelLine.cmmsModelLine),
-          )
-        )
-        add(
-          ExpectedTraceNode(
-            modelLine.name + ":data_watcher",
-            modelLine.cmmsModelLine,
-            "data_watcher",
             "MISSING",
             mapOf(MODEL_LINE to modelLine.cmmsModelLine),
           )
@@ -477,20 +757,6 @@ internal class GcsKingdomFinalStateResolver(
             objectRow.sidecarExists,
           )
         )
-        add(
-          ExpectedTraceNode(
-            "gcs:" + hash(objectRow.doneUri),
-            modelLine.cmmsModelLine,
-            "data_watcher",
-            if (objectRow.doneBlob == null) "MISSING" else "PUBLISHED",
-            mapOf(
-              RAW_UPLOAD to upload.name,
-              MODEL_LINE to modelLine.cmmsModelLine,
-              GCS_GENERATION to (objectRow.doneBlob?.generation?.toString() ?: "0"),
-              GCS_PATH_HASH to hash(objectRow.doneUri),
-            ),
-          )
-        )
       }
     }
     return FinalModelLineResult(
@@ -498,7 +764,10 @@ internal class GcsKingdomFinalStateResolver(
       objectRows.map { it.row },
       nodes,
       metadataRows.pages,
-      objectRows.size * 3,
+      objectRows.size * 2 +
+        availabilityWorkItems.size +
+        availabilityWorkItems.map { it.doneBlobUri }.distinct().size,
+      hasSucceededAvailability,
     )
   }
 
@@ -532,16 +801,12 @@ internal class GcsKingdomFinalStateResolver(
       Page(response.impressionMetadataList, response.nextPageToken)
     }
 
-  private fun doneUri(sidecarUri: String): String = sidecarUri.substringBeforeLast('/') + "/done"
-
   private data class FinalObjectRow(
     val row: ImpressionMetadata,
     val labeledUri: String,
     val sidecarUri: String,
-    val doneUri: String,
     val labeledExists: Boolean,
     val sidecarExists: Boolean,
-    val doneBlob: StoredObjectMetadata?,
   )
 
   private data class FinalModelLineResult(
@@ -550,12 +815,14 @@ internal class GcsKingdomFinalStateResolver(
     val nodes: List<ExpectedTraceNode>,
     val metadataPages: Int,
     val gcsReads: Int,
+    val hasSucceededAvailability: Boolean,
   )
 
   companion object {
     private const val RAW_UPLOAD = "xmm.edpa.raw_impression_upload.name"
     private const val MODEL_LINE = "xmm.model_line.name"
     private const val IMPRESSION_METADATA = "xmm.edpa.impression_metadata.name"
+    private const val WORK_ITEM = "xmm.work_item.name"
     private const val GCS_GENERATION = "xmm.gcs.object.generation"
     private const val GCS_PATH_HASH = "xmm.gcs.object.path_hash"
     private const val AVAILABILITY_INTERVAL_START = "xmm.edpa.availability.interval_start"
@@ -944,17 +1211,20 @@ private constructor(
       false
     },
   private val maxAttemptConcurrency: Int = ATTEMPT_CONCURRENCY,
+  private val availabilityLookupEnabled: Boolean = false,
 ) : VidLabelingWorkItemResolver {
   constructor(
     workItems: WorkItemsCoroutineStub,
     workItemAttempts: WorkItemAttemptsCoroutineStub,
     relevantWorkItemSelector: RelevantWorkItemSelector = RelevantWorkItemSelector { _, _ -> false },
     maxAttemptConcurrency: Int = ATTEMPT_CONCURRENCY,
+    availabilityLookupEnabled: Boolean = false,
   ) : this(
     { request -> workItems.listWorkItems(request) },
     { request -> workItemAttempts.listWorkItemAttempts(request) },
     relevantWorkItemSelector,
     maxAttemptConcurrency,
+    availabilityLookupEnabled,
   )
 
   override suspend fun resolve(
@@ -1041,6 +1311,7 @@ private constructor(
         "work_items_matched" to matchedExpectedNames.toLong(),
         "attempt_pages" to resolved.sumOf { it.attemptPages }.toLong(),
       ),
+      availabilityLookupEnabled,
     )
   }
 
@@ -1137,11 +1408,13 @@ private constructor(
       maxAttemptConcurrency: Int = ATTEMPT_CONCURRENCY,
       listWorkItems: suspend (ListWorkItemsRequest) -> ListWorkItemsResponse,
       listWorkItemAttempts: suspend (ListWorkItemAttemptsRequest) -> ListWorkItemAttemptsResponse,
+      availabilityLookupEnabled: Boolean = false,
     ): GrpcVidLabelingWorkItemResolver {
       return GrpcVidLabelingWorkItemResolver(
         listWorkItems,
         listWorkItemAttempts,
         maxAttemptConcurrency = maxAttemptConcurrency,
+        availabilityLookupEnabled = availabilityLookupEnabled,
       )
     }
   }
@@ -1169,7 +1442,11 @@ private fun hash(value: String): String =
     (it.toInt() and 0xff).toString(16).padStart(2, '0')
   }
 
+private fun com.google.type.Date.toIsoDate(): String =
+  "%04d-%02d-%02d".format(Locale.ROOT, year, month, day)
+
 private const val MODEL_LINE_CONCURRENCY = 4
 private const val GCS_CONCURRENCY = 8
 private const val ATTEMPT_CONCURRENCY = 8
 private const val WORK_ITEM_PAGE_SIZE = 100
+private const val DATA_AVAILABILITY_SYNC_QUEUE = "data-availability-sync-queue"

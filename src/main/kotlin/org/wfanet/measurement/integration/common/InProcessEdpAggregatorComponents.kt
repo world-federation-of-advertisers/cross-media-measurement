@@ -366,7 +366,6 @@ class InProcessEdpAggregatorComponents(
           requisitionMetadataStub = requisitionMetadataClient,
           storageClient = storageClient,
           dataProviderName = edpResourceName,
-          storagePathPrefix = "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
           directStoragePathPrefix = "$REQUISITION_STORAGE_PREFIX-v2-$edpAggregatorShortName",
           blobUriPrefix = "file://",
           requisitionValidator = requisitionsValidator,
@@ -1006,10 +1005,12 @@ class InProcessEdpAggregatorComponents(
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf(ONBOARDING_PREFIX),
       )
     val leaseRunner =
       DataAvailabilitySyncLeaseRunner(
-        GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient)
+        GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient),
+        renewalDelay = { delay(it) },
       )
     val outcomes =
       doneKeys.associate { doneKey ->

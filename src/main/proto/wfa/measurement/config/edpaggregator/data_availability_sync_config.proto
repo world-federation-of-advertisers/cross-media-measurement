@@ -43,8 +43,8 @@ message DataAvailabilitySyncConfig {
   // Public API
   TransportLayerSecurityParams impression_metadata_storage_connection = 4;
 
-  // Path where an edp uploads their impressions. Optional. Will be required in
-  // a future release.
+  // Path where an EDP uploads external impressions. Required when VID labeling
+  // is enabled for this data provider.
   string edp_impression_path = 5;
 
   // Mapping from an internal EDPA model line to one or more external model
@@ -70,6 +70,20 @@ message DataAvailabilitySyncConfig {
   // When present, publish positive EventGroup activity from finalized daily
   // impression metadata.
   EventGroupActivityPublishingConfig event_group_activity_publishing = 8;
+
+  // External labeled-output prefix within the storage bucket. When empty,
+  // external and legacy HTTP syncs use edp_impression_path. When set, external
+  // routes use this prefix, which must not overlap vid_labeled_impression_path.
+  string external_impression_path = 9 [(google.api.field_behavior) = OPTIONAL];
+
+  // How DataAvailabilitySync connects to the Secure Computation public API.
+  TransportLayerSecurityParams secure_computation_control_plane_connection = 10;
+
+  // Output path for internally produced VidLabeler impressions in the same
+  // storage bucket. Required when VID labeling is enabled for this data
+  // provider. Must match `VidLabelingConfig.edp_impression_path` and must not
+  // overlap `edp_impression_path`.
+  string vid_labeled_impression_path = 11;
 
   // This publisher only appends activity. For the same DataProvider, a
   // `SyncEventGroupActivities` process may use PATCH mode for explicit APPEND

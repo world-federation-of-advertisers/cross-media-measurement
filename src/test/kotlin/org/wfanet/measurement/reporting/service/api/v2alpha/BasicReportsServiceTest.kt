@@ -57,6 +57,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -70,6 +71,7 @@ import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -3470,6 +3472,248 @@ class BasicReportsServiceTest {
         .containsExactlyElementsIn(identicalMetricCalculationSpecs)
     }
 
+  private fun stubAvailableModelLines(availableModelLines: List<ModelLine>) {
+    wheneverBlocking { modelLinesServiceMock.enumerateValidModelLines(any()) } doAnswer
+      { invocation ->
+        val request: EnumerateValidModelLinesRequest = invocation.getArgument(0)
+        val types = request.typesList.ifEmpty { listOf(ModelLine.Type.PROD) }
+        enumerateValidModelLinesResponse {
+          modelLines += availableModelLines.filter { it.type in types }
+        }
+      }
+  }
+
+  private suspend fun createModelLineBasicReportRequest(
+    requestedModelLine: String
+  ): CreateBasicReportRequest {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+    return createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          modelLine = requestedModelLine
+        }
+      basicReportId = "model-line-report"
+    }
+  }
+
+  private suspend fun assertNoBasicReportCreated(request: CreateBasicReportRequest) {
+    verify(reportsServiceMock, never()).createReport(any())
+    val exception =
+      assertFailsWith<StatusException> {
+        internalBasicReportsService.getBasicReport(
+          internalGetBasicReportRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalBasicReportId = request.basicReportId
+          }
+        )
+      }
+    assertThat(exception).status().code().isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `createBasicReport uses explicitly requested DEV ModelLine`(): Unit = runBlocking {
+    stubAvailableModelLines(listOf(PROD_MODEL_LINE, DEV_MODEL_LINE))
+    val request = createModelLineBasicReportRequest(DEV_MODEL_LINE.name)
+
+    val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+    assertThat(response.modelLine).isEqualTo(DEV_MODEL_LINE.name)
+    assertThat(response.effectiveModelLine).isEqualTo(DEV_MODEL_LINE.name)
+    val metricCalculationSpecs =
+      internalMetricCalculationSpecsService
+        .listMetricCalculationSpecs(
+          listMetricCalculationSpecsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            filter = ListMetricCalculationSpecsRequestKt.filter { externalCampaignGroupId = "1234" }
+            limit = 50
+          }
+        )
+        .metricCalculationSpecsList
+    assertThat(metricCalculationSpecs).isNotEmpty()
+    assertThat(metricCalculationSpecs.map { it.cmmsModelLine }.distinct())
+      .containsExactly(DEV_MODEL_LINE.name)
+    val enumerationRequest =
+      argumentCaptor<EnumerateValidModelLinesRequest> {
+          verify(modelLinesServiceMock).enumerateValidModelLines(capture())
+        }
+        .firstValue
+    assertThat(enumerationRequest.timeInterval)
+      .isEqualTo(
+        interval {
+          startTime = timestamp { seconds = 1751544000 }
+          endTime = timestamp { seconds = 1767618000 }
+        }
+      )
+    assertThat(enumerationRequest.dataProvidersList).containsExactly(DATA_PROVIDER_KEY.toName())
+  }
+
+  @Test
+  fun `createBasicReport uses explicitly requested PROD ModelLine`(): Unit = runBlocking {
+    val otherModelLine = modelLine {
+      name = "modelProviders/123/modelSuites/123/modelLines/other-prod"
+      type = ModelLine.Type.PROD
+    }
+    stubAvailableModelLines(listOf(otherModelLine, PROD_MODEL_LINE, DEV_MODEL_LINE))
+    val request = createModelLineBasicReportRequest(PROD_MODEL_LINE.name)
+
+    val response =
+      withPrincipalAndScopes(PRINCIPAL, setOf(BasicReportsService.Permission.CREATE)) {
+        service.createBasicReport(request)
+      }
+
+    assertThat(response.modelLine).isEqualTo(PROD_MODEL_LINE.name)
+    assertThat(response.effectiveModelLine).isEqualTo(PROD_MODEL_LINE.name)
+  }
+
+  @Test
+  fun `createBasicReport throws FAILED_PRECONDITION for explicitly requested HOLDBACK ModelLine`():
+    Unit = runBlocking {
+    stubAvailableModelLines(listOf(PROD_MODEL_LINE, HOLDBACK_MODEL_LINE, DEV_MODEL_LINE))
+    val request = createModelLineBasicReportRequest(HOLDBACK_MODEL_LINE.name)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.MODEL_LINE_NOT_ACTIVE.name
+          metadata[Errors.Metadata.MODEL_LINE.key] = HOLDBACK_MODEL_LINE.name
+        }
+      )
+    assertNoBasicReportCreated(request)
+  }
+
+  @Test
+  fun `createBasicReport throws PERMISSION_DENIED for DEV ModelLine without DEV scope`(): Unit =
+    runBlocking {
+      stubAvailableModelLines(listOf(DEV_MODEL_LINE))
+      val request = createModelLineBasicReportRequest(DEV_MODEL_LINE.name)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, setOf(BasicReportsService.Permission.CREATE)) {
+            service.createBasicReport(request)
+          }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.PERMISSION_DENIED)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains(BasicReportsService.Permission.CREATE_WITH_DEV_MODEL_LINE)
+      assertNoBasicReportCreated(request)
+    }
+
+  @Test
+  fun `createBasicReport throws PERMISSION_DENIED for DEV ModelLine without create permission`():
+    Unit = runBlocking {
+    stubAvailableModelLines(listOf(DEV_MODEL_LINE))
+    wheneverBlocking { permissionsServiceMock.checkPermissions(any()) } doAnswer
+      { invocation ->
+        val request: CheckPermissionsRequest = invocation.getArgument(0)
+        checkPermissionsResponse {
+          permissions +=
+            request.permissionsList.intersect(
+              listOf("permissions/${BasicReportsService.Permission.CREATE_WITH_DEV_MODEL_LINE}")
+            )
+        }
+      }
+    val request = createModelLineBasicReportRequest(DEV_MODEL_LINE.name)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception).hasMessageThat().contains(BasicReportsService.Permission.CREATE)
+    assertNoBasicReportCreated(request)
+  }
+
+  @Test
+  fun `createBasicReport selects PROD ModelLine when no line requested`(): Unit = runBlocking {
+    stubAvailableModelLines(listOf(DEV_MODEL_LINE, HOLDBACK_MODEL_LINE, PROD_MODEL_LINE))
+    val request = createModelLineBasicReportRequest("")
+
+    val response =
+      withPrincipalAndScopes(PRINCIPAL, setOf(BasicReportsService.Permission.CREATE)) {
+        service.createBasicReport(request)
+      }
+
+    assertThat(response.modelLine).isEmpty()
+    assertThat(response.effectiveModelLine).isEqualTo(PROD_MODEL_LINE.name)
+  }
+
+  @Test
+  fun `createBasicReport throws FAILED_PRECONDITION when only non-PROD ModelLines available and no line requested`():
+    Unit = runBlocking {
+    stubAvailableModelLines(listOf(DEV_MODEL_LINE, HOLDBACK_MODEL_LINE))
+    val request = createModelLineBasicReportRequest("")
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.NO_ACTIVE_MODEL_LINE.name
+        }
+      )
+    assertNoBasicReportCreated(request)
+  }
+
+  @Test
+  fun `createBasicReport throws FAILED_PRECONDITION when requested DEV ModelLine unavailable`():
+    Unit = runBlocking {
+    stubAvailableModelLines(listOf(PROD_MODEL_LINE))
+    val request = createModelLineBasicReportRequest(DEV_MODEL_LINE.name)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.MODEL_LINE_NOT_ACTIVE.name
+          metadata[Errors.Metadata.MODEL_LINE.key] = DEV_MODEL_LINE.name
+        }
+      )
+    assertNoBasicReportCreated(request)
+  }
+
   @Test
   fun `createBasicReport uses line when model line not set and one valid line exists`(): Unit =
     runBlocking {
@@ -4219,12 +4463,11 @@ class BasicReportsServiceTest {
               )
           }
         }
-      val modelLine = modelLine {
+      val devModelLine = modelLine {
         name = ModelLineKey("1234", "1234", "1234").toName()
         type = ModelLine.Type.DEV
       }
-      whenever(modelLinesServiceMock.enumerateValidModelLines(any()))
-        .thenReturn(enumerateValidModelLinesResponse { modelLines += modelLine })
+      stubAvailableModelLines(listOf(devModelLine))
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
       measurementConsumersService.createMeasurementConsumer(
@@ -4255,7 +4498,7 @@ class BasicReportsServiceTest {
         basicReport = basicReport {
           title = "title"
           campaignGroup = campaignGroupKey.toName()
-          this.modelLine = modelLine.name
+          modelLine = devModelLine.name
           reportingInterval = reportingInterval {
             reportStart = dateTime {
               year = 2025
@@ -4359,6 +4602,7 @@ class BasicReportsServiceTest {
       assertThat(exception)
         .hasMessageThat()
         .contains(BasicReportsService.Permission.CREATE_WITH_DEV_MODEL_LINE)
+      assertNoBasicReportCreated(request)
     }
 
   @Test
@@ -12632,6 +12876,21 @@ class BasicReportsServiceTest {
     private val PRINCIPAL = principal { name = "principals/mc-user" }
 
     private val DATA_PROVIDER_KEY = DataProviderKey("1234")
+
+    private val PROD_MODEL_LINE = modelLine {
+      name = "modelProviders/123/modelSuites/123/modelLines/prod"
+      type = ModelLine.Type.PROD
+    }
+
+    private val DEV_MODEL_LINE = modelLine {
+      name = "modelProviders/123/modelSuites/123/modelLines/dev"
+      type = ModelLine.Type.DEV
+    }
+
+    private val HOLDBACK_MODEL_LINE = modelLine {
+      name = "modelProviders/123/modelSuites/123/modelLines/holdback"
+      type = ModelLine.Type.HOLDBACK
+    }
 
     private val INTERNAL_CAMPAIGN_GROUP = internalReportingSet {
       displayName = "displayName"

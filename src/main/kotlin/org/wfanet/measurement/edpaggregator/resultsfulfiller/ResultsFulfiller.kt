@@ -242,21 +242,10 @@ class ResultsFulfiller(
     // fulfilled or refused already
     val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
 
-    // Empty metadata is almost always transient, not a permanent orphan. The direct Requisition
-    // Fetcher dispatch path creates and queues metadata before creating the WorkItem, preventing
-    // this race. The legacy DataWatcher path dispatches on the blob write, however, and can still
-    // land moments later. Throwing fails the attempt so the control plane durably schedules another
-    // execution once the metadata exists — do NOT skip the work, which would abandon requisitions
-    // that are about to become fulfillable and leave the report permanently unfulfilled.
-    //
-    // The genuinely-orphaned case (fetcher crashed between blob and metadata, so metadata never
-    // arrives) is indistinguishable from the race at read time; it retries up to the queue's
-    // max_delivery_attempts and then dead-letters. Migrating the watched path to direct dispatch
-    // makes empty metadata a true orphan; until all deployments migrate, this stays a
-    // throw-and-retry. See #4119 (blocked by #4213).
-    //
-    // emptyMetadataRetries is the observability hook: a low steady rate is the normal race, a
-    // sustained climb on the same groupId is a stuck orphan worth investigating.
+    // RequisitionFetcher queues metadata before creating the WorkItem, so empty metadata indicates
+    // orphaned work. Throwing retries the attempt up to the queue's max delivery count and then
+    // dead-letters it instead of silently abandoning the requisitions. emptyMetadataRetries is the
+    // observability hook for finding these orphans.
     if (requisitionsMetadata.isEmpty()) {
       metrics.emptyMetadataRetries.add(
         1,
@@ -955,10 +944,7 @@ class ResultsFulfiller(
      */
     private const val DEFAULT_LIST_MAX_ATTEMPTS = 4
 
-    // Memory-based parallelism limit to prevent OOM with large frequency vectors
-    // With 360M sized frequency vector sampled at 10%, we get 36M x 16 bytes for
-    // the intermediate integer list in FrequencyVectorBuilder, ~0.5GB per requisition.
-    // For 15 parallel fulfillments we end up at ~8GB in total.
+    // Bound concurrent payloads and encryption buffers.
     private const val MAX_FULFILLMENT_PARALLELISM: Int = 15
 
     /** Utilize all cpu cores but keep one free for GC and system work, capped by memory limit. */

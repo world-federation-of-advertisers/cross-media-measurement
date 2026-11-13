@@ -66,6 +66,8 @@ data class RawImpressionUploadModelLineResult(
    * transition hasn't happened. Used to short-circuit an idempotent replay of the same mark.
    */
   val markLabelingRequestId: String,
+  /** AIP-155 request ID of the transition to `AVAILABILITY_SYNCING`. */
+  val markAvailabilitySyncingRequestId: String,
   /**
    * AIP-155 `request_id` of the mark that moved this line to `COMPLETED`, or empty if that
    * transition hasn't happened. Used to short-circuit an idempotent replay of the same mark.
@@ -204,12 +206,15 @@ data class InProgressModelLine(val rawImpressionUploadResourceId: String, val st
  * [excludeRawImpressionUploadId], returning each conflicting upload's resource ID and state.
  *
  * Used to enforce the one-in-flight-upload-per-(DataProvider, model line) rule and to name the
- * blocking upload(s) when the rule rejects a transition.
+ * blocking upload(s) when the rule rejects a transition. An `AVAILABILITY_SYNCING` row belonging to
+ * [permittedEvictionOperationId] is not a conflict: its rank snapshot and labeled output are
+ * already durable, and the shared healing fence postpones availability until recovery completes.
  */
 suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine(
   dataProviderResourceId: String,
   cmmsModelLine: String,
   excludeRawImpressionUploadId: Long,
+  permittedEvictionOperationId: String = "",
   limit: Int = 5,
 ): List<InProgressModelLine> {
   val sql =
@@ -223,6 +228,11 @@ suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine
       AND RawImpressionUploadModelLine.CmmsModelLine = @cmmsModelLine
       AND RawImpressionUploadModelLine.RawImpressionUploadId != @excludeRawImpressionUploadId
       AND CAST(RawImpressionUploadModelLine.State AS INT64) IN UNNEST(@inProgressStates)
+      AND NOT (
+        @permittedEvictionOperationId != ''
+        AND RawImpressionUploadModelLine.State = @availabilitySyncingState
+        AND RawImpressionUpload.EvictionOperationId = @permittedEvictionOperationId
+      )
     LIMIT @limit
     """
       .trimIndent()
@@ -233,6 +243,9 @@ suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine
           bind("dataProviderResourceId").to(dataProviderResourceId)
           bind("cmmsModelLine").to(cmmsModelLine)
           bind("excludeRawImpressionUploadId").to(excludeRawImpressionUploadId)
+          bind("permittedEvictionOperationId").to(permittedEvictionOperationId)
+          bind("availabilitySyncingState")
+            .to(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING)
           bind("limit").to(limit.toLong())
           bind("inProgressStates")
             .toInt64Array(
@@ -240,6 +253,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine
                   State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
                   State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
                   State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+                  State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
                 )
                 .map { it.number.toLong() }
             )
@@ -531,12 +545,15 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.MarkPoolAssigningRequestId,
       RawImpressionUploadModelLine.MarkRankingRequestId,
       RawImpressionUploadModelLine.MarkLabelingRequestId,
+      RawImpressionUploadModelLine.MarkAvailabilitySyncingRequestId,
       RawImpressionUploadModelLine.MarkCompletedRequestId,
       RawImpressionUploadModelLine.MarkFailedRequestId,
       RawImpressionUploadModelLine.FailureReason,
       RawImpressionUploadModelLine.EvictionOperationId,
       RawImpressionUploadModelLine.RecoveryAction,
       RawImpressionUploadModelLine.RecoveryPredecessorRawImpressionUploadResourceId,
+      RawImpressionUploadModelLine.PendingAvailabilityDates,
+      RawImpressionUploadModelLine.SynchronizedAvailabilityDates,
     FROM
       RawImpressionUploadModelLine
     """
@@ -593,12 +610,21 @@ private object RawImpressionUploadModelLineEntity {
           recoveryPredecessorRawImpressionUploadResourceId =
             struct.getString("RecoveryPredecessorRawImpressionUploadResourceId")
         }
+        if (!struct.isNull("PendingAvailabilityDates")) {
+          pendingAvailabilityDates +=
+            struct.getDateList("PendingAvailabilityDates").map { it.toProtoDate() }
+        }
+        if (!struct.isNull("SynchronizedAvailabilityDates")) {
+          synchronizedAvailabilityDates +=
+            struct.getDateList("SynchronizedAvailabilityDates").map { it.toProtoDate() }
+        }
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("RawImpressionUploadModelLineId"),
       markPoolAssigningRequestId = markId("MarkPoolAssigningRequestId"),
       markRankingRequestId = markId("MarkRankingRequestId"),
       markLabelingRequestId = markId("MarkLabelingRequestId"),
+      markAvailabilitySyncingRequestId = markId("MarkAvailabilitySyncingRequestId"),
       markCompletedRequestId = markId("MarkCompletedRequestId"),
       markFailedRequestId = markId("MarkFailedRequestId"),
     )
