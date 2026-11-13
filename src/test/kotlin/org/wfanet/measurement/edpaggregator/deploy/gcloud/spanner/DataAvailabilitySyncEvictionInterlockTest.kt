@@ -32,6 +32,7 @@ import kotlin.test.assertFailsWith
 import kotlin.time.Duration.Companion.hours
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
@@ -173,6 +174,7 @@ class DataAvailabilitySyncEvictionInterlockTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf(""),
       )
     val ids = REQUEST_IDS.iterator()
     val leaseClient = InternalLeaseClient(leaseService)
@@ -181,6 +183,7 @@ class DataAvailabilitySyncEvictionInterlockTest {
         leaseClient,
         renewalInterval = 1.hours,
         uuidGenerator = ids::next,
+        renewalDelay = { delay(it) },
       )
 
     supervisorScope {

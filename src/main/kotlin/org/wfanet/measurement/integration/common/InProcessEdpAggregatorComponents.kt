@@ -1005,10 +1005,12 @@ class InProcessEdpAggregatorComponents(
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf(ONBOARDING_PREFIX),
       )
     val leaseRunner =
       DataAvailabilitySyncLeaseRunner(
-        GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient)
+        GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient),
+        renewalDelay = { delay(it) },
       )
     val outcomes =
       doneKeys.associate { doneKey ->

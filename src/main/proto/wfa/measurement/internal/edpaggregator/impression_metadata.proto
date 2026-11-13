@@ -81,4 +81,8 @@ message ImpressionMetadata {
 
   // Generation of the labeled-output done object that triggered registration.
   int64 output_done_blob_generation = 14;
+
+  // Generations captured from the externally finalized labeled-output snapshot.
+  int64 metadata_blob_generation = 15;
+  int64 impressions_blob_generation = 16;
 }

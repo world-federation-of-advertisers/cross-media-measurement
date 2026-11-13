@@ -12,8 +12,8 @@ It repairs four inconsistencies:
 
 - A finalized metadata file has no active or deleted `ImpressionMetadata` resource. A folder is
   finalized only when it contains a `done` blob. The command re-runs `DataAvailabilitySync`
-  through a filtered storage view containing only the missing files, then re-queries the folder and
-  verifies that every missing resource is now active.
+  for only the selected metadata files, then re-queries the folder and verifies that every
+  missing resource is now active.
 - An `ImpressionMetadata` resource is deleted while its metadata file still exists. The command
   calls `UndeleteImpressionMetadata`, includes the restored blob in the finalized folder's
   `DataAvailabilitySync`, and reports any resource that could not be restored.
@@ -32,14 +32,20 @@ Publication checks date gaps across both configured impression paths, including 
 recovery selection. If `error_if_gaps_exist` blocks publication, the publication IDs remain
 mismatched and the command exits nonzero so the folder remains retryable after the gap is corrected.
 
+External recovery captures and revalidates the whole finalized folder and referenced impression
+generations while synchronizing only the selected metadata. Generation-matched writes preserve the
+completion marker and pin recovered metadata for fulfillment. If files are added or overwritten
+after `done`, write a new `done` marker before running replay or recovery.
+
 ## Run the CLI
 
 The config file is a `DataAvailabilitySyncConfig` textproto. Its GCS bucket, data provider,
 model-line mapping, and TLS file paths are reused by the recovery command. Recovery scans
-`edp_impression_path` and, when set, `vid_labeled_impression_path`. These paths must not overlap.
+`external_impression_path` (falling back to `edp_impression_path`) and, when set,
+`vid_labeled_impression_path`. These paths must not overlap.
 Both scans share the provider's renewable synchronization lease and request throttler. A config
-with VID labeling disabled may omit `vid_labeled_impression_path` and scan only
-`edp_impression_path`. When VID labeling is enabled, `vid_labeled_impression_path` is required.
+with VID labeling disabled may omit `vid_labeled_impression_path` and scan only the external
+path. When VID labeling is enabled, `vid_labeled_impression_path` is required.
 
 ```shell
 bazel run \
