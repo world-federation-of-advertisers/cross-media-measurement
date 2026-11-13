@@ -246,6 +246,42 @@ class ReplayDataAvailabilitySyncTest {
   }
 
   @Test
+  fun `main internal prefix replay accepts the VID Labeler done filename`() {
+    val marker = "done-${"a".repeat(64)}"
+    runConfiguredPathReplay(
+      listOf(INTERNAL_IMPRESSION_PATH),
+      arrayOf("--blob-prefix=gs://$BUCKET_NAME/$INTERNAL_IMPRESSION_PATH"),
+      doneFileName = marker,
+    )
+  }
+
+  @Test
+  fun `main explicit internal replay accepts the VID Labeler done filename`() {
+    val marker = "done-${"a".repeat(64)}"
+    runConfiguredPathReplay(
+      listOf(INTERNAL_IMPRESSION_PATH),
+      arrayOf(
+        "--done-blob-uri=gs://$BUCKET_NAME/$INTERNAL_IMPRESSION_PATH/model-line/model-line-1/2026-01-01/$marker"
+      ),
+      doneFileName = marker,
+    )
+  }
+
+  @Test
+  fun `main rejects a VID Labeler completion filename at the external root`() {
+    val configFile = writeConfigFile(validConfig(includeActivityPublishing = false))
+    val output =
+      CommandLineTesting.capturingOutput(
+        connectionArgs(configFile, UNREACHABLE_API_TARGET) +
+          "--mode=${ReplayDataAvailabilitySync.Mode.DATA_AVAILABILITY_ONLY}" +
+          "--done-blob-uri=gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-01-01/done-${"a".repeat(64)}",
+        ::main,
+      )
+    CommandLineTesting.assertThat(output).status().isNotEqualTo(0)
+    CommandLineTesting.assertThat(output).err().contains("wrong completion filename")
+  }
+
+  @Test
   fun `main mixed completion blob replay selects each configured path`() {
     val paths = listOf(EDP_IMPRESSION_PATH, INTERNAL_IMPRESSION_PATH)
     runConfiguredPathReplay(
@@ -526,7 +562,11 @@ class ReplayDataAvailabilitySyncTest {
     }
   }
 
-  private fun runConfiguredPathReplay(impressionPaths: List<String>, selectionArgs: Array<String>) {
+  private fun runConfiguredPathReplay(
+    impressionPaths: List<String>,
+    selectionArgs: Array<String>,
+    doneFileName: String = "done",
+  ) {
     val createdMetadata = mutableListOf<ImpressionMetadata>()
     val metadataService: ImpressionMetadataServiceCoroutineImplBase = mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
@@ -604,7 +644,7 @@ class ReplayDataAvailabilitySyncTest {
           )
           val done =
             storageEmulator.storage.create(
-              BlobInfo.newBuilder(BUCKET_NAME, "$folder/done").build(),
+              BlobInfo.newBuilder(BUCKET_NAME, "$folder/$doneFileName").build(),
               byteArrayOf(1),
             )
           "gs://$BUCKET_NAME/$metadataKey" to done.generation

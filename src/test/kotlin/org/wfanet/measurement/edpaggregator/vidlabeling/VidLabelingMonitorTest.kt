@@ -133,6 +133,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -854,6 +855,69 @@ class VidLabelingMonitorTest {
     assertThat(workItemParams.dataPathParams.generation).isEqualTo(1L)
     assertThat(workItemParams.dataPathParams.createTime.toInstant()).isEqualTo(doneCreateTime)
   }
+
+  @Test
+  fun `health retries a failed availability WorkItem without changing its source identity`() =
+    runBlocking {
+      val upload =
+        upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(25)))
+      val modelLine = rawImpressionUploadModelLine {
+        name = "${upload.name}/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        pendingAvailabilityDates += date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+        updateTime = Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(25)).toEpochMilli())
+      }
+      stubUploads(active = listOf(upload))
+      stubModelLines(modelLine)
+      stubFiles()
+      stubSucceededVidLabelingJob(upload.name)
+      val donePath =
+        LabeledImpressionsBlobKeys.forDone(upload.name, MODEL_LINE, LocalDate.of(2026, 6, 1))
+      seedLabeled("edp123/$donePath")
+      var failedRequest: CreateWorkItemRequest? = null
+      whenever(workItemsService.createWorkItem(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<CreateWorkItemRequest>(0)
+        if (failedRequest == null) {
+          failedRequest = request
+          throw Status.ALREADY_EXISTS.asRuntimeException()
+        }
+        request.workItem
+      }
+      whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+        val name = invocation.getArgument<GetWorkItemRequest>(0).name
+        val original = failedRequest
+        if (original != null && name == "workItems/${original.workItemId}") {
+          original.workItem.copy {
+            this.name = name
+            state = WorkItem.State.FAILED
+            updateTime = Timestamps.fromMillis(FIXED_NOW.minusSeconds(1).toEpochMilli())
+          }
+        } else {
+          throw Status.NOT_FOUND.asRuntimeException()
+        }
+      }
+
+      val result = createMonitor().runHealth()
+
+      assertThat(result.recoveredTransitions).isEqualTo(1)
+      assertThat(result.unrecoverableRecoveries).isEqualTo(0)
+      val requests = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(2)) { createWorkItem(requests.capture()) }
+      val initial = requests.firstValue
+      val retried = requests.secondValue
+      assertThat(retried.workItemId).isNotEqualTo(initial.workItemId)
+      assertThat(retried.workItem.queue).isEqualTo(DataAvailabilitySyncWorkItems.QUEUE)
+      assertThat(retried.workItem.workItemParams).isEqualTo(initial.workItem.workItemParams)
+      val params = retried.workItem.workItemParams.unpack<WorkItem.WorkItemParams>()
+      assertThat(params.dataPathParams.dataPath)
+        .isEqualTo("$VID_LABELED_IMPRESSIONS_PREFIX/$donePath")
+      assertThat(params.dataPathParams.generation).isEqualTo(1L)
+    }
 
   @Test
   fun `health redacts done key when availability marker read fails`() = runBlocking {

@@ -28,6 +28,12 @@ import io.grpc.StatusRuntimeException
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -1689,6 +1695,52 @@ abstract class RequisitionMetadataServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
         }
       )
+  }
+
+  @Test
+  fun `resolveReportRoutingDecision concurrent first batches share one selection`() = runBlocking {
+    val historical = "modelProviders/provider/modelSuites/suite/modelLines/historical"
+    val replacement = "modelProviders/provider/modelSuites/suite/modelLines/replacement"
+    val candidate = reportRoutingDecision {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+      report = REPORT
+      reportInterval = interval {
+        startTime = timestamp { seconds = 100 }
+        endTime = timestamp { seconds = 150 }
+      }
+      externalModelLine = "modelProviders/provider/modelSuites/suite/modelLines/external"
+      selectedModelLine = historical
+      cutoverTime = timestamp { seconds = 200 }
+    }
+    val results = coroutineScope {
+      val ready = Channel<Unit>(2)
+      val release = CompletableDeferred<Unit>()
+      val requests =
+        listOf(historical, replacement).map { selected ->
+          async(Dispatchers.Default) {
+            ready.send(Unit)
+            release.await()
+            service.resolveReportRoutingDecision(
+              resolveReportRoutingDecisionRequest {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                this.candidate = candidate.copy { selectedModelLine = selected }
+              }
+            )
+          }
+        }
+      repeat(2) { ready.receive() }
+      release.complete(Unit)
+      requests.awaitAll()
+    }
+    val first = results.single { it.created }
+    assertThat(first.reportRoutingDecision.selectedModelLine).isAnyOf(historical, replacement)
+    for (result in results) {
+      assertThat(result.reportRoutingDecision.selectedModelLine)
+        .isEqualTo(first.reportRoutingDecision.selectedModelLine)
+      assertThat(result.reportRoutingDecision.reportInterval).isEqualTo(candidate.reportInterval)
+      assertThat(result.reportRoutingDecision.externalModelLine)
+        .isEqualTo(candidate.externalModelLine)
+    }
   }
 
   @Test

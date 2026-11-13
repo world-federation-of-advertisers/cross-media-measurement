@@ -552,7 +552,16 @@ class DataAvailabilitySync(
         val modelLineName = modelLineKey.toName()
         val enumerated = dateInfoByModelLine.getValue(modelLineName)
         val finalized = enumerated.datesWithDoneBlob.keys
-        val unfinalized = enumerated.datesWithoutDoneBlob
+        val unfinalized =
+          (enumerated.datesWithoutDoneBlob +
+              if (modelLineName in cutoverContributorLines) {
+                enumerated.datesWithDoneBlob
+                  .filterValues { blobs -> blobs.any { !DataAvailabilityBlobs.isSynced(it) } }
+                  .keys
+              } else {
+                emptySet()
+              })
+            .distinct()
         val presentDates = (finalized + unfinalized).toSet()
         val requiredRange = requiredDateRange(modelLineName, dateInfoByModelLine)
         val gaps =
@@ -641,7 +650,6 @@ class DataAvailabilitySync(
       check(availabilityEntries.isNotEmpty()) {
         "No data availability intervals were computed for $dataProviderName"
       }
-      ensureLeaseActive()
       onStage(Stage.KINGDOM_PUBLICATION)
       throttler.onReady {
         externalSnapshot?.validate()

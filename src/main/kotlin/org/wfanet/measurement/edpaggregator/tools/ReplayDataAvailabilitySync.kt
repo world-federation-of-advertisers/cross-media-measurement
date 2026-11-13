@@ -55,9 +55,9 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyn
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityBackfill
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
@@ -342,22 +342,29 @@ class ReplayDataAvailabilitySync : Runnable {
                         val doneGeneration =
                           requireNotNull(
                             (doneBlob as? ConditionalOperationStorageClient.Blob)
-                              ?.freshnessToken?.toLongOrNull()
-                          ) { "Completion blob has no numeric generation: $doneBlobUri" }
+                              ?.freshnessToken
+                              ?.toLongOrNull()
+                          ) {
+                            "Completion blob has no numeric generation: $doneBlobUri"
+                          }
                         DataAvailabilitySync(
                             edpImpressionPath = triggerSource.edpImpressionPath,
                             storageClient = triggerSource.storageClient,
-                            dataProvidersStub = DataProvidersCoroutineStub(instrumentedKingdomChannel),
+                            dataProvidersStub =
+                              DataProvidersCoroutineStub(instrumentedKingdomChannel),
                             impressionMetadataServiceStub = impressionMetadataStub,
                             dataProviderName = config.dataProvider,
                             throttler = throttler,
                             impressionMetadataBatchSize = impressionMetadataBatchSize,
-                            modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
+                            modelLineMap =
+                              config.modelLineMapMap.mapValues { it.value.modelLinesList },
                             errorIfGapsExist = config.errorIfGapsExist,
                             availabilityImpressionPaths = availabilityPaths,
-                            modelLineCutovers = config.modelLineCutoversList.map(ModelLineCutover::from),
+                            modelLineCutovers =
+                              config.modelLineCutoversList.map(ModelLineCutover::from),
                             modelLineDataSources = modelLineDataSources,
-                            publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
+                            publishEventGroupActivities =
+                              eventGroupActivityPublisher?.let { it::publish },
                             generationMatchedMetadataUpdater =
                               GcsGenerationMatchedBlobMetadataUpdater(
                                 triggerSource.storage,
@@ -480,9 +487,9 @@ class ReplayDataAvailabilitySync : Runnable {
         ReplaySourceSelection(
           source,
           DataAvailabilitySyncReplay.Selection.BlobPrefix(
-              parsedPrefix.second,
-              source.completionBlobType,
-            ),
+            parsedPrefix.second,
+            source.completionBlobType,
+          ),
         )
       )
     }
@@ -508,7 +515,9 @@ class ReplayDataAvailabilitySync : Runnable {
             source.completionBlobType,
             parsedUri.key.substringAfterLast('/'),
           )
-        ) { "done-blob-uri has the wrong completion filename for its configured source: $doneBlobUri" }
+        ) {
+          "done-blob-uri has the wrong completion filename for its configured source: $doneBlobUri"
+        }
         source
       }
     return urisBySource.map { (source, uris) ->

@@ -126,7 +126,9 @@ internal fun selectTriggerDataSource(
     candidates
       .distinct()
       .filter { candidate ->
-        val pathMatches = doneBlobUri.key.startsWith("${candidate.edpImpressionPath}/")
+        val pathMatches =
+          candidate.edpImpressionPath.isEmpty() ||
+            doneBlobUri.key.startsWith("${candidate.edpImpressionPath}/")
         if (fileSystemEnabled) {
           pathMatches
         } else {
@@ -395,12 +397,43 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     config: DataAvailabilitySyncConfig,
   ) {
     val doneBlobUri = SelectedStorageClient.parseBlobUri(workItem.doneBlobUri)
+    val sourceConfig = if (workItem.isExternal) externalSyncConfig(config) else config
+    val triggerDataSource =
+      selectTriggerDataSource(
+        sourceConfig,
+        workItem.doneBlobUri,
+        fileSystemEnabled = !fileSystemPath.isNullOrEmpty(),
+      )
+    if (!workItem.isExternal) {
+      val modelSource = config.modelLineDataSourcesMap[workItem.appParams.modelLine]
+      if (modelSource != null) {
+        require(
+          triggerDataSource.edpImpressionPath == modelSource.edpImpressionPath &&
+            triggerDataSource.storage.storageCase == modelSource.storage.storageCase &&
+            (!modelSource.storage.hasGcs() ||
+              triggerDataSource.storage.gcs.bucketName == modelSource.storage.gcs.bucketName)
+        ) {
+          "WorkItem source does not match its configured model-line data source"
+        }
+      }
+    }
     if (workItem.isExternal) {
       require(doneBlobUri.scheme == "gs") { "External done object must use gs://" }
-      require(doneBlobUri.bucket == config.dataAvailabilityStorage.gcs.bucketName) {
+      require(doneBlobUri.bucket == triggerDataSource.storage.gcs.bucketName) {
         "External done object is outside the configured bucket"
       }
-      val prefix = "${externalSyncConfig(config).edpImpressionPath.trimEnd('/')}/model-line/"
+      val internalPath = config.vidLabeledImpressionPath
+      require(
+        internalPath.isEmpty() ||
+          triggerDataSource.storage.gcs.bucketName !=
+            config.dataAvailabilityStorage.gcs.bucketName ||
+          (triggerDataSource.edpImpressionPath != internalPath &&
+            !triggerDataSource.edpImpressionPath.startsWith("$internalPath/"))
+      ) {
+        "External done object is inside the VID Labeler output prefix"
+      }
+      val sourcePrefix = triggerDataSource.edpImpressionPath.trimEnd('/')
+      val prefix = if (sourcePrefix.isEmpty()) "model-line/" else "$sourcePrefix/model-line/"
       require(doneBlobUri.key.startsWith(prefix)) {
         "External done object is outside the configured labeled-output prefix"
       }
@@ -416,7 +449,6 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     }
     if (!fileSystemPath.isNullOrEmpty()) return
     require(doneBlobUri.scheme == "gs") { "WorkItem done object must use gs://" }
-    val triggerDataSource = selectTriggerDataSource(config, workItem.doneBlobUri)
     val gcsConfig = triggerDataSource.storage.gcs
     val storage =
       StorageOptions.newBuilder()
@@ -529,7 +561,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       modelLineMap =
         dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
-      availabilityImpressionPaths = availabilityImpressionPaths,
+      availabilityImpressionPaths =
+        (availabilityImpressionPaths + triggerDataSource.edpImpressionPath).distinct(),
       generationMatchedMetadataUpdater = storageAccess.generationMatchedMetadataUpdater,
     )
   }
