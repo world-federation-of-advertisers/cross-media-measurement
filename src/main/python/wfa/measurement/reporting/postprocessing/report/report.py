@@ -807,9 +807,13 @@ class Report:
   def get_metrics(self) -> set[str]:
     return set(self._metric_reports.keys())
 
-  def get_corrected_report(self) -> tuple["Report", ReportPostProcessorResult]:
+  def get_corrected_report(
+      self, enable_validation: bool
+  ) -> tuple["Report", ReportPostProcessorResult]:
     """Returns a corrected, consistent report."""
-    pre_correction_quality = self.get_report_quality()
+    pre_correction_quality = (
+        self.get_report_quality() if enable_validation else ReportQuality()
+    )
 
     spec = self.to_set_measurement_spec()
     solution, report_post_processor_status = Solver(spec).solve_and_translate()
@@ -820,7 +824,7 @@ class Report:
     # ReportQuality.
     post_correction_quality = (
         corrected_report.get_report_quality()
-        if corrected_report
+        if corrected_report and enable_validation
         else ReportQuality()
     )
 
@@ -831,7 +835,7 @@ class Report:
         post_correction_quality=post_correction_quality,
     )
 
-    if corrected_report:
+    if corrected_report and enable_validation:
       for measurement_name in self._measurement_name_to_measurement.keys():
         measurement = self.get_measurement_from_name(measurement_name)
         corrected_measurement = corrected_report.get_measurement_from_name(
