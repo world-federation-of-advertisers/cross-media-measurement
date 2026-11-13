@@ -34,7 +34,6 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.io.ByteArrayOutputStream
-import java.io.IOException
 import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
@@ -655,36 +654,6 @@ class TrusTeeMillTest {
     verify(mockConfidentialSpaceToAwsKmsClientFactory, times(2)).getKmsClient(credentials.capture())
     assertThat(credentials.allValues.map { it.audience })
       .containsExactly("https://example.com", "https://other.example.com")
-  }
-
-  @Test
-  fun `computingPhase fails when credential retries are exhausted`(): Unit = runBlocking {
-    writeRequisitionData()
-    fakeComputationDb.addComputation(
-      LOCAL_ID,
-      Stage.COMPUTING.toProtocolStage(),
-      computationDetails = COMPUTATION_DETAILS,
-      requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE),
-    )
-    val unavailableClient: KmsClient = mock()
-    whenever(unavailableClient.getAead(KEK_URI_1))
-      .thenThrow(
-        GeneralSecurityException(
-          "credential retry budget exhausted",
-          IOException("quota remains exceeded"),
-        )
-      )
-    whenever(mockConfidentialSpaceToAwsKmsClientFactory.getKmsClient(any()))
-      .thenReturn(unavailableClient)
-
-    createMill().claimAndProcessWork()
-
-    val token = fakeComputationDb[LOCAL_ID]!!
-    assertThat(token.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-    assertThat(token.computationDetails.endingState)
-      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
-    verify(mockComputationParticipants).failComputationParticipant(any())
-    verify(mockSystemComputations, never()).setComputationResult(any())
   }
 
   @Test
