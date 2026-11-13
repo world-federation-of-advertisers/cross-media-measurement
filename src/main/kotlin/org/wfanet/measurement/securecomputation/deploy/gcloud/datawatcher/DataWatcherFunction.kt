@@ -18,7 +18,6 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
 import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import io.cloudevents.CloudEvent
 import io.grpc.ClientInterceptors
@@ -36,17 +35,27 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcherConfigValidator
+
+private class SanitizedDataWatcherException(errorType: String, errorCode: String?) :
+  RuntimeException(
+    "DataWatcher processing failed: errorType=$errorType, errorCode=${errorCode ?: "unknown"}",
+    null,
+    false,
+    false,
+  )
 
 /*
  * Cloud Function receives a CloudEvent. If the cloud event path matches config, it calls the
@@ -76,27 +85,36 @@ class DataWatcherFunction(
       val blobKey: String = data.getName()
       val bucket: String = data.getBucket()
       val path = "$scheme://$bucket/$blobKey"
-      logger.info("Receiving path $path")
+      val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(path, data.generation)
+      logger.info(
+        "Receiving object: pathHash=${objectIdentity.pathHash}, generation=${objectIdentity.generation}"
+      )
       val size = data.size
       if (size == 0L) {
         // TODO(world-federation-of-advertisers/cross-media-measurement#2653): Update logic once
         // metadata storage are in place
         // Temporary accept empty blob if path ends with "done"
         if (!path.lowercase().endsWith(VALID_EMPTY_BLOB_NAME)) {
-          logger.info("Skipping processing: file '$path' is empty and not a done marker")
+          logger.info(
+            "Skipping processing: object pathHash=${objectIdentity.pathHash} is empty and not a " +
+              "done marker"
+          )
           return
         }
       }
 
-      // Extract custom metadata from the GCS object, plus the object generation (the
-      // VidLabelingDispatcher requires it as the X-DataWatcher-Generation header).
+      // Extract custom metadata from the GCS object and the immutable source-object identity.
       val objectMetadata: Map<String, String> =
-        data.metadataMap + (DataWatcher.GENERATION_METADATA_KEY to data.generation.toString())
+        data.metadataMap +
+          mapOf(
+            DataWatcher.GENERATION_METADATA_KEY to data.generation.toString(),
+            DataWatcher.CREATE_TIME_METADATA_KEY to data.timeCreated.toInstant().toString(),
+            DataWatcher.EVENT_TYPE_METADATA_KEY to event.type,
+          )
 
       Tracing.withW3CTraceContext(event) {
         val forwardedMetadata =
           objectMetadata - VidLabelingTraceAttributes.PERSISTED_BOUNDARY_METADATA_KEYS
-        val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(path, data.generation)
         val attributes =
           Attributes.builder()
             .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
@@ -113,13 +131,13 @@ class DataWatcherFunction(
           } catch (e: CancellationException) {
             throw e
           } catch (e: Exception) {
+            val errorType = XmmTraceAttributes.errorType(e)
+            val errorCode = XmmTraceAttributes.errorCode(e)
             Span.current()
               .setAttribute(XmmTraceAttributes.OUTCOME, "failed")
-              .setAttribute(XmmTraceAttributes.ERROR_TYPE, XmmTraceAttributes.errorType(e))
-            XmmTraceAttributes.errorCode(e)?.let {
-              Span.current().setAttribute(XmmTraceAttributes.ERROR_CODE, it)
-            }
-            throw e
+              .setAttribute(XmmTraceAttributes.ERROR_TYPE, errorType)
+            errorCode?.let { Span.current().setAttribute(XmmTraceAttributes.ERROR_CODE, it) }
+            throw SanitizedDataWatcherException(errorType, errorCode)
           }
         }
       }
@@ -212,11 +230,14 @@ class DataWatcherFunction(
     private val configBlobKey: String by lazy { checkNotEmpty("CONFIG_BLOB_KEY") }
     private val dataWatcherConfig by lazy {
       runBlocking {
-        getConfigAsProtoMessage(
-          configBlobKey,
-          DataWatcherConfig.getDefaultInstance(),
-          TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build(),
-        )
+        val config =
+          getConfigAsProtoMessage(
+            configBlobKey,
+            DataWatcherConfig.getDefaultInstance(),
+            DataWatcherConfigTypes.registry,
+          )
+        DataWatcherConfigValidator.validate(config)
+        config
       }
     }
     private val defaultDataWatcher by lazy {

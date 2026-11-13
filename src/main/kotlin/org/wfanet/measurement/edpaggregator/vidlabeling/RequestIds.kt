@@ -33,6 +33,37 @@ object RequestIds {
   fun forRawImpressionUpload(doneBlobPath: String, generation: Long): String =
     fromKey("rawImpressionUpload:$doneBlobPath:$generation")
 
+  /** `request_id` for replaying an exact upload generation during healing. */
+  fun forRawImpressionUploadRecovery(
+    doneBlobPath: String,
+    generation: Long,
+    operationId: String,
+    sourceUpload: String? = null,
+  ): String =
+    if (sourceUpload == null) {
+      fromKey("rawImpressionUploadRecovery:$doneBlobPath:$generation:$operationId")
+    } else {
+      fromKey("rawImpressionUploadRecovery:$doneBlobPath:$generation:$operationId:$sourceUpload")
+    }
+
+  /** Resource ID for a correction candidate detected from one done-object generation. */
+  fun forRawImpressionUploadCorrectionCandidate(doneBlobPath: String, generation: Long): String =
+    fromKey("rawImpressionUploadCorrectionCandidate:$doneBlobPath:$generation")
+
+  /** `request_id` for registering one correction candidate. */
+  fun forRegisterRawImpressionUploadCorrectionCandidate(
+    doneBlobPath: String,
+    generation: Long,
+  ): String = fromKey("registerRawImpressionUploadCorrectionCandidate:$doneBlobPath:$generation")
+
+  /** `request_id` for resolving a correction superseded by a healthy revision. */
+  fun forResolveRawImpressionUploadCorrectionCandidate(candidateId: String): String =
+    fromKey("resolveRawImpressionUploadCorrectionCandidate:$candidateId")
+
+  /** `request_id` for activating one approved quarantined upload. */
+  fun forActivateQuarantinedRawImpressionUpload(uploadName: String, operationId: String): String =
+    fromKey("activateQuarantinedRawImpressionUpload:$uploadName:$operationId")
+
   /** `request_id` for completing one observed version of a `RawImpressionUpload`. */
   fun forRawImpressionUploadRegistrationComplete(uploadName: String, etag: String): String =
     fromKey("rawImpressionUploadRegistrationComplete:$uploadName:$etag")
@@ -112,19 +143,63 @@ object RequestIds {
   fun forMarkRawImpressionUploadModelLineLabeling(modelLineName: String): String =
     fromKey("markRawImpressionUploadModelLineLabeling:$modelLineName")
 
+  fun forMarkRawImpressionUploadModelLineAvailabilitySyncing(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLineAvailabilitySyncing:$modelLineName")
+
+  fun forMarkRawImpressionUploadModelLineAvailabilitySynchronized(
+    modelLineName: String,
+    eventDate: String,
+  ): String =
+    fromKey("markRawImpressionUploadModelLineAvailabilitySynchronized:$modelLineName:$eventDate")
+
   fun forMarkRawImpressionUploadModelLineCompleted(modelLineName: String): String =
     fromKey("markRawImpressionUploadModelLineCompleted:$modelLineName")
 
   fun forMarkRawImpressionUploadModelLineFailed(modelLineName: String, etag: String): String =
     fromKey("markRawImpressionUploadModelLineFailed:$modelLineName:$etag")
 
-  /** `request_id` for invalidating a model line during operator eviction. */
+  /** `request_id` for invalidating a model line during correction eviction. */
   fun forEvictRawImpressionUploadModelLine(modelLineName: String, etag: String): String =
     fromKey("evictRawImpressionUploadModelLine:$modelLineName:$etag")
 
-  /** `request_id` for creating a durable upload-healing operation. */
-  fun forUploadHealingOperation(operationId: String): String =
-    fromKey("uploadHealingOperation:$operationId")
+  /** `request_id` for approving one version of an upload-healing operation. */
+  fun forApproveUploadHealingOperation(
+    operationName: String,
+    etag: String,
+    candidateDecisions: Map<String, Int>,
+  ): String =
+    fromKey(
+      "approveUploadHealingOperation:$operationName:$etag:" +
+        candidateDecisions.toSortedMap().entries.joinToString(",") { (candidate, decision) ->
+          "$candidate=$decision"
+        }
+    )
+
+  /** `request_id` for retrying one version of an upload-healing operation. */
+  fun forRetryUploadHealingOperation(operationName: String, etag: String): String =
+    fromKey("retryUploadHealingOperation:$operationName:$etag")
+
+  /** `request_id` for reconciling a draft correction plan. */
+  fun forReconcileUploadHealingOperation(operationId: String, canonicalPlan: ByteArray): String =
+    fromBytes("reconcileUploadHealingOperation:$operationId", canonicalPlan)
+
+  /** `request_id` for advancing an upload-healing operation. */
+  fun forAdvanceUploadHealingOperation(operationName: String, state: String, etag: String): String =
+    fromKey("advanceUploadHealingOperation:$operationName:$state:$etag")
+
+  /** `request_id` for atomically storing exact output versions after draining. */
+  fun forFinalizeUploadHealingOperation(
+    operationName: String,
+    canonicalManifests: ByteArray,
+  ): String = fromBytes("finalizeUploadHealingOperation:$operationName", canonicalManifests)
+
+  /** `request_id` for acquiring an upload-eviction fence. */
+  fun forAcquireUploadEvictionFence(operationId: String, state: String): String =
+    fromKey("acquireUploadEvictionFence:$operationId:$state")
+
+  /** `request_id` for advancing an upload-eviction fence. */
+  fun forAdvanceUploadEvictionFence(operationId: String, state: String, etag: String): String =
+    fromKey("advanceUploadEvictionFence:$operationId:$state:$etag")
 
   /** `request_id` for recording one durable upload-healing checkpoint and its evidence. */
   fun forUploadHealingStep(stepName: String, checkpoint: String, evidence: String): String =
@@ -152,7 +227,17 @@ object RequestIds {
     // request_id
     // field across the EDPA gRPC APIs. A random v4 UUID can't be reproduced on retry, so the 16
     // bytes come from a SHA-256 hash of [key] with the version and variant bits set to 4 / IETF.
-    val bytes = MessageDigest.getInstance("SHA-256").digest(key.toByteArray())
+    return uuidFromDigest(MessageDigest.getInstance("SHA-256").digest(key.toByteArray()))
+  }
+
+  private fun fromBytes(domain: String, value: ByteArray): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    digest.update(domain.toByteArray())
+    digest.update(0.toByte())
+    return uuidFromDigest(digest.digest(value))
+  }
+
+  private fun uuidFromDigest(bytes: ByteArray): String {
     bytes[6] = ((bytes[6].toInt() and 0x0f) or 0x40).toByte() // version 4
     bytes[8] = ((bytes[8].toInt() and 0x3f) or 0x80).toByte() // IETF variant
     var msb = 0L

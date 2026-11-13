@@ -83,6 +83,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -375,6 +376,50 @@ class StorageEventSourceTest {
   @Before
   fun setUp() {
     reset(impressionMetadataServiceMock)
+  }
+
+  @Test
+  fun `generateEventBatches rejects an impression generation outside the finalized snapshot`():
+    Unit = runBlocking {
+    val date = LocalDate.of(2026, 1, 1)
+    val eventGroupRef = "group-1"
+    val (kmsClient, keyUri, serializedKey) = createKmsSetup()
+    createImpressionFilesForDate(
+      tmp.root,
+      tmp.root,
+      date,
+      eventGroupRef,
+      kmsClient,
+      keyUri,
+      serializedKey,
+    )
+    val metadata =
+      createImpressionMetadataList(listOf(date), eventGroupRef, "meta-bucket", modelLine).map {
+        it.copy { impressionsBlobGeneration = 7L }
+      }
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadata })
+    val source =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(tmp.root),
+        resolvedEventGroups =
+          resolveEventGroups(
+            listOf(
+              createEventGroupDetails(eventGroupRef, date, date.plusDays(1), ZoneId.of("UTC"))
+            ),
+            mapping = null,
+            wholeBlobEntityTypes = emptySet(),
+          ),
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    val exception =
+      assertFailsWith<ImpressionReadException> { source.generateEventBatches().toList() }
+    assertThat(exception.code).isEqualTo(ImpressionReadException.Code.BLOB_GENERATION_CHANGED)
   }
 
   @Test

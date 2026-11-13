@@ -7,6 +7,21 @@ See the
 [Kubernetes API Reference](https://kubernetes.io/docs/reference/kubernetes-api/)
 for background.
 
+## EDP Aggregator rollout diagnostics
+
+When Configure Edp Aggregator Services fails during apply or rollout, inspect
+its job summary and the `edp-aggregator-rollout-diagnostics-<attempt>` artifact.
+It contains deployment and pod status, relevant events, and bounded current and
+previous init-container logs. `errors.json` lists reads that could not complete.
+
+To collect the same diagnostics locally using the current Kubernetes context:
+
+```shell
+python3 .github/workflows/scripts/k8s_rollout_diagnostics.py \
+  --selector=app.kubernetes.io/component=edp-aggregator \
+  --output-dir=/tmp/edp-aggregator-rollout-diagnostics
+```
+
 ## Useful Labels
 
 All resources defined in these manifests should have the
@@ -26,3 +41,11 @@ the Kingdom, you could run
 kubectl delete pods,jobs,services,deployments,networkpolicies,ingresses \
   --selector=app.kubernetes.io/part-of=halo-cmms,app.kubernetes.io/component=kingdom
 ```
+
+## EDP Aggregator schema migrations
+
+The internal API deployment applies database migrations in the
+`update-edp-aggregator-schema` init container before the API process starts.
+When a rollout stalls, inspect that container's current and previous logs.
+After correcting the cause, resume the rollout through its deployment workflow
+so the remaining service updates and worker activation steps can finish.

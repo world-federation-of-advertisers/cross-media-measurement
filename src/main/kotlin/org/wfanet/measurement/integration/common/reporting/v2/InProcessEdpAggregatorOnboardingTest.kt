@@ -157,6 +157,7 @@ abstract class InProcessEdpAggregatorOnboardingTest(
         assertThat(metadata.modelLine).isEqualTo(sidecar.modelLine)
         assertThat(metadata.interval).isEqualTo(sidecar.interval)
         assertThat(metadata.state).isEqualTo(ImpressionMetadata.State.ACTIVE)
+        assertThat(metadata.outputDoneBlobGeneration).isEqualTo(1L)
         val expectedEntityKeys =
           sidecar.entityKeysList.flatMap { group ->
             group.entityIdsList.map { id ->
@@ -237,7 +238,7 @@ abstract class InProcessEdpAggregatorOnboardingTest(
         .createBasicReport(createBasicReportRequest)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient

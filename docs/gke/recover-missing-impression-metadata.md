@@ -12,8 +12,8 @@ It repairs four inconsistencies:
 
 - A finalized metadata file has no active or deleted `ImpressionMetadata` resource. A folder is
   finalized only when it contains a `done` blob. The command re-runs `DataAvailabilitySync`
-  through a filtered storage view containing only the missing files, then re-queries the folder and
-  verifies that every missing resource is now active.
+  for only the selected metadata files, then re-queries the folder and verifies that every
+  missing resource is now active.
 - An `ImpressionMetadata` resource is deleted while its metadata file still exists. The command
   calls `UndeleteImpressionMetadata`, includes the restored blob in the finalized folder's
   `DataAvailabilitySync`, and reports any resource that could not be restored.
@@ -28,13 +28,24 @@ It repairs four inconsistencies:
 Deleted-record checks also include folders without `done`, since that existence check is
 independent of upload finalization.
 
-If `error_if_gaps_exist` blocks publication, the publication IDs remain mismatched and the command
-exits nonzero so the folder remains retryable after the gap is corrected.
+Publication checks date gaps across both configured impression paths, including dates outside the
+recovery selection. If `error_if_gaps_exist` blocks publication, the publication IDs remain
+mismatched and the command exits nonzero so the folder remains retryable after the gap is corrected.
+
+External recovery captures and revalidates the whole finalized folder and referenced impression
+generations while synchronizing only the selected metadata. Generation-matched writes preserve the
+completion marker and pin recovered metadata for fulfillment. If files are added or overwritten
+after `done`, write a new `done` marker before running replay or recovery.
 
 ## Run the CLI
 
 The config file is a `DataAvailabilitySyncConfig` textproto. Its GCS bucket, data provider,
-impression path, model-line mapping, and TLS file paths are reused by the recovery command.
+model-line mapping, and TLS file paths are reused by the recovery command. Recovery scans
+`external_impression_path` (falling back to `edp_impression_path`) and, when set,
+`vid_labeled_impression_path`. These paths must not overlap.
+Both scans share the provider's renewable synchronization lease and request throttler. A config
+with VID labeling disabled may omit `vid_labeled_impression_path` and scan only the external
+path. When VID labeling is enabled, `vid_labeled_impression_path` is required.
 
 ```shell
 bazel run \
@@ -52,7 +63,7 @@ Optional flags:
 - `--kingdom-public-api-cert-host`
 - `--impression-metadata-api-cert-host`
 - `--throttler-minimum-interval` (default `1s`)
-- `--impression-metadata-batch-size` (default `1000`)
+- `--impression-metadata-batch-size` (default `100`, maximum `100`)
 - `--publish-event-group-activities` publishes positive EventGroup activity for metadata blobs that
   this recovery run already selected. It requires `event_group_activity_publishing` in the config.
 
@@ -97,7 +108,8 @@ not identify the folder to recover. The date attribute is present on monitor-emi
 statuses that identify date folders. It is omitted from healthy-date totals,
 legitimate-deletion counts, and points emitted by `DataAvailabilitySync`.
 
-The command exits nonzero when any folder scan, resynchronization, verification, or undelete fails.
+The command exits nonzero when any folder scan, resynchronization, verification, or undelete fails
+under either configured path.
 A successfully repaired inconsistency does not cause a nonzero exit.
 
 ## Weekly Kubernetes CronJob
@@ -110,7 +122,7 @@ deploys and enables `recover-missing-impression-metadata-edp7-cronjob` with:
 - `concurrencyPolicy: Forbid`;
 - a 90-day lookback;
 - `--end-days-ago=0` to include the current UTC date;
-- list and write batches of 1,000 records; and
+- list and write batches of 100 records; and
 - a 100 ms minimum interval between API requests.
 
 The job uses the same Workload Identity service account as
@@ -120,7 +132,8 @@ their metadata during synchronization.
 
 The deployment workflow derives the job's single-EDP config from the `edp/edp7` entry in the
 selected environment's `data-availability-sync-config.textproto` under
-`src/main/terraform/gcloud/cmms/envs/` and rewrites its TLS paths for the Kubernetes mounts. The
+`src/main/terraform/gcloud/cmms/envs/`, preserving both impression paths and rewriting its TLS paths
+for the Kubernetes mounts. The
 expected Cloud Function TLS paths must remain present in that source config so the workflow can
 validate and replace each one explicitly.
 
@@ -195,13 +208,13 @@ allow the monitor to distinguish metadata-persistence failures from Kingdom publ
 ## Scale and performance
 
 For two model lines, 90 days, and 5,000 campaigns per model line per day, the window contains about
-900,000 metadata resources in 180 date folders. With 1,000-resource pages, a healthy run makes
-about 900 paginated list RPCs plus storage listings. It never builds a 900,000-entry in-memory map;
+900,000 metadata resources in 180 date folders. With 100-resource pages, a healthy run makes
+about 9,000 paginated list RPCs plus storage listings. It never builds a 900,000-entry in-memory map;
 the largest working set is one folder, about 5,000 resources in this example.
 
-The 100 ms production throttle contributes about 90 seconds to the healthy metadata-store scan.
+The 100 ms production throttle contributes about 15 minutes to the healthy metadata-store scan.
 Storage listing, network latency, JVM startup, and any actual repairs add to that lower bound. A
-reasonable healthy-run budget is therefore several minutes, not the earlier one-to-two-minute
+reasonable healthy-run budget is therefore tens of minutes, not the earlier one-to-two-minute
 estimate based on one metadata file per folder. Missing-record repair is slower because
 `DataAvailabilitySync` parses the selected blobs, performs writes, recomputes model-line bounds,
 and publishes availability intervals for each affected folder.
@@ -212,7 +225,7 @@ deleted has a 25-hour throttle floor before network latency, verification, or re
 That is a pathological repair case, not the healthy scan estimate. A future batch-undelete RPC is
 the main way to reduce this bound without exceeding the service's request budget.
 
-The main speedups are folder-prefix filtering, 1,000-record pages, and bounded per-folder memory.
+The main speedups are folder-prefix filtering, 100-record pages, and bounded per-folder memory.
 For a folder that only lacks the publication marker, recovery feeds one representative metadata
 blob per model line back through `DataAvailabilitySync`; it does not rewrite all 5,000 resources.
 The first run after this marker is introduced backfills the last 90 days, after which healthy runs

@@ -305,7 +305,10 @@ DATA_WATCHER_SECRET_FILES = [
 filegroup(
     name = "data_watcher_secret_files",
     srcs = DATA_WATCHER_SECRET_FILES,
-    visibility = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:__pkg__",
+    ],
 )
 
 PDP1_TLS_RENAMES = {
@@ -507,4 +510,16 @@ kustomization_dir(
 k8s_apply(
     name = "apply_kustomization",
     srcs = [":kustomization"],
+)
+
+filegroup(
+    name = "edp_aggregator_public_api_tls_files",
+    srcs = [
+        "edp_aggregator_root.pem",
+        "edp_aggregator_tls.key",
+        "edp_aggregator_tls.pem",
+        "edpa_tee_app_tls.key",
+        "edpa_tee_app_tls.pem",
+        ":gen_edp_aggregator_trusted_certs",
+    ],
 )

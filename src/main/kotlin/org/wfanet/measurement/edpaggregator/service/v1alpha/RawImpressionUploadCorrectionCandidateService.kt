@@ -1,0 +1,571 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.service.v1alpha
+
+import io.grpc.Status
+import io.grpc.StatusException
+import java.io.IOException
+import java.util.UUID
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadCorrectionCandidateKey
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ActivateRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadCorrectionCandidatesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadCorrectionCandidatesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.PurgeRawImpressionUploadCorrectionCandidatesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.PurgeRawImpressionUploadCorrectionCandidatesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.QuarantineRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.QuarantineRawImpressionUploadResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RegisterRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RegisterRawImpressionUploadCorrectionCandidateResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.ResolveRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ResolveRawImpressionUploadCorrectionCandidateResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadCorrectionCandidatesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.purgeRawImpressionUploadCorrectionCandidatesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.quarantineRawImpressionUploadResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.v1alpha.registerRawImpressionUploadCorrectionCandidateResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.resolveRawImpressionUploadCorrectionCandidateResponse
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesPageToken as InternalListCandidatesPageToken
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequestKt as InternalListCandidatesRequestKt
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesResponse as InternalListCandidatesResponse
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate as InternalCandidate
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateKt as InternalCandidateKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub as InternalCandidateStub
+import org.wfanet.measurement.internal.edpaggregator.activateQuarantinedRawImpressionUploadRequest as internalActivateRequest
+import org.wfanet.measurement.internal.edpaggregator.createQuarantinedRawImpressionUploadRequest as internalQuarantineRequest
+import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadCorrectionCandidateRequest as internalGetCandidateRequest
+import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadCorrectionCandidatesRequest as internalListCandidatesRequest
+import org.wfanet.measurement.internal.edpaggregator.purgeExpiredRawImpressionUploadCorrectionCandidatesRequest as internalPurgeRequest
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalUpload
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadCorrectionCandidate as internalCandidate
+import org.wfanet.measurement.internal.edpaggregator.registerDetectedRawImpressionUploadCorrectionCandidateRequest as internalRegisterRequest
+import org.wfanet.measurement.internal.edpaggregator.resolveDetectedRawImpressionUploadCorrectionCandidateRequest as internalResolveRequest
+
+/** Public API adapter for raw-impression upload correction candidates. */
+class RawImpressionUploadCorrectionCandidateService(
+  private val internalCandidateStub: InternalCandidateStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase(coroutineContext) {
+
+  override suspend fun quarantineRawImpressionUpload(
+    request: QuarantineRawImpressionUploadRequest
+  ): QuarantineRawImpressionUploadResponse {
+    val parent = parseParent(request.parent)
+    validateUuid(
+      request.rawImpressionUploadCorrectionCandidateId,
+      "raw_impression_upload_correction_candidate_id",
+    )
+    validateUuid(request.requestId, "request_id")
+    if (request.doneBlobUri.isEmpty()) required("done_blob_uri")
+    if (request.doneBlobGeneration <= 0L) invalid("done_blob_generation")
+    if (!request.hasDoneBlobCreateTime()) required("done_blob_create_time")
+    val upload =
+      try {
+        internalCandidateStub
+          .createQuarantinedRawImpressionUpload(
+            internalQuarantineRequest {
+              dataProviderResourceId = parent.dataProviderId
+              rawImpressionUploadCorrectionCandidateId =
+                request.rawImpressionUploadCorrectionCandidateId
+              rawImpressionUpload = internalUpload {
+                doneBlobUri = request.doneBlobUri
+                doneBlobGeneration = request.doneBlobGeneration
+                doneBlobCreateTime = request.doneBlobCreateTime
+              }
+              requestId = request.requestId
+            }
+          )
+          .toPublic()
+      } catch (e: StatusException) {
+        throw translateCandidateError(e)
+      }
+    return quarantineRawImpressionUploadResponse { rawImpressionUpload = upload }
+  }
+
+  override suspend fun activateRawImpressionUpload(
+    request: ActivateRawImpressionUploadRequest
+  ): RawImpressionUpload {
+    val upload = parseUpload(request.name, "name")
+    val source = parseUpload(request.sourceRawImpressionUpload, "source_raw_impression_upload")
+    val operation =
+      UploadHealingOperationKey.fromName(request.uploadHealingOperation)
+        ?: invalid("upload_healing_operation")
+    if (source.parentKey != upload.parentKey) invalid("source_raw_impression_upload")
+    if (operation.parentKey != upload.parentKey) invalid("upload_healing_operation")
+    validateUuid(request.requestId, "request_id")
+    return try {
+      internalCandidateStub
+        .activateQuarantinedRawImpressionUpload(
+          internalActivateRequest {
+            dataProviderResourceId = upload.dataProviderId
+            rawImpressionUploadResourceId = upload.rawImpressionUploadId
+            sourceRawImpressionUploadResourceId = source.rawImpressionUploadId
+            evictionOperationId = operation.uploadHealingOperationId
+            requestId = request.requestId
+          }
+        )
+        .toPublic()
+    } catch (e: StatusException) {
+      throw translateCandidateError(e)
+    }
+  }
+
+  override suspend fun registerRawImpressionUploadCorrectionCandidate(
+    request: RegisterRawImpressionUploadCorrectionCandidateRequest
+  ): RegisterRawImpressionUploadCorrectionCandidateResponse {
+    val parent = parseParent(request.parent)
+    val upload = parseUpload(request.rawImpressionUpload, "raw_impression_upload")
+    if (upload.parentKey != parent) invalid("raw_impression_upload")
+    validateUuid(
+      request.rawImpressionUploadCorrectionCandidateId,
+      "raw_impression_upload_correction_candidate_id",
+    )
+    validateUuid(request.requestId, "request_id")
+    if (
+      request.classification ==
+        RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_UNSPECIFIED ||
+        request.classification == RawImpressionUploadCorrectionCandidate.Classification.UNRECOGNIZED
+    )
+      invalid("classification")
+    if (!request.hasManifestComparison()) required("manifest_comparison")
+    if (!request.hasExpireTime()) required("expire_time")
+    val superseded =
+      if (request.supersededRawImpressionUploadCorrectionCandidate.isEmpty()) null
+      else {
+        val key =
+          RawImpressionUploadCorrectionCandidateKey.fromName(
+            request.supersededRawImpressionUploadCorrectionCandidate
+          ) ?: invalid("superseded_raw_impression_upload_correction_candidate")
+        if (key.parentKey != parent)
+          invalid("superseded_raw_impression_upload_correction_candidate")
+        key
+      }
+    val comparison = request.manifestComparison.toInternal(parent)
+    val response =
+      try {
+        internalCandidateStub.registerDetectedRawImpressionUploadCorrectionCandidate(
+          internalRegisterRequest {
+            dataProviderResourceId = parent.dataProviderId
+            rawImpressionUploadCorrectionCandidateId =
+              request.rawImpressionUploadCorrectionCandidateId
+            rawImpressionUploadCorrectionCandidate = internalCandidate {
+              rawImpressionUploadResourceId = upload.rawImpressionUploadId
+              classification = request.classification.toInternal()
+              priorManifestDigest = request.priorManifestDigest
+              currentManifestDigest = request.currentManifestDigest
+              manifestComparison = comparison
+              expireTime = request.expireTime
+            }
+            supersededRawImpressionUploadCorrectionCandidateId =
+              superseded?.rawImpressionUploadCorrectionCandidateId.orEmpty()
+            requestId = request.requestId
+          }
+        )
+      } catch (e: StatusException) {
+        throw translateCandidateError(e)
+      }
+    return registerRawImpressionUploadCorrectionCandidateResponse {
+      rawImpressionUploadCorrectionCandidate =
+        response.rawImpressionUploadCorrectionCandidate.toPublic(includeDifferences = true)
+      newlyCreated = response.newlyCreated
+    }
+  }
+
+  override suspend fun resolveRawImpressionUploadCorrectionCandidate(
+    request: ResolveRawImpressionUploadCorrectionCandidateRequest
+  ): ResolveRawImpressionUploadCorrectionCandidateResponse {
+    val key = RawImpressionUploadCorrectionCandidateKey.fromName(request.name) ?: invalid("name")
+    validateUuid(request.requestId, "request_id")
+    val response =
+      try {
+        internalCandidateStub.resolveDetectedRawImpressionUploadCorrectionCandidate(
+          internalResolveRequest {
+            dataProviderResourceId = key.dataProviderId
+            rawImpressionUploadCorrectionCandidateId = key.rawImpressionUploadCorrectionCandidateId
+            requestId = request.requestId
+          }
+        )
+      } catch (e: StatusException) {
+        throw translateCandidateError(e)
+      }
+    return resolveRawImpressionUploadCorrectionCandidateResponse {
+      newlyResolved = response.newlyResolved
+    }
+  }
+
+  override suspend fun purgeRawImpressionUploadCorrectionCandidates(
+    request: PurgeRawImpressionUploadCorrectionCandidatesRequest
+  ): PurgeRawImpressionUploadCorrectionCandidatesResponse {
+    val parent = parseParent(request.parent)
+    if (request.pageSize < 0) invalid("page_size")
+    val response =
+      try {
+        internalCandidateStub.purgeExpiredRawImpressionUploadCorrectionCandidates(
+          internalPurgeRequest {
+            dataProviderResourceId = parent.dataProviderId
+            pageSize =
+              if (request.pageSize == 0) DEFAULT_PURGE_PAGE_SIZE
+              else request.pageSize.coerceAtMost(MAX_PURGE_PAGE_SIZE)
+          }
+        )
+      } catch (e: StatusException) {
+        throw translateCandidateError(e)
+      }
+    return purgeRawImpressionUploadCorrectionCandidatesResponse {
+      purgeCount = response.purgedCount
+    }
+  }
+
+  private fun RegisterRawImpressionUploadCorrectionCandidateRequest.ManifestComparison.toInternal(
+    parent: DataProviderKey
+  ): InternalCandidate.ManifestComparison =
+    InternalCandidateKt.manifestComparison {
+      priorManifest += priorManifestList.map { it.toInternal(parent) }
+      currentManifest += currentManifestList.map { it.toInternal(parent) }
+      differences +=
+        differencesList.map { difference ->
+          if (
+            difference.type ==
+              RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_UNSPECIFIED ||
+              difference.type ==
+                RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.UNRECOGNIZED
+          )
+            invalid("manifest_comparison.differences.type")
+          InternalCandidateKt.manifestDifference {
+            type = InternalCandidate.ManifestDifference.Type.forNumber(difference.type.number)
+            if (difference.hasPrior()) prior = difference.prior.toInternal(parent)
+            if (difference.hasCurrent()) current = difference.current.toInternal(parent)
+          }
+        }
+    }
+
+  private fun RegisterRawImpressionUploadCorrectionCandidateRequest.ManifestEntry.toInternal(
+    parent: DataProviderKey
+  ): InternalCandidate.ManifestEntry =
+    InternalCandidateKt.manifestEntry {
+      blobUri = this@toInternal.blobUri
+      blobGeneration = this@toInternal.blobGeneration
+      if (this@toInternal.hasEventDate()) eventDate = this@toInternal.eventDate
+      val owner =
+        parseUpload(
+          this@toInternal.outputSourceRawImpressionUpload,
+          "manifest_comparison.output_source_raw_impression_upload",
+        )
+      if (owner.parentKey != parent)
+        invalid("manifest_comparison.output_source_raw_impression_upload")
+      outputSourceRawImpressionUploadResourceId = owner.rawImpressionUploadId
+    }
+
+  private fun parseParent(name: String): DataProviderKey {
+    if (name.isEmpty()) required("parent")
+    return DataProviderKey.fromName(name) ?: invalid("parent")
+  }
+
+  private fun parseUpload(name: String, field: String): RawImpressionUploadKey {
+    if (name.isEmpty()) required(field)
+    return RawImpressionUploadKey.fromName(name) ?: invalid(field)
+  }
+
+  private fun validateUuid(value: String, field: String) {
+    if (value.isEmpty()) required(field)
+    try {
+      val uuid = UUID.fromString(value)
+      if (
+        uuid.version() != 4 ||
+          uuid.variant() != 2 ||
+          !uuid.toString().equals(value, ignoreCase = true)
+      )
+        invalid(field)
+    } catch (e: IllegalArgumentException) {
+      invalid(field)
+    }
+  }
+
+  override suspend fun getRawImpressionUploadCorrectionCandidate(
+    request: GetRawImpressionUploadCorrectionCandidateRequest
+  ): RawImpressionUploadCorrectionCandidate {
+    if (request.name.isEmpty()) required("name")
+    val key = RawImpressionUploadCorrectionCandidateKey.fromName(request.name) ?: invalid("name")
+    val candidate =
+      try {
+        internalCandidateStub.getRawImpressionUploadCorrectionCandidate(
+          internalGetCandidateRequest {
+            dataProviderResourceId = key.dataProviderId
+            rawImpressionUploadCorrectionCandidateId = key.rawImpressionUploadCorrectionCandidateId
+          }
+        )
+      } catch (e: StatusException) {
+        throw translateCandidateError(e)
+      }
+    return candidate.toPublic(includeDifferences = true)
+  }
+
+  override suspend fun listRawImpressionUploadCorrectionCandidates(
+    request: ListRawImpressionUploadCorrectionCandidatesRequest
+  ): ListRawImpressionUploadCorrectionCandidatesResponse {
+    if (request.parent.isEmpty()) required("parent")
+    val dataProviderKey = DataProviderKey.fromName(request.parent) ?: invalid("parent")
+    if (request.pageSize < 0) invalid("page_size")
+    request.filter.stateInList.forEach {
+      if (
+        it == RawImpressionUploadCorrectionCandidate.State.STATE_UNSPECIFIED ||
+          it == RawImpressionUploadCorrectionCandidate.State.UNRECOGNIZED
+      ) {
+        invalid("filter.state_in")
+      }
+    }
+    request.filter.classificationInList.forEach {
+      if (
+        it == RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_UNSPECIFIED ||
+          it == RawImpressionUploadCorrectionCandidate.Classification.UNRECOGNIZED
+      ) {
+        invalid("filter.classification_in")
+      }
+    }
+    val internalPageToken =
+      if (request.pageToken.isEmpty()) {
+        null
+      } else {
+        try {
+          InternalListCandidatesPageToken.parseFrom(request.pageToken.base64UrlDecode())
+        } catch (e: IOException) {
+          throw InvalidFieldValueException("page_token", e)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
+    val response: InternalListCandidatesResponse =
+      try {
+        internalCandidateStub.listRawImpressionUploadCorrectionCandidates(
+          internalListCandidatesRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            pageSize =
+              if (request.pageSize == 0) DEFAULT_PAGE_SIZE
+              else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+            if (internalPageToken != null) pageToken = internalPageToken
+            if (request.hasFilter()) {
+              filter =
+                InternalListCandidatesRequestKt.filter {
+                  stateIn += request.filter.stateInList.map { it.toInternal() }
+                  classificationIn += request.filter.classificationInList.map { it.toInternal() }
+                }
+            }
+          }
+        )
+      } catch (e: StatusException) {
+        throw translateCandidateError(e)
+      }
+    return listRawImpressionUploadCorrectionCandidatesResponse {
+      rawImpressionUploadCorrectionCandidates +=
+        response.rawImpressionUploadCorrectionCandidatesList.map { it.toPublic() }
+      if (response.hasNextPageToken()) {
+        nextPageToken = response.nextPageToken.toByteArray().base64UrlEncode()
+      }
+    }
+  }
+
+  private fun InternalCandidate.toPublic(
+    includeDifferences: Boolean = false
+  ): RawImpressionUploadCorrectionCandidate = rawImpressionUploadCorrectionCandidate {
+    name =
+      RawImpressionUploadCorrectionCandidateKey(
+          this@toPublic.dataProviderResourceId,
+          this@toPublic.rawImpressionUploadCorrectionCandidateId,
+        )
+        .toName()
+    rawImpressionUpload =
+      RawImpressionUploadKey(
+          this@toPublic.dataProviderResourceId,
+          this@toPublic.rawImpressionUploadResourceId,
+        )
+        .toName()
+    classification = this@toPublic.classification.toPublic()
+    priorManifestDigest = this@toPublic.priorManifestDigest
+    currentManifestDigest = this@toPublic.currentManifestDigest
+    state = this@toPublic.state.toPublic()
+    decision = this@toPublic.decision.toPublic()
+    if (supersedingRawImpressionUploadCorrectionCandidateId.isNotEmpty()) {
+      supersedingRawImpressionUploadCorrectionCandidate =
+        RawImpressionUploadCorrectionCandidateKey(
+            this@toPublic.dataProviderResourceId,
+            this@toPublic.supersedingRawImpressionUploadCorrectionCandidateId,
+          )
+          .toName()
+    }
+    if (uploadHealingOperationId.isNotEmpty()) {
+      uploadHealingOperation =
+        UploadHealingOperationKey(
+            this@toPublic.dataProviderResourceId,
+            this@toPublic.uploadHealingOperationId,
+          )
+          .toName()
+    }
+    expireTime = this@toPublic.expireTime
+    createTime = this@toPublic.createTime
+    updateTime = this@toPublic.updateTime
+    etag = this@toPublic.etag
+    if (includeDifferences) {
+      manifestDifferences +=
+        this@toPublic.manifestComparison.differencesList.map { difference ->
+          RawImpressionUploadCorrectionCandidateKt.manifestDifference {
+            type = difference.type.toPublic()
+            val prior = difference.prior.takeIf { difference.hasPrior() }
+            val current = difference.current.takeIf { difference.hasCurrent() }
+            blobUri = prior?.blobUri ?: checkNotNull(current).blobUri
+            if (prior != null) {
+              priorBlobGeneration = prior.blobGeneration
+              priorEventDate = prior.eventDate
+              if (prior.outputSourceRawImpressionUploadResourceId.isNotEmpty()) {
+                priorOutputSourceRawImpressionUpload =
+                  RawImpressionUploadKey(
+                      this@toPublic.dataProviderResourceId,
+                      prior.outputSourceRawImpressionUploadResourceId,
+                    )
+                    .toName()
+              }
+            }
+            if (current != null) {
+              currentBlobGeneration = current.blobGeneration
+              currentEventDate = current.eventDate
+            }
+          }
+        }
+    }
+  }
+
+  private fun translateCandidateError(e: StatusException) =
+    when (e.status.code) {
+      Status.Code.NOT_FOUND ->
+        Status.NOT_FOUND.withDescription("RawImpressionUploadCorrectionCandidate not found")
+          .withCause(e)
+          .asRuntimeException()
+      Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
+      Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
+      Status.Code.FAILED_PRECONDITION ->
+        Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
+      Status.Code.ABORTED -> Status.ABORTED.withCause(e).asRuntimeException()
+      Status.Code.UNAVAILABLE,
+      Status.Code.DEADLINE_EXCEEDED,
+      Status.Code.RESOURCE_EXHAUSTED -> e.status.withCause(e).asRuntimeException()
+      else -> Status.INTERNAL.withCause(e).asRuntimeException()
+    }
+
+  private fun required(field: String): Nothing =
+    throw RequiredFieldNotSetException(field).asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+  private fun invalid(field: String): Nothing =
+    throw InvalidFieldValueException(field).asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+  companion object {
+    private const val DEFAULT_PAGE_SIZE = 50
+    private const val MAX_PAGE_SIZE = 100
+    private const val DEFAULT_PURGE_PAGE_SIZE = 100
+    private const val MAX_PURGE_PAGE_SIZE = 1000
+  }
+}
+
+private fun InternalCandidate.Classification.toPublic() =
+  when (this) {
+    InternalCandidate.Classification.CLASSIFICATION_EDITED ->
+      RawImpressionUploadCorrectionCandidate.Classification.EDITED
+    InternalCandidate.Classification.CLASSIFICATION_REMOVED ->
+      RawImpressionUploadCorrectionCandidate.Classification.REMOVED
+    InternalCandidate.Classification.CLASSIFICATION_MIXED ->
+      RawImpressionUploadCorrectionCandidate.Classification.MIXED
+    InternalCandidate.Classification.CLASSIFICATION_UNSPECIFIED,
+    InternalCandidate.Classification.UNRECOGNIZED ->
+      RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_UNSPECIFIED
+  }
+
+private fun InternalCandidate.ManifestDifference.Type.toPublic() =
+  when (this) {
+    InternalCandidate.ManifestDifference.Type.TYPE_ADDED ->
+      RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.ADDED
+    InternalCandidate.ManifestDifference.Type.TYPE_EDITED ->
+      RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.EDITED
+    InternalCandidate.ManifestDifference.Type.TYPE_REMOVED ->
+      RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.REMOVED
+    InternalCandidate.ManifestDifference.Type.TYPE_EVENT_DATE_CHANGED ->
+      RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.EVENT_DATE_CHANGED
+    InternalCandidate.ManifestDifference.Type.TYPE_UNSPECIFIED,
+    InternalCandidate.ManifestDifference.Type.UNRECOGNIZED ->
+      RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_UNSPECIFIED
+  }
+
+private fun RawImpressionUploadCorrectionCandidate.Classification.toInternal() =
+  when (this) {
+    RawImpressionUploadCorrectionCandidate.Classification.EDITED ->
+      InternalCandidate.Classification.CLASSIFICATION_EDITED
+    RawImpressionUploadCorrectionCandidate.Classification.REMOVED ->
+      InternalCandidate.Classification.CLASSIFICATION_REMOVED
+    RawImpressionUploadCorrectionCandidate.Classification.MIXED ->
+      InternalCandidate.Classification.CLASSIFICATION_MIXED
+    RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_UNSPECIFIED,
+    RawImpressionUploadCorrectionCandidate.Classification.UNRECOGNIZED ->
+      InternalCandidate.Classification.CLASSIFICATION_UNSPECIFIED
+  }
+
+private fun InternalCandidate.State.toPublic() =
+  when (this) {
+    InternalCandidate.State.STATE_PENDING -> RawImpressionUploadCorrectionCandidate.State.PENDING
+    InternalCandidate.State.STATE_ASSIGNED -> RawImpressionUploadCorrectionCandidate.State.ASSIGNED
+    InternalCandidate.State.STATE_COMPLETE -> RawImpressionUploadCorrectionCandidate.State.COMPLETE
+    InternalCandidate.State.STATE_SUPERSEDED ->
+      RawImpressionUploadCorrectionCandidate.State.SUPERSEDED
+    InternalCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED ->
+      RawImpressionUploadCorrectionCandidate.State.MANUAL_INTERVENTION_REQUIRED
+    InternalCandidate.State.STATE_UNSPECIFIED,
+    InternalCandidate.State.UNRECOGNIZED ->
+      RawImpressionUploadCorrectionCandidate.State.STATE_UNSPECIFIED
+  }
+
+private fun RawImpressionUploadCorrectionCandidate.State.toInternal() =
+  when (this) {
+    RawImpressionUploadCorrectionCandidate.State.PENDING -> InternalCandidate.State.STATE_PENDING
+    RawImpressionUploadCorrectionCandidate.State.ASSIGNED -> InternalCandidate.State.STATE_ASSIGNED
+    RawImpressionUploadCorrectionCandidate.State.COMPLETE -> InternalCandidate.State.STATE_COMPLETE
+    RawImpressionUploadCorrectionCandidate.State.SUPERSEDED ->
+      InternalCandidate.State.STATE_SUPERSEDED
+    RawImpressionUploadCorrectionCandidate.State.MANUAL_INTERVENTION_REQUIRED ->
+      InternalCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED
+    RawImpressionUploadCorrectionCandidate.State.STATE_UNSPECIFIED,
+    RawImpressionUploadCorrectionCandidate.State.UNRECOGNIZED ->
+      InternalCandidate.State.STATE_UNSPECIFIED
+  }
+
+private fun InternalCandidate.Decision.toPublic() =
+  when (this) {
+    InternalCandidate.Decision.DECISION_APPLY_CANDIDATE ->
+      RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+    InternalCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT ->
+      RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
+    InternalCandidate.Decision.DECISION_UNSPECIFIED,
+    InternalCandidate.Decision.UNRECOGNIZED ->
+      RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED
+  }

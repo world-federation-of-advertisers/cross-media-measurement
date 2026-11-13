@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlin.properties.Delegates
 import kotlin.system.exitProcess
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.runBlocking
@@ -49,14 +50,20 @@ import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.DataDateSelection
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.GenerationMatchedBlobMetadataUpdater
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecovery
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -67,6 +74,7 @@ import picocli.CommandLine.Option
 private class FilteringBlobMetadataStorageClient(
   private val delegate: BlobMetadataStorageClient,
   private val includedBlobKeys: Set<String>,
+  private val metadataFolderPrefix: String,
 ) : BlobMetadataStorageClient by delegate {
   private val mutableProcessedMetadataBlobKeys = mutableSetOf<String>()
 
@@ -74,7 +82,13 @@ private class FilteringBlobMetadataStorageClient(
     get() = mutableProcessedMetadataBlobKeys
 
   override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
-    return delegate.listBlobs(prefix).filter { it.blobKey in includedBlobKeys }
+    // Keep model-line scans complete for provider-wide gap checks.
+    val blobs = delegate.listBlobs(prefix)
+    return if (prefix?.trimEnd('/') == metadataFolderPrefix.trimEnd('/')) {
+      blobs.filter { it.blobKey in includedBlobKeys }
+    } else {
+      blobs
+    }
   }
 
   override suspend fun updateBlobMetadata(
@@ -179,7 +193,7 @@ class RecoverMissingImpressionMetadata : Runnable {
   @set:Option(
     names = ["--impression-metadata-batch-size"],
     description = ["Maximum ImpressionMetadata resources per list or write request"],
-    defaultValue = "1000",
+    defaultValue = "100",
   )
   private var impressionMetadataBatchSize: Int by Delegates.notNull()
 
@@ -191,12 +205,26 @@ class RecoverMissingImpressionMetadata : Runnable {
   private var publishEventGroupActivities: Boolean by Delegates.notNull()
 
   override fun run() {
+    require(impressionMetadataBatchSize in 1..MAX_IMPRESSION_METADATA_BATCH_SIZE) {
+      "--impression-metadata-batch-size must be between 1 and " + MAX_IMPRESSION_METADATA_BATCH_SIZE
+    }
     val config = parseTextProto(configFile, DataAvailabilitySyncConfig.getDefaultInstance())
     require(config.dataAvailabilityStorage.storageCase == StorageCase.GCS) {
       "data_availability_storage must use GCS"
     }
     require(config.edpImpressionPath.isNotEmpty()) { "edp_impression_path must be set" }
     require(config.dataProvider.isNotEmpty()) { "data_provider must be set" }
+    val externalPath = config.externalImpressionPath.ifEmpty { config.edpImpressionPath }
+    val internalPath = config.vidLabeledImpressionPath
+    require(
+      internalPath.isEmpty() ||
+        (externalPath != internalPath &&
+          !externalPath.startsWith("$internalPath/") &&
+          !internalPath.startsWith("$externalPath/"))
+    ) {
+      "Configured impression paths must not overlap"
+    }
+    val configuredPaths = listOf(externalPath, internalPath).filter(String::isNotEmpty)
     require(!publishEventGroupActivities || config.hasEventGroupActivityPublishing()) {
       "event_group_activity_publishing must be set when publishing EventGroup activity"
     }
@@ -224,22 +252,20 @@ class RecoverMissingImpressionMetadata : Runnable {
         )
       }
     val storageApiEndpoint = storageApiEndpoint
-    val storageClient =
-      GcsStorageClient(
-        StorageOptions.newBuilder()
-          .also {
-            if (storageConfig.projectId.isNotEmpty()) {
-              it.setProjectId(storageConfig.projectId)
-            }
-            if (storageApiEndpoint != null) {
-              it.setHost(storageApiEndpoint)
-              it.setCredentials(NoCredentials.getInstance())
-            }
+    val storage =
+      StorageOptions.newBuilder()
+        .also {
+          if (storageConfig.projectId.isNotEmpty()) {
+            it.setProjectId(storageConfig.projectId)
           }
-          .build()
-          .service,
-        storageConfig.bucketName,
-      )
+          if (storageApiEndpoint != null) {
+            it.setHost(storageApiEndpoint)
+            it.setCredentials(NoCredentials.getInstance())
+          }
+        }
+        .build()
+        .service
+    val storageClient = GcsStorageClient(storage, storageConfig.bucketName)
     val kingdomChannel =
       buildChannel(config.cmmsConnection, kingdomPublicApiTarget, kingdomPublicApiCertHost)
     val impressionMetadataChannel =
@@ -298,40 +324,110 @@ class RecoverMissingImpressionMetadata : Runnable {
       } else {
         null
       }
-    val recovery =
-      MissingImpressionMetadataRecovery(
-        storageClient = storageClient,
-        storageRootUri = BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = ""),
-        edpImpressionPath = config.edpImpressionPath,
-        impressionMetadataStub = impressionMetadataStub,
-        dataProviderName = config.dataProvider,
-        throttler = throttler,
-        impressionMetadataBatchSize = impressionMetadataBatchSize,
-        dateSelection = recoveryDateSelection,
-        sync = { doneBlobUri, metadataBlobKeys ->
-          val filteringStorageClient =
-            FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys)
-          DataAvailabilitySync(
-              edpImpressionPath = config.edpImpressionPath,
-              storageClient = filteringStorageClient,
-              dataProvidersStub = dataProvidersStub,
-              impressionMetadataServiceStub = impressionMetadataStub,
-              dataProviderName = config.dataProvider,
-              throttler = throttler,
-              impressionMetadataBatchSize = impressionMetadataBatchSize,
-              modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
-              errorIfGapsExist = config.errorIfGapsExist,
-              publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
+    val dataAvailabilitySyncLeaseRunner =
+      DataAvailabilitySyncLeaseRunner(
+        GrpcDataAvailabilitySyncLeaseClient(
+          DataAvailabilitySyncLeaseServiceCoroutineStub(
+            ClientInterceptors.intercept(
+              impressionMetadataChannel,
+              grpcTelemetry.newClientInterceptor(),
             )
-            .sync(doneBlobUri)
-          filteringStorageClient.processedMetadataBlobKeys
-        },
-        metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),
+          )
+        ),
+        renewalDelay = { delay(it) },
       )
-
-    val result =
+    val results =
       try {
-        runBlocking { recovery.recover() }
+        runBlocking {
+          dataAvailabilitySyncLeaseRunner.run(config.dataProvider) { lease ->
+            configuredPaths.map { impressionPath ->
+              MissingImpressionMetadataRecovery(
+                  storageClient = storageClient,
+                  storageRootUri =
+                    BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = ""),
+                  edpImpressionPath = impressionPath,
+                  impressionMetadataStub = impressionMetadataStub,
+                  dataProviderName = config.dataProvider,
+                  throttler = throttler,
+                  impressionMetadataBatchSize = impressionMetadataBatchSize,
+                  dateSelection = recoveryDateSelection,
+                  dataAvailabilitySyncLease = lease.name,
+                  ensureLeaseActive = lease::invoke,
+                  sync = { doneBlobUri, metadataBlobKeys ->
+                    val filteringStorageClient =
+                      FilteringBlobMetadataStorageClient(
+                        storageClient,
+                        metadataBlobKeys,
+                        SelectedStorageClient.parseBlobUri(doneBlobUri).key.substringBeforeLast("/"),
+                      )
+                    val external = impressionPath == externalPath
+                    val doneKey = SelectedStorageClient.parseBlobUri(doneBlobUri).key
+                    val doneBlob =
+                      checkNotNull(storageClient.getBlob(doneKey)) {
+                        "Completion blob not found: $doneBlobUri"
+                      }
+                    val doneGeneration =
+                      requireNotNull(
+                        (doneBlob as? ConditionalOperationStorageClient.Blob)
+                          ?.freshnessToken
+                          ?.toLongOrNull()
+                      ) {
+                        "Completion blob has no numeric generation"
+                      }
+                    val processedMetadataBlobKeys = mutableSetOf<String>()
+                    val metadataUpdater =
+                      GcsGenerationMatchedBlobMetadataUpdater(storage, storageConfig.bucketName)
+                    DataAvailabilitySync(
+                        edpImpressionPath = impressionPath,
+                        storageClient = if (external) storageClient else filteringStorageClient,
+                        dataProvidersStub = dataProvidersStub,
+                        impressionMetadataServiceStub = impressionMetadataStub,
+                        dataProviderName = config.dataProvider,
+                        throttler = throttler,
+                        impressionMetadataBatchSize = impressionMetadataBatchSize,
+                        modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
+                        errorIfGapsExist = config.errorIfGapsExist,
+                        availabilityImpressionPaths = configuredPaths,
+                        publishEventGroupActivities =
+                          eventGroupActivityPublisher?.let { it::publish },
+                        generationMatchedMetadataUpdater =
+                          GenerationMatchedBlobMetadataUpdater {
+                            key,
+                            generation,
+                            createTime,
+                            metadata ->
+                            metadataUpdater.update(key, generation, createTime, metadata)
+                            if (
+                              key in metadataBlobKeys &&
+                                metadata[DataAvailabilityBlobs.SYNCED_BY_KEY] ==
+                                  DataAvailabilityBlobs.SYNCED_BY_VALUE
+                            ) {
+                              processedMetadataBlobKeys += key
+                            }
+                          },
+                      )
+                      .sync(
+                        doneBlobUri,
+                        lease.name,
+                        doneGeneration,
+                        externalDoneBlobCreateTime = doneBlob.createTime.takeIf { external },
+                        discoveryMode =
+                          if (external)
+                            DataAvailabilitySync.DiscoveryMode.SelectedMetadataBlobs(
+                              metadataBlobKeys
+                            )
+                          else DataAvailabilitySync.DiscoveryMode.FolderScan,
+                        ensureLeaseActive = lease::invoke,
+                      )
+                    if (external) processedMetadataBlobKeys
+                    else filteringStorageClient.processedMetadataBlobKeys
+                  },
+                  metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),
+                )
+                .recover()
+            }
+          }
+        }
       } finally {
         shutdownChannel(kingdomChannel)
         shutdownChannel(impressionMetadataChannel)
@@ -339,21 +435,21 @@ class RecoverMissingImpressionMetadata : Runnable {
 
     logger.info(
       "Recovery result: " +
-        "finalizedMetadataBlobs=${result.finalizedMetadataBlobs}, " +
-        "missingBlobs=${result.missingBlobs}, " +
-        "deletedRecordsWithBlobs=${result.deletedRecordsWithBlobs}, " +
-        "undeletedRecords=${result.undeletedRecords}, " +
-        "failedUndeletes=${result.failedUndeletes}, " +
-        "recoveredBlobs=${result.recoveredBlobs}, " +
-        "failedBlobs=${result.failedBlobs}, " +
-        "dateFoldersResynced=${result.dateFoldersResynced}, " +
-        "incompleteFullSyncFolders=${result.incompleteFullSyncFolders}"
+        "finalizedMetadataBlobs=${results.sumOf { it.finalizedMetadataBlobs }}, " +
+        "missingBlobs=${results.sumOf { it.missingBlobs }}, " +
+        "deletedRecordsWithBlobs=${results.sumOf { it.deletedRecordsWithBlobs }}, " +
+        "undeletedRecords=${results.sumOf { it.undeletedRecords }}, " +
+        "failedUndeletes=${results.sumOf { it.failedUndeletes }}, " +
+        "recoveredBlobs=${results.sumOf { it.recoveredBlobs }}, " +
+        "failedBlobs=${results.sumOf { it.failedBlobs }}, " +
+        "dateFoldersResynced=${results.sumOf { it.dateFoldersResynced }}, " +
+        "incompleteFullSyncFolders=${results.sumOf { it.incompleteFullSyncFolders }}"
     )
-    for (error in result.errors) {
+    for (error in results.flatMap { it.errors }) {
       logger.warning("Recovery error [${error.target}]: ${error.message}")
     }
 
-    if (result.errors.isNotEmpty()) {
+    if (results.any { it.errors.isNotEmpty() }) {
       exitProcess(1)
     }
   }
@@ -379,6 +475,7 @@ class RecoverMissingImpressionMetadata : Runnable {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val MAX_IMPRESSION_METADATA_BATCH_SIZE = 100
     private const val SHUTDOWN_TIMEOUT_SECONDS = 30L
   }
 }

@@ -23,6 +23,7 @@ import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator
 import io.opentelemetry.context.Context
 import io.opentelemetry.context.propagation.TextMapGetter
 import io.opentelemetry.context.propagation.TextMapPropagator
+import io.opentelemetry.context.propagation.TextMapSetter
 import io.opentelemetry.extension.kotlin.asContextElement
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
@@ -77,6 +78,22 @@ object Tracing {
     } finally {
       scope.close()
     }
+  }
+
+  /** Installs W3C trace context from a string carrier for synchronous work. */
+  fun <T> withW3CTraceContext(carrier: Map<String, String>, block: () -> T): T {
+    val parentContext = w3cPropagator.extract(Context.current(), carrier, StringMapGetter)
+    val scope = parentContext.makeCurrent()
+    return try {
+      block()
+    } finally {
+      scope.close()
+    }
+  }
+
+  /** Returns the current W3C trace context as propagation headers. */
+  fun currentW3CTraceContext(): Map<String, String> = buildMap {
+    w3cPropagator.inject(Context.current(), this, StringMapSetter)
   }
 
   @PublishedApi
@@ -238,6 +255,18 @@ object Tracing {
     override fun get(carrier: CloudEvent?, key: String): String? {
       if (carrier == null) return null
       return carrier.getExtension(key)?.toString()
+    }
+  }
+
+  private object StringMapGetter : TextMapGetter<Map<String, String>> {
+    override fun keys(carrier: Map<String, String>): Iterable<String> = carrier.keys
+
+    override fun get(carrier: Map<String, String>?, key: String): String? = carrier?.get(key)
+  }
+
+  private object StringMapSetter : TextMapSetter<MutableMap<String, String>> {
+    override fun set(carrier: MutableMap<String, String>?, key: String, value: String) {
+      carrier?.put(key, value)
     }
   }
 }

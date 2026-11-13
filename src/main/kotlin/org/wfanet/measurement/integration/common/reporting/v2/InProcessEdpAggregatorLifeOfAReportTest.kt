@@ -103,6 +103,7 @@ import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
@@ -215,6 +216,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   /** EDPs that start without campaigns, impression objects, metadata, or availability intervals. */
   protected open val edpsWithDeferredUploads: Set<String>
     get() = emptySet()
+
+  protected open val metricSpecConfigOverride: MetricSpecConfig
+    get() = NO_SAMPLING_METRIC_SPEC_CONFIG
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
     when {
@@ -589,7 +593,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           TestEvent.getDescriptor(),
           defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
           verboseGrpcLogging = false,
-          metricSpecConfigOverride = NO_SAMPLING_METRIC_SPEC_CONFIG,
+          metricSpecConfigOverride = metricSpecConfigOverride,
           populationDataProviderName =
             inProcessCmmsComponents.getPopulationData().populationDataProviderName,
         )
@@ -1379,7 +1383,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .execute()
   }
 
-  protected fun executeReportProcessorJob() {
+  protected fun executeReportProcessorJob(enableValidation: Boolean, enableCorrection: Boolean) {
     val processBuilder =
       ProcessBuilder("python3", POST_PROCESS_REPORT_RESULT_FILE.toPath().toString())
     processBuilder
@@ -1388,6 +1392,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     processBuilder.command().add("--tls-cert-file=${REPORTING_TLS_CERT_FILE.path}")
     processBuilder.command().add("--tls-key-file=${REPORTING_TLS_KEY_FILE.path}")
     processBuilder.command().add("--cert-collection-file=${ALL_ROOT_CERTS_FILE.path}")
+    processBuilder.command().add("--enable-validation=$enableValidation")
+    processBuilder.command().add("--enable-correction=$enableCorrection")
     if (resultMinimumThresholdsByEdp.isNotEmpty()) {
       val thresholds = resultMinimumThresholdsByEdp.values.first()
       require(
@@ -1407,8 +1413,19 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         processBuilder.command().add("--potential-direct-thresholding-edp=$edpResourceName")
       }
     }
+    // Pipe buffers can fill and block the child before waitFor returns.
+    processBuilder.redirectOutput(ProcessBuilder.Redirect.INHERIT)
+    processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT)
     val process = processBuilder.start()
-    process.waitFor()
+    val exitCode =
+      try {
+        process.waitFor()
+      } finally {
+        if (process.isAlive) {
+          process.destroyForcibly()
+        }
+      }
+    check(exitCode == 0) { "Report post-processor exited with code $exitCode." }
   }
 
   private suspend fun registerDataAvailabilityIntervals(

@@ -1965,7 +1965,7 @@ class TestReportMcApi2(unittest.TestCase):
 
     def test_get_corrected_report_mc_api_2(self):
         report = SAMPLE_REPORT
-        corrected_report, report_post_processor_result = report.get_corrected_report()
+        corrected_report, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
         # Checks that non-zero edp combinations are not consistent before
         # correction.

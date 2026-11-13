@@ -8,7 +8,6 @@ configs {
       bucket_name: "secure-computation-storage-dev-bucket"
     }
   }
-  storage_path_prefix: "edp7/requisitions"
   cmms_connection {
     cert_file_path: "/secrets/cert/edp7_tls.pem"
     private_key_file_path: "/secrets/key/edp7_tls.key"
@@ -65,7 +64,6 @@ configs {
       bucket_name: "secure-computation-storage-dev-bucket"
     }
   }
-  storage_path_prefix: "edpa_meta/requisitions"
   cmms_connection {
     cert_file_path: "/secrets/cert-edp2/edpa_meta_tls.pem"
     private_key_file_path: "/secrets/key-edp2/edpa_meta_tls.key"
@@ -116,7 +114,6 @@ configs {
       bucket_name: "secure-computation-storage-dev-bucket"
     }
   }
-  storage_path_prefix: "edpa_video_pub/requisitions"
   cmms_connection {
     cert_file_path: "/secrets/cert-video/edpa_video_pub_tls.pem"
     private_key_file_path: "/secrets/key-video/edpa_video_pub_tls.key"
@@ -153,7 +150,7 @@ configs {
         client_private_key_resource_path: "/tmp/edp_certs/edpa_video_pub_tls.key"
       }
       noise_params {
-        noise_type: CONTINUOUS_GAUSSIAN
+        noise_type: DETERMINISTIC_TRUNCATED_LAPLACE
       }
       trustee_params {
         kek_uri_to_key_name {
@@ -173,7 +170,6 @@ configs {
       bucket_name: "secure-computation-storage-dev-bucket"
     }
   }
-  storage_path_prefix: "edpa_retail_pub/requisitions"
   cmms_connection {
     cert_file_path: "/secrets/cert-retail/edpa_retail_pub_tls.pem"
     private_key_file_path: "/secrets/key-retail/edpa_retail_pub_tls.key"

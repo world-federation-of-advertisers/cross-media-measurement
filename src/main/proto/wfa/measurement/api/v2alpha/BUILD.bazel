@@ -51,6 +51,7 @@ MESSAGE_LIBS = [
     ":population_spec_proto",
     ":protocol_config_proto",
     ":public_key_proto",
+    ":query_proto",
     ":random_seed_proto",
     ":recurring_exchange_proto",
     ":requisition_proto",

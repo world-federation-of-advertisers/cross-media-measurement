@@ -14,16 +14,24 @@
 
 package org.wfanet.measurement.loadtest.edpaggregator.testing
 
+import com.google.api.client.http.HttpResponseException
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Message
 import com.google.type.interval
 import java.io.File
+import java.security.GeneralSecurityException
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.logging.Logger
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.retryWhen
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
@@ -114,8 +122,9 @@ class ImpressionsWriter(
         "blobModelLine must be a full ModelLine resource name: $blobModelLine"
       }
     val modelLineName = modelLineKey.toName()
-    val serializedEncryptionKey =
+    val serializedEncryptionKey = retryKmsKeySetup {
       EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
+    }
     val encryptedDek =
       EncryptedDek.newBuilder()
         .setKekUri(kekUri)
@@ -170,10 +179,12 @@ class ImpressionsWriter(
         }
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
       val encryptedStorage = run {
-        val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
+        val selectedStorageClient =
+          FixtureStorageClient(SelectedStorageClient(impressionsFileUri, storagePath))
 
-        val aeadStorageClient =
+        val aeadStorageClient = retryKmsKeySetup {
           selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+        }
 
         MesosRecordIoStorageClient(aeadStorageClient)
       }
@@ -201,7 +212,7 @@ class ImpressionsWriter(
 
       // Create the impressions metadata store
       val impressionsMetadataStorageClient =
-        SelectedStorageClient(impressionsMetadataFileUri, storagePath)
+        FixtureStorageClient(SelectedStorageClient(impressionsMetadataFileUri, storagePath))
 
       val zoneId = ZoneOffset.UTC
       val startOfDay = localDate.atStartOfDay(zoneId).toInstant().toProtoTime()
@@ -225,7 +236,31 @@ class ImpressionsWriter(
     }
   }
 
+  /** Retries transient KMS failures before writing impressions or metadata. */
+  private suspend fun <T> retryKmsKeySetup(block: () -> T): T {
+    return flow { emit(block()) }
+      .retryWhen { cause, attempt ->
+        // Tink wraps KMS HTTP errors in GeneralSecurityException.
+        val statusCode =
+          ((cause as? GeneralSecurityException)?.cause as? HttpResponseException)?.statusCode
+        if (statusCode !in TRANSIENT_KMS_HTTP_CODES || attempt >= MAX_KMS_ATTEMPTS - 1) {
+          return@retryWhen false
+        }
+        logger.warning(
+          "Retrying KMS key setup after HTTP $statusCode (attempt ${attempt + 2}/$MAX_KMS_ATTEMPTS)"
+        )
+        delay(KMS_RETRY_BACKOFF.durationForAttempt(attempt.toInt() + 1).toMillis())
+        true
+      }
+      .first()
+  }
+
   companion object {
+    private const val MAX_KMS_ATTEMPTS = 6
+    private val TRANSIENT_KMS_HTTP_CODES = setOf(429, 500, 502, 503, 504)
+    private val KMS_RETRY_BACKOFF =
+      ExponentialBackoff(initialDelay = Duration.ofSeconds(1), multiplier = 2.0)
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private fun EntityKey.toProto(): LabeledImpression.EntityKey =

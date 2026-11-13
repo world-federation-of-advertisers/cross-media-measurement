@@ -31,6 +31,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.properties.Delegates
 import kotlin.system.exitProcess
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
@@ -45,13 +46,20 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
+import org.wfanet.measurement.edpaggregator.dataavailability.CompletionBlobNames
+import org.wfanet.measurement.edpaggregator.dataavailability.CompletionBlobType
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncReplay
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityBackfill
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine.ArgGroup
@@ -149,7 +157,7 @@ class ReplayDataAvailabilitySync : Runnable {
   @set:Option(
     names = ["--impression-metadata-batch-size"],
     description = ["Maximum ImpressionMetadata resources per list or write request"],
-    defaultValue = "1000",
+    defaultValue = "100",
   )
   private var impressionMetadataBatchSize: Int by Delegates.notNull()
 
@@ -160,6 +168,17 @@ class ReplayDataAvailabilitySync : Runnable {
     }
     require(config.edpImpressionPath.isNotEmpty()) { "edp_impression_path must be set" }
     require(config.dataProvider.isNotEmpty()) { "data_provider must be set" }
+    val externalPath = config.externalImpressionPath.ifEmpty { config.edpImpressionPath }
+    val internalPath = config.vidLabeledImpressionPath
+    require(
+      internalPath.isEmpty() ||
+        (externalPath != internalPath &&
+          !externalPath.startsWith("$internalPath/") &&
+          !internalPath.startsWith("$externalPath/"))
+    ) {
+      "Configured impression paths must not overlap"
+    }
+    val configuredPaths = listOf(externalPath, internalPath).filter(String::isNotEmpty)
     if (mode == Mode.EVENT_GROUP_ACTIVITY_ONLY) {
       require(config.hasEventGroupActivityPublishing()) {
         "event_group_activity_publishing must be set in EVENT_GROUP_ACTIVITY_ONLY mode"
@@ -168,24 +187,23 @@ class ReplayDataAvailabilitySync : Runnable {
 
     val storageConfig = config.dataAvailabilityStorage.gcs
     require(storageConfig.bucketName.isNotEmpty()) { "GCS bucket_name must be set" }
-    val selection = buildReplaySelection(config.edpImpressionPath, storageConfig.bucketName)
+    val completionPaths = completionPaths(config)
+    val selection = buildReplaySelection(completionPaths, storageConfig.bucketName)
     val storageApiEndpoint = storageApiEndpoint
-    val storageClient =
-      GcsStorageClient(
-        StorageOptions.newBuilder()
-          .apply {
-            if (storageConfig.projectId.isNotEmpty()) {
-              setProjectId(storageConfig.projectId)
-            }
-            if (storageApiEndpoint != null) {
-              setHost(storageApiEndpoint)
-              setCredentials(NoCredentials.getInstance())
-            }
+    val storage =
+      StorageOptions.newBuilder()
+        .apply {
+          if (storageConfig.projectId.isNotEmpty()) {
+            setProjectId(storageConfig.projectId)
           }
-          .build()
-          .service,
-        storageConfig.bucketName,
-      )
+          if (storageApiEndpoint != null) {
+            setHost(storageApiEndpoint)
+            setCredentials(NoCredentials.getInstance())
+          }
+        }
+        .build()
+        .service
+    val storageClient = GcsStorageClient(storage, storageConfig.bucketName)
     val kingdomChannel =
       buildChannel(config.cmmsConnection, kingdomPublicApiTarget, kingdomPublicApiCertHost)
     val impressionMetadataChannel =
@@ -197,12 +215,15 @@ class ReplayDataAvailabilitySync : Runnable {
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
     val instrumentedKingdomChannel =
       ClientInterceptors.intercept(kingdomChannel, grpcTelemetry.newClientInterceptor())
-    val impressionMetadataStub =
-      ImpressionMetadataServiceCoroutineStub(
-        ClientInterceptors.intercept(
-          impressionMetadataChannel,
-          grpcTelemetry.newClientInterceptor(),
-        )
+    val instrumentedMetadataChannel =
+      ClientInterceptors.intercept(impressionMetadataChannel, grpcTelemetry.newClientInterceptor())
+    val impressionMetadataStub = ImpressionMetadataServiceCoroutineStub(instrumentedMetadataChannel)
+    val leaseRunner =
+      DataAvailabilitySyncLeaseRunner(
+        GrpcDataAvailabilitySyncLeaseClient(
+          DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedMetadataChannel)
+        ),
+        renewalDelay = { delay(it) },
       )
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
     val eventGroupActivityPublisher =
@@ -237,25 +258,64 @@ class ReplayDataAvailabilitySync : Runnable {
           }
           Mode.DATA_AVAILABILITY_ONLY,
           Mode.FULL_SYNC -> {
-            val dataAvailabilitySync =
-              DataAvailabilitySync(
-                edpImpressionPath = config.edpImpressionPath,
-                storageClient = storageClient,
-                dataProvidersStub = DataProvidersCoroutineStub(instrumentedKingdomChannel),
-                impressionMetadataServiceStub = impressionMetadataStub,
-                dataProviderName = config.dataProvider,
-                throttler = throttler,
-                impressionMetadataBatchSize = impressionMetadataBatchSize,
-                modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
-                errorIfGapsExist = config.errorIfGapsExist,
-                publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
-              )
             val result = runBlocking {
               DataAvailabilitySyncReplay(
                   storageClient = storageClient,
                   storageRootUri = storageRootUri,
                   selection = selection,
-                  sync = dataAvailabilitySync::sync,
+                  sync = { doneBlobUri ->
+                    leaseRunner.run(config.dataProvider) { lease ->
+                      val blobUri = SelectedStorageClient.parseBlobUri(doneBlobUri)
+                      val completionPath =
+                        requireNotNull(resolveCompletionPath(blobUri.key, completionPaths)) {
+                          "Completion blob is outside the configured impression paths: $doneBlobUri"
+                        }
+                      val doneBlob =
+                        requireNotNull(storageClient.getBlob(blobUri.key)) {
+                          "Completion blob does not exist"
+                        }
+                      val doneGeneration =
+                        requireNotNull(
+                          (doneBlob as? ConditionalOperationStorageClient.Blob)
+                            ?.freshnessToken
+                            ?.toLongOrNull()
+                        ) {
+                          "Completion blob has no numeric generation"
+                        }
+                      DataAvailabilitySync(
+                          edpImpressionPath = completionPath.path,
+                          storageClient = storageClient,
+                          dataProvidersStub =
+                            DataProvidersCoroutineStub(instrumentedKingdomChannel),
+                          impressionMetadataServiceStub = impressionMetadataStub,
+                          dataProviderName = config.dataProvider,
+                          throttler = throttler,
+                          impressionMetadataBatchSize = impressionMetadataBatchSize,
+                          modelLineMap =
+                            config.modelLineMapMap.mapValues { it.value.modelLinesList },
+                          errorIfGapsExist = config.errorIfGapsExist,
+                          availabilityImpressionPaths = configuredPaths,
+                          publishEventGroupActivities =
+                            eventGroupActivityPublisher?.let { it::publish },
+                          generationMatchedMetadataUpdater =
+                            GcsGenerationMatchedBlobMetadataUpdater(
+                              storage,
+                              storageConfig.bucketName,
+                            ),
+                        )
+                        .sync(
+                          doneBlobPath = doneBlobUri,
+                          dataAvailabilitySyncLease = lease.name,
+                          doneBlobGeneration = doneGeneration,
+                          externalDoneBlobCreateTime =
+                            doneBlob.createTime.takeIf {
+                              completionPath.type == CompletionBlobType.EXTERNAL
+                            },
+                          discoveryMode = DataAvailabilitySync.DiscoveryMode.FolderScan,
+                          ensureLeaseActive = lease::invoke,
+                        )
+                    }
+                  },
                 )
                 .replay()
             }
@@ -314,7 +374,7 @@ class ReplayDataAvailabilitySync : Runnable {
   }
 
   private fun buildReplaySelection(
-    edpImpressionPath: String,
+    completionPaths: List<CompletionPath>,
     bucketName: String,
   ): DataAvailabilitySyncReplay.Selection {
     if (replaySelection.hasBlobPrefix()) {
@@ -329,13 +389,14 @@ class ReplayDataAvailabilitySync : Runnable {
         } else {
           suppliedBlobPrefix
         }
-      require(
-        normalizedBlobPrefix == edpImpressionPath ||
-          normalizedBlobPrefix.startsWith("$edpImpressionPath/")
-      ) {
-        "blob-prefix must be the configured edp_impression_path or one of its descendants"
-      }
-      return DataAvailabilitySyncReplay.Selection.BlobPrefix(normalizedBlobPrefix)
+      val completionPath =
+        requireNotNull(resolveCompletionPath(normalizedBlobPrefix, completionPaths)) {
+          "blob-prefix must be a configured impression path or one of its descendants"
+        }
+      return DataAvailabilitySyncReplay.Selection.BlobPrefix(
+        normalizedBlobPrefix,
+        completionPath.type,
+      )
     }
 
     val doneBlobUris = replaySelection.doneBlobUris.toSet()
@@ -345,11 +406,14 @@ class ReplayDataAvailabilitySync : Runnable {
       require(parsedUri.bucket == bucketName) {
         "done-blob-uri must use the configured GCS bucket: $doneBlobUri"
       }
-      require(parsedUri.key.substringAfterLast('/') == DONE_BLOB_FILE_NAME) {
-        "done-blob-uri must identify a done blob: $doneBlobUri"
-      }
-      require(parsedUri.key.startsWith("$edpImpressionPath/")) {
-        "done-blob-uri must be below the configured edp_impression_path: $doneBlobUri"
+      val completionPath =
+        requireNotNull(resolveCompletionPath(parsedUri.key, completionPaths)) {
+          "done-blob-uri must be below a configured impression path: $doneBlobUri"
+        }
+      require(
+        CompletionBlobNames.matches(completionPath.type, parsedUri.key.substringAfterLast('/'))
+      ) {
+        "done-blob-uri has the wrong completion filename for ${completionPath.path}: $doneBlobUri"
       }
     }
     return DataAvailabilitySyncReplay.Selection.DoneBlobUris(doneBlobUris)
@@ -359,11 +423,39 @@ class ReplayDataAvailabilitySync : Runnable {
     EventGroupActivityBackfill.Selection {
     return when (this) {
       is DataAvailabilitySyncReplay.Selection.BlobPrefix ->
-        EventGroupActivityBackfill.Selection.BlobPrefix(value)
+        EventGroupActivityBackfill.Selection.BlobPrefix(value, completionBlobType)
       is DataAvailabilitySyncReplay.Selection.DoneBlobUris ->
         EventGroupActivityBackfill.Selection.DoneBlobUris(values)
     }
   }
+
+  private data class CompletionPath(val path: String, val type: CompletionBlobType)
+
+  private fun completionPaths(config: DataAvailabilitySyncConfig): List<CompletionPath> {
+    val externalPath = config.externalImpressionPath.ifEmpty { config.edpImpressionPath }
+    return buildList {
+        add(CompletionPath(externalPath, CompletionBlobType.EXTERNAL))
+        if (config.vidLabeledImpressionPath.isNotEmpty()) {
+          add(
+            CompletionPath(
+              config.vidLabeledImpressionPath,
+              CompletionBlobType.VID_LABELER_OR_LEGACY,
+            )
+          )
+        }
+      }
+      .distinctBy { it.path }
+  }
+
+  private fun resolveCompletionPath(
+    blobKeyOrPrefix: String,
+    completionPaths: List<CompletionPath>,
+  ): CompletionPath? =
+    completionPaths
+      .sortedByDescending { it.path.length }
+      .firstOrNull { candidate ->
+        blobKeyOrPrefix == candidate.path || blobKeyOrPrefix.startsWith("${candidate.path}/")
+      }
 
   private fun logActivityOnlyResult(result: EventGroupActivityBackfill.Result) {
     logger.info(
@@ -421,7 +513,6 @@ class ReplayDataAvailabilitySync : Runnable {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val DONE_BLOB_FILE_NAME = "done"
     private const val SHUTDOWN_TIMEOUT_SECONDS = 30L
   }
 }

@@ -39,4 +39,6 @@ enum RawImpressionUploadModelLineState {
   // processing attempts may be retried; invalidated output requires a
   // replacement upload.
   RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED = 6;
+  // VID labeling has finished, but availability synchronization is pending.
+  RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING = 7;
 }

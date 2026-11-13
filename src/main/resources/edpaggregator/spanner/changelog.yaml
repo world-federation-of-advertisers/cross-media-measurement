@@ -88,3 +88,39 @@ databaseChangeLog:
   - include:
       file: create-upload-healing-operation-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-impression-metadata-raw-upload.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: create-raw-impression-upload-correction-candidate-schema.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-correction-plan-fields-to-upload-healing-operation.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: create-data-availability-sync-lease-schema.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-vid-labeling-eviction-fence-concurrency.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-model-line-availability-sync.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-upload-healing-plan-format.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-correction-candidate-id.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: drop-raw-impression-upload-generation-uniqueness.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-correction-candidate-expiration-index.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: remove-obsolete-upload-healing-fields.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-impression-metadata-blob-generations.sql
+      relativeToChangeLogFile: true

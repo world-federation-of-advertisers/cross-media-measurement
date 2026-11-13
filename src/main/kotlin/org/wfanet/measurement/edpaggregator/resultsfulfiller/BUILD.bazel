@@ -41,6 +41,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:event_group_reference_id_entity_key_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:requisition_specs",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_measurement_result_factory",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:direct_measurement_fulfiller",
@@ -49,6 +50,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/trustee",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
@@ -64,7 +66,6 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )
 
@@ -308,6 +309,7 @@ kt_jvm_library(
     srcs = ["StorageEventReader.kt"],
     deps = [
         ":event_reader",
+        ":generation_matched_storage_client",
         ":impression_read_exception",
         ":labeled_event",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
@@ -328,6 +330,7 @@ kt_jvm_library(
         "ImpressionDataSourceProvider.kt",
     ],
     deps = [
+        ":generation_matched_storage_client",
         ":impression_read_exception",
         ":resolved_event_group",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
@@ -447,7 +450,6 @@ kt_jvm_library(
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
         "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
-        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:base_tee_app_runner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
@@ -517,6 +519,7 @@ kt_jvm_library(
         ":pipeline_configuration",
         ":resolved_event_group",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:requisition_specs",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
@@ -525,7 +528,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )
 
@@ -542,5 +544,14 @@ kt_jvm_library(
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "generation_matched_storage_client",
+    srcs = ["GenerationMatchedStorageClient.kt"],
+    deps = [
+        ":impression_read_exception",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )

@@ -110,6 +110,7 @@ class VidLabelingDispatcherFunctionTest {
           val request = invocation.getArgument<CreateRawImpressionUploadRequest>(0)
           RawImpressionUpload.newBuilder()
             .setName("${request.parent}/rawImpressionUploads/upload-1")
+            .setUploadHealingOperation(request.rawImpressionUpload.uploadHealingOperation)
             .setDoneBlobUri("file:////edp/edp_name/timestamp/done")
             .setEtag(UPLOAD_ETAG)
             .build()
@@ -144,6 +145,20 @@ class VidLabelingDispatcherFunctionTest {
     }
 
   private val rankIndexBlobServiceMock: RankIndexBlobServiceCoroutineImplBase = mockService()
+  private var activeHealingOperation:
+    org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation? =
+    null
+  private val healingOperationService =
+    object :
+      org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase() {
+      override suspend fun getUploadHealingOperation(
+        request: org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
+      ): org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation {
+        val operation = activeHealingOperation ?: throw io.grpc.Status.NOT_FOUND.asException()
+        check(request.name == operation.name)
+        return operation
+      }
+    }
 
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
     onBlocking { listModelLines(any()) }
@@ -195,6 +210,7 @@ class VidLabelingDispatcherFunctionTest {
               rawImpressionUploadFileServiceMock.bindService(),
               rawImpressionUploadModelLineServiceMock.bindService(),
               rankIndexBlobServiceMock.bindService(),
+              healingOperationService.bindService(),
               modelLinesServiceMock.bindService(),
               modelRolloutsServiceMock.bindService(),
               modelShardsServiceMock.bindService(),
@@ -232,6 +248,7 @@ class VidLabelingDispatcherFunctionTest {
           "MODEL_SHARDS_CERT_HOST" to "localhost",
           "RAW_IMPRESSION_UPLOAD_TARGET" to "localhost:${grpcServer.port}",
           "RAW_IMPRESSION_UPLOAD_CERT_HOST" to "localhost",
+          "CORRECTION_DETECTION_CERT_HOST" to "localhost",
           "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
           "CONTROL_PLANE_CERT_HOST" to "localhost",
           "VID_LABELER_QUEUE_NAME" to "queues/vid-labeler",
@@ -268,9 +285,10 @@ class VidLabelingDispatcherFunctionTest {
     // metadata.
     val footer = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01")
     runBlocking {
-      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_002", emptyFlow(), footer)
+      // Finalize the upload only after every raw file has been written.
+      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
     }
     val doneGeneration = File(tempFolder.root, "edp/edp_name/timestamp/done").lastModified()
 
@@ -323,13 +341,14 @@ class VidLabelingDispatcherFunctionTest {
       ParquetStorageClient(parquetConf, org.apache.hadoop.fs.Path(tempFolder.root.path))
     val footer = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01")
     runBlocking {
-      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
+      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
     }
     val doneGeneration = File(tempFolder.root, "edp/edp_name/timestamp/done").lastModified()
     val sourceUpload = rawImpressionUpload {
       name = RECOVERY_SOURCE_UPLOAD
       state = RawImpressionUpload.State.FAILED
+      doneBlobCreateTime = Timestamps.fromMillis(1L)
       doneBlobUri = DONE_BLOB_URI
       doneBlobGeneration = doneGeneration + 1L
     }
@@ -340,10 +359,39 @@ class VidLabelingDispatcherFunctionTest {
     }
     val predecessorReplacement = rawImpressionUpload {
       name = RECOVERY_PREDECESSOR_REPLACEMENT
+      state = RawImpressionUpload.State.COMPLETED
+      registrationComplete = true
+      uploadHealingOperation = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
       doneBlobUri = RECOVERY_PREDECESSOR_DONE_BLOB_URI
       createTime = Timestamps.fromMillis(2L)
       replacesRawImpressionUpload = predecessorUpload.name
     }
+    activeHealingOperation =
+      org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+        name = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
+        state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+        steps +=
+          org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+            name = "${this@uploadHealingOperation.name}/uploadHealingSteps/1"
+            sourceRawImpressionUpload = sourceUpload.name
+            cmmsModelLine = MODEL_LINE
+            recoveryTarget = true
+            state =
+              org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.RECOVERY_STARTED
+            recoveryDoneBlobGeneration = doneGeneration
+            recoveryAction =
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+          }
+        steps +=
+          org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+            name = "${this@uploadHealingOperation.name}/uploadHealingSteps/2"
+            sourceRawImpressionUpload = predecessorUpload.name
+            cmmsModelLine = MODEL_LINE
+            recoveryTarget = true
+            state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.COMPLETE
+            replacementRawImpressionUpload = predecessorReplacement.name
+          }
+      }
     wheneverBlocking { rawImpressionUploadServiceMock.getRawImpressionUpload(any()) }
       .thenAnswer { invocation ->
         val request = invocation.getArgument<GetRawImpressionUploadRequest>(0)

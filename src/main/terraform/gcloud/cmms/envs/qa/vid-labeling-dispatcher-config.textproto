@@ -2,7 +2,8 @@
 # proto-message: wfa.measurement.config.edpaggregator.VidLabelingConfigs
 configs {
   data_provider: "dataProviders/MPxlwJmFW7A"
-  edp_impression_path: "edp/edp7"
+  raw_impressions_blob_prefix: "raw-impressions/edp/edp7"
+  edp_impression_path: "vid-labeled-impressions/edp/edp7"
   model_line_configs {
     key: "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/PNGDtHsZ2mg"
     value {
@@ -81,6 +82,22 @@ configs {
       optional_entity_key_field_mapping {
         key: "person"
         value: "person_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "campaign"
+        value: "campaign_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "adset-id"
+        value: "adset_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "ad-id"
+        value: "ad_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "account-id"
+        value: "account_id"
       }
     }
   }
@@ -163,6 +180,22 @@ configs {
         key: "person"
         value: "person_id"
       }
+      optional_entity_key_field_mapping {
+        key: "campaign"
+        value: "campaign_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "adset-id"
+        value: "adset_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "ad-id"
+        value: "ad_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "account-id"
+        value: "account_id"
+      }
     }
   }
   model_line_configs {
@@ -244,6 +277,22 @@ configs {
         key: "person"
         value: "person_id"
       }
+      optional_entity_key_field_mapping {
+        key: "campaign"
+        value: "campaign_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "adset-id"
+        value: "adset_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "ad-id"
+        value: "ad_id"
+      }
+      optional_entity_key_field_mapping {
+        key: "account-id"
+        value: "account_id"
+      }
     }
   }
   raw_impressions_storage_params {
@@ -310,7 +359,8 @@ configs {
 }
 configs {
   data_provider: "dataProviders/WLb7yRONEO4"
-  edp_impression_path: "edp/edpa_meta"
+  raw_impressions_blob_prefix: "raw-impressions/edp/edpa_meta"
+  edp_impression_path: "vid-labeled-impressions/edp/edpa_meta"
   raw_impressions_storage_params {
     gcs {
       project_id: "halo-cmm-qa"

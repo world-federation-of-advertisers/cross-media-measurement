@@ -31,6 +31,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
 import java.security.MessageDigest
+import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
@@ -38,7 +39,9 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -49,9 +52,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
-
-private class HttpEndpointResponseException(val statusCode: Int, message: String) :
-  IllegalStateException(message)
 
 /*
  * Watcher to observe blob creation events and take the appropriate action for each.
@@ -67,6 +67,7 @@ class DataWatcher(
     GoogleCredentials.getApplicationDefault() as? IdTokenProvider
       ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
   private val meter: Meter = Instrumentation.meter,
+  private val controlPlaneThrottler: Throttler? = null,
 ) {
   private val metrics =
     DataWatcherMetrics(meter = meter, sinkTypeKey = ATTR_SINK_TYPE_KEY, queueKey = ATTR_QUEUE_KEY)
@@ -78,7 +79,7 @@ class DataWatcher(
    * @param objectMetadata custom metadata from the GCS object, use empty map if none
    */
   suspend fun receivePath(path: String, objectMetadata: Map<String, String>) {
-    logger.log(Level.INFO, "Received data path for evaluation: path=$path")
+    logger.log(Level.INFO, "Received data path for evaluation: pathHash=${pathHash(path)}")
     for (config in dataWatcherConfigs) {
       processPathForConfig(config, path, objectMetadata)
     }
@@ -93,12 +94,15 @@ class DataWatcher(
     if (!regex.matches(path)) {
       logger.log(
         Level.FINE,
-        "Configuration ${config.identifier} did not match path: path=$path, regex=${config.sourcePathRegex}",
+        "Configuration ${config.identifier} did not match pathHash=${pathHash(path)}",
       )
       return
     }
 
-    logger.log(Level.INFO, "Configuration matched path: config=${config.identifier}, path=$path")
+    logger.log(
+      Level.INFO,
+      "Configuration matched path: config=${config.identifier}, pathHash=${pathHash(path)}",
+    )
     val processingStartTime = TimeSource.Monotonic.markNow()
 
     try {
@@ -128,7 +132,7 @@ class DataWatcher(
       val isRetryable =
         e is IOException ||
           e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES ||
-          (e is HttpEndpointResponseException && isRetryableHttpStatusCode(e.statusCode))
+          DataWatcherRetryPolicy.isRetryableHttpFailure(e)
       onProcessingFailed(config, path, elapsedSeconds, e, shouldLog = !isRetryable)
       val isRecoveryOperation =
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
@@ -149,18 +153,35 @@ class DataWatcher(
     objectMetadata: Map<String, String>,
   ) {
     val queueConfig = config.controlPlaneQueueSink
-    val objectGeneration = objectMetadata[GENERATION_METADATA_KEY].orEmpty()
+    val objectGeneration =
+      objectMetadata[GENERATION_METADATA_KEY]?.toLongOrNull()?.takeIf { it > 0L }
+        ?: throw IllegalArgumentException("Missing or invalid source object generation")
+    val objectCreateTime =
+      objectMetadata[CREATE_TIME_METADATA_KEY]?.let(Instant::parse)
+        ?: throw IllegalArgumentException("Missing source object creation time")
+    val storageEventType =
+      when (objectMetadata[EVENT_TYPE_METADATA_KEY]) {
+        FINALIZED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+        DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
+        else -> throw IllegalArgumentException("Missing or invalid storage event type")
+      }
     val idempotencyKey = "${config.identifier}\u0000$path\u0000$objectGeneration"
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
           appParams = queueConfig.appParams
-          this.dataPathParams = dataPathParams { this.dataPath = path }
+          this.dataPathParams = dataPathParams {
+            this.dataPath = path
+            generation = objectGeneration
+            createTime = objectCreateTime.toProtoTime()
+            eventType = storageEventType
+          }
           traceContext.putAll(W3CTraceContext.inject())
         }
         .pack()
     val requestedWorkItem = workItem {
       queue = queueConfig.queue
+      serializationKey = queueConfig.serializationKey
       this.workItemParams = workItemParams
     }
     try {
@@ -178,13 +199,20 @@ class DataWatcher(
     onQueueWrite(config, path, queueConfig.queue, workItemId)
   }
 
+  private suspend fun <T> callControlPlane(block: suspend () -> T): T {
+    val throttler = controlPlaneThrottler
+    return if (throttler == null) block() else throttler.onReady(block)
+  }
+
   private suspend fun ensureWorkItem(workItemId: String, workItem: WorkItem) {
-    workItemsStub.ensureWorkItem(
-      ensureWorkItemRequest {
-        this.workItemId = workItemId
-        this.workItem = workItem
-      }
-    )
+    callControlPlane {
+      workItemsStub.ensureWorkItem(
+        ensureWorkItemRequest {
+          this.workItemId = workItemId
+          this.workItem = workItem
+        }
+      )
+    }
   }
 
   private suspend fun ensureWorkItemWithStoredTraceContext(
@@ -195,10 +223,7 @@ class DataWatcher(
     try {
       ensureWorkItem(
         workItemId,
-        workItem {
-          queue = requestedWorkItem.queue
-          workItemParams = existingWorkItemParams
-        },
+        requestedWorkItem.toBuilder().setWorkItemParams(existingWorkItemParams).build(),
       )
     } catch (e: Exception) {
       if (e.grpcStatusCode() != Status.Code.FAILED_PRECONDITION) {
@@ -209,12 +234,14 @@ class DataWatcher(
 
   private suspend fun createWorkItemWithLegacyApi(workItemId: String, requestedWorkItem: WorkItem) {
     try {
-      workItemsStub.createWorkItem(
-        createWorkItemRequest {
-          this.workItemId = workItemId
-          workItem = requestedWorkItem
-        }
-      )
+      callControlPlane {
+        workItemsStub.createWorkItem(
+          createWorkItemRequest {
+            this.workItemId = workItemId
+            workItem = requestedWorkItem
+          }
+        )
+      }
     } catch (e: Exception) {
       if (e.grpcStatusCode() != Status.Code.ALREADY_EXISTS) {
         throw e
@@ -227,12 +254,15 @@ class DataWatcher(
     workItemId: String,
     requestedWorkItem: WorkItem,
   ): Any {
-    val existing = workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+    val existing = callControlPlane {
+      workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+    }
     val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     val requestedParams =
       requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     check(
       existing.queue == requestedWorkItem.queue &&
+        existing.serializationKey == requestedWorkItem.serializationKey &&
         existingParams.appParams == requestedParams.appParams &&
         existingParams.dataPathParams == requestedParams.dataPathParams
     ) {
@@ -303,7 +333,7 @@ class DataWatcher(
     val response = client.send(request, BodyHandlers.ofString())
     val statusCode = response.statusCode()
     if (statusCode != 200) {
-      throw HttpEndpointResponseException(
+      throw DataWatcherHttpException(
         statusCode,
         "${config.identifier}: HTTP endpoint ${httpEndpointConfig.endpointUri} returned $statusCode",
       )
@@ -318,14 +348,15 @@ class DataWatcher(
         EVENT_PROCESSING_COMPLETED,
         Attributes.builder()
           .put(ATTR_SINK_TYPE_KEY, config.sinkConfigCase.name)
-          .put(ATTR_DATA_PATH_KEY, path)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash(path))
           .put(ATTR_STATUS_KEY, STATUS_SUCCESS)
           .put(ATTR_DURATION_SECONDS_KEY, durationSeconds)
           .build(),
       )
     logger.log(
       Level.INFO,
-      "Successfully processed configuration: config=${config.identifier}, path=$path, durationSeconds=$durationSeconds",
+      "Successfully processed configuration: config=${config.identifier}, " +
+        "pathHash=${pathHash(path)}, durationSeconds=$durationSeconds",
     )
   }
 
@@ -336,23 +367,21 @@ class DataWatcher(
     throwable: Throwable,
     shouldLog: Boolean,
   ) {
-    Span.current()
-      .addEvent(
-        EVENT_PROCESSING_FAILED,
-        Attributes.builder()
-          .put(ATTR_SINK_TYPE_KEY, config.sinkConfigCase.name)
-          .put(ATTR_DATA_PATH_KEY, path)
-          .put(ATTR_STATUS_KEY, STATUS_FAILURE)
-          .put(ATTR_DURATION_SECONDS_KEY, durationSeconds)
-          .put(ATTR_ERROR_TYPE_KEY, errorTypeOf(throwable))
-          .put(ATTR_ERROR_MESSAGE_KEY, throwable.message ?: "")
-          .build(),
-      )
+    val attributes =
+      Attributes.builder()
+        .put(ATTR_SINK_TYPE_KEY, config.sinkConfigCase.name)
+        .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash(path))
+        .put(ATTR_STATUS_KEY, STATUS_FAILURE)
+        .put(ATTR_DURATION_SECONDS_KEY, durationSeconds)
+        .put(ATTR_ERROR_TYPE_KEY, errorTypeOf(throwable))
+    errorCodeOf(throwable)?.let { attributes.put(ATTR_ERROR_CODE_KEY, it) }
+    Span.current().addEvent(EVENT_PROCESSING_FAILED, attributes.build())
     if (shouldLog) {
       logger.log(
         Level.SEVERE,
-        "Failed to process configuration: config=${config.identifier}, path=$path, durationSeconds=$durationSeconds, error=${throwable.message}",
-        throwable,
+        "Failed to process configuration: config=${config.identifier}, " +
+          "pathHash=${pathHash(path)}, durationSeconds=$durationSeconds, " +
+          "errorType=${errorTypeOf(throwable)}, errorCode=${errorCodeOf(throwable) ?: "unknown"}",
       )
     }
   }
@@ -369,7 +398,7 @@ class DataWatcher(
         EVENT_QUEUE_WRITE,
         Attributes.builder()
           .put(ATTR_SINK_TYPE_KEY, config.sinkConfigCase.name)
-          .put(ATTR_DATA_PATH_KEY, path)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash(path))
           .put(ATTR_QUEUE_KEY, queueName)
           .put(ATTR_WORK_ITEM_ID_KEY, workItemId)
           .put(ATTR_STATUS_KEY, STATUS_SUCCESS)
@@ -377,7 +406,8 @@ class DataWatcher(
       )
     logger.log(
       Level.INFO,
-      "Submitted work item to control plane queue: config=${config.identifier}, path=$path, queue=$queueName, workItemId=$workItemId",
+      "Submitted work item to control plane queue: config=${config.identifier}, " +
+        "pathHash=${pathHash(path)}, queue=$queueName, workItemId=$workItemId",
     )
   }
 
@@ -387,20 +417,29 @@ class DataWatcher(
         EVENT_HTTP_ENDPOINT_DISPATCH,
         Attributes.builder()
           .put(ATTR_SINK_TYPE_KEY, config.sinkConfigCase.name)
-          .put(ATTR_DATA_PATH_KEY, path)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash(path))
           .put(ATTR_STATUS_KEY, STATUS_SUCCESS)
           .put(ATTR_HTTP_STATUS_KEY, statusCode.toLong())
           .build(),
       )
     logger.log(
       Level.INFO,
-      "Dispatched notification to HTTP endpoint: config=${config.identifier}, path=$path, statusCode=$statusCode",
+      "Dispatched notification to HTTP endpoint: config=${config.identifier}, " +
+        "pathHash=${pathHash(path)}, statusCode=$statusCode",
     )
   }
 
   private fun errorTypeOf(throwable: Throwable): String {
     return throwable::class.simpleName ?: throwable.javaClass.simpleName ?: throwable.javaClass.name
   }
+
+  private fun errorCodeOf(throwable: Throwable): String? =
+    when (throwable) {
+      is DataWatcherHttpException -> throwable.statusCode.toString()
+      else -> throwable.grpcStatusCode()?.name
+    }
+
+  private fun pathHash(path: String): String = VidLabelingTraceAttributes.gcsObjectPathHash(path)
 
   companion object {
     private val logger: Logger = Logger.getLogger(DataWatcher::class.java.name)
@@ -415,11 +454,6 @@ class DataWatcher(
         Status.Code.UNAVAILABLE,
       )
 
-    private fun isRetryableHttpStatusCode(statusCode: Int): Boolean =
-      statusCode in RETRYABLE_HTTP_STATUS_CODES
-
-    private val RETRYABLE_HTTP_STATUS_CODES = setOf(408, 429, 502, 503, 504)
-
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
     private const val RECOVERY_SOURCE_UPLOAD_HEADER: String = "X-Recovery-Source-Upload"
@@ -432,20 +466,21 @@ class DataWatcher(
      * under this key surviving.
      */
     const val GENERATION_METADATA_KEY: String = "__datawatcher_object_generation__"
+    const val CREATE_TIME_METADATA_KEY: String = "__datawatcher_object_create_time__"
+    const val EVENT_TYPE_METADATA_KEY: String = "__datawatcher_storage_event_type__"
+    const val FINALIZED_EVENT_TYPE: String = "google.cloud.storage.object.v1.finalized"
+    const val DELETED_EVENT_TYPE: String = "google.cloud.storage.object.v1.deleted"
     private const val IMPRESSION_METADATA_RESOURCE_ID_HEADER: String =
       "X-Impression-Metadata-Resource-Id"
 
     private val ATTR_SINK_TYPE_KEY = AttributeKey.stringKey("edpa.data_watcher.sink_type")
     private val ATTR_WORK_ITEM_ID_KEY = AttributeKey.stringKey("edpa.data_watcher.work_item_id")
     private val ATTR_QUEUE_KEY = AttributeKey.stringKey("edpa.data_watcher.queue")
-    private val ATTR_DATA_PATH_KEY = AttributeKey.stringKey("edpa.data_watcher.data_path")
     private val ATTR_STATUS_KEY = AttributeKey.stringKey("edpa.data_watcher.status")
     private val ATTR_ERROR_TYPE_KEY = AttributeKey.stringKey("edpa.data_watcher.error_type")
-    private val ATTR_ERROR_MESSAGE_KEY = AttributeKey.stringKey("edpa.data_watcher.error_message")
+    private val ATTR_ERROR_CODE_KEY = AttributeKey.stringKey("edpa.data_watcher.error_code")
     private val ATTR_DURATION_SECONDS_KEY =
       AttributeKey.doubleKey("edpa.data_watcher.processing_duration_seconds")
-    private val ATTR_SOURCE_PATH_REGEX_KEY =
-      AttributeKey.stringKey("edpa.data_watcher.source_path_regex")
     private val ATTR_HTTP_STATUS_KEY = AttributeKey.longKey("http.status.code")
 
     private const val STATUS_SUCCESS = "success"

@@ -67,6 +67,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.processWor
 import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem as PublicWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.Errors
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
@@ -156,7 +157,7 @@ abstract class WorkItemsServiceTest {
     assertThat(createResponse.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))
     assertThat(createResponse.updateTime).isEqualTo(createResponse.createTime)
 
-    val deferred = CompletableDeferred<String>()
+    val deferred = CompletableDeferred<PublicWorkItem>()
     val subscriber =
       googlePubSubClient.buildSubscriber(
         projectId = projectId,
@@ -164,9 +165,7 @@ abstract class WorkItemsServiceTest {
         ackExtensionPeriod = Duration.ofHours(6),
       ) { message, consumer ->
         try {
-          val workItem = WorkItem.parseFrom(message.data.toByteArray())
-          val testWork = workItem.workItemParams.unpack(TestWork::class.java)
-          deferred.complete(testWork.userName)
+          deferred.complete(PublicWorkItem.parseFrom(message.data.toByteArray()))
           consumer.ack()
         } catch (e: Exception) {
           val stackTrace = e.stackTrace.joinToString("\n")
@@ -176,7 +175,11 @@ abstract class WorkItemsServiceTest {
       }
     subscriber.startAsync().awaitRunning()
     val result = deferred.await()
-    assertThat(result).isEqualTo("UserName")
+    assertThat(result.name).isEqualTo("workItems/${createResponse.workItemResourceId}")
+    assertThat(result.queue).isEqualTo(request.workItem.queueResourceId)
+    assertThat(result.generation).isEqualTo(createResponse.generation)
+    assertThat(result.workItemParams).isEqualTo(request.workItem.workItemParams)
+    assertThat(result.workItemParams.unpack(TestWork::class.java).userName).isEqualTo("UserName")
 
     val getRequest = getWorkItemRequest { workItemResourceId = createResponse.workItemResourceId }
     val workItem = services.service.getWorkItem(getRequest)
@@ -203,6 +206,7 @@ abstract class WorkItemsServiceTest {
       workItemResourceId = workItemId
       queueResourceId = topicId
       workItemParams = Any.pack(testWork { userName = "UserName" })
+      serializationKey = "data-availability:dataProviders/provider-1"
     }
 
     val ensured = services.service.ensureWorkItem(ensureWorkItemRequest { workItem = requested })
@@ -295,6 +299,31 @@ abstract class WorkItemsServiceTest {
             workItem =
               created.copy {
                 workItemParams = Any.pack(testWork { userName = "DifferentUser" })
+                clearState()
+                clearGeneration()
+                clearCreateTime()
+                clearUpdateTime()
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.WORK_ITEM_ALREADY_EXISTS.name)
+  }
+
+  @Test
+  fun `ensureWorkItem rejects conflicting serialization key`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.ensureWorkItem(
+          ensureWorkItemRequest {
+            workItem =
+              created.copy {
+                serializationKey = "data-availability:dataProviders/provider-1"
                 clearState()
                 clearGeneration()
                 clearCreateTime()

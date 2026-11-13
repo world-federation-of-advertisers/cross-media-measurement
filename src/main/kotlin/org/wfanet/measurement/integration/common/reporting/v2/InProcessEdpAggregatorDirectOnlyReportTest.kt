@@ -424,7 +424,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         .createBasicReport(createBasicReportRequest)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient
@@ -472,7 +472,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         .createBasicReport(createBasicReportRequest)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient
@@ -541,7 +541,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
           .createBasicReport(createBasicReportRequest)
 
       executeBasicReportsReportsJob(createdBasicReport.name)
-      executeReportProcessorJob()
+      executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
       val completedBasicReport =
         reportingBasicReportsClient
@@ -583,7 +583,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         .createBasicReport(createBasicReportRequest)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient
@@ -634,7 +634,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         .createBasicReport(createBasicReportRequest)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     return reportingBasicReportsClient
       .withCallCredentials(credentials)

@@ -71,7 +71,7 @@ object TrusTeeV2ImpressionCount {
             }
           maxFrequencyPerUser != null -> {
             val clip: Int = maxFrequencyPerUser
-            val perVidFrequencies: IntArray = toIntArray(frequencyData)
+            val perVidFrequencies: ByteArray = frequencyData
             val histogram: LongArray =
               HistogramComputations.buildHistogram(
                 frequencyVector = perVidFrequencies,
@@ -99,7 +99,7 @@ object TrusTeeV2ImpressionCount {
           else -> {
             val clipped =
               DirectDynamicClipping.computeDeterministicImpressions(
-                frequencyData = toIntArray(frequencyData),
+                frequencyData = frequencyData,
                 // The count spans the whole population, so nothing scales it.
                 vidSamplingIntervalWidth = 1.0,
                 // This count is not thresholded here.
@@ -143,18 +143,6 @@ object TrusTeeV2ImpressionCount {
         throw IllegalArgumentException("Unrecognized impression_count_mode")
     }
   }
-
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4596): Drop this conversion once
-  // the TrusTee fulfillment path carries bytes. The histogram, the clip search and the seed take an
-  // IntArray only because TrusTee v1 and HMSS do, and this copy is four times the population.
-  /**
-   * Returns [frequencyData] as an [IntArray].
-   *
-   * Called from the branches that read the array rather than once up front: the copy is the size of
-   * the population, and the unnoised mode never reads it.
-   */
-  private fun toIntArray(frequencyData: ByteArray): IntArray =
-    IntArray(frequencyData.size) { frequencyData[it].toInt() }
 }
 
 /**

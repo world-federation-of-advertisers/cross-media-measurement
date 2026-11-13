@@ -3627,14 +3627,12 @@ class ResultsFulfillerTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         fulfillRequisitionRequest {
-          header =
-            FulfillRequisitionRequestKt.header {
-              name = TRUSTEE_V2_REQUISITION.name
-              nonce = REQUISITION_SPEC.nonce
-            }
+          header = FulfillRequisitionRequestKt.header { name = TRUSTEE_V2_REQUISITION.name }
         }
       )
     val header = fulfillment.requests[0].header
+    // A multimeasurement RequisitionSpec carries no nonce.
+    assertThat(header.nonce).isEqualTo(0L)
     assertThat(header.hasTrusTeeV2()).isTrue()
     assertThat(header.hasTrusTee()).isFalse()
     assertThat(header.trusTeeV2.trusTee.dataFormat)
@@ -5357,15 +5355,19 @@ class ResultsFulfillerTest {
 
     private val MULTI_MEASUREMENT_SPEC = measurementSpec {
       reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
-      measurementPublicKey = MC_PUBLIC_KEY.pack()
       multi = MeasurementSpecKt.multiMeasurementSpec {}
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
         width = 1.0f
       }
-      nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
       modelLine = "some-model-line"
     }
+
+    private val MULTI_REQUISITION_SPEC: RequisitionSpec =
+      REQUISITION_SPEC.copy {
+        clearMeasurementPublicKey()
+        clearNonce()
+      }
 
     val TRUSTEE_V2_DUCHY_ENTRY = duchyEntry {
       key = DUCHY_ONE_NAME
@@ -5380,9 +5382,10 @@ class ResultsFulfillerTest {
       measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
       state = Requisition.State.UNFULFILLED
       measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
-      measurementSpec = signMeasurementSpec(MULTI_MEASUREMENT_SPEC, MC_SIGNING_KEY)
-      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+      unsignedMeasurementSpec = MULTI_MEASUREMENT_SPEC
+      requisitionSpec = MULTI_REQUISITION_SPEC
       protocolConfig = protocolConfig {
+        measurementType = ProtocolConfig.MeasurementType.MULTI
         protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
       }
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
