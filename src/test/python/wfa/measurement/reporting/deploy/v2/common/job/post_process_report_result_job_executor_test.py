@@ -28,6 +28,52 @@ from tools.potential_direct_result_minimum_thresholds import (
 
 class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
 
+
+    @parameterized.named_parameters(
+        ("validation_and_correction", True, True),
+        ("validation_only", True, False),
+        ("correction_only", False, True),
+        ("assembly_only", False, False),
+    )
+    @flagsaver.flagsaver(
+        internal_api_target="internal_api_target",
+        tls_cert_file="client_cert",
+        tls_key_file="client_key",
+        cert_collection_file="root_ca_cert",
+    )
+    @mock.patch("os.path.exists", return_value=True)
+    @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob")
+    @mock.patch(
+        "job.post_process_report_result_job_executor._get_secure_credentials"
+    )
+    @mock.patch(
+        "job.post_process_report_result_job_executor._create_secure_channel"
+    )
+    def test_post_processor_runs_in_every_mode(
+        self,
+        enable_validation,
+        enable_correction,
+        mock_create_channel,
+        mock_get_credentials,
+        mock_job_class,
+        mock_exists,
+    ):
+        with flagsaver.flagsaver(
+            enable_validation=enable_validation,
+            enable_correction=enable_correction,
+        ):
+            post_process_report_result_job_executor.main(["test_main"])
+
+        self.assertEqual(
+            mock_job_class.call_args.kwargs["enable_validation"],
+            enable_validation
+        )
+        self.assertEqual(
+            mock_job_class.call_args.kwargs["enable_correction"],
+            enable_correction
+        )
+        mock_job_class.return_value.execute.assert_called_once()
+
     @flagsaver.flagsaver(
         internal_api_target="internal_api_target",
         tls_cert_file="client_cert",
@@ -78,6 +124,8 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
 
         mock_job_class.assert_called_once_with(
             mock_channel_instance,
+            enable_validation=True,
+            enable_correction=True,
             log_noise_correction_values=True,
             ami_mrc_exempted_edps=[],
             potential_direct_result_minimum_thresholds=None,
@@ -127,6 +175,8 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         )
         mock_job_class.assert_called_once_with(
             mock_channel_instance,
+            enable_validation=True,
+            enable_correction=True,
             log_noise_correction_values=False,
             ami_mrc_exempted_edps=[],
             potential_direct_result_minimum_thresholds=None,
@@ -179,6 +229,8 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         )
         mock_job_class.assert_called_once_with(
             mock_channel_instance,
+            enable_validation=True,
+            enable_correction=True,
             log_noise_correction_values=False,
             ami_mrc_exempted_edps=["dataProviders/edp1", "dataProviders/edp2"],
             potential_direct_result_minimum_thresholds=(

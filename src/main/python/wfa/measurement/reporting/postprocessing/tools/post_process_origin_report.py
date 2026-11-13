@@ -179,7 +179,7 @@ class ReportSummaryProcessor:
     )
 
     corrected_report, report_post_processor_result = \
-      report.get_corrected_report()
+      report.get_corrected_report(enable_validation=True)
 
     report_post_processor_result.pre_correction_report_summary.CopyFrom(
         self._report_summary)

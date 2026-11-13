@@ -52,6 +52,9 @@ message ReportPostProcessorStatus {
 
     // The process crashed or terminated unexpectedly due to an internal error.
     INTERNAL_ERROR = 6;
+
+    // Noise correction was disabled; the original measurements are assembled.
+    CORRECTION_SKIPPED = 7;
   }
 
   // The final status code indicating the overall outcome of the solver stage
@@ -133,9 +136,9 @@ message ReportPostProcessorResult {
   // Stores the corrected value for each measurement, identified by its unique
   // name. The names in this map must correspond to names found within the
   // pre_correction_report_summary. The corrected report can be computed from
-  // the pre_correction_report_summary and the updated_measurements map. Note
-  // that this map is populated if and only if the solver found a solution
-  // (i.e. when the status.status_code is not SOLUTION_NOT_FOUND).
+  // the pre_correction_report_summary and the updated_measurements map. This
+  // map is populated only when the solver found a solution; it is empty when
+  // correction is skipped.
   map<string, double> updated_measurements = 1;
 
   // Contains the measurements that are not corrected by the report post
@@ -145,8 +148,8 @@ message ReportPostProcessorResult {
 
   // Contains the detailed status and metrics from the QP solver step. The
   // status indicates if the report post processor found a solution, a partial
-  // solution, or fail to find any. It also provides metrics such as the primal
-  // equality and inequality residuals.
+  // solution, failed to find any, or skipped correction. It also provides
+  // metrics such as the primal equality and inequality residuals.
   ReportPostProcessorStatus status = 2;
 
   // Contains the results of data quality checks (e.g., zero variance

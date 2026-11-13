@@ -100,7 +100,7 @@ class GCloudEdpAggregatorDirectFrequencyThresholdTest :
       assertThat(distribution.values.sum()).isWithin(FLOAT_TOLERANCE).of(100.0 / 110.0)
       assertThat(directResults.single { it.hasImpression() }.impression.value).isEqualTo(280)
 
-      executeReportProcessorJob()
+      executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
       val completedBasicReport =
         reportingBasicReportsClient

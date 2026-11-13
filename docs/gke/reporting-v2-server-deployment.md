@@ -131,6 +131,29 @@ remain `false` until the feature is fully released.
 
 Extract the generated archive to some directory.
 
+### Configure report validation and correction
+
+The `report-result-post-processor` supports `--enable-validation` and
+`--enable-correction`, both defaulting to `true`. In the Reporting CUE
+configuration, set `_reportResultValidationEnabled` and
+`_reportResultCorrectionEnabled` respectively before generating the Kustomization.
+
+Validation runs report quality checks and, when correction is enabled,
+large-correction checks. Disabling validation skips these checks; correction
+still enforces the solver's mathematical constraints and requires a solution.
+With validation enabled and correction disabled, the original results are
+checked. Quality issues are logged without changing measurements or failing
+the BasicReport.
+
+Report assembly and processed-result writeback run in every mode. Disabling
+correction skips the solver and consistency adjustments, preserving the original
+reach, impression, and frequency values while calculating derived metrics.
+Set both options to `false` for assembly only. The job still requires valid
+input structure and a positive population.
+
+Per-report lifecycle logs include `xmm.noise_correction.validation_enabled` and
+`xmm.noise_correction.correction_enabled` to identify the selected flags.
+
 ### Configure noise-correction diagnostic logging
 
 The reusable Reporting configuration defaults
