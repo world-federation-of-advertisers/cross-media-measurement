@@ -33,7 +33,6 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.Metric
-import org.wfanet.measurement.internal.reporting.v2.MetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.Report
 import org.wfanet.measurement.internal.reporting.v2.copy
@@ -73,7 +72,7 @@ class CreateReport(
     val timeInterval: Interval,
     val metricCalculationSpecId: InternalId,
     val metricSpec: MetricSpec,
-    val metricDetails: Metric.Details,
+    val filters: List<String>,
   )
 
   override suspend fun TransactionScope.runTransaction(): Report {
@@ -320,7 +319,7 @@ class CreateReport(
               it.reportingMetricKey.timeInterval,
               it.reportingMetricKey.metricCalculationSpecId,
               it.metricSpec,
-              it.metricDetails,
+              it.metricDetails.filtersList,
             )
           val oldValue: MetricReader.ReportingMetric? = get(key)
           if (
@@ -385,12 +384,9 @@ class CreateReport(
                   it.details.timeInterval,
                   metricCalculationSpecResult.metricCalculationSpecId,
                   it.details.metricSpec,
-                  MetricKt.details {
-                    filters +=
-                      (it.details.groupingPredicatesList +
-                          metricCalculationSpecResult.metricCalculationSpec.details.filter)
-                        .filter { filter -> filter.isNotBlank() }
-                  },
+                  (it.details.groupingPredicatesList +
+                      metricCalculationSpecResult.metricCalculationSpec.details.filter)
+                    .filter { filter -> filter.isNotBlank() },
                 )
 
               if (encounteredKeys.contains(metricCalculationSpecReportingMetricKey)) {
