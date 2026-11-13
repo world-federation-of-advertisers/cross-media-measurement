@@ -228,6 +228,7 @@ class RawImpressionUploadService(
 
     return acquireRawImpressionUploadEvictionFenceResponse {
       newlyAcquired = internalResponse.newlyAcquired
+      state = internalResponse.state.toPublic()
       etag = internalResponse.etag
     }
   }
@@ -351,6 +352,24 @@ class RawImpressionUploadService(
       VidLabelingEvictionFenceState.UNRECOGNIZED ->
         throw InvalidFieldValueException("state")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+  private fun org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+    .toPublic(): VidLabelingEvictionFenceState =
+    when (this) {
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING ->
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_DRAINING ->
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_EVICTING ->
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_UNSPECIFIED,
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState.UNRECOGNIZED ->
+        error("Unrecognized fence state")
     }
 
   override suspend fun getRawImpressionUpload(
@@ -642,6 +661,8 @@ internal fun RawImpressionUploadState.toPublic(): RawImpressionUpload.State {
     RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED -> RawImpressionUpload.State.FAILED
     RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED ->
       RawImpressionUpload.State.CORRECTION_REQUIRED
+    RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT ->
+      RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT
     RawImpressionUploadState.UNRECOGNIZED,
     RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_UNSPECIFIED -> error("Unrecognized state")
   }
@@ -658,6 +679,8 @@ internal fun RawImpressionUpload.State.toInternal(): RawImpressionUploadState {
     RawImpressionUpload.State.FAILED -> RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED
     RawImpressionUpload.State.CORRECTION_REQUIRED ->
       RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
+    RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT ->
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT
     RawImpressionUpload.State.UNRECOGNIZED,
     RawImpressionUpload.State.STATE_UNSPECIFIED -> error("Unrecognized state")
   }

@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 import java.time.Instant
 import java.util.UUID
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadCorrectionCandidateKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest as PublicLabeledOutputManifest
@@ -48,14 +47,10 @@ class RawImpressionUploadCorrectionPlanner(
     val supersedingRevisions: Set<String> = emptySet(),
   )
 
-  /** Configuration needed to construct a DataProvider's healing operation. */
-  data class DataProviderConfig(val labeledImpressionsBlobPrefix: String)
-
   /** Builds deterministic, DataProvider-scoped plans from [candidates]. */
   suspend fun plan(
     candidates: Collection<Candidate>,
     cutoffTime: Instant,
-    configs: Map<String, DataProviderConfig>,
     operationIdsByDataProvider: Map<String, String> = emptyMap(),
   ): List<UploadHealingOperation> =
     candidates
@@ -66,7 +61,6 @@ class RawImpressionUploadCorrectionPlanner(
           dataProviderName,
           groupedCandidates,
           cutoffTime,
-          configs.getValue(dataProviderName),
           operationIdsByDataProvider[dataProviderName],
         )
       }
@@ -75,7 +69,6 @@ class RawImpressionUploadCorrectionPlanner(
     dataProviderName: String,
     candidates: List<Candidate>,
     cutoffTime: Instant,
-    config: DataProviderConfig,
     existingOperationId: String?,
   ): UploadHealingOperation {
     require(candidates.isNotEmpty())
@@ -121,12 +114,13 @@ class RawImpressionUploadCorrectionPlanner(
       return uploadHealingOperation {
         dataProviderResourceId = dataProviderKey.dataProviderId
         uploadHealingOperationId = operationId
+        planFormatVersion = PLAN_FORMAT_VERSION
+        outputManifestState =
+          UploadHealingOperation.OutputManifestState
+            .UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_PROVISIONAL
         state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
         reason = OUT_OF_RETENTION_REASON
-        labeledImpressionsBlobPrefix = config.labeledImpressionsBlobPrefix
-        badRawImpressionUploadResourceIds += owners.map { uploadId(it.rawImpressionUpload) }
         rawImpressionUploadCorrectionCandidateIds += candidateIds
-        this.cutoffTime = cutoffTime.toProtoTime()
       }
     }
 
@@ -140,12 +134,12 @@ class RawImpressionUploadCorrectionPlanner(
     return uploadHealingOperation {
       dataProviderResourceId = dataProviderKey.dataProviderId
       uploadHealingOperationId = operationId
+      planFormatVersion = PLAN_FORMAT_VERSION
+      outputManifestState =
+        UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_PROVISIONAL
       state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
       reason = DEFAULT_REASON
-      labeledImpressionsBlobPrefix = config.labeledImpressionsBlobPrefix
-      badRawImpressionUploadResourceIds += evictionPlan.badUploads.map { uploadId(it) }
       rawImpressionUploadCorrectionCandidateIds += candidateIds
-      this.cutoffTime = cutoffTime.toProtoTime()
       steps +=
         cascade.mapIndexed { index, entry ->
           uploadHealingStep {
@@ -214,6 +208,7 @@ class RawImpressionUploadCorrectionPlanner(
     }
 
   companion object {
+    const val PLAN_FORMAT_VERSION = 2
     private const val DEFAULT_REASON = "Raw-impression upload correction"
     private const val OUT_OF_RETENTION_REASON =
       "Affected upload is outside the healing retention window"

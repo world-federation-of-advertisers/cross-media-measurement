@@ -39,6 +39,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import java.util.logging.Handler
@@ -46,7 +47,11 @@ import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlin.test.fail
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -62,6 +67,7 @@ import org.mockito.kotlin.spy
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.whenever
 import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -95,7 +101,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
+import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -175,6 +183,8 @@ class DataAvailabilitySyncTest {
     private const val SYNC_DURATION_METRIC = "edpa.data_availability.sync_duration"
     private const val RECORDS_SYNCED_METRIC = "edpa.data_availability.records_synced"
     private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
+    private const val SNAPSHOT_VALIDATION_FAILURES_METRIC =
+      "edpa.data_availability.snapshot_validation_failures"
     private const val DATE_COUNT_METRIC = "edpa.data_availability.date_count"
     private const val DEFAULT_BATCH_SIZE = 100
     private const val RAW_IMPRESSION_UPLOAD =
@@ -325,6 +335,7 @@ class DataAvailabilitySyncTest {
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
         kingdomPublicationTimeout = publicationTimeout,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     dataAvailabilitySync.sync(
@@ -337,6 +348,589 @@ class DataAvailabilitySyncTest {
       .withDeadlineAfter(publicationTimeout.toNanos(), TimeUnit.NANOSECONDS)
     assertThat(rpcHadDeadline).isTrue()
   }
+
+  @Test
+  fun `external sync rejects overwritten impressions after Kingdom throttle wait`() = runBlocking {
+    val storageClient = VersionedBlobMetadataStorageClient()
+    val dateFolder = "edp/edpa_edp/model-line/modelLine1/2026-03-15"
+    val dataKey = "labeled/data.recordio"
+    val initialTime = Instant.parse("2026-03-15T00:01:00Z")
+    val doneTime = initialTime.plusSeconds(60)
+    storageClient.writeVersion(dataKey, ByteString.copyFromUtf8("data"), initialTime)
+    storageClient.writeVersion(
+      "$dateFolder/metadata.binpb",
+      externalBlobDetails(dataKey).toByteString(),
+      initialTime,
+    )
+    val done = storageClient.writeVersion("$dateFolder/done", ByteString.EMPTY, doneTime)
+    var publishing = false
+    val sync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        object : Throttler {
+          override suspend fun <T> onReady(block: suspend () -> T): T {
+            if (publishing) {
+              storageClient.writeVersion(
+                dataKey,
+                ByteString.copyFromUtf8("overwritten"),
+                doneTime.plusSeconds(1),
+              )
+            }
+            return block()
+          }
+        },
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        publishEventGroupActivities = null,
+        generationMatchedMetadataUpdater = storageClient.generationMatchedMetadataUpdater,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
+      )
+
+    assertFailsWith<ExternalDataAvailabilitySnapshotChangedException> {
+      sync.sync(
+        "$bucket/$dateFolder/done",
+        TestDataAvailabilitySyncLease.NAME,
+        doneBlobGeneration = done.generation,
+        externalDoneBlobCreateTime = done.createTime,
+        onStage = { publishing = it == DataAvailabilitySync.Stage.KINGDOM_PUBLICATION },
+        ensureLeaseActive = {},
+      )
+    }
+
+    verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+    assertThat(storageClient.currentMetadata(blobKey = "$dateFolder/done"))
+      .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+  }
+
+  @Test
+  fun `external sync rejects overwritten impressions during publication lease renewal`() =
+    runBlocking {
+      val storageClient = VersionedBlobMetadataStorageClient()
+      val dateFolder = "edp/edpa_edp/model-line/modelLine1/2026-03-15"
+      val dataKey = "labeled/data.recordio"
+      val initialTime = Instant.parse("2026-03-15T00:01:00Z")
+      val doneTime = initialTime.plusSeconds(60)
+      storageClient.writeVersion(dataKey, ByteString.copyFromUtf8("data"), initialTime)
+      storageClient.writeVersion(
+        "$dateFolder/metadata.binpb",
+        externalBlobDetails(dataKey).toByteString(),
+        initialTime,
+      )
+      val done = storageClient.writeVersion("$dateFolder/done", ByteString.EMPTY, doneTime)
+      var publishing = false
+      val sync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          RecordingThrottler(),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+          publishEventGroupActivities = null,
+          generationMatchedMetadataUpdater = storageClient.generationMatchedMetadataUpdater,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
+        )
+
+      assertFailsWith<ExternalDataAvailabilitySnapshotChangedException> {
+        sync.sync(
+          "$bucket/$dateFolder/done",
+          TestDataAvailabilitySyncLease.NAME,
+          doneBlobGeneration = done.generation,
+          externalDoneBlobCreateTime = done.createTime,
+          onStage = { publishing = it == DataAvailabilitySync.Stage.KINGDOM_PUBLICATION },
+          ensureLeaseActive = {
+            if (publishing) {
+              storageClient.writeVersion(
+                dataKey,
+                ByteString.copyFromUtf8("overwritten"),
+                doneTime.plusSeconds(1),
+              )
+            }
+          },
+        )
+      }
+
+      verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+      assertThat(storageClient.currentMetadata(blobKey = "$dateFolder/done"))
+        .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+    }
+
+  @Test
+  fun `sync rejects lost lease after Kingdom throttle wait`() = runBlocking {
+    val storageClient = VersionedBlobMetadataStorageClient()
+    val dateFolder = "edp/edpa_edp/model-line/modelLine1/2026-03-15"
+    val dataKey = "labeled/data.recordio"
+    val initialTime = Instant.parse("2026-03-15T00:01:00Z")
+    val doneTime = initialTime.plusSeconds(60)
+    storageClient.writeVersion(dataKey, ByteString.copyFromUtf8("data"), initialTime)
+    storageClient.writeVersion(
+      "$dateFolder/metadata.binpb",
+      externalBlobDetails(dataKey).toByteString(),
+      initialTime,
+    )
+    val done = storageClient.writeVersion("$dateFolder/done", ByteString.EMPTY, doneTime)
+    var publishing = false
+    var leaseActive = true
+    val sync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        object : Throttler {
+          override suspend fun <T> onReady(block: suspend () -> T): T {
+            if (publishing) {
+              leaseActive = false
+            }
+            return block()
+          }
+        },
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        publishEventGroupActivities = null,
+        generationMatchedMetadataUpdater = storageClient.generationMatchedMetadataUpdater,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
+      )
+
+    assertFailsWith<IllegalStateException> {
+      sync.sync(
+        "$bucket/$dateFolder/done",
+        TestDataAvailabilitySyncLease.NAME,
+        doneBlobGeneration = done.generation,
+        externalDoneBlobCreateTime = done.createTime,
+        onStage = { publishing = it == DataAvailabilitySync.Stage.KINGDOM_PUBLICATION },
+        ensureLeaseActive = { check(leaseActive) },
+      )
+    }
+
+    verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+    assertThat(storageClient.currentMetadata(blobKey = "$dateFolder/done"))
+      .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+  }
+
+  @Test
+  fun `external folder scan rejects an object created after done`() = runBlocking {
+    val storageClient = VersionedBlobMetadataStorageClient()
+    val dateFolder = "edp/edpa_edp/model-line/modelLine1/2026-03-15"
+    val doneKey = "$dateFolder/done"
+    val dataKey = "labeled/data.recordio"
+    val metadataKey = "$dateFolder/metadata.binpb"
+    val doneTime = Instant.parse("2026-03-15T00:02:00Z")
+    val lateTime = Instant.parse("2026-03-15T00:03:00Z")
+    val done = storageClient.writeVersion(doneKey, ByteString.EMPTY, doneTime)
+    storageClient.writeVersion(dataKey, ByteString.copyFromUtf8("data"), lateTime)
+    storageClient.writeVersion(metadataKey, externalBlobDetails(dataKey).toByteString(), lateTime)
+
+    assertFailsWith<ExternalDataAvailabilitySnapshotChangedException> {
+      newExternalDataAvailabilitySync(storageClient)
+        .sync(
+          "$bucket/$doneKey",
+          TestDataAvailabilitySyncLease.NAME,
+          doneBlobGeneration = done.generation,
+          externalDoneBlobCreateTime = done.createTime,
+          ensureLeaseActive = {},
+        )
+    }
+
+    verifyBlocking(impressionMetadataServiceMock, never()) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+    assertThat(storageClient.metadataUpdates).isEmpty()
+  }
+
+  @Test
+  fun `external folder scan rejects late objects and a newer done generation converges`() =
+    runBlocking {
+      val storageClient = VersionedBlobMetadataStorageClient()
+      val dateFolder = "edp/edpa_edp/model-line/modelLine1/2026-03-15"
+      val doneKey = "$dateFolder/done"
+      val dataAKey = "labeled/data-a.recordio"
+      val dataBKey = "labeled/data-b.recordio"
+      val metadataAKey = "$dateFolder/metadata-a.binpb"
+      val metadataBKey = "$dateFolder/metadata-b.binpb"
+      val initialTime = Instant.parse("2026-03-15T00:01:00Z")
+      val firstDoneTime = Instant.parse("2026-03-15T00:02:00Z")
+      val lateTime = Instant.parse("2026-03-15T00:03:00Z")
+      val secondDoneTime = Instant.parse("2026-03-15T00:04:00Z")
+      storageClient.writeVersion(dataAKey, ByteString.copyFromUtf8("data-a-v1"), initialTime)
+      storageClient.writeVersion(
+        metadataAKey,
+        externalBlobDetails(dataAKey).toByteString(),
+        initialTime,
+      )
+      val firstDone = storageClient.writeVersion(doneKey, ByteString.EMPTY, firstDoneTime)
+      val metricsEnv = createMetricsEnvironment()
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
+          publishEventGroupActivities = null,
+          metrics = metricsEnv.metrics,
+          generationMatchedMetadataUpdater = storageClient.generationMatchedMetadataUpdater,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
+        )
+      var lateObjectsWritten = false
+
+      try {
+        assertFailsWith<ExternalDataAvailabilitySnapshotChangedException> {
+          dataAvailabilitySync.sync(
+            "$bucket/$doneKey",
+            TestDataAvailabilitySyncLease.NAME,
+            doneBlobGeneration = firstDone.generation,
+            externalDoneBlobCreateTime = firstDone.createTime,
+            onStage = { stage ->
+              if (stage == DataAvailabilitySync.Stage.METADATA_PERSISTENCE && !lateObjectsWritten) {
+                storageClient.writeVersion(dataAKey, ByteString.copyFromUtf8("data-a-v2"), lateTime)
+                storageClient.writeVersion(dataBKey, ByteString.copyFromUtf8("data-b"), lateTime)
+                storageClient.writeVersion(
+                  metadataBKey,
+                  externalBlobDetails(dataBKey).toByteString(),
+                  lateTime,
+                )
+                lateObjectsWritten = true
+              }
+            },
+            ensureLeaseActive = {},
+          )
+        }
+
+        verifyBlocking(impressionMetadataServiceMock, never()) {
+          batchCreateImpressionMetadata(any())
+        }
+        verifyBlocking(dataProvidersServiceMock, never()) {
+          replaceDataAvailabilityIntervals(any())
+        }
+        assertThat(storageClient.metadataUpdates).isEmpty()
+
+        val secondDone = storageClient.writeVersion(doneKey, ByteString.EMPTY, secondDoneTime)
+        val outcome =
+          dataAvailabilitySync.sync(
+            "$bucket/$doneKey",
+            TestDataAvailabilitySyncLease.NAME,
+            doneBlobGeneration = secondDone.generation,
+            externalDoneBlobCreateTime = secondDone.createTime,
+            ensureLeaseActive = {},
+          )
+
+        assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+        val createRequest = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+        verifyBlocking(impressionMetadataServiceMock) {
+          batchCreateImpressionMetadata(createRequest.capture())
+        }
+        assertThat(createRequest.firstValue.requestsList.map { it.impressionMetadata.blobUri })
+          .containsExactly("$bucket/$metadataAKey", "$bucket/$metadataBKey")
+        val registered =
+          createRequest.firstValue.requestsList
+            .map { it.impressionMetadata }
+            .associateBy { it.blobUri }
+        assertThat(registered.getValue("$bucket/$metadataAKey").metadataBlobGeneration)
+          .isEqualTo(storageClient.currentGeneration(metadataAKey))
+        assertThat(registered.getValue("$bucket/$metadataAKey").impressionsBlobGeneration)
+          .isEqualTo(storageClient.currentGeneration(dataAKey))
+        assertThat(registered.getValue("$bucket/$metadataBKey").metadataBlobGeneration)
+          .isEqualTo(storageClient.currentGeneration(metadataBKey))
+        assertThat(registered.getValue("$bucket/$metadataBKey").impressionsBlobGeneration)
+          .isEqualTo(storageClient.currentGeneration(dataBKey))
+        verifyBlocking(dataProvidersServiceMock) { replaceDataAvailabilityIntervals(any()) }
+        assertThat(storageClient.metadataUpdates.map { it.generation }.distinct())
+          .containsExactly(
+            secondDone.generation,
+            storageClient.currentGeneration(metadataAKey),
+            storageClient.currentGeneration(metadataBKey),
+            storageClient.currentGeneration(dataAKey),
+            storageClient.currentGeneration(dataBKey),
+          )
+
+        assertFailsWith<ExternalDataAvailabilitySnapshotChangedException> {
+          dataAvailabilitySync.sync(
+            "$bucket/$doneKey",
+            TestDataAvailabilitySyncLease.NAME,
+            doneBlobGeneration = firstDone.generation,
+            externalDoneBlobCreateTime = firstDone.createTime,
+            ensureLeaseActive = {},
+          )
+        }
+        verifyBlocking(dataProvidersServiceMock, times(1)) {
+          replaceDataAvailabilityIntervals(any())
+        }
+
+        metricsEnv.metricReader.forceFlush()
+        val validationFailures =
+          metricsEnv.metricExporter.finishedMetricItems.single {
+            it.name == SNAPSHOT_VALIDATION_FAILURES_METRIC
+          }
+        assertThat(validationFailures.longSumData.points.single().value).isEqualTo(2L)
+      } finally {
+        metricsEnv.close()
+      }
+    }
+
+  @Test
+  fun `external folder scan does not stamp a replacement done before persistence`() = runBlocking {
+    val storageClient = VersionedBlobMetadataStorageClient()
+    val dateFolder = "edp/edpa_edp/model-line/modelLine1/2026-03-15"
+    val doneKey = "$dateFolder/done"
+    val dataKey = "labeled/data.recordio"
+    val metadataKey = "$dateFolder/metadata.binpb"
+    val initialTime = Instant.parse("2026-03-15T00:01:00Z")
+    val doneTime = Instant.parse("2026-03-15T00:02:00Z")
+    val replacementTime = Instant.parse("2026-03-15T00:03:00Z")
+    storageClient.writeVersion(dataKey, ByteString.copyFromUtf8("data"), initialTime)
+    storageClient.writeVersion(
+      metadataKey,
+      externalBlobDetails(dataKey).toByteString(),
+      initialTime,
+    )
+    val done = storageClient.writeVersion(doneKey, ByteString.EMPTY, doneTime)
+    val dataAvailabilitySync = newExternalDataAvailabilitySync(storageClient)
+    var replacementWritten = false
+
+    assertFailsWith<ExternalDataAvailabilitySnapshotChangedException> {
+      dataAvailabilitySync.sync(
+        "$bucket/$doneKey",
+        TestDataAvailabilitySyncLease.NAME,
+        doneBlobGeneration = done.generation,
+        externalDoneBlobCreateTime = done.createTime,
+        onStage = { stage ->
+          if (stage == DataAvailabilitySync.Stage.METADATA_PERSISTENCE && !replacementWritten) {
+            storageClient.writeVersion(doneKey, ByteString.EMPTY, replacementTime)
+            replacementWritten = true
+          }
+        },
+        ensureLeaseActive = {},
+      )
+    }
+
+    verifyBlocking(impressionMetadataServiceMock, never()) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+    assertThat(storageClient.currentMetadata(doneKey)).isEmpty()
+    assertThat(storageClient.metadataUpdates).isEmpty()
+  }
+
+  @Test
+  fun `external folder scan does not publish completion on a replacement done`() = runBlocking {
+    val storageClient = VersionedBlobMetadataStorageClient()
+    val dateFolder = "edp/edpa_edp/model-line/modelLine1/2026-03-15"
+    val doneKey = "$dateFolder/done"
+    val dataKey = "labeled/data.recordio"
+    val metadataKey = "$dateFolder/metadata.binpb"
+    val initialTime = Instant.parse("2026-03-15T00:01:00Z")
+    val doneTime = Instant.parse("2026-03-15T00:02:00Z")
+    val replacementTime = Instant.parse("2026-03-15T00:03:00Z")
+    storageClient.writeVersion(dataKey, ByteString.copyFromUtf8("data"), initialTime)
+    storageClient.writeVersion(
+      metadataKey,
+      externalBlobDetails(dataKey).toByteString(),
+      initialTime,
+    )
+    val done = storageClient.writeVersion(doneKey, ByteString.EMPTY, doneTime)
+    val dataAvailabilitySync = newExternalDataAvailabilitySync(storageClient)
+    var replacement: VersionedBlobMetadataStorageClient.TestBlob? = null
+    storageClient.beforeMetadataUpdate = { update ->
+      if (
+        replacement == null &&
+          update.blobKey == doneKey &&
+          DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY in update.metadata
+      ) {
+        replacement = storageClient.writeVersion(doneKey, ByteString.EMPTY, replacementTime)
+      }
+    }
+
+    assertFailsWith<ExternalDataAvailabilitySnapshotChangedException> {
+      dataAvailabilitySync.sync(
+        "$bucket/$doneKey",
+        TestDataAvailabilitySyncLease.NAME,
+        doneBlobGeneration = done.generation,
+        externalDoneBlobCreateTime = done.createTime,
+        ensureLeaseActive = {},
+      )
+    }
+
+    val replacementDone = checkNotNull(replacement)
+    assertThat(storageClient.currentMetadata(doneKey)).isEmpty()
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+
+    storageClient.beforeMetadataUpdate = null
+    val outcome =
+      dataAvailabilitySync.sync(
+        "$bucket/$doneKey",
+        TestDataAvailabilitySyncLease.NAME,
+        doneBlobGeneration = replacementDone.generation,
+        externalDoneBlobCreateTime = replacementDone.createTime,
+        ensureLeaseActive = {},
+      )
+
+    assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    assertThat(storageClient.currentMetadata(doneKey))
+      .containsKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+    verifyBlocking(dataProvidersServiceMock, times(2)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `external capture does not reread a missing referenced object recreated after done`() =
+    runBlocking {
+      val storageClient = VersionedBlobMetadataStorageClient()
+      val dateFolder = "edp/edpa_edp/model-line/modelLine1/2026-03-15"
+      val doneKey = "$dateFolder/done"
+      val dataKey = "labeled/recreated.recordio"
+      val metadataKey = "$dateFolder/metadata.binpb"
+      val initialTime = Instant.parse("2026-03-15T00:01:00Z")
+      val data =
+        storageClient.writeVersion(dataKey, ByteString.copyFromUtf8("initial"), initialTime)
+      storageClient.writeVersion(
+        metadataKey,
+        externalBlobDetails(dataKey).toByteString(),
+        initialTime,
+      )
+      val done =
+        storageClient.writeVersion(doneKey, ByteString.EMPTY, Instant.parse("2026-03-15T00:02:00Z"))
+      data.delete()
+      var referencedLookups = 0
+      storageClient.afterBlobLookup = { key, blob ->
+        if (key == dataKey) {
+          referencedLookups++
+          if (blob == null) {
+            storageClient.writeVersion(
+              dataKey,
+              ByteString.copyFromUtf8("late"),
+              Instant.parse("2026-03-15T00:03:00Z"),
+            )
+          }
+        }
+      }
+      val sync = newExternalDataAvailabilitySync(storageClient)
+
+      val failure =
+        assertFailsWith<IllegalStateException> {
+          sync.sync(
+            "$bucket/$doneKey",
+            TestDataAvailabilitySyncLease.NAME,
+            doneBlobGeneration = done.generation,
+            externalDoneBlobCreateTime = done.createTime,
+            ensureLeaseActive = {},
+          )
+        }
+      assertThat(failure.message).contains("is missing")
+      assertThat(referencedLookups).isEqualTo(1)
+      assertThat(storageClient.metadataUpdates).isEmpty()
+      verifyBlocking(impressionMetadataServiceMock, never()) {
+        batchCreateImpressionMetadata(any())
+      }
+      verifyBlocking(impressionMetadataServiceMock, never()) {
+        batchUpdateImpressionMetadata(any())
+      }
+      verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+
+      storageClient.afterBlobLookup = null
+      val nextDone =
+        storageClient.writeVersion(doneKey, ByteString.EMPTY, Instant.parse("2026-03-15T00:04:00Z"))
+      assertThat(
+          sync.sync(
+            "$bucket/$doneKey",
+            TestDataAvailabilitySyncLease.NAME,
+            doneBlobGeneration = nextDone.generation,
+            externalDoneBlobCreateTime = nextDone.createTime,
+            ensureLeaseActive = {},
+          )
+        )
+        .isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      val request = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchCreateImpressionMetadata(request.capture())
+      }
+      assertThat(
+          request.firstValue.requestsList.single().impressionMetadata.impressionsBlobGeneration
+        )
+        .isEqualTo(storageClient.currentGeneration(dataKey))
+    }
+
+  @Test
+  fun `generationless synchronization cannot clear a metadata generation`() = runBlocking {
+    assertGenerationlessSyncRejected(7L, 0L)
+  }
+
+  @Test
+  fun `generationless synchronization cannot clear an impressions generation`() = runBlocking {
+    assertGenerationlessSyncRejected(0L, 8L)
+  }
+
+  private suspend fun assertGenerationlessSyncRejected(
+    metadataGeneration: Long,
+    impressionsGeneration: Long,
+  ) {
+    val storageClient = FakeBlobMetadataStorageClient(FileSystemStorageClient(tempFolder.root))
+    val metadataKey = seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L)).single()
+    val existing = impressionMetadata {
+      name = "dataProviders/dataProvider123/impressionMetadata/pinned"
+      blobUri = "$bucket/$metadataKey"
+      blobTypeUrl = "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.BlobDetails"
+      modelLine = MODEL_LINE
+      interval = interval {
+        startTime = timestamp { seconds = 100 }
+        endTime = timestamp { seconds = 200 }
+      }
+      metadataBlobGeneration = metadataGeneration
+      impressionsBlobGeneration = impressionsGeneration
+    }
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += existing })
+    val failure =
+      assertFailsWith<IllegalStateException> {
+        newDataAvailabilitySync(storageClient).sync("$bucket/" + folderPrefix + "done")
+      }
+    assertThat(failure.message)
+      .isEqualTo("Version-pinned metadata requires snapshot-aware synchronization")
+    verifyBlocking(impressionMetadataServiceMock, never()) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, never()) { batchUpdateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, never()) {
+      batchUndeleteImpressionMetadata(any())
+    }
+    verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  private fun externalBlobDetails(dataBlobKey: String): BlobDetails = blobDetails {
+    blobUri = "$bucket/$dataBlobKey"
+    eventGroupReferenceId = "external-event-group"
+    modelLine = MODEL_LINE
+    interval = interval {
+      startTime = timestamp { seconds = 100 }
+      endTime = timestamp { seconds = 200 }
+    }
+  }
+
+  private fun newExternalDataAvailabilitySync(
+    storageClient: VersionedBlobMetadataStorageClient
+  ): DataAvailabilitySync =
+    DataAvailabilitySync(
+      "edp/edpa_edp",
+      storageClient,
+      dataProvidersStub,
+      impressionMetadataStub,
+      "dataProviders/dataProvider123",
+      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+      impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+      modelLineMap = emptyMap(),
+      errorIfGapsExist = true,
+      publishEventGroupActivities = null,
+      generationMatchedMetadataUpdater = storageClient.generationMatchedMetadataUpdater,
+      availabilityImpressionPaths = listOf("edp/edpa_edp"),
+    )
 
   @Test
   fun `register single contiguous day for existing model line using proto message`() = runBlocking {
@@ -357,6 +951,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     var leaseChecks = 0
@@ -443,6 +1038,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = publisher,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     val outcome = dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -486,6 +1082,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = publisher,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     val exception =
@@ -512,6 +1109,7 @@ class DataAvailabilitySyncTest {
     val outputKey = vidLabelerOutputKey(rawBlobUri, eventDate)
     val outputUri = "$bucket/$outputKey"
     val metadataKey = outputKey + ".metadata.binpb"
+    val doneBlobUri = vidLabelerDoneUri(eventDate)
     storageClient.writeBlob(outputKey, ByteString.copyFromUtf8("labeled"))
     writeVidLabelerMetadata(storageClient, metadataKey, outputUri, eventDate)
     storageClient.writeBlob(
@@ -529,7 +1127,7 @@ class DataAvailabilitySyncTest {
     val outcome =
       newDataAvailabilitySync(storageClient)
         .sync(
-          "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+          doneBlobUri,
           TestDataAvailabilitySyncLease.NAME,
           doneBlobGeneration = 77L,
           discoveryMode =
@@ -564,13 +1162,16 @@ class DataAvailabilitySyncTest {
       val outputUri = "$bucket/$outputKey"
       val metadataKey = outputKey + ".metadata.binpb"
       val oldRawImpressionUpload = "dataProviders/dataProvider123/rawImpressionUploads/upload-old"
+      val oldDoneKey =
+        "edp/edpa_edp/" +
+          LabeledImpressionsBlobKeys.forDone(oldRawImpressionUpload, MODEL_LINE, eventDate)
       storageClient.writeBlob(outputKey, ByteString.copyFromUtf8("labeled"))
       writeVidLabelerMetadata(storageClient, metadataKey, outputUri, eventDate)
-      writeVidLabelerDone(storageClient, eventDate)
+      storageClient.writeBlob(oldDoneKey, ByteString.EMPTY)
       val dataAvailabilitySync = newDataAvailabilitySync(storageClient)
 
       dataAvailabilitySync.sync(
-        "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+        "$bucket/$oldDoneKey",
         TestDataAvailabilitySyncLease.NAME,
         doneBlobGeneration = 76L,
         discoveryMode =
@@ -594,9 +1195,9 @@ class DataAvailabilitySyncTest {
           impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
         }
         .thenReturn(listImpressionMetadataResponse { impressionMetadata += existing })
-
+      writeVidLabelerDone(storageClient, eventDate)
       dataAvailabilitySync.sync(
-        "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+        vidLabelerDoneUri(eventDate),
         TestDataAvailabilitySyncLease.NAME,
         doneBlobGeneration = 77L,
         discoveryMode =
@@ -626,11 +1227,12 @@ class DataAvailabilitySyncTest {
         FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
       val eventDate = LocalDate.of(2026, 3, 15)
       writeVidLabelerDone(storageClient, eventDate)
+      val doneBlobUri = vidLabelerDoneUri(eventDate)
 
       val outcome =
         newDataAvailabilitySync(storageClient)
           .sync(
-            "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+            doneBlobUri,
             TestDataAvailabilitySyncLease.NAME,
             doneBlobGeneration = 77L,
             discoveryMode =
@@ -647,8 +1249,7 @@ class DataAvailabilitySyncTest {
       verifyBlocking(impressionMetadataServiceMock, times(0)) {
         batchCreateImpressionMetadata(any())
       }
-      val doneMetadata =
-        storageClient.blobMetadata.getValue("edp/edpa_edp/model-line/modelLine1/$eventDate/done")
+      val doneMetadata = storageClient.blobMetadata.getValue(vidLabelerDoneKey(eventDate))
       assertThat(doneMetadata)
         .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
       assertThat(doneMetadata[DataAvailabilityBlobs.SYNC_ID_KEY]).isNotEmpty()
@@ -662,6 +1263,7 @@ class DataAvailabilitySyncTest {
       FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
     val eventDate = LocalDate.of(2026, 3, 15)
     val rawBlobUri = "gs://raw-bucket/upload/input.parquet"
+    val doneBlobUri = vidLabelerDoneUri(eventDate)
     storageClient.writeBlob(
       vidLabelerOutputKey(rawBlobUri, eventDate),
       ByteString.copyFromUtf8("labeled"),
@@ -672,7 +1274,7 @@ class DataAvailabilitySyncTest {
       assertFailsWith<IllegalStateException> {
         newDataAvailabilitySync(storageClient)
           .sync(
-            "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+            doneBlobUri,
             TestDataAvailabilitySyncLease.NAME,
             doneBlobGeneration = 77L,
             discoveryMode =
@@ -695,6 +1297,7 @@ class DataAvailabilitySyncTest {
       FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
     val eventDate = LocalDate.of(2026, 3, 15)
     val rawBlobUri = "gs://raw-bucket/upload/input.parquet"
+    val doneBlobUri = vidLabelerDoneUri(eventDate)
     val outputKey = vidLabelerOutputKey(rawBlobUri, eventDate)
     writeVidLabelerMetadata(
       storageClient,
@@ -708,7 +1311,7 @@ class DataAvailabilitySyncTest {
       assertFailsWith<IllegalStateException> {
         newDataAvailabilitySync(storageClient)
           .sync(
-            "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+            doneBlobUri,
             TestDataAvailabilitySyncLease.NAME,
             doneBlobGeneration = 77L,
             discoveryMode =
@@ -723,6 +1326,34 @@ class DataAvailabilitySyncTest {
       }
 
     assertThat(error).hasMessageThat().contains("without its output")
+  }
+
+  @Test
+  fun `VID Labeler discovery rejects another upload's same-date marker`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val eventDate = LocalDate.of(2026, 3, 15)
+    writeVidLabelerDone(storageClient, eventDate)
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        newDataAvailabilitySync(storageClient)
+          .sync(
+            vidLabelerDoneUri(eventDate),
+            TestDataAvailabilitySyncLease.NAME,
+            doneBlobGeneration = 77L,
+            discoveryMode =
+              DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                rawImpressionUpload = "dataProviders/dp/rawImpressionUploads/other",
+                rawImpressionBlobUris = listOf("gs://raw-bucket/upload/input.parquet"),
+                modelLine = MODEL_LINE,
+                eventDate = eventDate,
+              ),
+            ensureLeaseActive = {},
+          )
+      }
+
+    assertThat(error).hasMessageThat().contains("expected upload")
   }
 
   private fun newDataAvailabilitySync(
@@ -740,10 +1371,22 @@ class DataAvailabilitySyncTest {
       modelLineMap = emptyMap(),
       errorIfGapsExist = true,
       publishEventGroupActivities = publishEventGroupActivities,
+      availabilityImpressionPaths = listOf("edp/edpa_edp"),
     )
 
   private fun vidLabelerOutputKey(rawBlobUri: String, eventDate: LocalDate): String =
     "edp/edpa_edp/" + LabeledImpressionsBlobKeys.forInput(rawBlobUri, MODEL_LINE, eventDate)
+
+  private fun vidLabelerDoneKey(
+    eventDate: LocalDate,
+    rawImpressionUpload: String = RAW_IMPRESSION_UPLOAD,
+  ): String =
+    "edp/edpa_edp/" + LabeledImpressionsBlobKeys.forDone(rawImpressionUpload, MODEL_LINE, eventDate)
+
+  private fun vidLabelerDoneUri(
+    eventDate: LocalDate,
+    rawImpressionUpload: String = RAW_IMPRESSION_UPLOAD,
+  ): String = "$bucket/${vidLabelerDoneKey(eventDate, rawImpressionUpload)}"
 
   private suspend fun writeVidLabelerMetadata(
     storageClient: StorageClient,
@@ -767,8 +1410,12 @@ class DataAvailabilitySyncTest {
     )
   }
 
-  private suspend fun writeVidLabelerDone(storageClient: StorageClient, eventDate: LocalDate) {
-    storageClient.writeBlob("edp/edpa_edp/model-line/modelLine1/$eventDate/done", ByteString.EMPTY)
+  private suspend fun writeVidLabelerDone(
+    storageClient: StorageClient,
+    eventDate: LocalDate,
+    rawImpressionUpload: String = RAW_IMPRESSION_UPLOAD,
+  ) {
+    storageClient.writeBlob(vidLabelerDoneKey(eventDate, rawImpressionUpload), ByteString.EMPTY)
   }
 
   @Test
@@ -790,6 +1437,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -818,6 +1466,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     val error =
@@ -856,6 +1505,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = mapOf(modelLineKey to mappedLines),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -886,6 +1536,7 @@ class DataAvailabilitySyncTest {
           mapOf("modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA" to emptyList()),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
     }
   }
@@ -908,6 +1559,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
       }
 
@@ -933,6 +1585,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     assertFailsWith<IllegalStateException> {
@@ -991,6 +1644,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -1023,6 +1677,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -1055,6 +1710,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -1089,6 +1745,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -1121,6 +1778,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     try {
@@ -1150,6 +1808,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     try {
@@ -1179,6 +1838,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     try {
@@ -1208,6 +1868,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     val exception =
@@ -1442,6 +2103,7 @@ class DataAvailabilitySyncTest {
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
           metrics = metricsEnv.metrics,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -1487,6 +2149,7 @@ class DataAvailabilitySyncTest {
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
           metrics = metricsEnv.metrics,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
@@ -1550,6 +2213,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
@@ -1623,6 +2287,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     dataAvailabilitySync.sync("$bucket/$doneBlobKey", DONE_BLOB_GENERATION)
@@ -1655,6 +2320,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     assertFailsWith<Exception> {
@@ -1703,6 +2369,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       // First sync — List returns empty, all entries are new -> batchCreate.
@@ -1761,6 +2428,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     // First sync — creates entries and stamps the marker.
@@ -1831,6 +2499,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -1879,6 +2548,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -1967,6 +2637,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -2009,6 +2680,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/some-other-edp"),
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -2040,6 +2712,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     dataAvailabilitySync.sync(
@@ -2092,6 +2765,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -2168,6 +2842,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -2227,6 +2902,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf(""),
       )
 
     dataAvailabilitySync.sync(
@@ -2291,6 +2967,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf(edpPath),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -2353,6 +3030,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf(edpPath),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -2395,6 +3073,7 @@ class DataAvailabilitySyncTest {
     storageClient: BlobMetadataStorageClient,
     edpPath: String,
     metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
+    availabilityImpressionPaths: List<String> = listOf(edpPath),
   ) =
     DataAvailabilitySync(
       edpPath,
@@ -2408,7 +3087,152 @@ class DataAvailabilitySyncTest {
       errorIfGapsExist = true,
       publishEventGroupActivities = null,
       metrics = metrics,
+      availabilityImpressionPaths = availabilityImpressionPaths,
     )
+
+  @Test
+  fun `internal synchronization accepts a missing date finalized under the external root`() =
+    runBlocking {
+      val storageClient = FakeBlobMetadataStorageClient(FileSystemStorageClient(tempFolder.root))
+      val internalPath = "edp/internal"
+      val externalPath = "edp/external"
+      val selectedFolder = "$internalPath/model-line/modelLine1/2026-03-15/"
+      seedBlobDetails(
+        storageClient,
+        selectedFolder,
+        listOf(300L to 400L),
+        edpImpressionPath = internalPath,
+      )
+      writeModelLineDate(storageClient, internalPath, "2026-03-13", finalized = true)
+      writeModelLineDate(storageClient, externalPath, "2026-03-14", finalized = true)
+      storageClient.writeBlob(
+        "$externalPath/model-line/modelLine1/2026-03-14/metadata.binpb",
+        externalBlobDetails("unused-external.recordio").toByteString(),
+      )
+
+      val outcome =
+        multiRootGapSync(storageClient, internalPath, listOf(internalPath, externalPath))
+          .sync("$bucket/" + selectedFolder + "done", DONE_BLOB_GENERATION)
+
+      assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      verifyBlocking(dataProvidersServiceMock) { replaceDataAvailabilityIntervals(any()) }
+      val request = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchCreateImpressionMetadata(request.capture())
+      }
+      assertThat(request.firstValue.requestsList.single().impressionMetadata.blobUri)
+        .isEqualTo("$bucket/" + selectedFolder + "metadata-0.binpb")
+    }
+
+  @Test
+  fun `internal synchronization blocks an unfinalized date under the external root`() =
+    runBlocking {
+      val storageClient = FakeBlobMetadataStorageClient(FileSystemStorageClient(tempFolder.root))
+      val internalPath = "edp/internal"
+      val externalPath = "edp/external"
+      val selectedFolder = "$internalPath/model-line/modelLine1/2026-03-15/"
+      seedBlobDetails(
+        storageClient,
+        selectedFolder,
+        listOf(300L to 400L),
+        edpImpressionPath = internalPath,
+      )
+      writeModelLineDate(storageClient, internalPath, "2026-03-13", finalized = true)
+      writeModelLineDate(storageClient, externalPath, "2026-03-14", finalized = false)
+
+      val outcome =
+        multiRootGapSync(storageClient, internalPath, listOf(internalPath, externalPath))
+          .sync("$bucket/" + selectedFolder + "done", DONE_BLOB_GENERATION)
+
+      assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+      verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  private fun multiRootGapSync(
+    storageClient: BlobMetadataStorageClient,
+    discoveryPath: String,
+    paths: List<String>,
+  ) =
+    DataAvailabilitySync(
+      edpImpressionPath = discoveryPath,
+      storageClient = storageClient,
+      dataProvidersStub = dataProvidersStub,
+      impressionMetadataServiceStub = impressionMetadataStub,
+      dataProviderName = "dataProviders/dataProvider123",
+      throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+      impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+      modelLineMap = emptyMap(),
+      errorIfGapsExist = true,
+      publishEventGroupActivities = null,
+      availabilityImpressionPaths = paths,
+    )
+
+  @Test
+  fun `sync blocks a missing date across both impression paths`(): Unit = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val externalPath = "edp/edpa_edp"
+    val internalPath = "vid-labeled-impressions/edp/edpa_edp"
+    writeModelLineDate(storageClient, internalPath, "2026-03-13", finalized = true)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val outcome =
+      newGapTestSync(
+          storageClient,
+          externalPath,
+          availabilityImpressionPaths = listOf(externalPath, internalPath),
+        )
+        .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `sync publishes when both impression paths together fill the date range`(): Unit =
+    runBlocking {
+      val storageClient =
+        FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+      val externalPath = "edp/edpa_edp"
+      val internalPath = "vid-labeled-impressions/edp/edpa_edp"
+      writeModelLineDate(storageClient, externalPath, "2026-03-13", finalized = true)
+      writeModelLineDate(storageClient, internalPath, "2026-03-14", finalized = true)
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      val outcome =
+        newGapTestSync(
+            storageClient,
+            externalPath,
+            availabilityImpressionPaths = listOf(externalPath, internalPath),
+          )
+          .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+      assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    }
+
+  @Test
+  fun `sync blocks an unfinalized date within the range of both impression paths`(): Unit =
+    runBlocking {
+      val storageClient =
+        FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+      val externalPath = "edp/edpa_edp"
+      val internalPath = "vid-labeled-impressions/edp/edpa_edp"
+      writeModelLineDate(storageClient, internalPath, "2026-03-13", finalized = true)
+      writeModelLineDate(storageClient, internalPath, "2026-03-14", finalized = false)
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+      val outcome =
+        newGapTestSync(
+            storageClient,
+            externalPath,
+            availabilityImpressionPaths = listOf(externalPath, internalPath),
+          )
+          .sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
+
+      assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.BLOCKED_GAPS)
+      verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    }
 
   @Test
   fun `sync skips replaceDataAvailabilityIntervals when an in-range date has no done blob`(): Unit =
@@ -2565,6 +3389,7 @@ class DataAvailabilitySyncTest {
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
           metrics = metricsEnv.metrics,
+          availabilityImpressionPaths = listOf(edpPath),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -2619,6 +3444,7 @@ class DataAvailabilitySyncTest {
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
           metrics = metricsEnv.metrics,
+          availabilityImpressionPaths = listOf(edpPath),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -2673,6 +3499,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = false,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf(edpPath),
       )
 
     // Should NOT throw despite gaps
@@ -2728,6 +3555,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = false,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf(edpPath),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -2770,6 +3598,7 @@ class DataAvailabilitySyncTest {
             errorIfGapsExist = false,
             publishEventGroupActivities = null,
             metrics = metricsEnv.metrics,
+            availabilityImpressionPaths = listOf(edpPath),
           )
 
         dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -2816,6 +3645,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -2870,6 +3700,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -2925,6 +3756,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       assertFailsWith<IllegalArgumentException> {
@@ -2967,6 +3799,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -3006,6 +3839,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -3047,6 +3881,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     assertFailsWith<IllegalArgumentException> {
@@ -3094,6 +3929,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -3163,6 +3999,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -3232,6 +4069,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -3287,6 +4125,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -3393,6 +4232,7 @@ class DataAvailabilitySyncTest {
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -3443,6 +4283,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       // First sync — List returns empty, so all entries are new -> batchCreate is called.
@@ -3596,6 +4437,7 @@ class DataAvailabilitySyncTest {
           modelLineMap = emptyMap(),
           errorIfGapsExist = true,
           publishEventGroupActivities = null,
+          availabilityImpressionPaths = listOf("edp/edpa_edp"),
         )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
@@ -3773,6 +4615,169 @@ class DataAvailabilitySyncTest {
       BlobEncoding.JSON -> ByteString.copyFromUtf8(JsonFormat.printer().print(this))
       BlobEncoding.EMPTY -> ByteString.copyFrom(this.toByteArray())
     }
+
+  private class VersionedBlobMetadataStorageClient :
+    BlobMetadataStorageClient, ConditionalOperationStorageClient {
+    data class MetadataUpdate(
+      val blobKey: String,
+      val generation: Long,
+      val customCreateTime: Instant?,
+      val metadata: Map<String, String>,
+    )
+
+    private data class Version(
+      val generation: Long,
+      val createTime: Instant,
+      val updateTime: Instant,
+      val content: ByteString,
+      val metadata: Map<String, String> = emptyMap(),
+    )
+
+    private val versions = linkedMapOf<String, MutableList<Version>>()
+    private var nextGeneration = 1L
+    val metadataUpdates = mutableListOf<MetadataUpdate>()
+    var beforeMetadataUpdate: ((MetadataUpdate) -> Unit)? = null
+    var afterBlobLookup: ((String, StorageClient.Blob?) -> Unit)? = null
+
+    val generationMatchedMetadataUpdater =
+      GenerationMatchedBlobMetadataUpdater { blobKey, generation, customCreateTime, metadata ->
+        updateBlobMetadata(blobKey, generation, customCreateTime, metadata)
+      }
+
+    fun writeVersion(blobKey: String, content: ByteString, createTime: Instant): TestBlob {
+      val version =
+        Version(
+          generation = nextGeneration++,
+          createTime = createTime,
+          updateTime = createTime,
+          content = content,
+        )
+      versions.getOrPut(blobKey) { mutableListOf() } += version
+      return TestBlob(blobKey, version)
+    }
+
+    fun currentGeneration(blobKey: String): Long =
+      checkNotNull(versions[blobKey]?.last()).generation
+
+    fun currentMetadata(blobKey: String): Map<String, String> =
+      checkNotNull(versions[blobKey]?.last()).metadata
+
+    override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob =
+      writeVersion(
+        blobKey,
+        content.toList().fold(ByteString.EMPTY, ByteString::concat),
+        Instant.now(),
+      )
+
+    override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
+      val blob = versions[blobKey]?.lastOrNull()?.let { TestBlob(blobKey, it) }
+      afterBlobLookup?.invoke(blobKey, blob)
+      return blob
+    }
+
+    override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> = flow {
+      for ((blobKey, history) in versions) {
+        if (prefix.isNullOrEmpty() || blobKey.startsWith(prefix)) {
+          emit(TestBlob(blobKey, history.last()))
+        }
+      }
+    }
+
+    override suspend fun updateBlobMetadata(
+      blobKey: String,
+      customCreateTime: Instant?,
+      metadata: Map<String, String>,
+    ) {
+      updateBlobMetadata(blobKey, currentGeneration(blobKey), customCreateTime, metadata)
+    }
+
+    private fun updateBlobMetadata(
+      blobKey: String,
+      generation: Long,
+      customCreateTime: Instant?,
+      metadata: Map<String, String>,
+    ) {
+      val update = MetadataUpdate(blobKey, generation, customCreateTime, metadata)
+      beforeMetadataUpdate?.invoke(update)
+      val history = checkNotNull(versions[blobKey])
+      val current = history.last()
+      if (current.generation != generation) {
+        throw ExternalDataAvailabilitySnapshotChangedException()
+      }
+      history[history.lastIndex] =
+        current.copy(updateTime = Instant.now(), metadata = current.metadata + metadata)
+      metadataUpdates += update
+    }
+
+    override suspend fun getFreshnessToken(blobKey: String): String? =
+      versions[blobKey]?.lastOrNull()?.generation?.toString()
+
+    override suspend fun writeBlobIfUnchanged(
+      blobKey: String,
+      freshnessToken: String,
+      content: Flow<ByteString>,
+    ): StorageClient.Blob {
+      val current = versions[blobKey]?.lastOrNull()
+      if (current?.generation != freshnessToken.toLongOrNull()) {
+        throw BlobChangedException("Blob changed")
+      }
+      return writeVersion(
+        blobKey,
+        content.toList().fold(ByteString.EMPTY, ByteString::concat),
+        Instant.now(),
+      )
+    }
+
+    override suspend fun writeBlobIfUnchanged(
+      blob: StorageClient.Blob,
+      content: Flow<ByteString>,
+    ): StorageClient.Blob {
+      val versionedBlob = blob as TestBlob
+      return writeBlobIfUnchanged(blob.blobKey, versionedBlob.freshnessToken, content)
+    }
+
+    override suspend fun writeBlobIfNotFound(
+      blobKey: String,
+      content: Flow<ByteString>,
+    ): StorageClient.Blob {
+      if (blobKey in versions) throw BlobChangedException("Blob already exists")
+      return writeVersion(
+        blobKey,
+        content.toList().fold(ByteString.EMPTY, ByteString::concat),
+        Instant.now(),
+      )
+    }
+
+    inner class TestBlob(override val blobKey: String, private val version: Version) :
+      ConditionalOperationStorageClient.Blob {
+      val generation: Long
+        get() = version.generation
+
+      override val storageClient: StorageClient
+        get() = this@VersionedBlobMetadataStorageClient
+
+      override val freshnessToken: String
+        get() = version.generation.toString()
+
+      override val size: Long
+        get() = version.content.size().toLong()
+
+      override val createTime: Instant
+        get() = version.createTime
+
+      override val updateTime: Instant
+        get() = version.updateTime
+
+      override val metadata: Map<String, String>
+        get() = version.metadata
+
+      override fun read(): Flow<ByteString> = flowOf(version.content)
+
+      override suspend fun delete() {
+        versions.remove(blobKey)
+      }
+    }
+  }
 
   /**
    * Seeds a directory with BlobDetails files where the blob_uri points to a custom path.

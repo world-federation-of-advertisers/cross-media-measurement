@@ -295,6 +295,16 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     if (impressionMetadata.outputDoneBlobGeneration != 0L) {
       set("OutputDoneBlobGeneration").to(impressionMetadata.outputDoneBlobGeneration)
     }
+    set("MetadataBlobGeneration")
+      .to(
+        if (impressionMetadata.metadataBlobGeneration == 0L) Value.int64(null)
+        else Value.int64(impressionMetadata.metadataBlobGeneration)
+      )
+    set("ImpressionsBlobGeneration")
+      .to(
+        if (impressionMetadata.impressionsBlobGeneration == 0L) Value.int64(null)
+        else Value.int64(impressionMetadata.impressionsBlobGeneration)
+      )
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     set("State").to(impressionMetadata.state)
@@ -657,6 +667,16 @@ private fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataField
           Value.int64(impressionMetadata.outputDoneBlobGeneration)
         }
       )
+    set("MetadataBlobGeneration")
+      .to(
+        if (impressionMetadata.metadataBlobGeneration == 0L) Value.int64(null)
+        else Value.int64(impressionMetadata.metadataBlobGeneration)
+      )
+    set("ImpressionsBlobGeneration")
+      .to(
+        if (impressionMetadata.impressionsBlobGeneration == 0L) Value.int64(null)
+        else Value.int64(impressionMetadata.impressionsBlobGeneration)
+      )
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     if (updateRequestId.isNotEmpty()) {
@@ -774,6 +794,8 @@ private object ImpressionMetadataEntity {
       ImpressionMetadata.CmmsModelLine,
       ImpressionMetadata.RawImpressionUploadResourceId,
       ImpressionMetadata.OutputDoneBlobGeneration,
+      ImpressionMetadata.MetadataBlobGeneration,
+      ImpressionMetadata.ImpressionsBlobGeneration,
       ImpressionMetadata.IntervalStartTime,
       ImpressionMetadata.IntervalEndTime,
       ImpressionMetadata.State,
@@ -810,6 +832,12 @@ private object ImpressionMetadataEntity {
         }
         if (!struct.isNull("OutputDoneBlobGeneration")) {
           outputDoneBlobGeneration = struct.getLong("OutputDoneBlobGeneration")
+        }
+        if (!struct.isNull("MetadataBlobGeneration")) {
+          metadataBlobGeneration = struct.getLong("MetadataBlobGeneration")
+        }
+        if (!struct.isNull("ImpressionsBlobGeneration")) {
+          impressionsBlobGeneration = struct.getLong("ImpressionsBlobGeneration")
         }
         interval =
           Interval.newBuilder()

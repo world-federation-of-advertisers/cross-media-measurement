@@ -346,6 +346,17 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "high_overlap_data_availability",
+    srcs = ["HighOverlapDataAvailability.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_blobs",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)
+
+kt_jvm_library(
     name = "high_overlap_dataset",
     srcs = ["HighOverlapDataset.kt"],
     data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],

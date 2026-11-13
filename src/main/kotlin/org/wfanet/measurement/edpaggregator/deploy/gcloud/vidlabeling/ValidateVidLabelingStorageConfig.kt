@@ -16,14 +16,14 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
-import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import picocli.CommandLine
 
 /** Validates labeled-output storage routing before deployment. */
@@ -38,6 +38,9 @@ class ValidateVidLabelingStorageConfig : Runnable {
   @CommandLine.Option(names = ["--data-availability-sync-config"], required = true)
   private lateinit var dataAvailabilitySyncConfigFile: File
 
+  @CommandLine.Option(names = ["--data-availability-monitor-config"], required = true)
+  private lateinit var dataAvailabilityMonitorConfigFile: File
+
   @CommandLine.Option(names = ["--data-watcher-config"], required = true)
   private lateinit var dataWatcherConfigFile: File
 
@@ -51,14 +54,23 @@ class ValidateVidLabelingStorageConfig : Runnable {
         dataAvailabilitySyncConfigFile,
         DataAvailabilitySyncConfigs.getDefaultInstance(),
       )
-    val typeRegistry = TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build()
+    val dataAvailabilityMonitorConfigs =
+      parseTextProto(
+        dataAvailabilityMonitorConfigFile,
+        DataAvailabilityMonitorConfigs.getDefaultInstance(),
+      )
     val watcherConfig =
-      parseTextProto(dataWatcherConfigFile, DataWatcherConfig.getDefaultInstance(), typeRegistry)
+      parseTextProto(
+        dataWatcherConfigFile,
+        DataWatcherConfig.getDefaultInstance(),
+        DataWatcherConfigTypes.registry,
+      )
     VidLabelingStorageConfigValidator.validate(
       dispatcherConfigs,
       monitorConfigs,
       syncConfigs,
       watcherConfig,
+      dataAvailabilityMonitorConfigs,
     )
   }
 

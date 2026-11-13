@@ -119,7 +119,16 @@ jobs:
         common --config=ci
         EOF
 
-    - name: Validate RequisitionFetcher and DataWatcher configuration
+    - name: Validate DataWatcher configuration
+      env:
+        CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
+      run: |
+        bazelisk run \
+          //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:ValidateDataWatcherConfig \
+          -- \
+          --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto"
+
+    - name: Validate direct RequisitionFetcher dispatch configuration
       env:
         CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
       run: |
@@ -140,11 +149,66 @@ jobs:
           --vid-labeling-config="$CONFIG_DIR/vid-labeling-dispatcher-config.textproto" \
           --vid-labeling-monitor-config="$CONFIG_DIR/vid-labeling-monitor-config.textproto" \
           --data-availability-sync-config="$CONFIG_DIR/data-availability-sync-config.textproto" \
+          --data-availability-monitor-config="$CONFIG_DIR/data-availability-monitor-config.textproto" \
           --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto"
+
+  pause-requisition-fetcher:
+    runs-on: ubuntu-24.04
+    needs: [publish-images, validate-direct-dispatch-config]
+    permissions:
+      contents: read
+      id-token: write
+    environment: ${{ inputs.environment }}
+    outputs:
+      paused-at: ${{ steps.pause.outputs.paused-at }}
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Load CMMS environment configuration
+      id: cmms-config
+      uses: ./.github/actions/load-cmms-environment
+      with:
+        environment: ${{ inputs.environment }}
+
+    - name: Authenticate to Google Cloud
+      if: ${{ inputs.apply }}
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
+
+    - name: Pause RequisitionFetcher scheduler
+      id: pause
+      if: ${{ inputs.apply }}
+      run: |
+        set -euo pipefail
+        error_file="$RUNNER_TEMP/requisition-fetcher-scheduler-error"
+        if state=$(gcloud scheduler jobs describe "$REQUISITION_FETCHER_SCHEDULER_JOB_NAME" \
+          --location="$GCLOUD_REGION" --project="$GCLOUD_PROJECT" \
+          --format='value(state)' 2>"$error_file"); then
+          if [[ "$state" != "PAUSED" ]]; then
+            gcloud scheduler jobs pause "$REQUISITION_FETCHER_SCHEDULER_JOB_NAME" \
+              --location="$GCLOUD_REGION" --project="$GCLOUD_PROJECT"
+          fi
+        elif grep -q 'NOT_FOUND:' "$error_file"; then
+          # A first deployment creates the scheduler paused during Terraform.
+          echo "paused-at=terraform" >> "$GITHUB_OUTPUT"
+          exit 0
+        else
+          cat "$error_file" >&2
+          exit 1
+        fi
+        state=$(gcloud scheduler jobs describe "$REQUISITION_FETCHER_SCHEDULER_JOB_NAME" \
+          --location="$GCLOUD_REGION" --project="$GCLOUD_PROJECT" --format='value(state)')
+        if [[ "$state" != "PAUSED" ]]; then
+          echo "::error::RequisitionFetcher scheduler is not paused"
+          exit 1
+        fi
+        echo "paused-at=$(date +%s)" >> "$GITHUB_OUTPUT"
 
   update-secure-computation-dlq-paused:
     uses: ./.github/workflows/configure-secure-computation-control-plane.yml
-    needs: [publish-images, validate-direct-dispatch-config]
+    needs: [publish-images, validate-direct-dispatch-config, pause-requisition-fetcher]
     secrets: inherit
     permissions:
       contents: read
@@ -172,7 +236,7 @@ jobs:
 
   wait-for-tee-consumers-to-stop:
     runs-on: ubuntu-24.04
-    needs: [terraform-quiesced]
+    needs: [terraform-quiesced, pause-requisition-fetcher]
     permissions:
       contents: read
       id-token: write
@@ -227,7 +291,36 @@ jobs:
 
     - name: Wait for in-flight RequisitionFetcher invocation to finish
       if: ${{ inputs.apply }}
-      run: sleep 600
+      env:
+        PAUSED_AT: ${{ needs.pause-requisition-fetcher.outputs.paused-at }}
+      run: |
+        set -euo pipefail
+        state=$(gcloud scheduler jobs describe "$REQUISITION_FETCHER_SCHEDULER_JOB_NAME" \
+          --location="$GCLOUD_REGION" --project="$GCLOUD_PROJECT" --format='value(state)')
+        if [[ "$state" != "PAUSED" ]]; then
+          echo "::error::RequisitionFetcher scheduler is not paused"
+          exit 1
+        fi
+        # A first deployment has no confirmed pause timestamp before Terraform.
+        # Keep its full drain window instead of estimating the scheduler creation time.
+        if [[ "$PAUSED_AT" == "terraform" ]]; then
+          PAUSED_AT=$(date +%s)
+        fi
+        if [[ ! "$PAUSED_AT" =~ ^[0-9]+$ ]]; then
+          echo "::error::Missing or invalid RequisitionFetcher pause time"
+          exit 1
+        fi
+        elapsed=$(( $(date +%s) - PAUSED_AT ))
+        if (( elapsed < 0 )); then
+          echo "::error::RequisitionFetcher pause time is in the future"
+          exit 1
+        fi
+        # Preparation counts toward the existing ten-minute drain window.
+        remaining=$(( 600 - elapsed ))
+        if (( remaining > 0 )); then
+          echo "Waiting $remaining seconds for the RequisitionFetcher drain window"
+          sleep "$remaining"
+        fi
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
@@ -381,9 +474,8 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
 
-  # Runs after run-edpa-reporting-integration-test, which seeds EventGroups for the same EDPs;
-  # concurrent EventGroupSync runs for one EDP race. That job is skipped unless requested and may
-  # fail independently, so each deployment job is required explicitly instead.
+  # Reporting reads the separately seeded high-overlap dataset, so these suites can run together.
+  # Each deployment must succeed before the EDPA cloud test starts.
   run-edpa-cloud-test:
     if: >-
       ${{ inputs.run-tests && !cancelled()
@@ -405,8 +497,7 @@ jobs:
       update-simulators,
       update-reporting-v2,
       update-secure-computation,
-      update-edp-aggregator-service,
-      run-edpa-reporting-integration-test
+      update-edp-aggregator-service
     ]
     uses: ./.github/workflows/edpa-cloud-test.yml
     secrets: inherit
@@ -418,7 +509,7 @@ jobs:
 
   run-event-group-sync-scale-test:
     if: inputs.run-tests && inputs.environment != 'dev'
-    needs: [run-edpa-cloud-test]
+    needs: [run-edpa-cloud-test, run-edpa-reporting-integration-test]
     uses: ./.github/workflows/event-group-sync-scale-test.yml
     secrets: inherit
     permissions:
@@ -452,7 +543,7 @@ jobs:
 
   run-dashboard-isolation-test:
     if: inputs.run-tests
-    needs: [terraform, run-tests, run-edpa-cloud-test]
+    needs: [terraform, run-tests, run-edpa-cloud-test, run-edpa-reporting-integration-test]
     uses: ./.github/workflows/dashboard-isolation-test.yml
     secrets: inherit
     permissions:
@@ -463,7 +554,7 @@ jobs:
 
   run-dashboard-compliance-check:
     if: inputs.run-tests
-    needs: [terraform, run-tests, run-edpa-cloud-test]
+    needs: [terraform, run-tests, run-edpa-cloud-test, run-edpa-reporting-integration-test]
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -523,8 +614,8 @@ jobs:
       successfully-deployed: ${{ needs.publish-images.result == 'success' && needs.run-tests.result == 'success' && needs.run-edpa-cloud-test.result == 'success' && (inputs.environment == 'dev' || needs.run-event-group-sync-scale-test.result == 'success') && needs.run-edpa-reporting-integration-test.result == 'success' && needs.run-dashboard-isolation-test.result == 'success' && needs.run-dashboard-compliance-check.result == 'success' && needs.update-secure-computation.result == 'success' && needs.scan-images.result == 'success' }}
 
   report-incomplete-rollout:
-    if: ${{ always() && inputs.apply && needs.update-secure-computation-dlq-paused.result != 'skipped' && needs.terraform.result != 'success' }}
-    needs: [publish-images, update-secure-computation-dlq-paused, terraform-quiesced, wait-for-tee-consumers-to-stop, update-kingdom, update-secure-computation, update-edp-aggregator-service, terraform]
+    if: ${{ always() && inputs.apply && needs.pause-requisition-fetcher.result != 'skipped' && needs.terraform.result != 'success' }}
+    needs: [publish-images, pause-requisition-fetcher, update-secure-computation-dlq-paused, terraform-quiesced, wait-for-tee-consumers-to-stop, update-kingdom, update-secure-computation, update-edp-aggregator-service, terraform]
     runs-on: ubuntu-24.04
     permissions:
       contents: read

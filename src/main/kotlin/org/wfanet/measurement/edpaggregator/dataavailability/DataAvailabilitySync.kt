@@ -27,6 +27,7 @@ import io.opentelemetry.api.trace.Span
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
@@ -77,8 +78,25 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKey
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
+
+/** Updates an existing blob only while it remains at [generation]. */
+fun interface GenerationMatchedBlobMetadataUpdater {
+  suspend fun update(
+    blobKey: String,
+    generation: Long,
+    customCreateTime: Instant?,
+    metadata: Map<String, String>,
+  )
+}
+
+/** Indicates that an external labeled-output revision changed while it was being synchronized. */
+class ExternalDataAvailabilitySnapshotChangedException(
+  message: String = "External labeled-output snapshot changed during synchronization",
+  cause: Throwable? = null,
+) : Exception(message, cause)
 
 /**
  * Synchronizes impression data availability between Cloud Storage and the Kingdom.
@@ -125,6 +143,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @property publishEventGroupActivities Optional function for publishing positive EventGroup
  *   activity derived from finalized impression metadata.
  * @property kingdomPublicationTimeout Deadline for publishing availability to the Kingdom.
+ * @property availabilityImpressionPaths All impression roots checked for provider-wide date gaps.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
@@ -140,6 +159,8 @@ class DataAvailabilitySync(
   private val publishEventGroupActivities: (suspend (Collection<ImpressionMetadata>) -> Int)?,
   private val kingdomPublicationTimeout: Duration = DEFAULT_KINGDOM_PUBLICATION_TIMEOUT,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
+  private val availabilityImpressionPaths: List<String> = listOf(edpImpressionPath),
+  private val generationMatchedMetadataUpdater: GenerationMatchedBlobMetadataUpdater? = null,
 ) {
   enum class Outcome {
     NO_WORK,
@@ -158,6 +179,9 @@ class DataAvailabilitySync(
   sealed interface DiscoveryMode {
     /** Lists the done object's folder. Used for externally uploaded labeled impressions. */
     object FolderScan : DiscoveryMode
+
+    /** Selects metadata sidecars from the done object's folder. */
+    data class SelectedMetadataBlobs(val blobKeys: Set<String>) : DiscoveryMode
 
     /**
      * Derives the exact VID Labeler output pair for each registered raw-impression input.
@@ -184,16 +208,82 @@ class DataAvailabilitySync(
   private data class ImpressionMetadataWithBlobKey(
     val impressionMetadata: ImpressionMetadata,
     val impressionsBlobKey: String,
+    val metadataBlob: CapturedBlob? = null,
+    val impressionsBlob: CapturedBlob? = null,
   )
 
   private data class MetadataBlobCandidate(
     val blob: StorageClient.Blob,
     val expectedImpressionBlobUri: String? = null,
+    val capturedBlob: CapturedBlob? = null,
+    val content: ByteString? = null,
   )
+
+  private data class CapturedBlob(val blob: StorageClient.Blob, val generation: Long)
+
+  private inner class ExternalFolderSnapshot(
+    private val folderPrefix: String,
+    private val folderBlobs: Map<String, CapturedBlob>,
+    private val finalizedAt: Instant,
+    private val conditionalStorageClient: ConditionalOperationStorageClient,
+  ) {
+    private val referencedBlobs = mutableMapOf<String, CapturedBlob>()
+
+    val metadataBlobs: List<CapturedBlob>
+      get() = folderBlobs.values.filter { DataAvailabilityBlobs.isMetadataBlob(it.blob) }
+
+    suspend fun getReferencedBlob(blobKey: String): CapturedBlob? {
+      referencedBlobs[blobKey]?.let {
+        return it
+      }
+      val captured =
+        folderBlobs[blobKey]
+          ?: storageClient.getBlob(blobKey)?.let { captureBlob(it) }
+          ?: return null
+      validateCreationTime(captured)
+      referencedBlobs[blobKey] = captured
+      return captured
+    }
+
+    suspend fun validate() {
+      val currentFolderVersions =
+        storageClient.listBlobs(folderPrefix).toList().associate { blob ->
+          blob.blobKey to captureBlob(blob).generation
+        }
+      val capturedFolderVersions = folderBlobs.mapValues { it.value.generation }
+      if (currentFolderVersions != capturedFolderVersions) {
+        throw ExternalDataAvailabilitySnapshotChangedException()
+      }
+      for ((blobKey, captured) in referencedBlobs) {
+        if (blobKey in folderBlobs) continue
+        val currentGeneration = conditionalStorageClient.getFreshnessToken(blobKey)?.toLongOrNull()
+        if (currentGeneration != captured.generation) {
+          throw ExternalDataAvailabilitySnapshotChangedException()
+        }
+      }
+    }
+
+    private fun validateCreationTime(captured: CapturedBlob) {
+      if (captured.blob.createTime.isAfter(finalizedAt)) {
+        throw ExternalDataAvailabilitySnapshotChangedException(
+          "External labeled-output object was created after its completion marker"
+        )
+      }
+    }
+  }
 
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
     require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
+    require(availabilityImpressionPaths.isNotEmpty()) {
+      "availabilityImpressionPaths must not be empty"
+    }
+    require(edpImpressionPath in availabilityImpressionPaths) {
+      "availabilityImpressionPaths must include the discovery root"
+    }
+    require(availabilityImpressionPaths.all { !it.startsWith("/") && !it.endsWith("/") }) {
+      "availabilityImpressionPaths must not start or end with a slash"
+    }
     require(impressionMetadataBatchSize > 0) {
       "impressionMetadataBatchSize must be greater than zero"
     }
@@ -219,6 +309,8 @@ class DataAvailabilitySync(
    * @param dataAvailabilitySyncLease synchronization lease resource name.
    * @param ensureLeaseActive validates the synchronization lease before each mutation.
    * @param doneBlobGeneration the immutable positive generation of that object.
+   * @param externalDoneBlobCreateTime creation time of an externally produced completion marker.
+   *   When set for folder discovery, the whole folder is bound to that finalized revision.
    * @param discoveryMode folder scanning for external writes or exact deterministic output
    *   discovery for a VID Labeler WorkItem.
    * @param onStage called before synchronization enters a new stage.
@@ -227,6 +319,7 @@ class DataAvailabilitySync(
     doneBlobPath: String,
     dataAvailabilitySyncLease: String,
     doneBlobGeneration: Long,
+    externalDoneBlobCreateTime: Instant? = null,
     discoveryMode: DiscoveryMode = DiscoveryMode.FolderScan,
     onStage: (Stage) -> Unit = {},
     ensureLeaseActive: suspend () -> Unit,
@@ -252,27 +345,58 @@ class DataAvailabilitySync(
       }
 
       val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
+      val doneBlobFolderPrefix = "$doneBlobFolderPath/"
+      val externalSnapshot =
+        if (
+          discoveryMode !is DiscoveryMode.VidLabelerOutputs && externalDoneBlobCreateTime != null
+        ) {
+          captureExternalFolderSnapshot(
+            doneBlobUri,
+            doneBlobGeneration,
+            externalDoneBlobCreateTime,
+            doneBlobFolderPrefix,
+          )
+        } else {
+          null
+        }
       val vidLabelerOutputs = discoveryMode as? DiscoveryMode.VidLabelerOutputs
       if (vidLabelerOutputs != null) {
-        val modelLineId =
-          requireNotNull(ModelLineKey.fromName(vidLabelerOutputs.modelLine)) {
-              "modelLine is not a valid ModelLine resource name"
-            }
-            .modelLineId
         require(
           doneBlobUri.key ==
-            "$edpImpressionPath/model-line/$modelLineId/${vidLabelerOutputs.eventDate}/done"
+            "$edpImpressionPath/" +
+              LabeledImpressionsBlobKeys.forDone(
+                vidLabelerOutputs.rawImpressionUpload,
+                vidLabelerOutputs.modelLine,
+                vidLabelerOutputs.eventDate,
+              )
         ) {
-          "Done-object path does not match the expected model line, event date, and filename"
+          "Done-object path does not match the expected upload, model line, event date, and " +
+            "filename"
         }
         require(doneBlobGeneration > 0L) {
           "doneBlobGeneration must be positive for VID Labeler output discovery"
         }
       }
+      val selectedMetadataKeys = (discoveryMode as? DiscoveryMode.SelectedMetadataBlobs)?.blobKeys
       val impressionMetadataBlobs: Flow<MetadataBlobCandidate> =
         when (discoveryMode) {
-          DiscoveryMode.FolderScan ->
-            storageClient.listBlobs(doneBlobFolderPath).map { MetadataBlobCandidate(it) }
+          DiscoveryMode.FolderScan,
+          is DiscoveryMode.SelectedMetadataBlobs ->
+            externalSnapshot
+              ?.metadataBlobs
+              ?.asFlow()
+              ?.filter { selectedMetadataKeys == null || it.blob.blobKey in selectedMetadataKeys }
+              ?.map { captured ->
+                MetadataBlobCandidate(
+                  blob = captured.blob,
+                  capturedBlob = captured,
+                  content = readCapturedBlob(captured),
+                )
+              }
+              ?: storageClient
+                .listBlobs(doneBlobFolderPrefix)
+                .filter { selectedMetadataKeys == null || it.blobKey in selectedMetadataKeys }
+                .map { MetadataBlobCandidate(it) }
           is DiscoveryMode.VidLabelerOutputs ->
             discoverVidLabelerMetadataBlobs(discoveryMode, doneBlobUri)
         }
@@ -286,6 +410,7 @@ class DataAvailabilitySync(
           vidLabelerOutputs?.modelLine,
           vidLabelerOutputs?.eventDate,
           vidLabelerOutputs?.rawImpressionUpload,
+          externalSnapshot,
         )
 
       if (impressionMetadataMap.isEmpty()) {
@@ -297,8 +422,9 @@ class DataAvailabilitySync(
           // stuck.
           val syncId = UUID.randomUUID().toString()
           ensureLeaseActive()
-          storageClient.updateBlobMetadata(
+          updateBlobMetadata(
             blobKey = doneBlobUri.key,
+            expectedGeneration = doneBlobGeneration,
             metadata =
               mapOf(
                 DataAvailabilityBlobs.SYNC_ID_KEY to syncId,
@@ -319,14 +445,16 @@ class DataAvailabilitySync(
       // 2. Announce this attempt before mutating ImpressionMetadata. This invalidates any
       // publication marker left by an earlier attempt, so a failure during persistence remains
       // visible and retryable.
+      onStage(Stage.METADATA_PERSISTENCE)
+      externalSnapshot?.validate()
       ensureLeaseActive()
-      storageClient.updateBlobMetadata(
+      updateBlobMetadata(
         blobKey = doneBlobUri.key,
+        expectedGeneration = doneBlobGeneration,
         metadata = mapOf(DataAvailabilityBlobs.SYNC_ID_KEY to syncId),
       )
 
       // 3. Persist ImpressionMetadata (create new, update changed)
-      onStage(Stage.METADATA_PERSISTENCE)
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
         saveImpressionMetadata(metadataWithBlobKeys, dataAvailabilitySyncLease, ensureLeaseActive)
       }
@@ -342,8 +470,9 @@ class DataAvailabilitySync(
       // Record metadata-store completion separately. Disjoint marker writes prevent an older
       // overlapping attempt from overwriting a newer attempt's ID and falsely completing it.
       ensureLeaseActive()
-      storageClient.updateBlobMetadata(
+      updateBlobMetadata(
         blobKey = doneBlobUri.key,
+        expectedGeneration = doneBlobGeneration,
         metadata =
           mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
       )
@@ -395,12 +524,15 @@ class DataAvailabilitySync(
       onStage(Stage.GAP_POLICY)
       val blockedDetails = mutableListOf<String>()
       for (modelLineKey in impressionMetadataMap.keys) {
-        val modelLinePrefix =
-          if (edpImpressionPath.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
-          else "$edpImpressionPath/model-line/${modelLineKey.modelLineId}/"
-        val enumerated = DataAvailabilityBlobs.enumerateDateInfo(storageClient, modelLinePrefix)
-        val finalized = enumerated.datesWithDoneBlob.keys
-        val unfinalized = enumerated.datesWithoutDoneBlob
+        val enumerated =
+          availabilityImpressionPaths.distinct().map { impressionPath ->
+            val modelLinePrefix =
+              if (impressionPath.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
+              else "$impressionPath/model-line/${modelLineKey.modelLineId}/"
+            DataAvailabilityBlobs.enumerateDateInfo(storageClient, modelLinePrefix)
+          }
+        val finalized = enumerated.flatMap { it.datesWithDoneBlob.keys }.toSet()
+        val unfinalized = enumerated.flatMap { it.datesWithoutDoneBlob }.toSet()
         val gaps = DataAvailabilityBlobs.findGaps(finalized + unfinalized)
         val earliest = finalized.minOrNull()
         val latest = finalized.maxOrNull()
@@ -463,9 +595,10 @@ class DataAvailabilitySync(
           return Outcome.BLOCKED_GAPS
         }
       }
-      ensureLeaseActive()
       onStage(Stage.KINGDOM_PUBLICATION)
       throttler.onReady {
+        ensureLeaseActive()
+        externalSnapshot?.validate()
         try {
           dataProvidersStub
             .withDeadlineAfter(kingdomPublicationTimeout.toNanos(), TimeUnit.NANOSECONDS)
@@ -519,8 +652,9 @@ class DataAvailabilitySync(
       // update the publication ID here. If another attempt has written a newer sync ID while this
       // attempt was publishing, the resulting mismatch must remain visible and retryable.
       ensureLeaseActive()
-      storageClient.updateBlobMetadata(
+      updateBlobMetadata(
         blobKey = doneBlobUri.key,
+        expectedGeneration = doneBlobGeneration,
         metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),
       )
       Span.current()
@@ -544,6 +678,12 @@ class DataAvailabilitySync(
       )
       return Outcome.PUBLISHED
     } catch (e: Exception) {
+      if (e is ExternalDataAvailabilitySnapshotChangedException) {
+        metrics.snapshotValidationFailuresCounter.add(
+          1,
+          Attributes.of(DATA_PROVIDER_KEY_ATTR, dataProviderName),
+        )
+      }
       // Record sync duration even on failure
       recordSyncDuration(syncStartTime, SYNC_STATUS_FAILED)
       throw e
@@ -559,6 +699,90 @@ class DataAvailabilitySync(
       syncDuration,
       Attributes.of(DATA_PROVIDER_KEY_ATTR, dataProviderName, SYNC_STATUS_ATTR, syncStatus),
     )
+  }
+
+  private suspend fun captureExternalFolderSnapshot(
+    doneBlobUri: BlobUri,
+    doneBlobGeneration: Long,
+    doneBlobCreateTime: Instant,
+    folderPrefix: String,
+  ): ExternalFolderSnapshot {
+    val conditionalStorageClient =
+      storageClient as? ConditionalOperationStorageClient
+        ?: throw IllegalStateException(
+          "External folder synchronization requires version-aware storage"
+        )
+    checkNotNull(generationMatchedMetadataUpdater) {
+      "External folder synchronization requires generation-matched metadata updates"
+    }
+    val doneBlob =
+      storageClient.getBlob(doneBlobUri.key)?.let { captureBlob(it) }
+        ?: throw ExternalDataAvailabilitySnapshotChangedException(
+          "External labeled-output completion marker is missing"
+        )
+    if (
+      doneBlob.generation != doneBlobGeneration || doneBlob.blob.createTime != doneBlobCreateTime
+    ) {
+      throw ExternalDataAvailabilitySnapshotChangedException(
+        "External labeled-output completion marker changed before discovery"
+      )
+    }
+    val folderBlobs =
+      storageClient.listBlobs(folderPrefix).toList().associate { blob ->
+        blob.blobKey to captureBlob(blob)
+      }
+    if (folderBlobs[doneBlobUri.key]?.generation != doneBlobGeneration) {
+      throw ExternalDataAvailabilitySnapshotChangedException(
+        "External labeled-output completion marker changed during discovery"
+      )
+    }
+    if (
+      folderBlobs.values.any { captured ->
+        captured.blob.blobKey != doneBlobUri.key &&
+          captured.blob.createTime.isAfter(doneBlobCreateTime)
+      }
+    ) {
+      throw ExternalDataAvailabilitySnapshotChangedException(
+        "External labeled-output object was created after its completion marker"
+      )
+    }
+    return ExternalFolderSnapshot(
+      folderPrefix,
+      folderBlobs,
+      doneBlobCreateTime,
+      conditionalStorageClient,
+    )
+  }
+
+  private fun captureBlob(blob: StorageClient.Blob): CapturedBlob {
+    val generation =
+      (blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken?.toLongOrNull()
+        ?: throw IllegalStateException("Storage blob does not expose a numeric generation")
+    return CapturedBlob(blob, generation)
+  }
+
+  private suspend fun readCapturedBlob(captured: CapturedBlob): ByteString {
+    return try {
+      captured.blob.read().flatten()
+    } catch (e: Exception) {
+      throw ExternalDataAvailabilitySnapshotChangedException(
+        "Captured external labeled-output object version is unavailable",
+        e,
+      )
+    }
+  }
+
+  private suspend fun updateBlobMetadata(
+    blobKey: String,
+    expectedGeneration: Long?,
+    customCreateTime: Instant? = null,
+    metadata: Map<String, String> = emptyMap(),
+  ) {
+    if (expectedGeneration == null || generationMatchedMetadataUpdater == null) {
+      storageClient.updateBlobMetadata(blobKey, customCreateTime, metadata)
+      return
+    }
+    generationMatchedMetadataUpdater.update(blobKey, expectedGeneration, customCreateTime, metadata)
   }
 
   private fun emitDateStatusMetric(modelLineKey: ModelLineKey, status: String, count: Int) {
@@ -603,6 +827,14 @@ class DataAvailabilitySync(
         if (existing == null) {
           toCreate.add(item)
         } else {
+          check(
+            (existing.metadataBlobGeneration == 0L ||
+              item.impressionMetadata.metadataBlobGeneration > 0L) &&
+              (existing.impressionsBlobGeneration == 0L ||
+                item.impressionMetadata.impressionsBlobGeneration > 0L)
+          ) {
+            "Version-pinned metadata requires snapshot-aware synchronization"
+          }
           if (existing.state == ImpressionMetadata.State.DELETED) {
             toRestore.add(existing)
           }
@@ -618,6 +850,8 @@ class DataAvailabilitySync(
               ImpressionMetadataWithBlobKey(
                 impressionMetadata = scanned,
                 impressionsBlobKey = item.impressionsBlobKey,
+                metadataBlob = item.metadataBlob,
+                impressionsBlob = item.impressionsBlob,
               )
             )
           }
@@ -761,8 +995,9 @@ class DataAvailabilitySync(
         val metadataBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
         val customCreateTime = resultMetadata.interval.startTime.toInstant()
 
-        storageClient.updateBlobMetadata(
+        updateBlobMetadata(
           blobKey = metadataBlobUri.key,
+          expectedGeneration = item.metadataBlob?.generation,
           customCreateTime = customCreateTime,
           metadata =
             mapOf(
@@ -774,8 +1009,9 @@ class DataAvailabilitySync(
         // Also update the impressions blob with Custom-Time (no resource ID needed)
         ensureLeaseActive()
         val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(blobUri)
-        storageClient.updateBlobMetadata(
+        updateBlobMetadata(
           blobKey = impressionsBlobKey,
+          expectedGeneration = item.impressionsBlob?.generation,
           customCreateTime = customCreateTime,
         )
       }
@@ -973,6 +1209,7 @@ class DataAvailabilitySync(
     expectedModelLine: String?,
     expectedEventDate: LocalDate?,
     rawImpressionUpload: String?,
+    externalSnapshot: ExternalFolderSnapshot?,
   ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
     val impressionMetadataMap =
       mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
@@ -985,7 +1222,7 @@ class DataAvailabilitySync(
         return@collect
       }
       val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
-      val bytes: ByteString = impressionMetadataBlob.read().flatten()
+      val bytes: ByteString = candidate.content ?: impressionMetadataBlob.read().flatten()
 
       // Build the blob details object
       val blobDetails =
@@ -1067,7 +1304,10 @@ class DataAvailabilitySync(
           else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
         }
       logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
-      val impressionBlob = storageClient.getBlob(impressionBlobUri.key)
+      val capturedImpressionBlob = externalSnapshot?.getReferencedBlob(impressionBlobUri.key)
+      val impressionBlob =
+        if (externalSnapshot != null) capturedImpressionBlob?.blob
+        else storageClient.getBlob(impressionBlobUri.key)
       if (impressionBlob == null) {
         val eventDate =
           blobDetails.interval.startTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate()
@@ -1087,6 +1327,8 @@ class DataAvailabilitySync(
             this.rawImpressionUpload = rawImpressionUpload
           }
           outputDoneBlobGeneration = doneBlobGeneration
+          metadataBlobGeneration = candidate.capturedBlob?.generation ?: 0L
+          impressionsBlobGeneration = capturedImpressionBlob?.generation ?: 0L
           interval = blobDetails.interval
           entityKeys += blobDetails.entityKeysList.flatMap { it.toEntityKeys() }
         }
@@ -1100,6 +1342,8 @@ class DataAvailabilitySync(
             ImpressionMetadataWithBlobKey(
               impressionMetadata = impressionMetadata,
               impressionsBlobKey = impressionBlobUri.key,
+              metadataBlob = candidate.capturedBlob,
+              impressionsBlob = capturedImpressionBlob,
             )
           )
       }
@@ -1107,15 +1351,7 @@ class DataAvailabilitySync(
     return impressionMetadataMap
   }
 
-  /**
-   * Generates a deterministic UUID string from the content-bearing fields of an
-   * [ImpressionMetadata].
-   *
-   * The hash includes blob_uri, model_line, interval, event_group_reference_id, and entity_keys
-   * (sorted for determinism). This ensures the same request_id is produced when the content is
-   * identical, enabling idempotent skipping. When any field changes (e.g., entity_keys are added),
-   * a new request_id is generated, signaling the server to apply the update.
-   */
+  /** Returns a deterministic request ID for metadata contents and captured generations. */
   private fun contentAwareRequestId(metadata: ImpressionMetadata): String {
     val canonicalParts = buildString {
       append(metadata.blobUri)
@@ -1135,6 +1371,10 @@ class DataAvailabilitySync(
       append(metadata.rawImpressionUpload)
       append(FIELD_SEPARATOR)
       append(metadata.outputDoneBlobGeneration)
+      append(FIELD_SEPARATOR)
+      append(metadata.metadataBlobGeneration)
+      append(FIELD_SEPARATOR)
+      append(metadata.impressionsBlobGeneration)
       append(FIELD_SEPARATOR)
       val sortedKeys =
         metadata.entityKeysList.map { "${it.entityType}$FIELD_SEPARATOR${it.entityId}" }.sorted()

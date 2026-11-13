@@ -1163,6 +1163,17 @@ class ImpressionMetadataService(
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
     }
 
+    if (request.impressionMetadata.metadataBlobGeneration < 0L) {
+      throw InvalidFieldValueException(
+        "${fieldPathPrefix}impression_metadata.metadata_blob_generation"
+      )
+    }
+    if (request.impressionMetadata.impressionsBlobGeneration < 0L) {
+      throw InvalidFieldValueException(
+        "${fieldPathPrefix}impression_metadata.impressions_blob_generation"
+      )
+    }
+
     validateSourceUpload(
       request.impressionMetadata.rawImpressionUpload,
       request.impressionMetadata.outputDoneBlobGeneration,
@@ -1213,6 +1224,17 @@ class ImpressionMetadataService(
     val impressionMetadataKey =
       ImpressionMetadataKey.fromName(request.impressionMetadata.name)
         ?: throw InvalidFieldValueException("${fieldPathPrefix}impression_metadata.name")
+
+    if (request.impressionMetadata.metadataBlobGeneration < 0L) {
+      throw InvalidFieldValueException(
+        "${fieldPathPrefix}impression_metadata.metadata_blob_generation"
+      )
+    }
+    if (request.impressionMetadata.impressionsBlobGeneration < 0L) {
+      throw InvalidFieldValueException(
+        "${fieldPathPrefix}impression_metadata.impressions_blob_generation"
+      )
+    }
 
     validateSourceUpload(
       request.impressionMetadata.rawImpressionUpload,
@@ -1338,6 +1360,8 @@ fun InternalImpressionMetadata.toImpressionMetadata(): ImpressionMetadata {
           .toName()
     }
     outputDoneBlobGeneration = source.outputDoneBlobGeneration
+    metadataBlobGeneration = source.metadataBlobGeneration
+    impressionsBlobGeneration = source.impressionsBlobGeneration
   }
 }
 
@@ -1366,6 +1390,8 @@ fun ImpressionMetadata.toInternal(
           .rawImpressionUploadId
     }
     outputDoneBlobGeneration = source.outputDoneBlobGeneration
+    metadataBlobGeneration = source.metadataBlobGeneration
+    impressionsBlobGeneration = source.impressionsBlobGeneration
   }
 }
 

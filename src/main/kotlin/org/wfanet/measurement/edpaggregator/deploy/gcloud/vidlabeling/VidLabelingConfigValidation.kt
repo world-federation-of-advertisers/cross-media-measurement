@@ -16,12 +16,20 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
+import com.google.protobuf.util.JsonFormat
 import java.time.Duration
 import org.wfanet.measurement.common.toDuration
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
+import org.wfanet.measurement.config.edpaggregator.StorageParams
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.edpaggregator.ConfigLoader
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 
 /**
  * LabelerInput field path the Phase-2 TEE requires: the raw event-id column that feeds
@@ -101,6 +109,26 @@ fun requireValidMaxFileBatchSizeBytes(config: VidLabelingConfig) {
   }
 }
 
+/** Validates the bucket-relative raw-impression root used by the Monitor's storage crawl. */
+fun requireValidRawImpressionsBlobPrefix(config: VidLabelingConfig) {
+  val prefix = config.rawImpressionsBlobPrefix
+  require(prefix.isNotEmpty()) {
+    "raw_impressions_blob_prefix must be set for data provider: ${config.dataProvider}"
+  }
+  require(prefix == prefix.trim('/')) {
+    "raw_impressions_blob_prefix must not start or end with '/' for data provider: " +
+      config.dataProvider
+  }
+  require(!prefix.contains("://")) {
+    "raw_impressions_blob_prefix must be a bucket-relative prefix, not a URI, " +
+      "for data provider: ${config.dataProvider}"
+  }
+  require(prefix.split('/').none { it.isEmpty() || it == "." || it == ".." }) {
+    "raw_impressions_blob_prefix must not contain empty, '.' or '..' path segments " +
+      "for data provider: ${config.dataProvider}"
+  }
+}
+
 /** Validates labeled-output routing shared by VID labeling and availability synchronization. */
 object VidLabelingStorageConfigValidator {
   fun validate(
@@ -114,6 +142,7 @@ object VidLabelingStorageConfigValidator {
     require(dispatcherRoutes == monitorRoutes) {
       "VID labeling dispatcher and monitor storage routes differ"
     }
+    requireIsolatedRawRoutes(dispatcherRoutes)
 
     val syncConfigsByDataProvider =
       dataAvailabilitySyncConfigs.configsList.associateBy { it.dataProvider }
@@ -125,7 +154,12 @@ object VidLabelingStorageConfigValidator {
       require(vidConfig.vidLabeledImpressionsStorageParams.hasGcs()) {
         "VID-labeled impression storage must use GCS for ${vidConfig.dataProvider}"
       }
-      requireValidPath(vidConfig.edpImpressionPath, "VID labeling", vidConfig.dataProvider)
+      requireValidPath(
+        vidConfig.edpImpressionPath,
+        "edp_impression_path",
+        "VID labeling",
+        vidConfig.dataProvider,
+      )
       val syncConfig =
         requireNotNull(syncConfigsByDataProvider[vidConfig.dataProvider]) {
           "Missing DataAvailabilitySync config for ${vidConfig.dataProvider}"
@@ -133,7 +167,12 @@ object VidLabelingStorageConfigValidator {
       require(syncConfig.dataAvailabilityStorage.hasGcs()) {
         "DataAvailabilitySync storage must use GCS for ${vidConfig.dataProvider}"
       }
-      requireValidPath(syncConfig.edpImpressionPath, "DataAvailabilitySync", vidConfig.dataProvider)
+      requireValidPath(
+        syncConfig.edpImpressionPath,
+        "edp_impression_path",
+        "DataAvailabilitySync",
+        vidConfig.dataProvider,
+      )
 
       val vidLabelingStorageRoot =
         "gs://${vidConfig.vidLabeledImpressionsStorageParams.gcs.bucketName}"
@@ -141,12 +180,25 @@ object VidLabelingStorageConfigValidator {
       require(vidLabelingStorageRoot == dataAvailabilityStorageRoot) {
         "VID labeling and DataAvailabilitySync buckets differ for ${vidConfig.dataProvider}"
       }
-      require(vidConfig.edpImpressionPath == syncConfig.edpImpressionPath) {
-        "VID labeling and DataAvailabilitySync edp_impression_path values differ for " +
-          vidConfig.dataProvider
+      requireValidPath(
+        syncConfig.vidLabeledImpressionPath,
+        "vid_labeled_impression_path",
+        "DataAvailabilitySync",
+        vidConfig.dataProvider,
+      )
+      require(vidConfig.edpImpressionPath == syncConfig.vidLabeledImpressionPath) {
+        "VID labeling edp_impression_path and DataAvailabilitySync " +
+          "vid_labeled_impression_path differ for ${vidConfig.dataProvider}"
       }
 
       val labeledOutputPrefix = "$vidLabelingStorageRoot/${vidConfig.edpImpressionPath}/"
+      val externalOutputPrefix = "$dataAvailabilityStorageRoot/${syncConfig.edpImpressionPath}/"
+      require(
+        !labeledOutputPrefix.startsWith(externalOutputPrefix) &&
+          !externalOutputPrefix.startsWith(labeledOutputPrefix)
+      ) {
+        "External and VID-labeled impression paths overlap for ${vidConfig.dataProvider}"
+      }
       require(
         dataWatcherConfig.watchedPathsList.none { watchedPath ->
           sourceRegexMayMatchPrefix(watchedPath.sourcePathRegex, labeledOutputPrefix)
@@ -157,11 +209,51 @@ object VidLabelingStorageConfigValidator {
     }
   }
 
-  private fun routesByDataProvider(configs: VidLabelingConfigs): Map<String, Pair<String, String>> {
+  fun validate(
+    dispatcherConfigs: VidLabelingConfigs,
+    monitorConfigs: VidLabelingConfigs,
+    dataAvailabilitySyncConfigs: DataAvailabilitySyncConfigs,
+    dataWatcherConfig: DataWatcherConfig,
+    dataAvailabilityMonitorConfigs: DataAvailabilityMonitorConfigs,
+  ) {
+    val dispatcherRoutes = routesByDataProvider(dispatcherConfigs)
+    requireRecognizableAvailabilityRoutes(dataAvailabilitySyncConfigs, dataWatcherConfig)
+    requireValidDataWatcherRoutes(
+      dataAvailabilitySyncConfigs,
+      dataWatcherConfig,
+      dispatcherRoutes.keys,
+    )
+    requireValidExternalAvailabilityRoutes(
+      dataAvailabilitySyncConfigs,
+      dataAvailabilityMonitorConfigs,
+      dispatcherRoutes.keys,
+    )
+    requireExternalMonitorOwnership(dispatcherRoutes, dataAvailabilityMonitorConfigs)
+
+    validate(dispatcherConfigs, monitorConfigs, dataAvailabilitySyncConfigs, dataWatcherConfig)
+  }
+
+  private data class StorageRoutes(
+    val labeledBucket: String,
+    val labeledPrefix: String,
+    val rawBucket: String,
+    val rawPrefix: String,
+  )
+
+  private fun routesByDataProvider(configs: VidLabelingConfigs): Map<String, StorageRoutes> {
     val routes =
       configs.configsList.associate { config ->
+        require(config.rawImpressionsStorageParams.hasGcs()) {
+          "Raw-impression storage must use GCS for ${config.dataProvider}"
+        }
+        requireValidRawImpressionsBlobPrefix(config)
         config.dataProvider to
-          (config.vidLabeledImpressionsStorageParams.gcs.bucketName to config.edpImpressionPath)
+          StorageRoutes(
+            config.vidLabeledImpressionsStorageParams.gcs.bucketName,
+            config.edpImpressionPath,
+            config.rawImpressionsStorageParams.gcs.bucketName,
+            config.rawImpressionsBlobPrefix,
+          )
       }
     require(routes.size == configs.configsCount) {
       "VidLabeling config contains duplicate data providers"
@@ -169,10 +261,396 @@ object VidLabelingStorageConfigValidator {
     return routes
   }
 
-  private fun requireValidPath(path: String, owner: String, dataProvider: String) {
-    require(path.isNotEmpty()) { "$owner edp_impression_path is missing for $dataProvider" }
+  private fun requireIsolatedRawRoutes(routes: Map<String, StorageRoutes>) {
+    for ((rawDataProvider, rawRoute) in routes) {
+      for ((labeledDataProvider, labeledRoute) in routes) {
+        require(
+          rawRoute.rawBucket != labeledRoute.labeledBucket ||
+            (rawRoute.rawPrefix != labeledRoute.labeledPrefix &&
+              !rawRoute.rawPrefix.startsWith("${labeledRoute.labeledPrefix}/"))
+        ) {
+          ("Raw-impression prefix for $rawDataProvider is within labeled output for " +
+            labeledDataProvider)
+        }
+      }
+    }
+    val rawRoutes = routes.entries.toList()
+    for (index in 0 until rawRoutes.lastIndex) {
+      for (otherIndex in index + 1..rawRoutes.lastIndex) {
+        val (dataProvider, route) = rawRoutes[index]
+        val (otherDataProvider, otherRoute) = rawRoutes[otherIndex]
+        require(
+          route.rawBucket != otherRoute.rawBucket ||
+            !pathsOverlap(route.rawPrefix, otherRoute.rawPrefix)
+        ) {
+          "Raw-impression prefixes overlap for $dataProvider and $otherDataProvider"
+        }
+      }
+    }
+  }
+
+  private fun pathsOverlap(path: String, otherPath: String): Boolean =
+    path == otherPath || path.startsWith("$otherPath/") || otherPath.startsWith("$path/")
+
+  private fun requireValidExternalAvailabilityRoutes(
+    syncConfigs: DataAvailabilitySyncConfigs,
+    availabilityMonitorConfigs: DataAvailabilityMonitorConfigs,
+    vidLabelingDataProviders: Set<String>,
+  ) {
+    for (syncConfig in syncConfigs.configsList) {
+      val dataProvider = syncConfig.dataProvider
+      val externalPath = syncConfig.externalImpressionPath.ifEmpty { syncConfig.edpImpressionPath }
+      if (
+        syncConfig.externalImpressionPath.isEmpty() && dataProvider !in vidLabelingDataProviders
+      ) {
+        continue
+      }
+      require(dataProvider.isNotEmpty()) {
+        "DataAvailabilitySyncConfig.data_provider is missing for external_impression_path"
+      }
+      requireValidPath(
+        externalPath,
+        "DataAvailabilitySyncConfig.external_impression_path",
+        dataProvider,
+      )
+      if (dataProvider in vidLabelingDataProviders) {
+        require(!pathsOverlap(externalPath, syncConfig.vidLabeledImpressionPath)) {
+          "DataAvailabilitySyncConfig.external_impression_path must differ from " +
+            "vid_labeled_impression_path for $dataProvider"
+        }
+      }
+
+      val providerMonitorConfigs =
+        availabilityMonitorConfigs.configsList.filter { it.dataProviderName == dataProvider }
+      require(providerMonitorConfigs.isNotEmpty()) {
+        "DataAvailabilityMonitorConfigs.configs is missing data_provider_name for $dataProvider"
+      }
+      providerMonitorConfigs.forEach {
+        requireValidPath(
+          it.edpImpressionPath,
+          "DataAvailabilityMonitorConfig.edp_impression_path",
+          dataProvider,
+        )
+      }
+      val pathMatches = providerMonitorConfigs.filter { it.edpImpressionPath == externalPath }
+      require(pathMatches.isNotEmpty()) {
+        "DataAvailabilityMonitorConfig.edp_impression_path must equal " +
+          "DataAvailabilitySyncConfig.external_impression_path for $dataProvider"
+      }
+
+      val syncStorageRoot =
+        storageRoot(
+          syncConfig.dataAvailabilityStorage,
+          "DataAvailabilitySyncConfig.data_availability_storage",
+          dataProvider,
+        )
+      val storageMatches =
+        pathMatches.filter {
+          runCatching {
+              storageRoot(it.storage, "DataAvailabilityMonitorConfig.storage", dataProvider)
+            }
+            .getOrNull() == syncStorageRoot
+        }
+      require(storageMatches.size == 1) {
+        "DataAvailabilityMonitorConfig.storage must identify exactly one route matching " +
+          "DataAvailabilitySyncConfig.data_availability_storage backend and root for $dataProvider"
+      }
+    }
+  }
+
+  private fun requireValidDataWatcherRoutes(
+    syncConfigs: DataAvailabilitySyncConfigs,
+    watcherConfig: DataWatcherConfig,
+    vidLabelingDataProviders: Set<String>,
+  ) {
+    val validatedRoutes = mutableSetOf<WatchedPath>()
+    for (syncConfig in syncConfigs.configsList) {
+      val dataProvider = syncConfig.dataProvider
+      require(dataProvider.isNotEmpty()) { "DataAvailabilitySyncConfig.data_provider is missing" }
+      val externalPath = syncConfig.externalImpressionPath.ifEmpty { syncConfig.edpImpressionPath }
+      val pathFieldName =
+        if (syncConfig.externalImpressionPath.isNotEmpty()) {
+          "DataAvailabilitySyncConfig.external_impression_path"
+        } else {
+          "DataAvailabilitySyncConfig.edp_impression_path"
+        }
+      requireValidPath(externalPath, pathFieldName, dataProvider)
+      val syncStorageRoot =
+        storageRoot(
+          syncConfig.dataAvailabilityStorage,
+          "DataAvailabilitySyncConfig.data_availability_storage",
+          dataProvider,
+        )
+      val expectedSourcePathRegex =
+        "^${escapeRegexLiteral("$syncStorageRoot/$externalPath")}/model-line/[^/]+/[^/]+/done$"
+      val externalRoutes =
+        watcherConfig.watchedPathsList.filter {
+          routeTargetsExternalAvailability(it, syncConfig) ||
+            it.sourcePathRegex == expectedSourcePathRegex
+        }
+      require(externalRoutes.size == 1) {
+        "DataWatcherConfig.watched_paths must contain exactly one route for $pathFieldName for " +
+          dataProvider
+      }
+      val externalRoute = externalRoutes.single()
+      require(externalRoute.identifier == DATA_AVAILABILITY_WATCHER_IDENTIFIER) {
+        "DataWatcherConfig.watched_paths.identifier is invalid for $dataProvider"
+      }
+      require(externalRoute.sourcePathRegex == expectedSourcePathRegex) {
+        "DataWatcherConfig.watched_paths.source_path_regex does not match $pathFieldName for " +
+          dataProvider
+      }
+      requireValidDataAvailabilitySink(externalRoute, syncConfig)
+      validatedRoutes += externalRoute
+    }
+
+    val unclaimedReservedRoute =
+      watcherConfig.watchedPathsList.firstOrNull {
+        it.identifier == DATA_AVAILABILITY_WATCHER_IDENTIFIER && it !in validatedRoutes
+      }
+    require(unclaimedReservedRoute == null) {
+      val dataProvider = declaredDataProvider(unclaimedReservedRoute!!)
+      val providerDescription = dataProvider?.let { " for $it" } ?: ""
+      "DataWatcherConfig.watched_paths.identifier has no external " +
+        "DataAvailabilitySyncConfig path$providerDescription"
+    }
+  }
+
+  private fun requireRecognizableAvailabilityRoutes(
+    syncConfigs: DataAvailabilitySyncConfigs,
+    watcherConfig: DataWatcherConfig,
+  ) {
+    for (watchedPath in
+      watcherConfig.watchedPathsList.filter {
+        it.identifier == DATA_AVAILABILITY_WATCHER_IDENTIFIER
+      }) {
+      val declaredDataProvider =
+        declaredDataProvider(watchedPath)
+          ?: inferDataProviderFromSourceRegex(watchedPath, syncConfigs.configsList)
+      val providerDescription =
+        declaredDataProvider?.let { " for $it" } ?: " with a missing data_provider"
+      require(watchedPath.hasControlPlaneQueueSink() || watchedPath.hasHttpEndpointSink()) {
+        "DataWatcherConfig.watched_paths.sink_config is missing$providerDescription"
+      }
+      val resolvedConfig = resolveDataAvailabilitySyncConfig(watchedPath, syncConfigs.configsList)
+      require(resolvedConfig != null) {
+        "DataWatcherConfig.watched_paths.app_params must resolve to " +
+          "DataAvailabilitySyncConfig.data_provider$providerDescription"
+      }
+    }
+  }
+
+  private fun inferDataProviderFromSourceRegex(
+    watchedPath: WatchedPath,
+    syncConfigs: List<DataAvailabilitySyncConfig>,
+  ): String? {
+    return syncConfigs
+      .singleOrNull { syncConfig ->
+        val path = syncConfig.externalImpressionPath.ifEmpty { syncConfig.edpImpressionPath }
+        val expectedRegex =
+          runCatching {
+              val storageRoot =
+                storageRoot(
+                  syncConfig.dataAvailabilityStorage,
+                  "DataAvailabilitySyncConfig.data_availability_storage",
+                  syncConfig.dataProvider,
+                )
+              "^${escapeRegexLiteral("$storageRoot/$path")}/model-line/[^/]+/[^/]+/done$"
+            }
+            .getOrNull()
+        watchedPath.sourcePathRegex == expectedRegex
+      }
+      ?.dataProvider
+  }
+
+  private fun routeTargetsExternalAvailability(
+    watchedPath: WatchedPath,
+    syncConfig: DataAvailabilitySyncConfig,
+  ): Boolean {
+    val declaredDataProvider = declaredDataProvider(watchedPath)
+    if (
+      watchedPath.identifier == DATA_AVAILABILITY_WATCHER_IDENTIFIER &&
+        declaredDataProvider == syncConfig.dataProvider
+    ) {
+      return true
+    }
+    if (
+      watchedPath.hasControlPlaneQueueSink() &&
+        watchedPath.controlPlaneQueueSink.appParams.`is`(
+          ExternalDataAvailabilitySyncParams::class.java
+        )
+    ) {
+      return watchedPath.controlPlaneQueueSink.appParams
+        .unpack(ExternalDataAvailabilitySyncParams::class.java)
+        .dataProvider == syncConfig.dataProvider
+    }
+    if (!watchedPath.hasHttpEndpointSink()) return false
+    val fields = watchedPath.httpEndpointSink.appParams.fieldsMap
+    // A provider-only HTTP payload also belongs to raw-upload dispatchers. Availability routes
+    // declare their identifier, a typed payload, or the legacy full sync configuration.
+    if (
+      watchedPath.identifier != DATA_AVAILABILITY_WATCHER_IDENTIFIER &&
+        "@type" !in fields &&
+        "edpImpressionPath" !in fields &&
+        "edp_impression_path" !in fields
+    ) {
+      return false
+    }
+    return resolveHttpDataAvailabilityConfig(watchedPath, listOf(syncConfig))?.dataProvider ==
+      syncConfig.dataProvider
+  }
+
+  private fun declaredDataProvider(watchedPath: WatchedPath): String? {
+    return when {
+      watchedPath.hasHttpEndpointSink() ->
+        watchedPath.httpEndpointSink.appParams.fieldsMap["dataProvider"]?.stringValue?.ifEmpty {
+          null
+        }
+      watchedPath.hasControlPlaneQueueSink() &&
+        watchedPath.controlPlaneQueueSink.appParams.`is`(
+          ExternalDataAvailabilitySyncParams::class.java
+        ) ->
+        watchedPath.controlPlaneQueueSink.appParams
+          .unpack(ExternalDataAvailabilitySyncParams::class.java)
+          .dataProvider
+          .ifEmpty { null }
+      else -> null
+    }
+  }
+
+  private fun requireValidDataAvailabilitySink(
+    watchedPath: WatchedPath,
+    syncConfig: DataAvailabilitySyncConfig,
+  ) {
+    val dataProvider = syncConfig.dataProvider
+    when {
+      watchedPath.hasControlPlaneQueueSink() -> {
+        val sink = watchedPath.controlPlaneQueueSink
+        require(sink.queue == DataAvailabilitySyncWorkItems.QUEUE) {
+          "DataWatcherConfig.watched_paths.control_plane_queue_sink.queue is invalid for " +
+            dataProvider
+        }
+        require(sink.serializationKey == "data-availability:$dataProvider") {
+          "DataWatcherConfig.watched_paths.control_plane_queue_sink.serialization_key is invalid " +
+            "for $dataProvider"
+        }
+        require(sink.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)) {
+          "DataWatcherConfig.watched_paths.control_plane_queue_sink.app_params must contain " +
+            "ExternalDataAvailabilitySyncParams for $dataProvider"
+        }
+        require(
+          sink.appParams.unpack(ExternalDataAvailabilitySyncParams::class.java).dataProvider ==
+            dataProvider
+        ) {
+          "DataWatcherConfig.watched_paths.control_plane_queue_sink.app_params.data_provider " +
+            "must equal DataAvailabilitySyncConfig.data_provider for $dataProvider"
+        }
+      }
+      watchedPath.hasHttpEndpointSink() -> {
+        require(resolveHttpDataAvailabilityConfig(watchedPath, listOf(syncConfig)) == syncConfig) {
+          "DataWatcherConfig.watched_paths.http_endpoint_sink.app_params must resolve to " +
+            "DataAvailabilitySyncConfig for $dataProvider"
+        }
+      }
+      else ->
+        throw IllegalArgumentException(
+          "DataWatcherConfig.watched_paths sink is missing for $dataProvider"
+        )
+    }
+  }
+
+  private fun resolveHttpDataAvailabilityConfig(
+    watchedPath: WatchedPath,
+    syncConfigs: List<DataAvailabilitySyncConfig>,
+  ): DataAvailabilitySyncConfig? {
+    if (!watchedPath.hasHttpEndpointSink()) return null
+    return runCatching {
+        ConfigLoader.buildDataAvailabilitySyncConfig(
+          JsonFormat.printer().print(watchedPath.httpEndpointSink.appParams),
+          syncConfigs,
+        )
+      }
+      .getOrNull()
+  }
+
+  private fun resolveDataAvailabilitySyncConfig(
+    watchedPath: WatchedPath,
+    syncConfigs: List<DataAvailabilitySyncConfig>,
+  ): DataAvailabilitySyncConfig? {
+    return when {
+      watchedPath.hasControlPlaneQueueSink() &&
+        watchedPath.controlPlaneQueueSink.appParams.`is`(
+          ExternalDataAvailabilitySyncParams::class.java
+        ) -> {
+        val dataProvider =
+          watchedPath.controlPlaneQueueSink.appParams
+            .unpack(ExternalDataAvailabilitySyncParams::class.java)
+            .dataProvider
+        syncConfigs.singleOrNull { it.dataProvider == dataProvider }
+      }
+      watchedPath.hasHttpEndpointSink() ->
+        resolveHttpDataAvailabilityConfig(watchedPath, syncConfigs)?.takeIf { it in syncConfigs }
+      else -> null
+    }
+  }
+
+  private fun requireExternalMonitorOwnership(
+    vidLabelingRoutes: Map<String, StorageRoutes>,
+    availabilityMonitorConfigs: DataAvailabilityMonitorConfigs,
+  ) {
+    for (monitorConfig in availabilityMonitorConfigs.configsList) {
+      if (!monitorConfig.storage.hasGcs()) continue
+      val internalOwner =
+        vidLabelingRoutes.entries.firstOrNull { (_, internalRoute) ->
+          internalRoute.labeledBucket == monitorConfig.storage.gcs.bucketName &&
+            internalRoute.labeledPrefix == monitorConfig.edpImpressionPath
+        }
+      if (internalOwner != null && monitorConfig.dataProviderName.isNotEmpty()) {
+        require(monitorConfig.dataProviderName == internalOwner.key) {
+          "DataAvailabilityMonitorConfig.data_provider_name must equal ${internalOwner.key} " +
+            "for its internal output path"
+        }
+      }
+    }
+  }
+
+  private fun storageRoot(
+    storageParams: StorageParams,
+    fieldName: String,
+    dataProvider: String,
+  ): String {
+    return when {
+      storageParams.hasGcs() -> {
+        require(storageParams.gcs.bucketName.isNotEmpty()) {
+          "$fieldName.gcs.bucket_name is missing for $dataProvider"
+        }
+        "gs://${storageParams.gcs.bucketName}"
+      }
+      storageParams.hasFileSystem() -> "file://"
+      else -> throw IllegalArgumentException("$fieldName is missing for $dataProvider")
+    }
+  }
+
+  private fun escapeRegexLiteral(value: String): String = buildString {
+    for (character in value) {
+      if (character in ESCAPED_LITERAL_CHARACTERS) {
+        append('\\')
+      }
+      append(character)
+    }
+  }
+
+  private fun requireValidPath(path: String, fieldName: String, dataProvider: String) {
+    require(path.isNotBlank()) { "$fieldName is missing for $dataProvider" }
     require(path == path.trim('/')) {
-      "$owner edp_impression_path must not start or end with '/' for $dataProvider"
+      "$fieldName must not start or end with '/' for $dataProvider"
+    }
+  }
+
+  private fun requireValidPath(path: String, field: String, owner: String, dataProvider: String) {
+    require(path.isNotBlank()) { "$owner $field is missing for $dataProvider" }
+    require(path == path.trim('/')) {
+      "$owner $field must not start or end with '/' for $dataProvider"
     }
   }
 
@@ -231,4 +709,5 @@ object VidLabelingStorageConfigValidator {
     setOf('\\', '.', '^', '$', '|', '?', '*', '+', '(', ')', '[', ']', '{', '}')
   private val REGEX_QUANTIFIERS = setOf('?', '*', '+', '{')
   private val REGEX_META_CHARACTERS = setOf('.', '^', '$', '|', '(', ')', '[', ']', '}')
+  private const val DATA_AVAILABILITY_WATCHER_IDENTIFIER = "data-availability"
 }

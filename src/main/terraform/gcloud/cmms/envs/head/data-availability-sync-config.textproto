@@ -3,6 +3,7 @@
 configs {
   data_provider: "dataProviders/Z1YwJJmvvN8"
   edp_impression_path: "edp/edp7"
+  vid_labeled_impression_path: "vid-labeled-impressions/edp/edp7"
   data_availability_storage {
     gcs {
       project_id: "halo-cmm-head"
@@ -38,6 +39,7 @@ configs {
 configs {
   data_provider: "dataProviders/YpCPT-x89j4"
   edp_impression_path: "edp/edpa_meta"
+  vid_labeled_impression_path: "vid-labeled-impressions/edp/edpa_meta"
   data_availability_storage {
     gcs {
       project_id: "halo-cmm-head"

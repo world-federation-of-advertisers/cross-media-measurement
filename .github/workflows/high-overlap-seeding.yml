@@ -81,36 +81,23 @@ jobs:
       - name: Set TCP keepalive
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
-      # The edpa_meta AWS KMS client authenticates via web-identity federation using a Google
-      # (accounts.google.com) OIDC token. The AWS role EDPA_META_AWS_ROLE_ARN trusts the CI service
-      # account's numeric subject (accounts.google.com:sub) and has no audience condition. Mint the
-      # token right before seeding for maximum validity headroom.
-      - name: Mint Google web-identity token for AWS
-        id: aws_auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
-          token_format: 'id_token'
-          id_token_audience: ${{ fromJSON(steps.cmms-config.outputs.config).EDPA_META_AWS_AUDIENCE }}
-          create_credentials_file: false
-          export_environment_variables: false
+      - name: Test AWS web identity renewal
+        run: >
+          bazel test --test_output=errors
+          //src/test/python/wfa/measurement/tools:aws_web_identity_test
 
-      - name: Write AWS web-identity token file
-        env:
-          AWS_WEB_IDENTITY_ID_TOKEN: ${{ steps.aws_auth.outputs.id_token }}
-        run: |
-          token_file="$RUNNER_TEMP/aws-web-identity-token"
-          printf '%s' "$AWS_WEB_IDENTITY_ID_TOKEN" > "$token_file"
-          chmod 600 "$token_file"
-          echo "AWS_WEB_IDENTITY_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
-
+      # The AWS SDK renews STS sessions and rereads its token file. Keep that file
+      # fresh throughout seeding, which can outlast Google's one-hour ID token.
       - name: Seed the dataset
         run: |
           set -euo pipefail
           secret_files="$GITHUB_WORKSPACE/src/main/k8s/testing/secretfiles"
 
-          bazel run //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:SeedHighOverlapDataset -- \
+          export AWS_WEB_IDENTITY_TOKEN_FILE="$RUNNER_TEMP/aws-web-identity-token"
+          python3 "$GITHUB_WORKSPACE/src/main/python/wfa/measurement/tools/aws_web_identity.py" \
+            --audience="$EDPA_META_AWS_AUDIENCE" \
+            --token-file="$AWS_WEB_IDENTITY_TOKEN_FILE" \
+            -- bazel run //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:SeedHighOverlapDataset -- \
             --kingdom-public-api-target="$KINGDOM_PUBLIC_API_TARGET" \
             --kingdom-public-api-cert-host=localhost \
             --kingdom-trusted-certs-file="$secret_files/kingdom_root.pem" \

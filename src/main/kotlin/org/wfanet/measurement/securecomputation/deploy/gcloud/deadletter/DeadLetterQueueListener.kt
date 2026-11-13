@@ -29,6 +29,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsG
 import org.wfanet.measurement.internal.securecomputation.controlplane.processWorkItemDeadLetterRequest
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.internal.Errors
 
 /**
@@ -78,7 +79,7 @@ class DeadLetterQueueListener(
       val processedWorkItem =
         workItemsStub.processWorkItemDeadLetter(
           processWorkItemDeadLetterRequest {
-            workItemResourceId = workItem.name
+            workItemResourceId = WorkItemKey.fromName(workItem.name)?.workItemId ?: workItem.name
             expectedWorkItemGeneration = workItem.generation.takeUnless { it == 0L } ?: 1L
           }
         )

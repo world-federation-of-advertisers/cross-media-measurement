@@ -93,7 +93,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
     assertRunningBasicReport(createBasicReportRequest, createdBasicReport, retrievedBasicReport)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient
@@ -182,7 +182,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
     )
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient
@@ -242,7 +242,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
         .createBasicReport(createBasicReportRequest)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient
@@ -365,7 +365,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
           .createBasicReport(createBasicReportRequest)
 
       executeBasicReportsReportsJob(createdBasicReport.name)
-      executeReportProcessorJob()
+      executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
       val completedBasicReport =
         reportingBasicReportsClient
@@ -515,7 +515,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
           .createBasicReport(createBasicReportRequest)
 
       executeBasicReportsReportsJob(createdBasicReport.name)
-      executeReportProcessorJob()
+      executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
       val completedBasicReport =
         reportingBasicReportsClient
@@ -628,7 +628,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
           .createBasicReport(createBasicReportRequest)
 
       executeBasicReportsReportsJob(createdBasicReport.name)
-      executeReportProcessorJob()
+      executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
       val completedBasicReport =
         reportingBasicReportsClient

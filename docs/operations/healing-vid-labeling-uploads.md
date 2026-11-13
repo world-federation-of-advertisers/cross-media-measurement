@@ -1,195 +1,354 @@
-# Healing VID-labeling uploads
+# Heal VID-labeling uploads
 
-Use the `vid-labeling-heal evict-uploads` command when a completed raw-impression upload contains
-bad data and must either be replaced or permanently removed. The same command handles memoized and
-non-memoized model lines; the operator supplies the bad upload resource names, not individual model
-lines.
+The VID-labeling dispatcher automatically quarantines a raw-upload revision when it edits or
+removes a previously registered object. The healing controller combines pending candidates into
+one DataProvider-scoped plan, pauses ordinary processing, and waits for one operator decision.
 
-## Before eviction
+The dispatcher and healing controller use `RAW_IMPRESSION_UPLOAD_TARGET` and
+`RAW_IMPRESSION_UPLOAD_CERT_HOST` for the public EDP Aggregator API. Their existing
+mTLS certificate and CA mappings also authenticate correction and healing calls.
+Controller environment values, secret mappings, and labeled-output deletion prefixes
+are configured in each environment's Terraform variables file.
 
-Do not pause `DataAvailabilitySync` manually. Synchronization leases block eviction until in-flight
-work drains and prevent new synchronization attempts after a correction fence is acquired.
+The update workflow prepares IAM and configuration while consumers are quiesced,
+rolls out the API server, and then deploys the function revisions. The healing
+schedule remains paused during that preparation.
 
-The command checks every upload/model-line under the DataProvider and refuses to run while any VID
-labeling pipeline is queued or running. If this happens, retry later after processing for that
-DataProvider has finished.
 
-Before building the plan, obtain a final decision from the EDP for every explicitly selected bad
-upload: either the EDP will correct and replace it, or it will be permanently removed. Include every
-permanently removed upload in `--no-replacement-upload`. The selected action is persisted when the
-operator confirms the plan and cannot be changed for that healing operation; if the EDP is unsure,
-abort before entering `yes` and create the plan again after the decision is final.
+## Deployment configuration
 
-### Find uploads for an event date
+CMMS configurations keep externally produced impressions under `edp/...` and
+VidLabeler output under `vid-labeled-impressions/edp/...`. The registrar's
+`DataAvailabilitySyncConfig.vid_labeled_impression_path` must match the deployed
+VidLabeling output path. External uploads keep `edp_impression_path` and their
+DataWatcher notifications.
 
-`evict-uploads` accepts upload resource names rather than dates. To find every upload containing
-raw-impression files for one or more bad dates, query the EDP Aggregator Spanner database:
+Deploy the updated availability functions and configuration before resuming VID
+labeling. A queued WorkItem retains its encoded output path; the registrar accepts
+both configured paths. Existing external data does not need to be moved or
+regenerated. Healing earlier internal output may require its earlier labeling
+configuration and prefix.
+
+## Upgrade legacy healing operations
+
+Before the obsolete-field migration, keep older healing controllers and clients quiesced so they
+cannot create or advance legacy plans during the schema update. The migration halts before changing
+the table if a version-one operation, including a row with `NULL` plan format, is not `COMPLETE`.
+Inspect the affected operations before upgrading:
 
 ```sql
-SELECT DISTINCT
-  CONCAT(
-    'dataProviders/',
-    U.DataProviderResourceId,
-    '/rawImpressionUploads/',
-    U.RawImpressionUploadResourceId
-  ) AS RawImpressionUpload,
-  F.EventDate,
-  U.DoneBlobUri,
-  U.State
-FROM RawImpressionUploadFile AS F
-JOIN RawImpressionUpload AS U
-  USING (DataProviderResourceId, RawImpressionUploadId)
-WHERE F.DataProviderResourceId = 'DATA_PROVIDER_RESOURCE_ID'
-  AND F.EventDate IN (DATE '2026-08-15', DATE '2026-08-16')
-ORDER BY F.EventDate, RawImpressionUpload;
+SELECT DataProviderResourceId, UploadHealingOperationId, State, PlanFormatVersion
+FROM UploadHealingOperation
+WHERE (PlanFormatVersion IS NULL OR PlanFormatVersion = 1)
+  AND State <> 2;
 ```
 
-Pass every applicable returned resource name to `--bad-uploads`. A date can belong to multiple
-uploads, such as a main upload and one or more advertiser-backfill uploads, so do not select only
-the first row for that date.
+`2` is the stored `COMPLETE` state. Complete any returned legacy repairs using a compatible release
+before retrying the upgrade. Do not mark an interrupted repair complete or release its fence merely
+to bypass the guard. Completed legacy rows and active candidate-backed version-two plans can
+migrate; their remaining operation and step data stay readable, and each old `CreateRequestId`
+becomes its `ReconcileRequestId`.
 
-Run the command with:
+## Inspect a correction
 
-* `--bad-uploads`: comma-separated `RawImpressionUpload` resource names containing bad data.
-* `--no-replacement-upload`: optional comma-separated subset of `--bad-uploads` that must be
-  permanently removed rather than corrected and re-uploaded by the EDP.
-* `--eviction-operation-id`: optional UUID for resuming an interrupted initial eviction; omit it
-  for a new operation and reuse the value printed by the command after an interruption.
-* `--retention-days`: the bounded history in which the command may inspect and evict uploads.
-* `--reason`: the diagnosis recorded on each failed upload/model-line row.
-* `--labeled-impressions-blob-prefix`: the absolute URI prefix configured for VID-labeled output.
-* `--vid-labeling-config-file`: the deployed `VidLabelingConfigs` textproto; the selected output
-  prefix must exactly match the configured bucket and `edp_impression_path` for the DataProvider.
-* `--gcs-project`: optional Google Cloud project for access to labeled-output buckets.
-* the normal EDP Aggregator API and mutual-TLS flags.
-
-Review the printed plan before entering `yes`. Non-memoized model lines include only the selected
-uploads. Memoized model lines include the selected uploads and every later upload that depends on
-their cumulative rank-index state. The command refuses to evict a superseded upload revision while
-a completed replacement owns the current deterministic output; select the replacement revision if
-it is also invalid. The command prints the future `UploadHealingOperation` name with the plan; after
-confirmation, it persists the complete plan before advancing the workflow.
-
-## What eviction changes
-
-For every planned upload/model-line pair, the command:
-
-1. checkpoints the operation and its ordered steps in Spanner before changing pipeline data;
-2. marks the `RawImpressionUploadModelLine` `FAILED` and records the eviction operation, required
-   recovery action, and predecessor upload;
-3. soft-deletes cumulative rank-index snapshots for memoized model lines;
-4. soft-deletes the matching `ImpressionMetadata`;
-5. permanently deletes the fetched generations of the generated VID-labeled blob and its
-   `.metadata.binpb` sidecar.
-
-Raw impression objects and `RawImpressionUploadFile` history are retained. Metadata is deleted
-before GCS output, so the asynchronous data-availability cleanup is idempotent when it receives the
-object-deletion event. Kingdom availability is not narrowed during the repair window because its
-interval representation cannot express an interior missing day; Results Fulfiller ignores the
-soft-deleted metadata.
-
-## Complete replacement or permanent removal
-
-For every bad upload not listed in `--no-replacement-upload`, the EDP corrects the retained
-raw-impression directory after eviction succeeds and writes a new generation of its `done` object.
-This creates a replacement upload containing a complete snapshot of every raw-impression object
-currently present in the directory. Unchanged objects do not need to be uploaded again, but the
-pipeline processes them again together with changed and added objects. Objects removed from the
-directory are excluded from the replacement upload.
-
-For explicitly selected bad uploads that require replacement, the EDP writes corrected data and a
-new `done` generation in chronological order. That normal path recreates every applicable memoized
-and non-memoized model line recorded by the eviction, even if a model line's active window ends
-while healing is in progress. Give the EDP the
-[Reference VID impression upload guide](../edpaggregator/reference-vid-impression-upload-guide.md)
-and confirm that eviction completed before the EDP changes the directory or writes the new `done`
-generation.
-
-If an invalid upload must be removed permanently, include it in both `--bad-uploads` and
-`--no-replacement-upload`. Do not write an empty replacement. Non-memoized processing simply omits
-that upload. For each memoized model line, the workflow skips the removed upload when constructing
-the predecessor chain: the next retained upload is recovered from the latest earlier retained
-snapshot, or starts a new snapshot when no predecessor remains. Multiple adjacent or
-non-contiguous removals are supported. This choice cannot be changed after confirmation because it
-is part of the persisted recovery plan.
-
-Later uploads pulled into the eviction only by a memoized cascade do not need their raw data
-re-uploaded. Run `resume` with the operation name printed by `evict-uploads` whenever the requested
-next action has finished:
+Alerts identify the affected DataProvider and plan. List the plans requiring a decision or manual
+attention:
 
 ```shell
-vid-labeling-heal resume \
-  dataProviders/DP/uploadHealingOperations/OPERATION_ID \
-  --vid-labeling-config-file=VID_LABELING_CONFIG_FILE \
+vid-labeling-heal list-correction-plans \
+  --data-provider=dataProviders/DATA_PROVIDER \
+  --state=APPROVAL_REQUIRED,NEEDS_ATTENTION \
   --edpa-public-api-target=EDPA_TARGET \
-  --tls-cert-file=TLS_CERT \
-  --tls-key-file=TLS_KEY \
-  --cert-collection-file=ROOT_CERTS \
-  --gcs-project=GCS_PROJECT
+  TLS_FLAGS
 ```
 
-Each invocation verifies persisted predecessors and replacement output, advances every step that
-is currently safe, checkpoints its progress, prints the exact next action, and exits. It can be run
-from a different machine and safely repeated after an interruption; it does not need to remain
-running while the EDP corrects data or while workers process a replacement. For an operator
-recovery step, it writes a new generation of the existing empty `done` object. The new object
-carries the selected model lines, source upload, and eviction operation as recovery metadata;
-DataWatcher forwards them in `X-Override-Model-Lines`,
-`X-Recovery-Source-Upload`, and `X-Eviction-Operation-Id`. Before honoring the override,
-VidLabelingDispatcher independently verifies that the source is the latest revision for that done
-path, that every selected row belongs to that eviction operation and is marked for operator
-recovery, and that its predecessor has a completed replacement with a live snapshot. It then
-creates a replacement upload for only those model lines.
+Inspect the plan before approving it:
 
-The DataProvider's eviction fence remains active until the healing operation reaches `COMPLETE`.
-New `done` events received during healing are still registered, but their uploads are not
-dispatched. When the final `resume` completes the operation, it releases the fence; the periodic
-dispatcher then automatically processes every deferred upload in chronological order. The EDP does
-not need to rewrite those `done` objects.
+```shell
+vid-labeling-heal get-correction-plan \
+  dataProviders/DATA_PROVIDER/uploadHealingOperations/OPERATION \
+  --edpa-public-api-target=EDPA_TARGET \
+  TLS_FLAGS
+```
 
-### Example: D2 and D4 contain bad data
+The plan contains every correction candidate, historical owner, memoized cascade step, and
+non-memoized local step. Its `etag` changes whenever a pending candidate or computed step changes.
+The controller supplies the labeled-output prefix when it creates or reconciles a draft, and the
+operation persists that prefix. Availability handoff checks it against current controller
+configuration; restore the matching configuration if that check fails on resume. Candidate-linked
+steps identify the uploads whose derived state is invalid. Retention remains controller
+configuration; an operation does not persist a retention cutoff. Retention is enforced while the
+draft remains mutable; approval freezes the step graph, so later controller progression does not
+reject it merely because the configured window advanced.
 
-Assume D1 through D5 completed for one memoized model line, `ML_MEMO`, and one non-memoized
-model line, `ML_DIRECT`. The EDP reports that D2 and D4 contain bad data, so the operator passes the
-D2 and D4 upload resources to `evict-uploads`.
+List candidate summaries when the plan needs more investigation:
 
-The eviction plan contains:
+```shell
+vid-labeling-heal list-correction-candidates \
+  --data-provider=dataProviders/DATA_PROVIDER \
+  --state=ASSIGNED \
+  --edpa-public-api-target=EDPA_TARGET \
+  TLS_FLAGS
 
-* D2 and D4 for `ML_DIRECT`, because non-memoized uploads are independent; and
-* D2, D3, D4, and D5 for `ML_MEMO`, because each later cumulative snapshot depends on D2.
+vid-labeling-heal get-correction-candidate \
+  dataProviders/DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/CANDIDATE \
+  --edpa-public-api-target=EDPA_TARGET \
+  TLS_FLAGS
+```
 
-The tool persists recovery steps for D3 and D5. D2 and D4 remain EDP-correction steps because the
-EDP must correct those explicitly selected bad uploads.
+The list output omits raw object URIs. The authenticated get command returns the detailed manifest
+comparison and historical owners.
 
-Recovery proceeds as follows:
+## Approve once
 
-1. The EDP corrects the D2 directory and writes a new `done` generation. The pipeline regenerates
-   D2 for both `ML_DIRECT` and `ML_MEMO`; the memoized path rebuilds its cumulative state from D1.
-2. The operator reruns `resume`. It verifies D2, starts the D3 memoized recovery, checkpoints that
-   action, and tells the operator to wait for D3 processing.
-3. After D3 completes, the operator reruns `resume`. It verifies D3 and tells the operator to ask
-   the EDP to correct D4 and write a new `done` generation.
-4. After D4 completes, the operator reruns `resume`. It verifies D4, starts D5 recovery, and tells
-   the operator to wait.
-5. After D5 completes, the operator reruns `resume`; the command verifies the final snapshot and
-   marks the operation complete. The final result has regenerated D2 and D4 for both model lines
-   and regenerated D2 through D5 for `ML_MEMO`. The EDP never needs to re-upload D3 or D5.
+Assign exactly one decision to every candidate:
 
-The persisted workflow enforces oldest-to-newest recovery, so every cumulative rank-index snapshot
-is rebuilt from its corrected predecessor. Both normal EDP corrections and operator recovery events
-are rejected until their persisted predecessor dependency is complete. The normal
-labeling and data-availability flows regenerate output, restore matching soft-deleted metadata, and
-publish availability to Kingdom. Do not run `retry-failed` for rows evicted because their original
-jobs describe the invalid attempt. Recovery dispatch failures are returned by DataWatcher so the
-Eventarc subscription retries them and ultimately preserves exhausted deliveries in its DLQ. A
-same-generation retry resumes an already partially registered replacement. If the CLI is
-interrupted after writing the recovery object but before checkpointing it, rerunning `resume`
-recognizes the matching recovery generation without writing a duplicate generation.
+- `CORRECT` evicts affected derived state and replays the candidate's exact stored done-object
+  generation.
+- `NO_REPLACEMENT` evicts the removed upload and rebuilds later memoized dependencies without it.
 
-The standalone `recover-upload` command remains available as a break-glass tool. Prefer `resume`
-for a planned eviction because it enforces the complete dependency graph and persists checkpoints.
+```shell
+vid-labeling-heal approve-correction-plan \
+  dataProviders/DATA_PROVIDER/uploadHealingOperations/OPERATION \
+  --correct-candidate=dataProviders/DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/C1 \
+  --no-replacement-candidate=dataProviders/DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/C2 \
+  --etag=PLAN_ETAG \
+  --edpa-public-api-target=EDPA_TARGET \
+  TLS_FLAGS
+```
 
-Before replacement processing begins, the eviction operation is safe to repeat after a partial
-failure. It skips rows already marked `FAILED`, already-deleted metadata, and output blobs that are
-already absent. Do not repeat eviction after corrected output has been generated at the same
-deterministic URI.
+The draft is a versioned provisional plan. It fixes every affected upload/model-line row and
+labeled-output URI, including in-flight rows in a memoized cascade, without claiming that the
+currently visible object generations are final. Approval atomically freezes the candidate set and
+decisions, transfers the candidate fence to the operation, defers queued uploads, and enters
+`DRAINING`. Operators do not pause `DataAvailabilitySync` or run eviction, replay, or resume
+commands.
+
+## New revisions during an approved repair
+
+A repair becomes committed when its operation enters `EVICTING`. Later raw-upload revisions
+remain quarantined or deferred and cannot cancel that running plan. Recovery processes the
+retained approved object generations and verifies the replacements recorded by that operation.
+After the repair completes, newer corrections are planned against the current output owners and
+require a new operator approval. If a retained object version is unavailable, the operation needs
+attention; current directory contents are not substituted for the approved data.
+
+Existing labeling work, incomplete registrations, and synchronization leases finish before the
+fence enters `EVICTING`. Only then does the controller capture and persist the exact output
+generations before deleting anything. An interrupted controller safely resumes either the drain or
+exact-version finalization.
+
+Eviction deletes obsolete versioned output; any stale availability WorkItem later fails its
+exact-generation check. A replacement uses the normal VID-labeling path: VidLabeler writes the
+versioned output `done` object, moves the model line to `AVAILABILITY_SYNCING` with its pending
+event dates, and defers availability publication while the eviction fence is active. When
+replacement labeling is durable, the operation enters `AVAILABILITY_HANDOFF_PENDING` and
+atomically releases the fence. The controller then creates one exact-generation Data Availability
+WorkItem per pending model-line date and marks the operation `COMPLETE` after every WorkItem is
+durably scheduled or already exists with the same identity. It does not wait for those WorkItems to
+synchronize. Each acknowledged event date is removed from the pending set; the model line becomes
+`COMPLETED` only after that set is empty.
+
+Uploads received during healing remain deferred by the healing dispatch gate even during the brief
+post-fence handoff. A later correction does not acquire another fence while a preceding replacement
+remains `AVAILABILITY_SYNCING`, preventing its queued WorkItems from exhausting retries behind the
+new fence.
+
+## Monitor automatic progression
+
+The plan moves through these states:
+
+| State | Meaning |
+| --- | --- |
+| `APPROVAL_REQUIRED` | The complete mutable draft is ready for an operator decision. |
+| `APPROVED` | Decisions are immutable and the controller may claim the plan. |
+| `DRAINING` | Existing dispatch and availability work is finishing. |
+| `EVICTING` | Derived state and labeled output are being invalidated. |
+| `REPLAYING` | Exact approved EDP correction generations are being replayed. |
+| `RECOVERING` | Dependent memoized uploads are rebuilding in chronological order. |
+| `AVAILABILITY_HANDOFF_PENDING` | The fence is released and exact availability WorkItems are being durably scheduled. |
+| `NEEDS_ATTENTION` | A non-retryable failure requires inspection and an explicit retry. |
+| `COMPLETE` | Every step completed and every deferred availability handoff was scheduled. |
+
+Transient failures are retried automatically. Alerts cover pending approvals, stalled controllers,
+manifest mismatches, out-of-retention candidates, and plans in `NEEDS_ATTENTION`.
+
+## Retry a plan needing attention
+
+Resolve the reported cause, retrieve the current plan and etag, then retry it once:
+
+```shell
+vid-labeling-heal retry-correction-plan \
+  dataProviders/DATA_PROVIDER/uploadHealingOperations/OPERATION \
+  --etag=PLAN_ETAG \
+  --edpa-public-api-target=EDPA_TARGET \
+  TLS_FLAGS
+```
+
+The command is rejected unless the plan is in `NEEDS_ATTENTION`. The controller resumes from its
+durable checkpoints; the CLI never advances individual workflow steps.
+
+## Validate automatic healing
+
+Use a dedicated test DataProvider, raw and labeled-output prefixes, EventGroups, and model lines.
+A different folder under a production DataProvider does not isolate a memoized recovery cascade.
+Record the deployed revision and configuration before starting. Prepare small uploads for three
+successive event dates, D1 through D3, with one memoized and one non-memoized model line. Follow the
+[reference VID upload guide](../edpaggregator/reference-vid-impression-upload-guide.md). Wait for
+each upload to complete labeling and availability synchronization before finalizing the next date.
+
+Run each scenario on a fresh baseline. The controlled drain case below uses its own in-process
+fixture, and the retention case requires an older registration rather than a newly created baseline.
+Record baseline WorkItems, object generations, metadata, and snapshots so existing work is not
+mistaken for work created by a correction.
+
+1. **Inspect, approve, and replay a correction.** Replace one D2 raw object, retain the other
+   objects, and write a new `done` generation after the directory is final. Inspect the candidate
+   and its `APPROVAL_REQUIRED` plan with the commands above. Verify the stored prior and current
+   object generations, the D2 steps for both model lines, and the dependent D3 memoized step.
+   Confirm the candidate creates no labeling work before approval. Approve it with `CORRECT` and
+   the current plan etag. Leave the raw directory unchanged while the controller evicts and
+   replays the approved generation, then recovers D3. Verify that corrected D2 records appear
+   once, D3 uses the rebuilt memoized predecessor, and the unaffected direct D3 output is unchanged.
+2. **Reject a changed approved manifest before commitment.** On a separate D1–D3 baseline,
+   publish a D2 correction and wait for its `APPROVAL_REQUIRED` plan. In a dedicated test deployment,
+   pause the healing controller's Scheduler job using the command below. Wait for any current
+   controller invocation to finish, then confirm the plan still requires approval. Approve it with
+   `CORRECT` while the scheduler is paused. Before the operation enters `EVICTING`, overwrite one D2
+   raw object again without rewriting `done`, then resume the scheduler. The next manifest check
+   must leave the operation in `NEEDS_ATTENTION`, with no eviction or replay checkpoint, no labeling
+   WorkItem for the approved correction, and unchanged baseline output, metadata, and snapshots.
+   Repeat on independent baselines with a raw object added or removed instead of overwritten.
+   Finalize the changed directory with a newer `done` generation. Verify that the old candidate
+   becomes `SUPERSEDED`, the newer candidate is included in a refreshed `APPROVAL_REQUIRED` plan,
+   and its new etag requires renewed approval; the operation resource may be reused. No labeling
+   work may start for the newer candidate before that approval. Approve the refreshed plan and
+   verify successful recovery before ending the case. If the operation already entered `EVICTING`
+   before the raw mutation, repeat on a fresh baseline: committed repairs must finish their approved
+   retained generations as described in [New revisions during an approved repair](#new-revisions-during-an-approved-repair).
+3. **Quarantine and heal a mixed revision.** On a fresh baseline, register D2 objects A and B,
+   then append C in a second D2 revision. Complete both revisions before finalizing D3. Create one
+   complete mixed revision by overwriting A with corrected same-date data
+   A′, removing B, retaining C unchanged, and adding D. Write `done` last. Verify a `MIXED` candidate
+   containing the complete A′/C/D manifest, the original owners of A and B, and their added, edited,
+   and removed differences. Before approval, the entire generation must be quarantined: neither D
+   nor any other part of the correction may create a labeling WorkItem, and baseline output must
+   remain unchanged. Approve with `CORRECT` and wait for healing and availability completion. For
+   each D2 model line, verify exactly one labeled data object and matching sidecar for A′, C, and D,
+   with `ACTIVE` metadata pointing to the replacement upload and current output generations. The
+   old A contents and B must contribute no records; B's data and sidecar must be absent and its
+   existing metadata `DELETED`. Verify D3's rebuilt memoized lineage and unchanged direct output.
+   Repeat addition+edit and addition+removal on separate baselines. Each final raw-to-labeled
+   manifest and metadata set must match its complete approved revision, with no partial visibility.
+4. **Remove an upload without replacement.** Remove every D2 raw object and write a new `done`
+   generation. Inspect the removal candidate and approve it with `NO_REPLACEMENT`. Verify that
+   D2 has no replacement output or active metadata, while memoized D3 rebuilds from retained D1.
+   The direct D3 output must remain unchanged.
+5. **Drain existing work and defer new uploads.** Run the controlled drain test linked below on
+   its isolated baseline. It withholds VidLabeler publication to keep a later memoized model line
+   in `LABELING`, acquires an active Data Availability lease, and then publishes and approves a
+   correction to its predecessor. Verify `DRAINING`, provisional output manifests, unchanged output
+   generations and snapshots, and rejection of a new lease. Publish another ordinary upload while
+   the fence is held and verify that its labeling remains deferred. Release the held labeling work
+   with `republishQueuedVidLabelers()` and release the lease with `releaseDataAvailabilitySyncLease()`.
+   Observe eviction, replay, recovery, and availability handoff; the deferred upload must then
+   complete without rewriting its `done` marker. These are test-harness controls, not deployed
+   worker pause commands. Do not manually pause `DataAvailabilitySync`.
+6. **Retry from a durable checkpoint.** On test output only, temporarily hold an exact GCS object
+   generation that the plan must delete. Approve the correction and inspect the resulting
+   `NEEDS_ATTENTION` operation, its saved resume state, and its completed steps. Release the hold,
+   retrieve the current etag, and invoke `retry-correction-plan`. Verify that
+   automatic progression resumes from the saved state, preserves completed checkpoints, and
+   finishes with one replacement per affected upload/model line. No operator eviction, replay,
+   or resume command is part of this procedure.
+7. **Reject a correction outside the healing retention window.** Use a separate test DataProvider
+   with a completed D2 owner registered before the controller's retention cutoff and retained raw
+   and labeled objects. An old impression event date alone does not make its registration old.
+   Record its current output, metadata, snapshots, and WorkItems, then edit one raw object and
+   finalize a correction. Run the controller and verify the candidate enters
+   `MANUAL_INTERVENTION_REQUIRED` and the operation is inspectable in `NEEDS_ATTENTION`, with a
+   reason identifying the retention failure. Observe the corresponding healing metric and
+   Monitoring incident; verify notification delivery only where channels are configured. No
+   replay, correction labeling WorkItem, output deletion, metadata deletion, or snapshot
+   deletion may occur. Run the controller again and redeliver the same finalized generation:
+   the candidate must remain non-dispatchable, baseline data must remain unchanged, and the
+   revision must not fall back to ordinary registration or wait for routine operator approval.
+   The automated retention case linked below creates this boundary with a test-only short window;
+   it does not backdate production records or change the market's retention configuration.
+
+### Controller scheduling control
+
+Use the Scheduler job configured by `vid_labeling_healing_controller_scheduler_config`. Replace
+`HEALING_CONTROLLER_JOB`, `LOCATION`, and `PROJECT` with its deployed identifiers. The job invokes
+the controller for all configured DataProviders, so use these commands only in a dedicated test
+deployment; use the in-process regression for a shared environment.
+
+```shell
+gcloud scheduler jobs pause HEALING_CONTROLLER_JOB --location=LOCATION --project=PROJECT
+```
+
+Pausing does not cancel an invocation already running. Wait for its completion in the function
+logs before approving the negative-case plan. Resume after the raw mutation, and restore the
+original scheduling state when the case finishes or fails:
+
+```shell
+gcloud scheduler jobs resume HEALING_CONTROLLER_JOB --location=LOCATION --project=PROJECT
+```
+
+### Automated validation references
+
+The [pre-commit manifest regression](../../src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/VidLabelingHealingChronologyIntegrationTest.kt)
+drives controller invocations explicitly on an isolated baseline, verifies that a changed approved
+manifest causes no eviction or replay, and verifies supersession and renewed approval after a newer
+finalized revision:
+
+```shell
+bazel test //src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:VidLabelingHealingChronologyIntegrationTest \
+  --test_filter='manifest mismatch before eviction reopens the plan after a newer correction'
+```
+
+The drain and retention harness cases are supplied by [PR #4588](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/4588).
+Run their commands from a checkout containing that PR, such as the complete stack.
+
+* [Controlled drain case](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/e6d1f4f895e85f127dd7f7a6455c1b9720e48fc1/src/test/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha/VidLabelingHealingHandoffIntegrationTest.kt):
+  `withholdNextVidLabelerPublications()` holds publication, not a running worker thread. The test
+  acquires the lease with `acquireDataAvailabilitySyncLease()` and releases it using its name and
+  etag with `releaseDataAvailabilitySyncLease()`. `republishQueuedVidLabelers()` releases labeling.
+  The publication controls belong to `VidLabelingPipelineTestHarness`; lease RPCs use the real
+  in-process lease service. Each test creates its own storage and services.
+* [Mixed quarantine and retention cases](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/e6d1f4f895e85f127dd7f7a6455c1b9720e48fc1/src/test/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha/VidLabelingRevisionHealingIntegrationTest.kt):
+  the mixed case checks quarantine for each combination. The retention case checks
+  `MANUAL_INTERVENTION_REQUIRED`, `NEEDS_ATTENTION`, and unchanged metadata; the no-work and
+  monitoring checks in scenario 7 remain part of deployed validation.
+
+```shell
+bazel test //src/test/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:VidLabelingHealingHandoffIntegrationTest \
+  --test_filter='draining freezes output while active memoized labeling and availability lease finish'
+bazel test //src/test/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:VidLabelingRevisionHealingIntegrationTest \
+  --test_filter='out of retention correction enters operator attention without eviction'
+```
+
+Historical deployed results are recorded in the
+[V2 validation plan](https://docs.google.com/document/d/1hBsL2z1VWSbW5yMj1mUDS4XsCp2qD-SRgkcuaiu0WE0/edit):
+Test 79 covers the pre-commit raw mutation, and Tests 34 and 37 cover full mixed revisions.
+Record a new execution against the deployed revision; earlier results do not certify the current
+stack, and an incomplete or failed journey is not a passed validation.
+
+At a blocked negative-case boundary, require unchanged baseline data and no correction work. In
+the retention case, `MANUAL_INTERVENTION_REQUIRED` and `NEEDS_ATTENTION` are the expected result;
+the correction remains quarantined and no replacement completion or fence release is expected.
+
+After successful healing, inspect the operation and replacement model lines separately. An operation
+can be `COMPLETE` after availability WorkItems are durably scheduled while replacement model lines
+remain `AVAILABILITY_SYNCING`. Require successful availability WorkItems, empty pending event-date
+sets, and `COMPLETED` replacement model lines before accepting the final data result. Verify the
+exact live data and sidecar generations, active or deleted `ImpressionMetadata`, memoized snapshot
+lineage, and the absence of the completed operation's eviction fence. Execute a measurement that
+covers the affected dates and verify that corrected contributions appear once and removed
+contributions are absent.
+
+Record each scenario's actual result, observed operation states, candidate and replacement names,
+WorkItem outcomes, exact object generations, and expected versus actual measurement results.
+A missing test control or unavailable measurement environment makes that assertion unexecuted;
+record it explicitly rather than reporting the whole scenario as passed. These steps describe
+validation to perform and do not certify a deployment or a previously completed test run.
