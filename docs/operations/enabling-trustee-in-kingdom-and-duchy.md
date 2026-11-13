@@ -47,6 +47,12 @@ available in the specified repository. It is signed by the
 build process. The signature is stored along with the images in the GitHub image
 repository.
 
+To publish and sign an individual application, run the
+[conditional image workflow](../../.github/workflows/maybe-push-images.yml) with
+`image-name` set to its Bazel image name. Omitting this input publishes and signs
+all images.
+Selected images must have an individual signing target; local-only images are rejected before publication.
+
 #### MIG Configuration
 
 The MIG is configured via the `trustee_config` variable in the Terraform module.
