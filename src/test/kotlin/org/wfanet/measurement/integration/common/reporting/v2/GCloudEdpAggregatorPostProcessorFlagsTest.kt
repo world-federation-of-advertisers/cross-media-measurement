@@ -36,8 +36,8 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 
-/** End-to-end coverage for assembling inconsistent, deterministically noised Direct results. */
-class GCloudEdpAggregatorDeterministicNoiseWithoutCorrectionTest :
+/** End-to-end coverage for postprocessing inconsistent, deterministically noised Direct results. */
+class GCloudEdpAggregatorPostProcessorFlagsTest :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
@@ -58,6 +58,22 @@ class GCloudEdpAggregatorDeterministicNoiseWithoutCorrectionTest :
 
   @Test
   fun `inconsistent deterministic noisy results succeed with correction disabled`() = runBlocking {
+    assertCompletedReport(enableValidation = true, enableCorrection = false)
+  }
+
+  @Test
+  fun `inconsistent deterministic noisy results succeed with validation and correction disabled`() =
+    runBlocking {
+      assertCompletedReport(enableValidation = false, enableCorrection = false)
+    }
+
+  @Test
+  fun `inconsistent deterministic noisy results are corrected with validation disabled`() =
+    runBlocking {
+      assertCompletedReport(enableValidation = false, enableCorrection = true)
+    }
+
+  private suspend fun assertCompletedReport(enableValidation: Boolean, enableCorrection: Boolean) {
     val eventGroups =
       listReportingEventGroups().filter { it.eventGroupReferenceId == "campaign/sparse-frequency" }
     assertThat(eventGroups).hasSize(1)
@@ -68,8 +84,8 @@ class GCloudEdpAggregatorDeterministicNoiseWithoutCorrectionTest :
         .createBasicReport(
           buildCreateBasicReportRequest(
             eventGroups,
-            "uncorrected-noisy-campaign",
-            "uncorrected-noisy-basicreport",
+            "postprocessor-flags-campaign",
+            "postprocessor-flags-basicreport",
             includeIqfFilter = false,
           )
         )
@@ -108,7 +124,7 @@ class GCloudEdpAggregatorDeterministicNoiseWithoutCorrectionTest :
     // Independently drawn noise violates the impressions >= sum(k+ reach) identity.
     assertThat(expectedKPlusReach.sum()).isGreaterThan(impression.value)
 
-    executeReportProcessorJob(enableValidation = true, enableCorrection = false)
+    executeReportProcessorJob(enableValidation, enableCorrection)
 
     val completedBasicReport =
       reportingBasicReportsClient
@@ -126,10 +142,21 @@ class GCloudEdpAggregatorDeterministicNoiseWithoutCorrectionTest :
         }
         .metricSet
     val cumulative = metricSet.reportingUnit.cumulative
-    assertThat(cumulative.reach).isEqualTo(reachAndFrequency.reach.value)
-    assertThat(cumulative.impressions).isEqualTo(impression.value)
-    assertThat(cumulative.kPlusReachList).containsExactlyElementsIn(expectedKPlusReach).inOrder()
-    assertThat(cumulative.kPlusReachList.sum()).isGreaterThan(cumulative.impressions)
+    if (enableCorrection) {
+      assertThat(cumulative.reach).isGreaterThan(0L)
+      assertThat(cumulative.kPlusReachList).hasSize(requestedKPlusReach)
+      assertThat(cumulative.kPlusReachList.first()).isEqualTo(cumulative.reach)
+      for ((lowerFrequencyReach, higherFrequencyReach) in cumulative.kPlusReachList.zipWithNext()) {
+        assertThat(lowerFrequencyReach).isAtLeast(higherFrequencyReach)
+      }
+      assertThat(cumulative.kPlusReachList.last()).isAtLeast(0L)
+      assertThat(cumulative.kPlusReachList.sum()).isAtMost(cumulative.impressions)
+    } else {
+      assertThat(cumulative.reach).isEqualTo(reachAndFrequency.reach.value)
+      assertThat(cumulative.impressions).isEqualTo(impression.value)
+      assertThat(cumulative.kPlusReachList).containsExactlyElementsIn(expectedKPlusReach).inOrder()
+      assertThat(cumulative.kPlusReachList.sum()).isGreaterThan(cumulative.impressions)
+    }
     assertThat(cumulative.percentReach)
       .isWithin(FLOAT_TOLERANCE)
       .of((cumulative.reach.toDouble() / metricSet.populationSize * 100).toFloat())

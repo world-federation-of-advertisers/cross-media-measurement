@@ -114,8 +114,8 @@ java_test(
 )
 
 kt_jvm_library(
-    name = "gcloud_edp_aggregator_deterministic_noise_without_correction_test",
-    srcs = ["GCloudEdpAggregatorDeterministicNoiseWithoutCorrectionTest.kt"],
+    name = "gcloud_edp_aggregator_post_processor_flags_test",
+    srcs = ["GCloudEdpAggregatorPostProcessorFlagsTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -143,16 +143,16 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudEdpAggregatorDeterministicNoiseWithoutCorrectionTest",
+    name = "GCloudEdpAggregatorPostProcessorFlagsTest",
     size = "large",
     timeout = "long",
     tags = [
         "cpu:2",
         "no-remote-exec",
     ],
-    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorDeterministicNoiseWithoutCorrectionTest",
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorPostProcessorFlagsTest",
     runtime_deps = [
-        ":gcloud_edp_aggregator_deterministic_noise_without_correction_test",
+        ":gcloud_edp_aggregator_post_processor_flags_test",
         "//imports/java/org/slf4j:simple",
     ],
 )
