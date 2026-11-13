@@ -63,13 +63,17 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -78,21 +82,28 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
+import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -157,6 +168,12 @@ class VidLabelingDispatchSequencerTest {
   private val vidLabelingJobService:
     VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase =
     mockService()
+  private val rankIndexBlobService:
+    RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase =
+    mockService()
+  private val uploadHealingOperationService:
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase =
+    mockService()
   private val modelRolloutsService: ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase =
     mockService()
   private val modelShardsService: ModelShardsGrpcKt.ModelShardsCoroutineImplBase = mockService()
@@ -173,6 +190,8 @@ class VidLabelingDispatchSequencerTest {
     addService(modelLinesService)
     addService(rawImpressionUploadFileService)
     addService(vidLabelingJobService)
+    addService(rankIndexBlobService)
+    addService(uploadHealingOperationService)
   }
 
   private val rawImpressionUploadStub by lazy {
@@ -208,6 +227,14 @@ class VidLabelingDispatchSequencerTest {
   private val vidLabelingJobStub by lazy {
     VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(grpcTestServerRule.channel)
   }
+  private val rankIndexBlobStub by lazy {
+    RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val uploadHealingOperationStub by lazy {
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
 
   private fun createSequencer(
     numberOfShards: Int = NUMBER_OF_SHARDS,
@@ -218,6 +245,8 @@ class VidLabelingDispatchSequencerTest {
     VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+      rankIndexBlobStub = rankIndexBlobStub,
+      uploadHealingOperationStub = uploadHealingOperationStub,
       workItemsStub = workItemsStub,
       poolAssignmentJobStub = poolAssignmentJobStub,
       modelRolloutsStub = modelRolloutsStub,
@@ -257,6 +286,33 @@ class VidLabelingDispatchSequencerTest {
     }
   }
 
+  private suspend fun stubGetUploads(vararg uploads: RawImpressionUpload) {
+    val uploadsByName = uploads.associateBy { it.name }
+    whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenAnswer { invocation ->
+      uploadsByName.getValue(invocation.getArgument<GetRawImpressionUploadRequest>(0).name)
+    }
+  }
+
+  private suspend fun stubHealingOperation(operation: UploadHealingOperation) {
+    whenever(uploadHealingOperationService.getUploadHealingOperation(any())).thenReturn(operation)
+  }
+
+  private suspend fun stubLiveSnapshots(vararg keys: Pair<String, String>) {
+    val live = keys.toSet()
+    whenever(rankIndexBlobService.listRankIndexBlobs(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRankIndexBlobsRequest>(0)
+      listRankIndexBlobsResponse {
+        if (request.parent to request.filter.cmmsModelLine in live) {
+          rankIndexBlobs += rankIndexBlob {
+            name = "${request.parent}/rankIndexBlobs/snapshot"
+            blobType = RankIndexBlob.BlobType.SNAPSHOT
+            cmmsModelLine = request.filter.cmmsModelLine
+          }
+        }
+      }
+    }
+  }
+
   /** Stubs `listRawImpressionUploadModelLines` to return [modelLines] for any parent upload. */
   private suspend fun stubModelLines(vararg modelLines: RawImpressionUploadModelLine) {
     whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
@@ -285,8 +341,9 @@ class VidLabelingDispatchSequencerTest {
     uploadName: String,
     cmmsModelLineName: String,
     state: RawImpressionUploadModelLine.State,
+    id: String = "ml",
   ) = rawImpressionUploadModelLine {
-    name = "$uploadName/modelLines/ml"
+    name = "$uploadName/modelLines/$id"
     cmmsModelLine = cmmsModelLineName
     this.state = state
     etag = ETAG
@@ -402,12 +459,49 @@ class VidLabelingDispatchSequencerTest {
     createdAt: Instant,
     registrationComplete: Boolean = true,
     processingDeferred: Boolean = false,
+    uploadHealingOperation: String = "",
+    replacesRawImpressionUpload: String = "",
   ) = rawImpressionUpload {
     name = "$DATA_PROVIDER/rawImpressionUploads/$id"
     this.state = state
     createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
     this.registrationComplete = registrationComplete
     this.processingDeferred = processingDeferred
+    this.uploadHealingOperation = uploadHealingOperation
+    this.replacesRawImpressionUpload = replacesRawImpressionUpload
+  }
+
+  private fun healingOperation(
+    name: String,
+    vararg steps: UploadHealingStep,
+  ): UploadHealingOperation = uploadHealingOperation {
+    this.name = name
+    this.steps += steps.toList()
+  }
+
+  private fun healingStep(
+    operationName: String,
+    sequenceNumber: Long,
+    source: String,
+    predecessor: String = "",
+    replacement: String = "",
+    state: UploadHealingStep.State = UploadHealingStep.State.COMPLETE,
+    action: RawImpressionUploadModelLine.RecoveryAction =
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
+    recoveryTarget: Boolean = true,
+    cmmsModelLine: String = MODEL_LINE,
+    memoized: Boolean = true,
+  ): UploadHealingStep = uploadHealingStep {
+    name = "$operationName/uploadHealingSteps/$sequenceNumber"
+    this.sequenceNumber = sequenceNumber
+    sourceRawImpressionUpload = source
+    recoveryPredecessorRawImpressionUpload = predecessor
+    replacementRawImpressionUpload = replacement
+    this.state = state
+    recoveryAction = action
+    this.recoveryTarget = recoveryTarget
+    this.cmmsModelLine = cmmsModelLine
+    this.memoized = memoized
   }
 
   private fun createdModelLine(id: String = "ml1") = rawImpressionUploadModelLine {
@@ -575,7 +669,7 @@ class VidLabelingDispatchSequencerTest {
 
       // MODEL_LINE_2 differs from the running MODEL_LINE, so it dispatches in parallel.
       assertThat(result.dispatchedUpload).isEqualTo(created.name)
-      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS * 2)) { createWorkItem(any()) }
       verifyBlocking(rawImpressionUploadModelLineService) {
         markRawImpressionUploadModelLineLabeling(any())
       }
@@ -712,6 +806,646 @@ class VidLabelingDispatchSequencerTest {
         // Same for the PopulationSpec: Phase-2 rejects a WorkItem without it, so dropping it here
         // would strand the memoized fan-out on a crash-looping VidLabeler.
         assertThat(params.populationSpecBlobUri).isEqualTo(POPULATION_SPEC_BLOB_URI)
+      }
+    }
+
+  @Test
+  fun `dispatchNext follows healing steps when upload create times are inverse`() =
+    runBlocking<Unit> {
+      val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+      val d1 = upload("day-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW.minusSeconds(1))
+      val sourceD2 = upload("day-2", RawImpressionUpload.State.FAILED, FIXED_NOW)
+      val sourceD3 = upload("day-3", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(1))
+      val sourceD4 = upload("day-4", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(2))
+      val correctedD2 =
+        upload(
+          "corrected-day-2",
+          RawImpressionUpload.State.ACTIVE,
+          FIXED_NOW.plusSeconds(4),
+          uploadHealingOperation = operationName,
+          replacesRawImpressionUpload = sourceD2.name,
+        )
+      val rebuiltD3 =
+        upload(
+          "rebuilt-day-3",
+          RawImpressionUpload.State.ACTIVE,
+          FIXED_NOW.plusSeconds(5),
+          uploadHealingOperation = operationName,
+          replacesRawImpressionUpload = sourceD3.name,
+        )
+      val correctedD4 =
+        upload(
+          "corrected-day-4",
+          RawImpressionUpload.State.CREATED,
+          FIXED_NOW.plusSeconds(3),
+          uploadHealingOperation = operationName,
+          replacesRawImpressionUpload = sourceD4.name,
+        )
+      stubUploads(active = listOf(correctedD2, rebuiltD3), created = listOf(correctedD4))
+      stubGetUploads(sourceD2, sourceD3, sourceD4)
+      stubModelLinesByParent(
+        mapOf(
+          d1.name to
+            listOf(modelLine(d1.name, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED)),
+          correctedD2.name to
+            listOf(
+              modelLine(
+                correctedD2.name,
+                MODEL_LINE,
+                RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+              )
+            ),
+          rebuiltD3.name to
+            listOf(
+              modelLine(
+                rebuiltD3.name,
+                MODEL_LINE,
+                RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+              )
+            ),
+          correctedD4.name to
+            listOf(
+              modelLine(correctedD4.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)
+            ),
+        )
+      )
+      stubHealingOperation(
+        healingOperation(
+          operationName,
+          healingStep(operationName, 1, sourceD2.name, d1.name, correctedD2.name),
+          healingStep(operationName, 2, sourceD3.name, sourceD2.name, rebuiltD3.name),
+          healingStep(
+            operationName,
+            3,
+            sourceD4.name,
+            sourceD3.name,
+            state = UploadHealingStep.State.RECOVERY_STARTED,
+            action = RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+          ),
+        )
+      )
+      stubLiveSnapshots(
+        d1.name to MODEL_LINE,
+        correctedD2.name to MODEL_LINE,
+        rebuiltD3.name to MODEL_LINE,
+      )
+      stubMemoizedDispatch()
+
+      createSequencer().dispatchNext()
+
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      for (request in captor.allValues) {
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<SubpoolAssignerParams>()
+        assertThat(params.allowedPriorSnapshotRawImpressionUploadsList)
+          .containsExactly(correctedD2.name, rebuiltD3.name)
+          .inOrder()
+      }
+      verifyBlocking(uploadHealingOperationService, times(1)) { getUploadHealingOperation(any()) }
+    }
+
+  @Test
+  fun `dispatchNext blocks a physically earlier future healing handoff`() = runBlocking {
+    val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+    val d1 = upload("day-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW.minusSeconds(1))
+    val sourceD3 = upload("day-3", RawImpressionUpload.State.FAILED, FIXED_NOW)
+    val sourceD4 = upload("day-4", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(1))
+    val sourceD5 = upload("day-5", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(2))
+    val rebuiltD3 =
+      upload(
+        "rebuilt-day-3",
+        RawImpressionUpload.State.ACTIVE,
+        FIXED_NOW.plusSeconds(4),
+        uploadHealingOperation = operationName,
+        replacesRawImpressionUpload = sourceD3.name,
+      )
+    val futureD5 =
+      upload(
+        "rebuilt-day-5",
+        RawImpressionUpload.State.ACTIVE,
+        FIXED_NOW.plusSeconds(3),
+        uploadHealingOperation = operationName,
+        replacesRawImpressionUpload = sourceD5.name,
+      )
+    val correctedD4 =
+      upload(
+        "corrected-day-4",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW.plusSeconds(5),
+        uploadHealingOperation = operationName,
+        replacesRawImpressionUpload = sourceD4.name,
+      )
+    stubUploads(active = listOf(rebuiltD3, futureD5), created = listOf(correctedD4))
+    stubGetUploads(sourceD3, sourceD4)
+    stubModelLinesByParent(
+      mapOf(
+        d1.name to
+          listOf(modelLine(d1.name, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED)),
+        rebuiltD3.name to
+          listOf(
+            modelLine(
+              rebuiltD3.name,
+              MODEL_LINE,
+              RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            )
+          ),
+        futureD5.name to
+          listOf(
+            modelLine(
+              futureD5.name,
+              MODEL_LINE,
+              RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            )
+          ),
+        correctedD4.name to
+          listOf(
+            modelLine(correctedD4.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)
+          ),
+      )
+    )
+    stubHealingOperation(
+      healingOperation(
+        operationName,
+        healingStep(operationName, 2, sourceD3.name, d1.name, rebuiltD3.name),
+        healingStep(
+          operationName,
+          3,
+          sourceD4.name,
+          sourceD3.name,
+          state = UploadHealingStep.State.RECOVERY_STARTED,
+        ),
+        healingStep(operationName, 4, sourceD5.name, sourceD4.name, futureD5.name),
+      )
+    )
+    stubLiveSnapshots(d1.name to MODEL_LINE, rebuiltD3.name to MODEL_LINE)
+
+    val result = createSequencer().dispatchNext()
+
+    assertThat(result.dispatchedUpload).isNull()
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+  }
+
+  @Test
+  fun `dispatchNext fails closed on ambiguous recovery target lineage`() = runBlocking {
+    val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+    val olderSource = upload("day-4-v1", RawImpressionUpload.State.FAILED, FIXED_NOW)
+    val source =
+      upload(
+        "day-4-v2",
+        RawImpressionUpload.State.FAILED,
+        FIXED_NOW.plusSeconds(1),
+        replacesRawImpressionUpload = olderSource.name,
+      )
+    val candidate =
+      upload(
+        "day-4-v3",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW.plusSeconds(2),
+        uploadHealingOperation = operationName,
+        replacesRawImpressionUpload = source.name,
+      )
+    stubUploads(created = listOf(candidate))
+    stubGetUploads(source, olderSource)
+    stubModelLinesByParent(
+      mapOf(
+        candidate.name to
+          listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED))
+      )
+    )
+    stubHealingOperation(
+      healingOperation(
+        operationName,
+        healingStep(
+          operationName,
+          1,
+          olderSource.name,
+          state = UploadHealingStep.State.RECOVERY_STARTED,
+        ),
+        healingStep(operationName, 2, source.name, state = UploadHealingStep.State.RECOVERY_STARTED),
+      )
+    )
+
+    val exception = assertFailsWith<IllegalStateException> { createSequencer().dispatchNext() }
+
+    assertThat(exception).hasMessageThat().contains("Expected one recovery target")
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+  }
+
+  @Test
+  fun `dispatchNext fails closed when predecessor replacement is missing`() = runBlocking {
+    val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+    val sourceD3 = upload("day-3", RawImpressionUpload.State.FAILED, FIXED_NOW)
+    val sourceD4 = upload("day-4", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(1))
+    val candidate =
+      upload(
+        "corrected-day-4",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW.plusSeconds(2),
+        uploadHealingOperation = operationName,
+        replacesRawImpressionUpload = sourceD4.name,
+      )
+    stubUploads(created = listOf(candidate))
+    stubGetUploads(sourceD4)
+    stubModelLinesByParent(
+      mapOf(
+        candidate.name to
+          listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED))
+      )
+    )
+    stubHealingOperation(
+      healingOperation(
+        operationName,
+        healingStep(operationName, 2, sourceD3.name),
+        healingStep(
+          operationName,
+          3,
+          sourceD4.name,
+          sourceD3.name,
+          state = UploadHealingStep.State.RECOVERY_STARTED,
+        ),
+      )
+    )
+
+    val exception = assertFailsWith<IllegalStateException> { createSequencer().dispatchNext() }
+
+    assertThat(exception).hasMessageThat().contains("has no replacement")
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+  }
+
+  @Test
+  fun `dispatchNext fails closed when predecessor replacement has no live snapshot`() =
+    runBlocking<Unit> {
+      val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+      val sourceD3 = upload("day-3", RawImpressionUpload.State.FAILED, FIXED_NOW)
+      val sourceD4 = upload("day-4", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(1))
+      val rebuiltD3 =
+        upload(
+          "rebuilt-day-3",
+          RawImpressionUpload.State.ACTIVE,
+          FIXED_NOW.plusSeconds(3),
+          uploadHealingOperation = operationName,
+          replacesRawImpressionUpload = sourceD3.name,
+        )
+      val candidate =
+        upload(
+          "corrected-day-4",
+          RawImpressionUpload.State.CREATED,
+          FIXED_NOW.plusSeconds(2),
+          uploadHealingOperation = operationName,
+          replacesRawImpressionUpload = sourceD4.name,
+        )
+      stubUploads(active = listOf(rebuiltD3), created = listOf(candidate))
+      stubGetUploads(sourceD3, sourceD4)
+      stubModelLinesByParent(
+        mapOf(
+          rebuiltD3.name to
+            listOf(
+              modelLine(
+                rebuiltD3.name,
+                MODEL_LINE,
+                RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+              )
+            ),
+          candidate.name to
+            listOf(
+              modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)
+            ),
+        )
+      )
+      stubHealingOperation(
+        healingOperation(
+          operationName,
+          healingStep(operationName, 2, sourceD3.name, replacement = rebuiltD3.name),
+          healingStep(
+            operationName,
+            3,
+            sourceD4.name,
+            sourceD3.name,
+            state = UploadHealingStep.State.RECOVERY_STARTED,
+          ),
+        )
+      )
+      stubLiveSnapshots()
+
+      val exception = assertFailsWith<IllegalStateException> { createSequencer().dispatchNext() }
+
+      assertThat(exception).hasMessageThat().contains("has no live snapshot")
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+    }
+
+  @Test
+  fun `dispatchNext fails closed when predecessor step is physically in the future`() =
+    runBlocking<Unit> {
+      val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+      val sourceD3 = upload("day-3", RawImpressionUpload.State.FAILED, FIXED_NOW)
+      val sourceD4 = upload("day-4", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(1))
+      val candidate =
+        upload(
+          "corrected-day-4",
+          RawImpressionUpload.State.CREATED,
+          FIXED_NOW.plusSeconds(2),
+          uploadHealingOperation = operationName,
+          replacesRawImpressionUpload = sourceD4.name,
+        )
+      stubUploads(created = listOf(candidate))
+      stubGetUploads(sourceD4)
+      stubModelLinesByParent(
+        mapOf(
+          candidate.name to
+            listOf(
+              modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)
+            )
+        )
+      )
+      stubHealingOperation(
+        healingOperation(
+          operationName,
+          healingStep(operationName, 4, sourceD3.name, replacement = "replacement"),
+          healingStep(
+            operationName,
+            3,
+            sourceD4.name,
+            sourceD3.name,
+            state = UploadHealingStep.State.RECOVERY_STARTED,
+          ),
+        )
+      )
+
+      val exception = assertFailsWith<IllegalStateException> { createSequencer().dispatchNext() }
+
+      assertThat(exception).hasMessageThat().contains("is not earlier")
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+    }
+
+  @Test
+  fun `dispatchNext does not authorize a cross-operation handoff`() = runBlocking {
+    val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+    val otherOperation = "$DATA_PROVIDER/uploadHealingOperations/other"
+    val d1 = upload("day-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW)
+    val sourceD4 = upload("day-4", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(1))
+    val other =
+      upload(
+        "other",
+        RawImpressionUpload.State.ACTIVE,
+        FIXED_NOW.plusSeconds(2),
+        uploadHealingOperation = otherOperation,
+      )
+    val candidate =
+      upload(
+        "corrected-day-4",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW.plusSeconds(3),
+        uploadHealingOperation = operationName,
+        replacesRawImpressionUpload = sourceD4.name,
+      )
+    stubUploads(active = listOf(other), created = listOf(candidate))
+    stubGetUploads(sourceD4)
+    stubModelLinesByParent(
+      mapOf(
+        d1.name to
+          listOf(modelLine(d1.name, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED)),
+        other.name to
+          listOf(
+            modelLine(
+              other.name,
+              MODEL_LINE,
+              RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            )
+          ),
+        candidate.name to
+          listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+      )
+    )
+    stubHealingOperation(
+      healingOperation(
+        operationName,
+        healingStep(
+          operationName,
+          3,
+          sourceD4.name,
+          d1.name,
+          state = UploadHealingStep.State.RECOVERY_STARTED,
+        ),
+      )
+    )
+    stubLiveSnapshots(d1.name to MODEL_LINE)
+
+    val result = createSequencer().dispatchNext()
+
+    assertThat(result.dispatchedUpload).isNull()
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+  }
+
+  @Test
+  fun `dispatchNext rejects an external predecessor that is not completed`() = runBlocking {
+    val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+    val d1 = upload("day-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val sourceD4 = upload("day-4", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(1))
+    val candidate =
+      upload(
+        "corrected-day-4",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW.plusSeconds(2),
+        uploadHealingOperation = operationName,
+        replacesRawImpressionUpload = sourceD4.name,
+      )
+    stubUploads(created = listOf(candidate))
+    stubGetUploads(sourceD4)
+    stubModelLinesByParent(
+      mapOf(
+        d1.name to
+          listOf(
+            modelLine(d1.name, MODEL_LINE, RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+          ),
+        candidate.name to
+          listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+      )
+    )
+    stubHealingOperation(
+      healingOperation(
+        operationName,
+        healingStep(
+          operationName,
+          3,
+          sourceD4.name,
+          d1.name,
+          state = UploadHealingStep.State.RECOVERY_STARTED,
+        ),
+      )
+    )
+
+    val exception = assertFailsWith<IllegalStateException> { createSequencer().dispatchNext() }
+
+    assertThat(exception).hasMessageThat().contains("is not COMPLETED")
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+  }
+
+  @Test
+  fun `dispatchNext fetches one healing operation per scan`() = runBlocking {
+    val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+    val d1 = upload("day-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW)
+    val sourceD4 = upload("day-4", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(1))
+    val candidate =
+      upload(
+        "corrected-day-4",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW.plusSeconds(2),
+        uploadHealingOperation = operationName,
+        replacesRawImpressionUpload = sourceD4.name,
+      )
+    stubUploads(created = listOf(candidate))
+    stubGetUploads(sourceD4)
+    stubModelLinesByParent(
+      mapOf(
+        d1.name to
+          listOf(
+            modelLine(d1.name, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED),
+            modelLine(
+              d1.name,
+              MODEL_LINE_2,
+              RawImpressionUploadModelLine.State.COMPLETED,
+              id = "ml2",
+            ),
+          ),
+        candidate.name to
+          listOf(
+            modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED),
+            modelLine(
+              candidate.name,
+              MODEL_LINE_2,
+              RawImpressionUploadModelLine.State.CREATED,
+              id = "ml2",
+            ),
+          ),
+      )
+    )
+    stubHealingOperation(
+      healingOperation(
+        operationName,
+        healingStep(
+          operationName,
+          3,
+          sourceD4.name,
+          d1.name,
+          state = UploadHealingStep.State.RECOVERY_STARTED,
+        ),
+        healingStep(
+          operationName,
+          4,
+          sourceD4.name,
+          d1.name,
+          state = UploadHealingStep.State.RECOVERY_STARTED,
+          cmmsModelLine = MODEL_LINE_2,
+        ),
+      )
+    )
+    stubLiveSnapshots(d1.name to MODEL_LINE, d1.name to MODEL_LINE_2)
+    stubMemoizedDispatch()
+
+    createSequencer().dispatchNext()
+
+    verifyBlocking(uploadHealingOperationService, times(1)) { getUploadHealingOperation(any()) }
+    verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS * 2)) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `dispatchNext skips no-replacement step in persisted predecessor chain`() =
+    runBlocking<Unit> {
+      val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+      val d1 = upload("day-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW)
+      val sourceD3 = upload("day-3", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(1))
+      val sourceD4 = upload("day-4", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(2))
+      val sourceD5 = upload("day-5", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(3))
+      val rebuiltD3 =
+        upload(
+          "rebuilt-day-3",
+          RawImpressionUpload.State.ACTIVE,
+          FIXED_NOW.plusSeconds(5),
+          uploadHealingOperation = operationName,
+          replacesRawImpressionUpload = sourceD3.name,
+        )
+      val rebuiltD5 =
+        upload(
+          "rebuilt-day-5",
+          RawImpressionUpload.State.CREATED,
+          FIXED_NOW.plusSeconds(4),
+          uploadHealingOperation = operationName,
+          replacesRawImpressionUpload = sourceD5.name,
+        )
+      stubUploads(active = listOf(rebuiltD3), created = listOf(rebuiltD5))
+      stubGetUploads(sourceD3, sourceD5)
+      stubModelLinesByParent(
+        mapOf(
+          d1.name to
+            listOf(modelLine(d1.name, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED)),
+          rebuiltD3.name to
+            listOf(
+              modelLine(
+                rebuiltD3.name,
+                MODEL_LINE,
+                RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+              )
+            ),
+          rebuiltD5.name to
+            listOf(
+              modelLine(rebuiltD5.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)
+            ),
+        )
+      )
+      stubHealingOperation(
+        healingOperation(
+          operationName,
+          healingStep(operationName, 2, sourceD3.name, d1.name, rebuiltD3.name),
+          healingStep(
+            operationName,
+            3,
+            sourceD4.name,
+            sourceD3.name,
+            action = RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT,
+            recoveryTarget = false,
+          ),
+          healingStep(
+            operationName,
+            4,
+            sourceD5.name,
+            sourceD4.name,
+            state = UploadHealingStep.State.RECOVERY_STARTED,
+          ),
+        )
+      )
+      stubLiveSnapshots(d1.name to MODEL_LINE, rebuiltD3.name to MODEL_LINE)
+      stubMemoizedDispatch()
+
+      createSequencer().dispatchNext()
+
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      for (request in captor.allValues) {
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<SubpoolAssignerParams>()
+        assertThat(params.allowedPriorSnapshotRawImpressionUploadsList)
+          .containsExactly(rebuiltD3.name)
       }
     }
 
@@ -865,11 +1599,11 @@ class VidLabelingDispatchSequencerTest {
       // dispatchNext must not propagate the lost-race error.
       val result = createSequencer().dispatchNext()
 
-      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      assertThat(result.dispatchedUpload).isNull()
     }
 
   @Test
-  fun `dispatchNext does not retry a memoized claim rejected with FAILED_PRECONDITION`() =
+  fun `dispatchNext publishes no memoized work when a correction fence rejects the claim`() =
     runBlocking<Unit> {
       stubUploads(
         created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
@@ -890,13 +1624,15 @@ class VidLabelingDispatchSequencerTest {
 
       val result = createSequencer().dispatchNext()
 
-      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      assertThat(result.dispatchedUpload).isNull()
       verifyBlocking(rawImpressionUploadModelLineService, times(1)) {
         markRawImpressionUploadModelLinePoolAssigning(any())
       }
       verifyBlocking(rawImpressionUploadModelLineService, never()) {
         getRawImpressionUploadModelLine(any())
       }
+      verifyBlocking(poolAssignmentJobService, never()) { batchCreatePoolAssignmentJobs(any()) }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
     }
 
   @Test
@@ -1152,6 +1888,106 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
+  fun `dispatchNext leaves a non-memoized line unclaimed when its file listing is empty`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+      stubMarkTransitions()
+
+      val result = createSequencer().dispatchNext()
+
+      assertThat(result.dispatchedUpload).isNull()
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
+      verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatchNext leaves a non-memoized line unclaimed when its file listing fails`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+        throw StatusException(Status.UNAVAILABLE)
+      }
+      stubMarkTransitions()
+
+      assertFailsWith<StatusException> { createSequencer().dispatchNext() }
+
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
+      verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatchNext retries an empty non-memoized file listing without an extra claim`() =
+    runBlocking<Unit> {
+      val created = upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)
+      stubUploads(created = listOf(created))
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+      stubMarkTransitions()
+      val sequencer = createSequencer()
+
+      assertThat(sequencer.dispatchNext().dispatchedUpload).isNull()
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
+      stubNonMemoizedFilesAndJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+
+      assertThat(sequencer.dispatchNext().dispatchedUpload).isEqualTo(created.name)
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
+      verifyBlocking(vidLabelingJobService) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatchNext resumes an already claimed non-memoized line after an empty listing`() =
+    runBlocking<Unit> {
+      stubUploads(active = listOf(upload("upload-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+      stubModelLines(
+        createdModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING }
+      )
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+      val sequencer = createSequencer()
+      sequencer.dispatchNext()
+      verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+
+      stubNonMemoizedFilesAndJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      sequencer.dispatchNext()
+
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
+      verifyBlocking(vidLabelingJobService) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+    }
+
+  @Test
   fun `dispatchNext bundles all non-memoized model lines of an upload into shared jobs`() =
     runBlocking<Unit> {
       val created = upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)
@@ -1317,11 +2153,13 @@ class VidLabelingDispatchSequencerTest {
       // dispatchNext must not propagate the lost-race error.
       val result = createSequencer().dispatchNext()
 
-      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      assertThat(result.dispatchedUpload).isNull()
+      verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
     }
 
   @Test
-  fun `dispatchNext skips a model line that already advanced with FAILED_PRECONDITION`() =
+  fun `dispatchNext publishes no work when a correction fence rejects the claim`() =
     runBlocking<Unit> {
       stubUploads(
         created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
@@ -1338,7 +2176,9 @@ class VidLabelingDispatchSequencerTest {
 
       val result = createSequencer().dispatchNext()
 
-      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      assertThat(result.dispatchedUpload).isNull()
+      verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
     }
 
   @Test

@@ -53,6 +53,7 @@ import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.config.edpaggregator.copy
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
@@ -65,13 +66,15 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemPublicationCodec
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -213,9 +216,23 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   private fun serviceWorkItem(request: HttpRequest) {
-    val input = DataAvailabilitySyncWorkItem.parse(WorkItem.parseFrom(request.inputStream))
-    val config =
+    val input =
+      DataAvailabilitySyncWorkItem.parse(WorkItemPublicationCodec.parse(request.inputStream))
+    val providerConfig =
       runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
+    val internalPath = providerConfig.vidLabeledImpressionPath
+    require(internalPath.isNotBlank()) {
+      "vid_labeled_impression_path is required for VID labeling WorkItems on " +
+        providerConfig.dataProvider
+    }
+    val doneBlobKey = SelectedStorageClient.parseBlobUri(input.doneBlobUri).key
+    val config =
+      if (doneBlobKey.startsWith("$internalPath/")) {
+        providerConfig.copy { edpImpressionPath = internalPath }
+      } else {
+        // Queued WorkItems retain the output path encoded before a prefix cutover.
+        providerConfig
+      }
     val grpcChannels = getOrCreateSharedChannels(config)
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
     val instrumentedMetadataChannel =
@@ -247,7 +264,14 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           check(rawImpressionBlobUris.isNotEmpty()) {
             "No RawImpressionUploadFile rows matched the WorkItem event date"
           }
-          buildDataAvailabilitySync(config)
+          buildDataAvailabilitySync(
+              config,
+              availabilityImpressionPaths =
+                listOfNotNull(
+                  providerConfig.edpImpressionPath,
+                  internalPath.takeIf(String::isNotEmpty),
+                ),
+            )
             .sync(
               workItem.doneBlobUri,
               dataAvailabilitySyncLease = lease.name,
@@ -263,7 +287,35 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               ensureLeaseActive = lease::invoke,
             )
         },
-        verifyDoneObject = { workItem -> verifyWorkItemDoneObject(workItem, config) },
+        verifyDoneObject = { workItem ->
+          if (workItem.appParams.triggeringRawImpressionUpload.isNotEmpty()) {
+            val parent =
+              globalThrottler.onReady {
+                rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
+                  getRawImpressionUploadModelLineRequest {
+                    name = workItem.rawImpressionUploadModelLineName
+                  }
+                )
+              }
+            require(
+              parent.name == workItem.rawImpressionUploadModelLineName &&
+                parent.name.substringBefore("/rawImpressionUploadModelLines/") ==
+                  workItem.appParams.triggeringRawImpressionUpload
+            ) {
+              "WorkItem source upload does not match its parent"
+            }
+            require(parent.cmmsModelLine == workItem.appParams.modelLine) {
+              "WorkItem model line does not match its parent"
+            }
+            check(
+              parent.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING ||
+                parent.state == RawImpressionUploadModelLine.State.COMPLETED
+            ) {
+              "WorkItem parent is not ready for availability synchronization"
+            }
+          }
+          verifyWorkItemDoneObject(workItem, config)
+        },
         markAvailabilitySynchronized = { workItem ->
           rawImpressionUploadModelLinesStub
             .markRawImpressionUploadModelLineAvailabilitySynchronized(
@@ -307,7 +359,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   private fun buildDataAvailabilitySync(
-    dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+    dataAvailabilitySyncConfig: DataAvailabilitySyncConfig,
+    availabilityImpressionPaths: List<String> =
+      listOfNotNull(
+        dataAvailabilitySyncConfig.edpImpressionPath,
+        dataAvailabilitySyncConfig.vidLabeledImpressionPath.takeIf(String::isNotEmpty),
+      ),
   ): DataAvailabilitySync {
     val storageClient = createStorageClient(dataAvailabilitySyncConfig)
     val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
@@ -371,6 +428,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       modelLineMap =
         dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
+      availabilityImpressionPaths = availabilityImpressionPaths,
     )
   }
 

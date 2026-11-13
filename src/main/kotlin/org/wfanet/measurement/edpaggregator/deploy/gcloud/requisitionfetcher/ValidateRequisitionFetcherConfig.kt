@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import picocli.CommandLine
 
@@ -52,7 +53,11 @@ class ValidateRequisitionFetcherConfig : Runnable {
   override fun run() {
     val requisitionFetcherConfig =
       parseTextProto(requisitionFetcherConfigFile, RequisitionFetcherConfig.getDefaultInstance())
-    val typeRegistry = TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build()
+    val typeRegistry =
+      TypeRegistry.newBuilder()
+        .add(ResultsFulfillerParams.getDescriptor())
+        .add(EventGroupSyncParams.getDescriptor())
+        .build()
     val dataWatcherConfig =
       parseTextProto(dataWatcherConfigFile, DataWatcherConfig.getDefaultInstance(), typeRegistry)
     RequisitionFetcherConfigValidator.validate(

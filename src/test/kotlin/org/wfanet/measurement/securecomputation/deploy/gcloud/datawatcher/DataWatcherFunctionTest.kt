@@ -21,7 +21,6 @@ import io.cloudevents.CloudEvent
 import io.cloudevents.CloudEventData
 import io.cloudevents.SpecVersion
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import java.net.URI
 import java.time.OffsetDateTime
 import kotlin.test.assertFailsWith
@@ -86,11 +85,13 @@ class DataWatcherFunctionTest {
         .trimIndent()
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertFailsWith<RuntimeException> {
         DataWatcherFunction(pathReceiver).accept(TestCloudEvent(cloudEventData.toByteArray()))
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception).hasMessageThat().contains("errorCode=grpc.UNAVAILABLE")
+    assertThat(exception).hasMessageThat().doesNotContain("gs://")
+    assertThat(exception.stackTrace).isEmpty()
   }
 
   private class TestCloudEvent(private val dataBytes: ByteArray) : CloudEvent {
