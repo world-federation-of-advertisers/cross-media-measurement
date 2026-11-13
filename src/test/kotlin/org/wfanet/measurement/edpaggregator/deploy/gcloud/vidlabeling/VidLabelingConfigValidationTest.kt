@@ -139,6 +139,153 @@ class VidLabelingConfigValidationTest {
     assertThat(exception).hasMessageThat().contains("max_file_batch_size_bytes must be set")
   }
 
+  @Test
+  fun `raw impressions blob prefix passes when bucket-relative`() {
+    requireValidRawImpressionsBlobPrefix(
+      vidLabelingConfig {
+        dataProvider = DATA_PROVIDER
+        rawImpressionsBlobPrefix = "raw-impressions/edp/edp7"
+      }
+    )
+  }
+
+  @Test
+  fun `raw impressions blob prefix throws when missing`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        requireValidRawImpressionsBlobPrefix(vidLabelingConfig { dataProvider = DATA_PROVIDER })
+      }
+
+    assertThat(exception).hasMessageThat().contains("raw_impressions_blob_prefix must be set")
+  }
+
+  @Test
+  fun `raw impressions blob prefix throws when slash-delimited`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        requireValidRawImpressionsBlobPrefix(
+          vidLabelingConfig {
+            dataProvider = DATA_PROVIDER
+            rawImpressionsBlobPrefix = "/raw-impressions/edp/edp7/"
+          }
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("must not start or end with '/'")
+  }
+
+  @Test
+  fun `raw impressions blob prefix passes for single and nested roots`() {
+    for (prefix in listOf("raw", "raw-impressions/edp/edpa_meta", "raw.v1/.archive/edp..7")) {
+      requireValidRawImpressionsBlobPrefix(
+        vidLabelingConfig {
+          dataProvider = DATA_PROVIDER
+          rawImpressionsBlobPrefix = prefix
+        }
+      )
+    }
+  }
+
+  @Test
+  fun `raw impressions blob prefix throws for URI values`() {
+    for (prefix in listOf("gs://other-bucket/raw", "https://example.test/raw", "s3://bucket/raw")) {
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          requireValidRawImpressionsBlobPrefix(
+            vidLabelingConfig {
+              dataProvider = DATA_PROVIDER
+              rawImpressionsBlobPrefix = prefix
+            }
+          )
+        }
+
+      assertThat(exception).hasMessageThat().contains("bucket-relative")
+      assertThat(exception).hasMessageThat().contains(DATA_PROVIDER)
+    }
+  }
+
+  @Test
+  fun `raw impressions blob prefix throws for empty directory segments`() {
+    for (prefix in listOf("raw//2026", "raw///2026", "raw/edp//edp7")) {
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          requireValidRawImpressionsBlobPrefix(
+            vidLabelingConfig {
+              dataProvider = DATA_PROVIDER
+              rawImpressionsBlobPrefix = prefix
+            }
+          )
+        }
+
+      assertThat(exception).hasMessageThat().contains("path segments")
+      assertThat(exception).hasMessageThat().contains(DATA_PROVIDER)
+    }
+  }
+
+  @Test
+  fun `raw impressions blob prefix throws for current directory segments`() {
+    for (prefix in listOf(".", "./raw", "raw/./2026", "raw/.")) {
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          requireValidRawImpressionsBlobPrefix(
+            vidLabelingConfig {
+              dataProvider = DATA_PROVIDER
+              rawImpressionsBlobPrefix = prefix
+            }
+          )
+        }
+
+      assertThat(exception).hasMessageThat().contains("path segments")
+    }
+  }
+
+  @Test
+  fun `raw impressions blob prefix throws for parent directory segments`() {
+    for (prefix in listOf("..", "../raw", "raw/../2026", "raw/..")) {
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          requireValidRawImpressionsBlobPrefix(
+            vidLabelingConfig {
+              dataProvider = DATA_PROVIDER
+              rawImpressionsBlobPrefix = prefix
+            }
+          )
+        }
+
+      assertThat(exception).hasMessageThat().contains("path segments")
+    }
+  }
+
+  @Test
+  fun `raw impressions blob prefix throws for a leading slash`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        requireValidRawImpressionsBlobPrefix(
+          vidLabelingConfig {
+            dataProvider = DATA_PROVIDER
+            rawImpressionsBlobPrefix = "/raw"
+          }
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("must not start or end")
+  }
+
+  @Test
+  fun `raw impressions blob prefix throws for a trailing slash`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        requireValidRawImpressionsBlobPrefix(
+          vidLabelingConfig {
+            dataProvider = DATA_PROVIDER
+            rawImpressionsBlobPrefix = "raw/"
+          }
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("must not start or end")
+  }
+
   private fun configWithMaxFileBatchSizeBytes(sizeBytes: Long): VidLabelingConfig =
     vidLabelingConfig {
       dataProvider = DATA_PROVIDER
