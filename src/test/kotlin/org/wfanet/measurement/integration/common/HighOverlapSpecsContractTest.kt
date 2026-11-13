@@ -28,12 +28,12 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
 import org.wfanet.measurement.common.parseTextProto
 
 /**
- * Pins the shape of the generated high overlap dataset.
+ * Pins the shape of the high overlap dataset.
  *
  * `EdpAggregatorReportingIntegrationTest` derives its expected reach from these same specs, so it
- * cannot distinguish a generator change from a system change: both sides move together. These
+ * cannot distinguish a fixture change from a system change: both sides move together. These
  * assertions are written against the design documented in
- * `docs/edpaggregator/high-overlap-data-shape.md`, so a generator edit that drops a Venn region,
+ * `docs/edpaggregator/high-overlap-data-shape.md`, so a fixture edit that drops a Venn region,
  * breaks the demographic striping or resizes the population fails here instead of silently
  * redefining what the integration test considers correct.
  */

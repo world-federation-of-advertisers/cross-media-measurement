@@ -5,7 +5,6 @@ package(
 
 HIGH_OVERLAP_SPECS = [
     "high_overlap_impression_test_data_config.textproto",
-    "high_overlap_population_spec.textproto",
     "high_overlap_seg_all4_1.textproto",
     "high_overlap_seg_all4_2.textproto",
     "high_overlap_seg_all4_3.textproto",
@@ -34,7 +33,7 @@ HIGH_OVERLAP_SPECS = [
     "high_overlap_seg_videoonly_3.textproto",
 ]
 
-# Keep seeded population/model resources and dataset manifests in sync with these specs.
+# Keep seeded population/model resources and dataset manifests in sync with the fixture.
 # Changes to reached VIDs or impression specs require reseeding impressions. See
 # //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/README.md.
 genrule(

@@ -16,9 +16,7 @@
 
 package org.wfanet.measurement.loadtest.edpaggregator.tools
 
-import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.TextFormat
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.struct
 import com.google.protobuf.value
 import com.google.type.date
@@ -33,16 +31,11 @@ import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.entityKeySpec
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.syntheticEventGroup
 import org.measurement.integration.k8s.testing.impressionTestDataConfig
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
-import org.wfanet.measurement.api.v2alpha.populationSpec
 
 /**
  * Generates the high overlap synthetic data specs.
@@ -51,19 +44,14 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
  * aggregator EDPs, plus a deliberately sub-sigma noise probe. A segment is seeded on exactly the
  * EDPs named in its region, so selecting the whole menu lights up all 15 regions at once.
  *
- * Demographics are orthogonal to the Venn structure: the 30 (gender, age_group, us_state) tuples
- * are interleaved in [STRIPE_SIZE]-VID stripes cycling round-robin, so one full cycle fits inside
- * the smallest region and every region carries the full demographic mix.
+ * The committed population spec interleaves 30 demographic tuples in [STRIPE_SIZE]-VID stripes
+ * across the reached range, so every Venn region carries the full reached demographic mix.
  *
  * Usage: `GenerateHighOverlapSpecs <output-directory>`
  */
 object GenerateHighOverlapSpecs {
 
   private const val STRIPE_SIZE = 10_000
-  private const val TOTAL_POPULATION = 360_000_000L
-
-  /** Highest VID any segment reaches, rounded up to a whole stripe. */
-  private const val REACHED_VID_END = 10_610_000L
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#4563): Move the EDP
   // names and the segment table below into a HighOverlapDatasetSpec config, so
@@ -97,22 +85,6 @@ object GenerateHighOverlapSpecs {
   /** Engagement values cycled per block so threshold IQFs select real subsets. */
   private val COMPLETED_FRACTIONS = listOf(0.0f, 0.25f, 0.5f, 0.75f, 1.0f)
   private val VIEWABLE_FRACTIONS = listOf(0.0f, 0.5f, 1.0f)
-
-  private val GENDERS = listOf(Common.Gender.MALE, Common.Gender.FEMALE)
-  private val AGE_GROUPS =
-    listOf(
-      Common.AgeGroup.YEARS_18_TO_34,
-      Common.AgeGroup.YEARS_35_TO_54,
-      Common.AgeGroup.YEARS_55_PLUS,
-    )
-  private val US_STATES =
-    listOf(
-      Common.UsState.CALIFORNIA,
-      Common.UsState.NEW_YORK,
-      Common.UsState.TEXAS,
-      Common.UsState.FLORIDA,
-      Common.UsState.ILLINOIS,
-    )
 
   private data class EntityMetadata(val brand: String, val campaign: String, val placement: String)
 
@@ -296,36 +268,6 @@ object GenerateHighOverlapSpecs {
   private const val POPULATION_SPEC_FILE = "high_overlap_population_spec.textproto"
   private const val CONFIG_FILE = "high_overlap_impression_test_data_config.textproto"
 
-  private val TYPE_REGISTRY: TypeRegistry =
-    TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
-
-  /** The 30 demographic tuples assigned to the existing reached VID stripes. */
-  private val DEMOGRAPHIC_TUPLES: List<Common> = demographicTuples(US_STATES)
-
-  private val POPULATION_DEMOGRAPHIC_TUPLES: List<Common> =
-    demographicTuples(
-      Common.UsState.values()
-        .filter {
-          it != Common.UsState.UNRECOGNIZED &&
-            it.number > 0 &&
-            it != Common.UsState.DISTRICT_OF_COLUMBIA
-        }
-        .sortedBy { it.number }
-    )
-
-  private fun demographicTuples(states: List<Common.UsState>): List<Common> =
-    GENDERS.flatMap { gender ->
-      AGE_GROUPS.flatMap { ageGroup ->
-        states.map { state ->
-          common {
-            this.gender = gender
-            this.ageGroup = ageGroup
-            usState = state
-          }
-        }
-      }
-    }
-
   /**
    * Name of the spec file for one entity key of a segment.
    *
@@ -353,38 +295,6 @@ object GenerateHighOverlapSpecs {
 
   /** Formats [value] with thousands separators, for VID ranges in descriptions. */
   private fun grouped(value: Long): String = String.format(Locale.ROOT, "%,d", value)
-
-  /** Builds the population: demographic tuples interleaved in stripes, plus an unreached filler. */
-  private fun buildPopulationSpec(): PopulationSpec {
-    val stripeCount = (REACHED_VID_END / STRIPE_SIZE).toInt()
-    return populationSpec {
-      for (i in 0 until stripeCount) {
-        subpopulations +=
-          PopulationSpecKt.subPopulation {
-            vidRanges +=
-              PopulationSpecKt.vidRange {
-                startVid = i.toLong() * STRIPE_SIZE + 1
-                endVidInclusive = (i.toLong() + 1) * STRIPE_SIZE
-              }
-            attributes += ProtoAny.pack(DEMOGRAPHIC_TUPLES[i % DEMOGRAPHIC_TUPLES.size])
-          }
-      }
-      // Give every state demographic cohort population without changing the reached VIDs.
-      val unreachedPopulation = TOTAL_POPULATION - REACHED_VID_END
-      val cohortCount = POPULATION_DEMOGRAPHIC_TUPLES.size
-      for ((index, demographics) in POPULATION_DEMOGRAPHIC_TUPLES.withIndex()) {
-        subpopulations +=
-          PopulationSpecKt.subPopulation {
-            vidRanges +=
-              PopulationSpecKt.vidRange {
-                startVid = REACHED_VID_END + 1 + unreachedPopulation * index / cohortCount
-                endVidInclusive = REACHED_VID_END + unreachedPopulation * (index + 1) / cohortCount
-              }
-            attributes += ProtoAny.pack(demographics)
-          }
-      }
-    }
-  }
 
   /** A half-open VID range. */
   private data class VidRange(val start: Long, val endExclusive: Long)
@@ -523,7 +433,7 @@ object GenerateHighOverlapSpecs {
   }
 
   private fun write(outputDir: File, fileName: String, message: com.google.protobuf.Message) {
-    val printer = TextFormat.printer().usingTypeRegistry(TYPE_REGISTRY)
+    val printer = TextFormat.printer()
     File(outputDir, fileName).writeText(printer.printToString(message))
   }
 
@@ -536,7 +446,6 @@ object GenerateHighOverlapSpecs {
     val outputDir = Paths.get(args[0]).toFile()
     check(outputDir.isDirectory || outputDir.mkdirs()) { "Cannot create ${outputDir.path}" }
 
-    write(outputDir, POPULATION_SPEC_FILE, buildPopulationSpec())
     for (segment in SEGMENTS) {
       for (i in 0 until segment.entityCount) {
         write(outputDir, segmentFileName(segment, i), buildSegmentSpec(segment, i))
