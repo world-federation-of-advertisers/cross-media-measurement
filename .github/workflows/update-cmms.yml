@@ -427,7 +427,7 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
 
-  # Provisions the high overlap dataset and reports over it.
+  # Reports over the high overlap dataset.
   run-edpa-reporting-integration-test:
     if: inputs.run-tests
     needs: [
