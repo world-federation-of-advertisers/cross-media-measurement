@@ -28,9 +28,16 @@ To change the data, edit the generator. Since runfiles paths are the same for
 generated and source files, tests resolve these exactly as before.
 
 `high_overlap_population_spec.textproto` needs particular care: the Population's
-resource ID is a hash of the spec's serialized bytes, so any semantic change
-provisions a **new** Population and invalidates every expected reach in
-[`EdpAggregatorReportingIntegrationTest`](../../src/test/kotlin/org/wfanet/measurement/integration/k8s/EdpAggregatorReportingIntegrationTest.kt).
+resource ID is a hash of the spec's serialized bytes, so changing it provisions a
+**new** Population. Update the ModelRelease/ModelRollout and population-spec blob
+references, and refresh the dataset manifest before reporting against the new
+spec. Changing reached VIDs or their demographics can change expected reach.
+
+Population coverage can be expanded by repartitioning only unreached VIDs. The
+existing impression specs and reached VID demographics remain compatible with
+stored impressions. `SeedHighOverlapDataset` performs a full rebuild, so reusing
+those impressions requires updating the population resources and manifest
+separately from impression seeding.
 
 Seeding can take longer than the one-hour lifetime of its Google identity token
 for AWS KMS. The seeding workflow renews the private token file every 30 minutes;
@@ -79,11 +86,15 @@ override.
 `high_overlap_population_spec.textproto` declares **360,000,000** VIDs, of which
 **10,610,000** are reachable.
 
-The full 360M is not reached; the remainder is a single filler subpopulation that
-generates no impressions. It exists because the frequency vector is a dense
-`ByteArray` sized to the whole population — one slot per population VID, per
-filter sink — so a 360M population stresses frequency-vector allocation
-regardless of how few VIDs are actually reached.
+The full 360M is not reached. The remaining VIDs generate no impressions and are
+split evenly across **300 `(gender × age_group × us_state)` cohorts**, covering
+both genders, all three age groups and all 50 states (excluding DC). Every cohort
+therefore has a positive population, including the 45 states with no impressions.
+This lets state reports exercise zero impressions without a zero denominator.
+
+The frequency vector is a dense `ByteArray` sized to the whole population — one
+slot per population VID, per filter sink — so a 360M population stresses
+frequency-vector allocation regardless of how few VIDs are actually reached.
 
 ### Demographic Striping
 

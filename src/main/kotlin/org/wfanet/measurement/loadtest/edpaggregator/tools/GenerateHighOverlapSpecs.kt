@@ -299,11 +299,24 @@ object GenerateHighOverlapSpecs {
   private val TYPE_REGISTRY: TypeRegistry =
     TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
 
-  /** The 30 (gender, age_group, us_state) tuples, in a fixed order. */
-  private val DEMOGRAPHIC_TUPLES: List<Common> =
+  /** The 30 demographic tuples assigned to the existing reached VID stripes. */
+  private val DEMOGRAPHIC_TUPLES: List<Common> = demographicTuples(US_STATES)
+
+  private val POPULATION_DEMOGRAPHIC_TUPLES: List<Common> =
+    demographicTuples(
+      Common.UsState.values()
+        .filter {
+          it != Common.UsState.UNRECOGNIZED &&
+            it.number > 0 &&
+            it != Common.UsState.DISTRICT_OF_COLUMBIA
+        }
+        .sortedBy { it.number }
+    )
+
+  private fun demographicTuples(states: List<Common.UsState>): List<Common> =
     GENDERS.flatMap { gender ->
       AGE_GROUPS.flatMap { ageGroup ->
-        US_STATES.map { state ->
+        states.map { state ->
           common {
             this.gender = gender
             this.ageGroup = ageGroup
@@ -356,17 +369,20 @@ object GenerateHighOverlapSpecs {
             attributes += ProtoAny.pack(DEMOGRAPHIC_TUPLES[i % DEMOGRAPHIC_TUPLES.size])
           }
       }
-      // Never reached; holds populationSpec.size at TOTAL_POPULATION so frequency-vector
-      // allocation is stressed.
-      subpopulations +=
-        PopulationSpecKt.subPopulation {
-          vidRanges +=
-            PopulationSpecKt.vidRange {
-              startVid = REACHED_VID_END + 1
-              endVidInclusive = TOTAL_POPULATION
-            }
-          attributes += ProtoAny.pack(DEMOGRAPHIC_TUPLES[stripeCount % DEMOGRAPHIC_TUPLES.size])
-        }
+      // Give every state demographic cohort population without changing the reached VIDs.
+      val unreachedPopulation = TOTAL_POPULATION - REACHED_VID_END
+      val cohortCount = POPULATION_DEMOGRAPHIC_TUPLES.size
+      for ((index, demographics) in POPULATION_DEMOGRAPHIC_TUPLES.withIndex()) {
+        subpopulations +=
+          PopulationSpecKt.subPopulation {
+            vidRanges +=
+              PopulationSpecKt.vidRange {
+                startVid = REACHED_VID_END + 1 + unreachedPopulation * index / cohortCount
+                endVidInclusive = REACHED_VID_END + unreachedPopulation * (index + 1) / cohortCount
+              }
+            attributes += ProtoAny.pack(demographics)
+          }
+      }
     }
   }
 
