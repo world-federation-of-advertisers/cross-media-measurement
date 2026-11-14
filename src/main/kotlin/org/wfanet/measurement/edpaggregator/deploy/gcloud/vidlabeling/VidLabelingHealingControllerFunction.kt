@@ -243,6 +243,9 @@ class VidLabelingHealingControllerFunction(
                 .getValue(dataProvider)
                 .getWorkItem(getWorkItemRequest { this.name = name })
             },
+            retryWorkItem = { dataProvider, request ->
+              workItemsClients.getValue(dataProvider).retryWorkItem(request)
+            },
           ),
         doneObjectMetadataReader = GcsDoneObjectMetadataReader(storage),
         traceContextProvider = Tracing::currentW3CTraceContext,

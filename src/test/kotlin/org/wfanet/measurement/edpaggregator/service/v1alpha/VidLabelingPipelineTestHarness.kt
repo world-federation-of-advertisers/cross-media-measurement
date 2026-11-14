@@ -124,6 +124,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpointSink
 import org.wfanet.measurement.config.securecomputation.watchedPath
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
@@ -131,6 +132,7 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyn
 import org.wfanet.measurement.edpaggregator.dataavailability.ExternalDataAvailabilitySnapshotChangedException
 import org.wfanet.measurement.edpaggregator.dataavailability.GenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcManagedDoneObjectResolver
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncWorkItem
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncWorkItemProcessor
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.validateWorkItemDoneObjectGeneration
@@ -243,6 +245,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkIte
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RenewWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
@@ -271,8 +274,15 @@ data class PipelineHarnessConfig(
   val initiallyVisibleModelLines: Set<String>? = null,
   val numberOfShards: Int = 1,
   val rankStripes: Int = 1,
+  val redeliveryDelayMillis: Long = 1_000L,
+  val maxDeliveryAttempts: Int = 5,
   val maxFileBatchSizeBytes: Long = 10_000_000L,
   val retentionDays: Int = 30,
+  val errorIfGapsExist: Boolean = false,
+  val modelLineCutovers: List<ModelLineCutover> = emptyList(),
+  val modelLineActiveStarts: Map<String, Instant> = emptyMap(),
+  val modelLineActiveEnds: Map<String, Instant> = emptyMap(),
+  val dispatcherClockUsesToday: Boolean = false,
   val initialToday: LocalDate = LocalDate.of(2026, 9, 3),
 )
 
@@ -306,7 +316,11 @@ abstract class VidLabelingPipelineTestHarness(
   protected val tempFolder = TemporaryFolder()
   protected val edpaDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, EdpaSchemata.EDP_AGGREGATOR_CHANGELOG_PATH)
-  protected val workItemTransport = InProcessWorkItemTransport()
+  protected val workItemTransport =
+    InProcessWorkItemTransport(
+      pipelineConfig.redeliveryDelayMillis,
+      pipelineConfig.maxDeliveryAttempts,
+    )
   protected val edpaInternalServer = GrpcTestServerRule {
     EdpaInternalApiServices.build(edpaDatabase.databaseClient, EmptyCoroutineContext)
       .toList()
@@ -319,15 +333,18 @@ abstract class VidLabelingPipelineTestHarness(
         MEMOIZED_MODEL_LINE,
         MEMOIZED_RELEASE,
         memoized = true,
-        EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+        pipelineConfig.modelLineActiveStarts[MEMOIZED_MODEL_LINE]
+          ?: EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
         EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant(),
       ),
       ModelLineFixture(
         DIRECT_MODEL_LINE,
         DIRECT_RELEASE,
         memoized = false,
-        EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
-        EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant(),
+        pipelineConfig.modelLineActiveStarts[DIRECT_MODEL_LINE]
+          ?: EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+        pipelineConfig.modelLineActiveEnds[DIRECT_MODEL_LINE]
+          ?: EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant(),
       ),
     ) + pipelineConfig.extraModelLines
   protected val visibleModelLineNames = ConcurrentHashMap.newKeySet<String>()
@@ -602,7 +619,13 @@ abstract class VidLabelingPipelineTestHarness(
         getHealingOperation = { name -> readHealingOperation(name) },
         getCorrectionCandidate = { name -> getCorrectionCandidate(name) },
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
-        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        clock =
+          Clock.fixed(
+            if (pipelineConfig.dispatcherClockUsesToday)
+              today.get().atStartOfDay(ZoneOffset.UTC).toInstant()
+            else NOW,
+            ZoneOffset.UTC,
+          ),
       )
     }
 
@@ -617,7 +640,29 @@ abstract class VidLabelingPipelineTestHarness(
         throttler = ImmediateThrottler,
         impressionMetadataBatchSize = 100,
         modelLineMap = emptyMap(),
-        errorIfGapsExist = false,
+        modelLineCutovers = pipelineConfig.modelLineCutovers,
+        modelLineDataSources =
+          pipelineConfig.modelLineCutovers
+            .flatMap { listOf(it.historicalModelLine, it.replacementModelLine) }
+            .associateWith {
+              DataAvailabilitySync.ModelLineDataSource(
+                metadataStorage,
+                SelectedStorageClient.parseBlobUri(outputPrefix).key,
+              )
+            },
+        managedDoneObjectResolver = {
+          GrpcManagedDoneObjectResolver(
+            DATA_PROVIDER,
+            uploadsStub,
+            modelLineRowsStub,
+            filesStub,
+            VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(
+              edpaPublicServer.channel
+            ),
+            ImmediateThrottler,
+          )
+        },
+        errorIfGapsExist = pipelineConfig.errorIfGapsExist,
         publishEventGroupActivities = null,
         availabilityImpressionPaths =
           listOf(
@@ -636,7 +681,29 @@ abstract class VidLabelingPipelineTestHarness(
         throttler = ImmediateThrottler,
         impressionMetadataBatchSize = 100,
         modelLineMap = emptyMap(),
-        errorIfGapsExist = false,
+        modelLineCutovers = pipelineConfig.modelLineCutovers,
+        modelLineDataSources =
+          pipelineConfig.modelLineCutovers
+            .flatMap { listOf(it.historicalModelLine, it.replacementModelLine) }
+            .associateWith {
+              DataAvailabilitySync.ModelLineDataSource(
+                metadataStorage,
+                SelectedStorageClient.parseBlobUri(outputPrefix).key,
+              )
+            },
+        managedDoneObjectResolver = {
+          GrpcManagedDoneObjectResolver(
+            DATA_PROVIDER,
+            uploadsStub,
+            modelLineRowsStub,
+            filesStub,
+            VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(
+              edpaPublicServer.channel
+            ),
+            ImmediateThrottler,
+          )
+        },
+        errorIfGapsExist = pipelineConfig.errorIfGapsExist,
         publishEventGroupActivities = null,
         generationMatchedMetadataUpdater = metadataStorage.generationMatchedMetadataUpdater,
         availabilityImpressionPaths =
@@ -952,16 +1019,17 @@ abstract class VidLabelingPipelineTestHarness(
       dataAvailabilitySyncWorkItemPublisher =
         DataAvailabilitySyncWorkItemPublisher(
           createWorkItem = { _, request -> workItemsStub.createWorkItem(request) },
+          retryWorkItem = { _, request -> workItemsStub.retryWorkItem(request) },
           getWorkItem = { _, name ->
             workItemsStub.getWorkItem(GetWorkItemRequest.newBuilder().setName(name).build())
           },
         ),
       doneObjectMetadataReader =
         DoneObjectMetadataReader { uri ->
-          val blob = fileStorage.getBlob(blobKey(uri)) ?: return@DoneObjectMetadataReader null
+          val blob = metadataStorage.getBlob(blobKey(uri)) ?: return@DoneObjectMetadataReader null
           val generation =
             checkNotNull((blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken).toLong()
-          DoneObjectMetadata(generation, blob.updateTime)
+          DoneObjectMetadata(generation, blob.createTime)
         },
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
@@ -995,7 +1063,7 @@ abstract class VidLabelingPipelineTestHarness(
         setOf("$rootKey/output", "$rootKey/rank", "$rootKey/models", "$rootKey/tmp"),
       rawImpressionsStorageClientProvider = { fileStorage },
       rawImpressionUploadFileStub = filesStub,
-      vidLabeledImpressionsStorageClientProvider = { fileStorage },
+      vidLabeledImpressionsStorageClientProvider = { metadataStorage },
       poolAssignmentJobStub =
         PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
           edpaPublicServer.channel
@@ -1023,6 +1091,7 @@ abstract class VidLabelingPipelineTestHarness(
       VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(edpaPublicServer.channel),
       workItemsStub,
       VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+      uploadsStub,
     )
 
   protected suspend fun runRankBuilderDirect(workItem: WorkItem): VidRankBuilder.Result {
@@ -1936,11 +2005,26 @@ abstract class VidLabelingPipelineTestHarness(
 
     val expectedPairs =
       modelLines.flatMap { modelLine -> eventDates.map { modelLine to it } }.toSet()
+    val modelRowsByUpload = mutableMapOf<String, List<RawImpressionUploadModelLine>>()
     val availabilityInputs =
       workItemTransport
         .workItemsForQueue(DataAvailabilitySyncWorkItems.QUEUE)
         .map(DataAvailabilitySyncWorkItem::parse)
         .filter { (it.appParams.modelLine to it.eventDate) in expectedPairs }
+        .filter { input ->
+          val upload = input.appParams.triggeringRawImpressionUpload
+          val rows =
+            modelRowsByUpload[upload]
+              ?: listModelLines(upload).also { modelRowsByUpload[upload] = it }
+          rows.any { row ->
+            row.name == input.rawImpressionUploadModelLineName &&
+              row.state in
+                setOf(
+                  RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+                  RawImpressionUploadModelLine.State.COMPLETED,
+                )
+          }
+        }
     assertThat(availabilityInputs.map { it.appParams.modelLine to it.eventDate }.toSet())
       .containsAtLeastElementsIn(expectedPairs)
     for (input in availabilityInputs) {
@@ -2428,7 +2512,12 @@ abstract class VidLabelingPipelineTestHarness(
 
           override val blobKey: String = blob.blobKey
           override val size: Long = blob.size
-          override val createTime: Instant = blob.updateTime
+          // Managed done objects are immutable and uniquely named for each upload/date.
+          // Match the FileSystemStorageClient used by the producer for their creation timestamp;
+          // other objects use updateTime to model a new GCS generation after an overwrite.
+          override val createTime: Instant =
+            if (blob.blobKey.substringAfterLast("/").startsWith("done-")) blob.createTime
+            else blob.updateTime
           override val updateTime: Instant = blob.updateTime
           override val metadata: Map<String, String> = blob.metadata
           override val freshnessToken: String = freshnessToken
@@ -2522,7 +2611,10 @@ abstract class VidLabelingPipelineTestHarness(
     }
   }
 
-  protected class InProcessWorkItemTransport : QueueSubscriber {
+  protected class InProcessWorkItemTransport(
+    private val redeliveryDelayMillis: Long = REDELIVERY_DELAY_MILLIS,
+    private val maxDeliveryAttempts: Int = 3,
+  ) : QueueSubscriber {
     private data class RedeliveryGate(
       val queueName: String,
       val held: CompletableDeferred<Unit> = CompletableDeferred(),
@@ -2535,6 +2627,7 @@ abstract class VidLabelingPipelineTestHarness(
     private val channels =
       ConcurrentHashMap<String, Channel<QueueSubscriber.QueueMessage<WorkItem>>>()
     private val workItems = ConcurrentHashMap<String, WorkItem>()
+    private val sourceGenerations = ConcurrentHashMap<Pair<String, String>, Long>()
     private val attempts = ConcurrentHashMap<String, WorkItemAttempt>()
     private val attemptParents = ConcurrentHashMap<String, String>()
     private val currentAttemptByWorkItem = ConcurrentHashMap<String, String>()
@@ -2665,8 +2758,7 @@ abstract class VidLabelingPipelineTestHarness(
           if (workItems.putIfAbsent(name, created) != null) {
             throw Status.ALREADY_EXISTS.asRuntimeException()
           }
-          publishCreatedWorkItem(created)
-          return created
+          return publishNewSourceWorkItem(created)
         }
 
         override suspend fun ensureWorkItem(request: EnsureWorkItemRequest): WorkItem {
@@ -2694,8 +2786,39 @@ abstract class VidLabelingPipelineTestHarness(
             throw Status.ALREADY_EXISTS.withDescription("WorkItem immutable fields do not match")
               .asRuntimeException()
           }
-          if (created) publishCreatedWorkItem(ensured)
-          return ensured
+          return if (created) publishNewSourceWorkItem(ensured) else ensured
+        }
+
+        override suspend fun retryWorkItem(request: RetryWorkItemRequest): WorkItem {
+          val retried =
+            stateMutex.withLock {
+              val item = workItems[request.name] ?: throw Status.NOT_FOUND.asRuntimeException()
+              val expected =
+                if (request.hasExpectedWorkItemGeneration()) {
+                  request.expectedWorkItemGeneration
+                } else 1L
+              if (expected != item.generation) {
+                throw WorkItemGenerationMismatchException(
+                    item.name,
+                    expected.toString(),
+                    item.generation.toString(),
+                  )
+                  .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+              }
+              if (item.state != WorkItem.State.FAILED) {
+                throw WorkItemInvalidStateException(item.name, item.state.name)
+                  .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+              }
+              currentAttemptByWorkItem.remove(item.name)
+              item
+                .toBuilder()
+                .setGeneration(item.generation + 1L)
+                .setState(WorkItem.State.QUEUED)
+                .build()
+                .also { workItems[item.name] = it }
+            }
+          publishCreatedWorkItem(retried)
+          return retried
         }
 
         override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem =
@@ -2730,6 +2853,35 @@ abstract class VidLabelingPipelineTestHarness(
           }
         }
       }
+
+    // The real Control Plane does not enqueue a new ID for a source generation it already knows.
+    // RetryWorkItem deliberately bypasses this admission check and creates a new execution instead.
+    private suspend fun publishNewSourceWorkItem(created: WorkItem): WorkItem {
+      if (
+        created.hasWorkItemParams() &&
+          created.workItemParams.`is`(WorkItem.WorkItemParams::class.java)
+      ) {
+        val params = created.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+        if (params.hasDataPathParams() && params.dataPathParams.hasGeneration()) {
+          val source = created.queue to params.dataPathParams.dataPath
+          val generation = params.dataPathParams.generation
+          var admitted = false
+          sourceGenerations.compute(source) { _, current ->
+            if (current == null || generation > current) {
+              admitted = true
+              generation
+            } else current
+          }
+          if (!admitted) {
+            return created.toBuilder().setState(WorkItem.State.SUCCEEDED).build().also {
+              workItems[it.name] = it
+            }
+          }
+        }
+      }
+      publishCreatedWorkItem(created)
+      return created
+    }
 
     private suspend fun publishCreatedWorkItem(created: WorkItem) {
       if (consume(droppedPublications, created.queue)) {
@@ -2910,6 +3062,8 @@ abstract class VidLabelingPipelineTestHarness(
       val ackId = "in-process-${sequence.incrementAndGet()}"
       val consumer =
         object : MessageConsumer {
+          private val failedDeliveries = AtomicInteger()
+
           override fun ack() {
             if (forceAcknowledgementRedelivery.compareAndSet(1, 0)) {
               forcedRetryWorkItems += workItem.name
@@ -2922,7 +3076,7 @@ abstract class VidLabelingPipelineTestHarness(
           }
 
           override fun nack() {
-            if (attempts.values.count { attemptParents[it.name] == workItem.name } >= 3) {
+            if (failedDeliveries.incrementAndGet() >= maxDeliveryAttempts) {
               redeliveryScope.launch {
                 stateMutex.withLock {
                   workItems.computeIfPresent(workItem.name) { _, item ->
@@ -2959,7 +3113,7 @@ abstract class VidLabelingPipelineTestHarness(
             gate.release.await()
             redeliveryGate.compareAndSet(gate, null)
           }
-        delay(REDELIVERY_DELAY_MILLIS)
+        delay(redeliveryDelayMillis)
         deliveryCounts.computeIfAbsent(workItem.name) { AtomicInteger() }.incrementAndGet()
         channel(queueName).send(QueueSubscriber.QueueMessage(workItem, ackId, consumer))
         signalChange()

@@ -34,6 +34,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadReques
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.vidlabeling.HistoricalAvailabilitySnapshots
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 
 /** Starts or resumes one memoized recovery upload. */
@@ -283,6 +284,7 @@ class RecoverUploader(
     ) {
       require(plannedPredecessor != null) { "The planned recovery predecessor has not completed" }
     }
+    val historicalPredecessor = historicalRecoveryPredecessor(predecessor, row, operation)
     val latest =
       plannedPredecessor
         ?.replacementRawImpressionUpload
@@ -297,6 +299,7 @@ class RecoverUploader(
               }
             }
         }
+        ?: historicalPredecessor
         ?: requireNotNull(
           findLatestUpload(
             if (operation != null) {
@@ -385,6 +388,83 @@ class RecoverUploader(
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
     return rows
+  }
+
+  private suspend fun historicalRecoveryPredecessor(
+    predecessor: RawImpressionUpload,
+    row: RawImpressionUploadModelLine,
+    operation: UploadHealingOperation?,
+  ): RawImpressionUpload? {
+    if (
+      operation == null ||
+        operation.state !in
+          setOf(UploadHealingOperation.State.REPLAYING, UploadHealingOperation.State.RECOVERING) ||
+        !predecessor.registrationComplete ||
+        predecessor.uploadHealingOperation.isNotEmpty()
+    )
+      return null
+    if (
+      operation.stepsList.any {
+        it.sourceRawImpressionUpload == predecessor.name && it.cmmsModelLine == row.cmmsModelLine
+      }
+    )
+      return null
+    val target =
+      operation.stepsList.singleOrNull {
+        it.rawImpressionUploadModelLine == row.name &&
+          it.cmmsModelLine == row.cmmsModelLine &&
+          it.recoveryTarget &&
+          it.memoized &&
+          it.recoveryAction == row.recoveryAction
+      } ?: return null
+    val predecessorRow =
+      listModelLines(predecessor.name).singleOrNull { it.cmmsModelLine == row.cmmsModelLine }
+        ?: return null
+    if (predecessorRow.state != RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING) return null
+    val source =
+      rpcThrottlers.metadataRead.onReady {
+        uploadsStub.getRawImpressionUpload(
+          getRawImpressionUploadRequest { name = target.sourceRawImpressionUpload }
+        )
+      }
+    return if (
+      HistoricalAvailabilitySnapshots.hasHistoricalBasis(
+        source,
+        historicalSnapshots(source.name, row.cmmsModelLine, showDeleted = true),
+        historicalSnapshots(predecessor.name, row.cmmsModelLine, showDeleted = false),
+      )
+    )
+      predecessor
+    else null
+  }
+
+  private suspend fun historicalSnapshots(
+    uploadName: String,
+    cmmsModelLine: String,
+    showDeleted: Boolean,
+  ): List<RankIndexBlob> {
+    val result = mutableListOf<RankIndexBlob>()
+    var page = ""
+    do {
+      val response =
+        rpcThrottlers.metadataRead.onReady {
+          rankIndexBlobsStub.listRankIndexBlobs(
+            listRankIndexBlobsRequest {
+              parent = uploadName
+              this.showDeleted = showDeleted
+              filter =
+                ListRankIndexBlobsRequestKt.filter {
+                  blobType = RankIndexBlob.BlobType.SNAPSHOT
+                  this.cmmsModelLine = cmmsModelLine
+                }
+              pageToken = page
+            }
+          )
+        }
+      result += response.rankIndexBlobsList
+      page = response.nextPageToken
+    } while (page.isNotEmpty())
+    return result
   }
 
   private suspend fun hasDeletedSnapshotHistory(

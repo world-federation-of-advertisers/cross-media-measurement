@@ -57,11 +57,16 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataDateSelection
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.dataavailability.GenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcManagedDoneObjectResolver
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecovery
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
@@ -334,13 +339,9 @@ class RecoverMissingImpressionMetadata : Runnable {
       DataProvidersCoroutineStub(
         ClientInterceptors.intercept(kingdomChannel, grpcTelemetry.newClientInterceptor())
       )
-    val impressionMetadataStub =
-      ImpressionMetadataServiceCoroutineStub(
-        ClientInterceptors.intercept(
-          impressionMetadataChannel,
-          grpcTelemetry.newClientInterceptor(),
-        )
-      )
+    val instrumentedMetadataChannel =
+      ClientInterceptors.intercept(impressionMetadataChannel, grpcTelemetry.newClientInterceptor())
+    val impressionMetadataStub = ImpressionMetadataServiceCoroutineStub(instrumentedMetadataChannel)
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
     val eventGroupActivityPublisher =
       if (publishEventGroupActivities) {
@@ -469,6 +470,20 @@ class RecoverMissingImpressionMetadata : Runnable {
                         impressionMetadataBatchSize = impressionMetadataBatchSize,
                         modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
                         errorIfGapsExist = config.errorIfGapsExist,
+                        managedDoneObjectResolver = {
+                          GrpcManagedDoneObjectResolver(
+                            config.dataProvider,
+                            RawImpressionUploadServiceCoroutineStub(instrumentedMetadataChannel),
+                            RawImpressionUploadModelLineServiceCoroutineStub(
+                              instrumentedMetadataChannel
+                            ),
+                            RawImpressionUploadFileServiceCoroutineStub(
+                              instrumentedMetadataChannel
+                            ),
+                            VidLabelingJobServiceCoroutineStub(instrumentedMetadataChannel),
+                            throttler,
+                          )
+                        },
                         availabilityImpressionPaths = availabilityPaths,
                         modelLineCutovers =
                           config.modelLineCutoversList.map(ModelLineCutover::from),

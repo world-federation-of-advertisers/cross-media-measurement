@@ -37,6 +37,8 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
@@ -62,6 +64,9 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyn
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.dataavailability.GenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcManagedDoneObjectResolver
+import org.wfanet.measurement.edpaggregator.dataavailability.ObsoleteDataAvailabilityWorkItemException
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingRpcThrottlersEnvironment
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
@@ -70,6 +75,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
@@ -82,6 +89,7 @@ import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private data class ChannelKey(
@@ -186,6 +194,13 @@ private fun Throwable.grpcStatusCodeFromCauseChain(): Status.Code? {
  * - gRPC channels are created with mutual TLS using the provided certificate files.
  */
 class DataAvailabilitySyncFunction() : HttpFunction {
+  private val fileSystemMetadata = ConcurrentHashMap<Pair<String, String>, FileSystemBlobMetadata>()
+
+  private data class FileSystemBlobMetadata(
+    val createTime: java.time.Instant?,
+    val metadata: Map<String, String>,
+  )
+
   init {
     EdpaTelemetry.ensureInitialized()
   }
@@ -367,6 +382,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             require(parent.cmmsModelLine == workItem.appParams.modelLine) {
               "WorkItem model line does not match its parent"
             }
+            if (
+              parent.state == RawImpressionUploadModelLine.State.FAILED &&
+                parent.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+            ) {
+              throw ObsoleteDataAvailabilityWorkItemException()
+            }
             check(
               parent.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING ||
                 parent.state == RawImpressionUploadModelLine.State.COMPLETED
@@ -537,6 +558,11 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             throttler = globalThrottler,
           )
         }
+    val instrumentedMetadataChannel =
+      ClientInterceptors.intercept(
+        grpcChannels.impressionMetadataChannel,
+        grpcTelemetry.newClientInterceptor(),
+      )
     return DataAvailabilitySync(
       triggerDataSource.edpImpressionPath,
       storageAccess.client,
@@ -566,6 +592,16 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       availabilityImpressionPaths =
         (availabilityImpressionPaths + triggerDataSource.edpImpressionPath).distinct(),
       generationMatchedMetadataUpdater = storageAccess.generationMatchedMetadataUpdater,
+      managedDoneObjectResolver = {
+        GrpcManagedDoneObjectResolver(
+          dataAvailabilitySyncConfig.dataProvider,
+          RawImpressionUploadServiceCoroutineStub(instrumentedMetadataChannel),
+          RawImpressionUploadModelLineServiceCoroutineStub(instrumentedMetadataChannel),
+          RawImpressionUploadFileServiceCoroutineStub(instrumentedMetadataChannel),
+          VidLabelingJobServiceCoroutineStub(instrumentedMetadataChannel),
+          ownerReadThrottler,
+        )
+      },
     )
   }
 
@@ -593,7 +629,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     return if (!fileSystemPath.isNullOrEmpty()) {
       val delegate =
         FileSystemStorageClient(File(EnvVars.checkIsPath("DATA_AVAILABILITY_FILE_SYSTEM_PATH")))
-      StorageAccess(NoOpBlobMetadataStorageClient(delegate), null)
+      StorageAccess(FileSystemBlobMetadataStorageClient(delegate, fileSystemMetadata), null)
     } else {
       val gcsConfig = storageParams.gcs
       val storage =
@@ -612,21 +648,39 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     }
   }
 
-  /**
-   * A [BlobMetadataStorageClient] wrapper for [FileSystemStorageClient] used only in testing.
-   *
-   * Since [FileSystemStorageClient] doesn't support blob metadata, this provides a no-op
-   * implementation of [updateBlobMetadata].
-   */
-  private class NoOpBlobMetadataStorageClient(
-    private val delegate: ConditionalOperationStorageClient
+  /** Provides custom metadata for the filesystem backend used by function tests. */
+  private class FileSystemBlobMetadataStorageClient(
+    private val delegate: ConditionalOperationStorageClient,
+    private val storedMetadata: ConcurrentHashMap<Pair<String, String>, FileSystemBlobMetadata>,
   ) : BlobMetadataStorageClient, ConditionalOperationStorageClient by delegate {
+    override suspend fun getBlob(blobKey: String): StorageClient.Blob? =
+      delegate.getBlob(blobKey)?.let(::wrap)
+
+    override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> =
+      delegate.listBlobs(prefix).map(::wrap)
+
     override suspend fun updateBlobMetadata(
       blobKey: String,
       customCreateTime: java.time.Instant?,
       metadata: Map<String, String>,
     ) {
-      // No-op for FileSystemStorageClient testing
+      val blob = checkNotNull(delegate.getBlob(blobKey)) { "Metadata target does not exist" }
+      val version = blob as ConditionalOperationStorageClient.Blob
+      storedMetadata.compute(blobKey to version.freshnessToken) { _, previous ->
+        FileSystemBlobMetadata(
+          customCreateTime ?: previous?.createTime,
+          previous?.metadata.orEmpty() + metadata,
+        )
+      }
+    }
+
+    private fun wrap(blob: StorageClient.Blob): StorageClient.Blob {
+      val version = blob as ConditionalOperationStorageClient.Blob
+      val saved = storedMetadata[blob.blobKey to version.freshnessToken]
+      return object : ConditionalOperationStorageClient.Blob by version {
+        override val metadata = version.metadata + saved?.metadata.orEmpty()
+        override val createTime = saved?.createTime ?: version.createTime
+      }
     }
   }
 
@@ -664,6 +718,9 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
 
     private val globalThrottler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration)
+    private val ownerReadThrottler by lazy {
+      VidLabelingRpcThrottlersEnvironment.load().metadataRead
+    }
     private const val DEFAULT_IMPRESSION_METADATA_BATCH_SIZE = 100
     private val impressionMetadataBatchSize =
       System.getenv("IMPRESSION_METADATA_BATCH_SIZE")?.toIntOrNull()?.takeIf { it > 0 }

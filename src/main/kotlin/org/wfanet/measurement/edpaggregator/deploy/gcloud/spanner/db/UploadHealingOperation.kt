@@ -40,6 +40,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifest
 import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsRequest
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep
@@ -53,7 +54,7 @@ data class UploadHealingOperationResult(
   val mutationRequestFingerprints: List<ByteString>,
 )
 
-/** Returns whether a nonterminal healing operation must defer ordinary VID-labeling dispatch. */
+/** Returns whether healing still gates ordinary computation before its unfenced handoff. */
 suspend fun AsyncDatabaseClient.ReadContext.hasVidLabelingHealingDispatchGate(
   dataProviderResourceId: String
 ): Boolean {
@@ -69,6 +70,7 @@ suspend fun AsyncDatabaseClient.ReadContext.hasVidLabelingHealingDispatchGate(
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING,
       )
       .map { it.number.toLong() }
+  val fenced = getVidLabelingEvictionFence(dataProviderResourceId) != null
   val query =
     statement(
       """
@@ -76,16 +78,49 @@ suspend fun AsyncDatabaseClient.ReadContext.hasVidLabelingHealingDispatchGate(
       FROM UploadHealingOperation
       WHERE DataProviderResourceId = @dataProviderResourceId
         AND State IN UNNEST(@gateStates)
+        AND (
+          @fenced OR NOT (
+            State = @handoffState
+            OR (State = @attentionState AND COALESCE(ResumeState, 0) = @handoffState)
+          )
+        )
       LIMIT 1
       """
         .trimIndent()
     ) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
       bind("gateStates").toInt64Array(gateStates)
+      bind("fenced").to(fenced)
+      bind("handoffState")
+        .to(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+            .number
+            .toLong()
+        )
+      bind("attentionState")
+        .to(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION.number
+            .toLong()
+        )
     }
   return executeQuery(query, Options.tag("action=hasVidLabelingHealingDispatchGate"))
     .firstOrNull() != null
 }
+
+/** Returns whether an unplanned correction still gates ordinary input. */
+suspend fun AsyncDatabaseClient.ReadContext.hasPendingVidLabelingCorrection(
+  dataProviderResourceId: String
+): Boolean =
+  executeQuery(
+      statement(
+        "SELECT RawImpressionUploadCorrectionCandidateId FROM RawImpressionUploadCorrectionCandidate WHERE DataProviderResourceId = @provider AND State = @pending LIMIT 1"
+      ) {
+        bind("provider").to(dataProviderResourceId)
+        bind("pending")
+          .to(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING.number.toLong())
+      }
+    )
+    .firstOrNull() != null
 
 /** Reads an upload-healing operation and all of its ordered steps. */
 suspend fun AsyncDatabaseClient.ReadContext.findUploadHealingOperation(

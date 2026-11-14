@@ -60,9 +60,14 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyn
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityBackfill
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcManagedDoneObjectResolver
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
@@ -414,6 +419,22 @@ class ReplayDataAvailabilitySync : Runnable {
                             modelLineMap =
                               config.modelLineMapMap.mapValues { it.value.modelLinesList },
                             errorIfGapsExist = config.errorIfGapsExist,
+                            managedDoneObjectResolver = {
+                              GrpcManagedDoneObjectResolver(
+                                config.dataProvider,
+                                RawImpressionUploadServiceCoroutineStub(
+                                  instrumentedMetadataChannel
+                                ),
+                                RawImpressionUploadModelLineServiceCoroutineStub(
+                                  instrumentedMetadataChannel
+                                ),
+                                RawImpressionUploadFileServiceCoroutineStub(
+                                  instrumentedMetadataChannel
+                                ),
+                                VidLabelingJobServiceCoroutineStub(instrumentedMetadataChannel),
+                                throttler,
+                              )
+                            },
                             availabilityImpressionPaths = availabilityPaths,
                             modelLineCutovers = modelLineCutovers,
                             modelLineDataSources = modelLineDataSources,

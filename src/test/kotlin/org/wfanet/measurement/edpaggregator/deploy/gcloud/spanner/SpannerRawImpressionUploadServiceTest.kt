@@ -68,7 +68,7 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
   }
 
   @Test
-  fun `pending availability handoff defers an ordinary upload without a fence`() = runBlocking {
+  fun `post-fence availability handoff admits an ordinary upload`() = runBlocking {
     spannerDatabase.databaseClient.write(
       listOf(
         insertMutation("UploadHealingOperation") {
@@ -104,7 +104,7 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
         }
       )
 
-    assertThat(upload.processingDeferred).isTrue()
+    assertThat(upload.processingDeferred).isFalse()
   }
 
   private suspend fun insertAvailabilitySyncingModelLine() {

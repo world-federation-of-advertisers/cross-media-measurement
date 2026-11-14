@@ -153,6 +153,7 @@ class VidLabelingHealingController(
     DataAvailabilitySyncWorkItemPublisher(
       createWorkItem = { _, _ -> error("Data Availability WorkItem publisher is not configured") },
       getWorkItem = { _, _ -> error("Data Availability WorkItem publisher is not configured") },
+      retryWorkItem = { _, _ -> error("Data Availability WorkItem publisher is not configured") },
     ),
   private val doneObjectMetadataReader: DoneObjectMetadataReader = DoneObjectMetadataReader {
     null

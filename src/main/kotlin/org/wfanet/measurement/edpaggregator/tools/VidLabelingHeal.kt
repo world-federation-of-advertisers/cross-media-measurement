@@ -299,6 +299,7 @@ class RetryFailedCommand : EdpaApiCommand() {
                 metadataWrite = metadataWriteRpcMinInterval,
                 controlPlane = controlPlaneRpcMinInterval,
               ),
+              RawImpressionUploadServiceCoroutineStub(edpaChannel),
             )
             .retryFailed(rawImpressionUpload, modelLine, fromPhase)
         if (result.wasAlreadyStarted) {

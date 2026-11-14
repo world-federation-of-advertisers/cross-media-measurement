@@ -943,6 +943,19 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
       advanceHealingUntilComplete(controller, draft.name)
       republishQueuedAvailability()
       awaitPipelineIdle()
+      val availabilityMonitor = buildVidLabelingMonitor()
+      repeat(3) {
+        val pending =
+          listUploads().any { upload ->
+            listModelLines(upload.name).any {
+              it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+            }
+          }
+        if (pending) {
+          assertThat(availabilityMonitor.runDispatch().dispatchError).isFalse()
+          awaitPipelineIdle()
+        }
+      }
 
       val completed = listHealingOperations().single()
       val d5Replacement =
@@ -1204,6 +1217,19 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
 
     republishQueuedAvailability()
     awaitPipelineIdle()
+    val availabilityMonitor = buildVidLabelingMonitor()
+    repeat(3) {
+      val pending =
+        listUploads().any { upload ->
+          listModelLines(upload.name).any {
+            it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+          }
+        }
+      if (pending) {
+        assertThat(availabilityMonitor.runDispatch().dispatchError).isFalse()
+        awaitPipelineIdle()
+      }
+    }
 
     for (replacement in replacements) {
       val completed = listModelLines(replacement.name).single()

@@ -27,6 +27,7 @@ import io.grpc.netty.NettyServerBuilder
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.LocalDate
 import java.util.concurrent.TimeUnit.SECONDS
 import java.util.logging.Handler
 import java.util.logging.Level
@@ -75,6 +76,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.gcloud.gcs.testing.StorageEmulatorRule
 
 @RunWith(JUnit4::class)
@@ -208,7 +210,7 @@ class ReplayDataAvailabilitySyncTest {
 
   @Test
   fun `main internal prefix replay accepts the VID Labeler done filename`() {
-    val marker = "done-${"a".repeat(64)}"
+    val marker = MANAGED_DONE_FILE_NAME
     runConfiguredPathReplay(
       listOf(INTERNAL_IMPRESSION_PATH),
       arrayOf("--blob-prefix=gs://$BUCKET_NAME/$INTERNAL_IMPRESSION_PATH"),
@@ -218,7 +220,7 @@ class ReplayDataAvailabilitySyncTest {
 
   @Test
   fun `main explicit internal replay accepts the VID Labeler done filename`() {
-    val marker = "done-${"a".repeat(64)}"
+    val marker = MANAGED_DONE_FILE_NAME
     runConfiguredPathReplay(
       listOf(INTERNAL_IMPRESSION_PATH),
       arrayOf(
@@ -229,13 +231,41 @@ class ReplayDataAvailabilitySyncTest {
   }
 
   @Test
+  fun `main replays a valid managed zero-output marker without configured model names`() {
+    for (selection in
+      listOf(
+        arrayOf("--blob-prefix=gs://$BUCKET_NAME/$INTERNAL_IMPRESSION_PATH"),
+        arrayOf(
+          "--done-blob-uri=gs://$BUCKET_NAME/$INTERNAL_IMPRESSION_PATH/model-line/model-line-1/2026-01-01/$MANAGED_DONE_FILE_NAME"
+        ),
+      )) {
+      runConfiguredPathReplay(
+        listOf(INTERNAL_IMPRESSION_PATH),
+        selection,
+        MANAGED_DONE_FILE_NAME,
+        zeroOutput = true,
+      )
+    }
+  }
+
+  @Test
+  fun `main rejects an evicted managed replay without restoring metadata`() {
+    runConfiguredPathReplay(
+      listOf(INTERNAL_IMPRESSION_PATH),
+      arrayOf("--blob-prefix=gs://$BUCKET_NAME/$INTERNAL_IMPRESSION_PATH"),
+      MANAGED_DONE_FILE_NAME,
+      obsoleteOwner = true,
+    )
+  }
+
+  @Test
   fun `main rejects a VID Labeler completion filename at the external root`() {
     val configFile = writeConfigFile(validConfig(includeActivityPublishing = false))
     val output =
       CommandLineTesting.capturingOutput(
         connectionArgs(configFile, UNREACHABLE_API_TARGET) +
           "--mode=${ReplayDataAvailabilitySync.Mode.DATA_AVAILABILITY_ONLY}" +
-          "--done-blob-uri=gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-01-01/done-${"a".repeat(64)}",
+          "--done-blob-uri=gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-01-01/$MANAGED_DONE_FILE_NAME",
         ::main,
       )
     CommandLineTesting.assertThat(output).status().isNotEqualTo(0)
@@ -527,6 +557,8 @@ class ReplayDataAvailabilitySyncTest {
     impressionPaths: List<String>,
     selectionArgs: Array<String>,
     doneFileName: String = "done",
+    zeroOutput: Boolean = false,
+    obsoleteOwner: Boolean = false,
   ) {
     val createdMetadata = mutableListOf<ImpressionMetadata>()
     val metadataService: ImpressionMetadataServiceCoroutineImplBase = mockService {
@@ -577,8 +609,21 @@ class ReplayDataAvailabilitySyncTest {
         .thenReturn(DataProvider.getDefaultInstance())
     }
     val leaseService = ReplayLeaseService()
+    val managedOwners =
+      ManagedDoneObjectTestServices(
+          DATA_PROVIDER_NAME,
+          listOf(MODEL_LINE),
+          LocalDate.of(2026, 1, 1),
+          MANAGED_RAW_INPUT_URI,
+        )
+        .apply {
+          if (obsoleteOwner)
+            ownerState =
+              org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine.State.FAILED
+        }
     val server =
-      NettyServerBuilder.forPort(0)
+      managedOwners
+        .addTo(NettyServerBuilder.forPort(0))
         .sslContext(serverCerts.toServerTlsContext())
         .addService(metadataService)
         .addService(dataProvidersService)
@@ -590,19 +635,29 @@ class ReplayDataAvailabilitySyncTest {
       val generations =
         impressionPaths.associate { path ->
           val folder = "$path/model-line/model-line-1/2026-01-01"
-          val dataKey = "$folder/impressions"
+          val dataKey =
+            if (doneFileName == "done") "$folder/impressions"
+            else
+              "$path/" +
+                LabeledImpressionsBlobKeys.forInput(
+                  MANAGED_RAW_INPUT_URI,
+                  MODEL_LINE,
+                  LocalDate.of(2026, 1, 1),
+                )
           val metadataKey = "$folder/metadata.json"
-          writeBlobDetails(
-            metadataKey,
-            dataKey,
-            INITIAL_EVENT_GROUP_REFERENCE_ID,
-            "2026-01-01T00:00:00Z",
-            "2026-01-02T00:00:00Z",
-          )
-          storageEmulator.storage.create(
-            BlobInfo.newBuilder(BUCKET_NAME, dataKey).build(),
-            byteArrayOf(1),
-          )
+          if (!zeroOutput) {
+            writeBlobDetails(
+              metadataKey,
+              dataKey,
+              INITIAL_EVENT_GROUP_REFERENCE_ID,
+              "2026-01-01T00:00:00Z",
+              "2026-01-02T00:00:00Z",
+            )
+            storageEmulator.storage.create(
+              BlobInfo.newBuilder(BUCKET_NAME, dataKey).build(),
+              byteArrayOf(1),
+            )
+          }
           val done =
             storageEmulator.storage.create(
               BlobInfo.newBuilder(BUCKET_NAME, "$folder/$doneFileName").build(),
@@ -623,6 +678,13 @@ class ReplayDataAvailabilitySyncTest {
             storageArgs,
           ::main,
         )
+      if (zeroOutput || obsoleteOwner) {
+        CommandLineTesting.assertThat(output).status().isEqualTo(if (obsoleteOwner) 1 else 0)
+        verifyBlocking(metadataService, times(0)) { batchCreateImpressionMetadata(any()) }
+        verifyBlocking(dataProvidersService, times(0)) { replaceDataAvailabilityIntervals(any()) }
+        assertThat(leaseService.releasedNames).containsExactlyElementsIn(leaseService.acquiredNames)
+        return
+      }
       CommandLineTesting.assertThat(output).status().isEqualTo(0)
       val requests = argumentCaptor<BatchCreateImpressionMetadataRequest>()
       verifyBlocking(metadataService, times(impressionPaths.size)) {
@@ -791,7 +853,7 @@ class ReplayDataAvailabilitySyncTest {
     replacementBucket: String = CONTRIBUTOR_BUCKET_NAME,
     replacementPath: String = CONTRIBUTOR_IMPRESSION_PATH,
     exactUri: Boolean = false,
-    doneFileName: String = "done-${"a".repeat(64)}",
+    doneFileName: String = MANAGED_DONE_FILE_NAME,
     broadPrefix: Boolean = false,
     preSynchronized: Boolean = false,
     historical: Boolean = false,
@@ -816,7 +878,17 @@ class ReplayDataAvailabilitySyncTest {
       return if (path.isEmpty()) relative else "$path/$relative"
     }
     val selectedFolder = folder(selectedPath, selectedLine)
-    val dataKey = "$selectedFolder/impressions"
+    val dataKey =
+      if (doneFileName == "done") "$selectedFolder/impressions"
+      else {
+        val relative =
+          LabeledImpressionsBlobKeys.forInput(
+            MANAGED_RAW_INPUT_URI,
+            selectedLine,
+            LocalDate.of(2026, 1, 1),
+          )
+        if (selectedPath.isEmpty()) relative else "$selectedPath/$relative"
+      }
     val metadataKey = "$selectedFolder/metadata.json"
     val doneKey = "$selectedFolder/$doneFileName"
     val registered = mutableMapOf<String, ImpressionMetadata>()
@@ -893,7 +965,13 @@ class ReplayDataAvailabilitySyncTest {
     }
     val leaseService = ReplayLeaseService()
     val server =
-      NettyServerBuilder.forPort(0)
+      ManagedDoneObjectTestServices(
+          DATA_PROVIDER_NAME,
+          listOf(MODEL_LINE, historicalLine),
+          LocalDate.of(2026, 1, 1),
+          MANAGED_RAW_INPUT_URI,
+        )
+        .addTo(NettyServerBuilder.forPort(0))
         .sslContext(serverCerts.toServerTlsContext())
         .addService(metadataService)
         .addService(dataProvidersService)
@@ -923,7 +1001,7 @@ class ReplayDataAvailabilitySyncTest {
         if (historical) {
           writeSyncedDone(
             replacementBucket,
-            folder(replacementPath, MODEL_LINE) + "/done-${"a".repeat(64)}",
+            folder(replacementPath, MODEL_LINE) + "/$MANAGED_DONE_FILE_NAME",
           )
         }
       }
@@ -1332,6 +1410,15 @@ class ReplayDataAvailabilitySyncTest {
 
   @Suppress("DEPRECATION")
   companion object {
+    private const val MANAGED_RAW_INPUT_URI = "gs://raw/managed.parquet"
+    private val MANAGED_DONE_FILE_NAME =
+      LabeledImpressionsBlobKeys.forDone(
+          "$DATA_PROVIDER_NAME/rawImpressionUploads/managed",
+          MODEL_LINE,
+          LocalDate.of(2026, 1, 1),
+        )
+        .substringAfterLast('/')
+
     // CommandLineTesting uses this security manager to observe the real main function's exit code.
     init {
       System.setSecurityManager(ExitInterceptingSecurityManager)
