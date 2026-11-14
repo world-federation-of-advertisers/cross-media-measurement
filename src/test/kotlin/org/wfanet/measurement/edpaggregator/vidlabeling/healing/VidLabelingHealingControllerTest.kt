@@ -1362,6 +1362,7 @@ class VidLabelingHealingControllerTest {
               .build()
           },
           getWorkItem = { _, _ -> error("unexpected get") },
+          retryWorkItem = { _, _ -> error("unexpected availability retry") },
         )
       whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
         val states =
@@ -1503,6 +1504,7 @@ class VidLabelingHealingControllerTest {
               .build()
           },
           getWorkItem = { _, _ -> error("unexpected get") },
+          retryWorkItem = { _, _ -> error("unexpected availability retry") },
         )
       whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
         val states =
@@ -1627,6 +1629,7 @@ class VidLabelingHealingControllerTest {
             .build()
         },
         getWorkItem = { _, _ -> error("unexpected get") },
+        retryWorkItem = { _, _ -> error("unexpected availability retry") },
       )
     whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =
@@ -1749,6 +1752,7 @@ class VidLabelingHealingControllerTest {
           workItem
         },
         getWorkItem = { _, name -> workItems.getValue(name) },
+        retryWorkItem = { _, _ -> error("unexpected availability retry") },
       )
     whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =
@@ -1865,6 +1869,7 @@ class VidLabelingHealingControllerTest {
           workItem
         },
         getWorkItem = { _, name -> workItems.getValue(name) },
+        retryWorkItem = { _, _ -> error("unexpected availability retry") },
       )
     whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =
@@ -2085,6 +2090,7 @@ class VidLabelingHealingControllerTest {
       DataAvailabilitySyncWorkItemPublisher(
         createWorkItem = { _, _ -> error("unexpected availability handoff") },
         getWorkItem = { _, _ -> error("unexpected availability lookup") },
+        retryWorkItem = { _, _ -> error("unexpected availability retry") },
       ),
     doneObjectMetadataReader: DoneObjectMetadataReader = DoneObjectMetadataReader { null },
     eventSink: VidLabelingHealingControllerEventSink = VidLabelingHealingControllerEventSink {},

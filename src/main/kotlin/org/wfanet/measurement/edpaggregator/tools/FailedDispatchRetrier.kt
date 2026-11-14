@@ -16,21 +16,33 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.protobuf.Any
 import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
@@ -38,7 +50,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
@@ -76,6 +90,7 @@ class FailedDispatchRetrier(
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsCoroutineStub,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
+  private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
 ) {
   /** Outcome of a [retryFailed] run. */
   data class RetryResult(
@@ -180,9 +195,33 @@ class FailedDispatchRetrier(
       "${updated.name} changed to ${updated.state} with failure_reason " +
         "${updated.failureReason} while claiming the retry; no WorkItems were published"
     }
+    val refreshSnapshots =
+      if (phaseWorkItems.phase == RawImpressionUploadModelLine.State.LABELING) false
+      else {
+        val upload =
+          try {
+            rpcThrottlers.metadataRead.onReady {
+              rawImpressionUploadsStub.getRawImpressionUpload(
+                getRawImpressionUploadRequest { name = rawImpressionUpload }
+              )
+            }
+          } catch (e: StatusException) {
+            throw IllegalStateException("Unable to read retry upload $rawImpressionUpload", e)
+          }
+        upload.uploadHealingOperation.isEmpty()
+      }
+    val currentSnapshots =
+      if (refreshSnapshots) currentAvailabilityOwners(rawImpressionUpload, cmmsModelLine) else null
     var republished = 0
     for ((oldId, sourceWorkItem) in sourceWorkItems) {
-      if (republishWorkItem(oldId, sourceWorkItem, modelLine.failureAttemptId)) republished++
+      val source =
+        if (currentSnapshots == null) sourceWorkItem
+        else
+          sourceWorkItem.copy {
+            workItemParams =
+              refreshedSnapshotParameters(sourceWorkItem.workItemParams, currentSnapshots)
+          }
+      if (republishWorkItem(oldId, source, modelLine.failureAttemptId)) republished++
     }
 
     return RetryResult(
@@ -191,6 +230,95 @@ class FailedDispatchRetrier(
       updated.state,
       wasAlreadyStarted = modelLine.state != RawImpressionUploadModelLine.State.FAILED,
     )
+  }
+
+  private suspend fun currentAvailabilityOwners(
+    currentUpload: String,
+    cmmsModelLine: String,
+  ): List<String> {
+    val provider = currentUpload.substringBefore("/rawImpressionUploads/")
+    val result = mutableSetOf<String>()
+    for (state in listOf(RawImpressionUpload.State.ACTIVE, RawImpressionUpload.State.FAILED)) {
+      var page = ""
+      do {
+        val uploads =
+          try {
+            rpcThrottlers.metadataRead.onReady {
+              rawImpressionUploadsStub.listRawImpressionUploads(
+                listRawImpressionUploadsRequest {
+                  parent = provider
+                  filter = ListRawImpressionUploadsRequestKt.filter { stateIn += state }
+                  pageToken = page
+                }
+              )
+            }
+          } catch (e: StatusException) {
+            throw IllegalStateException("Unable to list availability snapshot owners", e)
+          }
+        for (upload in uploads.rawImpressionUploadsList) {
+          if (upload.name == currentUpload || !upload.registrationComplete) continue
+          var modelPage = ""
+          do {
+            val lines =
+              try {
+                rpcThrottlers.metadataRead.onReady {
+                  rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
+                    listRawImpressionUploadModelLinesRequest {
+                      parent = upload.name
+                      filter =
+                        ListRawImpressionUploadModelLinesRequestKt.filter {
+                          stateIn += RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+                          this.cmmsModelLine = cmmsModelLine
+                        }
+                      pageToken = modelPage
+                    }
+                  )
+                }
+              } catch (e: StatusException) {
+                throw IllegalStateException(
+                  "Unable to read availability snapshot owner ${upload.name}",
+                  e,
+                )
+              }
+            if (
+              lines.rawImpressionUploadModelLinesList.any {
+                it.cmmsModelLine == cmmsModelLine &&
+                  it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+              }
+            )
+              result += upload.name
+            modelPage = lines.nextPageToken
+          } while (modelPage.isNotEmpty())
+        }
+        page = uploads.nextPageToken
+      } while (page.isNotEmpty())
+    }
+    return result.sorted()
+  }
+
+  private fun refreshedSnapshotParameters(source: Any, owners: List<String>): Any {
+    if (!source.`is`(WorkItemParams::class.java)) return source
+    val wrapper = source.unpack(WorkItemParams::class.java)
+    val app = wrapper.appParams
+    val refreshed =
+      when {
+        app.`is`(SubpoolAssignerParams::class.java) ->
+          Any.pack(
+            app.unpack(SubpoolAssignerParams::class.java).copy {
+              allowedPriorSnapshotRawImpressionUploads.clear()
+              allowedPriorSnapshotRawImpressionUploads += owners
+            }
+          )
+        app.`is`(VidRankBuilderParams::class.java) ->
+          Any.pack(
+            app.unpack(VidRankBuilderParams::class.java).copy {
+              allowedPriorSnapshotRawImpressionUploads.clear()
+              allowedPriorSnapshotRawImpressionUploads += owners
+            }
+          )
+        else -> return source
+      }
+    return Any.pack(wrapper.copy { appParams = refreshed })
   }
 
   /** Returns the phase of an existing retry for [failureAttemptId], or `null` if none exists. */
@@ -428,7 +556,7 @@ class FailedDispatchRetrier(
   }
 
   private suspend fun listRankerJobNames(uploadName: String, cmmsModelLine: String): List<String> {
-    val names = mutableListOf<String>()
+    val jobs = mutableListOf<RankerJob>()
     var pageToken = ""
     do {
       val response =
@@ -441,10 +569,11 @@ class FailedDispatchRetrier(
             }
           )
         }
-      response.rankerJobsList.forEach { names.add(it.name) }
+      jobs += response.rankerJobsList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
-    return names
+    val unfinished = jobs.filter { it.state != RankerJob.State.SUCCEEDED }
+    return (if (unfinished.isEmpty()) jobs.take(1) else unfinished).map { it.name }
   }
 
   private suspend fun listPoolAssignmentJobShards(

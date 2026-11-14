@@ -42,6 +42,7 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
@@ -98,6 +99,7 @@ import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRequisitionMetadataRequest
@@ -109,13 +111,16 @@ import org.wfanet.measurement.edpaggregator.v1alpha.MarkWithdrawnRequisitionMeta
 import org.wfanet.measurement.edpaggregator.v1alpha.QueueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RegisterQueuedRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ReportRoutingDecision
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ResolveReportRoutingDecisionRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.resolveReportRoutingDecisionResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
@@ -373,6 +378,8 @@ class RequisitionFetcherTest {
     directStoragePathPrefix: String = DIRECT_STORAGE_PATH_PREFIX,
     requisitionRefusalDuration: Duration = RequisitionFetcher.DEFAULT_REQUISITION_REFUSAL_DURATION,
     clock: Clock = Clock.fixed(DEFAULT_TEST_TIME, ZoneOffset.UTC),
+    modelLineCutovers: List<ModelLineCutover> = emptyList(),
+    legacyModelLineMap: Map<String, String> = emptyMap(),
   ): RequisitionFetcher {
     val validator =
       RequisitionsValidator(
@@ -400,6 +407,8 @@ class RequisitionFetcherTest {
       workItemDispatcher = workItemDispatcher,
       requisitionRefusalDuration = requisitionRefusalDuration,
       clock = clock,
+      modelLineCutovers = modelLineCutovers,
+      legacyModelLineMap = legacyModelLineMap,
       flushInterval = flushInterval,
       maxTotalBufferedBytes = maxTotalBufferedBytes,
       maxRequisitionsPerGroup = maxRequisitionsPerGroup,
@@ -2128,6 +2137,63 @@ class RequisitionFetcherTest {
   }
 
   @Test
+  fun `same report with conflicting report interval refuses conflicting requisition`() =
+    runBlocking {
+      fun requisitionWithReportInterval(
+        name: String,
+        reportStart: Instant,
+        reportEnd: Instant,
+      ): Requisition {
+        val measurementSpec =
+          TestRequisitionData.MEASUREMENT_SPEC.copy {
+            reportingMetadata =
+              this.reportingMetadata.copy {
+                reportInterval = interval {
+                  startTime = reportStart.toProtoTime()
+                  endTime = reportEnd.toProtoTime()
+                }
+              }
+          }
+        return TestRequisitionData.REQUISITION.copy {
+          this.name = name
+          this.measurementSpec =
+            signMeasurementSpec(measurementSpec, TestRequisitionData.MC_SIGNING_KEY)
+        }
+      }
+      val first =
+        requisitionWithReportInterval(
+          TestRequisitionData.REQUISITION.name,
+          Instant.parse("2026-10-01T00:00:00Z"),
+          Instant.parse("2026-10-31T00:00:00Z"),
+        )
+      val conflicting =
+        requisitionWithReportInterval(
+          "${TestRequisitionData.EDP_NAME}/requisitions/foo2",
+          Instant.parse("2026-10-01T00:00:00Z"),
+          Instant.parse("2026-11-01T00:00:00Z"),
+        )
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += listOf(first, conflicting) })
+      whenever(requisitionMetadataServiceMock.resolveReportRoutingDecision(any())).thenAnswer {
+        invocation ->
+        val request = invocation.getArgument<ResolveReportRoutingDecisionRequest>(0)
+        resolveReportRoutingDecisionResponse {
+          reportRoutingDecision = request.candidate
+          created = true
+        }
+      }
+
+      createFetcher().fetchAndStoreRequisitions()
+
+      assertThat(blobsList()).hasLength(1)
+      assertThat(createRequisitionMetadataRequests.map { it.requisitionMetadata.cmmsRequisition })
+        .containsExactly(first.name)
+      assertThat(refuseRequisitionRequests.map { it.name }).containsExactly(conflicting.name)
+      assertThat(refuseRequisitionRequests.single().refusal.justification)
+        .isEqualTo(Requisition.Refusal.Justification.SPEC_INVALID)
+    }
+
+  @Test
   fun `differing updateTimes for same report still produce a single blob`() = runBlocking {
     // A report's requisitions are transitioned to UNFULFILLED per Measurement, so they legitimately
     // carry distinct updateTimes. Grouping is by reportId, so they must still land in one blob.
@@ -3343,6 +3409,100 @@ class RequisitionFetcherTest {
 
     assertThat(blobsList()).hasLength(2)
     assertThat(counterValue("edpa.requisition_fetcher.buffer_splits")).isEqualTo(1)
+  }
+
+  @Test
+  fun `separate fetch runs preserve one model line after cutover config changes`() = runBlocking {
+    val externalModelLine = "modelProviders/provider/modelSuites/suite/modelLines/external"
+    val historicalModelLine = "modelProviders/provider/modelSuites/suite/modelLines/historical"
+    val replacementModelLine = "modelProviders/provider/modelSuites/suite/modelLines/replacement"
+    val reportStart = Instant.parse("2026-10-01T00:00:00Z")
+    val measurementSpec =
+      TestRequisitionData.MEASUREMENT_SPEC.copy {
+        modelLine = externalModelLine
+        reportingMetadata =
+          this.reportingMetadata.copy {
+            reportInterval = interval {
+              startTime = reportStart.toProtoTime()
+              endTime = reportStart.plus(Duration.ofDays(30)).toProtoTime()
+            }
+          }
+      }
+    val signedMeasurementSpec =
+      signMeasurementSpec(measurementSpec, TestRequisitionData.MC_SIGNING_KEY)
+    val r1 =
+      TestRequisitionData.REQUISITION.copy {
+        this.measurementSpec = signedMeasurementSpec
+        updateTime = timestamp { seconds = 10 }
+      }
+    val r2 =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/foo2"
+        this.measurementSpec = signedMeasurementSpec
+        updateTime = timestamp { seconds = 20 }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse { requisitions += r1 },
+        listRequisitionsResponse { requisitions += r2 },
+      )
+    installStatefulMetadataMock()
+
+    var persisted: ReportRoutingDecision? = null
+    val routingRequests = mutableListOf<ResolveReportRoutingDecisionRequest>()
+    whenever(requisitionMetadataServiceMock.resolveReportRoutingDecision(any())).thenAnswer {
+      invocation ->
+      val request = invocation.getArgument<ResolveReportRoutingDecisionRequest>(0)
+      routingRequests += request
+      val created = persisted == null
+      val decision = persisted ?: request.candidate.also { persisted = it }
+      resolveReportRoutingDecisionResponse {
+        reportRoutingDecision = decision
+        this.created = created
+      }
+    }
+
+    createFetcher(
+        modelLineCutovers =
+          listOf(
+            ModelLineCutover(
+              externalModelLine,
+              historicalModelLine,
+              replacementModelLine,
+              LocalDate.of(2026, 10, 5),
+              LocalDate.of(2027, 1, 3),
+              Duration.ofDays(90),
+            )
+          )
+      )
+      .fetchAndStoreRequisitions()
+    createFetcher(
+        modelLineCutovers =
+          listOf(
+            ModelLineCutover(
+              externalModelLine,
+              historicalModelLine,
+              replacementModelLine,
+              LocalDate.of(2026, 9, 1),
+              LocalDate.of(2027, 1, 3),
+              Duration.ofDays(90),
+            )
+          )
+      )
+      .fetchAndStoreRequisitions()
+
+    val grouped =
+      blobsList().map { Any.parseFrom(it.readBytes()).unpack(GroupedRequisitions::class.java) }
+    assertThat(grouped.map { it.selectedModelLine })
+      .containsExactly(historicalModelLine, historicalModelLine)
+    assertThat(grouped.map { it.reportInterval })
+      .containsExactly(
+        measurementSpec.reportingMetadata.reportInterval,
+        measurementSpec.reportingMetadata.reportInterval,
+      )
+    assertThat(grouped.map { it.requireModelLineFinalization }).containsExactly(true, true)
+    assertThat(routingRequests).hasSize(2)
+    assertThat(routingRequests[1].candidate.selectedModelLine).isEqualTo(replacementModelLine)
   }
 
   @Test

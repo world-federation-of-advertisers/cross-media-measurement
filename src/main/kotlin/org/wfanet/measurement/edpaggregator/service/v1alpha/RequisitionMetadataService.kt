@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
@@ -25,6 +26,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.DataProviderMismatchException
@@ -54,11 +56,15 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RegisterQueuedRequisitionMet
 import org.wfanet.measurement.edpaggregator.v1alpha.RegisterQueuedRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ResolveReportRoutingDecisionRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ResolveReportRoutingDecisionResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.StartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.reportRoutingDecision
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.resolveReportRoutingDecisionResponse
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRequisitionMetadataResponse as InternalBatchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateRequisitionMetadataRequest as InternalCreateRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken as InternalListRequisitionMetadataPageToken
@@ -66,9 +72,11 @@ import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequ
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequestKt.filter as internalListRequisitionMetadataRequestFilter
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataResponse as InternalListRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.RegisterQueuedRequisitionMetadataResponse as InternalRegisterQueuedRequisitionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.ReportRoutingDecision as InternalReportRoutingDecision
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata as InternalRequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub as InternalRequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as InternalState
+import org.wfanet.measurement.internal.edpaggregator.ResolveReportRoutingDecisionResponse as InternalResolveReportRoutingDecisionResponse
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRequisitionMetadataRequest as internalBatchCreateRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.createRequisitionMetadataRequest as internalCreateRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.fetchLatestCmmsCreateTimeRequest as internalFetchLatestCmmsCreateTimeRequest
@@ -80,7 +88,9 @@ import org.wfanet.measurement.internal.edpaggregator.markWithdrawnRequisitionMet
 import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataRequest as internalQueueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest as internalRefuseRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.registerQueuedRequisitionMetadataRequest as internalRegisterQueuedRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.reportRoutingDecision as internalReportRoutingDecision
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata as internalRequisitionMetadata
+import org.wfanet.measurement.internal.edpaggregator.resolveReportRoutingDecisionRequest as internalResolveReportRoutingDecisionRequest
 import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionMetadataRequest as internalStartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
@@ -89,6 +99,78 @@ class RequisitionMetadataService(
   private val internalClient: InternalRequisitionMetadataServiceCoroutineStub,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : RequisitionMetadataServiceCoroutineImplBase(coroutineContext) {
+  override suspend fun resolveReportRoutingDecision(
+    request: ResolveReportRoutingDecisionRequest
+  ): ResolveReportRoutingDecisionResponse {
+    val parentKey =
+      DataProviderKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val candidate = request.candidate
+    ReportKey.fromName(candidate.report)
+      ?: throw InvalidFieldValueException("candidate.report")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (
+      !candidate.hasReportInterval() ||
+        !candidate.reportInterval.hasStartTime() ||
+        !candidate.reportInterval.hasEndTime() ||
+        !Timestamps.isValid(candidate.reportInterval.startTime) ||
+        !Timestamps.isValid(candidate.reportInterval.endTime) ||
+        Timestamps.compare(candidate.reportInterval.startTime, candidate.reportInterval.endTime) >=
+          0
+    ) {
+      throw InvalidFieldValueException("candidate.report_interval")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (ModelLineKey.fromName(candidate.externalModelLine) == null) {
+      throw InvalidFieldValueException("candidate.external_model_line")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (ModelLineKey.fromName(candidate.selectedModelLine) == null) {
+      throw InvalidFieldValueException("candidate.selected_model_line")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (candidate.hasCutoverTime() && !Timestamps.isValid(candidate.cutoverTime)) {
+      throw InvalidFieldValueException("candidate.cutover_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val internalResponse: InternalResolveReportRoutingDecisionResponse =
+      try {
+        internalClient.resolveReportRoutingDecision(
+          internalResolveReportRoutingDecisionRequest {
+            dataProviderResourceId = parentKey.dataProviderId
+            this.candidate = internalReportRoutingDecision {
+              report = candidate.report
+              reportInterval = candidate.reportInterval
+              externalModelLine = candidate.externalModelLine
+              selectedModelLine = candidate.selectedModelLine
+              if (candidate.hasCutoverTime()) {
+                cutoverTime = candidate.cutoverTime
+              }
+            }
+          }
+        )
+      } catch (e: StatusException) {
+        throw e.status.withCause(e).asRuntimeException()
+      }
+
+    return resolveReportRoutingDecisionResponse {
+      reportRoutingDecision = internalResponse.reportRoutingDecision.toPublic()
+      created = internalResponse.created
+    }
+  }
+
+  private fun InternalReportRoutingDecision.toPublic() = reportRoutingDecision {
+    report = this@toPublic.report
+    reportInterval = this@toPublic.reportInterval
+    externalModelLine = this@toPublic.externalModelLine
+    selectedModelLine = this@toPublic.selectedModelLine
+    if (this@toPublic.hasCutoverTime()) {
+      cutoverTime = this@toPublic.cutoverTime
+    }
+    createTime = this@toPublic.createTime
+  }
 
   override suspend fun createRequisitionMetadata(
     request: CreateRequisitionMetadataRequest

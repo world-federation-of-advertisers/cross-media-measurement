@@ -23,6 +23,8 @@ import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionWorkItemDispatchConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.StoragePathPrefixes
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerParamsValidator
@@ -146,6 +148,44 @@ object RequisitionFetcherConfigValidator {
       "Missing 'results_fulfiller_params' in direct-dispatch config for data provider: $dataProvider."
     }
     ResultsFulfillerParamsValidator.validate(dispatchConfig.resultsFulfillerParams, dataProvider)
+    val cutovers = dispatchConfig.modelLineCutoversList.map(ModelLineCutover::from)
+    ModelLineCutoverValidator.validate(
+      cutovers,
+      dispatchConfig.resultsFulfillerParams.modelLineMapMap.keys,
+    )
+    for (cutover in cutovers) {
+      val historical =
+        requireNotNull(
+          dispatchConfig.resultsFulfillerParams.modelLineDataSourcesMap[cutover.historicalModelLine]
+        ) {
+          "Missing model_line_data_sources entry for ${cutover.historicalModelLine}"
+        }
+      val replacement =
+        requireNotNull(
+          dispatchConfig.resultsFulfillerParams.modelLineDataSourcesMap[
+              cutover.replacementModelLine]
+        ) {
+          "Missing model_line_data_sources entry for ${cutover.replacementModelLine}"
+        }
+      require(
+        historical.hasValidEndDate() &&
+          historical.validEndDate ==
+            dispatchConfig.modelLineCutoversList
+              .single { it.externalModelLine == cutover.externalModelLine }
+              .legacyRequiredThroughDate
+      ) {
+        "Historical data source end date must match legacy_required_through_date"
+      }
+      require(
+        replacement.hasValidStartDate() &&
+          replacement.validStartDate ==
+            dispatchConfig.modelLineCutoversList
+              .single { it.externalModelLine == cutover.externalModelLine }
+              .cutoverDate
+      ) {
+        "Replacement data source start date must match cutover_date"
+      }
+    }
     require(dispatchConfig.hasControlPlaneConnection()) {
       "Missing 'control_plane_connection' in direct-dispatch config for data provider: $dataProvider."
     }

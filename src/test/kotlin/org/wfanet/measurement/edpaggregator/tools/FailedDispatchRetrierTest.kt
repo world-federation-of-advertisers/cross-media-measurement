@@ -24,6 +24,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,25 +42,34 @@ import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
@@ -77,6 +87,9 @@ class FailedDispatchRetrierTest {
     VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase =
     mockService()
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
+  private val uploadService:
+    RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase =
+    mockService()
   private val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
   @get:Rule
@@ -86,6 +99,7 @@ class FailedDispatchRetrierTest {
     addService(rankerJobService)
     addService(vidLabelingJobService)
     addService(workItemsService)
+    addService(uploadService)
   }
 
   private val retrier: FailedDispatchRetrier by lazy {
@@ -99,7 +113,314 @@ class FailedDispatchRetrierTest {
       VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(channel),
       WorkItemsGrpcKt.WorkItemsCoroutineStub(channel),
       recordingThrottlers.throttlers,
+      RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(channel),
     )
+  }
+
+  @Before
+  fun stubUploads(): Unit = runBlocking {
+    whenever(uploadService.getRawImpressionUpload(any()))
+      .thenReturn(
+        rawImpressionUpload {
+          name = UPLOAD_NAME
+          registrationComplete = true
+        }
+      )
+    whenever(uploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse {})
+  }
+
+  @Test
+  fun `retryFailed refreshes ordinary ranking snapshots after its claim`(): Unit = runBlocking {
+    verifySnapshotRefresh()
+  }
+
+  @Test
+  fun `retryFailed refreshes ordinary subpool snapshots after its claim`(): Unit = runBlocking {
+    verifySnapshotRefresh(phase0 = true)
+  }
+
+  @Test
+  fun `retryFailed preserves approved healing snapshots`(): Unit = runBlocking {
+    verifySnapshotRefresh(healing = true)
+  }
+
+  @Test
+  fun `retryFailed reads every availability owner and model page`(): Unit = runBlocking {
+    verifySnapshotRefresh(paginated = true)
+  }
+
+  @Test
+  fun `retryFailed stops publication when retry upload metadata is unavailable`() =
+    runBlocking<Unit> { verifySnapshotRefresh(snapshotReadFailure = "upload") }
+
+  @Test
+  fun `retryFailed stops publication when availability owners cannot be listed`() =
+    runBlocking<Unit> { verifySnapshotRefresh(snapshotReadFailure = "uploads") }
+
+  @Test
+  fun `retryFailed stops publication when an availability owner model cannot be read`() =
+    runBlocking<Unit> { verifySnapshotRefresh(snapshotReadFailure = "model") }
+
+  @Test
+  fun `retryFailed preserves an unknown wrapped application payload and trace context`() =
+    runBlocking<Unit> { verifySnapshotRefresh(unsupportedApp = true) }
+
+  @Test
+  fun `retryFailed excludes mismatched and unsynchronized model rows from refreshed snapshots`() =
+    runBlocking<Unit> { verifySnapshotRefresh(irrelevantOwnerRows = true) }
+
+  private suspend fun verifySnapshotRefresh(
+    phase0: Boolean = false,
+    healing: Boolean = false,
+    paginated: Boolean = false,
+    snapshotReadFailure: String? = null,
+    unsupportedApp: Boolean = false,
+    irrelevantOwnerRows: Boolean = false,
+  ) {
+    stubFailedModelLine()
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(listVidLabelingJobsResponse {})
+    whenever(rankerJobService.listRankerJobs(any()))
+      .thenReturn(
+        listRankerJobsResponse { if (!phase0) rankerJobs += rankerJob { name = RANKER_JOB_NAME } }
+      )
+    whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+      .thenReturn(
+        listPoolAssignmentJobsResponse {
+          poolAssignmentJobs += poolAssignmentJob {
+            name = POOL_JOB_NAME
+            shardIndex = 0
+          }
+        }
+      )
+    if (healing)
+      whenever(uploadService.getRawImpressionUpload(any()))
+        .thenReturn(
+          rawImpressionUpload {
+            name = UPLOAD_NAME
+            registrationComplete = true
+            uploadHealingOperation = "dataProviders/dp/uploadHealingOperations/heal"
+          }
+        )
+    val laterOwner = "$UPLOAD_NAME-later"
+    val params =
+      Any.pack(
+        workItemParams {
+          appParams =
+            Any.pack(
+              if (unsupportedApp) rawImpressionUpload { name = UPLOAD_NAME }
+              else if (phase0)
+                subpoolAssignerParams {
+                  modelLine = MODEL_LINE
+                  allowedPriorSnapshotRawImpressionUploads += "old-owner"
+                }
+              else
+                vidRankBuilderParams {
+                  modelLine = MODEL_LINE
+                  allowedPriorSnapshotRawImpressionUploads += "old-owner"
+                }
+            )
+          traceContext["traceparent"] = "saved-trace"
+        }
+      )
+    whenever(workItemsService.getWorkItem(any()))
+      .thenReturn(
+        workItem {
+          queue = "q"
+          workItemParams = params
+        }
+      )
+    var claimed = false
+    whenever(modelLineService.markRawImpressionUploadModelLineRanking(any())).thenAnswer {
+      claimed = true
+      failedModelLine().copy { state = RawImpressionUploadModelLine.State.RANKING }
+    }
+    whenever(modelLineService.markRawImpressionUploadModelLinePoolAssigning(any())).thenAnswer {
+      claimed = true
+      failedModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+    }
+    whenever(uploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
+      check(claimed)
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
+        >(
+          0
+        )
+      listRawImpressionUploadsResponse {
+        if (paginated && request.pageToken.isEmpty()) {
+          rawImpressionUploads += rawImpressionUpload {
+            name = UPLOAD_NAME
+            registrationComplete = true
+          }
+          rawImpressionUploads += rawImpressionUpload { name = "$UPLOAD_NAME-incomplete" }
+          nextPageToken = "next-uploads"
+        } else
+          rawImpressionUploads += rawImpressionUpload {
+            name = laterOwner
+            registrationComplete = true
+          }
+      }
+    }
+    whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+        >(
+          0
+        )
+      val parent = request.parent
+      listRawImpressionUploadModelLinesResponse {
+        if (paginated && parent == laterOwner && request.pageToken.isEmpty()) {
+          nextPageToken = "next-models"
+        } else if (parent == laterOwner && irrelevantOwnerRows) {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$parent/rawImpressionUploadModelLines/other-model"
+            cmmsModelLine = "$MODEL_LINE-other"
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+          }
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$parent/rawImpressionUploadModelLines/completed-model"
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+        } else
+          rawImpressionUploadModelLines +=
+            if (parent == laterOwner)
+              rawImpressionUploadModelLine {
+                cmmsModelLine = MODEL_LINE
+                state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+              }
+            else failedModelLine()
+      }
+    }
+    whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    when (snapshotReadFailure) {
+      "upload" ->
+        whenever(uploadService.getRawImpressionUpload(any()))
+          .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      "uploads" ->
+        whenever(uploadService.listRawImpressionUploads(any()))
+          .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      "model" ->
+        whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation
+          ->
+          val request =
+            invocation.getArgument<
+              org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+            >(
+              0
+            )
+          if (request.parent == laterOwner) throw Status.UNAVAILABLE.asRuntimeException()
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += failedModelLine()
+          }
+        }
+    }
+    if (snapshotReadFailure != null) {
+      val failure =
+        assertFailsWith<IllegalStateException> { retrier.retryFailed(UPLOAD_NAME, MODEL_LINE) }
+      assertThat(claimed).isTrue()
+      assertThat(failure).hasMessageThat().contains("Unable to")
+      assertThat((failure.cause as StatusException).status.code).isEqualTo(Status.Code.UNAVAILABLE)
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+      return
+    }
+    retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+    val captured = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(captured.capture()) }
+    val wrapper =
+      captured.firstValue.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    if (unsupportedApp) {
+      assertThat(captured.firstValue.workItem.workItemParams).isEqualTo(params)
+      assertThat(wrapper.traceContextMap).containsExactly("traceparent", "saved-trace")
+      return
+    }
+    val actualOwners =
+      if (phase0)
+        wrapper.appParams
+          .unpack(SubpoolAssignerParams::class.java)
+          .allowedPriorSnapshotRawImpressionUploadsList
+      else
+        wrapper.appParams
+          .unpack(VidRankBuilderParams::class.java)
+          .allowedPriorSnapshotRawImpressionUploadsList
+    assertThat(actualOwners)
+      .containsExactlyElementsIn(
+        if (irrelevantOwnerRows) emptyList() else listOf(if (healing) "old-owner" else laterOwner)
+      )
+    assertThat(wrapper.traceContextMap).containsExactly("traceparent", "saved-trace")
+    if (healing) verifyBlocking(uploadService, never()) { listRawImpressionUploads(any()) }
+  }
+
+  @Test
+  fun `retryFailed republishes only unfinished rank pool jobs`(): Unit = runBlocking {
+    stubFailedModelLine()
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(listVidLabelingJobsResponse {})
+    whenever(rankerJobService.listRankerJobs(any()))
+      .thenReturn(
+        listRankerJobsResponse {
+          rankerJobs += rankerJob {
+            name = "$RANKER_JOB_NAME-done"
+            state = RankerJob.State.SUCCEEDED
+          }
+          rankerJobs += rankerJob {
+            name = RANKER_JOB_NAME
+            state = RankerJob.State.CREATED
+          }
+        }
+      )
+    whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+    whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    whenever(modelLineService.markRawImpressionUploadModelLineRanking(any()))
+      .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.RANKING })
+    val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+    assertThat(result.workItemsRepublished).isEqualTo(1)
+    val request = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(request.capture()) }
+    assertThat(request.firstValue.workItemId)
+      .isEqualTo(
+        RequestIds.forRetriedWorkItem(
+          WorkItemIds.forVidRankBuilder(RANKER_JOB_NAME),
+          FAILURE_ATTEMPT_ID,
+        )
+      )
+  }
+
+  @Test
+  fun `retryFailed keeps one succeeded rank job for last-job-out recovery`(): Unit = runBlocking {
+    stubFailedModelLine()
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(listVidLabelingJobsResponse {})
+    whenever(rankerJobService.listRankerJobs(any()))
+      .thenReturn(
+        listRankerJobsResponse {
+          rankerJobs += rankerJob {
+            name = RANKER_JOB_NAME
+            state = RankerJob.State.SUCCEEDED
+          }
+          rankerJobs += rankerJob {
+            name = "$RANKER_JOB_NAME-second"
+            state = RankerJob.State.SUCCEEDED
+          }
+        }
+      )
+    whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+    whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    whenever(modelLineService.markRawImpressionUploadModelLineRanking(any()))
+      .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.RANKING })
+    assertThat(retrier.retryFailed(UPLOAD_NAME, MODEL_LINE).workItemsRepublished).isEqualTo(1)
+    val request = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(request.capture()) }
+    assertThat(request.firstValue.workItemId)
+      .isEqualTo(
+        RequestIds.forRetriedWorkItem(
+          WorkItemIds.forVidRankBuilder(RANKER_JOB_NAME),
+          FAILURE_ATTEMPT_ID,
+        )
+      )
   }
 
   private fun failedModelLine() = rawImpressionUploadModelLine {
@@ -892,6 +1213,7 @@ class FailedDispatchRetrierTest {
     private const val MODEL_LINE_NAME = "$UPLOAD_NAME/rawImpressionUploadModelLines/rml1"
     private const val VID_JOB_NAME = "$UPLOAD_NAME/vidLabelingJobs/vlj1"
     private const val SECOND_VID_JOB_NAME = "$UPLOAD_NAME/vidLabelingJobs/vlj2"
+    private const val POOL_JOB_NAME = "$UPLOAD_NAME/poolAssignmentJobs/pj1"
     private const val RANKER_JOB_NAME = "$UPLOAD_NAME/rankerJobs/rj1"
     private const val ETAG = "etag-1"
     private const val FAILURE_ATTEMPT_ID = "failure-attempt-1"

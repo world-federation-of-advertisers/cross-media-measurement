@@ -76,7 +76,11 @@ class VidLabelingHealingControllerFunction(
 ) : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     try {
-      runBlocking { runController() }
+      Tracing.withW3CTraceContext(request) {
+        runBlocking {
+          Tracing.traceSuspending("VidLabelingHealingControllerFunction") { runController() }
+        }
+      }
       response.setStatusCode(204)
     } finally {
       EdpaTelemetry.flush()
@@ -238,6 +242,9 @@ class VidLabelingHealingControllerFunction(
               workItemsClients
                 .getValue(dataProvider)
                 .getWorkItem(getWorkItemRequest { this.name = name })
+            },
+            retryWorkItem = { dataProvider, request ->
+              workItemsClients.getValue(dataProvider).retryWorkItem(request)
             },
           ),
         doneObjectMetadataReader = GcsDoneObjectMetadataReader(storage),

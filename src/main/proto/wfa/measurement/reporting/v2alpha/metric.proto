@@ -450,6 +450,12 @@ message Metric {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  // Closed-open bounding interval of the `Report` in `containing_report`.
+  google.type.Interval report_interval = 13 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
   // TODO(@tristanvuong2021): WIll be required in a future release. See
   // https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/2345
   string model_line = 11

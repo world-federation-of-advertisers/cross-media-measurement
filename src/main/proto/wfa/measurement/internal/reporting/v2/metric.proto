@@ -111,6 +111,7 @@ message Metric {
     repeated string filters = 1;
     string containing_report = 2;
     string basic_report = 3;
+    google.type.Interval report_interval = 4;
   }
   Details details = 8;
 

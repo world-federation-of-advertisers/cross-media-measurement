@@ -39,7 +39,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
-import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
@@ -230,7 +229,7 @@ internal class VidLabelingAvailabilityIntegrationTest : VidLabelingPipelineTestH
 
     val failedTask = listAvailabilityTasks(upload.name).single { it.name == directTask.name }
     assertThat(failedTask.state).isEqualTo(WorkItem.State.FAILED)
-    assertThat(failedTask.attemptCount).isEqualTo(3)
+    assertThat(failedTask.attemptCount).isEqualTo(pipelineConfig.maxDeliveryAttempts)
     assertThat(listMetadata().none { it.modelLine == DIRECT_MODEL_LINE }).isTrue()
   }
 
@@ -421,7 +420,7 @@ internal class VidLabelingAvailabilityIntegrationTest : VidLabelingPipelineTestH
           it.doneBlobGeneration == firstDone.freshnessToken.toLong()
         }
       assertThat(firstTask.state).isEqualTo(WorkItem.State.FAILED)
-      assertThat(firstTask.attemptCount).isEqualTo(3)
+      assertThat(firstTask.attemptCount).isEqualTo(pipelineConfig.maxDeliveryAttempts)
 
       val secondDone =
         outputEventStorage.writeBlob(doneKey, flowOf(ByteString.EMPTY))
@@ -456,16 +455,16 @@ internal class VidLabelingAvailabilityIntegrationTest : VidLabelingPipelineTestH
   @Test
   fun `external watched path uses DataWatcher while internal output uses WorkItems`() =
     runBlocking {
-      val internalDoneKey =
-        blobKey(
-          LabeledImpressionsBlobKeys.forDoneUri(
-            outputPrefix,
-            "dataProviders/edp/rawImpressionUploads/internal",
-            DIRECT_MODEL_LINE,
-            EVENT_DATE,
-          )
-        )
-      outputEventStorage.writeBlob(internalDoneKey, flowOf(ByteString.EMPTY))
+      setVisibleModelLines(DIRECT_MODEL_LINE)
+      writeRawFile("internal-owned", "input.parquet", listOf("internal-person"))
+      val internalGeneration = finalizeRawUpload("internal-owned")
+      awaitPipelineIdle()
+      val internalUpload = listUploads().single { it.doneBlobGeneration == internalGeneration }
+      assertThat(listModelLines(internalUpload.name).single().state)
+        .isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+      assertThat(listAvailabilityTasks(internalUpload.name).single().state)
+        .isEqualTo(WorkItem.State.SUCCEEDED)
+      assertReadablePeople(DIRECT_MODEL_LINE, setOf("internal-person"))
       assertThat(externalAvailabilityDeliveries.get()).isEqualTo(0)
 
       val externalDataUri =
@@ -497,7 +496,7 @@ internal class VidLabelingAvailabilityIntegrationTest : VidLabelingPipelineTestH
       }
 
       assertThat(externalAvailabilityDeliveries.get()).isEqualTo(1)
-      val metadata = listMetadata().single()
+      val metadata = listMetadata().single { it.rawImpressionUpload.isEmpty() }
       assertThat(metadata.modelLine).isEqualTo(DIRECT_MODEL_LINE)
       assertThat(metadata.rawImpressionUpload).isEmpty()
       assertThat(metadata.state).isEqualTo(ImpressionMetadata.State.ACTIVE)

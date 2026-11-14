@@ -26,6 +26,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Descriptors
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
+import com.google.type.Interval
 import java.io.IOException
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -144,6 +145,8 @@ class StorageEventSource(
   private val impressionsStorageConfig: StorageConfig,
   private val descriptor: Descriptors.Descriptor,
   private val batchSize: Int,
+  private val reportInterval: Interval? = null,
+  private val requireModelLineFinalization: Boolean = false,
   private val readConcurrency: Int = DEFAULT_READ_CONCURRENCY,
   private val readMaxAttempts: Int = DEFAULT_READ_MAX_ATTEMPTS,
   private val readRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
@@ -237,6 +240,8 @@ class StorageEventSource(
       impressionDataSourceProvider.listImpressionDataSources(
         modelLine,
         resolvedEventGroups.eventGroupsByKey.values,
+        reportInterval,
+        requireModelLineFinalization,
       )
     cachedImpressionDataSources = result
     return result

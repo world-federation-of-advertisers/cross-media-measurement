@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -58,6 +59,7 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
@@ -95,6 +97,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
@@ -142,6 +145,10 @@ class VidLabelingDispatchSequencerTest {
         .buildAndRegisterGlobal()
     logRecords.clear()
     rootLogger.addHandler(logHandler)
+    runBlocking {
+      whenever(uploadHealingOperationService.listUploadHealingOperations(any()))
+        .thenReturn(listUploadHealingOperationsResponse {})
+    }
   }
 
   @After
@@ -273,6 +280,7 @@ class VidLabelingDispatchSequencerTest {
   private suspend fun stubUploads(
     active: List<RawImpressionUpload> = emptyList(),
     created: List<RawImpressionUpload> = emptyList(),
+    failed: List<RawImpressionUpload> = emptyList(),
   ) {
     whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
@@ -280,6 +288,7 @@ class VidLabelingDispatchSequencerTest {
         when (request.filter.stateInList.firstOrNull()) {
           RawImpressionUpload.State.ACTIVE -> active
           RawImpressionUpload.State.CREATED -> created
+          RawImpressionUpload.State.FAILED -> failed
           else -> emptyList()
         }
       listRawImpressionUploadsResponse { rawImpressionUploads += uploads }
@@ -511,6 +520,440 @@ class VidLabelingDispatchSequencerTest {
     etag = ETAG
   }
 
+  private suspend fun stubInputFiles(vararg entries: Pair<String, String>) {
+    val uris = entries.toMap()
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val parent = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0).parent
+      listRawImpressionUploadFilesResponse {
+        rawImpressionUploadFiles += rawImpressionUploadFile {
+          name = "$parent/files/input"
+          blobUri = uris.getValue(parent)
+          blobGeneration = 1
+          eventDate = date {
+            year = 2026
+            month = 1
+            day = 5
+          }
+          sizeBytes = MAX_FILE_BATCH_SIZE_BYTES
+        }
+      }
+    }
+  }
+
+  @Test
+  fun `dispatchNext preserves ordinary input with an invalid persisted event date`(): Unit =
+    runBlocking {
+      verifyUnknownOutputKey("invalid-date")
+    }
+
+  @Test
+  fun `dispatchNext preserves ordinary input with a missing persisted event date`(): Unit =
+    runBlocking {
+      verifyUnknownOutputKey("missing-date")
+    }
+
+  @Test
+  fun `dispatchNext preserves ordinary input with an empty persisted URI`(): Unit = runBlocking {
+    verifyUnknownOutputKey("empty-uri")
+  }
+
+  @Test
+  fun `dispatchNext preserves ordinary input with an empty persisted manifest`(): Unit =
+    runBlocking {
+      verifyUnknownOutputKey("empty-manifest")
+    }
+
+  private suspend fun verifyUnknownOutputKey(kind: String) {
+    val prior = upload("prior-unknown", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val candidate =
+      upload("candidate-unknown", RawImpressionUpload.State.CREATED, FIXED_NOW.plusSeconds(1))
+    stubUploads(active = listOf(prior), created = listOf(candidate))
+    stubModelLinesByParent(
+      mapOf(
+        prior.name to
+          listOf(
+            modelLine(
+              prior.name,
+              MODEL_LINE,
+              RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            )
+          ),
+        candidate.name to
+          listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+      )
+    )
+    stubMemoizedDispatch()
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
+      listRawImpressionUploadFilesResponse {
+        if (request.parent != candidate.name || kind != "empty-manifest")
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "${request.parent}/files/input"
+            blobUri =
+              if (request.parent == candidate.name && kind == "empty-uri") ""
+              else "gs://input/${request.parent.substringAfterLast('/')}"
+            blobGeneration = 1L
+            sizeBytes = 1L
+            if (request.parent != candidate.name || kind != "missing-date")
+              eventDate = date {
+                year = 2026
+                month = 2
+                day = if (request.parent == candidate.name && kind == "invalid-date") 31 else 1
+              }
+          }
+      }
+    }
+    createSequencer().dispatchNext()
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `dispatchNext admits deferred ordinary input after paginated availability handoff`(): Unit =
+    runBlocking {
+      verifyDeferredHandoff(resuming = false)
+    }
+
+  @Test
+  fun `dispatchNext admits deferred ordinary input when attention resumes availability handoff`():
+    Unit = runBlocking { verifyDeferredHandoff(resuming = true) }
+
+  private suspend fun verifyDeferredHandoff(resuming: Boolean) {
+    val candidate =
+      upload("deferred", RawImpressionUpload.State.CREATED, FIXED_NOW, processingDeferred = true)
+    stubUploads(created = listOf(candidate))
+    stubModelLinesByParent(
+      mapOf(
+        candidate.name to
+          listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED))
+      )
+    )
+    stubMemoizedDispatch()
+    whenever(uploadHealingOperationService.listUploadHealingOperations(any())).thenAnswer {
+      invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+        >(
+          0
+        )
+      listUploadHealingOperationsResponse {
+        uploadHealingOperations += uploadHealingOperation {
+          name = "$DATA_PROVIDER/uploadHealingOperations/handoff"
+          state =
+            if (request.pageToken.isEmpty() || resuming)
+              UploadHealingOperation.State.NEEDS_ATTENTION
+            else UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+          resumeState =
+            if (request.pageToken.isNotEmpty() && resuming)
+              UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+            else UploadHealingOperation.State.REPLAYING
+        }
+        if (request.pageToken.isEmpty()) nextPageToken = "next-handoff"
+      }
+    }
+    createSequencer().dispatchNext()
+    verifyBlocking(rawImpressionUploadModelLineService) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+    verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `dispatchNext keeps deferred ordinary input gated without availability handoff`(): Unit =
+    runBlocking {
+      val candidate =
+        upload(
+          "deferred-blocked",
+          RawImpressionUpload.State.CREATED,
+          FIXED_NOW,
+          processingDeferred = true,
+        )
+      stubUploads(created = listOf(candidate))
+      whenever(uploadHealingOperationService.listUploadHealingOperations(any()))
+        .thenReturn(listUploadHealingOperationsResponse {})
+      createSequencer().dispatchNext()
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+    }
+
+  @Test
+  fun `dispatchNext publishes nothing when current availability owner refresh fails after claim`():
+    Unit = runBlocking {
+    val candidate = upload("refresh-failed", RawImpressionUpload.State.CREATED, FIXED_NOW)
+    var claimed = false
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+      val state = request.filter.stateInList.single()
+      if (claimed && state == RawImpressionUpload.State.ACTIVE)
+        throw Status.UNAVAILABLE.asRuntimeException()
+      listRawImpressionUploadsResponse {
+        if (state == RawImpressionUpload.State.CREATED) rawImpressionUploads += candidate
+      }
+    }
+    stubModelLinesByParent(
+      mapOf(
+        candidate.name to
+          listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED))
+      )
+    )
+    stubMemoizedDispatch()
+    whenever(
+        rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+      )
+      .thenAnswer {
+        claimed = true
+        rawImpressionUploadModelLine {}
+      }
+    val failure = assertFailsWith<Exception> { createSequencer().dispatchNext() }
+    assertThat(failure.toString() + failure.cause).contains("UNAVAILABLE")
+    verifyBlocking(rawImpressionUploadModelLineService) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `dispatchNext refresh excludes own incomplete and unrelated model owners`(): Unit =
+    runBlocking {
+      val candidate = upload("refresh-candidate", RawImpressionUpload.State.CREATED, FIXED_NOW)
+      val incomplete =
+        upload(
+          "incomplete-owner",
+          RawImpressionUpload.State.ACTIVE,
+          FIXED_NOW,
+          registrationComplete = false,
+        )
+      val unrelated = upload("unrelated-owner", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val completed = upload("completed-owner", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val failedParent = upload("failed-parent-owner", RawImpressionUpload.State.FAILED, FIXED_NOW)
+      var claimed = false
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation
+        ->
+        val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads +=
+            when (request.filter.stateInList.single()) {
+              RawImpressionUpload.State.CREATED -> listOf(candidate)
+              RawImpressionUpload.State.ACTIVE ->
+                if (claimed) listOf(candidate, incomplete, unrelated, completed) else emptyList()
+              RawImpressionUpload.State.FAILED -> if (claimed) listOf(failedParent) else emptyList()
+              else -> emptyList()
+            }
+        }
+      }
+      stubModelLinesByParent(
+        mapOf(
+          candidate.name to
+            listOf(
+              modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)
+            ),
+          unrelated.name to
+            listOf(
+              modelLine(
+                unrelated.name,
+                MODEL_LINE_2,
+                RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+              )
+            ),
+          completed.name to
+            listOf(
+              modelLine(completed.name, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED)
+            ),
+          failedParent.name to
+            listOf(
+              modelLine(
+                failedParent.name,
+                MODEL_LINE,
+                RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+              )
+            ),
+        )
+      )
+      stubMemoizedDispatch()
+      whenever(
+          rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+        )
+        .thenAnswer {
+          claimed = true
+          rawImpressionUploadModelLine {}
+        }
+      createSequencer().dispatchNext()
+      val requests = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) {
+        createWorkItem(requests.capture())
+      }
+      for (request in requests.allValues) {
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<SubpoolAssignerParams>()
+        assertThat(params.allowedPriorSnapshotRawImpressionUploadsList)
+          .containsExactly(failedParent.name)
+      }
+      val modelReads =
+        argumentCaptor<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+        >()
+      verifyBlocking(rawImpressionUploadModelLineService, org.mockito.kotlin.atLeastOnce()) {
+        listRawImpressionUploadModelLines(modelReads.capture())
+      }
+      assertThat(modelReads.allValues.map { it.parent }).doesNotContain(incomplete.name)
+    }
+
+  @Test
+  fun `dispatchNext refreshes availability snapshots after an ordinary claim`(): Unit =
+    runBlocking {
+      val prior = upload("prior", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val later = upload("later", RawImpressionUpload.State.ACTIVE, FIXED_NOW.plusSeconds(1))
+      val candidate =
+        upload("candidate", RawImpressionUpload.State.CREATED, FIXED_NOW.plusSeconds(2))
+      var claimed = false
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation
+        ->
+        val state =
+          invocation
+            .getArgument<ListRawImpressionUploadsRequest>(0)
+            .filter
+            .stateInList
+            .firstOrNull()
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads +=
+            when (state) {
+              RawImpressionUpload.State.ACTIVE ->
+                if (claimed) listOf(prior, later) else listOf(prior)
+              RawImpressionUpload.State.CREATED -> listOf(candidate)
+              else -> emptyList()
+            }
+        }
+      }
+      stubModelLinesByParent(
+        mapOf(
+          prior.name to
+            listOf(
+              modelLine(
+                prior.name,
+                MODEL_LINE,
+                RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+              )
+            ),
+          later.name to
+            listOf(
+              modelLine(
+                later.name,
+                MODEL_LINE,
+                RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+              )
+            ),
+          candidate.name to
+            listOf(
+              modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)
+            ),
+        )
+      )
+      stubMemoizedDispatch()
+      stubInputFiles(prior.name to "gs://raw/prior", candidate.name to "gs://raw/new")
+      whenever(
+          rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+        )
+        .thenAnswer {
+          claimed = true
+          rawImpressionUploadModelLine {}
+        }
+      createSequencer().dispatchNext()
+      val requests = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) {
+        createWorkItem(requests.capture())
+      }
+      val params =
+        requests.firstValue.workItem.workItemParams
+          .unpack<WorkItemParams>()
+          .appParams
+          .unpack<SubpoolAssignerParams>()
+      assertThat(params.allowedPriorSnapshotRawImpressionUploadsList)
+        .containsExactly(prior.name, later.name)
+    }
+
+  @Test
+  fun `dispatchNext admits same-date ordinary input with a distinct output key`() = runBlocking {
+    val prior = upload("prior", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val candidate = upload("candidate", RawImpressionUpload.State.CREATED, FIXED_NOW.plusSeconds(1))
+    stubUploads(active = listOf(prior), created = listOf(candidate))
+    stubModelLinesByParent(
+      mapOf(
+        prior.name to
+          listOf(
+            modelLine(
+              prior.name,
+              MODEL_LINE,
+              RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            )
+          ),
+        candidate.name to
+          listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+      )
+    )
+    stubShardResolution(memoized = false)
+    stubModelLine()
+    stubNonMemoizedFilesAndJobs()
+    stubInputFiles(prior.name to "gs://raw/old.parquet", candidate.name to "gs://raw/added.parquet")
+    stubMarkTransitions()
+    whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    assertThat(createSequencer().dispatchNext().dispatchedUpload).isEqualTo(candidate.name)
+  }
+
+  @Test
+  fun `dispatchNext rejects ordinary input that reuses an availability output key`() = runBlocking {
+    val prior = upload("prior", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val candidate = upload("candidate", RawImpressionUpload.State.CREATED, FIXED_NOW.plusSeconds(1))
+    stubUploads(active = listOf(prior), created = listOf(candidate))
+    stubModelLinesByParent(
+      mapOf(
+        prior.name to
+          listOf(
+            modelLine(
+              prior.name,
+              MODEL_LINE,
+              RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            )
+          ),
+        candidate.name to
+          listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+      )
+    )
+    stubInputFiles(prior.name to "gs://raw/same.parquet", candidate.name to "gs://raw/same.parquet")
+    assertThat(createSequencer().dispatchNext().dispatchedUpload).isNull()
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLineLabeling(any())
+    }
+  }
+
+  @Test
+  fun `dispatchNext keeps later computation behind a failed rank checkpoint`() = runBlocking {
+    val failed = upload("failed", RawImpressionUpload.State.FAILED, FIXED_NOW)
+    val candidate = upload("candidate", RawImpressionUpload.State.CREATED, FIXED_NOW.plusSeconds(1))
+    stubUploads(failed = listOf(failed), created = listOf(candidate))
+    stubModelLinesByParent(
+      mapOf(
+        failed.name to
+          listOf(modelLine(failed.name, MODEL_LINE, RawImpressionUploadModelLine.State.FAILED)),
+        candidate.name to
+          listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+      )
+    )
+    stubLiveSnapshots(failed.name to MODEL_LINE)
+    assertThat(createSequencer().dispatchNext().dispatchedUpload).isNull()
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+  }
+
   @Test
   fun `dispatchNext dispatches the oldest CREATED upload when none are ACTIVE`() = runBlocking {
     stubUploads(created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)))
@@ -531,7 +974,7 @@ class VidLabelingDispatchSequencerTest {
       markRawImpressionUploadModelLineLabeling(any())
     }
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(3)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(4)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(5)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
   }
@@ -709,7 +1152,7 @@ class VidLabelingDispatchSequencerTest {
         markRawImpressionUploadModelLineLabeling(any())
       }
       assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(3)
-      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(6)
       assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
       assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
       val dispatchSpan =
@@ -806,6 +1249,243 @@ class VidLabelingDispatchSequencerTest {
         // Same for the PopulationSpec: Phase-2 rejects a WorkItem without it, so dropping it here
         // would strand the memoized fan-out on a crash-looping VidLabeler.
         assertThat(params.populationSpecBlobUri).isEqualTo(POPULATION_SPEC_BLOB_URI)
+      }
+    }
+
+  @Test
+  fun `dispatchNext authorizes historical availability snapshot against deleted original boundary`():
+    Unit = runBlocking { verifyHistoricalHealingDispatch(newer = false, overlap = false) }
+
+  @Test
+  fun `dispatchNext rejects unapproved availability newer than original boundary`(): Unit =
+    runBlocking {
+      verifyHistoricalHealingDispatch(newer = true, overlap = false)
+    }
+
+  @Test
+  fun `dispatchNext keeps historical healing output collision blocked`(): Unit = runBlocking {
+    verifyHistoricalHealingDispatch(newer = false, overlap = true)
+  }
+
+  @Test
+  fun `dispatchNext authorizes missing original pool before first source checkpoint`(): Unit =
+    runBlocking {
+      verifyHistoricalHealingDispatch(newer = false, overlap = false, missingSourcePool = true)
+    }
+
+  @Test
+  fun `dispatchNext rejects missing original pool after first source checkpoint`(): Unit =
+    runBlocking {
+      verifyHistoricalHealingDispatch(newer = true, overlap = false, missingSourcePool = true)
+    }
+
+  @Test
+  fun `dispatchNext rejects historical proof for unregistered original source`(): Unit =
+    runBlocking {
+      verifyHistoricalHealingDispatch(newer = false, overlap = false, sourceRegistered = false)
+    }
+
+  @Test
+  fun `dispatchNext rejects historical proof with missing original creation time`(): Unit =
+    runBlocking {
+      verifyHistoricalHealingDispatch(newer = false, overlap = false, sourceTimestamp = false)
+    }
+
+  @Test
+  fun `dispatchNext fails closed for duplicated historical model identities`(): Unit = runBlocking {
+    verifyHistoricalHealingDispatch(newer = false, overlap = false, duplicateHistoricalRow = true)
+  }
+
+  private suspend fun verifyHistoricalHealingDispatch(
+    newer: Boolean,
+    overlap: Boolean,
+    missingSourcePool: Boolean = false,
+    sourceRegistered: Boolean = true,
+    sourceTimestamp: Boolean = true,
+    duplicateHistoricalRow: Boolean = false,
+  ) {
+    val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+    val historical = upload("history-five", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val source =
+      upload(
+          "source-six",
+          RawImpressionUpload.State.FAILED,
+          FIXED_NOW.plusSeconds(1),
+          registrationComplete = sourceRegistered,
+        )
+        .toBuilder()
+        .apply { if (!sourceTimestamp) clearCreateTime() }
+        .build()
+    val candidate =
+      upload(
+        "replacement-six",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW.plusSeconds(4),
+        uploadHealingOperation = operationName,
+        replacesRawImpressionUpload = source.name,
+      )
+    stubUploads(created = listOf(candidate), active = listOf(historical))
+    stubGetUploads(source)
+    stubModelLinesByParent(
+      mapOf(
+        historical.name to
+          listOf(
+            modelLine(
+              historical.name,
+              MODEL_LINE,
+              RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            ),
+            *if (duplicateHistoricalRow)
+              arrayOf(
+                modelLine(
+                  historical.name,
+                  MODEL_LINE,
+                  RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+                  id = "duplicate",
+                )
+              )
+            else emptyArray(),
+          ),
+        candidate.name to
+          listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+      )
+    )
+    stubHealingOperation(
+      healingOperation(
+        operationName,
+        healingStep(
+          operationName,
+          1,
+          source.name,
+          predecessor = historical.name,
+          state = UploadHealingStep.State.RECOVERY_STARTED,
+        ),
+      )
+    )
+    whenever(rankIndexBlobService.listRankIndexBlobs(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRankIndexBlobsRequest>(0)
+      listRankIndexBlobsResponse {
+        if (
+          request.parent == historical.name ||
+            (request.parent == source.name && request.showDeleted)
+        )
+          rankIndexBlobs += rankIndexBlob {
+            name = "${request.parent}/rankIndexBlobs/snapshot"
+            blobType = RankIndexBlob.BlobType.SNAPSHOT
+            cmmsModelLine = MODEL_LINE
+            poolOffset = if (request.parent == historical.name && missingSourcePool) 1L else 0L
+            createTime =
+              (if (request.parent == source.name) FIXED_NOW.plusSeconds(3)
+                else FIXED_NOW.plusSeconds(if (newer) 5 else 2))
+                .toProtoTime()
+            if (request.parent == source.name) deleteTime = FIXED_NOW.plusSeconds(5).toProtoTime()
+          }
+      }
+    }
+    stubMemoizedDispatch()
+    stubInputFiles(
+      historical.name to "gs://input/history",
+      candidate.name to if (overlap) "gs://input/history" else "gs://input/replacement",
+    )
+    if (newer || !sourceRegistered || !sourceTimestamp || duplicateHistoricalRow) {
+      val error = assertFailsWith<IllegalStateException> { createSequencer().dispatchNext() }
+      assertThat(error)
+        .hasMessageThat()
+        .contains(if (duplicateHistoricalRow) "Expected one" else "is not COMPLETED")
+    } else {
+      createSequencer().dispatchNext()
+    }
+    if (newer || overlap || !sourceRegistered || !sourceTimestamp || duplicateHistoricalRow) {
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+    } else {
+      val requests = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) {
+        createWorkItem(requests.capture())
+      }
+      for (request in requests.allValues) {
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<SubpoolAssignerParams>()
+        assertThat(params.allowedPriorSnapshotRawImpressionUploadsList)
+          .containsExactly(historical.name)
+      }
+    }
+  }
+
+  @Test
+  fun `dispatchNext preserves approved predecessor for transitive replacement lineage`(): Unit =
+    runBlocking {
+      val operationName = "$DATA_PROVIDER/uploadHealingOperations/transitive"
+      val original = upload("original-source", RawImpressionUpload.State.FAILED, FIXED_NOW)
+      val intermediate =
+        upload(
+          "intermediate-source",
+          RawImpressionUpload.State.FAILED,
+          FIXED_NOW.plusSeconds(1),
+          replacesRawImpressionUpload = original.name,
+        )
+      val completed =
+        upload(
+          "completed-predecessor",
+          RawImpressionUpload.State.COMPLETED,
+          FIXED_NOW.minusSeconds(1),
+          uploadHealingOperation = operationName,
+        )
+      val candidate =
+        upload(
+          "transitive-candidate",
+          RawImpressionUpload.State.CREATED,
+          FIXED_NOW.plusSeconds(2),
+          uploadHealingOperation = operationName,
+          replacesRawImpressionUpload = intermediate.name,
+        )
+      val predecessorSource = "$DATA_PROVIDER/rawImpressionUploads/predecessor-source"
+      stubUploads(created = listOf(candidate))
+      stubGetUploads(original, intermediate, completed)
+      stubModelLinesByParent(
+        mapOf(
+          candidate.name to
+            listOf(
+              modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)
+            ),
+          completed.name to
+            listOf(
+              modelLine(completed.name, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED)
+            ),
+        )
+      )
+      stubHealingOperation(
+        healingOperation(
+          operationName,
+          healingStep(operationName, 1, predecessorSource, replacement = completed.name),
+          healingStep(
+            operationName,
+            2,
+            original.name,
+            predecessorSource,
+            state = UploadHealingStep.State.RECOVERY_STARTED,
+          ),
+        )
+      )
+      stubLiveSnapshots(completed.name to MODEL_LINE)
+      stubMemoizedDispatch()
+      createSequencer().dispatchNext()
+      val requests = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) {
+        createWorkItem(requests.capture())
+      }
+      for (request in requests.allValues) {
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<SubpoolAssignerParams>()
+        assertThat(params.allowedPriorSnapshotRawImpressionUploadsList)
+          .containsExactly(completed.name)
       }
     }
 

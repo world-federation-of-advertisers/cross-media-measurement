@@ -21,6 +21,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
+import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -47,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
@@ -76,6 +78,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
@@ -206,6 +209,7 @@ class VidLabelingDispatchSequencer(
     private val modelLinesByUpload = modelLinesByUpload.toMutableMap()
     private val operationsByName = mutableMapOf<String, UploadHealingOperation>()
     private val liveSnapshots = mutableMapOf<Pair<String, String>, Boolean>()
+    private val snapshotLists = mutableMapOf<Triple<String, String, Boolean>, List<RankIndexBlob>>()
 
     suspend fun resolve(
       upload: RawImpressionUpload,
@@ -240,6 +244,14 @@ class VidLabelingDispatchSequencer(
         return HealingDispatchDependencies(allowedAvailabilityHandoffs, emptyList())
       }
 
+      val historicalOwners =
+        if (upload.replacesRawImpressionUpload == currentStep.sourceRawImpressionUpload) {
+          historicalAvailabilityOwners(
+            upload.replacesRawImpressionUpload,
+            modelLine.cmmsModelLine,
+            scopedSteps,
+          )
+        } else emptyList()
       val predecessorReplacements = mutableListOf<String>()
       val stepsBySource = scopedSteps.groupBy { it.sourceRawImpressionUpload }
       val visited = mutableSetOf<String>()
@@ -251,7 +263,9 @@ class VidLabelingDispatchSequencer(
         }
         val matchingSteps = stepsBySource[predecessor].orEmpty()
         if (matchingSteps.isEmpty()) {
-          requireExternalPredecessorReady(predecessor, modelLine.cmmsModelLine)
+          if (predecessor !in historicalOwners) {
+            requireExternalPredecessorReady(predecessor, modelLine.cmmsModelLine)
+          }
           break
         }
         check(matchingSteps.size == 1) {
@@ -281,9 +295,84 @@ class VidLabelingDispatchSequencer(
       }
 
       return HealingDispatchDependencies(
-        predecessorReplacements.toSet(),
-        predecessorReplacements.asReversed(),
+        predecessorReplacements.toSet() + historicalOwners,
+        (historicalOwners + predecessorReplacements.asReversed()).distinct(),
       )
+    }
+
+    private suspend fun historicalAvailabilityOwners(
+      sourceName: String,
+      cmmsModelLine: String,
+      scopedSteps: List<UploadHealingStep>,
+    ): List<String> {
+      val owners =
+        uploadsByName.values.toList().filter { owner ->
+          owner.registrationComplete &&
+            owner.uploadHealingOperation.isEmpty() &&
+            scopedSteps.none { it.sourceRawImpressionUpload == owner.name } &&
+            modelLinesByUpload[owner.name].orEmpty().any {
+              it.cmmsModelLine == cmmsModelLine &&
+                it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+            }
+        }
+      if (owners.isEmpty()) return emptyList()
+      val source = getUpload(sourceName)
+      if (!source.registrationComplete || !source.hasCreateTime()) return emptyList()
+      val sourceSnapshots = snapshots(sourceName, cmmsModelLine, showDeleted = true)
+      val result = mutableListOf<String>()
+      for (owner in owners) {
+        if (
+          !owner.registrationComplete ||
+            owner.uploadHealingOperation.isNotEmpty() ||
+            scopedSteps.any { it.sourceRawImpressionUpload == owner.name }
+        )
+          continue
+        val row =
+          modelLinesByUpload[owner.name].orEmpty().singleOrNull {
+            it.cmmsModelLine == cmmsModelLine
+          } ?: continue
+        if (row.state != RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING) continue
+        val checkpoints = snapshots(owner.name, cmmsModelLine, showDeleted = false)
+        if (
+          HistoricalAvailabilitySnapshots.hasHistoricalBasis(source, sourceSnapshots, checkpoints)
+        )
+          result += owner.name
+      }
+      return result.sorted()
+    }
+
+    private suspend fun snapshots(
+      uploadName: String,
+      cmmsModelLine: String,
+      showDeleted: Boolean,
+    ): List<RankIndexBlob> {
+      val key = Triple(uploadName, cmmsModelLine, showDeleted)
+      snapshotLists[key]?.let {
+        return it
+      }
+      val result = mutableListOf<RankIndexBlob>()
+      var page = ""
+      do {
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            rankIndexBlobStub.listRankIndexBlobs(
+              listRankIndexBlobsRequest {
+                parent = uploadName
+                this.showDeleted = showDeleted
+                filter =
+                  ListRankIndexBlobsRequestKt.filter {
+                    blobType = RankIndexBlob.BlobType.SNAPSHOT
+                    this.cmmsModelLine = cmmsModelLine
+                  }
+                pageToken = page
+              }
+            )
+          }
+        result += response.rankIndexBlobsList
+        page = response.nextPageToken
+      } while (page.isNotEmpty())
+      snapshotLists[key] = result
+      return result
     }
 
     private suspend fun getOperation(name: String): UploadHealingOperation {
@@ -385,7 +474,7 @@ class VidLabelingDispatchSequencer(
       }
     }
 
-    private suspend fun hasLiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
+    suspend fun hasLiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
       val key = uploadName to cmmsModelLine
       liveSnapshots[key]?.let {
         return it
@@ -415,14 +504,14 @@ class VidLabelingDispatchSequencer(
    * Dispatches each `CREATED` model line whose `(DataProvider, ModelLine)` is not already running.
    *
    * Serialization is per `(DataProvider, ModelLine)`, not per `DataProvider`: a model line is
-   * dispatched only if no upload currently has that same `cmmsModelLine` in [PROCESSING_STATES] —
-   * that is what protects the cumulative rank index from concurrent Phase-1 runs. A predecessor
-   * waiting for availability blocks normal uploads but not the next step of the same healing
-   * operation. Different model lines, whether on the same or different uploads, run in parallel.
-   * Within a single model line, uploads are dispatched oldest-first (FIFO).
+   * dispatched only if no upload currently computes that same `cmmsModelLine`. Durable availability
+   * predecessors permit ordinary input with nonoverlapping output keys, while a failed processing
+   * checkpoint blocks later computation. Healing retains its approved predecessor restrictions.
+   * Different model lines run in parallel. Within a single model line, uploads are dispatched
+   * oldest-first (FIFO).
    *
    * Safe to call concurrently with another invocation (e.g. the fast path racing the monitor): the
-   * per-model-line etag CAS ensures each model line is claimed at most once.
+   * server checks computation conflicts in the same transaction as the model-line etag CAS.
    */
   suspend fun dispatchNext(): DispatchResult =
     Tracing.traceSuspending(
@@ -440,20 +529,48 @@ class VidLabelingDispatchSequencer(
     }
 
   private suspend fun dispatchNextInternal(): DispatchResult {
-    val uploads: List<RawImpressionUpload> =
+    val ownerUploads: List<RawImpressionUpload> =
       (listUploads(RawImpressionUpload.State.CREATED) +
-          listUploads(RawImpressionUpload.State.ACTIVE))
+          listUploads(RawImpressionUpload.State.ACTIVE) +
+          listUploads(RawImpressionUpload.State.FAILED))
+        .distinctBy { it.name }
+    val postFenceHandoff =
+      ownerUploads.any {
+        it.registrationComplete && it.processingDeferred && it.uploadHealingOperation.isEmpty()
+      } && hasPostFenceAvailabilityHandoff()
+    val uploads: List<RawImpressionUpload> =
+      ownerUploads
+        .filter {
+          it.state == RawImpressionUpload.State.CREATED ||
+            it.state == RawImpressionUpload.State.ACTIVE
+        }
         .filter { it.registrationComplete }
-        .filter { it.state == RawImpressionUpload.State.ACTIVE || !it.processingDeferred }
+        .filter {
+          it.state == RawImpressionUpload.State.ACTIVE ||
+            !it.processingDeferred ||
+            (it.uploadHealingOperation.isEmpty() && postFenceHandoff)
+        }
         .sortedBy { Timestamps.toNanos(it.createTime) }
     val modelLinesByUpload: Map<String, List<RawImpressionUploadModelLine>> =
-      uploads.associate { it.name to listUploadModelLines(it.name) }
-    val dispatchScan = DispatchScan(uploads, modelLinesByUpload)
+      ownerUploads
+        .filter {
+          it.state != RawImpressionUpload.State.CREATED ||
+            it.name in uploads.map { candidate -> candidate.name }
+        }
+        .associate { it.name to listUploadModelLines(it.name) }
+    val ownersByName = ownerUploads.associateBy { it.name }
+    val filesByUpload = mutableMapOf<String, List<RawImpressionUploadFile>>()
+    suspend fun inputKeys(uploadName: String): Set<OutputKey>? {
+      val files =
+        filesByUpload[uploadName]
+          ?: listUploadFiles(uploadName).also { filesByUpload[uploadName] = it }
+      return outputKeys(files)
+    }
+    val visibleOwners = ownerUploads.filter { it.name in modelLinesByUpload }
+    val dispatchScan = DispatchScan(visibleOwners, modelLinesByUpload)
 
-    // Phase 0-2 work always serializes per model line. Availability handoff also serializes normal
-    // uploads, but it does not block the next recovery step in the same healing operation: Phase 2
-    // output and the rank snapshot are already durable, while the fence intentionally postpones
-    // availability until the recovery chain is complete.
+    // Phase 0-2 work serializes per model line. Durable availability output permits ordinary
+    // input with distinct output keys; healing keeps its approved predecessor restrictions.
     val busyModelLines: MutableSet<String> =
       modelLinesByUpload.values
         .flatten()
@@ -461,7 +578,7 @@ class VidLabelingDispatchSequencer(
         .map { it.cmmsModelLine }
         .toMutableSet()
     val availabilityHandoffsByModelLine = mutableMapOf<String, MutableList<AvailabilityHandoff>>()
-    for (upload in uploads) {
+    for (upload in visibleOwners) {
       for (modelLine in
         modelLinesByUpload.getValue(upload.name).filter {
           it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
@@ -493,6 +610,14 @@ class VidLabelingDispatchSequencer(
         val availabilityHandoffs =
           availabilityHandoffsByModelLine[modelLine.cmmsModelLine].orEmpty()
         val healingDependencies = dispatchScan.resolve(upload, modelLine)
+        val ordinary = upload.uploadHealingOperation.isEmpty()
+        val ordinaryDependencies =
+          if (ordinary) {
+            HealingDispatchDependencies(
+              availabilityHandoffs.map { it.rawImpressionUpload }.toSet(),
+              availabilityHandoffs.map { it.rawImpressionUpload },
+            )
+          } else healingDependencies
         if (
           modelLine.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING ||
             modelLine.state == RawImpressionUploadModelLine.State.LABELING
@@ -506,8 +631,9 @@ class VidLabelingDispatchSequencer(
               upload.name,
               modelLine,
               shardInfo,
-              healingDependencies.allowedPriorSnapshotUploads,
+              ordinaryDependencies.allowedPriorSnapshotUploads,
               alreadyClaimed = true,
+              ordinary = ordinary,
             )
           } else if (
             modelLine.state == RawImpressionUploadModelLine.State.LABELING &&
@@ -518,19 +644,62 @@ class VidLabelingDispatchSequencer(
           continue
         }
         if (modelLine.state != RawImpressionUploadModelLine.State.CREATED) continue
-        if (upload.processingDeferred) continue
-        val blockedByAvailability =
-          availabilityHandoffs.any {
-            availabilitySyncingBlocksDispatch(
-              it.rawImpressionUpload,
-              healingDependencies.allowedAvailabilityHandoffs,
-            )
+        if (upload.processingDeferred && !(ordinary && postFenceHandoff)) continue
+        val healingShardInfo =
+          if (!ordinary && availabilityHandoffs.isNotEmpty())
+            resolveShardInfo(modelLine.cmmsModelLine)
+          else null
+        val directHealing = healingShardInfo?.memoizationEnabled == false
+        val historicalHealingHandoffs =
+          healingDependencies.allowedAvailabilityHandoffs.filterTo(mutableSetOf()) {
+            ownersByName[it]?.uploadHealingOperation?.isEmpty() == true
           }
-        if (modelLine.cmmsModelLine in busyModelLines || blockedByAvailability) {
+        val candidateKeys =
+          if (
+            (ordinary || directHealing || historicalHealingHandoffs.isNotEmpty()) &&
+              availabilityHandoffs.isNotEmpty()
+          )
+            inputKeys(upload.name)
+          else null
+        val blockedByAvailability =
+          availabilityHandoffs.any { handoff ->
+            if (
+              !ordinary &&
+                !directHealing &&
+                handoff.rawImpressionUpload !in historicalHealingHandoffs
+            ) {
+              availabilitySyncingBlocksDispatch(
+                handoff.rawImpressionUpload,
+                healingDependencies.allowedAvailabilityHandoffs,
+              )
+            } else {
+              val prior = ownersByName.getValue(handoff.rawImpressionUpload)
+              val priorKeys = if (prior.registrationComplete) inputKeys(prior.name) else null
+              candidateKeys == null || priorKeys == null || candidateKeys.any { it in priorKeys }
+            }
+          }
+        val failedCheckpointBlocks =
+          ordinary &&
+            visibleOwners.any { owner ->
+              owner.name != upload.name &&
+                modelLinesByUpload.getValue(owner.name).any { failed ->
+                  failed.cmmsModelLine == modelLine.cmmsModelLine &&
+                    failed.state == RawImpressionUploadModelLine.State.FAILED &&
+                    failed.failureReason !=
+                      RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT &&
+                    dispatchScan.hasLiveSnapshot(owner.name, modelLine.cmmsModelLine)
+                }
+            }
+        if (
+          modelLine.cmmsModelLine in busyModelLines ||
+            blockedByAvailability ||
+            failedCheckpointBlocks
+        ) {
           queuedModelLines++
           continue
         }
-        val shardInfo: ResolvedShardInfo? = resolveShardInfo(modelLine.cmmsModelLine)
+        val shardInfo: ResolvedShardInfo? =
+          healingShardInfo ?: resolveShardInfo(modelLine.cmmsModelLine)
         if (shardInfo == null) {
           logger.warning(
             "Could not resolve model shard for ${modelLine.cmmsModelLine}; skipping dispatch"
@@ -543,7 +712,8 @@ class VidLabelingDispatchSequencer(
               upload.name,
               modelLine,
               shardInfo,
-              healingDependencies.allowedPriorSnapshotUploads,
+              ordinaryDependencies.allowedPriorSnapshotUploads,
+              ordinary = ordinary,
             )
           ) {
             busyModelLines += modelLine.cmmsModelLine
@@ -767,6 +937,7 @@ class VidLabelingDispatchSequencer(
     shardInfo: ResolvedShardInfo,
     allowedPriorSnapshotUploads: List<String>,
     alreadyClaimed: Boolean = false,
+    ordinary: Boolean = false,
   ): Boolean =
     Tracing.traceSuspending(
       spanName = "edpa.vid_labeling.dispatch",
@@ -784,6 +955,7 @@ class VidLabelingDispatchSequencer(
           shardInfo,
           allowedPriorSnapshotUploads,
           alreadyClaimed,
+          ordinary,
         )
       if (dispatched) {
         recordDispatched(uploadName, "phase0", modelLine.cmmsModelLine)
@@ -799,6 +971,7 @@ class VidLabelingDispatchSequencer(
     shardInfo: ResolvedShardInfo,
     allowedPriorSnapshotUploads: List<String>,
     alreadyClaimed: Boolean = false,
+    ordinary: Boolean = false,
   ): Boolean {
     // `vid_rank_map_storage_params`, `subpool_map_storage_params`, and `model_storage_params` are
     // REQUIRED on `SubpoolAssignerParams` but OPTIONAL on `VidLabelingConfig` (only required for
@@ -831,6 +1004,11 @@ class VidLabelingDispatchSequencer(
 
     if (!alreadyClaimed && !markPoolAssigning(modelLine.name, modelLine.etag)) return false
 
+    val currentAllowedSnapshots =
+      if (ordinary) {
+        currentAvailabilitySnapshotOwners(modelLine.cmmsModelLine, uploadName)
+      } else allowedPriorSnapshotUploads
+
     // Pre-create the shard rows first; the server assigns each a name we thread into its WorkItem.
     val poolAssignmentJobsByShard: Map<Int, String> =
       createPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
@@ -849,10 +1027,79 @@ class VidLabelingDispatchSequencer(
         modelLineConfig = modelLineConfig,
         poolAssignmentJob = poolAssignmentJob,
         shardIndex = shardIndex,
-        allowedPriorSnapshotUploads = allowedPriorSnapshotUploads,
+        allowedPriorSnapshotUploads = currentAllowedSnapshots,
       )
     }
     return true
+  }
+
+  private suspend fun hasPostFenceAvailabilityHandoff(): Boolean {
+    var page = ""
+    do {
+      val response =
+        rpcThrottlers.metadataRead.onReady {
+          uploadHealingOperationStub.listUploadHealingOperations(
+            listUploadHealingOperationsRequest {
+              parent = dataProviderName
+              filter =
+                ListUploadHealingOperationsRequestKt.filter {
+                  stateIn += UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+                  stateIn += UploadHealingOperation.State.NEEDS_ATTENTION
+                }
+              pageToken = page
+            }
+          )
+        }
+      if (
+        response.uploadHealingOperationsList.any {
+          it.state == UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING ||
+            (it.state == UploadHealingOperation.State.NEEDS_ATTENTION &&
+              it.resumeState == UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING)
+        }
+      )
+        return true
+      page = response.nextPageToken
+    } while (page.isNotEmpty())
+    return false
+  }
+
+  private data class OutputKey(val uri: String, val date: LocalDate)
+
+  private fun outputKeys(files: List<RawImpressionUploadFile>): Set<OutputKey>? {
+    if (files.isEmpty()) return null
+    val keys = mutableSetOf<OutputKey>()
+    for (file in files) {
+      if (file.blobUri.isEmpty() || !file.hasEventDate()) return null
+      val date =
+        try {
+          LocalDate.of(file.eventDate.year, file.eventDate.month, file.eventDate.day)
+        } catch (e: java.time.DateTimeException) {
+          return null
+        }
+      keys += OutputKey(file.blobUri, date)
+    }
+    return keys
+  }
+
+  private suspend fun currentAvailabilitySnapshotOwners(
+    cmmsModelLine: String,
+    currentUpload: String,
+  ): List<String> {
+    val owners =
+      listUploads(RawImpressionUpload.State.ACTIVE) + listUploads(RawImpressionUpload.State.FAILED)
+    val result = mutableListOf<String>()
+    for (owner in owners.distinctBy { it.name }) {
+      if (owner.name == currentUpload || !owner.registrationComplete) continue
+      if (
+        listUploadModelLines(owner.name).any {
+          it.cmmsModelLine == cmmsModelLine &&
+            it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        }
+      ) {
+        result += owner.name
+      }
+    }
+    return result
   }
 
   /** Lists this DataProvider's uploads in [state]. */

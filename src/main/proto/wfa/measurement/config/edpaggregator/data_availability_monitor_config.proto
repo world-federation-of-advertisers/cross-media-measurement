@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.config.edpaggregator;
 
 import "google/protobuf/duration.proto";
+import "wfa/measurement/config/edpaggregator/model_line_cutover_config.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
@@ -78,4 +79,7 @@ message DataAvailabilityMonitorConfigs {
   // Monitored EDP impression paths. Each entry monitors a separate
   // storage location and set of model lines.
   repeated DataAvailabilityMonitorConfig configs = 1;
+
+  // Report cutovers whose contributors may be in different `configs` entries.
+  repeated ModelLineCutoverConfig model_line_cutovers = 2;
 }
