@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
 import com.google.api.gax.paging.Page
+import com.google.cloud.functions.HttpRequest
 import com.google.cloud.storage.Blob
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
@@ -32,11 +33,13 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.Test
@@ -49,6 +52,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
@@ -62,10 +66,85 @@ class VidLabelingHealingControllerFunctionTest {
     val response = mock<com.google.cloud.functions.HttpResponse>()
     val function = VidLabelingHealingControllerFunction { invoked.complete(Unit) }
 
-    function.service(mock(), response)
+    function.service(httpRequest(), response)
 
     assertThat(invoked.isCompleted).isTrue()
     verify(response).setStatusCode(204)
+  }
+
+  @Test
+  fun `service starts trace context for scheduled invocation across suspension`() {
+    val response = mock<com.google.cloud.functions.HttpResponse>()
+    val callerContext = Tracing.currentW3CTraceContext()
+    var beforeSuspension: Map<String, String> = emptyMap()
+    var afterSuspension: Map<String, String> = emptyMap()
+    val function = VidLabelingHealingControllerFunction {
+      beforeSuspension = Tracing.currentW3CTraceContext()
+      withContext(Dispatchers.Default) {
+        yield()
+        afterSuspension = Tracing.currentW3CTraceContext()
+      }
+    }
+
+    function.service(httpRequest(), response)
+
+    assertThat(beforeSuspension).containsKey("traceparent")
+    assertThat(afterSuspension).isEqualTo(beforeSuspension)
+    assertThat(Tracing.currentW3CTraceContext()).isEqualTo(callerContext)
+    verify(response).setStatusCode(204)
+  }
+
+  @Test
+  fun `service preserves incoming trace context across suspension`() {
+    val incomingTraceId = "11111111111111111111111111111111"
+    val incomingParent = "00-$incomingTraceId-2222222222222222-01"
+    val response = mock<com.google.cloud.functions.HttpResponse>()
+    val callerContext = Tracing.currentW3CTraceContext()
+    var beforeSuspension: Map<String, String> = emptyMap()
+    var afterSuspension: Map<String, String> = emptyMap()
+    val function = VidLabelingHealingControllerFunction {
+      beforeSuspension = Tracing.currentW3CTraceContext()
+      withContext(Dispatchers.Default) {
+        yield()
+        afterSuspension = Tracing.currentW3CTraceContext()
+      }
+    }
+
+    function.service(
+      httpRequest(
+        mapOf("traceparent" to listOf(incomingParent), "tracestate" to listOf("test=value"))
+      ),
+      response,
+    )
+
+    assertThat(beforeSuspension).containsKey("traceparent")
+    assertThat(beforeSuspension.getValue("traceparent")).startsWith("00-$incomingTraceId-")
+    assertThat(beforeSuspension.getValue("traceparent")).isNotEqualTo(incomingParent)
+    assertThat(beforeSuspension).containsEntry("tracestate", "test=value")
+    assertThat(afterSuspension).isEqualTo(beforeSuspension)
+    assertThat(Tracing.currentW3CTraceContext()).isEqualTo(callerContext)
+    verify(response).setStatusCode(204)
+  }
+
+  @Test
+  fun `service restores caller trace context when controller fails`() {
+    val response = mock<com.google.cloud.functions.HttpResponse>()
+    val callerContext = Tracing.currentW3CTraceContext()
+    val failure = IllegalStateException("Controller failed")
+    var controllerContext: Map<String, String> = emptyMap()
+    val function = VidLabelingHealingControllerFunction {
+      withContext(Dispatchers.Default) {
+        yield()
+        controllerContext = Tracing.currentW3CTraceContext()
+        throw failure
+      }
+    }
+
+    assertFailsWith<IllegalStateException> { function.service(httpRequest(), response) }
+
+    assertThat(controllerContext).containsKey("traceparent")
+    assertThat(Tracing.currentW3CTraceContext()).isEqualTo(callerContext)
+    verify(response, never()).setStatusCode(204)
   }
 
   @Test
@@ -475,6 +554,10 @@ class VidLabelingHealingControllerFunctionTest {
       verify(storage, never())
         .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
     }
+
+  private fun httpRequest(headers: Map<String, List<String>> = emptyMap()): HttpRequest {
+    return mock<HttpRequest>().also { whenever(it.headers).thenReturn(headers) }
+  }
 
   private fun blob(name: String, generation: Long): Blob {
     return mock<Blob>().also {

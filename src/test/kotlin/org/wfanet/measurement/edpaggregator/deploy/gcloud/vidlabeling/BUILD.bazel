@@ -39,6 +39,7 @@ kt_jvm_test(
     ],
     test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingHealingControllerFunctionTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:raw_impression_upload_manifest_classifier",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:vid_labeling_healing_controller",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
