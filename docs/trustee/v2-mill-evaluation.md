@@ -148,17 +148,22 @@ pass, each slice of each cell takes the noised minimum-reach test:
 *   If every slice passes, the cell is emitted from the histogram it already
     holds.
 *   If no slice passes, the cell is dropped.
-*   If some slices fail, the cell is rebuilt in a corrective pass that sums only
-    the surviving `DataProviders`' summands. The first-pass histogram cannot be
-    corrected in place, because a VID's frequency is a sum across slices that
-    the histogram does not separate.
+*   If some slices fail, the cell is rebuilt in a corrective pass in which each
+    failed `DataProvider`'s vectors are read as zero. The zero applies wherever
+    the cell's query uses those vectors, in its summands and in its reach
+    clauses alike, so a failed `DataProvider` neither adds counts nor shapes
+    which VIDs the cell covers. For example, if a cell covers the VIDs reached
+    by both A and B and B's slice fails, the rebuilt cell covers no VIDs and is
+    not released. The first-pass histogram cannot be corrected in place, because
+    a VID's frequency is a sum across slices that the histogram does not
+    separate.
 
-The mill evaluates at most two passes. A slice's test reads only that slice's
-reach, so dropping one slice cannot change another's verdict, and the survivors
-are final after the first pass. The corrective pass walks the vectors again but
-evaluates only the cells that lost a slice. Reports with many thin cells, deep
-breakdowns or short windows drop slices most often and come closest to two full
-passes.
+The mill evaluates at most two passes. The verdicts are taken once, on the
+first pass's slices, and are final: the rebuilt cell is emitted as computed,
+without testing its slices again. The corrective pass walks the vectors again
+but evaluates only the cells that lost a slice. Reports with many thin cells,
+deep breakdowns or short windows drop slices most often and come closest to two
+full passes.
 
 A `DataProvider` that reports an impression count over the population can be
 dropped before the first pass. The count bounds that `DataProvider`'s reach in
