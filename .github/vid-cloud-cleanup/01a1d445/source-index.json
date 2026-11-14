@@ -439,8 +439,8 @@
     },
     {
       "path": "validate-existing-identity.py",
-      "bytes": 712,
-      "sha256": "165b5dd95ae73caec3aa6f73bb1287eb52fd87e9551360e0acf9147b27ca841e"
+      "bytes": 2638,
+      "sha256": "d94446a367d5231bc1f1fc56582af66d65fba703d2939bddb5dddce85a20243a"
     },
     {
       "path": "validate-mode.py",

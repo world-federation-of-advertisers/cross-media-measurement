@@ -35,7 +35,7 @@ jobs:
     env:
       GOOGLE_CLOUD_PROJECT: halo-cmm-dev
       CLOUDSDK_CORE_PROJECT: halo-cmm-dev
-      CI_REVIEWED_SOURCE_INDEX_SHA: d3e73a080d71cba288b835e93baa33d1445977630b98863f9c7d73eaa7bba243
+      CI_REVIEWED_SOURCE_INDEX_SHA: 7d962ec14d03a4717447e9abc8068ba67bd96ca379e088f385ac6efa61db1c52
       CI_CLEANUP_MODE: ${{ inputs.cleanup-mode }}
       CI_EXECUTION_PLAN_SHA: ${{ inputs.execution-plan-sha }}
     steps:
@@ -56,6 +56,7 @@ jobs:
         env:
           EXPECTED_SERVICE_ACCOUNT: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
           EXPECTED_PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
+          EXPECTED_WIF_PROVIDER: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
         run: python3 .github/vid-cloud-cleanup/01a1d445/validate-existing-identity.py
       - name: Reuse the exact previously reviewed bootstrap libraries
         if: inputs.cleanup-mode != 'verify'
