@@ -1,0 +1,23 @@
+{
+  "name": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11d-main-wholly-after-required-report",
+  "metricCalculationResults": [
+    {
+      "resultAttributes": [
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/a86f1daca-91c3-4790-a5d9-c3b5c0d56ffc",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/UyDzvCgOq-o"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "_actualSourceEvidence": [
+    {
+      "file": "11d-main-wholly-after-required-report-get-report-result.json",
+      "sha256": "7bcc63809f4026a1dab7c77d6adc18a64a76bd1cb8d3af5da55fe3ee287cbe17"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "name": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-durable-report",
+  "metricCalculationResults": [
+    {
+      "resultAttributes": [
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/a146274c0-b97b-43d9-968b-799eeb3ee91e",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/cFsmSNeZKes"
+            ]
+          }
+        },
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/a39baee95-e7a1-4d11-ac22-70b931cac2ad",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/akaH1NeZKe8"
+            ]
+          }
+        },
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/afd660307-08d1-40d1-b1e2-fb13a7d11269",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/YL96bShm1g8"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "_actualSourceEvidence": [
+    {
+      "file": "11c-durable-final-report-get-report-result.json",
+      "sha256": "de1c56ab1220a84b42c6579e49abaa203bff5099cb9c6cc9334b3c058ac89fef"
+    },
+    {
+      "file": "11c-durable-runtime-source-proof-get-report-result.json",
+      "sha256": "de1c56ab1220a84b42c6579e49abaa203bff5099cb9c6cc9334b3c058ac89fef"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-mapped",
+  "metricCalculationResults": [
+    {
+      "resultAttributes": [
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/a4131c1ac-a188-41bf-b594-1afab61f45cd",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/WzRh8Nb4KwQ"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "_actualSourceEvidence": [
+    {
+      "file": "11a-mapped-report-current.json",
+      "sha256": "2c2df0c05cb5957e7f8bebd1303c6c49a4ee5fb0700357e05a710cf0c425caab"
+    }
+  ]
+}

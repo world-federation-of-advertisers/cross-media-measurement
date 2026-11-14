@@ -1,0 +1,27 @@
+{
+  "name": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-zero-adjusted-report",
+  "metricCalculationResults": [
+    {
+      "resultAttributes": [
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/a500ecc1f-7263-43fe-afc6-ebffd51b62f5",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/KweeiShy7HY"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "_actualSourceEvidence": [
+    {
+      "file": "11c-zero-adjusted-report-get-report-result.json",
+      "sha256": "6ba80e41af39dfa0e4a5481afa2eba4acbcd381baed17b6dd09414d21479cf1f"
+    },
+    {
+      "file": "11c-zero-adjusted-report-membership-get-report-result.json",
+      "sha256": "6ba80e41af39dfa0e4a5481afa2eba4acbcd381baed17b6dd09414d21479cf1f"
+    }
+  ]
+}

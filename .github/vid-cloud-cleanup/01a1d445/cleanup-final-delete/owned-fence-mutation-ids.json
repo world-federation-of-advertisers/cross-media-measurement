@@ -1,0 +1,193 @@
+{
+  "project": "halo-cmm-dev",
+  "session": "01a1d445",
+  "operations": [
+    {
+      "DataProviderResourceId": "T5RryPMNong",
+      "UploadHealingOperationId": "17ffaa83-7778-4894-8364-f7b971f9654d",
+      "LabeledImpressionsBlobPrefix": "gs://secure-computation-storage-dev-bucket/vid-labeled-impressions/edp/edp7/vid-cloud-20261113",
+      "State": "2",
+      "ResumeState": null,
+      "RawImpressionUploadCorrectionCandidateIds": [
+        "17ffaa83-7778-4894-8364-f7b971f9654d"
+      ],
+      "MutationRequestIds": [
+        "efc83435-cd87-4ce6-9568-4acc9c8913ce",
+        "3cab4641-fe09-4b64-8730-01e7c8f50fb7",
+        "366ca7f3-bb05-4e15-838d-06c9f7b712eb",
+        "be1d882a-adaf-4776-88cf-89f54510b1a5"
+      ]
+    },
+    {
+      "DataProviderResourceId": "T5RryPMNong",
+      "UploadHealingOperationId": "1fe061fc-a031-4480-87cd-6d87dd2da33a",
+      "LabeledImpressionsBlobPrefix": "gs://secure-computation-storage-dev-bucket/vid-labeled-impressions/edp/edp7/vid-cloud-20261113",
+      "State": "2",
+      "ResumeState": null,
+      "RawImpressionUploadCorrectionCandidateIds": [
+        "1fe061fc-a031-4480-87cd-6d87dd2da33a"
+      ],
+      "MutationRequestIds": [
+        "c78c9e0d-9fc7-49e4-825f-68b14a0321fb",
+        "75f2ad61-dc3e-48a2-bcb7-6ef207ebb84f",
+        "e3b6c60f-42e9-479f-8241-f7621a67ff9c",
+        "e29f6d31-0c96-406f-8348-e65a2c40592f"
+      ]
+    },
+    {
+      "DataProviderResourceId": "T5RryPMNong",
+      "UploadHealingOperationId": "6ebda2c2-235a-4093-b49e-a02a378e021d",
+      "LabeledImpressionsBlobPrefix": "gs://secure-computation-storage-dev-bucket/vid-labeled-impressions/edp/edp7/vid-cloud-20261113",
+      "State": "2",
+      "ResumeState": null,
+      "RawImpressionUploadCorrectionCandidateIds": [
+        "6ebda2c2-235a-4093-b49e-a02a378e021d"
+      ],
+      "MutationRequestIds": [
+        "d520fab4-f24a-4a63-9e49-f129f3efd053",
+        "8235dad8-820e-48f9-b1d3-2426085af80e",
+        "4e6ffc39-72c0-4557-9182-2035dfe37129",
+        "64ee472f-92b2-4c34-be97-441fd54fa06e"
+      ]
+    }
+  ],
+  "productionRequestIdsSourceSha256": "cbceb650227038a3e67d16bf4b6c545eb49f8e50b126f1b97ff00dd3d342c997",
+  "requestIds": [
+    "01303567-0ed0-457e-b7a8-ca00f65a9664",
+    "303d7c74-fb00-4032-b7a3-88993dfded57",
+    "322c87a3-2b6e-4c3c-a910-5cbc086a4099",
+    "33b87cfe-8800-4bca-a5dc-6e0e57f5ec00",
+    "533a264c-0f8a-44d7-ad40-8a313fcd4e6f",
+    "7ffb66a2-eb30-44ad-bbd0-3cb8bed74896",
+    "c20c652d-d66e-4390-9c86-fbfde025dd02",
+    "c6bbfa57-c967-4efc-b058-dabfb9fd6479",
+    "fedffb8d-56af-4231-bb17-43cc6e2dc97a"
+  ],
+  "matched": [
+    {
+      "row": {
+        "DataProviderResourceId": "T5RryPMNong",
+        "RequestId": "fedffb8d-56af-4231-bb17-43cc6e2dc97a",
+        "RequestFingerprint": "NpTn1lzZ9pgzZFYJgza5hCnkxwNhnAdglSjiHYfdUH8=",
+        "ResultEtag": "97965bc9-c37f-4848-a255-69ca1a4e7a54",
+        "NewlyAcquired": false
+      },
+      "kind": "ACQUIRE",
+      "operationId": "17ffaa83-7778-4894-8364-f7b971f9654d",
+      "state": "VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING",
+      "key": "acquireUploadEvictionFence:17ffaa83-7778-4894-8364-f7b971f9654d:VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING"
+    },
+    {
+      "row": {
+        "DataProviderResourceId": "T5RryPMNong",
+        "RequestId": "c6bbfa57-c967-4efc-b058-dabfb9fd6479",
+        "RequestFingerprint": "RYPq5zO4G8SWH3OjnO2zI4/rMCC/0GwYM8I/jYESqFo=",
+        "ResultEtag": "544ce7fd572b566d64093010205adf93140099ba62782035dc13efdeb1b4f5eb",
+        "NewlyAcquired": false
+      },
+      "kind": "ACQUIRE",
+      "operationId": "17ffaa83-7778-4894-8364-f7b971f9654d",
+      "state": "VID_LABELING_EVICTION_FENCE_STATE_EVICTING",
+      "key": "acquireUploadEvictionFence:17ffaa83-7778-4894-8364-f7b971f9654d:VID_LABELING_EVICTION_FENCE_STATE_EVICTING"
+    },
+    {
+      "row": {
+        "DataProviderResourceId": "T5RryPMNong",
+        "RequestId": "c20c652d-d66e-4390-9c86-fbfde025dd02",
+        "RequestFingerprint": "VEzn/VcrVm1kCTAQIFrfkxQAmbpieCA13BPv3rG09es=",
+        "ResultEtag": "544ce7fd572b566d64093010205adf93140099ba62782035dc13efdeb1b4f5eb",
+        "NewlyAcquired": false
+      },
+      "kind": "ADVANCE",
+      "operationId": "17ffaa83-7778-4894-8364-f7b971f9654d",
+      "state": "VID_LABELING_EVICTION_FENCE_STATE_EVICTING",
+      "sourceEtagRequestId": "fedffb8d-56af-4231-bb17-43cc6e2dc97a",
+      "sourceEtag": "97965bc9-c37f-4848-a255-69ca1a4e7a54",
+      "key": "advanceUploadEvictionFence:17ffaa83-7778-4894-8364-f7b971f9654d:VID_LABELING_EVICTION_FENCE_STATE_EVICTING:97965bc9-c37f-4848-a255-69ca1a4e7a54"
+    },
+    {
+      "row": {
+        "DataProviderResourceId": "T5RryPMNong",
+        "RequestId": "533a264c-0f8a-44d7-ad40-8a313fcd4e6f",
+        "RequestFingerprint": "GoLcNsl3i1ZBs6tIW6/MNVacpM0Eai4Ol+Pr1+05HUE=",
+        "ResultEtag": "5381d88b-b028-465d-84cd-7cb63651c878",
+        "NewlyAcquired": false
+      },
+      "kind": "ACQUIRE",
+      "operationId": "1fe061fc-a031-4480-87cd-6d87dd2da33a",
+      "state": "VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING",
+      "key": "acquireUploadEvictionFence:1fe061fc-a031-4480-87cd-6d87dd2da33a:VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING"
+    },
+    {
+      "row": {
+        "DataProviderResourceId": "T5RryPMNong",
+        "RequestId": "303d7c74-fb00-4032-b7a3-88993dfded57",
+        "RequestFingerprint": "lZLDFl7zLbK7Jw1Jd8vCTP1UZw7gu17K4/SmNbA4D+M=",
+        "ResultEtag": "6210c01d87b953714d642f444d0e3a0fafb0b66db5147d316ae54c0ef31b3aa2",
+        "NewlyAcquired": false
+      },
+      "kind": "ACQUIRE",
+      "operationId": "1fe061fc-a031-4480-87cd-6d87dd2da33a",
+      "state": "VID_LABELING_EVICTION_FENCE_STATE_EVICTING",
+      "key": "acquireUploadEvictionFence:1fe061fc-a031-4480-87cd-6d87dd2da33a:VID_LABELING_EVICTION_FENCE_STATE_EVICTING"
+    },
+    {
+      "row": {
+        "DataProviderResourceId": "T5RryPMNong",
+        "RequestId": "01303567-0ed0-457e-b7a8-ca00f65a9664",
+        "RequestFingerprint": "YhDAHYe5U3FNZC9ETQ46D6+wtm21FH0xauVMDvMbOqI=",
+        "ResultEtag": "6210c01d87b953714d642f444d0e3a0fafb0b66db5147d316ae54c0ef31b3aa2",
+        "NewlyAcquired": false
+      },
+      "kind": "ADVANCE",
+      "operationId": "1fe061fc-a031-4480-87cd-6d87dd2da33a",
+      "state": "VID_LABELING_EVICTION_FENCE_STATE_EVICTING",
+      "sourceEtagRequestId": "533a264c-0f8a-44d7-ad40-8a313fcd4e6f",
+      "sourceEtag": "5381d88b-b028-465d-84cd-7cb63651c878",
+      "key": "advanceUploadEvictionFence:1fe061fc-a031-4480-87cd-6d87dd2da33a:VID_LABELING_EVICTION_FENCE_STATE_EVICTING:5381d88b-b028-465d-84cd-7cb63651c878"
+    },
+    {
+      "row": {
+        "DataProviderResourceId": "T5RryPMNong",
+        "RequestId": "33b87cfe-8800-4bca-a5dc-6e0e57f5ec00",
+        "RequestFingerprint": "EHPzlc6jIeXDRQk0oRXtd9yg1TO5pIGOAUAetmnK3X4=",
+        "ResultEtag": "13e179c0-edc3-4ce0-9896-1f19dea6b762",
+        "NewlyAcquired": false
+      },
+      "kind": "ACQUIRE",
+      "operationId": "6ebda2c2-235a-4093-b49e-a02a378e021d",
+      "state": "VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING",
+      "key": "acquireUploadEvictionFence:6ebda2c2-235a-4093-b49e-a02a378e021d:VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING"
+    },
+    {
+      "row": {
+        "DataProviderResourceId": "T5RryPMNong",
+        "RequestId": "322c87a3-2b6e-4c3c-a910-5cbc086a4099",
+        "RequestFingerprint": "2AbzG/hIycjk6NZJZNhOPk1bcbLiCfaJN59Pn5WvwTU=",
+        "ResultEtag": "78f0f3df0969f5817bf41ea2c705d23069cad748210e008a9d9a61ca7563408b",
+        "NewlyAcquired": false
+      },
+      "kind": "ACQUIRE",
+      "operationId": "6ebda2c2-235a-4093-b49e-a02a378e021d",
+      "state": "VID_LABELING_EVICTION_FENCE_STATE_EVICTING",
+      "key": "acquireUploadEvictionFence:6ebda2c2-235a-4093-b49e-a02a378e021d:VID_LABELING_EVICTION_FENCE_STATE_EVICTING"
+    },
+    {
+      "row": {
+        "DataProviderResourceId": "T5RryPMNong",
+        "RequestId": "7ffb66a2-eb30-44ad-bbd0-3cb8bed74896",
+        "RequestFingerprint": "ePDz3wlp9YF79B6ixwXSMGnK10ghDgCKnZphynVjQIs=",
+        "ResultEtag": "78f0f3df0969f5817bf41ea2c705d23069cad748210e008a9d9a61ca7563408b",
+        "NewlyAcquired": false
+      },
+      "kind": "ADVANCE",
+      "operationId": "6ebda2c2-235a-4093-b49e-a02a378e021d",
+      "state": "VID_LABELING_EVICTION_FENCE_STATE_EVICTING",
+      "sourceEtagRequestId": "33b87cfe-8800-4bca-a5dc-6e0e57f5ec00",
+      "sourceEtag": "13e179c0-edc3-4ce0-9896-1f19dea6b762",
+      "key": "advanceUploadEvictionFence:6ebda2c2-235a-4093-b49e-a02a378e021d:VID_LABELING_EVICTION_FENCE_STATE_EVICTING:13e179c0-edc3-4ce0-9896-1f19dea6b762"
+    }
+  ],
+  "preservedUnmatchedRequestIds": [],
+  "unknownOwnedOperations": []
+}

@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "runId": 43568800036,
+  "headSha": "29502c6d9b97af1c7af2a46587d7d3265edfb1db",
+  "project": "halo-cmm-dev",
+  "workflow": ".github/workflows/high-overlap-seeding.yml",
+  "expectedFingerprint": "85ba3085b049438de455960e260201d25d7cca865636e48f82494fcc0d9bfd28",
+  "modelLineId": "NY6atJUixwk",
+  "actualManifestWriteLog": "seed\tSeed the dataset\t2026-11-14T07:59:12.2311634Z INFO: Wrote dataset manifest 85ba3085b049438de455960e260201d25d7cca865636e48f82494fcc0d9bfd28 for modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NY6atJUixwk",
+  "time": "2026-11-14T07:59:45.079517+00:00"
+}

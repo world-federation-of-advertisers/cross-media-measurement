@@ -1,0 +1,22 @@
+[
+  {
+    "name": "projects/halo-cmm-dev/locations/us-central1/jobs/dashboard-compliance-check",
+    "state": "ENABLED"
+  },
+  {
+    "name": "projects/halo-cmm-dev/locations/us-central1/jobs/data-availability-monitor",
+    "state": "ENABLED"
+  },
+  {
+    "name": "projects/halo-cmm-dev/locations/us-central1/jobs/vid-labeling-dispatcher",
+    "state": "ENABLED"
+  },
+  {
+    "name": "projects/halo-cmm-dev/locations/us-central1/jobs/requisition-fetcher-scheduler-requisition-fetcher",
+    "state": "ENABLED"
+  },
+  {
+    "name": "projects/halo-cmm-dev/locations/us-central1/jobs/vid-labeling-monitor",
+    "state": "ENABLED"
+  }
+]

@@ -1,0 +1,844 @@
+{
+  "method": "Exact task CreateReport request UUID + actual API report/metric/measurement names + live internal link tuples; no timestamp ownership predicates",
+  "reports": [
+    {
+      "internalReportId": "336687221975700519",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-test9",
+      "exactCreateReportRequestId": "5e9f3751-6011-4c02-9e72-f9d3a4a0a7c0",
+      "taskRequestEvidence": [
+        {
+          "file": "test9-create-report.json",
+          "requestId": "5e9f3751-6011-4c02-9e72-f9d3a4a0a7c0",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        },
+        {
+          "file": "ledger.json/tests/9/report_intent",
+          "requestId": "5e9f3751-6011-4c02-9e72-f9d3a4a0a7c0",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "test9-report-create-result.json"
+      ]
+    },
+    {
+      "internalReportId": "-315175051327518738",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-identity",
+      "exactCreateReportRequestId": "12800e6a-bdd2-458d-af9c-bfeb2f599a73",
+      "taskRequestEvidence": [
+        {
+          "file": "11a-identity-create-report.json",
+          "requestId": "12800e6a-bdd2-458d-af9c-bfeb2f599a73",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11a-identity-get-report.json",
+        "11a-identity-report-current.json",
+        "11a-identity-report-create-result.json"
+      ]
+    },
+    {
+      "internalReportId": "4945671643495869322",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-mapped",
+      "exactCreateReportRequestId": "976377d1-8c86-4b29-b2a5-09fec8313872",
+      "taskRequestEvidence": [
+        {
+          "file": "11a-mapped-create-report.json",
+          "requestId": "976377d1-8c86-4b29-b2a5-09fec8313872",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11a-mapped-report-current.json",
+        "11a-mapped-get-report.json"
+      ]
+    },
+    {
+      "internalReportId": "-5223966212003407653",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-gap-error",
+      "exactCreateReportRequestId": "f45e7d87-c600-4e7b-8952-d99fa80aa112",
+      "taskRequestEvidence": [
+        {
+          "file": "11a-gap-error-create-report.json",
+          "requestId": "f45e7d87-c600-4e7b-8952-d99fa80aa112",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11a-gap-error-report-executor.json",
+        "11a-gap-error-get-report.json"
+      ]
+    },
+    {
+      "internalReportId": "417940445337462841",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-gap-warning",
+      "exactCreateReportRequestId": "62fb8e59-240f-4c87-a387-2362ca3b0719",
+      "taskRequestEvidence": [
+        {
+          "file": "11a-gap-warning-create-report.json",
+          "requestId": "62fb8e59-240f-4c87-a387-2362ca3b0719",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11a-gap-warning-report-current.json"
+      ]
+    },
+    {
+      "internalReportId": "3896467247558865611",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11b-legacy-report",
+      "exactCreateReportRequestId": "c2712ebd-6534-4f3f-8d9f-4b73dbca3e1f",
+      "taskRequestEvidence": [
+        {
+          "file": "11b-legacy-report-create-report-request.json",
+          "requestId": "c2712ebd-6534-4f3f-8d9f-4b73dbca3e1f",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11b-legacy-report-membership-get-report-result.json",
+        "11b-legacy-report-get-report-result.json",
+        "11b-legacy-report-membership-get-report-request.json",
+        "11b-legacy-report-get-report-request.json"
+      ]
+    },
+    {
+      "internalReportId": "-6227419173376747464",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-before-cutover-report",
+      "exactCreateReportRequestId": "71f916b1-8682-4f29-8d80-43560bb603da",
+      "taskRequestEvidence": [
+        {
+          "file": "11c-before-cutover-report-create-report-request.json",
+          "requestId": "71f916b1-8682-4f29-8d80-43560bb603da",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-before-cutover-report-first-get-report-result.json",
+        "11c-before-cutover-report-first-get-report-request.json",
+        "11c-before-cutover-report-get-report-request.json",
+        "11c-before-cutover-report-membership-get-report-request.json",
+        "11c-before-cutover-report-get-report-result.json",
+        "11c-before-cutover-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalReportId": "-3181055898067084183",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-crossing-report",
+      "exactCreateReportRequestId": "6dc96924-fb42-451e-a98e-c69881a69246",
+      "taskRequestEvidence": [
+        {
+          "file": "11c-crossing-report-create-report-request.json",
+          "requestId": "6dc96924-fb42-451e-a98e-c69881a69246",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-crossing-report-get-report-request.json",
+        "11c-crossing-report-first-get-report-request.json",
+        "11c-crossing-report-first-get-report-result.json",
+        "11c-crossing-report-get-report-result.json",
+        "11c-crossing-report-membership-get-report-result.json",
+        "11c-crossing-report-membership-get-report-request.json"
+      ]
+    },
+    {
+      "internalReportId": "1621396832488140134",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-exact-cutover-report",
+      "exactCreateReportRequestId": "1d1f56c3-abdb-4b24-9894-c63344d005d2",
+      "taskRequestEvidence": [
+        {
+          "file": "11c-exact-cutover-report-create-report-request.json",
+          "requestId": "1d1f56c3-abdb-4b24-9894-c63344d005d2",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-exact-cutover-report-get-report-request.json",
+        "11c-exact-cutover-report-membership-get-report-result.json",
+        "11c-exact-cutover-report-membership-get-report-request.json",
+        "11c-exact-cutover-report-get-report-result.json",
+        "11c-exact-cutover-report-first-get-report-result.json",
+        "11c-exact-cutover-report-first-get-report-request.json"
+      ]
+    },
+    {
+      "internalReportId": "-6009424009774975944",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-after-cutover-report",
+      "exactCreateReportRequestId": "35ecc3a7-e6ee-4814-8471-369eef1d34af",
+      "taskRequestEvidence": [
+        {
+          "file": "11c-after-cutover-report-create-report-request.json",
+          "requestId": "35ecc3a7-e6ee-4814-8471-369eef1d34af",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-after-cutover-report-get-report-result.json",
+        "11c-after-cutover-report-get-report-request.json",
+        "11c-after-cutover-report-membership-get-report-request.json",
+        "11c-after-cutover-report-first-get-report-request.json",
+        "11c-after-cutover-report-membership-get-report-result.json",
+        "11c-after-cutover-report-first-get-report-result.json"
+      ]
+    },
+    {
+      "internalReportId": "-1789214204997267178",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-zero-adjusted-report",
+      "exactCreateReportRequestId": "5d3ee529-b33d-4395-8a55-164f80a1fddc",
+      "taskRequestEvidence": [
+        {
+          "file": "11c-zero-adjusted-report-create-report-request.json",
+          "requestId": "5d3ee529-b33d-4395-8a55-164f80a1fddc",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-zero-adjusted-report-get-report-request.json",
+        "11c-zero-adjusted-report-membership-get-report-request.json",
+        "11c-zero-adjusted-report-get-report-result.json",
+        "11c-zero-adjusted-first-get-report-request.json",
+        "11c-zero-adjusted-report-membership-get-report-result.json",
+        "11c-zero-adjusted-first-get-report-result.json"
+      ]
+    },
+    {
+      "internalReportId": "7486840520195654588",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-durable-report",
+      "exactCreateReportRequestId": "a470f7d1-def7-4d7b-8422-a85d34e3e490",
+      "taskRequestEvidence": [
+        {
+          "file": "11c-durable-report-create-report-request.json",
+          "requestId": "a470f7d1-def7-4d7b-8422-a85d34e3e490",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-durable-final-report-get-report-result.json",
+        "11c-durable-first-get-report-result.json",
+        "11c-durable-final-report-get-report-request.json",
+        "11c-durable-first-get-report-request.json",
+        "11c-durable-runtime-source-proof-get-report-result.json",
+        "11c-durable-runtime-source-proof-get-report-request.json"
+      ]
+    },
+    {
+      "internalReportId": "2943524337254408780",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-incomplete-legacy-report",
+      "exactCreateReportRequestId": "d0ff937d-cb72-4db9-838c-609d67f6fc66",
+      "taskRequestEvidence": [
+        {
+          "file": "11c-incomplete-legacy-report-create-report-request.json",
+          "requestId": "d0ff937d-cb72-4db9-838c-609d67f6fc66",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-incomplete-legacy-first-get-report-request.json",
+        "11c-incomplete-legacy-before-recovery-report-get-report-request.json",
+        "11c-incomplete-legacy-recovered-get-report-request.json",
+        "11c-incomplete-legacy-first-get-report-result.json",
+        "11c-incomplete-legacy-recovered-get-report-result.json",
+        "11c-incomplete-legacy-before-recovery-report-get-report-result.json"
+      ]
+    },
+    {
+      "internalReportId": "4532433799021320022",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-incomplete-replacement-report",
+      "exactCreateReportRequestId": "08988e56-48fd-48d1-b23b-53873288ac6b",
+      "taskRequestEvidence": [
+        {
+          "file": "11c-incomplete-replacement-report-create-report-request.json",
+          "requestId": "08988e56-48fd-48d1-b23b-53873288ac6b",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-incomplete-replacement-first-get-report-result.json",
+        "11c-replacement-restored-report-get-report-result.json",
+        "11c-replacement-restored-report-get-report-request.json",
+        "11c-incomplete-replacement-first-get-report-request.json"
+      ]
+    },
+    {
+      "internalReportId": "-4143431772241587050",
+      "apiReport": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11d-main-wholly-after-required-report",
+      "exactCreateReportRequestId": "c74bc23c-2f75-4ffd-9bab-f8339ac1f1d8",
+      "taskRequestEvidence": [
+        {
+          "file": "11d-main-wholly-after-required-report-create-report-request.json",
+          "requestId": "c74bc23c-2f75-4ffd-9bab-f8339ac1f1d8",
+          "parent": "measurementConsumers/VCTqwV_vFXw"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11d-main-wholly-after-required-report-get-report-request.json",
+        "11d-main-wholly-after-required-report-get-report-result.json"
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "internalMetricId": "-2274728308379253291",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/ac9609f88-8edf-4c8f-8ce1-e1649fb51565",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "336687221975700519",
+          "reportingsetid": "-3628448357531149363",
+          "metriccalculationspecid": "3638614970874167147",
+          "createmetricrequestid": "c9609f88-8edf-4c8f-8ce1-e1649fb51565",
+          "metricid": "-2274728308379253291"
+        }
+      ],
+      "apiResponseEvidence": [
+        "ledger.json/tests/9/metric_names"
+      ]
+    },
+    {
+      "internalMetricId": "6423417449420654584",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a0b63b398-52eb-4da4-9318-eb113561d483",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "336687221975700519",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "3638614970874167147",
+          "createmetricrequestid": "0b63b398-52eb-4da4-9318-eb113561d483",
+          "metricid": "6423417449420654584"
+        }
+      ],
+      "apiResponseEvidence": [
+        "ledger.json/tests/9/metric_names"
+      ]
+    },
+    {
+      "internalMetricId": "6585387567849648277",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/ad53b9fc3-0bb8-4e8c-a84c-2b5aebc24cb2",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "336687221975700519",
+          "reportingsetid": "5118829085958841718",
+          "metriccalculationspecid": "3638614970874167147",
+          "createmetricrequestid": "d53b9fc3-0bb8-4e8c-a84c-2b5aebc24cb2",
+          "metricid": "6585387567849648277"
+        }
+      ],
+      "apiResponseEvidence": [
+        "ledger.json/tests/9/metric_names"
+      ]
+    },
+    {
+      "internalMetricId": "-1203012869607233742",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/abec7fb01-7fd3-4d27-93e7-b6c175aedc10",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "336687221975700519",
+          "reportingsetid": "-6580160139742217253",
+          "metriccalculationspecid": "3638614970874167147",
+          "createmetricrequestid": "bec7fb01-7fd3-4d27-93e7-b6c175aedc10",
+          "metricid": "-1203012869607233742"
+        }
+      ],
+      "apiResponseEvidence": [
+        "ledger.json/tests/9/metric_names"
+      ]
+    },
+    {
+      "internalMetricId": "7134207812896874963",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a642c6f0f-2852-4a21-a9c8-c9c6a0c0c44d",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "-315175051327518738",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "-8123071585441206940",
+          "createmetricrequestid": "642c6f0f-2852-4a21-a9c8-c9c6a0c0c44d",
+          "metricid": "7134207812896874963"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11a-identity-report-current.json"
+      ]
+    },
+    {
+      "internalMetricId": "-1683346946192165754",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a4131c1ac-a188-41bf-b594-1afab61f45cd",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "4945671643495869322",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "6205982202218331155",
+          "createmetricrequestid": "4131c1ac-a188-41bf-b594-1afab61f45cd",
+          "metricid": "-1683346946192165754"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11a-mapped-report-current.json"
+      ]
+    },
+    {
+      "internalMetricId": "5183903580870582460",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a2acd2698-8843-4ce5-8cdb-a4852527b3f1",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "-5223966212003407653",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "295024118094063330",
+          "createmetricrequestid": "2acd2698-8843-4ce5-8cdb-a4852527b3f1",
+          "metricid": "5183903580870582460"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11a-gap-error-report-executor.json"
+      ]
+    },
+    {
+      "internalMetricId": "-5780105575782361248",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a953a6957-b5cd-43c7-8cc6-95ef950d242c",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "417940445337462841",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "2301864283557627929",
+          "createmetricrequestid": "953a6957-b5cd-43c7-8cc6-95ef950d242c",
+          "metricid": "-5780105575782361248"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11a-gap-warning-report-current.json"
+      ]
+    },
+    {
+      "internalMetricId": "1371851564001639850",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a03a803ad-eb2f-4b6a-8c24-51d28480e77d",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "3896467247558865611",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "-7612117815355908295",
+          "createmetricrequestid": "03a803ad-eb2f-4b6a-8c24-51d28480e77d",
+          "metricid": "1371851564001639850"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11b-legacy-report-get-report-result.json",
+        "11b-legacy-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMetricId": "3928442110903875559",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/addd2f88e-e781-4d9a-8e38-2370e3347103",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "-6227419173376747464",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "7641094299441585334",
+          "createmetricrequestid": "ddd2f88e-e781-4d9a-8e38-2370e3347103",
+          "metricid": "3928442110903875559"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-before-cutover-report-get-report-result.json",
+        "11c-before-cutover-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMetricId": "-3762860142444828504",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/ae544f8d2-52dc-4e7b-b275-3bc40058969e",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "-3181055898067084183",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "-1862178775066454892",
+          "createmetricrequestid": "e544f8d2-52dc-4e7b-b275-3bc40058969e",
+          "metricid": "-3762860142444828504"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-crossing-report-get-report-result.json",
+        "11c-crossing-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMetricId": "5606720552760490862",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a6fa5c5ed-bdc2-45af-9113-b6794aca02a8",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "1621396832488140134",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "4556885191545740144",
+          "createmetricrequestid": "6fa5c5ed-bdc2-45af-9113-b6794aca02a8",
+          "metricid": "5606720552760490862"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-exact-cutover-report-get-report-result.json",
+        "11c-exact-cutover-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMetricId": "-5084083356659078026",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/aa2281b49-707a-4729-acf0-d7cf8ce2cfe7",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "-6009424009774975944",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "1317693283119846628",
+          "createmetricrequestid": "a2281b49-707a-4729-acf0-d7cf8ce2cfe7",
+          "metricid": "-5084083356659078026"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-after-cutover-report-get-report-result.json",
+        "11c-after-cutover-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMetricId": "2674437932891266385",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a500ecc1f-7263-43fe-afc6-ebffd51b62f5",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "-1789214204997267178",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "-2652623196489519876",
+          "createmetricrequestid": "500ecc1f-7263-43fe-afc6-ebffd51b62f5",
+          "metricid": "2674437932891266385"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-zero-adjusted-report-get-report-result.json",
+        "11c-zero-adjusted-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMetricId": "-4078274874997364590",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a146274c0-b97b-43d9-968b-799eeb3ee91e",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "7486840520195654588",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "-4891479756077911324",
+          "createmetricrequestid": "146274c0-b97b-43d9-968b-799eeb3ee91e",
+          "metricid": "-4078274874997364590"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-durable-final-report-get-report-result.json",
+        "11c-durable-runtime-source-proof-get-report-result.json"
+      ]
+    },
+    {
+      "internalMetricId": "-1149046740700886878",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a39baee95-e7a1-4d11-ac22-70b931cac2ad",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "7486840520195654588",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "-4891479756077911324",
+          "createmetricrequestid": "39baee95-e7a1-4d11-ac22-70b931cac2ad",
+          "metricid": "-1149046740700886878"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-durable-final-report-get-report-result.json",
+        "11c-durable-runtime-source-proof-get-report-result.json"
+      ]
+    },
+    {
+      "internalMetricId": "-601819837563191279",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/afd660307-08d1-40d1-b1e2-fb13a7d11269",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "7486840520195654588",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "-4891479756077911324",
+          "createmetricrequestid": "fd660307-08d1-40d1-b1e2-fb13a7d11269",
+          "metricid": "-601819837563191279"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-durable-final-report-get-report-result.json",
+        "11c-durable-runtime-source-proof-get-report-result.json"
+      ]
+    },
+    {
+      "internalMetricId": "-7420999533262862326",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a0b0da86b-28aa-4784-9425-b68e7eb63d04",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "2943524337254408780",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "7001951041818386464",
+          "createmetricrequestid": "0b0da86b-28aa-4784-9425-b68e7eb63d04",
+          "metricid": "-7420999533262862326"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-incomplete-legacy-recovered-get-report-result.json"
+      ]
+    },
+    {
+      "internalMetricId": "3073041039132801002",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a31be6b8b-064d-4161-8960-d49d37568669",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "4532433799021320022",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "-2807547660908533328",
+          "createmetricrequestid": "31be6b8b-064d-4161-8960-d49d37568669",
+          "metricid": "3073041039132801002"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11c-replacement-restored-report-get-report-result.json"
+      ]
+    },
+    {
+      "internalMetricId": "2499734195885913401",
+      "apiMetric": "measurementConsumers/VCTqwV_vFXw/metrics/a86f1daca-91c3-4790-a5d9-c3b5c0d56ffc",
+      "liveReportLinkKeys": [
+        {
+          "measurementconsumerid": "1721932089996313930",
+          "reportid": "-4143431772241587050",
+          "reportingsetid": "7438050896104305124",
+          "metriccalculationspecid": "7531397221123092349",
+          "createmetricrequestid": "86f1daca-91c3-4790-a5d9-c3b5c0d56ffc",
+          "metricid": "2499734195885913401"
+        }
+      ],
+      "apiResponseEvidence": [
+        "11d-main-wholly-after-required-report-get-report-result.json"
+      ]
+    }
+  ],
+  "measurements": [
+    {
+      "internalMeasurementId": "5738492049501517297",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/CscHYdYimtU",
+      "cmmsCreateMeasurementRequestId": "57660617-2537-4fdf-8006-ac9853c9f78a",
+      "internalMetricId": "-2274728308379253291",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "ledger.json/tests/9/metric_names"
+      ]
+    },
+    {
+      "internalMeasurementId": "827047938685407919",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/WML5uyndZRo",
+      "cmmsCreateMeasurementRequestId": "bd1e9fe6-c44c-4cbe-b8a5-448d7188cfe8",
+      "internalMetricId": "6423417449420654584",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "ledger.json/tests/9/metric_names"
+      ]
+    },
+    {
+      "internalMeasurementId": "4342512873138404474",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/FUaZCCndZRo",
+      "cmmsCreateMeasurementRequestId": "f75764f9-ce7e-4106-b7a2-b564179bbd20",
+      "internalMetricId": "6585387567849648277",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "ledger.json/tests/9/metric_names"
+      ]
+    },
+    {
+      "internalMeasurementId": "-5790279333723642272",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/e6adXNYimuc",
+      "cmmsCreateMeasurementRequestId": "a817a402-8b32-4be3-a69a-db53c95d9115",
+      "internalMetricId": "-1203012869607233742",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "ledger.json/tests/9/metric_names"
+      ]
+    },
+    {
+      "internalMeasurementId": "-299193282714959728",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/Dou1B9brGgs",
+      "cmmsCreateMeasurementRequestId": "0eba250f-62a0-4e37-852a-145db6b6730f",
+      "internalMetricId": "7134207812896874963",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11a-identity-report-current.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "1845719102483490651",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/WzRh8Nb4KwQ",
+      "cmmsCreateMeasurementRequestId": "09c52fd5-4d28-4a48-9ad1-12764a56244c",
+      "internalMetricId": "-1683346946192165754",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11a-mapped-report-current.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "7349925667846387764",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/fpbDryjY_Pg",
+      "cmmsCreateMeasurementRequestId": "3adca017-a925-455f-ac35-62fc6c2531e4",
+      "internalMetricId": "5183903580870582460",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11a-gap-error-report-executor.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "7120447373648048604",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/M6EkVyjMvzE",
+      "cmmsCreateMeasurementRequestId": "f2b16a5f-8eae-4ebd-adc4-a1f40e677228",
+      "internalMetricId": "-5780105575782361248",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11a-gap-warning-report-current.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "8243926251505532913",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/DRn0Ryi1nV4",
+      "cmmsCreateMeasurementRequestId": "06ca61f7-5bf9-4a74-885a-3b9fb6200fc8",
+      "internalMetricId": "1371851564001639850",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11b-legacy-report-get-report-result.json",
+        "11b-legacy-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "-8449855972481671815",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/DhjFiCiesfs",
+      "cmmsCreateMeasurementRequestId": "9bcf44ed-6156-409e-8373-9a27bee217ca",
+      "internalMetricId": "3928442110903875559",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11c-before-cutover-report-get-report-result.json",
+        "11c-before-cutover-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "-2562668528980274953",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/NCshcSid_V4",
+      "cmmsCreateMeasurementRequestId": "2c324e80-8fde-4d20-9c0d-211e52bdaefd",
+      "internalMetricId": "-3762860142444828504",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11c-crossing-report-get-report-result.json",
+        "11c-crossing-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "5711434798005368429",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/DfIh5CidV3o",
+      "cmmsCreateMeasurementRequestId": "7784fea9-5e8c-4214-9a87-c9816ce0eff6",
+      "internalMetricId": "5606720552760490862",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11c-exact-cutover-report-get-report-result.json",
+        "11c-exact-cutover-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "-2033095626593662728",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/UjktEiicpns",
+      "cmmsCreateMeasurementRequestId": "b8f58353-44fa-42bc-8986-e9d435dd0d48",
+      "internalMetricId": "-5084083356659078026",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11c-after-cutover-report-get-report-result.json",
+        "11c-after-cutover-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "3042134989016835915",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/KweeiShy7HY",
+      "cmmsCreateMeasurementRequestId": "22b60788-5dd8-4100-acab-cbf2ca36a8d3",
+      "internalMetricId": "2674437932891266385",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11c-zero-adjusted-report-get-report-result.json",
+        "11c-zero-adjusted-report-membership-get-report-result.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "8190066634582051485",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/cFsmSNeZKes",
+      "cmmsCreateMeasurementRequestId": "c8afc42c-1204-44dc-b3b2-b95d98e8eba9",
+      "internalMetricId": "-4078274874997364590",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11c-durable-final-report-get-report-result.json",
+        "11c-durable-runtime-source-proof-get-report-result.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "7241350211693198327",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/akaH1NeZKe8",
+      "cmmsCreateMeasurementRequestId": "f406be27-0790-4450-bff6-2e37671532ba",
+      "internalMetricId": "-1149046740700886878",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11c-durable-final-report-get-report-result.json",
+        "11c-durable-runtime-source-proof-get-report-result.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "-7701758151566763603",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/YL96bShm1g8",
+      "cmmsCreateMeasurementRequestId": "e2b82b08-9ea0-45fc-9e84-259f64487b1a",
+      "internalMetricId": "-601819837563191279",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11c-durable-final-report-get-report-result.json",
+        "11c-durable-runtime-source-proof-get-report-result.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "-822878947841879580",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/WJXxMte46Xw",
+      "cmmsCreateMeasurementRequestId": "37f4a76b-b572-4cf3-a158-29f86b8677c9",
+      "internalMetricId": "-7420999533262862326",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11c-incomplete-legacy-recovered-get-report-result.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "-1632015297734692897",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/WYp5CigwP1I",
+      "cmmsCreateMeasurementRequestId": "29b9504e-eab2-463b-9ed9-b9d9c5985491",
+      "internalMetricId": "3073041039132801002",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11c-replacement-restored-report-get-report-result.json"
+      ]
+    },
+    {
+      "internalMeasurementId": "-2414917814090481187",
+      "apiMeasurement": "measurementConsumers/VCTqwV_vFXw/measurements/UyDzvCgOq-o",
+      "cmmsCreateMeasurementRequestId": "30da616d-e21f-4bd9-a859-04d91f445d3e",
+      "internalMetricId": "2499734195885913401",
+      "actualApiNameMatched": true,
+      "apiResponseEvidence": [
+        "11d-main-wholly-after-required-report-get-report-result.json"
+      ]
+    }
+  ],
+  "gaps": []
+}

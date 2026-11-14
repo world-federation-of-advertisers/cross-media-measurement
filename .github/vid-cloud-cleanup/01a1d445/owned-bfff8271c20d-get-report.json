@@ -1,0 +1,27 @@
+{
+  "name": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-crossing-report",
+  "metricCalculationResults": [
+    {
+      "resultAttributes": [
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/ae544f8d2-52dc-4e7b-b275-3bc40058969e",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/NCshcSid_V4"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "_actualSourceEvidence": [
+    {
+      "file": "11c-crossing-report-get-report-result.json",
+      "sha256": "e3493ccf4e398f851a1b3be55958424f76e3357b73d85032acfed33c49858299"
+    },
+    {
+      "file": "11c-crossing-report-membership-get-report-result.json",
+      "sha256": "e3493ccf4e398f851a1b3be55958424f76e3357b73d85032acfed33c49858299"
+    }
+  ]
+}

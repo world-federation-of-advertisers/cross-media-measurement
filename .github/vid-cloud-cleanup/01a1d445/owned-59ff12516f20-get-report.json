@@ -1,0 +1,23 @@
+{
+  "name": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-identity",
+  "metricCalculationResults": [
+    {
+      "resultAttributes": [
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/a642c6f0f-2852-4a21-a9c8-c9c6a0c0c44d",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/Dou1B9brGgs"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "_actualSourceEvidence": [
+    {
+      "file": "11a-identity-report-current.json",
+      "sha256": "32cb1ab6005ff8587e7b0d4784a6fd92b1d7b0dcae32f04a1b06fca7ab5e3010"
+    }
+  ]
+}

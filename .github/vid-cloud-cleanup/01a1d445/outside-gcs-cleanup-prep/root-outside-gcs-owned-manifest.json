@@ -1,0 +1,748 @@
+{
+  "project": "halo-cmm-dev",
+  "session": "01a1d445",
+  "kind": "OUTSIDE_EXACT_KEYS",
+  "candidateSha256": "77f0bfcbe834fc2202109f42910d1f556caa5ea9f064f62b431d3263f24c34c6",
+  "allowlist": [
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/00988ba3-0ba2-4772-b449-59aedaef7f50",
+      "groupId": "00988ba3-0ba2-4772-b449-59aedaef7f50",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-durable-report",
+      "createReportRequestId": "a470f7d1-def7-4d7b-8422-a85d34e3e490",
+      "sourceWorkItem": "workItems/results-fulfiller-00988ba3-0ba2-4772-b449-59aedaef7f50",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "a1259834db91758568e381e3762acc8f2d43fd9a4b3016874b86b45f0f7f6131"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/04f6615e-0f98-4fc1-8732-d746a9bfda0c",
+      "groupId": "04f6615e-0f98-4fc1-8732-d746a9bfda0c",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11b-legacy-report",
+      "createReportRequestId": "c2712ebd-6534-4f3f-8d9f-4b73dbca3e1f",
+      "sourceWorkItem": "workItems/results-fulfiller-04f6615e-0f98-4fc1-8732-d746a9bfda0c",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "9205846836a9effa218a963dafdb132e1dc3512195fd33e4bb3e926c022219bd"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/41037ea3-c825-4a5c-ae66-bcf48d12e54b",
+      "groupId": "41037ea3-c825-4a5c-ae66-bcf48d12e54b",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-crossing-report",
+      "createReportRequestId": "6dc96924-fb42-451e-a98e-c69881a69246",
+      "sourceWorkItem": "workItems/results-fulfiller-41037ea3-c825-4a5c-ae66-bcf48d12e54b",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "a4a278e41ebd5814595cf29fbf6c773c81e0dca58c1533309a1f1820cc6ea814"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/437b8aad-de17-4bb6-997e-62b9d669353c",
+      "groupId": "437b8aad-de17-4bb6-997e-62b9d669353c",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11d-main-wholly-after-required-report",
+      "createReportRequestId": "c74bc23c-2f75-4ffd-9bab-f8339ac1f1d8",
+      "sourceWorkItem": "workItems/results-fulfiller-437b8aad-de17-4bb6-997e-62b9d669353c",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "8326d498fb0bcf490ab8e6473692d8a8d06c7378d84855f6036f3805dbb17966"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/54b53f24-32c6-4a3d-98f6-e474c93da76e",
+      "groupId": "54b53f24-32c6-4a3d-98f6-e474c93da76e",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-before-cutover-report",
+      "createReportRequestId": "71f916b1-8682-4f29-8d80-43560bb603da",
+      "sourceWorkItem": "workItems/results-fulfiller-54b53f24-32c6-4a3d-98f6-e474c93da76e",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "6d299312f398cbf2db25beccf512ebd067db33c4482b3efe511fc89f409eda56"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/54d8191f-6310-443c-8481-b7c9a8912d76",
+      "groupId": "54d8191f-6310-443c-8481-b7c9a8912d76",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-incomplete-replacement-report",
+      "createReportRequestId": "08988e56-48fd-48d1-b23b-53873288ac6b",
+      "sourceWorkItem": "workItems/results-fulfiller-54d8191f-6310-443c-8481-b7c9a8912d76",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "b5a7b11fd5c8c14f8922be1ace33633e6f0810c3759d3be5e65ece9b1f2adda9"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/59d9e91b-f4c7-44a3-bfcf-4a3127e01c5a",
+      "groupId": "59d9e91b-f4c7-44a3-bfcf-4a3127e01c5a",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11d-zero-positive-plus-empty-report",
+      "createReportRequestId": "73e5e596-b962-49db-be57-a9af31923525",
+      "sourceWorkItem": "workItems/results-fulfiller-59d9e91b-f4c7-44a3-bfcf-4a3127e01c5a",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "ff337c341498676981430b82675d0cb9083031826bbbf39cb05729401d3f89f9"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/5a1ed066-0c62-4751-9393-309a8e3a7434",
+      "groupId": "5a1ed066-0c62-4751-9393-309a8e3a7434",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-exact-cutover-report",
+      "createReportRequestId": "1d1f56c3-abdb-4b24-9894-c63344d005d2",
+      "sourceWorkItem": "workItems/results-fulfiller-5a1ed066-0c62-4751-9393-309a8e3a7434",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "e739fc6a3366082e89acec60154abf60f6eefc4f556698cf0eccd9119ee08842"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/67628c26-a654-40cb-a78f-82bd8e7b8577",
+      "groupId": "67628c26-a654-40cb-a78f-82bd8e7b8577",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-identity",
+      "createReportRequestId": "12800e6a-bdd2-458d-af9c-bfeb2f599a73",
+      "sourceWorkItem": "workItems/results-fulfiller-67628c26-a654-40cb-a78f-82bd8e7b8577",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "01807ba856976bc2cd42b274e2ab49ecf50fcbfd8bd3e9089964f96002344402"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/7fcb4e03-a95e-4401-bb4f-a005ea5adbbe",
+      "groupId": "7fcb4e03-a95e-4401-bb4f-a005ea5adbbe",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-gap-error",
+      "createReportRequestId": "f45e7d87-c600-4e7b-8952-d99fa80aa112",
+      "sourceWorkItem": "workItems/results-fulfiller-7fcb4e03-a95e-4401-bb4f-a005ea5adbbe",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "882a7a7f18aca0b8a6433d9f233facdb1567a0dc0f64b17a7ab510289dd4f840"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/83cd4b07-6533-4135-a3a9-739b4e70685f",
+      "groupId": "83cd4b07-6533-4135-a3a9-739b4e70685f",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-durable-report",
+      "createReportRequestId": "a470f7d1-def7-4d7b-8422-a85d34e3e490",
+      "sourceWorkItem": "workItems/results-fulfiller-83cd4b07-6533-4135-a3a9-739b4e70685f",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "216a86592d91d56386c890258f58565ff029152643b2e0fcfb4c64c361c4c6fc"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/8eae1aec-e2d0-4e79-95da-bf05bf49f0b3",
+      "groupId": "8eae1aec-e2d0-4e79-95da-bf05bf49f0b3",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-mapped",
+      "createReportRequestId": "976377d1-8c86-4b29-b2a5-09fec8313872",
+      "sourceWorkItem": "workItems/results-fulfiller-8eae1aec-e2d0-4e79-95da-bf05bf49f0b3",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "6e7806354f4e25983df847c4f4c029d31476f83db28759114192c15c455dd8ed"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/98ce986c-906e-45c0-b56c-2649ab182573",
+      "groupId": "98ce986c-906e-45c0-b56c-2649ab182573",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-incomplete-legacy-report",
+      "createReportRequestId": "d0ff937d-cb72-4db9-838c-609d67f6fc66",
+      "sourceWorkItem": "workItems/results-fulfiller-98ce986c-906e-45c0-b56c-2649ab182573",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "c5aac8d5706b9fca0894e3d56d16f66144020386fdbcf3d6a9bd76346d2423c9"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/c5cf73e7-ed22-4d1d-98ca-5c3675318bfd",
+      "groupId": "c5cf73e7-ed22-4d1d-98ca-5c3675318bfd",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-test9",
+      "createReportRequestId": "5e9f3751-6011-4c02-9e72-f9d3a4a0a7c0",
+      "sourceWorkItem": "workItems/results-fulfiller-c5cf73e7-ed22-4d1d-98ca-5c3675318bfd",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "975c34746610ffa44aaaee7e53fb3e05673316aae6e2a0802c7f37fd83d6b71c"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/c600b577-22e6-4f9c-9139-01cbc1c3be9d",
+      "groupId": "c600b577-22e6-4f9c-9139-01cbc1c3be9d",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-zero-adjusted-report",
+      "createReportRequestId": "5d3ee529-b33d-4395-8a55-164f80a1fddc",
+      "sourceWorkItem": "workItems/results-fulfiller-c600b577-22e6-4f9c-9139-01cbc1c3be9d",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "ff77b10b22d2dbccd2284aa1748a8f1334118ab826fe7907bd3b4db53ef95b06"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/c822b4c0-f8f6-4977-9030-fc71cd69e087",
+      "groupId": "c822b4c0-f8f6-4977-9030-fc71cd69e087",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-after-cutover-report",
+      "createReportRequestId": "35ecc3a7-e6ee-4814-8471-369eef1d34af",
+      "sourceWorkItem": "workItems/results-fulfiller-c822b4c0-f8f6-4977-9030-fc71cd69e087",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "4268b302d75b8ef89b75d3e7133ede7e0f56328f2b074889b6664633d83798d0"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/e7af0dc1-c60f-48c8-add4-b427a73a3874",
+      "groupId": "e7af0dc1-c60f-48c8-add4-b427a73a3874",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-gap-warning",
+      "createReportRequestId": "62fb8e59-240f-4c87-a387-2362ca3b0719",
+      "sourceWorkItem": "workItems/results-fulfiller-e7af0dc1-c60f-48c8-add4-b427a73a3874",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "56760ad63204e23c7b58d01a0279c59f203f695b01961f0f250f5b94d634a7df"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/f1cadf33-ced0-4210-821c-8d399d65a6a8",
+      "groupId": "f1cadf33-ced0-4210-821c-8d399d65a6a8",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-durable-report",
+      "createReportRequestId": "a470f7d1-def7-4d7b-8422-a85d34e3e490",
+      "sourceWorkItem": "workItems/results-fulfiller-f1cadf33-ced0-4210-821c-8d399d65a6a8",
+      "ownershipBasis": "Exact task CreateReport UUID/API resources + live requisition group metadata + actual typed WorkItem source + typed Any content",
+      "ownershipProofSha256": "6fa92cc9d90ab246f1e66a57acd509dcb4ddff9f561b13cc3181ae06e51a52bd"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/event-groups/vid-cloud-20261113-event-groups.json",
+      "kind": "EVENT_GROUP_UPLOAD",
+      "createOnlyProofArtifact": "root-eventgroup-original-create-proof.json",
+      "createOnlyProofSha256": "879dbd856542987cceea0b957035fdb1815258a42a0b8937f1675aba7052a62e",
+      "generation": "1794580717491667",
+      "ownEventGroups": {
+        "vid-cloud-20261113-base": "dataProviders/T5RryPMNong/eventGroups/CHUjhtVinyk",
+        "vid-cloud-20261113-abc": "dataProviders/T5RryPMNong/eventGroups/HrNdNNVinys",
+        "vid-cloud-20261113-def": "dataProviders/T5RryPMNong/eventGroups/WJbBiNVinyw"
+      },
+      "references": [
+        "vid-cloud-20261113-base",
+        "vid-cloud-20261113-abc",
+        "vid-cloud-20261113-def"
+      ],
+      "ownershipBasis": "Original current-session create-if-generation-zero tool call + tracked upload generation + exact content hash + three created EventGroups + no predecessor versions",
+      "ownershipProofSha256": "f95c2d286c816b618d83b562d94a9d175a962e2b47b76421f61f5b9411555739"
+    }
+  ],
+  "objects": [
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/00988ba3-0ba2-4772-b449-59aedaef7f50",
+      "generation": "1794619349302409",
+      "metageneration": "1",
+      "size": 5520,
+      "sha256": "c54924d9ff2911bc07cf2df5849eb6393f66fc6376293340b91b8c2ba9b099ed",
+      "crc32c": "zCo92w==",
+      "md5": "hZQCBULpTFs9XAKcpK2ouQ==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "00988ba3-0ba2-4772-b449-59aedaef7f50",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-durable-report",
+      "createReportRequestId": "a470f7d1-def7-4d7b-8422-a85d34e3e490",
+      "createReportArtifact": "11c-durable-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-00988ba3-0ba2-4772-b449-59aedaef7f50",
+      "metadataResourceIds": [
+        "req-0f581121-ab5a-4115-890b-f2d6b5f9ffc1"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/KLJ_8deZKe0"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "a1259834db91758568e381e3762acc8f2d43fd9a4b3016874b86b45f0f7f6131"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/04f6615e-0f98-4fc1-8732-d746a9bfda0c",
+      "generation": "1794613344884212",
+      "metageneration": "1",
+      "size": 5521,
+      "sha256": "9fdccadcaae35b26abfae975e2da9296d173a615a45b93cdf3bb70a3197f067b",
+      "crc32c": "IGzkyw==",
+      "md5": "o4XRDdRxGC/52yzJ0UQBKw==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "04f6615e-0f98-4fc1-8732-d746a9bfda0c",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11b-legacy-report",
+      "createReportRequestId": "c2712ebd-6534-4f3f-8d9f-4b73dbca3e1f",
+      "createReportArtifact": "11b-legacy-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-04f6615e-0f98-4fc1-8732-d746a9bfda0c",
+      "metadataResourceIds": [
+        "req-308b34e4-a5ad-47da-a5a6-cfc495691846"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/Gj3Wv9dKYqM"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/AYyvVtZcu20",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/AYyvVtZcu20",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "9205846836a9effa218a963dafdb132e1dc3512195fd33e4bb3e926c022219bd"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/41037ea3-c825-4a5c-ae66-bcf48d12e54b",
+      "generation": "1794614894699859",
+      "metageneration": "1",
+      "size": 5524,
+      "sha256": "39d8f4d3a075053fbc74f3378f2d2e13e5721954f39508ba0689baaf15580731",
+      "crc32c": "xkegOg==",
+      "md5": "5d2pO5R3Aons8UZkhz67wA==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "41037ea3-c825-4a5c-ae66-bcf48d12e54b",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-crossing-report",
+      "createReportRequestId": "6dc96924-fb42-451e-a98e-c69881a69246",
+      "createReportArtifact": "11c-crossing-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-41037ea3-c825-4a5c-ae66-bcf48d12e54b",
+      "metadataResourceIds": [
+        "req-c6388a2c-1f2a-4fd5-9eb2-a06dceccf024"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/fpIWryid_V4"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "a4a278e41ebd5814595cf29fbf6c773c81e0dca58c1533309a1f1820cc6ea814"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/437b8aad-de17-4bb6-997e-62b9d669353c",
+      "generation": "1794624306479532",
+      "metageneration": "1",
+      "size": 5578,
+      "sha256": "b5234d0178c39b608fb350059f6743a54073e17ad1552e39bf89f43687416831",
+      "crc32c": "FMAPJw==",
+      "md5": "QQH+6yZn3/KJ2K/yWesqyA==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "437b8aad-de17-4bb6-997e-62b9d669353c",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11d-main-wholly-after-required-report",
+      "createReportRequestId": "c74bc23c-2f75-4ffd-9bab-f8339ac1f1d8",
+      "createReportArtifact": "11d-main-wholly-after-required-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-437b8aad-de17-4bb6-997e-62b9d669353c",
+      "metadataResourceIds": [
+        "req-d5141361-7c81-413a-9e8b-1e7e49cc1475"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/FdkIfCgOq-o"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/SqdlFymiwYw",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/IHIRtCmirO8",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "8326d498fb0bcf490ab8e6473692d8a8d06c7378d84855f6036f3805dbb17966"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/54b53f24-32c6-4a3d-98f6-e474c93da76e",
+      "generation": "1794614849225037",
+      "metageneration": "1",
+      "size": 5543,
+      "sha256": "a5f89a0f088efdcda4226e6e5ce885de96f3f9a33377ce8f82d7b0b25d8419a3",
+      "crc32c": "0oDSLw==",
+      "md5": "bDfEdSl62wpkIIlhyUM1Kw==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "54b53f24-32c6-4a3d-98f6-e474c93da76e",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-before-cutover-report",
+      "createReportRequestId": "71f916b1-8682-4f29-8d80-43560bb603da",
+      "createReportArtifact": "11c-before-cutover-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-54b53f24-32c6-4a3d-98f6-e474c93da76e",
+      "metadataResourceIds": [
+        "req-8f89c87a-085b-4371-86c9-ed9d2d2fde6a"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/Z6z-b9dhTgY"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "6d299312f398cbf2db25beccf512ebd067db33c4482b3efe511fc89f409eda56"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/54d8191f-6310-443c-8481-b7c9a8912d76",
+      "generation": "1794622780174809",
+      "metageneration": "1",
+      "size": 5568,
+      "sha256": "95952c3ba3fe0d59356e5b5c5e12245eb17d7dc6581dbae1ba0b53deb04b09b3",
+      "crc32c": "2zt5qA==",
+      "md5": "b9eHjQjqsaIqVHjLcDp2iA==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "54d8191f-6310-443c-8481-b7c9a8912d76",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-incomplete-replacement-report",
+      "createReportRequestId": "08988e56-48fd-48d1-b23b-53873288ac6b",
+      "createReportArtifact": "11c-incomplete-replacement-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-54d8191f-6310-443c-8481-b7c9a8912d76",
+      "metadataResourceIds": [
+        "req-410451a3-6325-4dbc-a006-9bdd6d10eb95"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/GGcu3igwP1E"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/W_VURSmi194",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "b5a7b11fd5c8c14f8922be1ace33633e6f0810c3759d3be5e65ece9b1f2adda9"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/59d9e91b-f4c7-44a3-bfcf-4a3127e01c5a",
+      "generation": "1794626125471813",
+      "metageneration": "1",
+      "size": 5570,
+      "sha256": "2ea84b266c0968019142fad8f1d08d5a09063decb348bfdb8729aa794c2ef4ea",
+      "crc32c": "d5Rjtw==",
+      "md5": "NmyvAbLIgewP1x+7muFLBw==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "59d9e91b-f4c7-44a3-bfcf-4a3127e01c5a",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11d-zero-positive-plus-empty-report",
+      "createReportRequestId": "73e5e596-b962-49db-be57-a9af31923525",
+      "createReportArtifact": "11d-zero-positive-plus-empty-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-59d9e91b-f4c7-44a3-bfcf-4a3127e01c5a",
+      "metadataResourceIds": [
+        "req-7dd92e38-55f0-479c-9b9c-ff7bfabbfe55"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/DON9hifzaRM"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/DO2ORCkg-v4",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/BP3Ka9bfHGA",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "ff337c341498676981430b82675d0cb9083031826bbbf39cb05729401d3f89f9"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/5a1ed066-0c62-4751-9393-309a8e3a7434",
+      "generation": "1794614937207493",
+      "metageneration": "1",
+      "size": 5539,
+      "sha256": "eb2c9357e35ee363d66bc418dcf78b2f2d46845185afa57b09dc6e15704ba47f",
+      "crc32c": "VwGdOw==",
+      "md5": "mzl6OaAL49VRgboWQwzdIA==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "5a1ed066-0c62-4751-9393-309a8e3a7434",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-exact-cutover-report",
+      "createReportRequestId": "1d1f56c3-abdb-4b24-9894-c63344d005d2",
+      "createReportArtifact": "11c-exact-cutover-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-5a1ed066-0c62-4751-9393-309a8e3a7434",
+      "metadataResourceIds": [
+        "req-72a2c3be-320f-4d8e-8566-e10e1ce5b19d"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/S91d5tdiqIc"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/W_VURSmi194",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "e739fc6a3366082e89acec60154abf60f6eefc4f556698cf0eccd9119ee08842"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/67628c26-a654-40cb-a78f-82bd8e7b8577",
+      "generation": "1794607099626549",
+      "metageneration": "1",
+      "size": 5544,
+      "sha256": "0b2e70094e7641274a586d2847f4dc7c936d4c0a3ffbbca953457ba4c8038240",
+      "crc32c": "ZOxpQg==",
+      "md5": "Evozb6XqYofetS759O0uNg==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "67628c26-a654-40cb-a78f-82bd8e7b8577",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-identity",
+      "createReportRequestId": "12800e6a-bdd2-458d-af9c-bfeb2f599a73",
+      "createReportArtifact": "11a-identity-create-report-candidate.json",
+      "sourceWorkItem": "workItems/results-fulfiller-67628c26-a654-40cb-a78f-82bd8e7b8577",
+      "metadataResourceIds": [
+        "req-28845d90-6ae0-4ce6-a9ac-55bb0152f0e6"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/CrzJCNbrGgw"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Oc7oyynV-C4",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Oc7oyynV-C4",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "01807ba856976bc2cd42b274e2ab49ecf50fcbfd8bd3e9089964f96002344402"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/7fcb4e03-a95e-4401-bb4f-a005ea5adbbe",
+      "generation": "1794611050081454",
+      "metageneration": "1",
+      "size": 5545,
+      "sha256": "8dd8fc0509f1a5c7f6b1b8a1126e20cab5fd42716f8c113da6f594bb0d5faa2c",
+      "crc32c": "F13csw==",
+      "md5": "iv2Fc0HrGlqmqpuGkkIAsQ==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "7fcb4e03-a95e-4401-bb4f-a005ea5adbbe",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-gap-error",
+      "createReportRequestId": "f45e7d87-c600-4e7b-8952-d99fa80aa112",
+      "createReportArtifact": "11a-gap-error-create-report.json",
+      "sourceWorkItem": "workItems/results-fulfiller-7fcb4e03-a95e-4401-bb4f-a005ea5adbbe",
+      "metadataResourceIds": [
+        "req-825e1509-02fc-4bd8-a6e9-f65bfdf1e7e0"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/LwCyayjY_Pc"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/dV1UpNYvf_s",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/dV1UpNYvf_s",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "882a7a7f18aca0b8a6433d9f233facdb1567a0dc0f64b17a7ab510289dd4f840"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/83cd4b07-6533-4135-a3a9-739b4e70685f",
+      "generation": "1794619351478401",
+      "metageneration": "1",
+      "size": 5525,
+      "sha256": "0bbf76cf5582a871d1421689463acf0508717949c672bd3d530a84b402fb67eb",
+      "crc32c": "JDQ8QQ==",
+      "md5": "RLd6iqMwdpq4kU+TOwc7QQ==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "83cd4b07-6533-4135-a3a9-739b4e70685f",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-durable-report",
+      "createReportRequestId": "a470f7d1-def7-4d7b-8422-a85d34e3e490",
+      "createReportArtifact": "11c-durable-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-83cd4b07-6533-4135-a3a9-739b4e70685f",
+      "metadataResourceIds": [
+        "req-bfacd6c0-d858-432d-867b-8e691c066664"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/Wa4Guihm1hA"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "216a86592d91d56386c890258f58565ff029152643b2e0fcfb4c64c361c4c6fc"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/8eae1aec-e2d0-4e79-95da-bf05bf49f0b3",
+      "generation": "1794607978451962",
+      "metageneration": "1",
+      "size": 5538,
+      "sha256": "87996faebf5dea126b03c752d070a1278524624044207c51ccedf07f198a0ec9",
+      "crc32c": "eqRWGQ==",
+      "md5": "HEM0wDz8oGFx/L+Wa2DSyw==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "8eae1aec-e2d0-4e79-95da-bf05bf49f0b3",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-mapped",
+      "createReportRequestId": "976377d1-8c86-4b29-b2a5-09fec8313872",
+      "createReportArtifact": "11a-mapped-create-report-candidate.json",
+      "sourceWorkItem": "workItems/results-fulfiller-8eae1aec-e2d0-4e79-95da-bf05bf49f0b3",
+      "metadataResourceIds": [
+        "req-b6777ece-4590-4a31-9563-d57a31c8615d"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/e_kjddb4KwQ"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/IxcKRCnQlYo",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/bE0sFdYvVAw",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "6e7806354f4e25983df847c4f4c029d31476f83db28759114192c15c455dd8ed"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/98ce986c-906e-45c0-b56c-2649ab182573",
+      "generation": "1794621133677760",
+      "metageneration": "1",
+      "size": 5551,
+      "sha256": "c73b828606fb9ecb9f9f991b7b6737b66a8bac9855270b05e17e5ac1585fcf83",
+      "crc32c": "JzBSXA==",
+      "md5": "ks987VBWcdXqFaeQeKyoWw==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "98ce986c-906e-45c0-b56c-2649ab182573",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-incomplete-legacy-report",
+      "createReportRequestId": "d0ff937d-cb72-4db9-838c-609d67f6fc66",
+      "createReportArtifact": "11c-incomplete-legacy-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-98ce986c-906e-45c0-b56c-2649ab182573",
+      "metadataResourceIds": [
+        "req-687ebb79-b61c-4461-a810-1e22077795d6"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/YMhzNyhHFoM"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "c5aac8d5706b9fca0894e3d56d16f66144020386fdbcf3d6a9bd76346d2423c9"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/c5cf73e7-ed22-4d1d-98ca-5c3675318bfd",
+      "generation": "1794594003724780",
+      "metageneration": "1",
+      "size": 21784,
+      "sha256": "b79f88c2e9803618a9f1d768a0d56d02259c2da54144d8fc5c99f46cd312530e",
+      "crc32c": "s6HUpw==",
+      "md5": "LQvrdjQLf08wMW7S4kHfMA==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "c5cf73e7-ed22-4d1d-98ca-5c3675318bfd",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-test9",
+      "createReportRequestId": "5e9f3751-6011-4c02-9e72-f9d3a4a0a7c0",
+      "createReportArtifact": "test9-create-report.json",
+      "sourceWorkItem": "workItems/results-fulfiller-c5cf73e7-ed22-4d1d-98ca-5c3675318bfd",
+      "metadataResourceIds": [
+        "req-5ace4fa8-7efd-4306-833d-a04435986f9d",
+        "req-017a0b53-ebb2-4a39-b489-d0cf15485afd",
+        "req-f1969faf-8629-4ac7-847e-5189a74d06d9",
+        "req-7d053d77-06db-4fe8-b84a-99d6be42c8af"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/XgWG5SndZRo",
+        "dataProviders/T5RryPMNong/requisitions/TfqJ-9Yimuc",
+        "dataProviders/T5RryPMNong/requisitions/JnEUZtYimuc",
+        "dataProviders/T5RryPMNong/requisitions/Xo2PACndZSo"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/GeGgPNU3bsI",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/GeGgPNU3bsI",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "975c34746610ffa44aaaee7e53fb3e05673316aae6e2a0802c7f37fd83d6b71c"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/c600b577-22e6-4f9c-9139-01cbc1c3be9d",
+      "generation": "1794617717611244",
+      "metageneration": "1",
+      "size": 5538,
+      "sha256": "a2c44e7fd5743030a25a3664cf0bef909c38ab23344a55c070d8ee7de2db4641",
+      "crc32c": "7m+kDQ==",
+      "md5": "0jYZGe9/o65kdZDgWHkJlA==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "c600b577-22e6-4f9c-9139-01cbc1c3be9d",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-zero-adjusted-report",
+      "createReportRequestId": "5d3ee529-b33d-4395-8a55-164f80a1fddc",
+      "createReportArtifact": "11c-zero-adjusted-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-c600b577-22e6-4f9c-9139-01cbc1c3be9d",
+      "metadataResourceIds": [
+        "req-248eeada-4e64-4562-a4f4-939b1400e21b"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/XysQvteNE4s"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/UOuqZSkh504",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Ie87MSkhQGk",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "ff77b10b22d2dbccd2284aa1748a8f1334118ab826fe7907bd3b4db53ef95b06"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/c822b4c0-f8f6-4977-9030-fc71cd69e087",
+      "generation": "1794614982065977",
+      "metageneration": "1",
+      "size": 5540,
+      "sha256": "f04f6b84529d2c6fe833cee2803bdec9be1271301eadc49b39d830486c4455d5",
+      "crc32c": "m3wIig==",
+      "md5": "V4Aa4jqh85eH43Nw1SoZ+w==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "c822b4c0-f8f6-4977-9030-fc71cd69e087",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-after-cutover-report",
+      "createReportRequestId": "35ecc3a7-e6ee-4814-8471-369eef1d34af",
+      "createReportArtifact": "11c-after-cutover-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-c822b4c0-f8f6-4977-9030-fc71cd69e087",
+      "metadataResourceIds": [
+        "req-b399b119-ab40-4fad-bbc0-37d427180ff4"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/BKaeoNdjWYU"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/W_VURSmi194",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "4268b302d75b8ef89b75d3e7133ede7e0f56328f2b074889b6664633d83798d0"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/e7af0dc1-c60f-48c8-add4-b427a73a3874",
+      "generation": "1794611832756039",
+      "metageneration": "1",
+      "size": 5548,
+      "sha256": "177c772c96886369583c04e4a5285aa7ddc423a6721f4e2877020b43c826268e",
+      "crc32c": "IyvWkQ==",
+      "md5": "BEvcIK8Fn/dSuuztfeuoXA==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "e7af0dc1-c60f-48c8-add4-b427a73a3874",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-gap-warning",
+      "createReportRequestId": "62fb8e59-240f-4c87-a387-2362ca3b0719",
+      "createReportArtifact": "11a-gap-warning-create-report.json",
+      "sourceWorkItem": "workItems/results-fulfiller-e7af0dc1-c60f-48c8-add4-b427a73a3874",
+      "metadataResourceIds": [
+        "req-023e8bd1-1702-45b1-b507-c82d373e29d0"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/FM7ltyjMvzA"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/GNjyo9Yvk6U",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/GNjyo9Yvk6U",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "56760ad63204e23c7b58d01a0279c59f203f695b01961f0f250f5b94d634a7df"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/requisitions-v2/f1cadf33-ced0-4210-821c-8d399d65a6a8",
+      "generation": "1794619352442579",
+      "metageneration": "1",
+      "size": 5523,
+      "sha256": "12a598b64773cf2ec9fade317ba2d620bafd668618d77f389ced9b18a5637541",
+      "crc32c": "m/EYKA==",
+      "md5": "IvZb8Qq1qiEa+6QJ4uztOQ==",
+      "originField": "WorkItem.WorkItemParams.data_path_params.data_path / RequisitionMetadata.blob_uri",
+      "originType": "GroupedRequisitionsAny",
+      "groupId": "f1cadf33-ced0-4210-821c-8d399d65a6a8",
+      "report": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-durable-report",
+      "createReportRequestId": "a470f7d1-def7-4d7b-8422-a85d34e3e490",
+      "createReportArtifact": "11c-durable-report-create-report-request.json",
+      "sourceWorkItem": "workItems/results-fulfiller-f1cadf33-ced0-4210-821c-8d399d65a6a8",
+      "metadataResourceIds": [
+        "req-0117beae-8edd-43ec-a7e2-e64e38ad0891"
+      ],
+      "cmmsRequisitions": [
+        "dataProviders/T5RryPMNong/requisitions/bXLHZNeZKfE"
+      ],
+      "modelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "selectedModelLine": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY",
+      "ownershipVerified": true,
+      "ownershipProofSha256": "6fa92cc9d90ab246f1e66a57acd509dcb4ddff9f561b13cc3181ae06e51a52bd"
+    },
+    {
+      "bucket": "secure-computation-storage-dev-bucket",
+      "name": "edp7/event-groups/vid-cloud-20261113-event-groups.json",
+      "generation": "1794580717491667",
+      "metageneration": "1",
+      "size": 2330,
+      "sha256": "390d37366e1c8c15bc7af8814b768779f969191e8cd7e4850d2934a74c68d507",
+      "crc32c": "9pMN9g==",
+      "md5": "+Sey4oZvBekSYF1KOEu1Vg==",
+      "originField": "ledger.event_groups_upload_intent + original create-if-generation-zero tool call",
+      "originType": "EventGroupsUpload",
+      "createOnlyProofArtifact": "root-eventgroup-original-create-proof.json",
+      "ownEventGroups": {
+        "vid-cloud-20261113-base": "dataProviders/T5RryPMNong/eventGroups/CHUjhtVinyk",
+        "vid-cloud-20261113-abc": "dataProviders/T5RryPMNong/eventGroups/HrNdNNVinys",
+        "vid-cloud-20261113-def": "dataProviders/T5RryPMNong/eventGroups/WJbBiNVinyw"
+      },
+      "references": [
+        "vid-cloud-20261113-base",
+        "vid-cloud-20261113-abc",
+        "vid-cloud-20261113-def"
+      ],
+      "ownershipVerified": true,
+      "ownershipProofSha256": "f95c2d286c816b618d83b562d94a9d175a962e2b47b76421f61f5b9411555739"
+    }
+  ],
+  "unknownVersionsPreserved": [],
+  "configurationModelCertificateFieldsExcluded": [
+    "ResultsFulfillerParams.storage_params",
+    "ResultsFulfillerParams.consent_params",
+    "ResultsFulfillerParams.cmms_connection",
+    "ResultsFulfillerParams.model_line_data_sources",
+    "VidLabelerParams.model_blob_paths",
+    "VidLabelerParams.model_storage_params",
+    "VidLabelerParams.model_line_configs.event_template_descriptor_blob_uri",
+    "VidLabelerParams.model_line_configs.population_spec_blob_uri"
+  ],
+  "excludedBuckets": [
+    "edpa-configs-storage-dev-bucket",
+    "vid-models-storage-dev-bucket"
+  ],
+  "readableVersionEnumeration": "All normal live/noncurrent versions of each exact object name; soft-deleted versions are excluded by API default and preserved",
+  "eventGroupCreateOnlyProofClosed": true,
+  "predecessorEventVersions": 0,
+  "allowlistSha256": "9135e564439bcc3e1fbb37ad6f078e02af7c5e2f31409142761035bf55526c9d",
+  "requiresFinalRefreshAfter2B": true,
+  "sourceTypedSlotPolicy": "Only WorkItem typed data_path, exact GroupedRequisitions Any, owned job raw-file pointers and explicitly tracked EventGroup upload; no generic URI scraping"
+}

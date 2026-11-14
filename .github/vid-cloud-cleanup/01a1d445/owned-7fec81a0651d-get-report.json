@@ -1,0 +1,27 @@
+{
+  "name": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-after-cutover-report",
+  "metricCalculationResults": [
+    {
+      "resultAttributes": [
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/aa2281b49-707a-4729-acf0-d7cf8ce2cfe7",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/UjktEiicpns"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "_actualSourceEvidence": [
+    {
+      "file": "11c-after-cutover-report-get-report-result.json",
+      "sha256": "849e81bb72d539130740828ba1eda094cb3db8162c50589ce8ddd17b32c4be56"
+    },
+    {
+      "file": "11c-after-cutover-report-membership-get-report-result.json",
+      "sha256": "849e81bb72d539130740828ba1eda094cb3db8162c50589ce8ddd17b32c4be56"
+    }
+  ]
+}

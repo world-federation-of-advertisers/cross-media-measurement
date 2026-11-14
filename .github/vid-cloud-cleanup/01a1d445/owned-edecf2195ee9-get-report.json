@@ -1,0 +1,27 @@
+{
+  "name": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11b-legacy-report",
+  "metricCalculationResults": [
+    {
+      "resultAttributes": [
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/a03a803ad-eb2f-4b6a-8c24-51d28480e77d",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/DRn0Ryi1nV4"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "_actualSourceEvidence": [
+    {
+      "file": "11b-legacy-report-membership-get-report-result.json",
+      "sha256": "9b53449eada9449ddccf9beacf32ec9bc3e2d990efc238a82b3706391cce5f11"
+    },
+    {
+      "file": "11b-legacy-report-get-report-result.json",
+      "sha256": "9b53449eada9449ddccf9beacf32ec9bc3e2d990efc238a82b3706391cce5f11"
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "runId": 43561274855,
+  "headSha": "29502c6d9b97af1c7af2a46587d7d3265edfb1db",
+  "attempt": 2,
+  "capturedAt": "2026-11-14T08:25:58.443884+00:00",
+  "sourceAttemptJobsSha256": "9902b058a4984cdf7a360f3abea0e0c9cdf3e0d6a2b457fe61976579f5217876",
+  "expectedJobNames": [
+    "terraform / terraform",
+    "terraform-quiesced / terraform",
+    "update-aggregator-duchy / update-duchy",
+    "update-edp-aggregator-service / update-edp-aggregator-services",
+    "update-kingdom / update-kingdom",
+    "update-population-fulfiller / update-kingdom",
+    "update-reporting-v2 / update-reporting-v2",
+    "update-secure-computation / update-secure-computation-control-plane",
+    "update-secure-computation-dlq-paused / update-secure-computation-control-plane",
+    "update-simulators / update-simulators",
+    "update-worker1-duchy / update-duchy",
+    "update-worker2-duchy / update-duchy"
+  ],
+  "jobs": [
+    {
+      "id": 132383756494,
+      "name": "update-secure-computation-dlq-paused / update-secure-computation-control-plane",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T05:38:30Z",
+      "completedAt": "2026-11-14T05:39:52Z"
+    },
+    {
+      "id": 132383756842,
+      "name": "terraform-quiesced / terraform",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T05:39:56Z",
+      "completedAt": "2026-11-14T05:44:51Z"
+    },
+    {
+      "id": 132383757742,
+      "name": "update-kingdom / update-kingdom",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T05:48:16Z",
+      "completedAt": "2026-11-14T05:52:41Z"
+    },
+    {
+      "id": 132383758446,
+      "name": "update-population-fulfiller / update-kingdom",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T05:52:45Z",
+      "completedAt": "2026-11-14T05:53:39Z"
+    },
+    {
+      "id": 132383758668,
+      "name": "update-secure-computation / update-secure-computation-control-plane",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T05:52:45Z",
+      "completedAt": "2026-11-14T05:54:23Z"
+    },
+    {
+      "id": 132383759212,
+      "name": "update-edp-aggregator-service / update-edp-aggregator-services",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T05:54:26Z",
+      "completedAt": "2026-11-14T05:56:10Z"
+    },
+    {
+      "id": 132383759939,
+      "name": "terraform / terraform",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T05:56:13Z",
+      "completedAt": "2026-11-14T06:00:41Z"
+    },
+    {
+      "id": 132383760205,
+      "name": "update-worker2-duchy / update-duchy",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T06:00:45Z",
+      "completedAt": "2026-11-14T06:03:09Z"
+    },
+    {
+      "id": 132383760318,
+      "name": "update-simulators / update-simulators",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T06:00:45Z",
+      "completedAt": "2026-11-14T06:06:38Z"
+    },
+    {
+      "id": 132383760356,
+      "name": "update-reporting-v2 / update-reporting-v2",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T06:00:45Z",
+      "completedAt": "2026-11-14T06:06:35Z"
+    },
+    {
+      "id": 132383760406,
+      "name": "update-worker1-duchy / update-duchy",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T06:00:45Z",
+      "completedAt": "2026-11-14T06:03:06Z"
+    },
+    {
+      "id": 132383760409,
+      "name": "update-aggregator-duchy / update-duchy",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-14T06:00:45Z",
+      "completedAt": "2026-11-14T06:04:00Z"
+    }
+  ],
+  "existingSuccessfulDeploymentJobsReused": true
+}

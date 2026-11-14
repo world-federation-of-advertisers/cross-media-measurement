@@ -1,0 +1,73 @@
+{
+  "mainSha": "29502c6d9b97af1c7af2a46587d7d3265edfb1db",
+  "repository": "world-federation-of-advertisers/cross-media-measurement",
+  "sourceDirectory": "src/main/terraform/gcloud/cmms/envs/dev",
+  "files": [
+    {
+      "path": "src/main/terraform/gcloud/cmms/envs/dev/data-availability-monitor-config.textproto",
+      "name": "data-availability-monitor-config.textproto",
+      "gitBlobSha": "6a417501b69ced9576feee731bef9f387d75e604",
+      "sha256": "edede22fb41915849f600cd6a1c7047ecd6675ca2b5ce30410a3dee180e77972"
+    },
+    {
+      "path": "src/main/terraform/gcloud/cmms/envs/dev/data-availability-sync-config.textproto",
+      "name": "data-availability-sync-config.textproto",
+      "gitBlobSha": "27c764747641ab20903feedb439d611d273088bb",
+      "sha256": "c4ff54787b8ffcca8a6b8677a452a1296ee9b35c6a18491b55e4df822d99304c"
+    },
+    {
+      "path": "src/main/terraform/gcloud/cmms/envs/dev/data-watcher-config.textproto",
+      "name": "data-watcher-config.textproto",
+      "gitBlobSha": "7ab1ec789607a55eb8a89e68f188ea79796b0004",
+      "sha256": "ed63259b5a4a7d9e099c1e10ad77e615a3ab2852b5f14d13f884555f93824866"
+    },
+    {
+      "path": "src/main/terraform/gcloud/cmms/envs/dev/data-watcher-delete-config.textproto",
+      "name": "data-watcher-delete-config.textproto",
+      "gitBlobSha": "53208dbded78fe8d560737e195c927686322803d",
+      "sha256": "53b7dda3d6b4e3cf2168541953922bda8e6aac78f1ab5276e99146ae57128635"
+    },
+    {
+      "path": "src/main/terraform/gcloud/cmms/envs/dev/event-data-provider-configs.textproto",
+      "name": "event-data-provider-configs.textproto",
+      "gitBlobSha": "9f8306f6b8dec7495ca70bba689373efd3f65092",
+      "sha256": "5e8be218413613b0586b39301944ee44c991d1d05f0c20a3b3918b568ce7c44a"
+    },
+    {
+      "path": "src/main/terraform/gcloud/cmms/envs/dev/event-group-activity-sync-edp7-config.textproto",
+      "name": "event-group-activity-sync-edp7-config.textproto",
+      "gitBlobSha": "7d1ee55a9b8800153b0c4e2c0b7169056f87bda8",
+      "sha256": "9163ba2bd78f14f8beaa1b353f945dd58e061bea98af05512778b0af5e19ec71"
+    },
+    {
+      "path": "src/main/terraform/gcloud/cmms/envs/dev/event-group-sync-config.textproto",
+      "name": "event-group-sync-config.textproto",
+      "gitBlobSha": "595ca92e715b1675b3ba0cb651f179c0379111e4",
+      "sha256": "0e21606d0b6d2211fb441fe504d3e439bd628b51683de69e24b95ac5a71bf09f"
+    },
+    {
+      "path": "src/main/terraform/gcloud/cmms/envs/dev/requisition-fetcher-config.textproto",
+      "name": "requisition-fetcher-config.textproto",
+      "gitBlobSha": "db4299ecbf47b5997c5f604c911122b6be34a27f",
+      "sha256": "aa4922086760f2d1575b21100d2b5db3ad603f490921bf54246f8e3e385a8ced"
+    },
+    {
+      "path": "src/main/terraform/gcloud/cmms/envs/dev/results-fulfiller-population-spec.textproto",
+      "name": "results-fulfiller-population-spec.textproto",
+      "gitBlobSha": "bd501422e94b56584261936bbe512345a525f4b1",
+      "sha256": "9f57c95e603ec2467b55e3f51e0757131ba80a496fedf0c0e0405a3ea4e3ea18"
+    },
+    {
+      "path": "src/main/terraform/gcloud/cmms/envs/dev/vid-labeling-dispatcher-config.textproto",
+      "name": "vid-labeling-dispatcher-config.textproto",
+      "gitBlobSha": "62521b49445b42f46f698571354f47422c841735",
+      "sha256": "aacf76d1a3b37fa75e6e3656382deb659f04d5947c911661fa579f60daeab40b"
+    },
+    {
+      "path": "src/main/terraform/gcloud/cmms/envs/dev/vid-labeling-monitor-config.textproto",
+      "name": "vid-labeling-monitor-config.textproto",
+      "gitBlobSha": "e206b116bb44233ee4148146674782935febb0dc",
+      "sha256": "4772d64709fd40a6bf7b33c404f4caec6a71317bfe1d2d4c1092dea965f51f09"
+    }
+  ]
+}

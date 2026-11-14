@@ -1,0 +1,147 @@
+# proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
+# proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
+watched_paths {
+  identifier: "event-groups"
+  source_path_regex: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/(.*)"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/T5RryPMNong"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/T5RryPMNong"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "event-groups"
+  source_path_regex: "gs://secure-computation-storage-dev-bucket/edpa_meta/event-groups/(.*)"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/J3-pzhqS9Lo"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/J3-pzhqS9Lo"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability"
+  source_path_regex: "^gs://secure-computation-storage-dev-bucket/edp/edp7/model-line/[^/]+/[^/]+/done$"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/T5RryPMNong"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/T5RryPMNong"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability"
+  source_path_regex: "^gs://secure-computation-storage-dev-bucket/edp/edpa_meta/model-line/[^/]+/[^/]+/done$"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/J3-pzhqS9Lo"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/J3-pzhqS9Lo"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "vid-labeling-dispatch"
+  source_path_regex: "^gs://secure-computation-storage-dev-bucket/raw-impressions/edp/edp7/.+/done$"
+  http_endpoint_sink {
+    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/vid-labeling-dispatcher"
+    app_params {
+      fields {
+        key: "dataProvider"
+        value { string_value: "dataProviders/T5RryPMNong" }
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "vid-labeling-dispatch"
+  source_path_regex: "^gs://secure-computation-storage-dev-bucket/raw-impressions/edp/edpa_meta/.+/done$"
+  http_endpoint_sink {
+    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/vid-labeling-dispatcher"
+    app_params {
+      fields {
+        key: "dataProvider"
+        value { string_value: "dataProviders/J3-pzhqS9Lo" }
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "event-groups"
+  source_path_regex: "gs://secure-computation-storage-dev-bucket/event_group_scale/event-groups/(.*)"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/YeaFrRJNBFw"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/YeaFrRJNBFw"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "event-groups"
+  source_path_regex: "gs://secure-computation-storage-dev-bucket/edpa_video_pub/event-groups/(.*)"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/KYq_ciWaP94"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/KYq_ciWaP94"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability"
+  source_path_regex: "^gs://secure-computation-storage-dev-bucket/edp/edpa_video_pub/model-line/[^/]+/[^/]+/done$"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/KYq_ciWaP94"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/KYq_ciWaP94"
+      }
+    }
+  }
+}
+
+
+watched_paths {
+  identifier: "event-groups"
+  source_path_regex: "gs://secure-computation-storage-dev-bucket/edpa_retail_pub/event-groups/(.*)"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/bvIQ5SrPwhk"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/bvIQ5SrPwhk"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability"
+  source_path_regex: "^gs://secure-computation-storage-dev-bucket/edp/edpa_retail_pub/model-line/[^/]+/[^/]+/done$"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/bvIQ5SrPwhk"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/bvIQ5SrPwhk"
+      }
+    }
+  }
+}

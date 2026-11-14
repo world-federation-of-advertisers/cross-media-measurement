@@ -1,0 +1,23 @@
+{
+  "name": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11a-gap-warning",
+  "metricCalculationResults": [
+    {
+      "resultAttributes": [
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/a953a6957-b5cd-43c7-8cc6-95ef950d242c",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/M6EkVyjMvzE"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "_actualSourceEvidence": [
+    {
+      "file": "11a-gap-warning-report-current.json",
+      "sha256": "d97a72d4774270d2824f230f7d4f75449eb0a595e1072abf00877083ee45a090"
+    }
+  ]
+}

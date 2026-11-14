@@ -1,0 +1,27 @@
+{
+  "name": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-11c-before-cutover-report",
+  "metricCalculationResults": [
+    {
+      "resultAttributes": [
+        {
+          "metric": "measurementConsumers/VCTqwV_vFXw/metrics/addd2f88e-e781-4d9a-8e38-2370e3347103",
+          "metricResult": {
+            "cmmsMeasurements": [
+              "measurementConsumers/VCTqwV_vFXw/measurements/DhjFiCiesfs"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "_actualSourceEvidence": [
+    {
+      "file": "11c-before-cutover-report-get-report-result.json",
+      "sha256": "aef63d8a9cdc2a273f254a302320dd2a9a84f56d585f80f6f76694d315752b89"
+    },
+    {
+      "file": "11c-before-cutover-report-membership-get-report-result.json",
+      "sha256": "aef63d8a9cdc2a273f254a302320dd2a9a84f56d585f80f6f76694d315752b89"
+    }
+  ]
+}

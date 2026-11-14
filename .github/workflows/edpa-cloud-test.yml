@@ -1,187 +1,72 @@
-# Copyright 2023 The Cross-Media Measurement Authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-name: Run EDP Aggregator Cloud Test
-
-run-name: Run EDP Aggregator Cloud Test [${{ inputs.environment }}]
-
+# DO_NOT_SUBMIT: temporary task-owned cleanup transport.
+# Temporary task-owned ref only. Existing registered workflow supplies the existing DEV WIF identity.
+name: Recorded VID test cleanup
+run-name: Recorded VID test cleanup [dev] ${{ inputs.cleanup-mode }}
 on:
-  workflow_call:
-    inputs:
-      environment:
-        type: string
-        required: true
   workflow_dispatch:
     inputs:
       environment:
-        description: "GitHub-managed environment"
-        required: true
         type: choice
-        options:
-          - dev
-          - qa
-          - head
-
+        required: true
+        default: dev
+        options: [dev]
+      cleanup-mode:
+        type: choice
+        required: true
+        default: inventory
+        options: [inventory, gcs-reporting, spanner, verify]
+      execution-plan-sha:
+        type: string
+        required: false
+        default: ''
 permissions:
   contents: read
-
+concurrency:
+  group: vid-cloud-owned-cleanup-01a1d445
+  cancel-in-progress: false
 jobs:
-  run-tests:
+  recorded-cleanup:
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: dev
     permissions:
       contents: read
       id-token: write
-    environment: ${{ inputs.environment }}
+    env:
+      GOOGLE_CLOUD_PROJECT: halo-cmm-dev
+      CLOUDSDK_CORE_PROJECT: halo-cmm-dev
+      CI_REVIEWED_SOURCE_INDEX_SHA: d3e73a080d71cba288b835e93baa33d1445977630b98863f9c7d73eaa7bba243
+      CI_CLEANUP_MODE: ${{ inputs.cleanup-mode }}
+      CI_EXECUTION_PLAN_SHA: ${{ inputs.execution-plan-sha }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Load CMMS environment configuration
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Validate fixed scope and reviewed mode before authentication
+        run: python3 .github/vid-cloud-cleanup/01a1d445/validate-mode.py
+      - name: Load existing DEV environment configuration
         id: cmms-config
         uses: ./.github/actions/load-cmms-environment
         with:
-          environment: ${{ inputs.environment }}
-
-      - name: Set up Bazel
-        uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
-
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+          environment: dev
+      - name: Authenticate with the same existing Main WIF and TF identity
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
-
-      - name: Write auth.bazelrc
+      - name: Validate existing identity without exposing credentials
         env:
-          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
-        run: |
-          cat << EOF > auth.bazelrc
-          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
-          EOF
-
-      - name: Write ~/.bazelrc
-        env:
-          MC_API_KEY: ${{ secrets.MC_API_KEY }}
-          STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
-          MODEL_LINE: ${{ fromJSON(steps.cmms-config.outputs.config).MODEL_LINE_NAME }}
-
-        run: |
-          cat << EOF > ~/.bazelrc
-          common --config=ci
-          build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
-          build --define mc_name=$MC_NAME
-          build --define mc_api_key=$MC_API_KEY
-          build --define requisition_fetcher_endpoint=$REQUISITION_FETCHER_ENDPOINT
-          build --define storage_bucket=$STORAGE_BUCKET
-          build --define model_line=$MODEL_LINE
-          test --test_output=streamed
-          test --test_timeout=5400
-          EOF
-
-      - name: Wait for Kingdom public API
-        uses: ./.github/actions/wait-for-kingdom
+          EXPECTED_SERVICE_ACCOUNT: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
+          EXPECTED_PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
+        run: python3 .github/vid-cloud-cleanup/01a1d445/validate-existing-identity.py
+      - name: Reuse the exact previously reviewed bootstrap libraries
+        if: inputs.cleanup-mode != 'verify'
+        run: python3 .github/vid-cloud-cleanup/01a1d445/setup-trusted-bootstrap.py
+      - name: Run only the selected recorded cleanup mode
+        run: python3 .github/vid-cloud-cleanup/01a1d445/run-cleanup-ci.py
+      - name: Upload explicitly allowed noncredential receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          kingdom-public-api-target: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
-          kingdom-public-api-cert-host: localhost
-          model-line-name: ${{ fromJSON(steps.cmms-config.outputs.config).MODEL_LINE_NAME }}
-
-      # Reduce chance of disconnection from the Build Event Service.
-      - name: Set TCP keepalive
-        run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
-
-      # The edpa_meta AWS KMS client authenticates via web-identity federation using a Google
-      # (accounts.google.com) OIDC token. The AWS role EDPA_META_AWS_ROLE_ARN
-      # (GcpSyntheticDataKmsRole) trusts the CI service account's numeric subject
-      # (accounts.google.com:sub) and has no audience condition. Mint a fresh id_token for the CI
-      # service account here (right before the test, for maximum validity headroom) and point
-      # AWS_WEB_IDENTITY_TOKEN_FILE at it.
-      - name: Mint Google web-identity token for AWS
-        id: aws_auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
-          token_format: 'id_token'
-          # Google->AWS: the aud must be an audience the AWS accounts.google.com OIDC provider
-          # accepts (the edpa_meta identity), NOT sts.amazonaws.com. The CI SA's sub is in the
-          # GcpSyntheticDataKmsRole trust.
-          id_token_audience: ${{ fromJSON(steps.cmms-config.outputs.config).EDPA_META_AWS_AUDIENCE }}
-          create_credentials_file: false
-          export_environment_variables: false
-
-      - name: Write AWS web-identity token file
-        env:
-          AWS_WEB_IDENTITY_ID_TOKEN: ${{ steps.aws_auth.outputs.id_token }}
-        run: |
-          token_file="$RUNNER_TEMP/aws-web-identity-token"
-          printf '%s' "$AWS_WEB_IDENTITY_ID_TOKEN" > "$token_file"
-          chmod 600 "$token_file"
-          echo "AWS_WEB_IDENTITY_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
-
-      - name: Run tests
-        id: run-tests
-        env:
-          DASHBOARD_CONFIG_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/dashboard-config.json
-          EDPA_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).METADATA_STORAGE_PUBLIC_API_TARGET }}
-          # Deployed Spanner instance; lets SeedRawImpressionsRule hard-delete this test's own
-          # RawImpressionUpload rows before seeding (scoped by DoneBlobUri prefix) so re-runs do not
-          # collide on the RawImpressionUploadFileByBlobUri unique index.
-          # edpa_meta publisher AWS KMS settings, used to (re)generate its labeled impressions
-          # in-test. The runner must also produce AWS_WEB_IDENTITY_TOKEN_FILE (AWS web-identity
-          # token); it is forwarded to the test below.
-        run: |
-          edp_resource_id() {
-            jq -er --arg name "$1" '.edps[] | select(.name == $name) | .resource_id' "$DASHBOARD_CONFIG_FILE"
-          }
-          export PIPELINED_DATA_PROVIDER="dataProviders/$(edp_resource_id edp7)"
-          export EDPA_DATA_PROVIDERS="${PIPELINED_DATA_PROVIDER},dataProviders/$(edp_resource_id meta)"
-          # Storage settings live in the committed per-env tfvars (single source of truth after
-          # #4168/#4227); read them here so this workflow never drifts from what Terraform deployed.
-          TFVARS="src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}.tfvars"
-          tfvar() { grep -E "^$1 " "$TFVARS" | head -1 | cut -d'"' -f2; }
-          export RAW_IMPRESSIONS_BUCKET="$(tfvar secure_computation_storage_bucket_name)"
-          export EDPA_CONFIG_STORAGE_BUCKET="$(tfvar edpa_config_files_bucket_name)"
-          export EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI="$(tfvar results_fulfiller_event_proto_descriptor_blob_uri)"
-          export EVENT_TEMPLATE_TYPE="$(tfvar results_fulfiller_event_template_type_name)"
-          vid_models_bucket="$(tfvar vid_models_storage_bucket_name)"
-          export MEMOIZED_MODEL_BLOB_URI="gs://${vid_models_bucket}/edp7/memoized_model"
-          export NON_MEMOIZED_MODEL_BLOB_URI="gs://${vid_models_bucket}/edp7/hashonly_model"
-          export VID_LABELER_POPULATION_SPEC_BLOB_URI="$(tfvar vid_labeler_population_spec_blob_uri)"
-          # Derive the ModelSuite from the ModelLine resource name.
-          export MODEL_SUITE="${MODEL_LINE_NAME%/modelLines/*}"
-          bazel test \
-          --test_env=GOOGLE_APPLICATION_CREDENTIALS \
-          --test_env=GOOGLE_CLOUD_PROJECT \
-          --test_env=MODEL_SUITE \
-          --test_env=PIPELINED_DATA_PROVIDER \
-          --test_env=EDPA_DATA_PROVIDERS \
-          --test_env=EDPA_CONFIG_STORAGE_BUCKET \
-          --test_env=EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI \
-          --test_env=EVENT_TEMPLATE_TYPE \
-          --test_env=MEMOIZED_MODEL_BLOB_URI \
-          --test_env=NON_MEMOIZED_MODEL_BLOB_URI \
-          --test_env=VID_LABELER_POPULATION_SPEC_BLOB_URI \
-          --test_env=RAW_IMPRESSIONS_BUCKET \
-          --test_env=SPANNER_INSTANCE \
-          --test_env=EDPA_PUBLIC_API_TARGET \
-          --test_env=EDPA_META_KEK_URI \
-          --test_env=EDPA_META_AWS_ROLE_ARN \
-          --test_env=EDPA_META_AWS_REGION \
-          --test_env=AWS_WEB_IDENTITY_TOKEN_FILE \
-          //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
-
-      - name: Upload Bazel testlogs
-        continue-on-error: true
-        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
-        if: failure() && steps.run-tests.outcome == 'failure'
+          name: vid-cloud-owned-cleanup-${{ github.run_id }}-${{ inputs.cleanup-mode }}
+          path: .github/vid-cloud-cleanup/01a1d445/noncredential-receipts/
+          if-no-files-found: ignore
+          retention-days: 7

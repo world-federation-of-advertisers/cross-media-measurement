@@ -1,0 +1,777 @@
+{
+  "model_lines": [
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "13614776446905435",
+      "ExternalModelLineId": "1790447637366805413",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "1463415190939692605",
+      "ExternalModelLineId": "9200696528692244029",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "2116163504533461049",
+      "ExternalModelLineId": "2850857049659332665",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "2749863931635859461",
+      "ExternalModelLineId": "8457008742216466427",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "2804468069976424343",
+      "ExternalModelLineId": "2445238205014949993",
+      "HoldbackModelLineId": null,
+      "Type": "2"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "3249771069488190476",
+      "ExternalModelLineId": "7803942201602298892",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "3348978607801023341",
+      "ExternalModelLineId": "111656878275869549",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "4271435371347159012",
+      "ExternalModelLineId": "1817933303455438876",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "4301259667203248913",
+      "ExternalModelLineId": "2337950622049021167",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "4388638109662669430",
+      "ExternalModelLineId": "2528501003667412362",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "5698211916380934462",
+      "ExternalModelLineId": "1864947903843757762",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "5906431767654508792",
+      "ExternalModelLineId": "2019093534180714744",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "5999858443201206238",
+      "ExternalModelLineId": "6626295082773567454",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "6361221785913853186",
+      "ExternalModelLineId": "931557121334508286",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "6682717967968312416",
+      "ExternalModelLineId": "359666109774765152",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "7413253999028467758",
+      "ExternalModelLineId": "4165522664642181166",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "7965605852958491546",
+      "ExternalModelLineId": "3808252149492808806",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "8406929261727967054",
+      "ExternalModelLineId": "5830941494019745614",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "8525602629816761972",
+      "ExternalModelLineId": "5379379430074532236",
+      "HoldbackModelLineId": null,
+      "Type": "1"
+    }
+  ],
+  "availability": [
+    {
+      "DataProviderId": "8635770568665047672",
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "13614776446905435",
+      "StartTime": "2026-11-03T00:00:05Z",
+      "EndTime": "2026-11-05T00:00:05.0091Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "2749863931635859461",
+      "StartTime": "2026-11-03T00:00:05Z",
+      "EndTime": "2026-11-05T00:00:05.0091Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "3348978607801023341",
+      "StartTime": "2026-11-09T00:00:00Z",
+      "EndTime": "2026-11-14T00:00:00Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "4388638109662669430",
+      "StartTime": "2026-11-01T00:00:05Z",
+      "EndTime": "2026-11-03T00:00:05.0091Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "5698211916380934462",
+      "StartTime": "2026-11-01T00:00:01Z",
+      "EndTime": "2026-11-06T00:00:01.0091Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "7413253999028467758",
+      "StartTime": "2026-11-01T00:00:05Z",
+      "EndTime": "2026-11-03T00:00:05.0091Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "7965605852958491546",
+      "StartTime": "2026-11-06T00:00:00Z",
+      "EndTime": "2026-11-11T00:00:00Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "8406929261727967054",
+      "StartTime": "2026-11-06T00:00:00Z",
+      "EndTime": "2026-11-11T00:00:00Z"
+    }
+  ],
+  "rollouts": [
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "3348978607801023341",
+      "ModelRolloutId": "7554793679897179567",
+      "ExternalModelRolloutId": "3242858235126035887",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T19:22:47.798326Z",
+      "UpdateTime": "2026-11-13T19:22:47.798326Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "6682717967968312416",
+      "ModelRolloutId": "3125000613073572977",
+      "ExternalModelRolloutId": "7759380117706560625",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T21:45:12.340317Z",
+      "UpdateTime": "2026-11-13T21:45:12.340317Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "6361221785913853186",
+      "ModelRolloutId": "1822064266033697794",
+      "ExternalModelRolloutId": "2602609998628449278",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T21:45:06.31915Z",
+      "UpdateTime": "2026-11-13T21:45:06.31915Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "13614776446905435",
+      "ModelRolloutId": "6634686309303557556",
+      "ExternalModelRolloutId": "1723552675623050676",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T18:33:27.225376Z",
+      "UpdateTime": "2026-11-13T18:33:27.225376Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "4271435371347159012",
+      "ModelRolloutId": "261776731276292579",
+      "ExternalModelRolloutId": "275572406749213155",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T18:33:32.396454Z",
+      "UpdateTime": "2026-11-13T18:33:32.396454Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "5698211916380934462",
+      "ModelRolloutId": "4606014307236803302",
+      "ExternalModelRolloutId": "3814853998141731558",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T14:02:23.339739Z",
+      "UpdateTime": "2026-11-13T14:02:23.339739Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "5906431767654508792",
+      "ModelRolloutId": "5556247307216676306",
+      "ExternalModelRolloutId": "6217352673694246354",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T21:44:54.487578Z",
+      "UpdateTime": "2026-11-13T21:44:54.487578Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "4301259667203248913",
+      "ModelRolloutId": "3302496783801605744",
+      "ExternalModelRolloutId": "2343624243782263184",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T19:23:25.686866Z",
+      "UpdateTime": "2026-11-13T19:23:25.686866Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "2804468069976424343",
+      "ModelRolloutId": "130528732654784179",
+      "ExternalModelRolloutId": "7228679733681140045",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T21:44:48.567699Z",
+      "UpdateTime": "2026-11-13T21:44:48.567699Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "4388638109662669430",
+      "ModelRolloutId": "3726597415272150516",
+      "ExternalModelRolloutId": "6743818245724141044",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T18:33:17.053318Z",
+      "UpdateTime": "2026-11-13T18:33:17.053318Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "2116163504533461049",
+      "ModelRolloutId": "6270781419705014722",
+      "ExternalModelRolloutId": "1863825041895135682",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T19:22:54.916191Z",
+      "UpdateTime": "2026-11-13T19:22:54.916191Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "7965605852958491546",
+      "ModelRolloutId": "1312527115704526114",
+      "ExternalModelRolloutId": "1005460692324771106",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T19:23:08.390847Z",
+      "UpdateTime": "2026-11-13T19:23:08.390847Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "7413253999028467758",
+      "ModelRolloutId": "2341860904903775153",
+      "ExternalModelRolloutId": "4924013433849244751",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T18:27:24.229324Z",
+      "UpdateTime": "2026-11-13T18:27:24.229324Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "8525602629816761972",
+      "ModelRolloutId": "6534009728972703962",
+      "ExternalModelRolloutId": "2643572994422425818",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T19:23:20.161645Z",
+      "UpdateTime": "2026-11-13T19:23:20.161645Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "8406929261727967054",
+      "ModelRolloutId": "8902207770563004670",
+      "ExternalModelRolloutId": "5337068765255218946",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T21:44:42.504403Z",
+      "UpdateTime": "2026-11-13T21:44:42.504403Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "5999858443201206238",
+      "ModelRolloutId": "4265497614820232173",
+      "ExternalModelRolloutId": "5048290103557016557",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T19:23:14.842573Z",
+      "UpdateTime": "2026-11-13T19:23:14.842573Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "3249771069488190476",
+      "ModelRolloutId": "4455653014066208693",
+      "ExternalModelRolloutId": "244733364742873163",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T18:33:11.508947Z",
+      "UpdateTime": "2026-11-13T18:33:11.508947Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "2749863931635859461",
+      "ModelRolloutId": "6788913735884835264",
+      "ExternalModelRolloutId": "2260354322685462976",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T18:33:22.118568Z",
+      "UpdateTime": "2026-11-13T18:33:22.118568Z"
+    },
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelLineId": "1463415190939692605",
+      "ModelRolloutId": "6019983284172160202",
+      "ExternalModelRolloutId": "4131050788961190710",
+      "RolloutPeriodStartTime": "2026-11-01T00:00:00Z",
+      "RolloutPeriodEndTime": "2026-11-01T00:00:00Z",
+      "RolloutFreezeTime": null,
+      "PreviousModelRolloutId": null,
+      "ModelReleaseId": "6023298974562684842",
+      "CreateTime": "2026-11-13T21:45:00.367515Z",
+      "UpdateTime": "2026-11-13T21:45:00.367515Z"
+    }
+  ],
+  "model_shard": [
+    {
+      "DataProviderId": "8635770568665047672",
+      "ModelShardId": "8627845769388022313",
+      "ExternalModelShardId": "5652028243280845353",
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelReleaseId": "6023298974562684842",
+      "ModelBlobPath": "gs://vid-models-storage-dev-bucket/edp7/hashonly_model",
+      "CreateTime": "2026-11-13T14:06:06.401688Z",
+      "MemoizedVidAssignmentEnabled": false
+    }
+  ],
+  "model_release": [
+    {
+      "ModelProviderId": "210907887594102900",
+      "ModelSuiteId": "8890702293917058445",
+      "ModelReleaseId": "6023298974562684842",
+      "ExternalModelReleaseId": "8882783789584519082",
+      "CreateTime": "2026-11-13T14:02:22.686814Z",
+      "PopulationDataProviderId": "7318517392940417184",
+      "PopulationId": "2076337281214270012"
+    }
+  ],
+  "external_holdback_refs": [],
+  "external_release_rollouts": [],
+  "event_groups": [
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "ExternalEventGroupId": "609432386591170345",
+      "ProvidedEventGroupId": "vid-cloud-20261113-base",
+      "EntityType": "campaign",
+      "EntityId": "vid-cloud-20261113-base"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "1566876138417069867",
+      "ExternalEventGroupId": "2212214323468738347",
+      "ProvidedEventGroupId": "vid-cloud-20261113-abc",
+      "EntityType": "campaign",
+      "EntityId": "vid-cloud-20261113-abc"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "1663736336795656404",
+      "ExternalEventGroupId": "6383502315283980076",
+      "ProvidedEventGroupId": "vid-cloud-20261113-def",
+      "EntityType": "campaign",
+      "EntityId": "vid-cloud-20261113-def"
+    }
+  ],
+  "activities": [
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "890249490278065951",
+      "ActivityDate": "2026-11-02",
+      "CreateTime": "2026-11-13T15:20:42.533243Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "2739965874540667450",
+      "ActivityDate": "2026-11-08",
+      "CreateTime": "2026-11-13T23:48:01.651847Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "2823275638648278818",
+      "ActivityDate": "2026-11-11",
+      "CreateTime": "2026-11-14T00:00:23.779307Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "3186005515424858474",
+      "ActivityDate": "2026-11-09",
+      "CreateTime": "2026-11-13T23:54:27.601848Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "4056929720851228566",
+      "ActivityDate": "2026-11-05",
+      "CreateTime": "2026-11-13T17:24:04.339557Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "4226067369826429512",
+      "ActivityDate": "2026-11-13",
+      "CreateTime": "2026-11-14T00:05:33.415528Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "4452183623999572545",
+      "ActivityDate": "2026-11-07",
+      "CreateTime": "2026-11-13T23:46:34.695366Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "5130875611630625552",
+      "ActivityDate": "2026-11-06",
+      "CreateTime": "2026-11-13T17:53:02.200426Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "5497752201976114977",
+      "ActivityDate": "2026-11-01",
+      "CreateTime": "2026-11-13T17:15:42.247394Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "5545350701711989905",
+      "ActivityDate": "2026-11-03",
+      "CreateTime": "2026-11-13T15:19:52.440321Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "5713602788521399837",
+      "ActivityDate": "2026-11-04",
+      "CreateTime": "2026-11-13T15:21:27.35211Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "328128320944038103",
+      "EventGroupActivityId": "6465503039182054963",
+      "ActivityDate": "2026-11-10",
+      "CreateTime": "2026-11-13T23:57:34.034111Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "1566876138417069867",
+      "EventGroupActivityId": "1419201633642117371",
+      "ActivityDate": "2026-11-04",
+      "CreateTime": "2026-11-13T17:11:22.628571Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "1566876138417069867",
+      "EventGroupActivityId": "5944761309950797120",
+      "ActivityDate": "2026-11-03",
+      "CreateTime": "2026-11-13T17:12:36.808323Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "1663736336795656404",
+      "EventGroupActivityId": "1886470135298837464",
+      "ActivityDate": "2026-11-04",
+      "CreateTime": "2026-11-13T17:05:10.62215Z"
+    },
+    {
+      "DataProviderId": "8635770568665047672",
+      "EventGroupId": "1663736336795656404",
+      "EventGroupActivityId": "7978836220532539125",
+      "ActivityDate": "2026-11-03",
+      "CreateTime": "2026-11-13T17:02:56.25094Z"
+    }
+  ],
+  "measurements_from_own_requisitions": [
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "710144078316129797",
+      "ExternalMeasurementId": "1015778904559759867",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "2223954139843566293",
+      "ExternalMeasurementId": "776597577530514133",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "3013720248099984913",
+      "ExternalMeasurementId": "7657957564610062831",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "3141739387744901509",
+      "ExternalMeasurementId": "5924816340796614267",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "3153197515765802266",
+      "ExternalMeasurementId": "1533080983507395866",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "3386258339824081419",
+      "ExternalMeasurementId": "1048130383568902667",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "3510877958390229483",
+      "ExternalMeasurementId": "8096106849425238507",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "3554593554224573558",
+      "ExternalMeasurementId": "3100621180394204278",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "3578890252936730127",
+      "ExternalMeasurementId": "6971425357440669199",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "3985919375870958310",
+      "ExternalMeasurementId": "6395949003076101402",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "4326798487634221799",
+      "ExternalMeasurementId": "8909981934854249191",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "4666371754631208286",
+      "ExternalMeasurementId": "944054183373675870",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "6351773056809555196",
+      "ExternalMeasurementId": "6571985443267029764",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "7347347767434625231",
+      "ExternalMeasurementId": "3720294723950001969",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "7727008754551620258",
+      "ExternalMeasurementId": "3759135083867274590",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "8015085486838294662",
+      "ExternalMeasurementId": "1004902930674702202",
+      "ExternalComputationId": null,
+      "State": "5"
+    },
+    {
+      "MeasurementConsumerId": "2778309677038900604",
+      "MeasurementId": "8075028498548720392",
+      "ExternalMeasurementId": "9121693252357520632",
+      "ExternalComputationId": null,
+      "State": "5"
+    }
+  ]
+}

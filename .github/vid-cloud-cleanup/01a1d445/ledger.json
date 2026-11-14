@@ -1,0 +1,101 @@
+{
+  "project": "halo-cmm-dev",
+  "data_provider": "dataProviders/T5RryPMNong",
+  "functional_model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/GeGgPNU3bsI",
+  "existing_model_release": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelReleases/HG2qTCjS5WQ",
+  "existing_population": "dataProviders/KnvDaDC7QKA/populations/a6OJ86CtSjw",
+  "event_groups_upload_intent": {
+    "uri": "gs://secure-computation-storage-dev-bucket/edp7/event-groups/vid-cloud-20261113-event-groups.json",
+    "references": [
+      "vid-cloud-20261113-base",
+      "vid-cloud-20261113-abc",
+      "vid-cloud-20261113-def"
+    ],
+    "status": "uploaded",
+    "generation": "1794580717491667"
+  },
+  "advertiser_event_groups": {
+    "vid-cloud-20261113-base": "dataProviders/T5RryPMNong/eventGroups/CHUjhtVinyk",
+    "vid-cloud-20261113-abc": "dataProviders/T5RryPMNong/eventGroups/HrNdNNVinys",
+    "vid-cloud-20261113-def": "dataProviders/T5RryPMNong/eventGroups/WJbBiNVinyw"
+  },
+  "test11_fixtures": {
+    "11a-identity": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Oc7oyynV-C4"
+    },
+    "11a-mapped-source": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/bE0sFdYvVAw"
+    },
+    "11a-mapped-visible": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/IxcKRCnQlYo"
+    },
+    "11a-gap-error": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/dV1UpNYvf_s"
+    },
+    "11a-gap-warning": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/GNjyo9Yvk6U"
+    },
+    "11a-zero": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/GTqYtSnQWBw"
+    },
+    "11b-legacy": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/AYyvVtZcu20"
+    },
+    "11b-replacement": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/J5BHYdZc2Dk"
+    },
+    "11c-legacy": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NNmhJymi_GY"
+    },
+    "11c-replacement": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/W_VURSmi194"
+    },
+    "11d-legacy": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/SqdlFymiwYw"
+    },
+    "11d-replacement": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/IHIRtCmirO8"
+    },
+    "11c-zero-legacy": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/UOuqZSkh504"
+    },
+    "11c-zero-replacement": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Ie87MSkhQGk"
+    },
+    "11d-gap-legacy": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/HAVC3ykhKPg"
+    },
+    "11d-gap-replacement": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/f69wvtbe7j0"
+    },
+    "11d-zero-legacy": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/DO2ORCkg-v4"
+    },
+    "11d-zero-replacement": {
+      "model_line": "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/BP3Ka9bfHGA"
+    }
+  },
+  "tests": {
+    "9": {
+      "report_intent": {
+        "name": "measurementConsumers/VCTqwV_vFXw/reports/vid-cloud-20261113-test9",
+        "request_id": "5e9f3751-6011-4c02-9e72-f9d3a4a0a7c0",
+        "start": "2026-11-01T00:00:01Z",
+        "end": "2026-11-06T00:00:01.0091Z"
+      },
+      "metric_names": [
+        "measurementConsumers/VCTqwV_vFXw/metrics/a0b63b398-52eb-4da4-9318-eb113561d483",
+        "measurementConsumers/VCTqwV_vFXw/metrics/abec7fb01-7fd3-4d27-93e7-b6c175aedc10",
+        "measurementConsumers/VCTqwV_vFXw/metrics/ac9609f88-8edf-4c8f-8ce1-e1649fb51565",
+        "measurementConsumers/VCTqwV_vFXw/metrics/ad53b9fc3-0bb8-4e8c-a84c-2b5aebc24cb2"
+      ],
+      "measurement_names": [
+        "measurementConsumers/VCTqwV_vFXw/measurements/WML5uyndZRo",
+        "measurementConsumers/VCTqwV_vFXw/measurements/e6adXNYimuc",
+        "measurementConsumers/VCTqwV_vFXw/measurements/CscHYdYimtU",
+        "measurementConsumers/VCTqwV_vFXw/measurements/FUaZCCndZRo"
+      ]
+    }
+  },
+  "mutation_intents": []
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "autoscaler": {
+      "name": "autoscaler-for-results-fulfiller-mig-v2",
+      "autoscalingPolicy": {
+        "coolDownPeriodSec": 60,
+        "customMetricUtilizations": [
+          {
+            "filter": "resource.type = pubsub_subscription AND resource.labels.subscription_id = \"results-fulfiller-subscription\"",
+            "metric": "pubsub.googleapis.com/subscription/num_undelivered_messages",
+            "singleInstanceAssignment": 1.0
+          }
+        ],
+        "maxNumReplicas": 20,
+        "minNumReplicas": 0,
+        "mode": "ON"
+      }
+    }
+  },
+  {
+    "autoscaler": {
+      "name": "autoscaler-for-vid-labeler-mig",
+      "autoscalingPolicy": {
+        "coolDownPeriodSec": 60,
+        "customMetricUtilizations": [
+          {
+            "filter": "resource.type = pubsub_subscription AND resource.labels.subscription_id = \"vid-labeler-subscription\"",
+            "metric": "pubsub.googleapis.com/subscription/num_undelivered_messages",
+            "singleInstanceAssignment": 1.0
+          }
+        ],
+        "maxNumReplicas": 8,
+        "minNumReplicas": 0,
+        "mode": "ON"
+      }
+    }
+  }
+]
