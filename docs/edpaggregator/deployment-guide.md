@@ -351,6 +351,9 @@ DataAvailabilitySync, DataAvailabilityCleanup, and DataAvailabilityMonitor talk 
 it. Deployed to GKE with a Spanner database (default name `edp-aggregator`) and an
 internal service account bound via Workload Identity.
 
+The Halo-managed GKE configuration runs multiple internal and system API replicas
+with PodDisruptionBudgets. Ensure all replicas are ready before proceeding.
+
 ### Pub/Sub
 
 Each TEE MIG is fed by a Pub/Sub topic + subscription. The Secure Computation API's
