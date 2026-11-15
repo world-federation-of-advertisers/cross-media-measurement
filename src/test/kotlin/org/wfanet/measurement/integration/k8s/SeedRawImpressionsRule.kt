@@ -93,9 +93,14 @@ class SeedRawImpressionsRule(
   private val eventGroupConfigs: Map<String, EventGroupConfig>,
 ) : TestRule {
 
+  /** Exact done-blob versions written by this rule, keyed by GCS URI. */
+  var doneBlobGenerations: Map<String, Long> = emptyMap()
+    private set
+
   override fun apply(base: Statement, description: Description): Statement {
     return object : Statement() {
       override fun evaluate() {
+        doneBlobGenerations = emptyMap()
         if (RAW_IMPRESSIONS_BUCKET.isEmpty() || EDP7_KEK_URI.isEmpty()) {
           logger.warning(
             "RAW_IMPRESSIONS_BUCKET/EDP7_KEK_URI unresolved; skipping edp7 raw-impression seeding."
@@ -155,12 +160,16 @@ class SeedRawImpressionsRule(
       )
     }
 
-    for (date in datesWritten) {
-      val doneKey = "$RAW_IMPRESSIONS_PREFIX/$date/done"
-      storage.create(
-        BlobInfo.newBuilder(BlobId.of(RAW_IMPRESSIONS_BUCKET, doneKey)).build(),
-        ByteArray(0),
-      )
+    doneBlobGenerations = buildMap {
+      for (date in datesWritten) {
+        val doneKey = "$RAW_IMPRESSIONS_PREFIX/$date/done"
+        val blob =
+          storage.create(
+            BlobInfo.newBuilder(BlobId.of(RAW_IMPRESSIONS_BUCKET, doneKey)).build(),
+            ByteArray(0),
+          )
+        put("gs://$RAW_IMPRESSIONS_BUCKET/$doneKey", checkNotNull(blob.generation))
+      }
     }
     logger.info(
       "Seeded edp7 raw impressions for ${datesWritten.size} date(s); done markers written."
