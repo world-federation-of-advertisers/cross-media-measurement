@@ -2045,6 +2045,82 @@ class VidLabelingDispatcherTest {
       verifyHistoricalPredecessorRejection(expectRejected = false, scopeDecoys = true)
     }
 
+  @Test
+  fun `upload accepts pending historical predecessor from its completed operation`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        expectRejected = false,
+        foreignPredecessor = true,
+        priorOperation = completedHistoricalOperation(),
+      )
+    }
+
+  @Test
+  fun `upload rejects pending historical predecessor with missing operation`(): Unit = runBlocking {
+    verifyHistoricalPredecessorRejection(foreignPredecessor = true)
+  }
+
+  @Test
+  fun `upload rejects pending historical predecessor with mismatched operation identity`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperation =
+          completedHistoricalOperation()
+            .toBuilder()
+            .setName("$DATA_PROVIDER_NAME/uploadHealingOperations/wrong")
+            .build(),
+      )
+    }
+
+  @Test
+  fun `upload rejects pending historical predecessor from unfinished operation`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperation =
+          completedHistoricalOperation()
+            .toBuilder()
+            .setState(
+              org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+            )
+            .build(),
+      )
+    }
+
+  @Test
+  fun `upload rejects newer snapshot from completed historical operation`(): Unit = runBlocking {
+    verifyHistoricalPredecessorRejection(
+      foreignPredecessor = true,
+      priorOperation = completedHistoricalOperation(),
+      newer = true,
+    )
+  }
+
+  private fun completedHistoricalOperation() =
+    org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+      name = "$DATA_PROVIDER_NAME/uploadHealingOperations/prior"
+      state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.COMPLETE
+    }
+
+  @Test
+  fun `upload does not register replacement when prior operation lookup is unavailable`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperationFailure = Status.UNAVAILABLE,
+      )
+    }
+
+  @Test
+  fun `upload does not register replacement when prior operation lookup is cancelled`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperationFailure = Status.CANCELLED,
+      )
+    }
+
   private suspend fun verifyHistoricalPredecessorRejection(
     memoized: Boolean = true,
     missingPredecessor: Boolean = false,
@@ -2052,6 +2128,9 @@ class VidLabelingDispatcherTest {
     paginated: Boolean = false,
     expectRejected: Boolean = true,
     scopeDecoys: Boolean = false,
+    foreignPredecessor: Boolean = false,
+    priorOperation: org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation? = null,
+    priorOperationFailure: Status? = null,
   ) {
     val source = rawImpressionUpload {
       name = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-historical"
@@ -2064,6 +2143,8 @@ class VidLabelingDispatcherTest {
     }
     val predecessor = rawImpressionUpload {
       name = RECOVERY_PREDECESSOR_UPLOAD
+      if (foreignPredecessor)
+        uploadHealingOperation = "$DATA_PROVIDER_NAME/uploadHealingOperations/prior"
       state = RawImpressionUpload.State.ACTIVE
       registrationComplete = true
       doneBlobUri = RECOVERY_PREDECESSOR_DONE_BLOB_PATH
@@ -2184,9 +2265,22 @@ class VidLabelingDispatcherTest {
         overrideModelLines = listOf(MODEL_LINE_1),
         recoverySourceUpload = source.name,
         recoveryOperationId = EVICTION_OPERATION_ID,
-        getHealingOperation = { operation },
+        getHealingOperation = { name ->
+          if (name == operation.name) operation
+          else {
+            if (priorOperationFailure != null) throw priorOperationFailure.asException()
+            priorOperation
+          }
+        },
       )
-    if (expectRejected) {
+    if (priorOperationFailure != null) {
+      val failure =
+        assertFailsWith<io.grpc.StatusException> {
+          dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+        }
+      assertThat(failure.status.code).isEqualTo(priorOperationFailure.code)
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    } else if (expectRejected) {
       val failure =
         assertFailsWith<IllegalStateException> {
           dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)

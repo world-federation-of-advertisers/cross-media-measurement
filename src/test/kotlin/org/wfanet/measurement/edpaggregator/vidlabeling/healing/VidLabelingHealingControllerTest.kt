@@ -350,59 +350,64 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
-  fun `later healing waits before fencing a scheduled availability handoff`() = runBlocking {
-    val operation = APPROVED_OPERATION.copy { state = UploadHealingOperation.State.DRAINING }
-    val completedStep =
-      EVICTING_OPERATION.stepsList.single().copy {
-        state = UploadHealingStep.State.COMPLETE
-        replacementRawImpressionUpload = CANDIDATE_UPLOAD_NAME
-      }
-    val completedOperation =
-      EVICTING_OPERATION.copy {
-        name = "$DATA_PROVIDER/uploadHealingOperations/completed"
-        state = UploadHealingOperation.State.COMPLETE
-        steps[0] = completedStep
-      }
-    whenever(candidatesService.listRawImpressionUploadCorrectionCandidates(any()))
-      .thenReturn(ListRawImpressionUploadCorrectionCandidatesResponse.getDefaultInstance())
-    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
-      .thenReturn(CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED })
-    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
-      val requestedStates =
-        invocation
-          .getArgument<
-            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
-          >(
-            0
-          )
-          .filter
-          .stateInList
-      listUploadHealingOperationsResponse {
-        if (operation.state in requestedStates) uploadHealingOperations += operation
-        if (completedOperation.state in requestedStates) {
-          uploadHealingOperations += completedOperation
+  fun `later healing attempts its fence while completed operation has pending availability`() =
+    runBlocking {
+      val operation = APPROVED_OPERATION.copy { state = UploadHealingOperation.State.DRAINING }
+      val completedStep =
+        EVICTING_OPERATION.stepsList.single().copy {
+          state = UploadHealingStep.State.COMPLETE
+          replacementRawImpressionUpload = CANDIDATE_UPLOAD_NAME
         }
-      }
-    }
-    whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
-      .thenReturn(
-        listRawImpressionUploadModelLinesResponse {
-          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
-            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
-            pendingAvailabilityDates += date {
-              year = 2026
-              month = 11
-              day = 1
-            }
+      val completedOperation =
+        EVICTING_OPERATION.copy {
+          name = "$DATA_PROVIDER/uploadHealingOperations/completed"
+          state = UploadHealingOperation.State.COMPLETE
+          steps[0] = completedStep
+        }
+      whenever(candidatesService.listRawImpressionUploadCorrectionCandidates(any()))
+        .thenReturn(ListRawImpressionUploadCorrectionCandidatesResponse.getDefaultInstance())
+      whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+        .thenReturn(
+          CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED }
+        )
+      whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+        val requestedStates =
+          invocation
+            .getArgument<
+              org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+            >(
+              0
+            )
+            .filter
+            .stateInList
+        listUploadHealingOperationsResponse {
+          if (operation.state in requestedStates) uploadHealingOperations += operation
+          if (completedOperation.state in requestedStates) {
+            uploadHealingOperations += completedOperation
           }
         }
-      )
+      }
+      whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+              pendingAvailabilityDates += date {
+                year = 2026
+                month = 11
+                day = 1
+              }
+            }
+          }
+        )
 
-    newController().run()
+      whenever(uploadsService.acquireRawImpressionUploadEvictionFence(any()))
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      assertThat(newController().run().failedDataProviders).isEqualTo(0)
 
-    verify(uploadsService, never()).acquireRawImpressionUploadEvictionFence(any())
-    Unit
-  }
+      verify(uploadsService).acquireRawImpressionUploadEvictionFence(any())
+      Unit
+    }
 
   @Test
   fun `manifest mismatch moves operation to needs attention before eviction`() = runBlocking {

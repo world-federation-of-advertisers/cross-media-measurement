@@ -1296,6 +1296,111 @@ class VidLabelingDispatchSequencerTest {
     verifyHistoricalHealingDispatch(newer = false, overlap = false, duplicateHistoricalRow = true)
   }
 
+  @Test
+  fun `dispatchNext does not read an unrelated model owners healing operation`(): Unit =
+    runBlocking {
+      val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
+      val unrelated =
+        upload(
+          "unrelated",
+          RawImpressionUpload.State.ACTIVE,
+          FIXED_NOW,
+          uploadHealingOperation = "$DATA_PROVIDER/uploadHealingOperations/unavailable",
+        )
+      val source = upload("source", RawImpressionUpload.State.FAILED, FIXED_NOW.plusSeconds(1))
+      val candidate =
+        upload(
+          "candidate",
+          RawImpressionUpload.State.CREATED,
+          FIXED_NOW.plusSeconds(2),
+          uploadHealingOperation = operationName,
+          replacesRawImpressionUpload = source.name,
+        )
+      stubUploads(created = listOf(candidate), active = listOf(unrelated))
+      stubGetUploads(source)
+      stubModelLinesByParent(
+        mapOf(
+          candidate.name to
+            listOf(
+              modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)
+            ),
+          unrelated.name to
+            listOf(
+              modelLine(
+                unrelated.name,
+                "$MODEL_LINE-other",
+                RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+              )
+            ),
+        )
+      )
+      val current =
+        healingOperation(
+          operationName,
+          healingStep(
+            operationName,
+            1,
+            source.name,
+            state = UploadHealingStep.State.RECOVERY_STARTED,
+          ),
+        )
+      whenever(uploadHealingOperationService.getUploadHealingOperation(any())).thenAnswer {
+        invocation ->
+        val request =
+          invocation.getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
+          >(
+            0
+          )
+        check(request.name == operationName) {
+          "Unrelated model must not require its operation lookup"
+        }
+        current
+      }
+      stubMemoizedDispatch()
+      val result = createSequencer().dispatchNext()
+      assertThat(result.dispatchedUpload).isEqualTo(candidate.name)
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatchNext authorizes historical owner from completed healing`(): Unit = runBlocking {
+    verifyHistoricalHealingDispatch(
+      newer = false,
+      overlap = false,
+      historicalOperationState = UploadHealingOperation.State.COMPLETE,
+    )
+  }
+
+  @Test
+  fun `dispatchNext rejects historical owner from unfinished healing`(): Unit = runBlocking {
+    verifyHistoricalHealingDispatch(
+      newer = false,
+      overlap = false,
+      historicalOperationState = UploadHealingOperation.State.RECOVERING,
+    )
+  }
+
+  @Test
+  fun `dispatchNext rejects newer snapshot from completed historical healing`(): Unit =
+    runBlocking {
+      verifyHistoricalHealingDispatch(
+        newer = true,
+        overlap = false,
+        historicalOperationState = UploadHealingOperation.State.COMPLETE,
+      )
+    }
+
+  @Test
+  fun `dispatchNext rejects output collision with completed historical healing`(): Unit =
+    runBlocking {
+      verifyHistoricalHealingDispatch(
+        newer = false,
+        overlap = true,
+        historicalOperationState = UploadHealingOperation.State.COMPLETE,
+      )
+    }
+
   private suspend fun verifyHistoricalHealingDispatch(
     newer: Boolean,
     overlap: Boolean,
@@ -1303,9 +1408,17 @@ class VidLabelingDispatchSequencerTest {
     sourceRegistered: Boolean = true,
     sourceTimestamp: Boolean = true,
     duplicateHistoricalRow: Boolean = false,
+    historicalOperationState: UploadHealingOperation.State? = null,
   ) {
     val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing"
-    val historical = upload("history-five", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val historyOperationName = "$DATA_PROVIDER/uploadHealingOperations/prior"
+    val historical =
+      upload(
+        "history-five",
+        RawImpressionUpload.State.ACTIVE,
+        FIXED_NOW,
+        uploadHealingOperation = if (historicalOperationState == null) "" else historyOperationName,
+      )
     val source =
       upload(
           "source-six",
@@ -1362,6 +1475,33 @@ class VidLabelingDispatchSequencerTest {
         ),
       )
     )
+    if (historicalOperationState != null) {
+      val current =
+        healingOperation(
+          operationName,
+          healingStep(
+            operationName,
+            1,
+            source.name,
+            predecessor = historical.name,
+            state = UploadHealingStep.State.RECOVERY_STARTED,
+          ),
+        )
+      val prior = uploadHealingOperation {
+        name = historyOperationName
+        state = historicalOperationState
+      }
+      whenever(uploadHealingOperationService.getUploadHealingOperation(any())).thenAnswer {
+        invocation ->
+        val request =
+          invocation.getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
+          >(
+            0
+          )
+        if (request.name == operationName) current else prior
+      }
+    }
     whenever(rankIndexBlobService.listRankIndexBlobs(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<ListRankIndexBlobsRequest>(0)
       listRankIndexBlobsResponse {
@@ -1387,7 +1527,14 @@ class VidLabelingDispatchSequencerTest {
       historical.name to "gs://input/history",
       candidate.name to if (overlap) "gs://input/history" else "gs://input/replacement",
     )
-    if (newer || !sourceRegistered || !sourceTimestamp || duplicateHistoricalRow) {
+    if (
+      newer ||
+        !sourceRegistered ||
+        !sourceTimestamp ||
+        duplicateHistoricalRow ||
+        (historicalOperationState != null &&
+          historicalOperationState != UploadHealingOperation.State.COMPLETE)
+    ) {
       val error = assertFailsWith<IllegalStateException> { createSequencer().dispatchNext() }
       assertThat(error)
         .hasMessageThat()
@@ -1395,7 +1542,15 @@ class VidLabelingDispatchSequencerTest {
     } else {
       createSequencer().dispatchNext()
     }
-    if (newer || overlap || !sourceRegistered || !sourceTimestamp || duplicateHistoricalRow) {
+    if (
+      newer ||
+        overlap ||
+        !sourceRegistered ||
+        !sourceTimestamp ||
+        duplicateHistoricalRow ||
+        (historicalOperationState != null &&
+          historicalOperationState != UploadHealingOperation.State.COMPLETE)
+    ) {
       verifyBlocking(rawImpressionUploadModelLineService, never()) {
         markRawImpressionUploadModelLinePoolAssigning(any())
       }
@@ -1910,7 +2065,7 @@ class VidLabelingDispatchSequencerTest {
           listOf(modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
       )
     )
-    stubHealingOperation(
+    val current =
       healingOperation(
         operationName,
         healingStep(
@@ -1921,7 +2076,20 @@ class VidLabelingDispatchSequencerTest {
           state = UploadHealingStep.State.RECOVERY_STARTED,
         ),
       )
-    )
+    val prior = uploadHealingOperation {
+      name = otherOperation
+      state = UploadHealingOperation.State.RECOVERING
+    }
+    whenever(uploadHealingOperationService.getUploadHealingOperation(any())).thenAnswer { invocation
+      ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
+        >(
+          0
+        )
+      if (request.name == operationName) current else prior
+    }
     stubLiveSnapshots(d1.name to MODEL_LINE)
 
     val result = createSequencer().dispatchNext()

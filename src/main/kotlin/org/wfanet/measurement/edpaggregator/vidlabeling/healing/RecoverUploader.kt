@@ -399,8 +399,7 @@ class RecoverUploader(
       operation == null ||
         operation.state !in
           setOf(UploadHealingOperation.State.REPLAYING, UploadHealingOperation.State.RECOVERING) ||
-        !predecessor.registrationComplete ||
-        predecessor.uploadHealingOperation.isNotEmpty()
+        !predecessor.registrationComplete
     )
       return null
     if (
@@ -421,6 +420,12 @@ class RecoverUploader(
       listModelLines(predecessor.name).singleOrNull { it.cmmsModelLine == row.cmmsModelLine }
         ?: return null
     if (predecessorRow.state != RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING) return null
+    val priorName = predecessor.uploadHealingOperation
+    if (priorName.isNotEmpty()) {
+      val prior = getHealingOperation(priorName) ?: return null
+      if (prior.name != priorName || prior.state != UploadHealingOperation.State.COMPLETE)
+        return null
+    }
     val source =
       rpcThrottlers.metadataRead.onReady {
         uploadsStub.getRawImpressionUpload(

@@ -275,7 +275,6 @@ class VidLabelingHealingController(
     }
     check(blocking.size <= 1) { "${config.name} has multiple active healing operations" }
     if (blocking.isNotEmpty()) return
-    if (hasUnfinishedAvailabilityHandoffs(config.name)) return
 
     val drafts =
       operations.filter {
@@ -416,13 +415,16 @@ class VidLabelingHealingController(
 
     val ownersByOutput = mutableMapOf<Pair<String, String>, RawImpressionUpload>()
     for (revision in revisions.filter { it.name != upload.name && it.registrationComplete }) {
-      val completedModelLines =
+      val durableModelLines =
         listModelLines(revision.name).filter {
-          it.state == RawImpressionUploadModelLine.State.COMPLETED
+          it.state == RawImpressionUploadModelLine.State.COMPLETED ||
+            (it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING &&
+              completedOperations[revision.uploadHealingOperation]?.state ==
+                UploadHealingOperation.State.COMPLETE)
         }
-      if (completedModelLines.isEmpty()) continue
+      if (durableModelLines.isEmpty()) continue
       for (file in listPersistedFiles(revision.name)) {
-        for (modelLine in completedModelLines) {
+        for (modelLine in durableModelLines) {
           val key = file.blobUri to modelLine.cmmsModelLine
           val existing = ownersByOutput[key]
           if (
@@ -483,7 +485,6 @@ class VidLabelingHealingController(
 
   private suspend fun drain(operation: UploadHealingOperation) {
     val key = requireNotNull(UploadHealingOperationKey.fromName(operation.name))
-    if (hasUnfinishedAvailabilityHandoffs(key.parentKey.toName())) return
     val acquireState =
       VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
     val acquiredFence =
@@ -573,24 +574,6 @@ class VidLabelingHealingController(
           RequestIds.forFinalizeUploadHealingOperation(operation.name, manifestBytes.toByteArray()),
       )
     )
-  }
-
-  private suspend fun hasUnfinishedAvailabilityHandoffs(dataProvider: String): Boolean {
-    val completedOperations =
-      listOperations(dataProvider, listOf(UploadHealingOperation.State.COMPLETE))
-    for (completedOperation in completedOperations) {
-      for (uploadName in availabilityHandoffUploadNames(completedOperation)) {
-        if (
-          listModelLines(uploadName).any {
-            it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING &&
-              it.pendingAvailabilityDatesCount > 0
-          }
-        ) {
-          return true
-        }
-      }
-    }
-    return false
   }
 
   private suspend fun evict(config: DataProviderConfig, initial: UploadHealingOperation) {

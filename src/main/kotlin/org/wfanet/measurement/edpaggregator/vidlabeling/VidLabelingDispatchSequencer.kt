@@ -308,12 +308,12 @@ class VidLabelingDispatchSequencer(
       val owners =
         uploadsByName.values.toList().filter { owner ->
           owner.registrationComplete &&
-            owner.uploadHealingOperation.isEmpty() &&
             scopedSteps.none { it.sourceRawImpressionUpload == owner.name } &&
             modelLinesByUpload[owner.name].orEmpty().any {
               it.cmmsModelLine == cmmsModelLine &&
                 it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
-            }
+            } &&
+            isHistoricalAvailabilityOwner(owner)
         }
       if (owners.isEmpty()) return emptyList()
       val source = getUpload(sourceName)
@@ -323,7 +323,6 @@ class VidLabelingDispatchSequencer(
       for (owner in owners) {
         if (
           !owner.registrationComplete ||
-            owner.uploadHealingOperation.isNotEmpty() ||
             scopedSteps.any { it.sourceRawImpressionUpload == owner.name }
         )
           continue
@@ -340,6 +339,10 @@ class VidLabelingDispatchSequencer(
       }
       return result.sorted()
     }
+
+    private suspend fun isHistoricalAvailabilityOwner(owner: RawImpressionUpload): Boolean =
+      owner.uploadHealingOperation.isEmpty() ||
+        getOperation(owner.uploadHealingOperation).state == UploadHealingOperation.State.COMPLETE
 
     private suspend fun snapshots(
       uploadName: String,
@@ -652,7 +655,10 @@ class VidLabelingDispatchSequencer(
         val directHealing = healingShardInfo?.memoizationEnabled == false
         val historicalHealingHandoffs =
           healingDependencies.allowedAvailabilityHandoffs.filterTo(mutableSetOf()) {
-            ownersByName[it]?.uploadHealingOperation?.isEmpty() == true
+            it in healingDependencies.allowedPriorSnapshotUploads &&
+              ownersByName[it]?.let { owner ->
+                owner.uploadHealingOperation != upload.uploadHealingOperation
+              } == true
           }
         val candidateKeys =
           if (

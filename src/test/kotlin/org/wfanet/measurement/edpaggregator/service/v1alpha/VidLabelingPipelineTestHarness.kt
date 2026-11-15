@@ -24,6 +24,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.Parser
 import com.google.protobuf.Struct
+import com.google.protobuf.util.Timestamps
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
@@ -851,6 +852,7 @@ abstract class VidLabelingPipelineTestHarness(
   protected fun buildHealingController(
     correctionRetention: Duration = Duration.ofDays(3650),
     dataProviderNames: List<String> = listOf(DATA_PROVIDER),
+    clock: Clock = Clock.systemUTC(),
   ): VidLabelingHealingController {
     val evictUploader =
       EvictUploader(
@@ -1032,6 +1034,7 @@ abstract class VidLabelingPipelineTestHarness(
           DoneObjectMetadata(generation, blob.createTime)
         },
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+      clock = clock,
     )
   }
 
@@ -2691,7 +2694,22 @@ abstract class VidLabelingPipelineTestHarness(
     }
 
     fun workItemsForQueue(queueName: String): List<WorkItem> =
-      workItems.values.filter { it.queue == queueName }.sortedBy { it.name }
+      workItems.values
+        .filter { it.queue == queueName }
+        .sortedWith(
+          compareBy<WorkItem> {
+              val params = publicationDataPathParams(it)
+              Timestamps.toNanos(if (params.hasCreateTime()) params.createTime else it.createTime)
+            }
+            .thenBy { publicationDataPathParams(it).dataPath }
+            .thenBy { publicationDataPathParams(it).generation }
+            .thenBy { it.name }
+        )
+
+    private fun publicationDataPathParams(workItem: WorkItem) =
+      if (workItem.workItemParams.`is`(WorkItem.WorkItemParams::class.java))
+        workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java).dataPathParams
+      else WorkItem.WorkItemParams.DataPathParams.getDefaultInstance()
 
     fun attemptCount(workItemName: String): Int = attemptParents.values.count { it == workItemName }
 

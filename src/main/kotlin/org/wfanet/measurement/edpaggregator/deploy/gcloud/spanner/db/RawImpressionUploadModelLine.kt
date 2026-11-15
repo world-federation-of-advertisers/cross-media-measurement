@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as State
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadModelLine
 
 data class RawImpressionUploadModelLineResult(
@@ -412,7 +413,15 @@ suspend fun AsyncDatabaseClient.ReadContext.findHistoricalAvailabilityUploads(
       AND COALESCE(candidate.RegistrationComplete, FALSE)
       AND COALESCE(source.RegistrationComplete, FALSE)
       AND COALESCE(owner.RegistrationComplete, FALSE)
-      AND COALESCE(owner.EvictionOperationId, '') = ''
+      AND (
+        COALESCE(owner.EvictionOperationId, '') = ''
+        OR EXISTS (
+          SELECT 1 FROM UploadHealingOperation AS history
+          WHERE history.DataProviderResourceId = owner.DataProviderResourceId
+            AND history.UploadHealingOperationId = owner.EvictionOperationId
+            AND history.State = @completedHealingState
+        )
+      )
       AND model.CmmsModelLine = @model
       AND model.State = @availability
       AND EXISTS (
@@ -468,6 +477,8 @@ suspend fun AsyncDatabaseClient.ReadContext.findHistoricalAvailabilityUploads(
       bind("model").to(cmmsModelLine)
       bind("snapshot").to(BlobType.BLOB_TYPE_SNAPSHOT)
       bind("availability").to(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING)
+      bind("completedHealingState")
+        .to(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE.number.toLong())
     }
   return executeQuery(query, Options.tag("action=findHistoricalAvailabilityUploads"))
     .map { it.getString("ResourceId") }

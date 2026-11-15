@@ -23,8 +23,11 @@ import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import java.nio.file.Files
 import java.nio.file.attribute.FileTime
+import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -668,6 +671,162 @@ internal class VidLabelingRevisionHealingIntegrationTest : VidLabelingPipelineTe
     assertThat(listHealingOperations().single { it.name == secondDraft.name }.state)
       .isEqualTo(UploadHealingOperation.State.COMPLETE)
     assertReadablePeople(MEMOIZED_MODEL_LINE, setOf("chain-day-1", "chain-day-3"))
+  }
+
+  @Test
+  fun `later correction replays while rebuilt historical predecessor has pending availability`() =
+    runBlocking {
+      verifyLaterHealingWithPendingPredecessor(remove = false)
+    }
+
+  @Test
+  fun `later removal rebuilds dependent upload while historical predecessor has pending availability`() =
+    runBlocking {
+      verifyLaterHealingWithPendingPredecessor(remove = true)
+    }
+
+  @Test
+  fun `later correction uses pending live owner when its detected owner is outside retention`() =
+    runBlocking {
+      verifyLaterHealingWithPendingPredecessor(remove = false, candidateDuringHealing = true)
+    }
+
+  private suspend fun verifyLaterHealingWithPendingPredecessor(
+    remove: Boolean,
+    candidateDuringHealing: Boolean = false,
+  ) {
+    retainRawObjectVersions()
+    setVisibleModelLines(MEMOIZED_MODEL_LINE)
+    val originals = linkedMapOf<java.time.LocalDate, RawImpressionUpload>()
+    val rawUris = linkedMapOf<java.time.LocalDate, String>()
+    for (offset in 0L..4L) {
+      val date = EVENT_DATE.plusDays(offset)
+      setToday(date)
+      val folder = "pending-predecessor/day-$offset"
+      rawUris[date] = writeRawFile(folder, "input.parquet", listOf("day-$offset"), date)
+      val generation = finalizeRawUpload(folder)
+      awaitPipelineIdle()
+      originals[date] = listUploads().single { it.doneBlobGeneration == generation }
+    }
+    checkNotNull(fileStorage.getBlob(blobKey(rawUris.getValue(EVENT_DATE.plusDays(1))))).delete()
+    finalizeRawUpload("pending-predecessor/day-1")
+    awaitPipelineIdle()
+    val controller = buildHealingController()
+    assertThat(controller.run().failedDataProviders).isEqualTo(0)
+    val first =
+      listHealingOperations().single { it.state == UploadHealingOperation.State.APPROVAL_REQUIRED }
+    approveHealingOperation(
+      first,
+      RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT,
+    )
+    withholdNextAvailabilityPublications(count = 3)
+    if (candidateDuringHealing) {
+      beforeEviction {
+        writeRawFile(
+          "pending-predecessor/day-3",
+          "input.parquet",
+          listOf("corrected-day-3"),
+          EVENT_DATE.plusDays(3),
+        )
+        finalizeRawUpload("pending-predecessor/day-3")
+        awaitPipelineIdle()
+      }
+    }
+    advanceHealingUntilComplete(controller, first.name)
+    val prior = listHealingOperations().single { it.name == first.name }
+    val day3 = EVENT_DATE.plusDays(2)
+    val day4 = EVENT_DATE.plusDays(3)
+    val day5 = EVENT_DATE.plusDays(4)
+    fun replacement(date: java.time.LocalDate) =
+      prior.stepsList
+        .single { it.sourceRawImpressionUpload == originals.getValue(date).name }
+        .replacementRawImpressionUpload
+    val rebuilt3 = replacement(day3)
+    val rebuilt4 = replacement(day4)
+    val rebuilt5 = replacement(day5)
+    assertThat(listModelLines(rebuilt3).single().state)
+      .isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+    workItemTransport.republishWorkItem(listAvailabilityTasks(rebuilt4).single().name)
+    awaitPipelineIdle()
+    assertThat(listModelLines(rebuilt4).single().state)
+      .isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+    assertThat(listAvailabilityTasks(rebuilt4).single().attemptCount).isGreaterThan(0)
+    if (remove) {
+      checkNotNull(fileStorage.getBlob(blobKey(rawUris.getValue(day4)))).delete()
+    } else if (!candidateDuringHealing) {
+      writeRawFile("pending-predecessor/day-3", "input.parquet", listOf("corrected-day-3"), day4)
+    }
+    if (!candidateDuringHealing) {
+      finalizeRawUpload("pending-predecessor/day-3")
+      awaitPipelineIdle()
+    }
+    val nextController =
+      if (candidateDuringHealing) {
+        val originalTimestamp = originals.getValue(day4).createTime
+        val replacementTimestamp = listUploads().single { it.name == rebuilt4 }.createTime
+        val originalTime =
+          Instant.ofEpochSecond(originalTimestamp.seconds, originalTimestamp.nanos.toLong())
+        val replacementTime =
+          Instant.ofEpochSecond(replacementTimestamp.seconds, replacementTimestamp.nanos.toLong())
+        val boundary =
+          originalTime.plus(Duration.between(originalTime, replacementTime).dividedBy(2))
+        assertThat(originalTime.isBefore(boundary)).isTrue()
+        assertThat(replacementTime.isAfter(boundary)).isTrue()
+        buildHealingController(
+          correctionRetention = Duration.ofDays(1),
+          clock = Clock.fixed(boundary.plus(Duration.ofDays(1)), ZoneOffset.UTC),
+        )
+      } else controller
+    assertThat(nextController.run().failedDataProviders).isEqualTo(0)
+    val second =
+      listHealingOperations().single { it.state == UploadHealingOperation.State.APPROVAL_REQUIRED }
+    val secondDecision =
+      if (remove)
+        RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
+      else RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+    val approved =
+      approveHealingOperation(
+        second,
+        second.rawImpressionUploadCorrectionCandidatesList.associateWith { secondDecision },
+        requestId = "123e4567-e89b-42d3-a456-426614174203",
+      )
+    val source4 = approved.stepsList.single { it.sourceRawImpressionUpload == rebuilt4 }
+    assertThat(source4.recoveryPredecessorRawImpressionUpload).isEqualTo(rebuilt3)
+    if (remove) {
+      val source5 = approved.stepsList.single { it.sourceRawImpressionUpload == rebuilt5 }
+      assertThat(source5.recoveryPredecessorRawImpressionUpload).isEqualTo(rebuilt3)
+    }
+    advanceHealingUntilComplete(nextController, second.name)
+    assertThat(listModelLines(rebuilt3).single().state)
+      .isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+    republishQueuedAvailability()
+    awaitPipelineIdle()
+    val monitor = buildVidLabelingMonitor()
+    repeat(5) {
+      if (
+        listUploads().any { upload ->
+          listModelLines(upload.name).any {
+            it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+          }
+        }
+      ) {
+        assertThat(monitor.runDispatch().dispatchError).isFalse()
+        awaitPipelineIdle()
+      }
+    }
+    assertThat(
+        listUploads()
+          .flatMap { listModelLines(it.name) }
+          .filter { it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING }
+      )
+      .isEmpty()
+    assertThat(listHealingOperations().single { it.name == second.name }.state)
+      .isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertReadablePeople(
+      MEMOIZED_MODEL_LINE,
+      if (remove) setOf("day-0", "day-2", "day-4")
+      else setOf("day-0", "day-2", "corrected-day-3", "day-4"),
+    )
   }
 
   @Test

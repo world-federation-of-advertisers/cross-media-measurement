@@ -43,6 +43,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
@@ -606,6 +607,117 @@ class RecoverUploaderTest {
         )
         .isEqualTo(NEW_GENERATION)
     }
+
+  @Test
+  fun `recover accepts pending predecessor from its completed healing operation`(): Unit =
+    runBlocking {
+      val active = historicalFixture(foreignPredecessor = true)
+      val prior = completedHistoricalOperation()
+      val operations = mapOf(active.name to active, prior.name to prior)
+      var rewritten = false
+      val result =
+        recoverUploader(
+            getHealingOperation = { operations[it] },
+            rewriteDoneBlob = { _, _, _ ->
+              rewritten = true
+              NEW_GENERATION
+            },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
+      assertThat(rewritten).isTrue()
+    }
+
+  @Test
+  fun `recover rejects pending predecessor with missing healing operation`(): Unit = runBlocking {
+    verifyPriorOperationRejected(null)
+  }
+
+  @Test
+  fun `recover rejects pending predecessor with mismatched healing operation`(): Unit =
+    runBlocking {
+      verifyPriorOperationRejected(
+        completedHistoricalOperation().copy {
+          name = "$DATA_PROVIDER/uploadHealingOperations/wrong"
+        }
+      )
+    }
+
+  @Test
+  fun `recover rejects pending predecessor from unfinished healing operation`(): Unit =
+    runBlocking {
+      verifyPriorOperationRejected(
+        completedHistoricalOperation().copy { state = UploadHealingOperation.State.RECOVERING }
+      )
+    }
+
+  @Test
+  fun `recover preserves completed predecessor without looking up its prior operation`(): Unit =
+    runBlocking {
+      val active = historicalFixture(foreignPredecessor = true, predecessorCompleted = true)
+      val result =
+        recoverUploader(
+            getHealingOperation = { name ->
+              check(name == active.name) {
+                "Completed predecessor needs no historical operation lookup"
+              }
+              active
+            },
+            rewriteDoneBlob = { _, _, _ -> NEW_GENERATION },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
+    }
+
+  private fun completedHistoricalOperation() = uploadHealingOperation {
+    name = "$DATA_PROVIDER/uploadHealingOperations/foreign"
+    state = UploadHealingOperation.State.COMPLETE
+  }
+
+  private suspend fun verifyPriorOperationRejected(prior: UploadHealingOperation?) {
+    val active = historicalFixture(foreignPredecessor = true)
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        recoverUploader(
+            getHealingOperation = { name -> if (name == active.name) active else prior },
+            rewriteDoneBlob = { _, _, _ -> error("No rewrite") },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      }
+    assertThat(failure).hasMessageThat().contains("No upload revision")
+  }
+
+  @Test
+  fun `recover leaves marker unchanged when prior operation lookup is unavailable`(): Unit =
+    runBlocking {
+      verifyPriorOperationLookupFailure(Status.UNAVAILABLE)
+    }
+
+  @Test
+  fun `recover leaves marker unchanged when prior operation lookup is cancelled`(): Unit =
+    runBlocking {
+      verifyPriorOperationLookupFailure(Status.CANCELLED)
+    }
+
+  private suspend fun verifyPriorOperationLookupFailure(status: Status) {
+    val active = historicalFixture(foreignPredecessor = true)
+    var rewritten = false
+    val failure =
+      assertFailsWith<StatusException> {
+        recoverUploader(
+            getHealingOperation = { name ->
+              if (name == active.name) active else throw status.asException()
+            },
+            rewriteDoneBlob = { _, _, _ ->
+              rewritten = true
+              NEW_GENERATION
+            },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      }
+    assertThat(failure.status.code).isEqualTo(status.code)
+    assertThat(rewritten).isFalse()
+  }
 
   private suspend fun historicalFixture(
     paginated: Boolean = false,

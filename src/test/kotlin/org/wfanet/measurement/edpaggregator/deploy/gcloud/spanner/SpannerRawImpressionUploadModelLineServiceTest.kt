@@ -1010,12 +1010,94 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
     )
   }
 
+  @Test
+  fun `memoized healing admits completed prior healing`(): Unit = runBlocking {
+    verifyHistoricalAvailabilityAdmission(
+      sourceSnapshot = true,
+      newer = false,
+      overlap = false,
+      expected = true,
+      priorHealing = true,
+      priorState = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE,
+      returnedPriorId = "prior",
+    )
+  }
+
+  @Test
+  fun `memoized healing rejects missing prior healing`(): Unit = runBlocking {
+    verifyHistoricalAvailabilityAdmission(
+      sourceSnapshot = true,
+      newer = false,
+      overlap = false,
+      expected = false,
+      priorHealing = true,
+      priorState = null,
+      returnedPriorId = "prior",
+    )
+  }
+
+  @Test
+  fun `memoized healing rejects mismatched completed prior healing`(): Unit = runBlocking {
+    verifyHistoricalAvailabilityAdmission(
+      sourceSnapshot = true,
+      newer = false,
+      overlap = false,
+      expected = false,
+      priorHealing = true,
+      priorState = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE,
+      returnedPriorId = "unrelated",
+    )
+  }
+
+  @Test
+  fun `memoized healing rejects unfinished prior healing`(): Unit = runBlocking {
+    verifyHistoricalAvailabilityAdmission(
+      sourceSnapshot = true,
+      newer = false,
+      overlap = false,
+      expected = false,
+      priorHealing = true,
+      priorState = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+      returnedPriorId = "prior",
+    )
+  }
+
+  @Test
+  fun `memoized healing rejects newer snapshot from completed prior healing`(): Unit = runBlocking {
+    verifyHistoricalAvailabilityAdmission(
+      sourceSnapshot = true,
+      newer = true,
+      overlap = false,
+      expected = false,
+      priorHealing = true,
+      priorState = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE,
+      returnedPriorId = "prior",
+    )
+  }
+
+  @Test
+  fun `memoized healing rejects overlapping output from completed prior healing`(): Unit =
+    runBlocking {
+      verifyHistoricalAvailabilityAdmission(
+        sourceSnapshot = true,
+        newer = false,
+        overlap = true,
+        expected = false,
+        priorHealing = true,
+        priorState = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE,
+        returnedPriorId = "prior",
+      )
+    }
+
   private suspend fun verifyHistoricalAvailabilityAdmission(
     sourceSnapshot: Boolean,
     newer: Boolean,
     overlap: Boolean,
     expected: Boolean,
     missingSourcePool: Boolean = false,
+    priorHealing: Boolean = false,
+    priorState: UploadHealingOperation.State? = null,
+    returnedPriorId: String = "prior",
   ) {
     val source: RawImpressionUploadModelLine
     if (sourceSnapshot || newer) {
@@ -1027,6 +1109,36 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
     val history = registeredModel("history", "gs://input/history")
     addHistoricalCheckpoint("history", poolOffset = if (missingSourcePool) 1L else 0L)
     syncing(labeling(history))
+    if (priorHealing) {
+      spannerDatabase.databaseClient.write(
+        listOf(
+          Mutation.newUpdateBuilder("RawImpressionUpload")
+            .set("DataProviderResourceId")
+            .to(testProvider)
+            .set("RawImpressionUploadId")
+            .to(uploadIdsByResourceId.getValue("history"))
+            .set("EvictionOperationId")
+            .to("prior")
+            .build()
+        )
+      )
+      if (priorState != null) {
+        spannerDatabase.databaseClient.write(
+          listOf(
+            insertMutation("UploadHealingOperation") {
+              set("DataProviderResourceId").to(testProvider)
+              set("UploadHealingOperationId").to(returnedPriorId)
+              set("ReconcileRequestId").to(UUID.randomUUID().toString())
+              set("Reason").to("historical admission")
+              set("LabeledImpressionsBlobPrefix").to("gs://output/vid")
+              set("State").to(priorState.number.toLong())
+              set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+              set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+            }
+          )
+        )
+      }
+    }
     val original =
       if (source.rawImpressionUploadResourceId.isEmpty())
         registeredModel("source", "gs://input/source")

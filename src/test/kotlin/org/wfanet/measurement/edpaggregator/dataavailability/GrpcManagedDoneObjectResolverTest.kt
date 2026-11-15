@@ -358,7 +358,10 @@ class GrpcManagedDoneObjectResolverTest {
       assertThat(snapshot.resolve(MODEL_LINE, EVENT_DATE, key))
         .isEqualTo(ManagedDoneObjectDisposition.CURRENT)
       rows["owner"] =
-        rows.getValue("owner").copy { state = RawImpressionUploadModelLine.State.FAILED }
+        rows.getValue("owner").copy {
+          state = RawImpressionUploadModelLine.State.FAILED
+          failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+        }
       assertThat(snapshot.resolve(MODEL_LINE, EVENT_DATE, key))
         .isEqualTo(ManagedDoneObjectDisposition.CURRENT)
       assertThat(resolver().resolve(MODEL_LINE, EVENT_DATE, key))
