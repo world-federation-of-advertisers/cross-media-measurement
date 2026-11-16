@@ -114,11 +114,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
-import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams.StorageEventType
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -702,6 +702,128 @@ class VidLabelerAppTest {
   }
 
   @Test
+  fun `runWork preserves a filesystem marker after its committed handoff response is lost`() =
+    runBlocking<Unit> {
+      stubLastOutWithEventDate()
+      tempFolder.root.resolve("output-bucket").mkdirs()
+      val requests = mutableListOf<CreateWorkItemRequest>()
+      var existing: WorkItem? = null
+      workItemsService.stub {
+        onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<CreateWorkItemRequest>(0)
+            requests += request
+            if (existing != null) throw Status.ALREADY_EXISTS.asException()
+            existing =
+              request.workItem.copy {
+                name = "workItems/" + request.workItemId
+                state = WorkItem.State.QUEUED
+                generation = 1L
+              }
+            throw Status.UNAVAILABLE.asException()
+          }
+        onBlocking { getWorkItem(any()) } doAnswer
+          {
+            existing ?: throw Status.NOT_FOUND.asException()
+          }
+      }
+      val app = createApp()
+      assertFailsWith<StatusException> { app.runWork(buildMessage(memoizedParams())) }
+      val marker =
+        tempFolder.root.resolve(
+          "output-bucket/labeled/" +
+            LabeledImpressionsBlobKeys.forDone(UPLOAD, MODEL_LINE, LocalDate.of(2026, 6, 30))
+        )
+      assertThat(marker.exists()).isTrue()
+      val generation = marker.lastModified()
+      assertThat(generation).isGreaterThan(0L)
+      val original = checkNotNull(existing)
+
+      stubLastOutWithEventDate()
+      app.runWork(buildMessage(memoizedParams()))
+
+      assertThat(marker.lastModified()).isEqualTo(generation)
+      assertThat(existing).isEqualTo(original)
+      assertThat(requests).hasSize(2)
+      assertThat(requests.map { it.workItemId }.toSet()).hasSize(1)
+      assertThat(
+          requests.map {
+            it.workItem.workItemParams
+              .unpack(WorkItem.WorkItemParams::class.java)
+              .dataPathParams
+              .generation
+          }
+        )
+        .containsExactly(generation, generation)
+      assertThat(logRecords.count { it.message.startsWith("Wrote done marker ") }).isEqualTo(1)
+    }
+
+  @Test
+  fun `runWork preserves a GCS marker while a committed handoff lookup is unavailable`() =
+    runBlocking<Unit> {
+      stubLastOutWithEventDate()
+      var existing: WorkItem? = null
+      var generation: Long? = null
+      var unavailableLookup = false
+      var writes = 0
+      val requests = mutableListOf<CreateWorkItemRequest>()
+      workItemsService.stub {
+        onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<CreateWorkItemRequest>(0)
+            requests += request
+            if (existing != null) throw Status.ALREADY_EXISTS.asException()
+            existing =
+              request.workItem.copy {
+                name = "workItems/" + request.workItemId
+                state = WorkItem.State.QUEUED
+                this.generation = 1L
+              }
+            throw Status.UNAVAILABLE.asException()
+          }
+        onBlocking { getWorkItem(any()) } doAnswer
+          {
+            if (unavailableLookup) throw Status.UNAVAILABLE.asException()
+            existing ?: throw Status.NOT_FOUND.asException()
+          }
+      }
+      val app =
+        createApp(
+          getGcsObjectGeneration = { _, _, _ -> generation },
+          writeGcsObject = { _, _, _, expected ->
+            assertThat(expected).isEqualTo(0L)
+            writes++
+            generation = 321L
+            321L
+          },
+        )
+      assertFailsWith<StatusException> { app.runWork(buildMessage(taskParams())) }
+      val original = checkNotNull(existing)
+      unavailableLookup = true
+      stubLastOutWithEventDate()
+      assertFailsWith<StatusException> { app.runWork(buildMessage(taskParams())) }
+
+      unavailableLookup = false
+      stubLastOutWithEventDate()
+      app.runWork(buildMessage(taskParams()))
+
+      assertThat(writes).isEqualTo(1)
+      assertThat(generation).isEqualTo(321L)
+      assertThat(existing).isEqualTo(original)
+      assertThat(requests).hasSize(2)
+      assertThat(requests.map { it.workItemId }.toSet()).hasSize(1)
+      assertThat(
+          requests.map {
+            it.workItem.workItemParams
+              .unpack(WorkItem.WorkItemParams::class.java)
+              .dataPathParams
+              .generation
+          }
+        )
+        .containsExactly(321L, 321L)
+    }
+
+  @Test
   fun `runWork records file-system done object generation`() = runBlocking {
     stubLastOutWithEventDate()
     tempFolder.root.resolve("output-bucket").mkdirs()
@@ -1152,46 +1274,143 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork creates deterministic successor for failed availability WorkItem`() = runBlocking {
-    stubLastOutWithEventDate()
-    rawImpressionUploadModelLinesService.stub {
-      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
-        rawImpressionUploadModelLine {
-          name = PARENT_NAME
-          cmmsModelLine = MODEL_LINE
-          state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
-        }
-    }
-    val failedWorkItem =
-      availabilityWorkItem(UPLOAD, 321L)
-        .toBuilder()
-        .setState(WorkItem.State.FAILED)
-        .setUpdateTime(
-          timestamp {
-            seconds = 7L
-            nanos = 8
+  fun `runWork retries original failed availability execution without changing its source`() =
+    runBlocking<Unit> {
+      stubLastOutWithEventDate()
+      rawImpressionUploadModelLinesService.stub {
+        onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
           }
+      }
+      val failedWorkItem =
+        availabilityWorkItem(UPLOAD, 321L)
+          .toBuilder()
+          .setState(WorkItem.State.FAILED)
+          .setUpdateTime(
+            timestamp {
+              seconds = 7L
+              nanos = 8
+            }
+          )
+          .build()
+      val requests = mutableListOf<CreateWorkItemRequest>()
+      val retries = mutableListOf<RetryWorkItemRequest>()
+      var retried: WorkItem? = null
+      workItemsService.stub {
+        onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<CreateWorkItemRequest>(0)
+            requests += request
+            throw Status.ALREADY_EXISTS.asException()
+          }
+        onBlocking { getWorkItem(any()) } doReturn failedWorkItem
+        onBlocking { retryWorkItem(any<RetryWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<RetryWorkItemRequest>(0)
+            retries += request
+            failedWorkItem
+              .copy {
+                generation = request.expectedWorkItemGeneration + 1L
+                state = WorkItem.State.QUEUED
+              }
+              .also { retried = it }
+          }
+      }
+
+      createApp(writeGcsObject = { _, _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
+
+      assertThat(requests).hasSize(1)
+      assertThat(retries.single().name).isEqualTo(failedWorkItem.name)
+      assertThat(retries.single().expectedWorkItemGeneration).isEqualTo(1L)
+      assertThat(checkNotNull(retried).generation).isEqualTo(2L)
+      assertThat(checkNotNull(retried).workItemParams).isEqualTo(failedWorkItem.workItemParams)
+      assertThat(
+          checkNotNull(retried)
+            .workItemParams
+            .unpack(WorkItem.WorkItemParams::class.java)
+            .dataPathParams
+            .generation
         )
-        .build()
-    val requests = mutableListOf<CreateWorkItemRequest>()
-    workItemsService.stub {
-      onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
-        { invocation ->
-          val request = invocation.getArgument<CreateWorkItemRequest>(0)
-          requests += request
-          if (requests.size == 1) throw Status.ALREADY_EXISTS.asException()
-          request.workItem
-        }
-      onBlocking { getWorkItem(any()) } doReturn failedWorkItem
+        .isEqualTo(321L)
     }
 
-    createApp(writeGcsObject = { _, _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
+  @Test
+  fun `runWork waits for the original availability retry RPC before advancing its owner`() =
+    runBlocking<Unit> {
+      stubLastOutWithEventDate()
+      rawImpressionUploadModelLinesService.stub {
+        onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+          }
+      }
+      val original = availabilityWorkItem(UPLOAD, 321L).copy { state = WorkItem.State.FAILED }
+      val entered = CompletableDeferred<Unit>()
+      val release = CompletableDeferred<Unit>()
+      val retries = mutableListOf<RetryWorkItemRequest>()
+      workItemsService.stub {
+        onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doThrow
+          Status.ALREADY_EXISTS.asRuntimeException()
+        onBlocking { getWorkItem(any()) } doReturn original
+        onBlocking { retryWorkItem(any<RetryWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<RetryWorkItemRequest>(0)
+            retries += request
+            runBlocking {
+              entered.complete(Unit)
+              release.await()
+              original.copy {
+                generation = request.expectedWorkItemGeneration + 1L
+                state = WorkItem.State.QUEUED
+              }
+            }
+          }
+      }
+      val pending = async {
+        createApp(writeGcsObject = { _, _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
+      }
+      entered.await()
+      verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+        markRawImpressionUploadModelLineAvailabilitySyncing(any())
+      }
+      release.complete(Unit)
+      pending.await()
+      assertThat(retries.single().name).isEqualTo(original.name)
+      assertThat(retries.single().expectedWorkItemGeneration).isEqualTo(1L)
+      verifyBlocking(rawImpressionUploadModelLinesService) {
+        markRawImpressionUploadModelLineAvailabilitySyncing(any())
+      }
+    }
 
-    val originalId = requests.first().workItemId
-    assertThat(requests.map { it.workItemId })
-      .containsExactly(originalId, RequestIds.forRetriedWorkItem(originalId, "7:8"))
-      .inOrder()
-  }
+  @Test
+  fun `runWork preserves an availability checkpoint when its pinned marker generation vanishes`() =
+    runBlocking<Unit> {
+      stubLastOutWithEventDate()
+      stubModelLineList(
+        preMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING),
+        postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING),
+      )
+      val failure =
+        assertFailsWith<IllegalStateException> {
+          createApp(
+              getGcsObjectGeneration = { _, _, _ -> 321L },
+              getGcsObjectCreateTime = { _, _, _, _ -> null },
+            )
+            .runWork(buildMessage(taskParams()))
+        }
+      assertThat(failure)
+        .hasMessageThat()
+        .contains("Observed done-marker generation is no longer available")
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+      verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+        markRawImpressionUploadModelLineAvailabilitySyncing(any())
+      }
+    }
 
   @Test
   fun `runWork recovers the missing handoff when another upload date is already durable`() =
@@ -1805,6 +2024,7 @@ class VidLabelerAppTest {
       .toBuilder()
       .setName("workItems/${request.workItemId}")
       .setState(WorkItem.State.QUEUED)
+      .setGeneration(1L)
       .build()
   }
 

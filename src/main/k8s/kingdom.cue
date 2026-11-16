@@ -202,6 +202,14 @@ import ("strings")
 		}
 	}
 
+	deploymentPodDisruptionBudgets: [Name=string]: #PodDisruptionBudget & {
+		metadata: {
+			_component: "kingdom"
+			name:       Name
+		}
+		spec: selector: deployments[Name].spec.selector
+	}
+
 	cronJobs: [Name=_]: #CronJob & {
 		_name:       strings.TrimSuffix(Name, "-cronjob")
 		_secretName: _kingdom_secret_name

@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.cloud.NoCredentials
+import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
@@ -47,6 +48,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
@@ -55,11 +57,16 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataDateSelection
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.dataavailability.GenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcManagedDoneObjectResolver
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecovery
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
@@ -70,6 +77,13 @@ import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
+
+private data class RecoveryStorageSource(
+  val storage: Storage,
+  val storageClient: GcsStorageClient,
+  val bucketName: String,
+  val edpImpressionPath: String,
+)
 
 private class FilteringBlobMetadataStorageClient(
   private val delegate: BlobMetadataStorageClient,
@@ -266,6 +280,52 @@ class RecoverMissingImpressionMetadata : Runnable {
         .build()
         .service
     val storageClient = GcsStorageClient(storage, storageConfig.bucketName)
+    val modelLineStorageSources =
+      config.modelLineDataSourcesMap.mapValues { (modelLine, source) ->
+        require(source.storage.storageCase == StorageCase.GCS) {
+          "model_line_data_sources[$modelLine].storage must use GCS"
+        }
+        val sourceStorageConfig = source.storage.gcs
+        require(sourceStorageConfig.bucketName.isNotEmpty()) {
+          "model_line_data_sources[$modelLine].storage.gcs.bucket_name must be set"
+        }
+        val sourceStorage =
+          StorageOptions.newBuilder()
+            .also {
+              if (sourceStorageConfig.projectId.isNotEmpty()) {
+                it.setProjectId(sourceStorageConfig.projectId)
+              }
+              if (storageApiEndpoint != null) {
+                it.setHost(storageApiEndpoint)
+                it.setCredentials(NoCredentials.getInstance())
+              }
+            }
+            .build()
+            .service
+        RecoveryStorageSource(
+          storage = sourceStorage,
+          storageClient = GcsStorageClient(sourceStorage, sourceStorageConfig.bucketName),
+          bucketName = sourceStorageConfig.bucketName,
+          edpImpressionPath = source.edpImpressionPath,
+        )
+      }
+    val modelLineDataSources =
+      modelLineStorageSources.mapValues { (_, source) ->
+        DataAvailabilitySync.ModelLineDataSource(
+          storageClient = source.storageClient,
+          edpImpressionPath = source.edpImpressionPath,
+        )
+      }
+    val recoverySources =
+      (configuredPaths.map { impressionPath ->
+          RecoveryStorageSource(
+            storage = storage,
+            storageClient = storageClient,
+            bucketName = storageConfig.bucketName,
+            edpImpressionPath = impressionPath,
+          )
+        } + modelLineStorageSources.values)
+        .distinctBy { it.bucketName to it.edpImpressionPath }
     val kingdomChannel =
       buildChannel(config.cmmsConnection, kingdomPublicApiTarget, kingdomPublicApiCertHost)
     val impressionMetadataChannel =
@@ -279,13 +339,9 @@ class RecoverMissingImpressionMetadata : Runnable {
       DataProvidersCoroutineStub(
         ClientInterceptors.intercept(kingdomChannel, grpcTelemetry.newClientInterceptor())
       )
-    val impressionMetadataStub =
-      ImpressionMetadataServiceCoroutineStub(
-        ClientInterceptors.intercept(
-          impressionMetadataChannel,
-          grpcTelemetry.newClientInterceptor(),
-        )
-      )
+    val instrumentedMetadataChannel =
+      ClientInterceptors.intercept(impressionMetadataChannel, grpcTelemetry.newClientInterceptor())
+    val impressionMetadataStub = ImpressionMetadataServiceCoroutineStub(instrumentedMetadataChannel)
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
     val eventGroupActivityPublisher =
       if (publishEventGroupActivities) {
@@ -340,12 +396,15 @@ class RecoverMissingImpressionMetadata : Runnable {
       try {
         runBlocking {
           dataAvailabilitySyncLeaseRunner.run(config.dataProvider) { lease ->
-            configuredPaths.map { impressionPath ->
+            recoverySources.map { source ->
+              val availabilityPaths =
+                recoverySources
+                  .filter { it.bucketName == source.bucketName }
+                  .map { it.edpImpressionPath }
               MissingImpressionMetadataRecovery(
-                  storageClient = storageClient,
-                  storageRootUri =
-                    BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = ""),
-                  edpImpressionPath = impressionPath,
+                  storageClient = source.storageClient,
+                  storageRootUri = BlobUri(scheme = "gs", bucket = source.bucketName, key = ""),
+                  edpImpressionPath = source.edpImpressionPath,
                   impressionMetadataStub = impressionMetadataStub,
                   dataProviderName = config.dataProvider,
                   throttler = throttler,
@@ -356,14 +415,37 @@ class RecoverMissingImpressionMetadata : Runnable {
                   sync = { doneBlobUri, metadataBlobKeys ->
                     val filteringStorageClient =
                       FilteringBlobMetadataStorageClient(
-                        storageClient,
+                        source.storageClient,
                         metadataBlobKeys,
                         SelectedStorageClient.parseBlobUri(doneBlobUri).key.substringBeforeLast("/"),
                       )
-                    val external = impressionPath == externalPath
                     val doneKey = SelectedStorageClient.parseBlobUri(doneBlobUri).key
+                    val replacementOutput =
+                      config.modelLineCutoversList.any { cutover ->
+                        val contributor =
+                          config.modelLineDataSourcesMap[cutover.replacementModelLine]
+                        if (
+                          contributor == null ||
+                            contributor.storage.gcs.bucketName != source.bucketName
+                        ) {
+                          false
+                        } else {
+                          val modelLineId = cutover.replacementModelLine.substringAfterLast('/')
+                          val prefix =
+                            if (contributor.edpImpressionPath.isEmpty()) {
+                              "model-line/$modelLineId/"
+                            } else {
+                              "${contributor.edpImpressionPath}/model-line/$modelLineId/"
+                            }
+                          doneKey.startsWith(prefix)
+                        }
+                      }
+                    val external =
+                      !replacementOutput &&
+                        source.bucketName == storageConfig.bucketName &&
+                        doneKey.startsWith("$externalPath/")
                     val doneBlob =
-                      checkNotNull(storageClient.getBlob(doneKey)) {
+                      checkNotNull(source.storageClient.getBlob(doneKey)) {
                         "Completion blob not found: $doneBlobUri"
                       }
                     val doneGeneration =
@@ -376,10 +458,11 @@ class RecoverMissingImpressionMetadata : Runnable {
                       }
                     val processedMetadataBlobKeys = mutableSetOf<String>()
                     val metadataUpdater =
-                      GcsGenerationMatchedBlobMetadataUpdater(storage, storageConfig.bucketName)
+                      GcsGenerationMatchedBlobMetadataUpdater(source.storage, source.bucketName)
                     DataAvailabilitySync(
-                        edpImpressionPath = impressionPath,
-                        storageClient = if (external) storageClient else filteringStorageClient,
+                        edpImpressionPath = source.edpImpressionPath,
+                        storageClient =
+                          if (external) source.storageClient else filteringStorageClient,
                         dataProvidersStub = dataProvidersStub,
                         impressionMetadataServiceStub = impressionMetadataStub,
                         dataProviderName = config.dataProvider,
@@ -387,7 +470,24 @@ class RecoverMissingImpressionMetadata : Runnable {
                         impressionMetadataBatchSize = impressionMetadataBatchSize,
                         modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
                         errorIfGapsExist = config.errorIfGapsExist,
-                        availabilityImpressionPaths = configuredPaths,
+                        managedDoneObjectResolver = {
+                          GrpcManagedDoneObjectResolver(
+                            config.dataProvider,
+                            RawImpressionUploadServiceCoroutineStub(instrumentedMetadataChannel),
+                            RawImpressionUploadModelLineServiceCoroutineStub(
+                              instrumentedMetadataChannel
+                            ),
+                            RawImpressionUploadFileServiceCoroutineStub(
+                              instrumentedMetadataChannel
+                            ),
+                            VidLabelingJobServiceCoroutineStub(instrumentedMetadataChannel),
+                            throttler,
+                          )
+                        },
+                        availabilityImpressionPaths = availabilityPaths,
+                        modelLineCutovers =
+                          config.modelLineCutoversList.map(ModelLineCutover::from),
+                        modelLineDataSources = modelLineDataSources,
                         publishEventGroupActivities =
                           eventGroupActivityPublisher?.let { it::publish },
                         generationMatchedMetadataUpdater =
