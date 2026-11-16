@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
---changeset wfa-measurement:add-report-result-assembly-ownership dbms:cloudspanner
+-- changeset stevenwarejones:1 dbms:cloudspanner
 ALTER TABLE ReportResults ADD COLUMN AssemblyBasicReportId INT64;
 ALTER TABLE ReportResults ADD COLUMN AssemblyRequestId STRING(36);
 ALTER TABLE ReportResults ADD COLUMN AssemblyLeaseExpirationTime TIMESTAMP;
