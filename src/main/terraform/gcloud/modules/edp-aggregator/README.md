@@ -86,19 +86,25 @@ again can be cleaned up using its new etag. Repeated conflicts fail the invocati
 so that the notification follows the configured retry and dead-letter policy.
 Repeated notifications are harmless.
 
-Object deletions can continue throughout an upgrade. Notifications, including
-queued notifications, need no version field: cleanup reads the current metadata
-etag when processing them. Updated cleanup fails safely if a public API read omits
-the etag or either API server lacks the conditional-deletion RPC, including when
-a read reaches a newer replica and deletion reaches an older one. The resulting
-HTTP 500 leaves the notification unacknowledged for retries and eventual retention
-in the configured dead-letter queue. Deploy the internal metadata API server,
-then the public API server, before cleanup functions to minimize these temporary
-failures. Monitor and replay dead-lettered notifications after the upgrade.
+### Upgrade
 
-Legacy API delete requests that omit an etag remain unconditional. This includes
-older cleanup invocations still running during the upgrade; race protection starts
-when the updated cleanup code processes the notification.
+To reduce cleanup retries during the upgrade, update these components in order:
+
+1.  EDPA internal metadata API server.
+2.  EDPA public API server.
+3.  Cleanup functions.
+
+Uploads and deletions can continue throughout the upgrade. Deletion events already
+waiting to be processed need no changes.
+
+If an updated cleanup function reaches an API server still running the old code,
+the cleanup attempt fails and the system retries the event. Events that reach the
+retry limit go to the existing cleanup dead-letter queue. After the upgrade, check
+that queue and retry any failed events.
+
+Cleanup jobs still running the old code can still mistakenly mark a replacement
+file's metadata as deleted. The fix applies when the updated cleanup code processes
+an event.
 
 Both triggers use the same service account and dead-letter queue. Enabling archive
 events handles future removals; it does not repair metadata left behind by earlier
