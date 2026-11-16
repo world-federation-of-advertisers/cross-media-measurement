@@ -384,6 +384,12 @@ report-scheduling-cronjob             30 6 * * *   False     0        <none>    
 report-result-post-processor-cronjob  30 7 * * *   False     0        <none>          10m
 ```
 
+The Halo-managed `Configure Reporting V2` workflow waits up to ten minutes per
+deployment, including node provisioning and initialization. If applying the
+configuration or waiting for readiness fails, inspect the
+`reporting-rollout-diagnostics-<attempt>` artifact for pod states and scheduling
+events.
+
 ## Appendix
 
 ### Configuring the Report Scheduling CronJob
