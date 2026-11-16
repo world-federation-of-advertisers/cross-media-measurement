@@ -490,32 +490,30 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
   }
 
   @Test
-  fun `basic report with mixed reference-id and entity-key event groups fails`() = runBlocking {
-    val mixedEventGroups = getMixedEntityKeyEventGroups()
+  fun `basic report with reference-id-only and entity-key-only event groups in one requisition succeeds`() =
+    runBlocking {
+      val eventGroups = prepareMixedHistoryEventGroups()
+      val referenceIdOnlyEventGroup =
+        eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID }
+      val entityKeyOnlyEventGroup =
+        eventGroups.single { it.entityKey.entityId == MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID }
 
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        mixedEventGroups,
-        "mixed-selectors-campaign",
-        "mixed-selectors-basicreport",
-        includeIqfFilter = false,
+      val completedBasicReport =
+        runBasicReport(
+          listOf(referenceIdOnlyEventGroup, entityKeyOnlyEventGroup),
+          "mixed-history-reference-and-entity",
+        )
+
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertStructuralResults(completedBasicReport)
+      assertSingleEdpNoNoiseResults(
+        completedBasicReport,
+        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+        expectedImpressions = EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS,
+        expectedKPlusReach = EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH,
       )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
-    assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
-  }
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    }
 
   @Test
   fun `basic report with multi-entity-key blob filtering to one entity key succeeds`() =

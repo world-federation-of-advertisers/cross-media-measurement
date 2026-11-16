@@ -349,7 +349,14 @@ class InProcessEdpAggregatorComponents(
         UnlinkedClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
       val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
 
-      val requisitionsValidator = RequisitionsValidator(edpPrivateKey)
+      val requisitionsValidator =
+        RequisitionsValidator(
+          privateEncryptionKey = edpPrivateKey,
+          allowMixedEventGroupSelectors =
+            resultsFulfillerParamsMap
+              .getValue(edpAggregatorShortName)
+              .hasEventGroupReferenceIdEntityKeyMapping(),
+        )
 
       val requisitionGrouper =
         RequisitionGrouperByReportId(

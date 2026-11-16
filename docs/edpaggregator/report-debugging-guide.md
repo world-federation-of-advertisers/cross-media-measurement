@@ -1329,12 +1329,14 @@ These validation skips do not necessarily increment
 `edpa.event_group.sync_failure`, so check the invalid-input metric and the
 EventGroupSync logs directly.
 
-During a batched EventGroup migration, a report can temporarily select both
-reference-ID-only and entity-key EventGroups. RequisitionFetcher refuses that
-report as `UNFULFILLABLE`; a ResultsFulfiller mapping does not bypass this
-validation. Before enabling EventGroupSync mapping, deploy the identical mapping
-to ResultsFulfiller and prevent report creation against partially migrated
-cohorts until their EventGroups have all been upgraded.
+During a batched EventGroup migration, a requisition may select both
+reference-ID-only and entity-key EventGroups if the RequisitionFetcher's
+`work_item_dispatch.results_fulfiller_params` contains
+`event_group_reference_id_entity_key_mapping`. Without it, mixed selectors are
+refused as `UNFULFILLABLE`. Every selected EventGroup must still have a nonblank
+entity ID or reference ID. Before enabling EventGroupSync mapping, deploy a
+RequisitionFetcher that supports mixed selectors and the identical mapping in
+its dispatched ResultsFulfiller params.
 
 For blobs whose impression records lack entity keys,
 `ResultsFulfillerParams.whole_blob_entity_types` may identify an exhaustive

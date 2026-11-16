@@ -4404,7 +4404,10 @@ class ResultsFulfillerTest {
     val requisitionsStorageClient =
       SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
