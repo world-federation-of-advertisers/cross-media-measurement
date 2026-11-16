@@ -1348,6 +1348,8 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_work_item_invok
   member     = "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}"
 }
 
+# TODO(world-federation-of-advertisers/cross-media-measurement#4912):
+# Configure and verify operator notification routes for Halo-managed EDPA alerts.
 module "vid_labeling_availability_monitoring" {
   source                = "../edp-aggregator-availability-monitoring"
   thresholds            = var.vid_labeling_availability_alert_thresholds
