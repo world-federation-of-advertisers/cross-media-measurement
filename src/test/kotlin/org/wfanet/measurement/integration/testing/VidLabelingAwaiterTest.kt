@@ -290,6 +290,37 @@ class VidLabelingAwaiterTest {
   }
 
   @Test
+  fun `waits until every expected upload registers`() = runTest {
+    val otherUri = "gs://test-bucket/raw/2021-03-22/done"
+    val otherUpload =
+      UPLOAD.copy {
+        name = "$DATA_PROVIDER/rawImpressionUploads/other"
+        doneBlobUri = otherUri
+        doneBlobGeneration = 8
+      }
+    val otherLine =
+      COMPLETED_LINE.copy { name = "${otherUpload.name}/rawImpressionUploadModelLines/model" }
+    readUploads = {
+      listRawImpressionUploadsResponse {
+        rawImpressionUploads += UPLOAD
+        if (uploadRequests.size > 1) rawImpressionUploads += otherUpload
+      }
+    }
+    readModelLines = { request ->
+      listRawImpressionUploadModelLinesResponse {
+        rawImpressionUploadModelLines +=
+          if (request.parent == UPLOAD.name) COMPLETED_LINE else otherLine
+      }
+    }
+
+    val lines = awaiter().awaitCompletion(DATA_PROVIDER, EXPECTED_DONE_BLOBS + (otherUri to 8L))
+
+    assertThat(lines).containsExactly(COMPLETED_LINE, otherLine)
+    assertThat(uploadRequests).hasSize(2)
+    assertThat(testScheduler.currentTime).isEqualTo(10_000L)
+  }
+
+  @Test
   fun `requires completed registration and nonempty lines for every expected upload`() = runTest {
     val otherUri = "gs://test-bucket/raw/2021-03-22/done"
     val otherUpload =
