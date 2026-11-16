@@ -34,7 +34,9 @@ import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadModelLineResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonCompletedRawImpressionUploadModelLines
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findHistoricalAvailabilityUploads
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findInProgressModelLinesForModelLine
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findNewerSnapshotBasis
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLineByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLinesByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
@@ -43,10 +45,13 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpre
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionOperationId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasPendingVidLabelingCorrection
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasVidLabelingHealingDispatchGate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadModelLineExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadModelLines
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadModelLineState
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
@@ -801,6 +806,9 @@ class SpannerRawImpressionUploadModelLineService(
         validPreviousStates = validPreviousStates,
         markRequestIdColumn = "MarkFailedRequestId",
         currentMarkRequestId = { it.markFailedRequestId },
+        rejectSnapshotConsumer =
+          failureReason ==
+            FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE,
       ) {
         set("ErrorMessage").to(request.errorMessage)
         set("FailureReason").to(failureReason)
@@ -895,6 +903,7 @@ class SpannerRawImpressionUploadModelLineService(
     validPreviousStates: Set<State>,
     markRequestIdColumn: String,
     currentMarkRequestId: (RawImpressionUploadModelLineResult) -> String,
+    rejectSnapshotConsumer: Boolean = false,
     block: (com.google.cloud.spanner.Mutation.WriteBuilder.() -> Unit)? = null,
   ): TransactionResult {
     if (dataProviderResourceId.isEmpty()) {
@@ -966,6 +975,29 @@ class SpannerRawImpressionUploadModelLineService(
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
 
+        if (
+          rejectSnapshotConsumer &&
+            currentState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING
+        ) {
+          val consumers =
+            txn.findInProgressModelLinesForModelLine(
+              dataProviderResourceId,
+              result.rawImpressionUploadModelLine.cmmsModelLine,
+              excludeRawImpressionUploadId = result.rawImpressionUploadId,
+              onlyComputation = true,
+            )
+          if (consumers.isNotEmpty()) {
+            throw RawImpressionUploadModelLineConcurrentException(
+                dataProviderResourceId,
+                rawImpressionUploadModelLineResourceId,
+                result.rawImpressionUploadModelLine.cmmsModelLine,
+                nextState,
+                consumers.map { it.rawImpressionUploadResourceId to it.state },
+              )
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          }
+        }
+
         // FAILED is retryable only when it represents processing failure. This check is in the
         // same transaction as the state change so eviction and retry cannot both win.
         if (
@@ -994,7 +1026,35 @@ class SpannerRawImpressionUploadModelLineService(
             ""
           }
 
-        // One upload in-flight per (DataProvider, cmms_model_line): concurrent Phase-1 rankers
+        if (
+          currentState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED &&
+            nextState in PROCESSING_STATES &&
+            txn
+              .getRawImpressionUploadByResourceId(
+                dataProviderResourceId,
+                rawImpressionUploadResourceId,
+              )
+              .rawImpressionUpload
+              .evictionOperationId
+              .isEmpty()
+        ) {
+          val newerBasis =
+            txn.findNewerSnapshotBasis(
+              dataProviderResourceId,
+              result.rawImpressionUploadModelLine.cmmsModelLine,
+              result.rawImpressionUploadId,
+            )
+          if (newerBasis != null) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "RawImpressionUpload $rawImpressionUploadResourceId retains a rank checkpoint whose " +
+                  "cumulative basis was advanced by ${newerBasis.rawImpressionUploadResourceId}; " +
+                  "use approved healing to reconcile the checkpoint before retrying"
+              )
+              .asRuntimeException()
+          }
+        }
+
+        // Serialize computation per (DataProvider, cmms_model_line): concurrent Phase-1 rankers
         // would corrupt the shared cumulative rank index.
         if (nextState in PROCESSING_STATES) {
           val conflicts =
@@ -1003,6 +1063,20 @@ class SpannerRawImpressionUploadModelLineService(
               result.rawImpressionUploadModelLine.cmmsModelLine,
               excludeRawImpressionUploadId = result.rawImpressionUploadId,
               permittedEvictionOperationId = permittedEvictionOperationId,
+              historicalAvailabilityUploads =
+                txn.findHistoricalAvailabilityUploads(
+                  dataProviderResourceId,
+                  result.rawImpressionUploadModelLine.cmmsModelLine,
+                  result.rawImpressionUploadId,
+                ),
+              directLabeling =
+                (currentState in
+                  setOf(
+                    State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
+                    State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+                  ) && nextState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING) ||
+                  (currentState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING &&
+                    nextState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING),
             )
           if (conflicts.isNotEmpty()) {
             throw RawImpressionUploadModelLineConcurrentException(
@@ -1115,15 +1189,36 @@ class SpannerRawImpressionUploadModelLineService(
       .asRuntimeException()
   }
 
-  private suspend fun AsyncDatabaseClient.ReadContext.requireProcessingAllowedDuringEviction(
+  private suspend fun AsyncDatabaseClient.TransactionContext.requireProcessingAllowedDuringEviction(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,
     currentState: State,
   ): String {
-    val fence = getVidLabelingEvictionFence(dataProviderResourceId) ?: return ""
-    val upload =
+    val fence = getVidLabelingEvictionFence(dataProviderResourceId)
+    val result =
       getRawImpressionUploadByResourceId(dataProviderResourceId, rawImpressionUploadResourceId)
-        .rawImpressionUpload
+    val upload = result.rawImpressionUpload
+    if (fence == null) {
+      if (upload.processingDeferred) {
+        if (
+          upload.evictionOperationId.isNotEmpty() ||
+            upload.correctionCandidateId.isNotEmpty() ||
+            hasVidLabelingHealingDispatchGate(dataProviderResourceId) ||
+            hasPendingVidLabelingCorrection(dataProviderResourceId)
+        ) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "RawImpressionUpload $rawImpressionUploadResourceId remains deferred for correction healing"
+            )
+            .asRuntimeException()
+        }
+        updateRawImpressionUploadProcessingDeferred(
+          dataProviderResourceId,
+          result.rawImpressionUploadId,
+          false,
+        )
+      }
+      return ""
+    }
     if (upload.evictionOperationId == fence.evictionOperationId) {
       return fence.evictionOperationId
     }
