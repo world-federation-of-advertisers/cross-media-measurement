@@ -115,6 +115,35 @@ class CleanupReportResultsTest {
   }
 
   @Test
+  fun `main leaves owned assembly attempts to automatic recovery`() {
+    insertTree(10)
+    insertTree(20)
+    insertTree(30)
+    runBlocking {
+      client.readWriteTransaction().run { txn ->
+        for (id in listOf(10L, 20L)) {
+          txn.bufferUpdateMutation("ReportResults") {
+            set("MeasurementConsumerId").to(1L)
+            set("ReportResultId").to(internalReportResultId(id))
+            set("AssemblyBasicReportId").to(id)
+            set("AssemblyRequestId").to("00000000-0000-0000-0000-000000000000")
+            set("AssemblyLeaseExpirationTime")
+              .to(Instant.parse("2026-01-01T00:00:00Z").toGcloudTimestamp())
+          }
+        }
+      }
+    }
+
+    val result = main("--dry-run=false", "--assembly-paused")
+
+    assertWithMessage(result.err).that(result.status).isEqualTo(0)
+    assertThat(result.out).contains("examined=1 deleted=1")
+    assertThat(counts(10)).containsExactly(1L, 1L, 1L, 1L, 1L).inOrder()
+    assertThat(counts(20)).containsExactly(1L, 1L, 1L, 1L, 1L).inOrder()
+    assertThat(counts(30)).containsExactly(0L, 0L, 0L, 0L, 0L).inOrder()
+  }
+
+  @Test
   fun `main deletion removes parent and all child rows`() {
     insertTree(10)
 
@@ -319,6 +348,7 @@ class CleanupReportResultsTest {
           day = 1
           utcOffset = ProtoDuration.getDefaultInstance()
         },
+        assembly = null,
       )
       if (children) {
         txn.insertReportingSetResult(

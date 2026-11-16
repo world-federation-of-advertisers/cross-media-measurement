@@ -419,8 +419,9 @@ which the affected `BasicReport`s are known to have been created.
 
 ## Clean up abandoned report results
 
-`CleanupReportResults` removes old result trees that are not attached to any
-BasicReport. The cutoff applies to the tree's creation time. Attached trees are
+`CleanupReportResults` removes old, unowned result trees that are not attached
+to any BasicReport. Owned assembly attempts are recovered automatically by the
+assembly job. The cutoff applies to tree creation time; attached trees are
 preserved regardless of the BasicReport's state.
 
 Preview candidates first; dry run is the default:
@@ -451,5 +452,5 @@ Output contains external result IDs and examined/deleted/skipped counts.
 failure exits nonzero and reports partial progress; rerunning the command
 safely picks up remaining candidates.
 
-See the [periodic maintenance guide](/docs/operations/cleaning-up-abandoned-report-results.md)
-for when to run cleanup, the pause and drain procedure, and recovery steps.
+See the [assembly recovery and legacy cleanup guide](/docs/operations/cleaning-up-abandoned-report-results.md)
+for automatic recovery, deployment order, and the legacy pause and drain procedure.

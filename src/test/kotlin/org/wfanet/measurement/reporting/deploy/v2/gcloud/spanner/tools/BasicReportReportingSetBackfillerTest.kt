@@ -5663,6 +5663,7 @@ class BasicReportReportingSetBackfillerTest {
     spannerClient.readWriteTransaction().run { txn ->
       txn.insertReportResult(
         measurementConsumerId = MEASUREMENT_CONSUMER_ID,
+        assembly = null,
         reportResultId = REPORT_RESULT_ID,
         externalReportResultId = EXTERNAL_REPORT_RESULT_ID,
         reportStart =

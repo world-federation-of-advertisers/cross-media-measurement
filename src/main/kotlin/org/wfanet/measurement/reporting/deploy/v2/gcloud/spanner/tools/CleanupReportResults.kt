@@ -31,10 +31,11 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasureme
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readUnassociatedReportResults
 import picocli.CommandLine
 
-/** Deletes old, unassociated report-result trees during an assembly maintenance window. */
+/** Deletes unowned, unassociated report-result trees during legacy assembly maintenance. */
 @CommandLine.Command(
   name = "CleanupReportResults",
-  description = ["Deletes old report-result trees that are not attached to a BasicReport."],
+  description =
+    ["Deletes old, unowned report-result trees that are not attached to a BasicReport."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
@@ -46,7 +47,7 @@ class CleanupReportResults : Runnable {
   @CommandLine.Option(
     names = ["--cmms-measurement-consumer-id"],
     required = true,
-    description = ["MeasurementConsumer whose unassociated result trees may be removed."],
+    description = ["MeasurementConsumer whose unowned, unassociated result trees may be removed."],
   )
   private lateinit var cmmsMeasurementConsumerId: String
 
@@ -62,8 +63,7 @@ class CleanupReportResults : Runnable {
     @CommandLine.Option(
       names = ["--older-than"],
       converter = [AgeConverter::class],
-      description =
-        ["Minimum age of result trees, e.g. 7d. Suitable for repeated maintenance runs."],
+      description = ["Minimum age of legacy result trees, e.g. 7d."],
     )
     var olderThan: Duration? = null
   }

@@ -22,12 +22,29 @@ import "wfa/measurement/internal/reporting/v2/report_result.proto";
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
-// Internal service for persistence of Metric entities.
+// Internal service for persistence of report-result trees.
 service ReportResults {
   // Creates a `ReportResult`.
   rpc CreateReportResult(CreateReportResultRequest) returns (ReportResult);
 
-  // Creates a batch of `ReportingSetResult` entities.
+  // Begins an owned assembly attempt. An active attempt excludes other workers.
+  // Expired unfinished attempts are discarded before starting a new attempt.
+  rpc BeginReportResultAssembly(BeginReportResultAssemblyRequest)
+      returns (ReportResult);
+
+  // Writes a batch for the current assembly attempt and renews its lease.
+  // Only the final batch makes the results available for validation and
+  // correction.
+  rpc BatchCreateReportResultAssembly(BatchCreateReportResultAssemblyRequest)
+      returns (BatchCreateReportingSetResultsResponse);
+
+  // Discards up to 100 expired or terminal-report assembly attempts.
+  // Completed and actively leased attempts are preserved.
+  rpc CleanupReportResultAssemblies(CleanupReportResultAssembliesRequest)
+      returns (google.protobuf.Empty);
+
+  // Creates a batch of `ReportingSetResult` entities in an unowned tree.
+  // Owned trees use `BatchCreateReportResultAssembly`.
   rpc BatchCreateReportingSetResults(BatchCreateReportingSetResultsRequest)
       returns (BatchCreateReportingSetResultsResponse);
 
@@ -148,4 +165,39 @@ message GetReportResultRequest {
   string cmms_measurement_consumer_id = 1;
   // The external ID of the ReportResult. Required.
   fixed64 external_report_result_id = 2;
+}
+
+// Request message for the `BeginReportResultAssembly` method.
+message BeginReportResultAssemblyRequest {
+  // CMMS MeasurementConsumer ID. Required.
+  string cmms_measurement_consumer_id = 1;
+  // External ID of the owning `BasicReport`. Required.
+  string external_basic_report_id = 2;
+  // Result metadata. Required. The external ID is assigned by the server.
+  ReportResult report_result = 3;
+  // UUID identifying this begin request. Required.
+  // Repeating the same request returns the same result while it exists.
+  string request_id = 4;
+}
+
+// Request message for the `BatchCreateReportResultAssembly` method.
+message BatchCreateReportResultAssemblyRequest {
+  // CMMS MeasurementConsumer ID. Required.
+  string cmms_measurement_consumer_id = 1;
+  // External ID of the owning `BasicReport`. Required.
+  string external_basic_report_id = 2;
+  // External ID returned by `BeginReportResultAssembly`. Required.
+  // Acts as a fence against writes from discarded attempts.
+  fixed64 external_report_result_id = 3;
+  // Batch of result requests.
+  repeated CreateReportingSetResultRequest requests = 4;
+  // Whether this is the final batch, completing assembly in the same
+  // transaction.
+  bool final_batch = 5;
+}
+
+// Request message for the `CleanupReportResultAssemblies` method.
+message CleanupReportResultAssembliesRequest {
+  // CMMS MeasurementConsumer ID. Required.
+  string cmms_measurement_consumer_id = 1;
 }

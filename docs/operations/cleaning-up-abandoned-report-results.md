@@ -1,37 +1,53 @@
 # Cleaning up abandoned report results
 
-Report assembly writes a result tree in batches and attaches it to a BasicReport
-after the last batch. A worker crash or a failed cleanup call can leave an
-unattached tree behind. Use `CleanupReportResults` to reclaim these rows during
-periodic maintenance.
+Assembly records the owning BasicReport before writing any result batches.
+The result remains unavailable for validation and optional noise correction
+until the final batch commits.
 
-The command deletes only trees created before the cutoff that are not attached
-to **any** BasicReport. Attached trees are preserved regardless of report state.
-Each deletion rechecks the cutoff and association in a transaction and deletes
-the parent and its children together. The cutoff refers to the result tree's
-creation time, independently of the dates covered by the report.
+## Automatic recovery
 
-## When to run cleanup
+Each assembly attempt has a ten-minute lease, renewed by committed batch writes.
+A retry discards an expired unfinished tree and rebuilds all its results from the
+completed public Report. The result ID identifies the attempt, so a worker from
+a discarded attempt cannot write to or complete its replacement. Fulfillment
+does not run again.
 
-Ordinary assembly failures already attempt cleanup automatically. Operator
-maintenance handles trees left behind by worker crashes or failed cleanup
-calls.
+The assembly job also reclaims up to 100 abandoned attempts per measurement
+consumer on each run. It removes expired unfinished attempts and attempts whose
+owner has failed, become invalid, or no longer exists. Cleanup rechecks the
+lease, owner state, and completed association transactionally. Completed trees
+and actively leased attempts for live reports are preserved.
 
-Run a dry run after those incidents or when abandoned rows are suspected. For
-routine housekeeping, an optional monthly dry run can check for accumulation
-without pausing assembly. Schedule deletion only when eligible trees are found
-and need to be reclaimed. Adjust the frequency based on observed accumulation.
+A transformation or batch taking longer than ten minutes can lose its lease
+and need to rebuild. Track repeated assembly failures when tuning worker
+capacity; a lease does not guarantee progress if assembly cannot finish.
+
+## Deployment order
+
+Apply the additive Reporting Spanner migration, update all Reporting servers,
+then update the assembly worker. The worker uses separate assembly RPCs so an
+older server cannot accidentally treat an intermediate batch as completed.
+An older server rejects the new RPCs until it is updated.
+
+## Legacy rows
+
+The `CleanupReportResults` CLI targets only unowned result trees left by older
+assembly workers. It is available for one-time cleanup after incidents or the
+upgrade; owned attempts are handled automatically.
+
+The command deletes only legacy trees created before the cutoff that are not
+attached to **any** BasicReport. Attached trees are preserved regardless of
+report state. Each deletion rechecks the cutoff, absence of ownership, and
+association in a transaction and deletes the parent and its children together.
+The cutoff refers to tree creation time, independently of report dates.
 
 The examples use `--older-than=7d` as a retention buffer and `--limit=1000` per
-measurement consumer. The age cutoff is independent of how often maintenance
-runs; trees from a recent incident may not yet qualify.
-
-The age cutoff is a retention choice. It does not establish that an unattached
-tree is inactive. **Pause and drain all assembly writers before deleting.**
+measurement consumer. Age alone does not establish that a legacy tree is
+inactive. **Pause and drain all legacy assembly writers before deleting.**
 Dry runs do not require pausing assembly.
 
-The CLI does not install a scheduled job or pause workers. Use the procedure
-below manually, or implement the same sequence in a maintenance coordinator.
+The CLI does not install a scheduled job or pause workers. No routine manual
+cleanup is needed for owned attempts.
 
 ## Maintenance procedure
 
