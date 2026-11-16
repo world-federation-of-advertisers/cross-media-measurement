@@ -86,12 +86,29 @@ Both triggers use the same service account and dead-letter queue. Enabling archi
 events handles future removals; it does not repair metadata left behind by earlier
 missed notifications.
 
+### Known gaps
+
+These gaps apply with object versioning enabled or disabled:
+
+*   **Removing only the encrypted impressions file.** The metadata record's
+    `blob_uri` identifies its metadata sidecar. If the removed data file does
+    not carry an ImpressionMetadata resource ID, cleanup looks up the data
+    file's URI and can find no record, leaving metadata `ACTIVE`. Availability
+    sync currently stamps the resource ID on the sidecar only.
+*   **Possible delete/recreate race.** Cleanup checks storage before deleting
+    the metadata record. A replacement can be uploaded and synchronized
+    between those steps, after which the earlier cleanup can soft-delete the
+    refreshed record. The storage check and metadata deletion are separate
+    operations; cleanup does not use a metadata-version precondition. This
+    sequence needs a dedicated regression before selecting a fix.
+
 ### Deployment check
 
-Use a dedicated test object under a prefix matched by the deletion watcher's
-configuration, with no reports or other jobs using it. Create valid impression
-data and register its metadata through the normal availability sync flow. Record
-the object URI, generation, and metadata resource name.
+Create dedicated test impression data and a metadata sidecar under a prefix
+matched by the deletion watcher's configuration, with no reports or other jobs
+using them. Register metadata through the normal availability sync flow. Use
+the sidecar as `TEST_OBJECT_PATH` below and record both object URIs, generations,
+and the metadata resource name.
 
 After deploying the triggers:
 
