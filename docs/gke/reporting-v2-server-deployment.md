@@ -339,6 +339,10 @@ Within the Kustomization directory, run
 kubectl apply -k src/main/k8s/dev/reporting_v2
 ```
 
+The example Access internal API configuration uses two replicas and a
+`PodDisruptionBudget`. It requires two eligible nodes; ensure both replicas are
+ready before proceeding.
+
 Now all components should be successfully deployed to your GKE cluster. You can
 verify by running
 
@@ -379,6 +383,12 @@ NAME                                  SCHEDULE     SUSPEND   ACTIVE   LAST SCHED
 report-scheduling-cronjob             30 6 * * *   False     0        <none>          10m
 report-result-post-processor-cronjob  30 7 * * *   False     0        <none>          10m
 ```
+
+The Halo-managed `Configure Reporting V2` workflow waits up to ten minutes per
+deployment, including node provisioning and initialization. If applying the
+configuration or waiting for readiness fails, inspect the
+`reporting-rollout-diagnostics-<attempt>` artifact for pod states and scheduling
+events.
 
 ## Appendix
 

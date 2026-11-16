@@ -443,14 +443,17 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
-      eventGroupReferenceIdEntityKeyMapping =
+      eventGroupReferenceIdEntityKeyMappingsByEdp =
         if (mixedIdentifierHistoryEnabled) {
-          ResultsFulfillerParamsKt.eventGroupReferenceIdEntityKeyMapping {
-            entityType = "campaign"
-            eventGroupReferenceIdPrefix = "campaign/"
-          }
+          mapOf(
+            "edp1" to
+              ResultsFulfillerParamsKt.eventGroupReferenceIdEntityKeyMapping {
+                entityType = "campaign"
+                eventGroupReferenceIdPrefix = "campaign/"
+              }
+          )
         } else {
-          null
+          emptyMap()
         },
       wholeBlobEntityTypes = wholeBlobEntityTypes,
     )
