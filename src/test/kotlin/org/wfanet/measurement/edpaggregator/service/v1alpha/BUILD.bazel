@@ -453,6 +453,29 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+    name = "VidLabelingCutoverAliasIntegrationTest",
+    srcs = ["VidLabelingCutoverAliasIntegrationTest.kt"],
+    data = ["//src/main/resources/testing/labeler:memoized_reference_test_model_riegeli"],
+    test_class = "org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingCutoverAliasIntegrationTest",
+    deps = [
+        ":vid_labeling_pipeline_test_harness",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:model_line_cutover",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:interval_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+spanner_emulator_test(
     name = "VidLabelingCutoverGapRecoveryIntegrationTest",
     srcs = ["VidLabelingCutoverGapRecoveryIntegrationTest.kt"],
     data = ["//src/main/resources/testing/labeler:memoized_reference_test_model_riegeli"],
@@ -827,6 +850,7 @@ test_suite(
         ":VidLabelingActiveWindowIntegrationTest",
         ":VidLabelingAvailabilityIntegrationTest",
         ":VidLabelingConcurrencyIntegrationTest",
+        ":VidLabelingCutoverAliasIntegrationTest",
         ":VidLabelingCutoverGapRecoveryIntegrationTest",
         ":VidLabelingDirectBundleIntegrationTest",
         ":VidLabelingFanoutIntegrationTest",
