@@ -158,6 +158,14 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 
 	}
 
+	deploymentPodDisruptionBudgets: [Name=string]: #PodDisruptionBudget & {
+		metadata: {
+			_component: "edp-aggregator"
+			name:       Name
+		}
+		spec: selector: deployments[Name].spec.selector
+	}
+
 	networkPolicies: [Name=_]: #NetworkPolicy & {
 		_name:      Name
 		_app_label: _ | *"\(_name)-app"

@@ -53,6 +53,7 @@ objectSets: [
 	edpAggregator.serviceAccounts,
 	edpAggregator.configMaps,
 	edpAggregator.deployments,
+	edpAggregator.deploymentPodDisruptionBudgets,
 	edpAggregator.services,
 	edpAggregator.networkPolicies,
 	edpAggregator.cronJobs,
@@ -75,6 +76,22 @@ edpAggregator: #EdpAggregator & {
 	}
 
 	configMaps: "java": #JavaConfigMap
+
+	deploymentPodDisruptionBudgets: {
+		"edp-aggregator-internal-api-server": spec: minAvailable: 1
+		"edp-aggregator-system-api-server": spec: minAvailable:   1
+	}
+
+	deployments: [Name=string]: spec: {
+		replicas: 2
+		// Prefer different nodes without blocking scheduling when capacity is limited.
+		template: spec: topologySpreadConstraints: [{
+			maxSkew:           1
+			topologyKey:       "kubernetes.io/hostname"
+			whenUnsatisfiable: "ScheduleAnyway"
+			labelSelector:     edpAggregator.deployments[Name].spec.selector
+		}]
+	}
 
 	deployments: {
 		"edp-aggregator-internal-api-server": {
