@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
+import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.KeySet
+import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.protobuf.Empty
 import com.google.type.DateTime
@@ -23,6 +26,7 @@ import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.RandomIdGenerator
@@ -35,6 +39,7 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.CreateReportResultRequest
+import org.wfanet.measurement.internal.reporting.v2.DiscardReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.GetReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListReportingSetResultsRequest
@@ -95,6 +100,41 @@ class SpannerReportResultsService(
       .currentVersion
   private val groupingDimensions =
     GroupingDimensions(impressionQualificationFilterMapping.eventMessageDescriptor)
+
+  override suspend fun discardReportResult(request: DiscardReportResultRequest): Empty {
+    if (request.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.externalReportResultId == 0L) {
+      throw RequiredFieldNotSetException("external_report_result_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    spannerClient.readWriteTransaction(Options.tag("action=discardReportResult")).run { txn ->
+      val result =
+        try {
+          txn.readReportResult(request.cmmsMeasurementConsumerId, request.externalReportResultId)
+        } catch (e: ReportResultNotFoundException) {
+          return@run
+        }
+      val filter =
+        ListBasicReportsRequestKt.filter {
+          cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+          externalReportResultId = request.externalReportResultId
+        }
+      // Serialize this check with final-batch association, including a lost RPC response.
+      if (txn.readBasicReports(filter).firstOrNull() != null) {
+        return@run
+      }
+      txn.buffer(
+        Mutation.delete(
+          "ReportResults",
+          KeySet.singleKey(Key.of(result.measurementConsumerId, result.reportResultId)),
+        )
+      )
+    }
+    return Empty.getDefaultInstance()
+  }
 
   override suspend fun createReportResult(request: CreateReportResultRequest): ReportResult {
     try {

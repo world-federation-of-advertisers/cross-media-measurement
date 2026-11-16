@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.job
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Empty
 import com.google.protobuf.timestamp
 import com.google.type.DayOfWeek
 import com.google.type.date
@@ -49,6 +50,7 @@ import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
@@ -68,10 +70,13 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportResultRequest
+import org.wfanet.measurement.internal.reporting.v2.CreateReportingSetResultRequest
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
+import org.wfanet.measurement.internal.reporting.v2.DiscardReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec.MediaType
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
@@ -97,6 +102,7 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
 import org.wfanet.measurement.internal.reporting.v2.dimensionSpec
+import org.wfanet.measurement.internal.reporting.v2.discardReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
@@ -161,6 +167,7 @@ class BasicReportsReportsJobTest {
   }
 
   private val reportResultsMock: ReportResultsCoroutineImplBase = mockService {
+    onBlocking { discardReportResult(any()) } doReturn Empty.getDefaultInstance()
     onBlocking { createReportResult(any()) } doAnswer
       {
         val request = it.arguments.first() as CreateReportResultRequest
@@ -301,6 +308,12 @@ class BasicReportsReportsJobTest {
       )
   }
 
+  private suspend fun stubBasicReportForAssembly(): BasicReport {
+    val basicReport = INTERNAL_BASIC_REPORT.copy { externalBasicReportId = "basic-report" }
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+    return basicReport
+  }
+
   private fun manyReportingSetResultsReport(): Report =
     REPORT.copy {
       metricCalculationResults.clear()
@@ -330,6 +343,7 @@ class BasicReportsReportsJobTest {
 
   @Test
   fun `execute persists bounded batches and associates only the final batch`(): Unit = runBlocking {
+    val basicReport = stubBasicReportForAssembly()
     whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
     job.execute()
     val captor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
@@ -337,7 +351,7 @@ class BasicReportsReportsJobTest {
     assertThat(captor.allValues.map { it.requestsCount }).containsExactly(100, 1).inOrder()
     assertThat(captor.firstValue.externalBasicReportId).isEmpty()
     assertThat(captor.secondValue.externalBasicReportId)
-      .isEqualTo(INTERNAL_BASIC_REPORT.externalBasicReportId)
+      .isEqualTo(basicReport.externalBasicReportId)
     val results = captor.allValues.flatMap { it.requestsList }.map { it.reportingSetResult }
     assertThat(results.map { it.dimension.externalReportingSetId }.toSet())
       .containsExactlyElementsIn((0..100).map { "set$it" })
@@ -371,14 +385,98 @@ class BasicReportsReportsJobTest {
   }
 
   @Test
+  fun `execute discards committed prefix after later batch failure and retries without orphans`():
+    Unit = runBlocking {
+    stubBasicReportForAssembly()
+    whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
+    val trees = mutableMapOf<Long, MutableList<CreateReportingSetResultRequest>>()
+    var nextId = 1L
+    var associatedId: Long? = null
+    whenever(reportResultsMock.createReportResult(any())).thenAnswer { invocation ->
+      val request: CreateReportResultRequest = invocation.getArgument(0)
+      val id = nextId++
+      trees[id] = mutableListOf()
+      request.reportResult.copy {
+        cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+        externalReportResultId = id
+      }
+    }
+    var failed = false
+    whenever(reportResultsMock.batchCreateReportingSetResults(any())).thenAnswer { invocation ->
+      val request: BatchCreateReportingSetResultsRequest = invocation.getArgument(0)
+      if (request.externalBasicReportId.isNotEmpty() && !failed) {
+        assertThat(trees.getValue(request.externalReportResultId)).hasSize(100)
+        failed = true
+        throw Status.UNAVAILABLE.asException()
+      }
+      trees.getValue(request.externalReportResultId) += request.requestsList
+      if (request.externalBasicReportId.isNotEmpty()) associatedId = request.externalReportResultId
+      BatchCreateReportingSetResultsResponse.getDefaultInstance()
+    }
+    whenever(reportResultsMock.discardReportResult(any())).thenAnswer { invocation ->
+      val request: DiscardReportResultRequest = invocation.getArgument(0)
+      if (request.externalReportResultId != associatedId)
+        trees.remove(request.externalReportResultId)
+      Empty.getDefaultInstance()
+    }
+
+    job.execute()
+    assertThat(trees).isEmpty()
+    assertThat(associatedId).isNull()
+    job.execute()
+
+    assertThat(trees.keys).containsExactly(2L)
+    assertThat(associatedId).isEqualTo(2L)
+    assertThat(trees.getValue(2L).map { it.reportingSetResult.dimension.externalReportingSetId })
+      .containsExactlyElementsIn((0..100).map { "set$it" })
+    verify(reportResultsMock)
+      .discardReportResult(
+        discardReportResultRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = 1L
+        }
+      )
+  }
+
+  @Test
+  fun `execute preserves associated results when final batch response is lost`(): Unit =
+    runBlocking {
+      stubBasicReportForAssembly()
+      whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
+      val committed = mutableListOf<CreateReportingSetResultRequest>()
+      var associated = false
+      whenever(reportResultsMock.batchCreateReportingSetResults(any())).thenAnswer { invocation ->
+        val request: BatchCreateReportingSetResultsRequest = invocation.getArgument(0)
+        committed += request.requestsList
+        if (request.externalBasicReportId.isNotEmpty()) {
+          associated = true
+          throw Status.UNAVAILABLE.asException()
+        }
+        BatchCreateReportingSetResultsResponse.getDefaultInstance()
+      }
+      whenever(reportResultsMock.discardReportResult(any())).thenAnswer {
+        if (!associated) committed.clear()
+        Empty.getDefaultInstance()
+      }
+
+      job.execute()
+
+      verify(reportResultsMock).discardReportResult(any())
+      assertThat(associated).isTrue()
+      assertThat(committed.map { it.reportingSetResult.dimension.externalReportingSetId })
+        .containsExactlyElementsIn((0..100).map { "set$it" })
+      verify(basicReportsMock, times(0)).failBasicReport(any())
+    }
+
+  @Test
   fun `execute associates an empty successful result set`(): Unit = runBlocking {
+    val basicReport = stubBasicReportForAssembly()
     whenever(reportsMock.getReport(any())).thenReturn(REPORT)
     job.execute()
     val captor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
     verify(reportResultsMock).batchCreateReportingSetResults(captor.capture())
     assertThat(captor.firstValue.requestsCount).isEqualTo(0)
-    assertThat(captor.firstValue.externalBasicReportId)
-      .isEqualTo(INTERNAL_BASIC_REPORT.externalBasicReportId)
+    assertThat(captor.firstValue.externalBasicReportId).isEqualTo(basicReport.externalBasicReportId)
   }
 
   @Test
