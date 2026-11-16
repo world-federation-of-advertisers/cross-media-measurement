@@ -31,14 +31,33 @@ ConvertBasicReport --to=FULL --input=compact.json \
 ```
 
 Unknown FULL protobuf fields are retained in compact files and reconstructed in
-binary FULL output. JSON and textproto output reject any unencoded unknown fields because those
-formats cannot reliably round-trip them. Binary output preserves all unknown
-fields, including those in the report header and shared metadata. Malformed compact dictionaries,
+binary FULL output. JSON and textproto output reject any unencoded unknown fields
+because those formats cannot reliably round-trip them. Binary output preserves
+all unknown fields, including those in the report header and shared metadata.
+Malformed compact dictionaries,
 column lengths, message-presence bitmaps and unsupported format versions fail
 before output is written.
 
 Expansion defaults to a maximum of 1,000,000 result rows to bound allocation.
 Use `--max-result-rows` to set an explicit budget.
+
+## Complete example
+
+[The FULL example](examples/full.textproto) and
+[the COMPACT example](examples/compact.textproto) contain the same four weekly
+California results for two publishers under AMI and MRC filters. All resources,
+dates and values in these files are synthetic.
+
+From this directory, reconstruct and verify the FULL example:
+
+```shell
+ConvertBasicReport --to=FULL --input=examples/compact.textproto \
+  --input-format=TEXTPROTO --output-format=TEXTPROTO \
+  --output=restored.textproto --verify-against=examples/full.textproto
+```
+
+The utility test also reads both committed files and compares their complete
+protobuf messages.
 
 ## Library
 

@@ -3,6 +3,11 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = ["//visibility:public"])
 
+exports_files([
+    "examples/compact.textproto",
+    "examples/full.textproto",
+])
+
 kt_jvm_library(
     name = "basic_report_converter",
     srcs = ["BasicReportConverter.kt"],

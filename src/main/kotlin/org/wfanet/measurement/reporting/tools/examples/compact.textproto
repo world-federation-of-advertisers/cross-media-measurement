@@ -1,0 +1,261 @@
+format_version: 1
+header {
+  name: "measurementConsumers/example/basicReports/example"
+  title: "Synthetic California weekly report"
+  campaign_group: "measurementConsumers/example/reportingSets/campaign"
+  reporting_interval {
+    report_start {
+      year: 2020
+      month: 1
+      day: 1
+      time_zone {
+        id: "UTC"
+      }
+    }
+    report_end {
+      year: 2020
+      month: 1
+      day: 15
+    }
+    effective_report_start {
+      year: 2020
+      month: 1
+      day: 1
+      time_zone {
+        id: "UTC"
+      }
+    }
+  }
+  impression_qualification_filters {
+    impression_qualification_filter: "impressionQualificationFilters/ami"
+  }
+  impression_qualification_filters {
+    impression_qualification_filter: "impressionQualificationFilters/mrc"
+  }
+  create_time {
+    seconds: 1579132800
+  }
+  result_group_specs {
+    title: "Weekly reach"
+    reporting_unit {
+      components: "dataProviders/publisher-a"
+      components: "dataProviders/publisher-b"
+    }
+    metric_frequency {
+      weekly: WEDNESDAY
+    }
+    dimension_spec {
+      filters {
+        terms {
+          path: "common.us_state"
+          value {
+            enum_value: "CALIFORNIA"
+          }
+        }
+      }
+    }
+    result_group_metric_spec {
+      population_size: true
+      reporting_unit {
+        non_cumulative {
+          reach: true
+        }
+        cumulative {
+          reach: true
+        }
+      }
+      component {
+        non_cumulative {
+          reach: true
+        }
+        non_cumulative_unique {
+          reach: true
+        }
+      }
+    }
+  }
+  state: SUCCEEDED
+  effective_impression_qualification_filters {
+    impression_qualification_filter: "impressionQualificationFilters/ami"
+  }
+  effective_impression_qualification_filters {
+    impression_qualification_filter: "impressionQualificationFilters/mrc"
+  }
+  effective_campaign_group: "measurementConsumers/example/reportingSets/campaign"
+}
+reporting_units {
+  reporting_unit_component_summary {
+    component: "dataProviders/publisher-a"
+    display_name: "Publisher A"
+    reporting_set: "measurementConsumers/example/reportingSets/publisher-a"
+  }
+  reporting_unit_component_summary {
+    component: "dataProviders/publisher-b"
+    display_name: "Publisher B"
+    reporting_set: "measurementConsumers/example/reportingSets/publisher-b"
+  }
+}
+windows {
+  non_cumulative_metric_start_time {
+    seconds: 1577836800
+  }
+  cumulative_metric_start_time {
+    seconds: 1577836800
+  }
+  metric_end_time {
+    seconds: 1578441600
+  }
+  metric_frequency {
+    weekly: WEDNESDAY
+  }
+}
+windows {
+  non_cumulative_metric_start_time {
+    seconds: 1578441600
+  }
+  cumulative_metric_start_time {
+    seconds: 1577836800
+  }
+  metric_end_time {
+    seconds: 1579046400
+  }
+  metric_frequency {
+    weekly: WEDNESDAY
+  }
+}
+dimensions {
+  filters {
+    terms {
+      path: "common.us_state"
+      value {
+        enum_value: "CALIFORNIA"
+      }
+    }
+  }
+}
+filters {
+  impression_qualification_filter: "impressionQualificationFilters/ami"
+}
+filters {
+  impression_qualification_filter: "impressionQualificationFilters/mrc"
+}
+component_names: "dataProviders/publisher-a"
+component_names: "dataProviders/publisher-b"
+groups {
+  header {
+    title: "Weekly reach"
+  }
+  row_count: 4
+  window_indices: 1
+  window_indices: 1
+  window_indices: 2
+  window_indices: 2
+  reporting_unit_indices: 1
+  reporting_unit_indices: 1
+  reporting_unit_indices: 1
+  reporting_unit_indices: 1
+  dimension_indices: 1
+  dimension_indices: 1
+  dimension_indices: 1
+  dimension_indices: 1
+  filter_indices: 1
+  filter_indices: 2
+  filter_indices: 1
+  filter_indices: 2
+  metrics {
+    presence {
+      all_present: true
+    }
+    population_size_values: 1000
+    population_size_values: 1000
+    population_size_values: 1000
+    population_size_values: 1000
+    reporting_unit {
+      presence {
+        all_present: true
+      }
+      non_cumulative {
+        presence {
+          all_present: true
+        }
+        reach_values: 120
+        reach_values: 105
+        reach_values: 150
+        reach_values: 130
+      }
+      cumulative {
+        presence {
+          all_present: true
+        }
+        reach_values: 120
+        reach_values: 105
+        reach_values: 200
+        reach_values: 170
+      }
+    }
+    components {
+      presence {
+        all_present: true
+      }
+      key_indices: 1
+      key_indices: 1
+      key_indices: 1
+      key_indices: 1
+      value {
+        presence {
+          all_present: true
+        }
+        non_cumulative {
+          presence {
+            all_present: true
+          }
+          reach_values: 100
+          reach_values: 90
+          reach_values: 120
+          reach_values: 100
+        }
+        non_cumulative_unique {
+          presence {
+            all_present: true
+          }
+          reach_values: 40
+          reach_values: 35
+          reach_values: 60
+          reach_values: 50
+        }
+      }
+    }
+    components {
+      presence {
+        all_present: true
+      }
+      key_indices: 2
+      key_indices: 2
+      key_indices: 2
+      key_indices: 2
+      value {
+        presence {
+          all_present: true
+        }
+        non_cumulative {
+          presence {
+            all_present: true
+          }
+          reach_values: 80
+          reach_values: 70
+          reach_values: 90
+          reach_values: 80
+        }
+        non_cumulative_unique {
+          presence {
+            all_present: true
+          }
+          reach_values: 20
+          reach_values: 15
+          reach_values: 30
+          reach_values: 30
+        }
+      }
+    }
+  }
+}

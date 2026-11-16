@@ -18,15 +18,51 @@ package org.wfanet.measurement.reporting.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.ByteString
+import com.google.protobuf.TextFormat
 import com.google.protobuf.UnknownFieldSet
+import java.nio.file.Files
+import java.nio.file.Paths
 import kotlin.test.assertFailsWith
 import org.junit.Test
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup
 import org.wfanet.measurement.reporting.v2alpha.copy
 
 class BasicReportConverterTest {
+  @Test
+  fun `expand reconstructs the committed FULL example`() {
+    val exampleDir =
+      requireNotNull(
+        Runfiles.preload()
+          .withSourceRepository("")
+          .getRuntimePath(
+            Paths.get(
+              "wfa_measurement_system",
+              "src/main/kotlin/org/wfanet/measurement/reporting/tools/examples",
+            )
+          )
+      )
+    val full =
+      BasicReport.newBuilder()
+        .also {
+          TextFormat.getParser().merge(Files.readString(exampleDir.resolve("full.textproto")), it)
+        }
+        .build()
+    val compact =
+      CompactBasicReport.newBuilder()
+        .also {
+          TextFormat.getParser()
+            .merge(Files.readString(exampleDir.resolve("compact.textproto")), it)
+        }
+        .build()
+
+    assertThat(BasicReportConverter.expand(compact, maxResultRows = 4)).isEqualTo(full)
+    assertThat(BasicReportConverter.compact(full)).isEqualTo(compact)
+  }
+
   @Test
   fun `compact shares metadata and exposes exact columns`() {
     val compact = BasicReportConverter.compact(ReportFixtures.full())
