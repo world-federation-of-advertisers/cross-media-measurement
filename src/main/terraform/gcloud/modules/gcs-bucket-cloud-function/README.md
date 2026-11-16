@@ -59,25 +59,3 @@ gcloud run services update <FUNCTION_NAME> \
 
 The VID-labeling DataWatcher waits for a dispatcher whose timeout is 480 seconds, leaving one minute
 of caller headroom.
-
-## Tests
-
-The native Terraform tests live under `src/test/terraform`. Terraform requires a
-local test directory, so run them from this module with a temporary copy:
-
-```bash
-archive_test_dir=$(mktemp -d tests.XXXXXX)
-trap 'rm -rf "$archive_test_dir"' EXIT
-cp ../../../../../test/terraform/gcloud/modules/gcs-bucket-cloud-function/*.tftest.hcl "$archive_test_dir/"
-terraform init -backend=false
-terraform test -test-directory="$archive_test_dir"
-```
-
-These tests use a mock Google provider and only plan resources. Build and test CI
-runs them and the deployment script regressions on every pull request.
-
-Run the deployment script regressions from the repository root:
-
-```bash
-python3 -m unittest discover -s src/test/terraform/gcloud/modules/gcs-bucket-cloud-function -p '*_test.py'
-```

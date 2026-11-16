@@ -104,6 +104,10 @@ These gaps apply with object versioning enabled or disabled:
 
 ### Deployment check
 
+Deploy the infrastructure through Terraform. The storage commands below change
+only dedicated test objects; they do not change triggers, subscriptions,
+permissions, or functions.
+
 Create dedicated test impression data and a metadata sidecar under a prefix
 matched by the deletion watcher's configuration, with no reports or other jobs
 using them. Register metadata through the normal availability sync flow. Use
