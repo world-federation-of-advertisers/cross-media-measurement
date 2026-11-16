@@ -94,7 +94,10 @@ class RequisitionsValidatorTest {
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
 
   private val requisitionValidator by lazy {
-    RequisitionsValidator(privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey)
+    RequisitionsValidator(
+      privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+      allowMixedEventGroupSelectors = false,
+    )
   }
 
   @Test
@@ -411,6 +414,88 @@ class RequisitionsValidatorTest {
 
     assertFailsWith<InconsistentEventGroupSelectorsException> {
       requisitionValidator.validateEventGroupSelectors(eventGroupMap)
+    }
+  }
+
+  @Test
+  fun `validateEventGroupSelectors accepts mixed selector forms when enabled`() {
+    val validator =
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = true,
+      )
+    val referenceOnly = eventGroupDetails {
+      eventGroupReferenceId = "ref-1"
+      entityKey = entityKey { entityType = "campaign" }
+    }
+    val entityOnly = eventGroupDetails {
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "campaign-2"
+      }
+    }
+    val dualIdentifier = eventGroupDetails {
+      eventGroupReferenceId = "ref-3"
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "campaign-3"
+      }
+    }
+
+    validator.validateEventGroupSelectors(
+      mapOf("eg1" to referenceOnly, "eg2" to entityOnly, "eg3" to dualIdentifier)
+    )
+    validator.validateEventGroupSelectors(mapOf("eg1" to referenceOnly, "eg2" to entityOnly))
+    validator.validateEventGroupSelectors(mapOf("eg1" to referenceOnly, "eg3" to dualIdentifier))
+    validator.validateEventGroupSelectors(mapOf("eg2" to entityOnly, "eg3" to dualIdentifier))
+    validator.validateEventGroupSelectors(mapOf("eg1" to referenceOnly))
+    validator.validateEventGroupSelectors(mapOf("eg2" to entityOnly))
+  }
+
+  @Test
+  fun `validateEventGroupSelectors rejects missing identifiers when mixed selectors are enabled`() {
+    val validator =
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = true,
+      )
+    for (blankValue in listOf("", "   ")) {
+      val missingIdentifiers = eventGroupDetails {
+        eventGroupReferenceId = blankValue
+        entityKey = entityKey {
+          entityType = "campaign"
+          entityId = blankValue
+        }
+      }
+      val entityOnly = eventGroupDetails {
+        entityKey = entityKey {
+          entityType = "campaign"
+          entityId = "campaign-2"
+        }
+      }
+      val referenceOnly = eventGroupDetails { eventGroupReferenceId = "ref-1" }
+      assertFailsWith<InconsistentEventGroupSelectorsException> {
+        validator.validateEventGroupSelectors(
+          mapOf("eg1" to referenceOnly, "eg2" to entityOnly, "eg3" to missingIdentifiers)
+        )
+      }
+      assertFailsWith<InconsistentEventGroupSelectorsException> {
+        validator.validateEventGroupSelectors(mapOf("eg1" to missingIdentifiers))
+      }
+    }
+  }
+
+  @Test
+  fun `validateEventGroupSelectors rejects empty maps in both modes`() {
+    for (allowMixedSelectors in listOf(false, true)) {
+      val validator =
+        RequisitionsValidator(
+          privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+          allowMixedEventGroupSelectors = allowMixedSelectors,
+        )
+      assertFailsWith<IllegalArgumentException> {
+        validator.validateEventGroupSelectors(emptyMap())
+      }
     }
   }
 
