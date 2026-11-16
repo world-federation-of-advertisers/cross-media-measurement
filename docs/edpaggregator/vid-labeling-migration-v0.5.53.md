@@ -47,9 +47,12 @@ Update both dispatcher and monitor configurations:
 | Sync config: `vid_labeled_impression_path` | `<INTERNAL_OUTPUT_PREFIX>` |
 | Sync config: `edp_impression_path` | `<EXTERNAL_OUTPUT_PREFIX>` |
 
-Internal and external output prefixes must not overlap. Each source's actual
-bucket and prefix must match its default source configuration or its
-`model_line_data_sources` entry; contributors may use different buckets.
+Internal and external output prefixes must not overlap. The default external
+monitor entry's `storage` must match the sync config's
+`data_availability_storage` backend and root, and its `edp_impression_path` must
+match the sync config's external prefix. Historical and replacement cutover
+contributors may use separate buckets through `model_line_data_sources`; match
+each contributor's actual bucket and prefix in its source and monitor configs.
 
 ### [data_watcher_config.proto](../../src/main/proto/wfa/measurement/config/securecomputation/data_watcher_config.proto) and [queues_config.proto](../../src/main/proto/wfa/measurement/config/securecomputation/queues_config.proto)
 
@@ -156,9 +159,11 @@ number of days, and no greater than the overlap.
    their fences are released. Then pause the fetcher, VID, and controller
    schedules and allow their started calls to finish.
 3. Confirm no unfinished WorkItems missing `event_template_version` or the full
-   Report interval remain, including active attempts and dead-letter work. If
-   they cannot finish, stop and obtain a tested compatibility or parameter
-   migration procedure; retries do not add missing parameters.
+   Report interval remain, including active attempts and dead-letter work. Before
+   enabling cutovers, also confirm no unfulfilled Requisitions whose signed
+   MeasurementSpec lacks `report_interval` remain. If any such work cannot finish,
+   stop and obtain a tested compatibility or parameter migration procedure;
+   retries do not add missing parameters.
 4. Stop consumption and pause publication/dead-letter handling. Apply the full
    EDPA and Secure Computation changelogs and deploy the APIs. Upload both VID
    configs before deploying the version-requiring workers. Deploy the functions
