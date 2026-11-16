@@ -4410,6 +4410,78 @@ class ResultsFulfillerTest {
 
   @Test
   fun `runWork mapping handles all blob representations without double counting`() = runBlocking {
+    assertMappedBlobResults(
+      selectors =
+        listOf(
+          eventGroupDetails {
+            entityKey =
+              GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                entityType = "campaign"
+                entityId = "entity/123"
+              }
+          }
+        ),
+      expectedImpressions = 4L,
+    )
+  }
+
+  @Test
+  fun `runWork mapping includes each mixed selector and excludes unselected campaigns`() =
+    runBlocking {
+      assertMappedBlobResults(
+        selectors =
+          listOf(
+            eventGroupDetails { eventGroupReferenceId = "ref/123" },
+            eventGroupDetails {
+              entityKey =
+                GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                  entityType = "campaign"
+                  entityId = "entity/456"
+                }
+            },
+            eventGroupDetails {
+              eventGroupReferenceId = "ref/789"
+              entityKey =
+                GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                  entityType = "campaign"
+                  entityId = "entity/789"
+                }
+            },
+          ),
+        expectedImpressions = 6L,
+      )
+    }
+
+  @Test
+  fun `runWork mapping does not double count equivalent mixed selectors`() = runBlocking {
+    assertMappedBlobResults(
+      selectors =
+        listOf(
+          eventGroupDetails { eventGroupReferenceId = "ref/123" },
+          eventGroupDetails {
+            entityKey =
+              GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                entityType = "campaign"
+                entityId = "entity/123"
+              }
+          },
+          eventGroupDetails {
+            eventGroupReferenceId = "ref/123"
+            entityKey =
+              GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                entityType = "campaign"
+                entityId = "entity/123"
+              }
+          },
+        ),
+      expectedImpressions = 4L,
+    )
+  }
+
+  private suspend fun assertMappedBlobResults(
+    selectors: List<GroupedRequisitions.EventGroupDetails>,
+    expectedImpressions: Long,
+  ) {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     val sourceIds = listOf("reference-only", "entity-only", "reference-and-lower", "multi-parent")
@@ -4447,6 +4519,8 @@ class ResultsFulfillerTest {
     kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
     val campaign123 = labeledImpressionEntityKey("campaign", "entity/123")
     val campaign456 = labeledImpressionEntityKey("campaign", "entity/456")
+    val campaign789 = labeledImpressionEntityKey("campaign", "entity/789")
+    val campaign999 = labeledImpressionEntityKey("campaign", "entity/999")
     writeMappedImpressionBlob(
       kmsClient = kmsClient,
       kekUri = kekUri,
@@ -4499,36 +4573,58 @@ class ResultsFulfillerTest {
         listOf(
           labeledImpression(vid = 4L, entityKeys = listOf(campaign123)),
           labeledImpression(vid = 5L, entityKeys = listOf(campaign456)),
+          labeledImpression(vid = 6L, entityKeys = listOf(campaign789)),
+          labeledImpression(vid = 7L, entityKeys = listOf(campaign999)),
         ),
       entityKeys =
         listOf(
           entityKeyGroup {
             entityType = "campaign"
-            entityIds += listOf("entity/123", "entity/456")
+            entityIds += listOf("entity/123", "entity/456", "entity/789", "entity/999")
           }
         ),
       eventGroupReferenceId = "ref/123",
     )
 
+    val eventGroupNames = selectors.indices.map { "$EVENT_GROUP_NAME-$it" }
+    val spec =
+      REQUISITION_SPEC.copy {
+        events =
+          events.copy {
+            eventGroups.clear()
+            eventGroups +=
+              eventGroupNames.map { name ->
+                REQUISITION_SPEC.events.eventGroupsList.single().copy { key = name }
+              }
+          }
+      }
+    val mixedRequisition =
+      DIRECT_IMPRESSION_REQUISITION.copy {
+        encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signRequisitionSpec(spec, MC_SIGNING_KEY),
+            DATA_PROVIDER_PUBLIC_KEY,
+          )
+      }
     val groupedReqs = groupedRequisitions {
       modelLine = "some-model-line"
       groupId = "mapping-group"
-      eventGroupMap += eventGroupMapEntry {
-        eventGroup = EVENT_GROUP_NAME
-        details = eventGroupDetails {
-          collectionIntervals += interval {
-            startTime = TIME_RANGE.start.toProtoTime()
-            endTime = TIME_RANGE.endExclusive.toProtoTime()
+      eventGroupMap +=
+        selectors.mapIndexed { index, selector ->
+          eventGroupMapEntry {
+            eventGroup = eventGroupNames[index]
+            details =
+              selector.copy {
+                collectionIntervals += interval {
+                  startTime = TIME_RANGE.start.toProtoTime()
+                  endTime = TIME_RANGE.endExclusive.toProtoTime()
+                }
+              }
           }
-          entityKey =
-            GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
-              entityType = "campaign"
-              entityId = "entity/123"
-            }
         }
-      }
-      requisitions += requisitionEntry { requisition = Any.pack(DIRECT_IMPRESSION_REQUISITION) }
+      requisitions += requisitionEntry { requisition = Any.pack(mixedRequisition) }
     }
+
     val impressionsMetadataService =
       ImpressionDataSourceProvider(
         impressionMetadataStub = impressionMetadataStub,
@@ -4592,7 +4688,7 @@ class ResultsFulfillerTest {
         RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-    assertThat(result).impressionValue().isEqualTo(4L)
+    assertThat(result).impressionValue().isEqualTo(expectedImpressions)
   }
 
   private fun labeledImpression(

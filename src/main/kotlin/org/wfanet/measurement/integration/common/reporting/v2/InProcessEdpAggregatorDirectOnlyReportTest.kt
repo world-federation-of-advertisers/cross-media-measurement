@@ -19,6 +19,7 @@ import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -490,8 +491,52 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
   }
 
   @Test
-  fun `basic report with reference-id-only and entity-key-only event groups in one requisition succeeds`() =
+  fun `basic report refuses mixed selectors for an unmapped EDP and succeeds for a mapped EDP`() =
     runBlocking {
+      assertMixedHistoryBlobContents()
+      val unmappedCmmsEventGroups = listCmmsEventGroups("edp2", listOf("campaign")).take(2)
+      assertThat(unmappedCmmsEventGroups).hasSize(2)
+      val unmappedReferenceOnly =
+        updateCmmsEventGroup(unmappedCmmsEventGroups.first().copy { clearEntityKey() })
+      val unmappedEntityOnly =
+        updateCmmsEventGroup(unmappedCmmsEventGroups.last().copy { eventGroupReferenceId = "" })
+      assertThat(unmappedReferenceOnly.entityKey.entityId).isEmpty()
+      assertThat(unmappedReferenceOnly.eventGroupReferenceId).isNotEmpty()
+      assertThat(unmappedEntityOnly.entityKey.entityId).isNotEmpty()
+      assertThat(unmappedEntityOnly.eventGroupReferenceId).isEmpty()
+      val unmappedNames = setOf(unmappedReferenceOnly.name, unmappedEntityOnly.name)
+      val unmappedReportingEventGroups =
+        listReportingEventGroups().filter { it.cmmsEventGroup in unmappedNames }
+      assertThat(unmappedReportingEventGroups).hasSize(2)
+      val createdUnmappedReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(
+            buildCreateBasicReportRequest(
+              unmappedReportingEventGroups,
+              "unmapped-mixed-selectors-campaign",
+              "unmapped-mixed-selectors-basicreport",
+              includeIqfFilter = false,
+            )
+          )
+      executeBasicReportsReportsJob(createdUnmappedReport.name)
+      val failedReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .getBasicReport(getBasicReportRequest { name = createdUnmappedReport.name })
+      assertThat(failedReport.state).isEqualTo(BasicReport.State.FAILED)
+      val unmappedDataProvider = unmappedReportingEventGroups.first().cmmsDataProvider
+      val refusedMeasurements =
+        getMeasurementsForBasicReport(failedReport.name).filter {
+          it.dataProvidersList.any { entry -> entry.key == unmappedDataProvider }
+        }
+      assertThat(refusedMeasurements).isNotEmpty()
+      for (measurement in refusedMeasurements) {
+        assertThat(measurement.state).isEqualTo(Measurement.State.FAILED)
+        assertThat(measurement.failure.reason)
+          .isEqualTo(Measurement.Failure.Reason.REQUISITION_REFUSED)
+      }
+
       val eventGroups = prepareMixedHistoryEventGroups()
       val referenceIdOnlyEventGroup =
         eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID }
