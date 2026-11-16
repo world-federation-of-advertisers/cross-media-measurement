@@ -37,6 +37,8 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverValidator
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -77,9 +79,40 @@ class DataAvailabilityMonitorFunction : HttpFunction {
     try {
       logger.info("Starting DataAvailabilityMonitorFunction")
 
+      val cutovers = monitorConfigs.modelLineCutoversList.map(ModelLineCutover::from)
+      ModelLineCutoverValidator.validate(cutovers)
+      val configuredModelLines =
+        monitorConfigs.configsList
+          .flatMap { config -> config.modelLineConfigsList.map { it.modelLine } }
+          .toSet()
+      for (cutover in cutovers) {
+        require(cutover.historicalModelLine in configuredModelLines) {
+          "Historical model line ${cutover.historicalModelLine} must be monitored"
+        }
+        require(cutover.replacementModelLine in configuredModelLines) {
+          "Replacement model line ${cutover.replacementModelLine} must be monitored"
+        }
+      }
+      val monitoringWindows = buildMap {
+        for (cutover in cutovers) {
+          put(
+            cutover.historicalModelLine,
+            DataAvailabilityMonitor.MonitoringWindow(
+              endDateInclusive = cutover.legacyRequiredThroughDate
+            ),
+          )
+          put(
+            cutover.replacementModelLine,
+            DataAvailabilityMonitor.MonitoringWindow(startDate = cutover.cutoverDate),
+          )
+        }
+      }
+
       // HttpFunction.service is synchronous; runBlocking bridges to suspend functions.
       val hasAnyIssues = runBlocking {
-        monitorConfigs.configsList.map { config -> checkAndLogConfigIssues(config) }.any { it }
+        monitorConfigs.configsList
+          .map { config -> checkAndLogConfigIssues(config, monitoringWindows) }
+          .any { it }
       }
 
       // Always return 200 on a successful run. Data availability issues are surfaced via
@@ -104,7 +137,10 @@ class DataAvailabilityMonitorFunction : HttpFunction {
    *
    * @return `true` if any issues were detected for this config.
    */
-  private suspend fun checkAndLogConfigIssues(config: DataAvailabilityMonitorConfig): Boolean {
+  private suspend fun checkAndLogConfigIssues(
+    config: DataAvailabilityMonitorConfig,
+    allMonitoringWindows: Map<String, DataAvailabilityMonitor.MonitoringWindow>,
+  ): Boolean {
     val storageClient = createStorageClient(config)
     val activeModelLines =
       config.modelLineConfigsList
@@ -118,6 +154,9 @@ class DataAvailabilityMonitorFunction : HttpFunction {
     require(activeModelLines.isNotEmpty()) {
       "No active model lines configured for path: ${config.edpImpressionPath}"
     }
+
+    val activeModelLineNames = activeModelLines.mapTo(mutableSetOf(), ModelLineKey::toName)
+    val monitoringWindows = allMonitoringWindows.filterKeys { it in activeModelLineNames }
 
     require(config.timeZone.isNotEmpty()) {
       "time_zone must be set in DataAvailabilityMonitorConfig for path: ${config.edpImpressionPath}"
@@ -151,6 +190,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         storageClient = storageClient,
         edpImpressionPath = config.edpImpressionPath,
         activeModelLines = activeModelLines,
+        monitoringWindows = monitoringWindows,
         impressionMetadataStub = impressionMetadataStub,
         dataProviderName = config.dataProviderName.ifEmpty { null },
       )

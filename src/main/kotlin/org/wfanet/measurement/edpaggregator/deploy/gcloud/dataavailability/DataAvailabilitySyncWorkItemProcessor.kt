@@ -46,6 +46,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseContext
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
+import org.wfanet.measurement.edpaggregator.dataavailability.ObsoleteDataAvailabilityWorkItemException
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -290,6 +291,10 @@ internal class DataAvailabilitySyncWorkItemProcessor(
       )
     } catch (e: CancellationException) {
       throw e
+    } catch (e: ObsoleteDataAvailabilityWorkItemException) {
+      completeWorkItemAttempt(attempt)
+      Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "superseded")
+      logLifecycle(input, attempt, outcome = "superseded")
     } catch (e: IllegalArgumentException) {
       failTerminal(input, attempt, failureMessage(stage, e))
       Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "failed")
