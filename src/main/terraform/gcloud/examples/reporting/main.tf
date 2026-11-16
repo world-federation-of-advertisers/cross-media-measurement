@@ -86,7 +86,7 @@ module "default_node_pool" {
   cluster         = module.cluster.cluster
   service_account = module.common.cluster_service_account
   machine_type    = "e2-custom-2-4096"
-  max_node_count  = 4
+  max_node_count  = 5
 }
 
 module "reporting" {

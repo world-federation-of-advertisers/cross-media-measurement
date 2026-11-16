@@ -57,6 +57,10 @@ See [Machine Setup](machine-setup.md).
 This can be done using Terraform. See [the guide](terraform.md) to use the
 example configuration for Reporting.
 
+Include system workloads and rolling-update surge pods when sizing the node pool.
+A replacement pod must fit while its predecessor remains available. The
+Halo-managed Reporting pool permits an additional autoscaled node for rollouts.
+
 Applying the Terraform configuration will create a new cluster. You can use the
 `gcloud` CLI to obtain credentials so that you can access the cluster via
 `kubectl`. For example:
@@ -339,6 +343,10 @@ Within the Kustomization directory, run
 kubectl apply -k src/main/k8s/dev/reporting_v2
 ```
 
+The example Access internal API configuration uses two replicas and a
+`PodDisruptionBudget`. It requires two eligible nodes; ensure both replicas are
+ready before proceeding.
+
 Now all components should be successfully deployed to your GKE cluster. You can
 verify by running
 
@@ -379,6 +387,12 @@ NAME                                  SCHEDULE     SUSPEND   ACTIVE   LAST SCHED
 report-scheduling-cronjob             30 6 * * *   False     0        <none>          10m
 report-result-post-processor-cronjob  30 7 * * *   False     0        <none>          10m
 ```
+
+The Halo-managed `Configure Reporting V2` workflow waits up to ten minutes per
+deployment, including node provisioning and initialization. If applying the
+configuration or waiting for readiness fails, inspect the
+`reporting-rollout-diagnostics-<attempt>` artifact for pod states and scheduling
+events.
 
 ## Appendix
 

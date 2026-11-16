@@ -222,6 +222,9 @@ class VidLabelerApp(
           workItemsClient.getWorkItem(getWorkItemRequest { this.name = name })
         }
       },
+      retryWorkItem = { _, request ->
+        rpcThrottlers.controlPlane.onReady { workItemsClient.retryWorkItem(request) }
+      },
     ),
 ) :
   BaseTeeApplication(
@@ -1482,18 +1485,29 @@ class VidLabelerApp(
         eventDate,
       )
     val parsed = SelectedStorageClient.parseBlobUri(doneUri)
-    if (parsed.scheme != "gs") return DoneObjectState(null, DoneWorkItemIdentity.MISSING)
-    val bucket = checkNotNull(parsed.bucket)
-    val generation =
-      getGcsObjectGeneration(storageConfig.projectId, bucket, parsed.key)
-        ?: return DoneObjectState(null, DoneWorkItemIdentity.MISSING)
-    val createTime =
-      checkNotNull(
-        getGcsObjectCreateTime(storageConfig.projectId, bucket, parsed.key, generation)
-      ) {
-        "Observed done-marker generation is no longer available"
+    val doneObject =
+      if (parsed.scheme == "gs") {
+        val bucket = checkNotNull(parsed.bucket)
+        val generation =
+          getGcsObjectGeneration(storageConfig.projectId, bucket, parsed.key)
+            ?: return DoneObjectState(null, DoneWorkItemIdentity.MISSING)
+        val createTime =
+          checkNotNull(
+            getGcsObjectCreateTime(storageConfig.projectId, bucket, parsed.key, generation)
+          ) {
+            "Observed done-marker generation is no longer available"
+          }
+        DoneObject(doneUri, generation, createTime)
+      } else {
+        val storage =
+          SelectedStorageClient(parsed, storageConfig.rootDirectory, storageConfig.projectId)
+        val blob =
+          storage.getBlob(parsed.key) ?: return DoneObjectState(null, DoneWorkItemIdentity.MISSING)
+        val generation = (blob as ConditionalOperationStorageClient.Blob).freshnessToken.toLong()
+        DoneObject(doneUri, generation, blob.createTime)
       }
-    val doneObject = DoneObject(doneUri, generation, createTime)
+    val generation = doneObject.generation
+    val createTime = doneObject.createTime
     val request =
       DataAvailabilitySyncWorkItems.createRequest(
         dataProvider,
