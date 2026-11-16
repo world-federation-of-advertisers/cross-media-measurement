@@ -19,7 +19,10 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.grpc.Status
+import io.grpc.StatusException
 import java.io.File
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -37,17 +40,36 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityCle
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerDataAvailabilitySyncLeaseService
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerImpressionMetadataService
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
+import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkImpressionMetadataDeletedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.UpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.markImpressionMetadataDeletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.updateImpressionMetadataRequest
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest as InternalCreateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest as InternalDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest as InternalGetImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase as InternalImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest as InternalListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.MarkImpressionMetadataDeletedRequest as InternalMarkImpressionMetadataDeletedRequest
+import org.wfanet.measurement.internal.edpaggregator.UpdateImpressionMetadataRequest as InternalUpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.acquireDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.internal.edpaggregator.copy as internalCopy
+import org.wfanet.measurement.internal.edpaggregator.markImpressionMetadataDeletedRequest as internalMarkImpressionMetadataDeletedRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -55,14 +77,91 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class DataAvailabilityCleanupRaceTest {
   private val database =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
+  private var legacyInternalApi = false
+  private var legacyDeleteCalls = 0
+  private var legacyPublicApi = false
+  private var legacyPublicDeleteCalls = 0
   private val internalServer = GrpcTestServerRule {
-    addService(SpannerImpressionMetadataService(database.databaseClient))
+    val service = SpannerImpressionMetadataService(database.databaseClient)
+    addService(
+      object : InternalImpressionMetadataServiceCoroutineImplBase() {
+        override suspend fun createImpressionMetadata(
+          request: InternalCreateImpressionMetadataRequest
+        ) = service.createImpressionMetadata(request)
+
+        override suspend fun updateImpressionMetadata(
+          request: InternalUpdateImpressionMetadataRequest
+        ) = service.updateImpressionMetadata(request)
+
+        override suspend fun getImpressionMetadata(request: InternalGetImpressionMetadataRequest) =
+          service.getImpressionMetadata(request)
+
+        override suspend fun listImpressionMetadata(
+          request: InternalListImpressionMetadataRequest
+        ) = service.listImpressionMetadata(request)
+
+        override suspend fun deleteImpressionMetadata(
+          request: InternalDeleteImpressionMetadataRequest
+        ) =
+          service.deleteImpressionMetadata(
+            if (legacyInternalApi) {
+              legacyDeleteCalls++
+              request.internalCopy { clearEtag() }
+            } else {
+              request
+            }
+          )
+
+        override suspend fun markImpressionMetadataDeleted(
+          request: InternalMarkImpressionMetadataDeletedRequest
+        ) =
+          if (legacyInternalApi) {
+            super.markImpressionMetadataDeleted(request)
+          } else {
+            service.markImpressionMetadataDeleted(request)
+          }
+      }
+    )
   }
   private val publicServer = GrpcTestServerRule {
-    addService(
+    val service =
       ImpressionMetadataService(
         InternalImpressionMetadataServiceCoroutineStub(internalServer.channel)
       )
+    addService(
+      object : ImpressionMetadataServiceCoroutineImplBase() {
+        override suspend fun createImpressionMetadata(request: CreateImpressionMetadataRequest) =
+          service.createImpressionMetadata(request)
+
+        override suspend fun updateImpressionMetadata(request: UpdateImpressionMetadataRequest) =
+          service.updateImpressionMetadata(request)
+
+        // Reads can reach an upgraded replica while deletion reaches a legacy replica.
+        override suspend fun getImpressionMetadata(request: GetImpressionMetadataRequest) =
+          service.getImpressionMetadata(request)
+
+        override suspend fun listImpressionMetadata(request: ListImpressionMetadataRequest) =
+          service.listImpressionMetadata(request)
+
+        override suspend fun deleteImpressionMetadata(request: DeleteImpressionMetadataRequest) =
+          service.deleteImpressionMetadata(
+            if (legacyPublicApi) {
+              legacyPublicDeleteCalls++
+              request.copy { clearEtag() }
+            } else {
+              request
+            }
+          )
+
+        override suspend fun markImpressionMetadataDeleted(
+          request: MarkImpressionMetadataDeletedRequest
+        ) =
+          if (legacyPublicApi) {
+            super.markImpressionMetadataDeleted(request)
+          } else {
+            service.markImpressionMetadataDeleted(request)
+          }
+      }
     )
   }
 
@@ -74,13 +173,13 @@ class DataAvailabilityCleanupRaceTest {
   @Test
   fun `cleanup preserves a synchronized replacement for an unversioned event with a resource ID`() =
     runBlocking {
-      assertReplacementPreserved(resourceIdProvided = true)
+      assertReplacementPreserved(resourceIdProvided = true, replacementRemainsLive = true)
     }
 
   @Test
   fun `cleanup preserves a synchronized replacement for an unversioned event without a resource ID`() =
     runBlocking {
-      assertReplacementPreserved(resourceIdProvided = false)
+      assertReplacementPreserved(resourceIdProvided = false, replacementRemainsLive = true)
     }
 
   @Test
@@ -91,6 +190,134 @@ class DataAvailabilityCleanupRaceTest {
   @Test
   fun `cleanup accepts an unversioned queued deletion event without a resource ID`() = runBlocking {
     assertQueuedDeletionProcessed(resourceIdProvided = false)
+  }
+
+  @Test
+  fun `cleanup rechecks a replacement deleted again with a resource ID`() = runBlocking {
+    assertReplacementPreserved(resourceIdProvided = true, replacementRemainsLive = false)
+  }
+
+  @Test
+  fun `cleanup rechecks a replacement deleted again without a resource ID`() = runBlocking {
+    assertReplacementPreserved(resourceIdProvided = false, replacementRemainsLive = false)
+  }
+
+  @Test
+  fun `cleanup retries a queued deletion after the internal API upgrades with a resource ID`() =
+    runBlocking {
+      assertPartialUpgradeRetried(resourceIdProvided = true, publicApiLegacy = false)
+    }
+
+  @Test
+  fun `cleanup retries a queued deletion after the internal API upgrades without a resource ID`() =
+    runBlocking {
+      assertPartialUpgradeRetried(resourceIdProvided = false, publicApiLegacy = false)
+    }
+
+  @Test
+  fun `cleanup retries when deletion reaches a legacy public replica with a resource ID`() =
+    runBlocking {
+      assertPartialUpgradeRetried(resourceIdProvided = true, publicApiLegacy = true)
+    }
+
+  @Test
+  fun `cleanup retries when deletion reaches a legacy public replica without a resource ID`() =
+    runBlocking {
+      assertPartialUpgradeRetried(resourceIdProvided = false, publicApiLegacy = true)
+    }
+
+  @Test
+  fun `legacy delete requests remain accepted while the internal API upgrades`() = runBlocking {
+    val metadata = createMetadata(generation = 0L)
+    val stub = ImpressionMetadataServiceCoroutineStub(publicServer.channel)
+    legacyInternalApi = true
+
+    stub.deleteImpressionMetadata(deleteImpressionMetadataRequest { name = metadata.name })
+
+    assertThat(legacyDeleteCalls).isEqualTo(1)
+    assertThat(
+        stub.getImpressionMetadata(getImpressionMetadataRequest { name = metadata.name }).state
+      )
+      .isEqualTo(ImpressionMetadata.State.DELETED)
+  }
+
+  @Test
+  fun `conditional internal deletion rejects a missing etag`() = runBlocking {
+    val metadata = createMetadata(generation = 0L)
+    val key = checkNotNull(ImpressionMetadataKey.fromName(metadata.name))
+    val internalStub = InternalImpressionMetadataServiceCoroutineStub(internalServer.channel)
+
+    val exception =
+      assertFailsWith<StatusException> {
+        internalStub.markImpressionMetadataDeleted(
+          internalMarkImpressionMetadataDeletedRequest {
+            dataProviderResourceId = key.dataProviderId
+            impressionMetadataResourceId = key.impressionMetadataId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val stub = ImpressionMetadataServiceCoroutineStub(publicServer.channel)
+    assertThat(
+        stub.getImpressionMetadata(getImpressionMetadataRequest { name = metadata.name }).state
+      )
+      .isEqualTo(ImpressionMetadata.State.ACTIVE)
+  }
+
+  @Test
+  fun `conditional public deletion rejects a missing etag`() = runBlocking {
+    val metadata = createMetadata(generation = 0L)
+    val stub = ImpressionMetadataServiceCoroutineStub(publicServer.channel)
+
+    val exception =
+      assertFailsWith<StatusException> {
+        stub.markImpressionMetadataDeleted(
+          markImpressionMetadataDeletedRequest { name = metadata.name }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(
+        stub.getImpressionMetadata(getImpressionMetadataRequest { name = metadata.name }).state
+      )
+      .isEqualTo(ImpressionMetadata.State.ACTIVE)
+  }
+
+  private suspend fun assertPartialUpgradeRetried(
+    resourceIdProvided: Boolean,
+    publicApiLegacy: Boolean,
+  ) {
+    val metadata = createMetadata(generation = 0L)
+    val stub = ImpressionMetadataServiceCoroutineStub(publicServer.channel)
+    val cleanup =
+      DataAvailabilityCleanup(
+        stub,
+        DATA_PROVIDER_NAME,
+        FileSystemStorageClient(temporaryFolder.newFolder()),
+      )
+    val resourceId = if (resourceIdProvided) metadata.name else null
+    legacyInternalApi = !publicApiLegacy
+    legacyPublicApi = publicApiLegacy
+
+    assertFailsWith<StatusException> { cleanup.cleanup(BLOB_URI, resourceId) }
+
+    assertThat(legacyDeleteCalls).isEqualTo(0)
+    assertThat(legacyPublicDeleteCalls).isEqualTo(0)
+    assertThat(
+        stub.getImpressionMetadata(getImpressionMetadataRequest { name = metadata.name }).state
+      )
+      .isEqualTo(ImpressionMetadata.State.ACTIVE)
+    legacyInternalApi = false
+    legacyPublicApi = false
+
+    val result = cleanup.cleanup(BLOB_URI, resourceId)
+
+    assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
+    assertThat(
+        stub.getImpressionMetadata(getImpressionMetadataRequest { name = metadata.name }).state
+      )
+      .isEqualTo(ImpressionMetadata.State.DELETED)
   }
 
   private suspend fun createMetadata(generation: Long): ImpressionMetadata {
@@ -139,7 +366,10 @@ class DataAvailabilityCleanupRaceTest {
     assertThat(actual.etag).isNotEqualTo(metadata.etag)
   }
 
-  private suspend fun assertReplacementPreserved(resourceIdProvided: Boolean) = coroutineScope {
+  private suspend fun assertReplacementPreserved(
+    resourceIdProvided: Boolean,
+    replacementRemainsLive: Boolean,
+  ) = coroutineScope {
     val original = createMetadata(generation = 41L)
     val stub = ImpressionMetadataServiceCoroutineStub(publicServer.channel)
     val root = temporaryFolder.newFolder()
@@ -172,16 +402,25 @@ class DataAvailabilityCleanupRaceTest {
           impressionMetadata = original.copy { metadataBlobGeneration = 42L }
         }
       )
+      if (!replacementRemainsLive) {
+        assertThat(file.delete()).isTrue()
+      }
     } finally {
       replacementSynchronized.complete(Unit)
     }
     val result = pendingCleanup.await()
     val actual = stub.getImpressionMetadata(getImpressionMetadataRequest { name = original.name })
 
-    assertThat(storage.getBlob(BLOB_KEY)).isNotNull()
-    assertThat(actual.state).isEqualTo(ImpressionMetadata.State.ACTIVE)
     assertThat(actual.metadataBlobGeneration).isEqualTo(42L)
-    assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
+    if (replacementRemainsLive) {
+      assertThat(storage.getBlob(BLOB_KEY)).isNotNull()
+      assertThat(actual.state).isEqualTo(ImpressionMetadata.State.ACTIVE)
+      assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
+    } else {
+      assertThat(storage.getBlob(BLOB_KEY)).isNull()
+      assertThat(actual.state).isEqualTo(ImpressionMetadata.State.DELETED)
+      assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
+    }
   }
 
   companion object {

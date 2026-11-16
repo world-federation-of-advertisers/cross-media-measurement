@@ -56,6 +56,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkImpressionMetadataDeletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.UndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.UpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
@@ -63,6 +64,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
@@ -93,6 +95,7 @@ import org.wfanet.measurement.internal.edpaggregator.entityKey as internalEntity
 import org.wfanet.measurement.internal.edpaggregator.getImpressionMetadataRequest as internalGetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata as internalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest as internalListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.markImpressionMetadataDeletedRequest as internalMarkImpressionMetadataDeletedRequest
 import org.wfanet.measurement.internal.edpaggregator.undeleteImpressionMetadataRequest as internalUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.updateImpressionMetadataRequest as internalUpdateImpressionMetadataRequest
 
@@ -572,6 +575,21 @@ class ImpressionMetadataService(
     }
   }
 
+  override suspend fun markImpressionMetadataDeleted(
+    request: MarkImpressionMetadataDeletedRequest
+  ): ImpressionMetadata {
+    if (request.etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    return deleteImpressionMetadata(
+      deleteImpressionMetadataRequest {
+        name = request.name
+        etag = request.etag
+      }
+    )
+  }
+
   override suspend fun deleteImpressionMetadata(
     request: DeleteImpressionMetadataRequest
   ): ImpressionMetadata {
@@ -584,15 +602,25 @@ class ImpressionMetadataService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     return try {
-      internalImpressionMetadataStub
-        .deleteImpressionMetadata(
-          internalDeleteImpressionMetadataRequest {
-            dataProviderResourceId = key.dataProviderId
-            impressionMetadataResourceId = key.impressionMetadataId
-            etag = request.etag
-          }
-        )
-        .toImpressionMetadata()
+      val internalResponse =
+        if (request.etag.isNotEmpty()) {
+          // A separate RPC prevents older internal servers from ignoring the etag.
+          internalImpressionMetadataStub.markImpressionMetadataDeleted(
+            internalMarkImpressionMetadataDeletedRequest {
+              dataProviderResourceId = key.dataProviderId
+              impressionMetadataResourceId = key.impressionMetadataId
+              etag = request.etag
+            }
+          )
+        } else {
+          internalImpressionMetadataStub.deleteImpressionMetadata(
+            internalDeleteImpressionMetadataRequest {
+              dataProviderResourceId = key.dataProviderId
+              impressionMetadataResourceId = key.impressionMetadataId
+            }
+          )
+        }
+      internalResponse.toImpressionMetadata()
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->

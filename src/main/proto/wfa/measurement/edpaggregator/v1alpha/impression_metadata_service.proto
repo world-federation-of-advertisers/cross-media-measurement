@@ -58,6 +58,12 @@ service ImpressionMetadataService {
   rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
       returns (ImpressionMetadata) {}
 
+  // Marks the specified metadata version as deleted. Returns ABORTED if the
+  // etag does not match. Older servers return UNIMPLEMENTED instead of ignoring
+  // the etag precondition during a rolling upgrade.
+  rpc MarkImpressionMetadataDeleted(MarkImpressionMetadataDeletedRequest)
+      returns (ImpressionMetadata) {}
+
   // Restores a deleted `ImpressionMetadata` entry.
   rpc UndeleteImpressionMetadata(UndeleteImpressionMetadataRequest)
       returns (ImpressionMetadata) {}
@@ -336,6 +342,22 @@ message DeleteImpressionMetadataRequest {
   // Etag of the metadata to delete. When specified, a mismatch returns ABORTED.
   // If omitted, deletion is unconditional.
   string etag = 2 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Request message for the `MarkImpressionMetadataDeleted` method.
+message MarkImpressionMetadataDeletedRequest {
+  // The resource name of the metadata.
+  // Format:
+  // `dataProviders/{data_provider}/impressionMetadata/{impression_metadata}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+
+  // The etag of the metadata version to delete.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for the `UndeleteImpressionMetadata` method.

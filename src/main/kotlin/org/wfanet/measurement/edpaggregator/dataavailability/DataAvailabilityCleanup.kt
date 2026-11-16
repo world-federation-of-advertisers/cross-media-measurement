@@ -25,9 +25,9 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markImpressionMetadataDeletedRequest
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
@@ -71,7 +71,8 @@ class DataAvailabilityCleanup(
    * Cleans up an ImpressionMetadata record after its corresponding GCS object is deleted.
    *
    * The metadata is read before checking for a live object. Its etag guards the subsequent deletion
-   * against synchronization that commits after the read.
+   * against synchronization that commits after the read. A conflict restarts the checks once;
+   * further conflicts fail so that the notification can be retried.
    *
    * @param deletedBlobPath The full Cloud Storage object path of the deleted blob.
    * @param impressionMetadataResourceId Optional. The resource name of the ImpressionMetadata to
@@ -86,44 +87,23 @@ class DataAvailabilityCleanup(
     var cleanupStatus = CleanupStatus.SUCCESS
 
     try {
-      val metadata: ImpressionMetadata? =
-        if (!impressionMetadataResourceId.isNullOrEmpty()) {
-          getImpressionMetadata(impressionMetadataResourceId)
-        } else {
-          lookupMetadataByBlobUri(deletedBlobPath)
+      for (attempt in 1..MAX_CLEANUP_ATTEMPTS) {
+        try {
+          cleanupStatus = cleanupOnce(deletedBlobPath, impressionMetadataResourceId)
+          return CleanupResult(cleanupStatus)
+        } catch (e: StatusException) {
+          if (
+            attempt == MAX_CLEANUP_ATTEMPTS ||
+              e.status.code != Status.Code.ABORTED ||
+              e.errorInfo?.domain != ERROR_DOMAIN ||
+              e.errorInfo?.reason != ETAG_MISMATCH_REASON
+          ) {
+            throw e
+          }
+          logger.info("ImpressionMetadata changed during cleanup. Rechecking $deletedBlobPath")
         }
-      if (metadata == null || metadata.state == ImpressionMetadata.State.DELETED) {
-        cleanupStatus = CleanupStatus.SKIPPED
-        return CleanupResult(cleanupStatus)
       }
-      check(metadata.etag.isNotEmpty()) { "ImpressionMetadata " + metadata.name + " has no etag" }
-
-      // Check if a live version of the object still exists. If it does, this
-      // OBJECT_DELETE event is for a noncurrent version (e.g., lifecycle cleanup)
-      // and the ImpressionMetadata record should remain active.
-      val blobUri = SelectedStorageClient.parseBlobUri(deletedBlobPath)
-      val liveBlob = storageClient.getBlob(blobUri.key)
-      if (liveBlob != null) {
-        logger.info(
-          "Live version still exists for $deletedBlobPath. " +
-            "Skipping cleanup (noncurrent version deletion)."
-        )
-        metrics.cleanupSkippedCounter.add(
-          1,
-          Attributes.of(
-            DataAvailabilityCleanupMetrics.DATA_PROVIDER_KEY_ATTR,
-            dataProviderName,
-            DataAvailabilityCleanupMetrics.CLEANUP_STATUS_ATTR,
-            DataAvailabilityCleanupMetrics.CLEANUP_SKIP_REASON_NONCURRENT_VERSION,
-          ),
-        )
-        cleanupStatus = CleanupStatus.SKIPPED
-        return CleanupResult(cleanupStatus)
-      }
-
-      cleanupStatus = deleteImpressionMetadata(metadata)
-
-      return CleanupResult(cleanupStatus)
+      error("Cleanup attempts exhausted")
     } catch (e: Exception) {
       cleanupStatus = CleanupStatus.FAILED
       // Record RPC error metric if it's a gRPC error
@@ -142,6 +122,43 @@ class DataAvailabilityCleanup(
     } finally {
       recordCleanupDuration(startTime, cleanupStatus)
     }
+  }
+
+  private suspend fun cleanupOnce(
+    deletedBlobPath: String,
+    impressionMetadataResourceId: String?,
+  ): CleanupStatus {
+    val metadata: ImpressionMetadata? =
+      if (!impressionMetadataResourceId.isNullOrEmpty()) {
+        getImpressionMetadata(impressionMetadataResourceId)
+      } else {
+        lookupMetadataByBlobUri(deletedBlobPath)
+      }
+    if (metadata == null || metadata.state == ImpressionMetadata.State.DELETED) {
+      return CleanupStatus.SKIPPED
+    }
+
+    // A live object means this notification removed a noncurrent version.
+    val blobUri = SelectedStorageClient.parseBlobUri(deletedBlobPath)
+    if (storageClient.getBlob(blobUri.key) != null) {
+      logger.info(
+        "Live version still exists for $deletedBlobPath. " +
+          "Skipping cleanup (noncurrent version deletion)."
+      )
+      metrics.cleanupSkippedCounter.add(
+        1,
+        Attributes.of(
+          DataAvailabilityCleanupMetrics.DATA_PROVIDER_KEY_ATTR,
+          dataProviderName,
+          DataAvailabilityCleanupMetrics.CLEANUP_STATUS_ATTR,
+          DataAvailabilityCleanupMetrics.CLEANUP_SKIP_REASON_NONCURRENT_VERSION,
+        ),
+      )
+      return CleanupStatus.SKIPPED
+    }
+
+    check(metadata.etag.isNotEmpty()) { "ImpressionMetadata " + metadata.name + " has no etag" }
+    return deleteImpressionMetadata(metadata)
   }
 
   /** Returns the named metadata, or null if it no longer exists. */
@@ -186,12 +203,12 @@ class DataAvailabilityCleanup(
     return results.single()
   }
 
-  /** Deletes the observed version, skipping metadata that was deleted or refreshed concurrently. */
+  /** Deletes the observed version, skipping metadata that was deleted concurrently. */
   private suspend fun deleteImpressionMetadata(metadata: ImpressionMetadata): CleanupStatus {
     val resourceId = metadata.name
     return try {
-      impressionMetadataServiceStub.deleteImpressionMetadata(
-        deleteImpressionMetadataRequest {
+      impressionMetadataServiceStub.markImpressionMetadataDeleted(
+        markImpressionMetadataDeletedRequest {
           name = resourceId
           etag = metadata.etag
         }
@@ -212,12 +229,6 @@ class DataAvailabilityCleanup(
       when {
         e.status.code == Status.Code.NOT_FOUND -> {
           logger.info("ImpressionMetadata not found (already deleted): $resourceId")
-          CleanupStatus.SKIPPED
-        }
-        e.status.code == Status.Code.ABORTED &&
-          e.errorInfo?.domain == ERROR_DOMAIN &&
-          e.errorInfo?.reason == ETAG_MISMATCH_REASON -> {
-          logger.info("ImpressionMetadata changed during cleanup: $resourceId")
           CleanupStatus.SKIPPED
         }
         else -> throw e
@@ -254,6 +265,7 @@ class DataAvailabilityCleanup(
   }
 
   companion object {
+    private const val MAX_CLEANUP_ATTEMPTS = 2
     private const val ERROR_DOMAIN = "edpaggregator.halo-cmm.org"
     private const val ETAG_MISMATCH_REASON = "ETAG_MISMATCH"
     private val logger: Logger = Logger.getLogger(this::class.java.name)

@@ -81,13 +81,24 @@ an object also archives its previous version.
 Cleanup reads the metadata version before checking whether a live object still
 exists. If no live object remains, it soft-deletes only that version. A replacement
 synchronized during cleanup changes the metadata etag, so the earlier cleanup is
-skipped and the refreshed metadata stays active. Repeated notifications are harmless.
+rechecked. A live replacement keeps its metadata active; a replacement deleted
+again can be cleaned up using its new etag. Repeated conflicts fail the invocation
+so that the notification follows the configured retry and dead-letter policy.
+Repeated notifications are harmless.
 
-When upgrading, deploy the updated internal metadata API server, then the public
-metadata API server, before the cleanup functions. Cleanup requires metadata etags
-and does not fall back to unconditional deletion. Legacy API delete requests that
-omit an etag remain unconditional; race protection starts with the updated cleanup
-functions.
+Object deletions can continue throughout an upgrade. Notifications, including
+queued notifications, need no version field: cleanup reads the current metadata
+etag when processing them. Updated cleanup fails safely if a public API read omits
+the etag or either API server lacks the conditional-deletion RPC, including when
+a read reaches a newer replica and deletion reaches an older one. The resulting
+HTTP 500 leaves the notification unacknowledged for retries and eventual retention
+in the configured dead-letter queue. Deploy the internal metadata API server,
+then the public API server, before cleanup functions to minimize these temporary
+failures. Monitor and replay dead-lettered notifications after the upgrade.
+
+Legacy API delete requests that omit an etag remain unconditional. This includes
+older cleanup invocations still running during the upgrade; race protection starts
+when the updated cleanup code processes the notification.
 
 Both triggers use the same service account and dead-letter queue. Enabling archive
 events handles future removals; it does not repair metadata left behind by earlier

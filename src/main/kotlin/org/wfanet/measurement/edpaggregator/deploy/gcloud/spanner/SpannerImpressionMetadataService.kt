@@ -67,6 +67,7 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as 
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.MarkImpressionMetadataDeletedRequest
 import org.wfanet.measurement.internal.edpaggregator.UndeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.UpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
@@ -75,6 +76,7 @@ import org.wfanet.measurement.internal.edpaggregator.batchUndeleteImpressionMeta
 import org.wfanet.measurement.internal.edpaggregator.batchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
+import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataResponse
 
@@ -450,6 +452,22 @@ class SpannerImpressionMetadataService(
         }
       }
     }
+  }
+
+  override suspend fun markImpressionMetadataDeleted(
+    request: MarkImpressionMetadataDeletedRequest
+  ): ImpressionMetadata {
+    if (request.etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    return deleteImpressionMetadata(
+      deleteImpressionMetadataRequest {
+        dataProviderResourceId = request.dataProviderResourceId
+        impressionMetadataResourceId = request.impressionMetadataResourceId
+        etag = request.etag
+      }
+    )
   }
 
   override suspend fun deleteImpressionMetadata(
