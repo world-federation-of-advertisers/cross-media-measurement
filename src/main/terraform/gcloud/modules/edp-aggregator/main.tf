@@ -439,8 +439,8 @@ module "data_availability_sync_cloud_function" {
   ]
   # The RPC throttler is process-local. Bound service-wide concurrency to protect the shared
   # ImpressionMetadata service from completion-marker bursts.
-  max_instances   = 5
-  concurrency     = 1
+  max_instances = 5
+  concurrency   = 1
 
   # WorkItem attempts renew their leases while synchronizing, independently of source-event delivery.
   timeout_seconds = 3600
@@ -1346,4 +1346,13 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_work_item_invok
   service    = var.event_group_sync_function_name
   role       = "roles/run.invoker"
   member     = "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}"
+}
+
+module "vid_labeling_availability_monitoring" {
+  source                = "../edp-aggregator-availability-monitoring"
+  thresholds            = var.vid_labeling_availability_alert_thresholds
+  notification_channels = var.vid_labeling_healing_alert_notification_channels
+
+  publication_status_storage_roots = var.data_availability_publication_status_storage_roots
+  publication_status_writer_member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
 }

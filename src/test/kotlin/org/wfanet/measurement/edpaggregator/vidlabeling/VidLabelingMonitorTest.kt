@@ -22,6 +22,7 @@ import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import com.google.type.date
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
@@ -84,6 +85,7 @@ import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityPublicationStatus
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
@@ -1124,6 +1126,206 @@ class VidLabelingMonitorTest {
     }
 
   @Test
+  fun `availability age and failed execution history survive retry and clear when idle`() =
+    runBlocking<Unit> {
+      val parent = upload("availability-signals", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      val row = availabilityRow(parent.name, day)
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, listOf(day))
+      val done =
+        checkNotNull(
+          vidLabeledImpressionsStorageClient.getBlob(availabilityDoneKey(parent.name, day))
+        )
+      val publishedAt = done.createTime.minus(Duration.ofHours(2))
+      val outputKey = SelectedStorageClient.parseBlobUri(VID_LABELED_IMPRESSIONS_PREFIX).key
+      DataAvailabilityPublicationStatus.record(
+        vidLabeledImpressionsStorageClient,
+        outputKey,
+        DATA_PROVIDER,
+        MODEL_LINE,
+        publishedAt,
+      )
+      DataAvailabilityPublicationStatus.record(
+        vidLabeledImpressionsStorageClient,
+        outputKey,
+        DATA_PROVIDER,
+        MODEL_LINE + "-other",
+        done.createTime,
+      )
+      DataAvailabilityPublicationStatus.record(
+        vidLabeledImpressionsStorageClient,
+        outputKey,
+        "dataProviders/other",
+        MODEL_LINE,
+        done.createTime,
+      )
+      val items = installAvailabilityWorkItems(WorkItem.State.FAILED)
+      repeat(3) { tick ->
+        val now = done.createTime.plus(Duration.ofHours(tick + 1L))
+        createMonitor(clock = Clock.fixed(now, ZoneId.of("UTC"))).runDispatch()
+        assertThat(
+            collectMetrics().gaugeValue("edpa.vid_labeling_monitor.pending_availability_age")
+          )
+          .isEqualTo((tick + 1L) * 3600L)
+        assertThat(
+            collectMetrics().gaugeValue("edpa.vid_labeling_monitor.failed_availability_executions")
+          )
+          .isEqualTo(tick + 1L)
+        assertThat(
+            collectMetrics().gaugeValue("edpa.vid_labeling_monitor.terminal_availability_failures")
+          )
+          .isEqualTo(1L)
+        assertThat(
+            collectMetrics().gaugeValue("edpa.vid_labeling_monitor.availability_publication_age")
+          )
+          .isEqualTo((tick + 3L) * 3600L)
+        val name = items.keys.single()
+        items[name] = items.getValue(name).copy { state = WorkItem.State.FAILED }
+      }
+      stubModelLines(
+        row.copy {
+          pendingAvailabilityDates.clear()
+          state = RawImpressionUploadModelLine.State.COMPLETED
+        }
+      )
+      createMonitor().runDispatch()
+      for (signal in
+        listOf(
+          "pending_availability_age",
+          "failed_availability_executions",
+          "terminal_availability_failures",
+          "availability_publication_age",
+          "availability_monitoring_errors",
+        )) {
+        assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.$signal")).isEqualTo(0L)
+      }
+    }
+
+  @Test
+  fun `terminal availability failure remains visible when retry RPC fails`() =
+    runBlocking<Unit> {
+      val parent = upload("retry-unavailable", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      stubUploads(active = listOf(parent))
+      stubModelLines(availabilityRow(parent.name, day))
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, listOf(day))
+      installAvailabilityWorkItems(WorkItem.State.FAILED)
+      whenever(workItemsService.retryWorkItem(any()))
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      createMonitor().runDispatch()
+      assertThat(
+          collectMetrics().gaugeValue("edpa.vid_labeling_monitor.failed_availability_executions")
+        )
+        .isEqualTo(1L)
+      assertThat(
+          collectMetrics().gaugeValue("edpa.vid_labeling_monitor.terminal_availability_failures")
+        )
+        .isEqualTo(1L)
+      assertThat(
+          collectMetrics().gaugeValue("edpa.vid_labeling_monitor.availability_monitoring_errors")
+        )
+        .isEqualTo(1L)
+    }
+
+  @Test
+  fun `availability signals clear when all owners disappear from a later scan`() =
+    runBlocking<Unit> {
+      val parent = upload("removed-owner", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      stubUploads(active = listOf(parent))
+      stubModelLines(availabilityRow(parent.name, day))
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, listOf(day))
+      installAvailabilityWorkItems(WorkItem.State.FAILED)
+      createMonitor().runDispatch()
+      assertThat(
+          collectMetrics().gaugeValue("edpa.vid_labeling_monitor.terminal_availability_failures")
+        )
+        .isEqualTo(1L)
+      stubUploads()
+      createMonitor().runDispatch()
+      for (signal in
+        listOf(
+          "pending_availability_age",
+          "failed_availability_executions",
+          "terminal_availability_failures",
+          "availability_publication_age",
+          "availability_monitoring_errors",
+        )) {
+        assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.$signal")).isEqualTo(0L)
+      }
+    }
+
+  @Test
+  fun `publication silence without a stored timestamp starts at pending done creation`() =
+    runBlocking<Unit> {
+      val parent = upload("no-publication-yet", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      stubUploads(active = listOf(parent))
+      stubModelLines(availabilityRow(parent.name, day))
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, listOf(day))
+      installAvailabilityWorkItems(WorkItem.State.QUEUED)
+      val done =
+        checkNotNull(
+          vidLabeledImpressionsStorageClient.getBlob(availabilityDoneKey(parent.name, day))
+        )
+      createMonitor(clock = Clock.fixed(done.createTime.plusSeconds(7200), ZoneId.of("UTC")))
+        .runDispatch()
+      assertThat(
+          collectMetrics().gaugeValue("edpa.vid_labeling_monitor.availability_publication_age")
+        )
+        .isEqualTo(7200L)
+      assertThat(
+          collectMetrics().gaugeValue("edpa.vid_labeling_monitor.terminal_availability_failures")
+        )
+        .isEqualTo(0L)
+    }
+
+  @Test
+  fun `both cadences report initial owner scan failure and clear it after an empty scan`() =
+    runBlocking<Unit> {
+      for (healthCadence in listOf(false, true)) {
+        whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+          .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+        val monitor = createMonitor()
+        if (healthCadence) {
+          assertFailsWith<StatusException> { monitor.runHealth() }
+        } else {
+          assertThat(monitor.runDispatch().dispatchError).isTrue()
+        }
+        assertThat(
+            collectMetrics().gaugeValue("edpa.vid_labeling_monitor.availability_monitoring_errors")
+          )
+          .isEqualTo(1L)
+        stubUploads()
+        if (healthCadence) monitor.runHealth() else monitor.runDispatch()
+        assertThat(
+            collectMetrics().gaugeValue("edpa.vid_labeling_monitor.availability_monitoring_errors")
+          )
+          .isEqualTo(0L)
+      }
+    }
+
+  @Test
+  fun `availability owner listing failure raises monitoring error signal`() =
+    runBlocking<Unit> {
+      val parent = upload("owners-unavailable", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      stubUploads(active = listOf(parent))
+      whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      createMonitor().runDispatch()
+      assertThat(
+          collectMetrics().gaugeValue("edpa.vid_labeling_monitor.availability_monitoring_errors")
+        )
+        .isEqualTo(1L)
+    }
+
+  @Test
   fun `dispatch cadence retries a later failure without exhausting a labeler budget`() =
     runBlocking<Unit> {
       val parent = upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
@@ -1309,6 +1511,7 @@ class VidLabelingMonitorTest {
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     labeledStorageClient: StorageClient = vidLabeledImpressionsStorageClient,
     availabilityWorkItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub = workItemsStub,
+    clock: Clock = fixedClock,
   ): VidLabelingMonitor =
     VidLabelingMonitor(
       rawImpressionUploadStub = rawImpressionUploadStub,
@@ -1330,7 +1533,7 @@ class VidLabelingMonitorTest {
       uploadHealingOperationStub = uploadHealingOperationStub,
       vidLabeledImpressionsBlobPrefix = VID_LABELED_IMPRESSIONS_PREFIX,
       rpcThrottlers = rpcThrottlers,
-      clock = fixedClock,
+      clock = clock,
     )
 
   /**
