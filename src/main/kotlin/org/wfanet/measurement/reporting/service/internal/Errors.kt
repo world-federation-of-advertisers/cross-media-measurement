@@ -44,6 +44,7 @@ object Errors {
     REPORTING_SET_RESULT_NOT_FOUND,
     REPORTING_WINDOW_RESULT_NOT_FOUND,
     BASIC_REPORT_STATE_INVALID,
+    PROCESSED_RESULT_REQUEST_CONFLICT,
     INVALID_BASIC_REPORT,
   }
 
@@ -174,6 +175,21 @@ class BasicReportStateInvalidException(
       Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
       Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
       Errors.Metadata.BASIC_REPORT_STATE to state.name,
+    ),
+    cause,
+  )
+
+class ProcessedResultRequestConflictException(
+  cmmsMeasurementConsumerId: String,
+  externalReportResultId: Long,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.PROCESSED_RESULT_REQUEST_CONFLICT,
+    "Corrected values differ from the request already claimed for this ReportResult",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_REPORT_RESULT_ID to externalReportResultId.toString(),
     ),
     cause,
   )

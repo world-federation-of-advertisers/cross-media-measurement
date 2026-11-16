@@ -82,6 +82,7 @@ def _report_trace_logging_context(
 # source.
 _INTERNAL_REPORTING_ERROR_DOMAIN = "internal.reporting.halo-cmm.org"
 _BASIC_REPORT_STATE_INVALID_REASON = "BASIC_REPORT_STATE_INVALID"
+_PROCESSED_RESULT_REQUEST_CONFLICT_REASON = "PROCESSED_RESULT_REQUEST_CONFLICT"
 _BASIC_REPORT_STATE_METADATA_KEY = "basicReportState"
 _STATES_PAST_UNPROCESSED = frozenset({
     basic_report_pb2.BasicReport.State.Name(
@@ -329,14 +330,21 @@ class PostProcessReportResultJob:
             )
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.FAILED_PRECONDITION:
-                # FAILED_PRECONDITION can mean (a) the BasicReport state is no
-                # longer UNPROCESSED_RESULTS_READY -- typically because another
-                # writer already advanced it -- in which case the work is
-                # done and we should skip silently, or (b) a real data
-                # integrity error such as a missing ReportingSetResult /
-                # ReportingWindowResult, which we must not swallow. The server
-                # attaches a google.rpc.ErrorInfo with reason and a
-                # basicReportState metadata field that disambiguates.
+                # A conflicting attempt must not fail the report owned by another writer.
+                error_info = _extract_error_info(e)
+                if (error_info is not None and error_info.domain
+                        == _INTERNAL_REPORTING_ERROR_DOMAIN and
+                        error_info.reason
+                        == _PROCESSED_RESULT_REQUEST_CONFLICT_REASON):
+                    logging.warning(
+                        "xmm.lifecycle.stage=processed_result_writeback "
+                        "xmm.outcome=failed xmm.operation.result=request_conflict "
+                        "%s Rejecting conflicting corrected values for BasicReport %s",
+                        _error_fields(e),
+                        basic_report.external_basic_report_id,
+                    )
+                    return False
+                # Completed reports are skipped; missing result targets remain fatal.
                 advanced_state = _basic_report_state_past_unprocessed(e)
                 if advanced_state is not None:
                     logging.info(

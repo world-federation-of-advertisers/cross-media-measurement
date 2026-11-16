@@ -38,6 +38,7 @@ import org.mockito.kotlin.spy
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.TransactionWork
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
@@ -53,6 +54,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemat
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
+import org.wfanet.measurement.reporting.service.internal.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.service.internal.testing.v2.ReportResultsServiceTest
 import org.wfanet.measurement.reporting.service.internal.testing.v2.ReportResultsServiceTest.Companion.BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST
@@ -160,8 +162,11 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
       first.get(30, TimeUnit.SECONDS)
       resumeSecond.countDown()
       val error = assertFailsWith<ExecutionException> { second.get(30, TimeUnit.SECONDS) }
-      assertThat((error.cause as StatusException).status.code)
-        .isEqualTo(Status.Code.FAILED_PRECONDITION)
+      val conflict = error.cause as StatusException
+      assertThat(conflict.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(conflict.errorInfo?.domain).isEqualTo(Errors.DOMAIN)
+      assertThat(conflict.errorInfo?.reason)
+        .isEqualTo(Errors.Reason.PROCESSED_RESULT_REQUEST_CONFLICT.name)
       assertThat(getBasicReport(fixture).state).isEqualTo(BasicReport.State.SUCCEEDED)
       assertCorrectedValues(fixture)
     } finally {
@@ -228,6 +233,8 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
     val conflict =
       assertFailsWith<StatusException> { reportResultsStub.addProcessedResultValues(conflicting) }
     assertThat(conflict.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(conflict.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.PROCESSED_RESULT_REQUEST_CONFLICT.name)
     val reordered =
       fixture.request.copy {
         reportingSetResults.clear()

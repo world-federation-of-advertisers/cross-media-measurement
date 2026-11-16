@@ -13,6 +13,12 @@
 # limitations under the License.
 
 from absl import logging
+from concurrent import futures
+import threading
+from grpc_status import rpc_status
+from google.protobuf import empty_pb2
+from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2_grpc
+from wfa.measurement.internal.reporting.v2 import report_results_service_pb2_grpc
 import logging as stdlib_logging
 import unittest
 from unittest import mock
@@ -715,6 +721,118 @@ class PostProcessReportResultJobTest(unittest.TestCase):
                 for call in mock_logging.call_args_list
             )
         )
+
+    def test_execute_rejects_conflict_without_failing_active_writer(self):
+        basic_report = BasicReport(
+            cmms_measurement_consumer_id="mc_id_1",
+            external_basic_report_id="basic_report_1",
+            external_report_result_id=101,
+            state=BasicReport.UNPROCESSED_RESULTS_READY,
+        )
+        winner_request = report_results_service_pb2.AddProcessedResultValuesRequest(
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        for day, reach in [(1, 10), (2, 11)]:
+            entry = winner_request.reporting_set_results[
+                1].reporting_window_results.add()
+            entry.key.end.year, entry.key.end.month, entry.key.end.day = 2026, 1, day
+            entry.value.non_cumulative_results.reach = reach
+        conflicting = report_results_service_pb2.AddProcessedResultValuesRequest(
+        )
+        conflicting.CopyFrom(winner_request)
+        conflicting.reporting_set_results[1].reporting_window_results[
+            0].value.non_cumulative_results.reach = 20
+        first_committed = threading.Event()
+        resume_winner = threading.Event()
+        committed_values = []
+        failed_reports = []
+        conflict_status = status_pb2.Status(
+            code=grpc.StatusCode.FAILED_PRECONDITION.value[0],
+            message="Another correction request owns these results",
+        )
+        conflict_status.details.add().Pack(
+            error_details_pb2.ErrorInfo(
+                domain="internal.reporting.halo-cmm.org",
+                reason="PROCESSED_RESULT_REQUEST_CONFLICT",
+            ))
+
+        class Services(
+                basic_reports_service_pb2_grpc.BasicReportsServicer,
+                report_results_service_pb2_grpc.ReportResultsServicer,
+        ):
+
+            def ListBasicReports(self, request, context):
+                return basic_reports_service_pb2.ListBasicReportsResponse(
+                    basic_reports=[basic_report] if basic_report.state
+                    == BasicReport.UNPROCESSED_RESULTS_READY else [],)
+
+            def FailBasicReport(self, request, context):
+                failed_reports.append(request)
+                basic_report.state = BasicReport.FAILED
+                return basic_report
+
+            def AddProcessedResultValues(self, request, context):
+                if request != winner_request:
+                    context.abort_with_status(
+                        rpc_status.to_status(conflict_status))
+                entries = request.reporting_set_results[
+                    1].reporting_window_results
+                committed_values.append(entries[0].value)
+                first_committed.set()
+                if not resume_winner.wait(10):
+                    context.abort(grpc.StatusCode.DEADLINE_EXCEEDED,
+                                  "Winner was not resumed")
+                if basic_report.state != BasicReport.UNPROCESSED_RESULTS_READY:
+                    context.abort(grpc.StatusCode.FAILED_PRECONDITION,
+                                  "Report was failed")
+                committed_values.append(entries[1].value)
+                basic_report.state = BasicReport.SUCCEEDED
+                return empty_pb2.Empty()
+
+        with futures.ThreadPoolExecutor(max_workers=3) as executor:
+            server = grpc.server(executor)
+            services = Services()
+            basic_reports_service_pb2_grpc.add_BasicReportsServicer_to_server(
+                services, server)
+            report_results_service_pb2_grpc.add_ReportResultsServicer_to_server(
+                services, server)
+            port = server.add_insecure_port("localhost:0")
+            server.start()
+            try:
+                with grpc.insecure_channel(f"localhost:{port}") as channel:
+                    # Exercise execute() through real gRPC stubs, including FailBasicReport.
+                    for patch in self.patches[:3]:
+                        patch.stop()
+                    job = post_process_report_result_job.PostProcessReportResultJob(
+                        channel,
+                        log_noise_correction_values=False,
+                    )
+                    self.mock_post_processor.process.return_value = conflicting
+                    winner_stub = report_results_service_pb2_grpc.ReportResultsStub(
+                        channel)
+                    winner = executor.submit(
+                        winner_stub.AddProcessedResultValues,
+                        winner_request,
+                        timeout=10,
+                    )
+                    try:
+                        self.assertTrue(first_committed.wait(10))
+                        self.assertFalse(job.execute())
+                        self.assertEqual(failed_reports, [])
+                        self.assertEqual(basic_report.state,
+                                         BasicReport.UNPROCESSED_RESULTS_READY)
+                    finally:
+                        resume_winner.set()
+                    winner.result(timeout=10)
+                    self.assertEqual(basic_report.state, BasicReport.SUCCEEDED)
+                    self.assertEqual(committed_values, [
+                        entry.value for entry in winner_request.
+                        reporting_set_results[1].reporting_window_results
+                    ])
+            finally:
+                resume_winner.set()
+                server.stop(0).wait()
 
     def test_execute_fails_basic_report_on_other_failed_precondition(self):
         """When AddProcessedResultValues returns FAILED_PRECONDITION for a

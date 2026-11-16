@@ -8,6 +8,8 @@ py_test(
     srcs = ["post_process_report_result_job_test.py"],
     deps = [
         requirement("googleapis-common-protos"),
+        requirement("grpcio-status"),
+        requirement("grpcio"),
         requirement("absl-py"),
         requirement("protobuf"),
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_py_pb2",

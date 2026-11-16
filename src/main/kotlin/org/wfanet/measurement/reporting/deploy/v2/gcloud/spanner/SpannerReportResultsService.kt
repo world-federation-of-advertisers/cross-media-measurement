@@ -83,6 +83,7 @@ import org.wfanet.measurement.reporting.service.internal.ImpressionQualification
 import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.Normalization
+import org.wfanet.measurement.reporting.service.internal.ProcessedResultRequestConflictException
 import org.wfanet.measurement.reporting.service.internal.ReportResultNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetResultNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingWindowResultNotFoundException
@@ -595,10 +596,11 @@ class SpannerReportResultsService(
             requestFingerprint,
           )
         } else if (!storedFingerprint.contentEquals(requestFingerprint)) {
-          throw Status.FAILED_PRECONDITION.withDescription(
-              "Corrected values differ from the request already claimed for this ReportResult"
+          throw ProcessedResultRequestConflictException(
+              request.cmmsMeasurementConsumerId,
+              request.externalReportResultId,
             )
-            .asRuntimeException()
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
         for (write in batch) {
           txn.upsertReportResultValues(
