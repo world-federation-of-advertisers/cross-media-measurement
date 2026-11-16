@@ -70,3 +70,89 @@ outputs under `vid-labeled-impressions/edp/...`. Before adopting this configurat
 VID Labeler and availability tasks and migrate dispatcher, monitor, and sync configs together.
 Keep previously published impression metadata; new tasks derive their outputs from the new
 internal prefix. External upload producers do not need to change their paths.
+
+## Metadata cleanup in versioned buckets
+
+The metadata deletion watcher receives both object-deleted and object-archived
+events. In a versioned bucket, deleting a live object without specifying a
+generation makes that version noncurrent and emits an archive event. Overwriting
+an object also archives its previous version.
+
+Cleanup checks whether a live object still exists before deleting its impression
+metadata. An overwrite therefore keeps the live object's metadata. If no live
+object remains, cleanup deletes the metadata; repeated notifications are harmless.
+
+Both triggers use the same service account and dead-letter queue. Enabling archive
+events handles future removals; it does not repair metadata left behind by earlier
+missed notifications.
+
+### Known gaps
+
+These gaps apply with object versioning enabled or disabled:
+
+*   **Removing only the encrypted impressions file.** The metadata record's
+    `blob_uri` identifies its metadata sidecar. If the removed data file does
+    not carry an ImpressionMetadata resource ID, cleanup looks up the data
+    file's URI and can find no record, leaving metadata `ACTIVE`. Availability
+    sync currently stamps the resource ID on the sidecar only.
+*   **Possible delete/recreate race.** Cleanup checks storage before deleting
+    the metadata record. A replacement can be uploaded and synchronized
+    between those steps, after which the earlier cleanup can soft-delete the
+    refreshed record. The storage check and metadata deletion are separate
+    operations; cleanup does not use a metadata-version precondition. This
+    sequence needs a dedicated regression before selecting a fix.
+
+### Deployment check
+
+Deploy the infrastructure through Terraform. The storage commands below change
+only dedicated test objects; they do not change triggers, subscriptions,
+permissions, or functions.
+
+Create dedicated test impression data and a metadata sidecar under a prefix
+matched by the deletion watcher's configuration, with no reports or other jobs
+using them. Register metadata through the normal availability sync flow. Use
+the sidecar as `TEST_OBJECT_PATH` below and record both object URIs, generations,
+and the metadata resource name.
+
+After deploying the triggers:
+
+1.  Verify that both archive and permanent-delete triggers target the existing
+    deletion watcher, use its trigger service account, and have the configured
+    dead-letter policy on their Eventarc subscriptions.
+2.  Remove the test object's live version without specifying a generation:
+
+    ```shell
+    gcloud storage rm gs://BUCKET/TEST_OBJECT_PATH
+    ```
+
+    In a versioned bucket, confirm an archived version remains and no live
+    version exists. Wait for the archive notification to pass through the
+    deletion watcher and cleanup handler. Use `GetImpressionMetadata` with the
+    recorded name, or list with `show_deleted=true`, and verify the record is
+    soft-deleted (`DELETED`).
+3.  Create and sync a fresh test object, then overwrite it with a valid
+    replacement at the same URI:
+
+    ```shell
+    gcloud storage cp REPLACEMENT_FILE gs://BUCKET/TEST_OBJECT_PATH
+    ```
+
+    Confirm the old generation was archived, the replacement remains live, and
+    cleanup processed the archive notification and skipped deletion. Verify
+    metadata for the live file remains `ACTIVE`.
+4.  Permanently remove the old, archived generation while the replacement is
+    still live:
+
+    ```shell
+    gcloud storage rm 'gs://BUCKET/TEST_OBJECT_PATH#OLD_GENERATION'
+    ```
+
+    Wait for cleanup to process the permanent-delete notification and verify
+    metadata remains `ACTIVE`. Repeated cleanup of an already-deleted metadata
+    record should succeed without changing other records.
+
+Check handler logs and metadata state together; a successful upload or a passing
+report alone does not establish that cleanup received the notification. Inspect
+the dead-letter subscription for failed deliveries and keep the event, object,
+and metadata identifiers in the test record. Remove the remaining test objects
+and verify cleanup after completing the check.
