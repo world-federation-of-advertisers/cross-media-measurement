@@ -282,6 +282,7 @@ data class PipelineHarnessConfig(
   val retentionDays: Int = 30,
   val errorIfGapsExist: Boolean = false,
   val modelLineCutovers: List<ModelLineCutover> = emptyList(),
+  val modelLineMap: Map<String, List<String>> = emptyMap(),
   val modelLineActiveStarts: Map<String, Instant> = emptyMap(),
   val modelLineActiveEnds: Map<String, Instant> = emptyMap(),
   val dispatcherClockUsesToday: Boolean = false,
@@ -641,7 +642,7 @@ abstract class VidLabelingPipelineTestHarness(
         dataProviderName = DATA_PROVIDER,
         throttler = ImmediateThrottler,
         impressionMetadataBatchSize = 100,
-        modelLineMap = emptyMap(),
+        modelLineMap = pipelineConfig.modelLineMap,
         modelLineCutovers = pipelineConfig.modelLineCutovers,
         modelLineDataSources =
           pipelineConfig.modelLineCutovers
@@ -682,7 +683,7 @@ abstract class VidLabelingPipelineTestHarness(
         dataProviderName = DATA_PROVIDER,
         throttler = ImmediateThrottler,
         impressionMetadataBatchSize = 100,
-        modelLineMap = emptyMap(),
+        modelLineMap = pipelineConfig.modelLineMap,
         modelLineCutovers = pipelineConfig.modelLineCutovers,
         modelLineDataSources =
           pipelineConfig.modelLineCutovers

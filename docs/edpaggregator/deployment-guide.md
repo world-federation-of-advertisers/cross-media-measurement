@@ -1185,10 +1185,14 @@ prior Kingdom publication from each contributor is not required. After that date
 the replacement line advances the end independently. Each contributor can use a different bucket
 and path through `model_line_data_sources`. Replacement contributors are produced by the internal
 VID Labeler. Replay uses each configured model line's completion-marker semantics, including when
-contributors share a base path or use separate buckets. While the cutover is configured,
-DataAvailabilitySync
-publishes only the combined advertiser-visible model line; it does not expose the internal
-historical or replacement lines to Kingdom.
+contributors share a base path or use separate buckets. By default, DataAvailabilitySync publishes
+the combined advertiser-visible model line and keeps the historical and replacement contributors
+hidden. An explicit `model_line_map` entry can publish a contributor's metadata bounds under
+additional external aliases. These aliases share the cutover publication gate: missing required
+coverage in either contributor leaves their Kingdom availability unchanged too. Mapping a
+contributor to a DEV comparison line requires the inverse alias in ResultsFulfillerParams,
+compatible population and event-schema configuration, and DEV report permissions. Alias targets
+must not include the cutover's advertiser-visible model line.
 
 For cutover-routed groups, ResultsFulfiller verifies every requested UTC event date against the
 selected internal line's configured validity window and completion marker. An invalid or
@@ -1335,8 +1339,8 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
   multi-party suppression is disabled as described below. When this is configured,
   `noise_params.noise_type` must be `NONE`.
 * `impression_max_frequency_per_user` — direct impression measurements only.
-* `model_line_map` — optional external→internal model-line remapping for impression lookup when no
-  report-level cutover is configured. Report-level cutovers belong in
+* `model_line_map` — optional external→internal model-line remapping for requisition model lines
+  without a report-level cutover. Report-level cutovers belong in
   `work_item_dispatch.model_line_cutovers`; ResultsFulfiller consumes the internal line persisted
   in each `GroupedRequisitions` blob rather than evaluating the cutover again.
 * `model_line_data_sources` — required for both internal contributors of each report-level cutover.
