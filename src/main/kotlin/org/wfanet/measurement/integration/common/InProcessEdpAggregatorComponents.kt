@@ -153,8 +153,8 @@ class InProcessEdpAggregatorComponents(
   private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
-  private val eventGroupReferenceIdEntityKeyMapping:
-    ResultsFulfillerParams.EventGroupReferenceIdEntityKeyMapping?,
+  private val eventGroupReferenceIdEntityKeyMappingsByEdp:
+    Map<String, ResultsFulfillerParams.EventGroupReferenceIdEntityKeyMapping>,
   private val wholeBlobEntityTypes: Set<String>,
 ) : TestRule {
   private val modelLineName: String by lazy { requireSingleModelLineName(modelLineInfoMap.keys) }
@@ -293,6 +293,9 @@ class InProcessEdpAggregatorComponents(
     require(edpNoise.keys == edpCapabilities.keys) {
       "edpNoise keys ${edpNoise.keys} must match edpCapabilities keys ${edpCapabilities.keys}"
     }
+    require(eventGroupReferenceIdEntityKeyMappingsByEdp.keys.all { it in edpCapabilities }) {
+      "Identifier mapping keys must identify configured EDPs"
+    }
     require(resultMinimumThresholdsByEdp.keys.all { it in edpCapabilities }) {
       "resultMinimumThresholdsByEdp keys must identify configured EDPs"
     }
@@ -329,7 +332,8 @@ class InProcessEdpAggregatorComponents(
             supportedMultiPartyNoiseTypes =
               edpMultiPartyNoiseTypes.getOrDefault(edpAggregatorShortName, emptyList()),
             resultMinimumThresholds = resultMinimumThresholdsByEdp[edpAggregatorShortName],
-            eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
+            eventGroupReferenceIdEntityKeyMapping =
+              eventGroupReferenceIdEntityKeyMappingsByEdp[edpAggregatorShortName],
             wholeBlobEntityTypes = wholeBlobEntityTypes,
           )
       }
@@ -349,7 +353,14 @@ class InProcessEdpAggregatorComponents(
         UnlinkedClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
       val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
 
-      val requisitionsValidator = RequisitionsValidator(edpPrivateKey)
+      val requisitionsValidator =
+        RequisitionsValidator(
+          privateEncryptionKey = edpPrivateKey,
+          allowMixedEventGroupSelectors =
+            resultsFulfillerParamsMap
+              .getValue(edpAggregatorShortName)
+              .hasEventGroupReferenceIdEntityKeyMapping(),
+        )
 
       val requisitionGrouper =
         RequisitionGrouperByReportId(
@@ -1158,7 +1169,7 @@ class InProcessEdpAggregatorComponents(
         entityKeyTypes = entityKeyTypes,
         listEventGroupPageSize = 500,
         eventGroupReferenceIdEntityKeyMapping =
-          eventGroupReferenceIdEntityKeyMapping?.let {
+          eventGroupReferenceIdEntityKeyMappingsByEdp[edpAggregatorShortName]?.let {
             EventGroupReferenceIdEntityKeyMapping(
               entityType = it.entityType,
               eventGroupReferenceIdPrefix = it.eventGroupReferenceIdPrefix,

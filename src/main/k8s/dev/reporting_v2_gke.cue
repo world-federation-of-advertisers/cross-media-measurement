@@ -203,6 +203,7 @@ reporting: #Reporting & {
 				replicas: 2
 				template: spec: #ServiceAccountPodSpec & {
 					serviceAccountName: #InternalAccessServerServiceAccount
+					// Require separate nodes for authorization availability during node drains.
 					topologySpreadConstraints: [{
 						maxSkew:           1
 						minDomains:        2

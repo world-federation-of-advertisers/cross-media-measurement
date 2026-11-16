@@ -717,7 +717,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
     private val uploadEventGroup = UploadEventGroup()
     private val seedRawImpressions = SeedRawImpressionsRule(populationSpec, edp7EventGroupConfigs)
-    private val awaitVidLabeling = AwaitVidLabelingRule()
+    private val awaitVidLabeling = AwaitVidLabelingRule { seedRawImpressions.doneBlobGenerations }
     // Writes pre-labeled impressions stamped with the non-memoized model line for the dates the
     // pipeline does not produce, so the `done` blobs dropped by createDoneBlobs register them under
     // that line. Each impression is relabeled with the non-memoized labeler so its VID matches what

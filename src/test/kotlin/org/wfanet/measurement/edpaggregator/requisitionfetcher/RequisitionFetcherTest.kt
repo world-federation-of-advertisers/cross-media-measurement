@@ -383,7 +383,8 @@ class RequisitionFetcherTest {
   ): RequisitionFetcher {
     val validator =
       RequisitionsValidator(
-        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
       )
     val grouper =
       RequisitionGrouperByReportId(
