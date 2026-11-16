@@ -170,7 +170,7 @@ class RequisitionsValidator(
       eventGroupMap.values.any { !hasMeaningfulEntityKey(it) && it.eventGroupReferenceId.isBlank() }
     ) {
       throw InconsistentEventGroupSelectorsException(
-        "All event groups must have event_group_reference_id when entity_key is not present"
+        "Every event group must have a nonblank entity_key.entity_id or event_group_reference_id"
       )
     }
   }
