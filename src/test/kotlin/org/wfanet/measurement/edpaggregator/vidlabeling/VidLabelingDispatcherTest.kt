@@ -2019,6 +2019,303 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `upload rejects historical AS predecessor when approved target is not memoized`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(memoized = false)
+    }
+
+  @Test
+  fun `upload rejects historical AS predecessor whose model row is missing`(): Unit = runBlocking {
+    verifyHistoricalPredecessorRejection(missingPredecessor = true)
+  }
+
+  @Test
+  fun `upload rejects historical AS predecessor newer than paginated original source checkpoints`():
+    Unit = runBlocking { verifyHistoricalPredecessorRejection(newer = true, paginated = true) }
+
+  @Test
+  fun `upload accepts exact historical AS predecessor under its active recovery target`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(expectRejected = false)
+    }
+
+  @Test
+  fun `upload historical proof filters unrelated model target and recovery action`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(expectRejected = false, scopeDecoys = true)
+    }
+
+  @Test
+  fun `upload accepts pending historical predecessor from its completed operation`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        expectRejected = false,
+        foreignPredecessor = true,
+        priorOperation = completedHistoricalOperation(),
+      )
+    }
+
+  @Test
+  fun `upload rejects pending historical predecessor with missing operation`(): Unit = runBlocking {
+    verifyHistoricalPredecessorRejection(foreignPredecessor = true)
+  }
+
+  @Test
+  fun `upload rejects pending historical predecessor with mismatched operation identity`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperation =
+          completedHistoricalOperation()
+            .toBuilder()
+            .setName("$DATA_PROVIDER_NAME/uploadHealingOperations/wrong")
+            .build(),
+      )
+    }
+
+  @Test
+  fun `upload rejects pending historical predecessor from unfinished operation`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperation =
+          completedHistoricalOperation()
+            .toBuilder()
+            .setState(
+              org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+            )
+            .build(),
+      )
+    }
+
+  @Test
+  fun `upload rejects newer snapshot from completed historical operation`(): Unit = runBlocking {
+    verifyHistoricalPredecessorRejection(
+      foreignPredecessor = true,
+      priorOperation = completedHistoricalOperation(),
+      newer = true,
+    )
+  }
+
+  private fun completedHistoricalOperation() =
+    org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+      name = "$DATA_PROVIDER_NAME/uploadHealingOperations/prior"
+      state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.COMPLETE
+    }
+
+  @Test
+  fun `upload does not register replacement when prior operation lookup is unavailable`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperationFailure = Status.UNAVAILABLE,
+      )
+    }
+
+  @Test
+  fun `upload does not register replacement when prior operation lookup is cancelled`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperationFailure = Status.CANCELLED,
+      )
+    }
+
+  private suspend fun verifyHistoricalPredecessorRejection(
+    memoized: Boolean = true,
+    missingPredecessor: Boolean = false,
+    newer: Boolean = false,
+    paginated: Boolean = false,
+    expectRejected: Boolean = true,
+    scopeDecoys: Boolean = false,
+    foreignPredecessor: Boolean = false,
+    priorOperation: org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation? = null,
+    priorOperationFailure: Status? = null,
+  ) {
+    val source = rawImpressionUpload {
+      name = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-historical"
+      state = RawImpressionUpload.State.FAILED
+      registrationComplete = true
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+      createTime = DONE_BLOB_CREATE_TIME.minusSeconds(10).toProtoTime()
+    }
+    val predecessor = rawImpressionUpload {
+      name = RECOVERY_PREDECESSOR_UPLOAD
+      if (foreignPredecessor)
+        uploadHealingOperation = "$DATA_PROVIDER_NAME/uploadHealingOperations/prior"
+      state = RawImpressionUpload.State.ACTIVE
+      registrationComplete = true
+      doneBlobUri = RECOVERY_PREDECESSOR_DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 2
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(2).toProtoTime()
+      createTime = DONE_BLOB_CREATE_TIME.minusSeconds(20).toProtoTime()
+    }
+    if (!expectRejected) {
+      stubRawImpressionUploadCreation()
+      stubOverrideResolutionChain()
+      val inputBlob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(inputBlob))
+    }
+    stubRecoverySource(source)
+    whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
+        >(
+          0
+        )
+      if (request.name == source.name) source else predecessor
+    }
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+      listRawImpressionUploadsResponse {
+        rawImpressionUploads +=
+          if (request.filter.doneBlobUri == DONE_BLOB_PATH) source else predecessor
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenAnswer { invocation ->
+        val request =
+          invocation.getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+          >(
+            0
+          )
+        listRawImpressionUploadModelLinesResponse {
+          if (request.parent == source.name)
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = "${source.name}/rawImpressionUploadModelLines/rml1"
+              cmmsModelLine = MODEL_LINE_1
+              state = RawImpressionUploadModelLine.State.FAILED
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+              evictionOperationId = EVICTION_OPERATION_ID
+              recoveryPredecessorRawImpressionUpload = predecessor.name
+            }
+          else if (!missingPredecessor)
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = "${predecessor.name}/rawImpressionUploadModelLines/rml1"
+              cmmsModelLine = MODEL_LINE_1
+              state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+            }
+        }
+      }
+    whenever(rankIndexBlobService.listRankIndexBlobs(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
+        >(
+          0
+        )
+      listRankIndexBlobsResponse {
+        rankIndexBlobs += rankIndexBlob {
+          name = "${request.parent}/rankIndexBlobs/${request.pageToken.ifEmpty { "first" }}"
+          blobType = RankIndexBlob.BlobType.SNAPSHOT
+          cmmsModelLine = MODEL_LINE_1
+          poolOffset = if (request.pageToken.isEmpty()) 0L else 1L
+          createTime =
+            DONE_BLOB_CREATE_TIME.plusSeconds(
+                if (request.parent == source.name) 10 else if (newer) 15 else -5
+              )
+              .toProtoTime()
+          if (request.parent == source.name)
+            deleteTime = DONE_BLOB_CREATE_TIME.plusSeconds(20).toProtoTime()
+        }
+        if (paginated && request.pageSize != 1 && request.pageToken.isEmpty())
+          nextPageToken = "second"
+      }
+    }
+    val operation =
+      org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+        name = "$DATA_PROVIDER_NAME/uploadHealingOperations/$EVICTION_OPERATION_ID"
+        state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+        if (scopeDecoys) {
+          for (kind in listOf("model", "target", "action")) steps +=
+            org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+              sourceRawImpressionUpload = "$DATA_PROVIDER_NAME/rawImpressionUploads/decoy-$kind"
+              rawImpressionUploadModelLine = "${source.name}/rawImpressionUploadModelLines/rml1"
+              cmmsModelLine = if (kind == "model") MODEL_LINE_2 else MODEL_LINE_1
+              recoveryTarget = kind != "target"
+              this.memoized = true
+              recoveryAction =
+                if (kind == "action")
+                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+                else RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+            }
+        }
+        steps +=
+          org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+            sourceRawImpressionUpload = source.name
+            rawImpressionUploadModelLine = "${source.name}/rawImpressionUploadModelLines/rml1"
+            cmmsModelLine = MODEL_LINE_1
+            recoveryTarget = true
+            this.memoized = memoized
+            recoveryAction =
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+            state =
+              org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State
+                .WAITING_FOR_REPLACEMENT
+          }
+      }
+    val dispatcher =
+      createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = source.name,
+        recoveryOperationId = EVICTION_OPERATION_ID,
+        getHealingOperation = { name ->
+          if (name == operation.name) operation
+          else {
+            if (priorOperationFailure != null) throw priorOperationFailure.asException()
+            priorOperation
+          }
+        },
+      )
+    if (priorOperationFailure != null) {
+      val failure =
+        assertFailsWith<io.grpc.StatusException> {
+          dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+        }
+      assertThat(failure.status.code).isEqualTo(priorOperationFailure.code)
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    } else if (expectRejected) {
+      val failure =
+        assertFailsWith<IllegalStateException> {
+          dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+        }
+      assertThat(failure).hasMessageThat().contains("No upload revision")
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    } else {
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      val request = argumentCaptor<CreateRawImpressionUploadRequest>()
+      verifyBlocking(rawImpressionUploadService) { createRawImpressionUpload(request.capture()) }
+      assertThat(request.firstValue.rawImpressionUpload.uploadHealingOperation)
+        .isEqualTo(operation.name)
+      assertThat(request.firstValue.rawImpressionUpload.replacesRawImpressionUpload).isEmpty()
+      assertThat(request.firstValue.requestId)
+        .isEqualTo(
+          RequestIds.forRawImpressionUploadRecovery(
+            DONE_BLOB_PATH,
+            DONE_BLOB_GENERATION,
+            EVICTION_OPERATION_ID,
+          )
+        )
+      assertThat(request.firstValue.rawImpressionUpload.doneBlobUri).isEqualTo(DONE_BLOB_PATH)
+      assertThat(request.firstValue.rawImpressionUpload.doneBlobGeneration)
+        .isEqualTo(DONE_BLOB_GENERATION)
+      val sourceReads =
+        argumentCaptor<org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest>()
+      verifyBlocking(rawImpressionUploadService, org.mockito.kotlin.atLeastOnce()) {
+        getRawImpressionUpload(sourceReads.capture())
+      }
+      assertThat(sourceReads.allValues.map { it.name })
+        .containsAtLeast(source.name, predecessor.name)
+    }
+  }
+
+  @Test
   fun `upload rejects recovery until predecessor replacement completes`() = runBlocking {
     val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
     val source = rawImpressionUpload {

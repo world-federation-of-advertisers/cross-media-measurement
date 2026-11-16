@@ -62,6 +62,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
@@ -541,6 +542,7 @@ class ReportsService(
                 ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
                   .toName(),
               basicReportResourceName = internalReport.details.basicReport,
+              reportInterval = internalReport.reportInterval(),
             )
           }
         }
@@ -1126,6 +1128,31 @@ private fun Date.isBefore(other: Date): Boolean {
   return LocalDate.of(this.year, this.month, this.day)
     .isBefore(LocalDate.of(other.year, other.month, other.day))
 }
+
+private fun InternalReport.reportInterval(): Interval? {
+  if (details.hasTimeIntervals()) {
+    val intervals = details.timeIntervals.timeIntervalsList
+    if (intervals.isEmpty()) return null
+    return interval {
+      startTime = intervals.minWith(TIMESTAMP_INTERVAL_START_COMPARATOR).startTime
+      endTime = intervals.maxWith(TIMESTAMP_INTERVAL_END_COMPARATOR).endTime
+    }
+  }
+  if (!details.hasReportingInterval()) return null
+  val reportingInterval = details.reportingInterval
+  if (
+    reportingInterval.reportStart.timeOffsetCase ==
+      com.google.type.DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
+  ) {
+    return null
+  }
+  return generateTimeIntervals(reportingInterval.toReportingInterval(), null).single()
+}
+
+private val TIMESTAMP_INTERVAL_START_COMPARATOR =
+  compareBy<Interval>({ it.startTime.seconds }, { it.startTime.nanos })
+private val TIMESTAMP_INTERVAL_END_COMPARATOR =
+  compareBy<Interval>({ it.endTime.seconds }, { it.endTime.nanos })
 
 /**
  * Generate a list of time intervals using the [Report.ReportingInterval], the
