@@ -74,3 +74,34 @@ run "archive_events_reach_existing_cleanup_function" {
     error_message = "Archive delivery failures must retain the configured dead-letter policy."
   }
 }
+
+run "dead_letter_settings_invalidate_primary_attachment" {
+  command = plan
+
+  variables {
+    additional_trigger_event_types = ["archived"]
+    max_delivery_attempts          = 17
+    message_retention_duration     = "172800s"
+  }
+
+  override_resource {
+    override_during = plan
+    target          = google_pubsub_topic.dead_letter_topic
+    values          = { id = "projects/test-project/topics/updated-dead-letter" }
+  }
+
+  assert {
+    condition     = contains(terraform_data.attach_dead_letter_policy.triggers_replace, var.max_delivery_attempts)
+    error_message = "Changing delivery attempts must reapply the primary dead-letter policy."
+  }
+
+  assert {
+    condition     = contains(terraform_data.attach_dead_letter_policy.triggers_replace, var.message_retention_duration)
+    error_message = "Changing retention must reapply the primary dead-letter policy."
+  }
+
+  assert {
+    condition     = contains(terraform_data.attach_dead_letter_policy.triggers_replace, google_pubsub_topic.dead_letter_topic.id)
+    error_message = "Changing the dead-letter topic must reapply the primary policy."
+  }
+}

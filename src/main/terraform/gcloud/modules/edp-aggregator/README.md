@@ -85,3 +85,53 @@ object remains, cleanup deletes the metadata; repeated notifications are harmles
 Both triggers use the same service account and dead-letter queue. Enabling archive
 events handles future removals; it does not repair metadata left behind by earlier
 missed notifications.
+
+### Deployment check
+
+Use a dedicated test object under a prefix matched by the deletion watcher's
+configuration, with no reports or other jobs using it. Create valid impression
+data and register its metadata through the normal availability sync flow. Record
+the object URI, generation, and metadata resource name.
+
+After deploying the triggers:
+
+1.  Verify that both archive and permanent-delete triggers target the existing
+    deletion watcher, use its trigger service account, and have the configured
+    dead-letter policy on their Eventarc subscriptions.
+2.  Remove the test object's live version without specifying a generation:
+
+    ```shell
+    gcloud storage rm gs://BUCKET/TEST_OBJECT_PATH
+    ```
+
+    In a versioned bucket, confirm an archived version remains and no live
+    version exists. Wait for the archive notification to pass through the
+    deletion watcher and cleanup handler. Use `GetImpressionMetadata` with the
+    recorded name, or list with `show_deleted=true`, and verify the record is
+    soft-deleted (`DELETED`).
+3.  Create and sync a fresh test object, then overwrite it with a valid
+    replacement at the same URI:
+
+    ```shell
+    gcloud storage cp REPLACEMENT_FILE gs://BUCKET/TEST_OBJECT_PATH
+    ```
+
+    Confirm the old generation was archived, the replacement remains live, and
+    cleanup processed the archive notification and skipped deletion. Verify
+    metadata for the live file remains `ACTIVE`.
+4.  Permanently remove the old, archived generation while the replacement is
+    still live:
+
+    ```shell
+    gcloud storage rm 'gs://BUCKET/TEST_OBJECT_PATH#OLD_GENERATION'
+    ```
+
+    Wait for cleanup to process the permanent-delete notification and verify
+    metadata remains `ACTIVE`. Repeated cleanup of an already-deleted metadata
+    record should succeed without changing other records.
+
+Check handler logs and metadata state together; a successful upload or a passing
+report alone does not establish that cleanup received the notification. Inspect
+the dead-letter subscription for failed deliveries and keep the event, object,
+and metadata identifiers in the test record. Remove the remaining test objects
+and verify cleanup after completing the check.

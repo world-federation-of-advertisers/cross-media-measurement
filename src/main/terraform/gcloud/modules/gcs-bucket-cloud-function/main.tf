@@ -196,6 +196,9 @@ resource "terraform_data" "attach_dead_letter_policy" {
     var.uploaded_config_generation,
     var.timeout_seconds,
     var.retry_on_failure,
+    google_pubsub_topic.dead_letter_topic.id,
+    var.max_delivery_attempts,
+    var.message_retention_duration,
   ]
 
   provisioner "local-exec" {
