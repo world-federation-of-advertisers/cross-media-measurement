@@ -622,6 +622,13 @@ class ImpressionMetadataService(
         }
       internalResponse.toImpressionMetadata()
     } catch (e: StatusException) {
+      if (request.etag.isNotEmpty() && e.status.code == Status.Code.UNIMPLEMENTED) {
+        throw Status.UNAVAILABLE.withDescription(
+            "Upgrade the EDPA internal metadata API server before retrying cleanup."
+          )
+          .withCause(e)
+          .asRuntimeException()
+      }
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
           ImpressionMetadataNotFoundException(request.name, e)

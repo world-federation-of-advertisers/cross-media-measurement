@@ -157,7 +157,12 @@ class DataAvailabilityCleanup(
       return CleanupStatus.SKIPPED
     }
 
-    check(metadata.etag.isNotEmpty()) { "ImpressionMetadata " + metadata.name + " has no etag" }
+    if (metadata.etag.isEmpty()) {
+      throw Status.UNAVAILABLE.withDescription(
+          "Upgrade the EDPA public API server before retrying cleanup."
+        )
+        .asException()
+    }
     return deleteImpressionMetadata(metadata)
   }
 
@@ -231,6 +236,12 @@ class DataAvailabilityCleanup(
           logger.info("ImpressionMetadata not found (already deleted): $resourceId")
           CleanupStatus.SKIPPED
         }
+        e.status.code == Status.Code.UNIMPLEMENTED ->
+          throw Status.UNAVAILABLE.withDescription(
+              "Upgrade the EDPA public API server before retrying cleanup."
+            )
+            .withCause(e)
+            .asException()
         else -> throw e
       }
     }

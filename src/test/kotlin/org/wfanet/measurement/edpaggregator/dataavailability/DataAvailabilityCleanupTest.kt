@@ -438,7 +438,10 @@ class DataAvailabilityCleanupTest {
     val cleanup =
       DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
 
-    assertFailsWith<IllegalStateException> { cleanup.cleanup(BLOB_URI, RESOURCE_ID) }
+    val exception = assertFailsWith<StatusException> { cleanup.cleanup(BLOB_URI, RESOURCE_ID) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description)
+      .isEqualTo("Upgrade the EDPA public API server before retrying cleanup.")
 
     verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
   }
@@ -457,7 +460,10 @@ class DataAvailabilityCleanupTest {
     val cleanup =
       DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
 
-    assertFailsWith<IllegalStateException> { cleanup.cleanup(BLOB_URI, null) }
+    val exception = assertFailsWith<StatusException> { cleanup.cleanup(BLOB_URI, null) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description)
+      .isEqualTo("Upgrade the EDPA public API server before retrying cleanup.")
 
     verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
   }
