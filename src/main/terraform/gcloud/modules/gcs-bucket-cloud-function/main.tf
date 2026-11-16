@@ -211,15 +211,21 @@ resource "terraform_data" "attach_dead_letter_policy" {
       #!/bin/bash
       set -euo pipefail
 
-      # Find the Eventarc-managed subscription for this function.
-      SUB=$(gcloud pubsub subscriptions list \
-        --filter="name~eventarc.*-$FUNCTION_NAME-" \
-        --format="value(name)" \
-        --limit=1)
+      # Resolve the primary trigger; additional storage triggers may share its name prefix.
+      TRIGGER=$(gcloud functions describe "$FUNCTION_NAME" \
+        --gen2 --region="$CLOUD_REGION" \
+        --format="value(eventTrigger.trigger)")
+      if [[ -z "$TRIGGER" ]]; then
+        echo "Missing primary trigger for $FUNCTION_NAME" >&2
+        exit 1
+      fi
+      SUB=$(gcloud eventarc triggers describe "$TRIGGER" \
+        --location="$CLOUD_REGION" \
+        --format="value(transport.pubsub.subscription)")
 
       if [[ -z "$SUB" ]]; then
-        echo "WARNING: No Eventarc subscription found for $FUNCTION_NAME. Skipping DLQ attachment."
-        exit 0
+        echo "Missing primary trigger subscription for $FUNCTION_NAME" >&2
+        exit 1
       fi
 
       echo "Attaching DLQ to subscription: $SUB"

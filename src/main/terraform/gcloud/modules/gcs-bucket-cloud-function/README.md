@@ -73,4 +73,11 @@ terraform init -backend=false
 terraform test -test-directory="$archive_test_dir"
 ```
 
-These tests use a mock Google provider and only plan resources.
+These tests use a mock Google provider and only plan resources. Build and test CI
+runs them and the deployment script regressions on every pull request.
+
+Run the deployment script regressions from the repository root:
+
+```bash
+python3 -m unittest discover -s src/test/terraform/gcloud/modules/gcs-bucket-cloud-function -p '*_test.py'
+```
