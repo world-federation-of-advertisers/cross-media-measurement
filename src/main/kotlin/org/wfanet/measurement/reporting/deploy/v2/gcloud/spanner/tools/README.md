@@ -452,4 +452,4 @@ failure exits nonzero and reports partial progress; rerunning the command
 safely picks up remaining candidates.
 
 See the [periodic maintenance guide](../../../../../../../../../../../../docs/operations/cleaning-up-abandoned-report-results.md)
-for the suggested schedule, pause and drain procedure, and recovery steps.
+for when to run cleanup, the pause and drain procedure, and recovery steps.

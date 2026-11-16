@@ -11,11 +11,20 @@ Each deletion rechecks the cutoff and association in a transaction and deletes
 the parent and its children together. The cutoff refers to the result tree's
 creation time, independently of the dates covered by the report.
 
-## Suggested schedule
+## When to run cleanup
 
-Start with a **weekly** maintenance window, `--older-than=7d`, and
-`--limit=1000` per measurement consumer. Adjust the cadence and limit based on
-the number of abandoned trees and the time available for maintenance.
+Ordinary assembly failures already attempt cleanup automatically. Operator
+maintenance handles trees left behind by worker crashes or failed cleanup
+calls.
+
+Run a dry run after those incidents or when abandoned rows are suspected. For
+routine housekeeping, an optional monthly dry run can check for accumulation
+without pausing assembly. Schedule deletion only when eligible trees are found
+and need to be reclaimed. Adjust the frequency based on observed accumulation.
+
+The examples use `--older-than=7d` as a retention buffer and `--limit=1000` per
+measurement consumer. The age cutoff is independent of how often maintenance
+runs; trees from a recent incident may not yet qualify.
 
 The age cutoff is a retention choice. It does not establish that an unattached
 tree is inactive. **Pause and drain all assembly writers before deleting.**
@@ -174,8 +183,10 @@ is not left paused unnoticed.
 
 ## Automating periodic maintenance
 
-Use one coordinator for all assembly writers sharing the Spanner database.
-Its ordered workflow should be:
+An automated check can run a read-only preview first and finish without
+pausing assembly when no cleanup is needed. For deletion, use one coordinator
+for all assembly writers sharing the Spanner database. Its ordered workflow
+should be:
 
 1.  Acquire exclusive maintenance ownership and record the original scheduling
     state of every writer.
@@ -196,5 +207,6 @@ Do not use an exit or cancellation handler that immediately resumes workers
 while the cleanup process is still running. Persist enough state for another
 operator to recover after a coordinator crash, and alert if restoration fails.
 
-Keep per-run logs and totals to tune the schedule. Increasing abandoned-tree
-counts can indicate assembly crashes or cleanup failures that need investigation.
+Keep per-run logs and totals to decide whether recurring cleanup is useful.
+Increasing abandoned-tree counts can indicate assembly crashes or cleanup
+failures that need investigation.
