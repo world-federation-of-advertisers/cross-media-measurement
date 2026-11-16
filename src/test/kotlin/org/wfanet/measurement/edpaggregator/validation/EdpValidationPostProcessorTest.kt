@@ -100,6 +100,37 @@ class EdpValidationPostProcessorTest {
   }
 
   @Test
+  fun `validate sends query entities and the input row time interval`() {
+    fakeCloudFunction.responseBody = resultResponse(10_000_000L)
+    val input =
+      row(reportedImpressions = 10_000_000L)
+        .copy(
+          entityType = "ad_set",
+          entityId = "ad-set-7",
+          startTimeSeconds = 1_700_000_123L,
+          endTimeSeconds = 1_700_086_456L,
+        )
+
+    val result = postProcessor().validate(listOf(input))
+
+    assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.PASSED)
+    assertThat(fakeCloudFunction.requestCount).isEqualTo(1)
+    val sentRequest =
+      DataProviderImpressionQueryRequest.parseFrom(fakeCloudFunction.lastRequestBody)
+    assertThat(sentRequest.dataProvider).isEqualTo(input.dataProviderName)
+    assertThat(sentRequest.query.entitiesList).hasSize(1)
+    val sentEntity = sentRequest.query.entitiesList.single()
+    assertThat(sentEntity.hasEntityKey()).isTrue()
+    assertThat(sentEntity.entityKey.entityType).isEqualTo(input.entityType)
+    assertThat(sentEntity.entityKey.entityId).isEqualTo(input.entityId)
+    assertThat(sentEntity.eventGroup).isEmpty()
+    assertThat(sentRequest.query.timeInterval.startTime.seconds).isEqualTo(input.startTimeSeconds)
+    assertThat(sentRequest.query.timeInterval.startTime.nanos).isEqualTo(0)
+    assertThat(sentRequest.query.timeInterval.endTime.seconds).isEqualTo(input.endTimeSeconds)
+    assertThat(sentRequest.query.timeInterval.endTime.nanos).isEqualTo(0)
+  }
+
+  @Test
   fun `validate sends a deterministic name-based request id derived from the query`() {
     fakeCloudFunction.responseBody = resultResponse(10_000_000L)
 

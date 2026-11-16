@@ -23,7 +23,8 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.api.v2alpha.DataProviderImpressionQueryResponse
-import org.wfanet.measurement.api.v2alpha.ImpressionQueryKt.entityKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.entityKey
+import org.wfanet.measurement.api.v2alpha.ImpressionQueryKt.entity
 import org.wfanet.measurement.api.v2alpha.dataProviderImpressionQueryRequest
 import org.wfanet.measurement.api.v2alpha.impressionQuery
 import org.wfanet.measurement.common.toDuration
@@ -154,9 +155,11 @@ class EdpValidationPostProcessor(
         requestId = stableRequestId(dataProviderName, row)
         this.dataProvider = dataProviderName
         query = impressionQuery {
-          entityKeys += entityKey {
-            entityType = row.entityType
-            entityId = row.entityId
+          entities += entity {
+            entityKey = entityKey {
+              entityType = row.entityType
+              entityId = row.entityId
+            }
           }
           timeInterval =
             com.google.type.interval {

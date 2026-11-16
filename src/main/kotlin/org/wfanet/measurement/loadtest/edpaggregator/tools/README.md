@@ -1,21 +1,26 @@
 # High overlap dataset specs
 
-`GenerateHighOverlapSpecs` is the source of truth for the high overlap dataset.
-The `high_overlap_*.textproto` specs are generated from it by a genrule
-(`//src/main/proto/wfa/measurement/loadtest/dataprovider:BUILD.bazel`) and are
-not checked in.
+The population spec is committed at
+`src/main/proto/wfa/measurement/api/v2alpha/population_specs/360m_population_spec_us.textproto`
+and is read directly by tests and seeding. `GenerateHighOverlapSpecs` generates
+the impression specs and config through the genrule in that package.
 
-## If you change this generator
+## If you change the fixture
 
 The dataset is seeded into an environment once, not per test run, by
-`SeedHighOverlapDataset`. `EdpAggregatorReportingIntegrationTest` refuses to run
-against a stale dataset: it compares the fingerprint of the generated specs
-against the `spec_fingerprint` in the seeded manifest blob and fails if they
-differ.
+`SeedHighOverlapDataset`. `EdpAggregatorReportingIntegrationTest` compares the
+fingerprint of the population and impression specs with `spec_fingerprint` in
+the seeded manifest and refuses to run against a stale dataset.
 
-So after changing the generator, **re-seed every environment that runs the
-reporting integration test**, or it will fail with
-`Seeded dataset is stale for <model line>`.
+Changing reached VIDs, their demographics or impression specs requires reseeding
+every environment that runs the reporting integration test. Changing only the
+unreached population preserves existing impressions, but the Population,
+ModelRelease/ModelRollout, population-spec blob and manifest must be updated
+before running the test.
+
+The seeding workflow performs a full rebuild, including impressions. Use it for
+changes that require reseeding; updating only population resources and the
+manifest must be done separately to reuse existing impressions.
 
 ```
 gh workflow run high-overlap-seeding.yml --ref <branch> -f environment=dev
@@ -24,10 +29,8 @@ gh workflow run high-overlap-seeding.yml --ref <branch> -f environment=dev
 Environments: `dev`, `qa`, `head`. Seeding takes roughly 40 minutes and rewrites
 the impression blobs, the manifest and the BigQuery ground-truth table.
 
-`HighOverlapSpecsContractTest` guards the invariants the expected-value maths
-relies on (VID ranges, stripe layout, demographic coverage). Run it before
-seeding — it is cheap and catches a bad generator change without burning a
-seeding run.
+`HighOverlapSpecsContractTest` guards VID ranges, stripe layout and demographic
+coverage. Run it before seeding to catch fixture errors early.
 
 ## Workflow configuration
 

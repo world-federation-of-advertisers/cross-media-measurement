@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
 import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
@@ -55,6 +56,9 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverValidator
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -144,6 +148,7 @@ class ExternalDataAvailabilitySnapshotChangedException(
  *   activity derived from finalized impression metadata.
  * @property kingdomPublicationTimeout Deadline for publishing availability to the Kingdom.
  * @property availabilityImpressionPaths All impression roots checked for provider-wide date gaps.
+ * @property managedDoneObjectResolver factory for an invocation-scoped managed-output owner view.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
@@ -156,12 +161,20 @@ class DataAvailabilitySync(
   private val impressionMetadataBatchSize: Int,
   private val modelLineMap: Map<String, List<String>>,
   private val errorIfGapsExist: Boolean,
+  private val modelLineCutovers: List<ModelLineCutover> = emptyList(),
+  private val modelLineDataSources: Map<String, ModelLineDataSource> = emptyMap(),
   private val publishEventGroupActivities: (suspend (Collection<ImpressionMetadata>) -> Int)?,
   private val kingdomPublicationTimeout: Duration = DEFAULT_KINGDOM_PUBLICATION_TIMEOUT,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
   private val availabilityImpressionPaths: List<String> = listOf(edpImpressionPath),
   private val generationMatchedMetadataUpdater: GenerationMatchedBlobMetadataUpdater? = null,
+  private val managedDoneObjectResolver: (() -> ManagedDoneObjectResolver)? = null,
 ) {
+  data class ModelLineDataSource(
+    val storageClient: BlobMetadataStorageClient,
+    val edpImpressionPath: String,
+  )
+
   enum class Outcome {
     NO_WORK,
     BLOCKED_GAPS,
@@ -293,6 +306,14 @@ class DataAvailabilitySync(
     require(modelLineMap.values.all { it.isNotEmpty() }) {
       "modelLineMap entries must contain at least one model line"
     }
+    ModelLineCutoverValidator.validate(modelLineCutovers, modelLineMap.values.flatten().toSet())
+    val cutoverContributors =
+      modelLineCutovers.flatMapTo(mutableSetOf()) {
+        listOf(it.historicalModelLine, it.replacementModelLine)
+      }
+    require(modelLineDataSources.keys.containsAll(cutoverContributors)) {
+      "modelLineDataSources must contain every cutover contributor"
+    }
     require(!kingdomPublicationTimeout.isZero && !kingdomPublicationTimeout.isNegative) {
       "kingdomPublicationTimeout must be positive"
     }
@@ -328,6 +349,7 @@ class DataAvailabilitySync(
       "dataAvailabilitySyncLease must not be empty"
     }
     require(doneBlobGeneration > 0L) { "doneBlobGeneration must be positive" }
+    val managedOwners = managedDoneObjectResolver?.invoke()
     // Start timing for sync duration
     val syncStartTime = TimeSource.Monotonic.markNow()
 
@@ -337,6 +359,19 @@ class DataAvailabilitySync(
       // 1. Crawl for metadata files
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
+      if (discoveryMode is DiscoveryMode.VidLabelerOutputs) {
+        val disposition =
+          checkNotNull(managedOwners) {
+              "Managed availability requires an authoritative owner resolver"
+            }
+            .resolve(discoveryMode.modelLine, discoveryMode.eventDate, doneBlobUri.key)
+        when (disposition) {
+          ManagedDoneObjectDisposition.CURRENT -> {}
+          ManagedDoneObjectDisposition.FINALIZING ->
+            error("Managed availability owner has not finalized labeling")
+          ManagedDoneObjectDisposition.OBSOLETE -> throw ObsoleteDataAvailabilityWorkItemException()
+        }
+      }
 
       if (edpImpressionPath.isNotBlank()) {
         require(validImpressionPathRegex.matches(folderPrefix)) {
@@ -413,7 +448,38 @@ class DataAvailabilitySync(
           externalSnapshot,
         )
 
-      if (impressionMetadataMap.isEmpty()) {
+      if (
+        vidLabelerOutputs == null &&
+          DataAvailabilityBlobs.isDoneBlob(doneBlobUri.key) &&
+          doneBlobUri.key.substringAfterLast('/') != "done"
+      ) {
+        // Operator replays may scan a managed date folder. Validate the trigger before the first
+        // metadata mutation, using the full model name read from sidecars or configured sources.
+        val eventDate = LocalDate.parse(folderPrefix.substringAfterLast('/'))
+        val modelLineId = folderPrefix.substringBeforeLast('/').substringAfterLast('/')
+        val candidateNames =
+          (impressionMetadataMap.keys.map(ModelLineKey::toName) +
+              modelLineMap.keys +
+              modelLineDataSources.keys +
+              modelLineCutovers.flatMap { listOf(it.historicalModelLine, it.replacementModelLine) })
+            .filter { ModelLineKey.fromName(it)?.modelLineId == modelLineId }
+            .distinct()
+        val resolver =
+          checkNotNull(managedOwners) {
+            "Managed availability requires an authoritative owner resolver"
+          }
+        val triggerModelLine =
+          candidateNames.singleOrNull() ?: resolver.modelLineFor(eventDate, doneBlobUri.key)
+        val disposition = resolver.resolve(triggerModelLine, eventDate, doneBlobUri.key)
+        when (disposition) {
+          ManagedDoneObjectDisposition.CURRENT -> {}
+          ManagedDoneObjectDisposition.FINALIZING ->
+            error("Managed availability owner has not finalized labeling")
+          ManagedDoneObjectDisposition.OBSOLETE -> throw ObsoleteDataAvailabilityWorkItemException()
+        }
+      }
+
+      if (impressionMetadataMap.isEmpty() && modelLineCutovers.isEmpty()) {
         logger.info("There were no valid impressions metadata.")
         if (vidLabelerOutputs != null) {
           // The registered raw inputs were checked and every output/sidecar pair was absent, so
@@ -436,6 +502,13 @@ class DataAvailabilitySync(
         // Record sync duration even if no records
         recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
         return Outcome.NO_WORK
+      }
+
+      if (impressionMetadataMap.isEmpty()) {
+        logger.info(
+          "There were no valid impressions metadata; continuing to publish finalized cutover " +
+            "dates."
+        )
       }
 
       // Count total records
@@ -484,33 +557,6 @@ class DataAvailabilitySync(
           computeModelLineBoundsRequest { parent = dataProviderName }
         )
 
-      // Build availability entries from the response
-      val availabilityEntries =
-        modelLineBounds.modelLineBoundsList.flatMap { bound ->
-          val availabilityInterval = interval {
-            startTime = bound.value.startTime
-            endTime = bound.value.endTime
-          }
-          val mappedModelLines = modelLineMap[bound.key]
-          if (mappedModelLines != null) {
-            logger.info(
-              "Model line mapping found: ${bound.key} -> ${mappedModelLines.joinToString(", ")}"
-            )
-          } else {
-            logger.info("No model line mapping found for: ${bound.key}")
-          }
-          val modelLines = mappedModelLines ?: listOf(bound.key)
-          modelLines.map { modelLine ->
-            dataAvailabilityMapEntry {
-              key = modelLine
-              value = availabilityInterval
-            }
-          }
-        }
-      check(availabilityEntries.isNotEmpty()) {
-        "No data availability intervals were computed for $dataProviderName"
-      }
-
       // Check, per model line present in this batch, for date gaps or in-range unfinalized
       // dates before updating availability intervals. Done locally via
       // DataAvailabilityBlobs.enumerateDateInfo — Sync doesn't need DataAvailabilityMonitor's
@@ -522,26 +568,124 @@ class DataAvailabilitySync(
       // trail after latestFinalized or lead before earliestFinalized are ignored — they extend
       // the window rather than punching a hole in it.
       onStage(Stage.GAP_POLICY)
-      val blockedDetails = mutableListOf<String>()
-      for (modelLineKey in impressionMetadataMap.keys) {
+      val cutoverContributorLines =
+        modelLineCutovers.flatMapTo(mutableSetOf()) {
+          listOf(it.historicalModelLine, it.replacementModelLine)
+        }
+      val modelLinesToValidate =
+        (impressionMetadataMap.keys.map(ModelLineKey::toName) + cutoverContributorLines)
+          .map { checkNotNull(ModelLineKey.fromName(it)) }
+          .toSet()
+      val dateInfoByModelLine = mutableMapOf<String, PublicationDateInfo>()
+      for (modelLineKey in modelLinesToValidate) {
+        val dataSource = modelLineDataSources[modelLineKey.toName()]
         val enumerated =
-          availabilityImpressionPaths.distinct().map { impressionPath ->
+          if (dataSource != null) {
             val modelLinePrefix =
-              if (impressionPath.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
-              else "$impressionPath/model-line/${modelLineKey.modelLineId}/"
-            DataAvailabilityBlobs.enumerateDateInfo(storageClient, modelLinePrefix)
+              if (dataSource.edpImpressionPath.isEmpty()) {
+                "model-line/${modelLineKey.modelLineId}/"
+              } else {
+                "${dataSource.edpImpressionPath}/model-line/${modelLineKey.modelLineId}/"
+              }
+            listOf(
+              enumerateApplicableDates(
+                dataSource.storageClient,
+                modelLinePrefix,
+                modelLineKey.toName(),
+                managedOwners,
+              )
+            )
+          } else {
+            availabilityImpressionPaths.distinct().map { impressionPath ->
+              val modelLinePrefix =
+                if (impressionPath.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
+                else "$impressionPath/model-line/${modelLineKey.modelLineId}/"
+              enumerateApplicableDates(
+                storageClient,
+                modelLinePrefix,
+                modelLineKey.toName(),
+                managedOwners,
+              )
+            }
           }
-        val finalized = enumerated.flatMap { it.datesWithDoneBlob.keys }.toSet()
-        val unfinalized = enumerated.flatMap { it.datesWithoutDoneBlob }.toSet()
-        val gaps = DataAvailabilityBlobs.findGaps(finalized + unfinalized)
+        dateInfoByModelLine[modelLineKey.toName()] =
+          PublicationDateInfo(
+            datesWithDoneBlob =
+              enumerated
+                .flatMap { it.datesWithDoneBlob.entries }
+                .groupBy({ it.key }, { it.value })
+                .mapValues { (_, blobs) -> blobs.flatten() },
+            datesWithoutDoneBlob = enumerated.flatMap { it.datesWithoutDoneBlob }.distinct(),
+            finalizingDates = enumerated.flatMapTo(mutableSetOf()) { it.finalizingDates },
+            unreadyManagedDates = enumerated.flatMapTo(mutableSetOf()) { it.unreadyManagedDates },
+          )
+      }
+      val cutoverAvailabilityPlans =
+        modelLineCutovers.associateWith { cutover ->
+          buildCutoverAvailabilityPlan(cutover, modelLineBounds, dateInfoByModelLine)
+        }
+      val blockedDetails = mutableListOf<String>()
+      var cutoverGapDetected = false
+      var managedMetadataBlocked = false
+      for (modelLineKey in modelLinesToValidate) {
+        val modelLineName = modelLineKey.toName()
+        val enumerated = dateInfoByModelLine.getValue(modelLineName)
+        val finalized = enumerated.datesWithDoneBlob.keys
+        val unfinalized =
+          (enumerated.datesWithoutDoneBlob +
+              enumerated.finalizingDates +
+              enumerated.unreadyManagedDates +
+              if (modelLineName in cutoverContributorLines) {
+                enumerated.datesWithDoneBlob
+                  .filterValues { blobs -> blobs.any { !DataAvailabilityBlobs.isSynced(it) } }
+                  .keys
+              } else {
+                emptySet()
+              })
+            .distinct()
+        val presentDates = (finalized + unfinalized).toSet()
+        val requiredRange = requiredDateRange(modelLineName, cutoverAvailabilityPlans)
+        if (modelLineName in cutoverContributorLines && requiredRange == null) continue
+        val gaps =
+          if (requiredRange == null) DataAvailabilityBlobs.findGaps(presentDates)
+          else findMissingDates(requiredRange, presentDates)
         val earliest = finalized.minOrNull()
         val latest = finalized.maxOrNull()
         val inRangeUnfinalized =
-          earliest != null && latest != null && unfinalized.any { it in earliest..latest }
-        if (gaps.isNotEmpty() || inRangeUnfinalized) {
+          if (requiredRange == null) {
+            earliest != null && latest != null && unfinalized.any { it in earliest..latest }
+          } else {
+            unfinalized.any { it in requiredRange }
+          }
+        val missingContributor =
+          modelLineName in cutoverContributorLines &&
+            requiredRange != null &&
+            finalized.none { it in requiredRange }
+        val metadataBounds =
+          modelLineBounds.modelLineBoundsList.firstOrNull { it.key == modelLineName }?.value
+        val managedRequiredRange =
+          requiredRange
+            ?: metadataBounds?.let { bounds ->
+              val start = bounds.startTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate()
+              val end =
+                bounds.endTime.toInstant().minusNanos(1).atZone(ZoneOffset.UTC).toLocalDate()
+              start..end
+            }
+        val unreadyManagedInRange =
+          enumerated.unreadyManagedDates.any { date ->
+            managedRequiredRange != null && date in managedRequiredRange
+          }
+        if (unreadyManagedInRange) managedMetadataBlocked = true
+        val blocksThisGap =
+          errorIfGapsExist || modelLineName in cutoverContributorLines || unreadyManagedInRange
+        if (
+          gaps.isNotEmpty() || inRangeUnfinalized || missingContributor || unreadyManagedInRange
+        ) {
+          if (modelLineName in cutoverContributorLines) cutoverGapDetected = true
           blockedDetails.add(
             "Model line ${modelLineKey.toName()} gap dates: $gaps, " +
-              "unfinalized dates: $unfinalized"
+              "unfinalized dates: $unfinalized, " +
+              "missing contributor: $missingContributor"
           )
         }
 
@@ -549,7 +693,12 @@ class DataAvailabilitySync(
         // what DataAvailabilityMonitor emits when invoked on the same paths. The healthy count
         // here is "finalized minus in-range unfinalized blockers" — Sync's per-batch view, not
         // Monitor's full late-arrival/unprocessed-done check.
-        val healthyCount = if (gaps.isEmpty() && !inRangeUnfinalized) finalized.size else 0
+        val healthyCount =
+          if (
+            gaps.isEmpty() && !inRangeUnfinalized && !missingContributor && !unreadyManagedInRange
+          )
+            finalized.size
+          else 0
         emitDateStatusMetric(modelLineKey, DataAvailabilityMonitorMetrics.STATUS_GAP, gaps.size)
         emitDateStatusMetric(
           modelLineKey,
@@ -561,7 +710,9 @@ class DataAvailabilitySync(
           DataAvailabilityMonitorMetrics.STATUS_HEALTHY,
           healthyCount,
         )
-        if (gaps.isNotEmpty() || inRangeUnfinalized) {
+        if (
+          gaps.isNotEmpty() || inRangeUnfinalized || missingContributor || unreadyManagedInRange
+        ) {
           VidLabelingTraceLogging.log(
             logger,
             Level.WARNING,
@@ -569,7 +720,7 @@ class DataAvailabilitySync(
             VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
             VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLineKey.toName(),
             XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "data_availability_publish",
-            XmmTraceAttributes.OUTCOME_STRING to if (errorIfGapsExist) "blocked" else "allowed",
+            XmmTraceAttributes.OUTCOME_STRING to if (blocksThisGap) "blocked" else "allowed",
           )
         }
       }
@@ -579,14 +730,15 @@ class DataAvailabilitySync(
             "edpa.data_availability.gap_decision",
             Attributes.of(
               XmmTraceAttributes.OUTCOME,
-              if (errorIfGapsExist) "blocked" else "allowed",
+              if (errorIfGapsExist || cutoverGapDetected || managedMetadataBlocked) "blocked"
+              else "allowed",
             ),
           )
         logger.warning(
           "Date gaps or in-range unfinalized dates detected in $edpImpressionPath. " +
             blockedDetails.joinToString("; ")
         )
-        if (errorIfGapsExist) {
+        if (errorIfGapsExist || cutoverGapDetected || managedMetadataBlocked) {
           logger.warning(
             "Skipping replaceDataAvailabilityIntervals due to date gaps or in-range unfinalized " +
               "dates in $edpImpressionPath."
@@ -594,6 +746,28 @@ class DataAvailabilitySync(
           recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
           return Outcome.BLOCKED_GAPS
         }
+      }
+      val availabilityEntries =
+        buildAvailabilityIntervals(modelLineBounds, cutoverAvailabilityPlans).map {
+          (modelLine, availabilityInterval) ->
+          dataAvailabilityMapEntry {
+            key = modelLine
+            value = availabilityInterval
+          }
+        }
+      if (impressionMetadataMap.isEmpty() && availabilityEntries.isEmpty()) {
+        externalSnapshot?.validate()
+        ensureLeaseActive()
+        updateBlobMetadata(
+          blobKey = doneBlobUri.key,
+          expectedGeneration = doneBlobGeneration,
+          metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),
+        )
+        recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
+        return Outcome.NO_WORK
+      }
+      check(availabilityEntries.isNotEmpty()) {
+        "No data availability intervals were computed for $dataProviderName"
       }
       onStage(Stage.KINGDOM_PUBLICATION)
       throttler.onReady {
@@ -784,6 +958,194 @@ class DataAvailabilitySync(
     }
     generationMatchedMetadataUpdater.update(blobKey, expectedGeneration, customCreateTime, metadata)
   }
+
+  private fun buildAvailabilityIntervals(
+    modelLineBounds: ComputeModelLineBoundsResponse,
+    cutoverAvailabilityPlans: Map<ModelLineCutover, CutoverAvailabilityPlan>,
+  ): Map<String, Interval> {
+    val boundsByModelLine =
+      modelLineBounds.modelLineBoundsList.associate { bound ->
+        bound.key to
+          interval {
+            startTime = bound.value.startTime
+            endTime = bound.value.endTime
+          }
+      }
+    val cutoversByExternalModelLine = modelLineCutovers.associateBy { it.externalModelLine }
+    val cutoverContributorModelLines =
+      modelLineCutovers.flatMapTo(mutableSetOf()) {
+        listOf(it.historicalModelLine, it.replacementModelLine)
+      }
+    val availabilityByModelLine = linkedMapOf<String, Interval>()
+
+    for ((internalModelLine, availabilityInterval) in boundsByModelLine) {
+      if (internalModelLine in cutoverContributorModelLines) continue
+      val externalModelLines = modelLineMap[internalModelLine] ?: listOf(internalModelLine)
+      for (externalModelLine in externalModelLines) {
+        if (externalModelLine !in cutoversByExternalModelLine) {
+          availabilityByModelLine[externalModelLine] = availabilityInterval
+        }
+      }
+    }
+
+    for ((cutover, plan) in cutoverAvailabilityPlans) {
+      val availabilityInterval = plan.availabilityInterval ?: continue
+      availabilityByModelLine[cutover.externalModelLine] = availabilityInterval
+    }
+    return availabilityByModelLine
+  }
+
+  private data class PublicationDateInfo(
+    val datesWithDoneBlob: Map<LocalDate, List<StorageClient.Blob>>,
+    val datesWithoutDoneBlob: List<LocalDate>,
+    val finalizingDates: Set<LocalDate> = emptySet(),
+    val unreadyManagedDates: Set<LocalDate> = emptySet(),
+  )
+
+  private suspend fun enumerateApplicableDates(
+    storage: StorageClient,
+    prefix: String,
+    modelLine: String,
+    owners: ManagedDoneObjectResolver?,
+  ): PublicationDateInfo {
+    val physical = DataAvailabilityBlobs.enumerateDateInfo(storage, prefix)
+    val current = mutableMapOf<LocalDate, List<StorageClient.Blob>>()
+    val unfinished = physical.datesWithoutDoneBlob.toMutableList()
+    val finalizing = mutableSetOf<LocalDate>()
+    val unreadyManaged = mutableSetOf<LocalDate>()
+    for ((date, blobs) in physical.datesWithDoneBlob) {
+      val applicable = mutableListOf<StorageClient.Blob>()
+      for (blob in blobs) {
+        if (blob.blobKey.substringAfterLast('/') == "done") {
+          applicable += blob
+          continue
+        }
+        when (
+          checkNotNull(owners) { "Managed availability requires an authoritative owner resolver" }
+            .resolve(modelLine, date, blob.blobKey)
+        ) {
+          ManagedDoneObjectDisposition.CURRENT -> {
+            applicable += blob
+            if (!DataAvailabilityBlobs.isSynced(blob)) unreadyManaged += date
+          }
+          ManagedDoneObjectDisposition.FINALIZING -> {
+            finalizing += date
+            unreadyManaged += date
+          }
+          ManagedDoneObjectDisposition.OBSOLETE -> {}
+        }
+      }
+      if (applicable.isNotEmpty()) {
+        current[date] = applicable
+      } else if (date in finalizing) {
+        unfinished += date
+      }
+    }
+    return PublicationDateInfo(current, unfinished.distinct(), finalizing, unreadyManaged)
+  }
+
+  private data class CutoverAvailabilityPlan(
+    val historicalRequiredDates: ClosedRange<LocalDate>?,
+    val replacementRequiredDates: ClosedRange<LocalDate>?,
+    val availabilityInterval: Interval?,
+  )
+
+  private fun buildCutoverAvailabilityPlan(
+    cutover: ModelLineCutover,
+    modelLineBounds: ComputeModelLineBoundsResponse,
+    dateInfoByModelLine: Map<String, PublicationDateInfo>,
+  ): CutoverAvailabilityPlan {
+    val boundsByModelLine = modelLineBounds.modelLineBoundsList.associate { it.key to it.value }
+    val historicalBounds = boundsByModelLine[cutover.historicalModelLine]
+    val replacementBounds = boundsByModelLine[cutover.replacementModelLine]
+    val historicalDates =
+      dateInfoByModelLine[cutover.historicalModelLine]?.datesWithDoneBlob?.keys.orEmpty()
+    val replacementDates =
+      dateInfoByModelLine[cutover.replacementModelLine]?.datesWithDoneBlob?.keys.orEmpty()
+    val historicalStart =
+      listOfNotNull(
+          historicalDates.minOrNull(),
+          historicalBounds?.startTime?.toInstant()?.atZone(ZoneOffset.UTC)?.toLocalDate(),
+        )
+        .minOrNull()
+    // Metadata bounds cover persisted data; done dates also include zero-impression output.
+    val historicalEnd =
+      listOfNotNull(
+          historicalDates.maxOrNull(),
+          historicalBounds
+            ?.endTime
+            ?.toInstant()
+            ?.minusNanos(1)
+            ?.atZone(ZoneOffset.UTC)
+            ?.toLocalDate(),
+        )
+        .maxOrNull()
+    val replacementEnd =
+      listOfNotNull(
+          replacementDates.filter { it >= cutover.cutoverDate }.maxOrNull(),
+          replacementBounds
+            ?.endTime
+            ?.toInstant()
+            ?.minusNanos(1)
+            ?.atZone(ZoneOffset.UTC)
+            ?.toLocalDate()
+            ?.takeIf { it >= cutover.cutoverDate },
+        )
+        .maxOrNull()
+    // Once replacement output exists at cutover, it owns the advancing availability end.
+    val publicationEnd =
+      replacementEnd ?: historicalEnd ?: return CutoverAvailabilityPlan(null, null, null)
+    val historicalRequiredStart = minOf(historicalStart ?: cutover.cutoverDate, cutover.cutoverDate)
+    val historicalRequiredEnd = minOf(publicationEnd, cutover.legacyRequiredThroughDate)
+    val historicalRequiredDates =
+      if (historicalRequiredStart <= historicalRequiredEnd) {
+        historicalRequiredStart..historicalRequiredEnd
+      } else {
+        null
+      }
+    val replacementRequiredDates =
+      if (publicationEnd >= cutover.cutoverDate) cutover.cutoverDate..publicationEnd else null
+    val availabilityInterval =
+      if (historicalStart != null && historicalStart <= publicationEnd) {
+        interval {
+          startTime = historicalStart.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+          endTime =
+            publicationEnd.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+        }
+      } else {
+        null
+      }
+    return CutoverAvailabilityPlan(
+      historicalRequiredDates,
+      replacementRequiredDates,
+      availabilityInterval,
+    )
+  }
+
+  private fun requiredDateRange(
+    modelLine: String,
+    cutoverAvailabilityPlans: Map<ModelLineCutover, CutoverAvailabilityPlan>,
+  ): ClosedRange<LocalDate>? {
+    val cutover =
+      modelLineCutovers.firstOrNull {
+        modelLine == it.historicalModelLine || modelLine == it.replacementModelLine
+      } ?: return null
+    val plan = cutoverAvailabilityPlans.getValue(cutover)
+    return if (modelLine == cutover.historicalModelLine) {
+      plan.historicalRequiredDates
+    } else {
+      plan.replacementRequiredDates
+    }
+  }
+
+  private fun findMissingDates(
+    requiredRange: ClosedRange<LocalDate>,
+    presentDates: Set<LocalDate>,
+  ): List<LocalDate> =
+    generateSequence(requiredRange.start) { it.plusDays(1) }
+      .takeWhile { it <= requiredRange.endInclusive }
+      .filter { it !in presentDates }
+      .toList()
 
   private fun emitDateStatusMetric(modelLineKey: ModelLineKey, status: String, count: Int) {
     if (count <= 0) return
