@@ -1,0 +1,38 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "basic_report_converter",
+    srcs = ["BasicReportConverter.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/reporting/tools:compact_basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_impression_qualification_filter_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:result_group_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+    ],
+)
+
+kt_jvm_library(
+    name = "convert_basic_report",
+    srcs = ["ConvertBasicReport.kt"],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/reporting/tools:__pkg__"],
+    deps = [
+        ":basic_report_converter",
+        "//src/main/proto/wfa/measurement/reporting/tools:compact_basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "ConvertBasicReport",
+    main_class = "org.wfanet.measurement.reporting.tools.ConvertBasicReport",
+    runtime_deps = [":convert_basic_report"],
+)
