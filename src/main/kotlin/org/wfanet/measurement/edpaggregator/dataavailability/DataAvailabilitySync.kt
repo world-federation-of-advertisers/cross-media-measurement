@@ -979,7 +979,9 @@ class DataAvailabilitySync(
     val availabilityByModelLine = linkedMapOf<String, Interval>()
 
     for ((internalModelLine, availabilityInterval) in boundsByModelLine) {
-      if (internalModelLine in cutoverContributorModelLines) continue
+      if (internalModelLine in cutoverContributorModelLines && internalModelLine !in modelLineMap) {
+        continue
+      }
       val externalModelLines = modelLineMap[internalModelLine] ?: listOf(internalModelLine)
       for (externalModelLine in externalModelLines) {
         if (externalModelLine !in cutoversByExternalModelLine) {
