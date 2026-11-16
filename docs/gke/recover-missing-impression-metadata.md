@@ -31,6 +31,11 @@ independent of upload finalization.
 Publication checks date gaps across both configured impression paths, including dates outside the
 recovery selection. If `error_if_gaps_exist` blocks publication, the publication IDs remain
 mismatched and the command exits nonzero so the folder remains retryable after the gap is corrected.
+For a configured model-line cutover, the same fail-closed behavior applies when either contributing
+line has a gap, regardless of `error_if_gaps_exist`. The recovery run recomputes the growing
+intersection through `legacy_required_through_date` and then uses the replacement line alone.
+The configured `legacy_required_through_date` is validated against `cutover_date +
+maximum_report_duration`.
 
 External recovery captures and revalidates the whole finalized folder and referenced impression
 generations while synchronizing only the selected metadata. Generation-matched writes preserve the
@@ -192,11 +197,10 @@ kubectl logs -l app=recover-missing-impression-metadata-edp7-app --tail=200
 
 ## Operational boundaries
 
-The recovery job and `DataAvailabilitySyncFunction` do not share a distributed lock. The scheduled
-job runs during a low-traffic weekly window, and `concurrencyPolicy: Forbid` prevents scheduled
-runs from overlapping. It does not serialize manually created Jobs or prevent the Cloud Function
-from processing the same date folder. Do not start multiple manual recovery Jobs concurrently,
-and avoid manually starting recovery while a target folder is actively being finalized.
+The recovery job and `DataAvailabilitySyncFunction` use the same provider-scoped renewable lease.
+Only one process may persist ImpressionMetadata and publish a provider-wide Kingdom snapshot at a
+time. `concurrencyPolicy: Forbid` still prevents overlapping scheduled jobs; the lease also covers
+manual jobs and Cloud Function invocations.
 
 Post-sync verification proves that every repaired `ImpressionMetadata` resource is active and that
 the sync and publication IDs match after the Kingdom update. The existing `synced-by` marker

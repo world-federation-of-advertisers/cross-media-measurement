@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.type.date
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -375,8 +376,72 @@ class ResultsFulfillerParamsValidatorTest {
     assertThat(exception).hasMessageThat().contains("whole_blob_entity_types")
   }
 
+  @Test
+  fun `model line data source accepts an ordered validity window`() {
+    ResultsFulfillerParamsValidator.validate(
+      VALID_PARAMS.toBuilder()
+        .putModelLineDataSources(
+          MODEL_LINE,
+          ResultsFulfillerParams.ModelLineDataSource.newBuilder()
+            .setBlobUriPrefix("gs://bucket/historical")
+            .setValidStartDate(
+              date {
+                year = 2026
+                month = 10
+                day = 1
+              }
+            )
+            .setValidEndDate(
+              date {
+                year = 2026
+                month = 10
+                day = 5
+              }
+            )
+            .build(),
+        )
+        .build(),
+      DATA_PROVIDER,
+    )
+  }
+
+  @Test
+  fun `model line data source rejects an inverted validity window`() {
+    val invalidParams =
+      VALID_PARAMS.toBuilder()
+        .putModelLineDataSources(
+          MODEL_LINE,
+          ResultsFulfillerParams.ModelLineDataSource.newBuilder()
+            .setBlobUriPrefix("gs://bucket/historical")
+            .setValidStartDate(
+              date {
+                year = 2026
+                month = 10
+                day = 6
+              }
+            )
+            .setValidEndDate(
+              date {
+                year = 2026
+                month = 10
+                day = 5
+              }
+            )
+            .build(),
+        )
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResultsFulfillerParamsValidator.validate(invalidParams)
+      }
+
+    assertThat(exception).hasMessageThat().contains("Invalid validity window")
+  }
+
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp1"
+    private const val MODEL_LINE = "modelProviders/provider/modelSuites/suite/modelLines/model-line"
     private val VALID_K_ANONYMITY_PARAMS =
       ResultsFulfillerParamsKt.kAnonymityParams {
         minUsers = 1

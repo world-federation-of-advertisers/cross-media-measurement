@@ -220,10 +220,10 @@ message SubpoolAssignerParams {
   // dispatch bug that would otherwise only surface as a crash-looping TEE.
   string population_spec_blob_uri = 23 [(google.api.field_behavior) = REQUIRED];
 
-  // Earlier uploads in the same healing operation whose durable rank snapshots
-  // may be consumed before availability synchronization completes. Empty for
-  // ordinary dispatches, whose snapshots must be owned by completed model
-  // lines.
+  // Uploads whose durable rank snapshots may be consumed before availability
+  // synchronization completes. Ordinary computation authorizes current durable
+  // owners; healing authorizes approved predecessors and unaffected historical
+  // owners proven against the original source's rank snapshot boundaries.
   repeated string allowed_prior_snapshot_raw_impression_uploads = 24 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.resource_reference).type =

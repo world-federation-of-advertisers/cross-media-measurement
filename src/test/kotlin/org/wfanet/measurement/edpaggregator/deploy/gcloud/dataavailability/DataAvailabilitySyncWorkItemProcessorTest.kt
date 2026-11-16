@@ -48,10 +48,12 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyn
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.ExternalDataAvailabilitySnapshotChangedException
+import org.wfanet.measurement.edpaggregator.dataavailability.ObsoleteDataAvailabilityWorkItemException
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.externalDataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -61,6 +63,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 
@@ -75,6 +78,60 @@ class DataAvailabilitySyncWorkItemProcessorTest {
       uuidGenerator = { "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
       renewalDelay = { delay(it) },
     )
+
+  @Test
+  fun `process completes an obsolete managed delivery without synchronization or date acknowledgment`() =
+    runBlocking<Unit> {
+      stubAttemptCreation()
+      whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doAnswer
+        {
+          check(!leaseClient.active)
+          workItemAttempt {
+            name = ATTEMPT_NAME
+            state = WorkItemAttempt.State.SUCCEEDED
+          }
+        }
+      var synchronized = false
+      var acknowledged = false
+      val consumer =
+        processor(
+          synchronize = { _, _, _ ->
+            synchronized = true
+            DataAvailabilitySync.Outcome.PUBLISHED
+          },
+          verifyDoneObject = { throw ObsoleteDataAvailabilityWorkItemException() },
+          markAvailabilitySynchronized = { acknowledged = true },
+        )
+      val work = workItem()
+      val params = work.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+      val managed =
+        work.copy {
+          workItemParams =
+            Any.pack(
+              params.copy {
+                dataPathParams =
+                  params.dataPathParams.copy {
+                    dataPath =
+                      "gs://bucket/edp/" +
+                        LabeledImpressionsBlobKeys.forDone(
+                          RAW_UPLOAD,
+                          MODEL_LINE,
+                          java.time.LocalDate.of(2026, 1, 2),
+                        )
+                  }
+              }
+            )
+        }
+
+      consumer.process(DataAvailabilitySyncWorkItem.parse(managed))
+
+      assertThat(synchronized).isFalse()
+      assertThat(acknowledged).isFalse()
+      assertThat(leaseClient.active).isFalse()
+      verifyBlocking(workItemAttemptsStub) { completeWorkItemAttempt(any(), any<Metadata>()) }
+      verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+      verifyBlocking(workItemAttemptsStub, never()) { failWorkItemAttempt(any(), any<Metadata>()) }
+    }
 
   @Test
   fun `process holds synchronization lease through availability mark`() = runBlocking {
@@ -132,6 +189,43 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
     assertThat(availabilityMarked).isTrue()
     assertThat(leaseClient.active).isFalse()
+  }
+
+  @Test
+  fun `process leaves availability pending when cutover coverage is blocked`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.FAILED
+      }
+    whenever(workItemsStub.failWorkItem(any(), any<Metadata>())) doReturn
+      workItem {
+        name = WORK_ITEM_NAME
+        state = WorkItem.State.FAILED
+        generation = 1L
+      }
+    var availabilityMarked = false
+    processor(
+        synchronize = { _, _, onStage ->
+          onStage(DataAvailabilitySync.Stage.GAP_POLICY)
+          DataAvailabilitySync.Outcome.BLOCKED_GAPS
+        },
+        markAvailabilitySynchronized = { availabilityMarked = true },
+      )
+      .process(input())
+
+    val failure = argumentCaptor<FailWorkItemRequest>()
+    verifyBlocking(workItemsStub) { failWorkItem(failure.capture(), any<Metadata>()) }
+    assertThat(failure.firstValue.name).isEqualTo(WORK_ITEM_NAME)
+    assertThat(failure.firstValue.expectedWorkItemGeneration).isEqualTo(1L)
+    verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemAttemptsStub, never()) {
+      completeWorkItemAttempt(any(), any<Metadata>())
+    }
+    assertThat(availabilityMarked).isFalse()
+    assertThat(leaseClient.active).isFalse()
+    assertThat(leaseClient.releaseCount).isEqualTo(1)
   }
 
   @Test

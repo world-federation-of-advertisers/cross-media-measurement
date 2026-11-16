@@ -17,6 +17,9 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.DescriptorProtos.FileDescriptorProto
+import com.google.protobuf.DescriptorProtos.FileOptions
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import io.grpc.Status
 import io.grpc.StatusException
@@ -129,6 +132,54 @@ class ResultsFulfiller(
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val metrics: ResultsFulfillerMetrics,
 ) {
+
+  init {
+    if (groupedRequisitions.requireModelLineFinalization) {
+      val selectedModelLine =
+        checkNotNull(groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)) {
+          "Missing selected model line for cutover fulfillment"
+        }
+      val visibleModelInfo = modelLineInfoMap.getValue(groupedRequisitions.modelLine)
+      val selectedModelInfo = modelLineInfoMap.getValue(selectedModelLine)
+      require(selectedModelInfo.populationSpec == visibleModelInfo.populationSpec) {
+        "Selected model line $selectedModelLine has an incompatible PopulationSpec"
+      }
+      require(
+        selectedModelInfo.eventDescriptor.fullName == visibleModelInfo.eventDescriptor.fullName &&
+          eventSchema(selectedModelInfo.eventDescriptor) ==
+            eventSchema(visibleModelInfo.eventDescriptor)
+      ) {
+        "Selected model line $selectedModelLine has an incompatible EventTemplate descriptor"
+      }
+    }
+  }
+
+  private fun eventSchema(descriptor: Descriptors.Descriptor): Map<String, Message> = buildMap {
+    fun addFileContext(typeName: String, file: Descriptors.FileDescriptor) {
+      val proto = file.toProto()
+      put(
+        "$typeName#file-context",
+        FileDescriptorProto.newBuilder()
+          .setSyntax(proto.syntax.ifEmpty { "proto2" })
+          .setEdition(proto.edition)
+          .setOptions(FileOptions.newBuilder().setFeatures(proto.options.features))
+          .build(),
+      )
+    }
+    fun addMessage(message: Descriptors.Descriptor) {
+      if (put(message.fullName, message.toProto()) != null) return
+      addFileContext(message.fullName, message.file)
+      for (field in message.fields + message.extensions) {
+        if (field.javaType == Descriptors.FieldDescriptor.JavaType.MESSAGE) {
+          addMessage(field.messageType)
+        } else if (field.javaType == Descriptors.FieldDescriptor.JavaType.ENUM) {
+          put(field.enumType.fullName, field.enumType.toProto())
+          addFileContext(field.enumType.fullName, field.enumType.file)
+        }
+      }
+    }
+    addMessage(descriptor)
+  }
 
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
     EventProcessingOrchestrator<Message>(privateEncryptionKey = privateEncryptionKey)
@@ -301,7 +352,8 @@ class ResultsFulfiller(
       }
     val modelLineKey = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLineKey)
-    val modelLine = modelInfo.localAlias ?: modelLineKey
+    val selectedModelLine = groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)
+    val modelLine = selectedModelLine ?: modelInfo.localAlias ?: modelLineKey
     val eventDescriptor = modelInfo.eventDescriptor
 
     val populationSpec = modelInfo.populationSpec
@@ -316,6 +368,9 @@ class ResultsFulfiller(
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
+        reportInterval =
+          groupedRequisitions.reportInterval.takeIf { groupedRequisitions.hasReportInterval() },
+        requireModelLineFinalization = groupedRequisitions.requireModelLineFinalization,
         readConcurrency = pipelineConfiguration.readConcurrency,
       )
 

@@ -932,7 +932,32 @@ configs {
         client_private_key_resource_path: "/tmp/edp_certs/<edp-id>_tls.key"
       }
       noise_params { noise_type: CONTINUOUS_GAUSSIAN }
+      # Required for each contributor when model_line_cutovers is configured.
+      # The prefix is immediately above the model-line directory.
+      # model_line_data_sources {
+      #   key: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+      #   value {
+      #     blob_uri_prefix: "gs://LEGACY_BUCKET/edp/<edp-id>/legacy-impressions"
+      #     valid_end_date { year: 2027 month: 1 day: 3 }
+      #   }
+      # }
+      # model_line_data_sources {
+      #   key: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+      #   value {
+      #     blob_uri_prefix: "gs://VID_LABELER_BUCKET/edp/<edp-id>/vid-labeled-impressions"
+      #     valid_start_date { year: 2026 month: 10 day: 5 }
+      #   }
+      # }
     }
+    # Optional report-level model-line cutover.
+    # model_line_cutovers {
+    #   external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/VISIBLE"
+    #   historical_model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+    #   replacement_model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+    #   cutover_date { year: 2026 month: 10 day: 5 }
+    #   legacy_required_through_date { year: 2027 month: 1 day: 3 }
+    #   maximum_report_duration { seconds: 7776000 } # 90 days
+    # }
   }
 }
 ```
@@ -1053,6 +1078,29 @@ configs {
   vid_labeled_impression_path: "vid-labeled-impressions/edp/<edp-id>"  # required when VID labeling is enabled
   # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
+  # model_line_cutovers {
+  #   external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/VISIBLE"
+  #   historical_model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+  #   replacement_model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+  #   cutover_date { year: 2026 month: 10 day: 5 }
+  #   legacy_required_through_date { year: 2027 month: 1 day: 3 }
+  #   maximum_report_duration { seconds: 7776000 } # 90 days
+  # }
+  # Required for each contributor when model_line_cutovers is configured.
+  # model_line_data_sources {
+  #   key: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+  #   value {
+  #     storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
+  #     edp_impression_path: "edp/<edp-id>"
+  #   }
+  # }
+  # model_line_data_sources {
+  #   key: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+  #   value {
+  #     storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
+  #     edp_impression_path: "vid-labeled-impressions/edp/<edp-id>"
+  #   }
+  # }
   # event_group_activity_publishing {
   #   market_time_zone { id: "America/New_York" }
   #   event_group_map_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb"
@@ -1072,7 +1120,10 @@ retains metadata while a live object version exists. Configure a DataAvailabilit
 each root.
 
 Retain the external root to process queued WorkItems and existing uploads at their original paths.
-Recovery scans both roots, and replay accepts completion blobs from either root. Providers with
+Recovery scans both roots, and replay accepts completion blobs from either root. The configured
+VID Labeler root accepts upload-specific `done-<hash>` and legacy `done` markers. External roots
+use `done` and snapshot-aware replay. Align each contributor's `model_line_data_sources` path with
+its configured external or VID Labeler root. Providers with
 VID labeling disabled may omit `vid_labeled_impression_path` and use only `edp_impression_path`.
 Upload the matching configuration and deploy the updated availability functions before resuming
 VidLabeler output at the new root.
@@ -1081,6 +1132,36 @@ The deployment validator checks HTTP and queued external routes for overlap. Dra
 before migrating dispatcher, monitor, and sync configs together, and keep historical impression
 metadata. When `external_impression_path` is empty, external and legacy HTTP syncs use
 `edp_impression_path`.
+
+Configure the same cutover in RequisitionFetcher and DataAvailabilitySync. RequisitionFetcher
+selects one internal model line from the immutable Report start and persists that choice before
+dispatching the first WorkItem. Every later batch and retry for that Report reuses the persisted
+choice. Do not enable the cutover until the `ReportRoutingDecision` schema migration is deployed and
+pre-cutover WorkItems and unfulfilled Requisitions whose signed MeasurementSpec lacks
+`report_interval` have drained.
+
+`maximum_report_duration` must be a positive whole number of days.
+`legacy_required_through_date` must be at least `cutover_date + maximum_report_duration`, ensuring
+that every Report starting before the cutover can finish on the historical line. Through
+`legacy_required_through_date`, DataAvailabilitySync advances the advertiser-visible end
+only through complete contiguous coverage in both contributing model lines. A gap in either line
+leaves Kingdom availability unchanged even when `error_if_gaps_exist` is false. A producer's
+completion marker counts only after DataAvailabilitySync has persisted that marker's metadata;
+prior Kingdom publication from each contributor is not required. After that date,
+the replacement line advances the end independently. Each contributor can use a different bucket
+and path through `model_line_data_sources`. Replacement contributors are produced by the internal
+VID Labeler. Replay uses each configured model line's completion-marker semantics, including when
+contributors share a base path or use separate buckets. While the cutover is configured,
+DataAvailabilitySync
+publishes only the combined advertiser-visible model line; it does not expose the internal
+historical or replacement lines to Kingdom.
+
+For cutover-routed groups, ResultsFulfiller verifies every requested UTC event date against the
+selected internal line's configured validity window and completion marker. An invalid or
+unfinalized date fails fulfillment instead of silently returning a partial result. A finalized date
+with no active ImpressionMetadata is valid and contributes zero impressions. DataAvailabilityMonitor
+continues to detect spurious soft deletions separately, so a legitimate deletion does not block an
+unrelated Report.
 
 `event_group_activity_publishing` is optional. When present, `DataAvailabilitySync`:
 
@@ -1132,7 +1213,7 @@ One `configs` entry per monitored impression path.
 configs {
   storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
   edp_impression_path: "edp/<edp-id>"
-  model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/ML" }
+  model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL" }
   max_stale_days: 3                       # optional (default 3)
   time_zone: "UTC"
   data_provider_name: "dataProviders/DATA_PROVIDER_ID"
@@ -1140,12 +1221,36 @@ configs {
   # spurious_deletion_lookback_days: 7    # optional; > 0 enables the spurious-deletion check
   # unprocessed_done_threshold { seconds: 86400 }   # optional (default 24h)
 }
+configs {
+  storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
+  edp_impression_path: "vid-labeled-impressions/edp/<edp-id>"
+  model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT" }
+  max_stale_days: 3
+  time_zone: "UTC"
+  data_provider_name: "dataProviders/DATA_PROVIDER_ID"
+  impression_metadata_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
+}
+model_line_cutovers {
+  external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/VISIBLE"
+  historical_model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+  replacement_model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+  cutover_date { year: 2026 month: 10 day: 5 }
+  legacy_required_through_date { year: 2027 month: 1 day: 3 }
+  maximum_report_duration { seconds: 7776000 }
+}
 ```
 
 For every nonempty DataAvailabilitySync `external_impression_path`, configure the same
 `data_provider_name`, storage backend and root, and normalized `edp_impression_path` here.
-`data_provider_name` is also required when the spurious-deletion check is enabled. Do not add the
-internal VID Labeler output to this monitor; VidLabelingMonitor owns that prefix.
+`data_provider_name` is also required when the spurious-deletion check is enabled. VidLabelingMonitor retains internal pipeline recovery. DataAvailabilityMonitor may also
+inspect internal cutover contributors with the matching data provider ownership.
+
+Configure the same cutover in RequisitionFetcher, DataAvailabilitySync, and
+DataAvailabilityMonitor. Monitor both contributing model lines. The replacement line is required
+from `cutover_date`; the historical line remains required through
+`legacy_required_through_date`. Contributors may be placed in separate `configs` entries so each
+uses its own storage client and `edp_impression_path`. Dates outside the configured windows do not
+produce cutover alerts.
 
 ### EDP config (`event_data_provider_configs`)
 
@@ -1196,8 +1301,13 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
   multi-party suppression is disabled as described below. When this is configured,
   `noise_params.noise_type` must be `NONE`.
 * `impression_max_frequency_per_user` — direct impression measurements only.
-* `model_line_map` — optional external→internal model-line remapping for impression
-  lookup.
+* `model_line_map` — optional external→internal model-line remapping for impression lookup when no
+  report-level cutover is configured. Report-level cutovers belong in
+  `work_item_dispatch.model_line_cutovers`; ResultsFulfiller consumes the internal line persisted
+  in each `GroupedRequisitions` blob rather than evaluating the cutover again.
+* `model_line_data_sources` — required for both internal contributors of each report-level cutover.
+  It defines the completion-marker prefix and inclusive validity bound that ResultsFulfiller checks
+  before reading the selected line.
 * `trustee_params.kek_uri_to_key_name` — required for TrusTEE support; maps an input
   KEK URI to a re-encryption key in the same GCP key ring or AWS account and region
   (see the EDP-side

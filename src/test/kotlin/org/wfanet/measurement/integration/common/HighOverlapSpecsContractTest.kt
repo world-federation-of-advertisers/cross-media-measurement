@@ -16,7 +16,6 @@ package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
-import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.TypeRegistry
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,15 +24,16 @@ import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
 import org.wfanet.measurement.common.parseTextProto
 
 /**
- * Pins the shape of the generated high overlap dataset.
+ * Pins the shape of the high overlap dataset.
  *
  * `EdpAggregatorReportingIntegrationTest` derives its expected reach from these same specs, so it
- * cannot distinguish a generator change from a system change: both sides move together. These
+ * cannot distinguish a fixture change from a system change: both sides move together. These
  * assertions are written against the design documented in
- * `docs/edpaggregator/high-overlap-data-shape.md`, so a generator edit that drops a Venn region,
+ * `docs/edpaggregator/high-overlap-data-shape.md`, so a fixture edit that drops a Venn region,
  * breaks the demographic striping or resizes the population fails here instead of silently
  * redefining what the integration test considers correct.
  */
@@ -93,10 +93,55 @@ class HighOverlapSpecsContractTest {
   }
 
   @Test
-  fun `population spec cycles through every demographic combination`() {
-    val tuples: Set<ProtoAny> =
-      populationSpec.subpopulationsList.flatMap { it.attributesList }.toSet()
-    assertWithMessage("distinct demographic tuples").that(tuples).hasSize(DEMOGRAPHIC_TUPLES)
+  fun `population spec covers every state age and gender cohort`() {
+    val populationByDemographic: Map<Common, Long> =
+      populationSpec.subpopulationsList
+        .groupBy { it.attributesList.single().unpack(Common::class.java) }
+        .mapValues { (_, subpopulations) ->
+          subpopulations.sumOf { subpopulation ->
+            subpopulation.vidRangesList.sumOf { it.endVidInclusive - it.startVid + 1 }
+          }
+        }
+    val states =
+      Common.UsState.values().filter {
+        it != Common.UsState.UNRECOGNIZED &&
+          it.number > 0 &&
+          it != Common.UsState.DISTRICT_OF_COLUMBIA
+      }
+    assertThat(states).hasSize(50)
+    assertThat(populationByDemographic).hasSize(2 * 3 * 50)
+    for (state in states) {
+      for (gender in listOf(Common.Gender.MALE, Common.Gender.FEMALE)) {
+        for (age in
+          listOf(
+            Common.AgeGroup.YEARS_18_TO_34,
+            Common.AgeGroup.YEARS_35_TO_54,
+            Common.AgeGroup.YEARS_55_PLUS,
+          )) {
+          val demographics = common {
+            usState = state
+            this.gender = gender
+            ageGroup = age
+          }
+          assertWithMessage("population for $state / $gender / $age")
+            .that(populationByDemographic[demographics] ?: 0L)
+            .isGreaterThan(0L)
+        }
+      }
+    }
+  }
+
+  @Test
+  fun `population VID ranges remain contiguous and ordered`() {
+    var nextVid = 1L
+    for (range in populationSpec.subpopulationsList.flatMap { it.vidRangesList }) {
+      assertWithMessage("range starting at ${range.startVid}")
+        .that(range.startVid)
+        .isEqualTo(nextVid)
+      assertThat(range.endVidInclusive).isAtLeast(range.startVid)
+      nextVid = range.endVidInclusive + 1
+    }
+    assertThat(nextVid).isEqualTo(TOTAL_POPULATION + 1)
   }
 
   @Test
@@ -109,6 +154,17 @@ class HighOverlapSpecsContractTest {
         subpopulation.vidRangesList.all { it.endVidInclusive <= REACHED_VID_END }
       }
     assertWithMessage("reached subpopulations").that(reached).hasSize(STRIPE_COUNT)
+    val reachedDemographics =
+      reached.map { it.attributesList.single().unpack(Common::class.java) }.toSet()
+    assertThat(reachedDemographics).hasSize(2 * 3 * 5)
+    assertThat(reachedDemographics.map { it.usState }.toSet())
+      .containsExactly(
+        Common.UsState.CALIFORNIA,
+        Common.UsState.NEW_YORK,
+        Common.UsState.TEXAS,
+        Common.UsState.FLORIDA,
+        Common.UsState.ILLINOIS,
+      )
 
     for (subpopulation in reached) {
       for (range in subpopulation.vidRangesList) {
@@ -165,9 +221,6 @@ class HighOverlapSpecsContractTest {
     private const val REACHED_VID_END = 10_610_000L
     private const val STRIPE_SIZE = 10_000L
     private const val STRIPE_COUNT = (REACHED_VID_END / STRIPE_SIZE).toInt()
-
-    /** `gender x age_group x us_state` over the values the dataset stripes through. */
-    private const val DEMOGRAPHIC_TUPLES = 2 * 3 * 5
 
     /** Every non-empty subset of the four EDPs. */
     private const val VENN_REGIONS = 15
