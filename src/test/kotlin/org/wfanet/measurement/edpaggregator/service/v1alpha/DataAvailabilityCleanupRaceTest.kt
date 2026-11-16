@@ -93,7 +93,7 @@ class DataAvailabilityCleanupRaceTest {
     assertQueuedDeletionProcessed(resourceIdProvided = false)
   }
 
-  private suspend fun createMetadata(): ImpressionMetadata {
+  private suspend fun createMetadata(generation: Long): ImpressionMetadata {
     SpannerDataAvailabilitySyncLeaseService(database.databaseClient)
       .acquireDataAvailabilitySyncLease(
         acquireDataAvailabilitySyncLeaseRequest {
@@ -116,14 +116,14 @@ class DataAvailabilityCleanupRaceTest {
             startTime = timestamp { seconds = 1 }
             endTime = timestamp { seconds = 9 }
           }
-          metadataBlobGeneration = 41L
+          metadataBlobGeneration = generation
         }
       }
     )
   }
 
   private suspend fun assertQueuedDeletionProcessed(resourceIdProvided: Boolean) {
-    val metadata = createMetadata()
+    val metadata = createMetadata(generation = 0L)
     val stub = ImpressionMetadataServiceCoroutineStub(publicServer.channel)
     val storage = FileSystemStorageClient(temporaryFolder.newFolder())
     val cleanup = DataAvailabilityCleanup(stub, DATA_PROVIDER_NAME, storage)
@@ -132,6 +132,7 @@ class DataAvailabilityCleanupRaceTest {
     val result = cleanup.cleanup(BLOB_URI, if (resourceIdProvided) metadata.name else null)
     val actual = stub.getImpressionMetadata(getImpressionMetadataRequest { name = metadata.name })
 
+    assertThat(metadata.metadataBlobGeneration).isEqualTo(0L)
     assertThat(metadata.etag).isNotEmpty()
     assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
     assertThat(actual.state).isEqualTo(ImpressionMetadata.State.DELETED)
@@ -139,7 +140,7 @@ class DataAvailabilityCleanupRaceTest {
   }
 
   private suspend fun assertReplacementPreserved(resourceIdProvided: Boolean) = coroutineScope {
-    val original = createMetadata()
+    val original = createMetadata(generation = 41L)
     val stub = ImpressionMetadataServiceCoroutineStub(publicServer.channel)
     val root = temporaryFolder.newFolder()
     val file = File(root, BLOB_KEY)
