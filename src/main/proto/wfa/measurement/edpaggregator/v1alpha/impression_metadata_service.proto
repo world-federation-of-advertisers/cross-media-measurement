@@ -332,6 +332,10 @@ message DeleteImpressionMetadataRequest {
       type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
     }
   ];
+
+  // Etag of the metadata to delete. When specified, a mismatch returns ABORTED.
+  // If omitted, deletion is unconditional.
+  string etag = 2 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Request message for the `UndeleteImpressionMetadata` method.

@@ -28,6 +28,7 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.DataAvailabilitySyncLeaseKey
 import org.wfanet.measurement.edpaggregator.service.DataProviderMismatchException
+import org.wfanet.measurement.edpaggregator.service.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyActiveException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
@@ -588,6 +589,7 @@ class ImpressionMetadataService(
           internalDeleteImpressionMetadataRequest {
             dataProviderResourceId = key.dataProviderId
             impressionMetadataResourceId = key.impressionMetadataId
+            etag = request.etag
           }
         )
         .toImpressionMetadata()
@@ -596,6 +598,8 @@ class ImpressionMetadataService(
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
           ImpressionMetadataNotFoundException(request.name, e)
             .asStatusRuntimeException(e.status.code)
+        InternalErrors.Reason.ETAG_MISMATCH ->
+          EtagMismatchException.fromInternal(e).asStatusRuntimeException(Status.Code.ABORTED)
         InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
         InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
@@ -614,7 +618,6 @@ class ImpressionMetadataService(
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
         InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
         InternalErrors.Reason.INVALID_FIELD_VALUE,
-        InternalErrors.Reason.ETAG_MISMATCH,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
         InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -1353,6 +1356,7 @@ fun InternalImpressionMetadata.toImpressionMetadata(): ImpressionMetadata {
     state = source.state.toState()
     createTime = source.createTime
     updateTime = source.updateTime
+    etag = source.etag
     entityKeys += source.entityKeysList.map { it.toPublic() }
     if (source.rawImpressionUploadResourceId.isNotEmpty()) {
       rawImpressionUpload =

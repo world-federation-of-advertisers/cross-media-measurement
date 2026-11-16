@@ -78,9 +78,16 @@ events. In a versioned bucket, deleting a live object without specifying a
 generation makes that version noncurrent and emits an archive event. Overwriting
 an object also archives its previous version.
 
-Cleanup checks whether a live object still exists before deleting its impression
-metadata. An overwrite therefore keeps the live object's metadata. If no live
-object remains, cleanup deletes the metadata; repeated notifications are harmless.
+Cleanup reads the metadata version before checking whether a live object still
+exists. If no live object remains, it soft-deletes only that version. A replacement
+synchronized during cleanup changes the metadata etag, so the earlier cleanup is
+skipped and the refreshed metadata stays active. Repeated notifications are harmless.
+
+When upgrading, deploy the updated internal metadata API server, then the public
+metadata API server, before the cleanup functions. Cleanup requires metadata etags
+and does not fall back to unconditional deletion. Legacy API delete requests that
+omit an etag remain unconditional; race protection starts with the updated cleanup
+functions.
 
 Both triggers use the same service account and dead-letter queue. Enabling archive
 events handles future removals; it does not repair metadata left behind by earlier
@@ -95,12 +102,6 @@ These gaps apply with object versioning enabled or disabled:
     not carry an ImpressionMetadata resource ID, cleanup looks up the data
     file's URI and can find no record, leaving metadata `ACTIVE`. Availability
     sync currently stamps the resource ID on the sidecar only.
-*   **Possible delete/recreate race.** Cleanup checks storage before deleting
-    the metadata record. A replacement can be uploaded and synchronized
-    between those steps, after which the earlier cleanup can soft-delete the
-    refreshed record. The storage check and metadata deletion are separate
-    operations; cleanup does not use a metadata-version precondition. This
-    sequence needs a dedicated regression before selecting a fix.
 
 ### Deployment check
 

@@ -40,6 +40,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readModelLi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.requireActiveDataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
 import org.wfanet.measurement.edpaggregator.service.internal.DataProviderMismatchException
+import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataStateInvalidException
@@ -483,6 +484,10 @@ class SpannerImpressionMetadataService(
             )
           }
 
+          if (request.etag.isNotEmpty()) {
+            EtagMismatchException.check(request.etag, result.impressionMetadata.etag)
+          }
+
           txn.updateImpressionMetadataState(
             result.impressionMetadata.dataProviderResourceId,
             result.impressionMetadataId,
@@ -495,6 +500,8 @@ class SpannerImpressionMetadataService(
             clearEtag()
           }
         }
+      } catch (e: EtagMismatchException) {
+        throw e.asStatusRuntimeException(Status.Code.ABORTED)
       } catch (e: ImpressionMetadataNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
@@ -631,6 +638,14 @@ class SpannerImpressionMetadataService(
                 it.impressionMetadataResourceId,
               )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          }
+
+          if (it.etag.isNotEmpty()) {
+            try {
+              EtagMismatchException.check(it.etag, result.impressionMetadata.etag)
+            } catch (e: EtagMismatchException) {
+              throw e.asStatusRuntimeException(Status.Code.ABORTED)
+            }
           }
 
           txn.updateImpressionMetadataState(
