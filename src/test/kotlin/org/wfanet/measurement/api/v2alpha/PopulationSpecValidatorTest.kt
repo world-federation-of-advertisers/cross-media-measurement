@@ -14,7 +14,10 @@
 package org.wfanet.measurement.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.Any as ProtoAny
+import com.google.protobuf.TypeRegistry
+import java.nio.file.Paths
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,7 +33,8 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedCommon
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.versionedCommon
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
 
 @RunWith(JUnit4::class)
 class PopulationSpecValidatorTest {
@@ -229,7 +233,7 @@ class PopulationSpecValidatorTest {
 
   @Test
   fun `validate checks only population fields present in configured version`() {
-    val populationSpec = versionedPopulationSpec(includeLater = false, includeRetired = true)
+    val populationSpec = loadVersionedPopulationSpec(VERSION_ONE_SPEC_FILE)
 
     PopulationSpecValidator.validate(populationSpec, VersionedEvent.getDescriptor(), 1)
 
@@ -248,7 +252,7 @@ class PopulationSpecValidatorTest {
 
   @Test
   fun `validate ignores population field removed in configured version`() {
-    val populationSpec = versionedPopulationSpec(includeLater = true, includeRetired = false)
+    val populationSpec = loadVersionedPopulationSpec(VERSION_THREE_SPEC_FILE)
 
     PopulationSpecValidator.validate(populationSpec, VersionedEvent.getDescriptor(), 3)
   }
@@ -258,7 +262,7 @@ class PopulationSpecValidatorTest {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         PopulationSpecValidator.validate(
-          versionedPopulationSpec(includeLater = true, includeRetired = true),
+          loadVersionedPopulationSpec(VERSION_TWO_SPEC_FILE),
           VersionedEvent.getDescriptor(),
           0,
         )
@@ -272,7 +276,7 @@ class PopulationSpecValidatorTest {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         PopulationSpecValidator.validate(
-          versionedPopulationSpec(includeLater = true, includeRetired = true),
+          loadVersionedPopulationSpec(VERSION_TWO_SPEC_FILE),
           VersionedEvent.getDescriptor(),
           4,
         )
@@ -281,27 +285,39 @@ class PopulationSpecValidatorTest {
     assertThat(exception).hasMessageThat().contains("exceeds current version 3")
   }
 
-  private fun versionedPopulationSpec(
-    includeLater: Boolean,
-    includeRetired: Boolean,
-  ): PopulationSpec = populationSpec {
-    subpopulations += subPopulation {
-      vidRanges += vidRange {
-        startVid = 1
-        endVidInclusive = 100
-      }
-      attributes +=
-        ProtoAny.pack(
-          versionedCommon {
-            original = VersionedCommon.Segment.SEGMENT_A
-            if (includeLater) {
-              later = VersionedCommon.Segment.SEGMENT_A
-            }
-            if (includeRetired) {
-              retired = VersionedCommon.Segment.SEGMENT_B
-            }
-          }
+  private fun loadVersionedPopulationSpec(fileName: String): PopulationSpec {
+    val path =
+      checkNotNull(
+        RUNFILES.getRuntimePath(
+          Paths.get(
+            "wfa_measurement_system",
+            "src",
+            "test",
+            "kotlin",
+            "org",
+            "wfanet",
+            "measurement",
+            "api",
+            "v2alpha",
+            fileName,
+          )
         )
-    }
+      ) {
+        "Runfile not found: $fileName"
+      }
+    return parseTextProto(
+      path.toFile(),
+      PopulationSpec.getDefaultInstance(),
+      VERSIONED_TYPE_REGISTRY,
+    )
+  }
+
+  private companion object {
+    private const val VERSION_ONE_SPEC_FILE = "versioned_population_spec_v1.textproto"
+    private const val VERSION_TWO_SPEC_FILE = "versioned_population_spec_v2.textproto"
+    private const val VERSION_THREE_SPEC_FILE = "versioned_population_spec_v3.textproto"
+    private val VERSIONED_TYPE_REGISTRY =
+      TypeRegistry.newBuilder().add(VersionedCommon.getDescriptor()).build()
+    private val RUNFILES = Runfiles.preload().withSourceRepository("")
   }
 }

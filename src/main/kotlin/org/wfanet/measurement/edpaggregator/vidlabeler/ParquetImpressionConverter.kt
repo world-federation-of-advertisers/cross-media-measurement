@@ -58,7 +58,11 @@ class ParquetImpressionConverter(
     mappersByConfig.computeIfAbsent(config) { cfg ->
       Mappers(
         LabelerInputMapper(cfg.labelerInputFieldMappingList),
-        EventMessageMapper(eventDescriptor, cfg.eventTemplateFieldMappingMap),
+        EventMessageMapper(
+          eventDescriptor,
+          cfg.eventTemplateFieldMappingMap,
+          cfg.eventTemplateVersion,
+        ),
         EntityKeyMapper(cfg.requiredEntityKeyFieldMappingMap, cfg.optionalEntityKeyFieldMappingMap),
       )
     }
