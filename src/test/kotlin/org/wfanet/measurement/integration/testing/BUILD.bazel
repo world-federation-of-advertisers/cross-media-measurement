@@ -1,0 +1,18 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(default_testonly = True)
+
+kt_jvm_test(
+    name = "RequisitionFetcherClientTest",
+    srcs = ["RequisitionFetcherClientTest.kt"],
+    test_class = "org.wfanet.measurement.integration.testing.RequisitionFetcherClientTest",
+    deps = [
+        "//imports/java/com/google/api/client/http",
+        "//imports/java/com/google/auth:oauth_http2",
+        "//src/main/kotlin/org/wfanet/measurement/integration/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+    ],
+)

@@ -455,6 +455,88 @@ class FulfillRequisitionRequestBuilderTest {
     assertThat(exception.message).contains("Found: 2")
   }
 
+  @Test
+  fun `buildUnencrypted preserves bytes across RPC chunk boundaries for both versions`() {
+    val frequencies = ByteArray(32 * 1024 + 17) { (it % 256).toByte() }
+    for (requisition in listOf(REQUISITION, V2_REQUISITION)) {
+      val requests =
+        FulfillRequisitionRequestBuilder.buildUnencrypted(requisition, NONCE, frequencies).toList()
+      val chunks = requests.filter { it.hasBodyChunk() }.map { it.bodyChunk.data }
+      assertThat(chunks.map { it.size() }).containsExactly(32 * 1024, 17).inOrder()
+      assertThat(
+          chunks.fold(ByteString.EMPTY) { bytes, chunk -> bytes.concat(chunk) }.toByteArray()
+        )
+        .isEqualTo(frequencies)
+    }
+  }
+
+  @Test
+  fun `buildEncrypted preserves bytes across encryption segments for both versions`() {
+    val frequencies = ByteArray(2 * 1024 * 1024 + 17) { (it % 128).toByte() }
+    for (requisition in listOf(REQUISITION, V2_REQUISITION)) {
+      for (useBytes in listOf(false, true)) {
+        val requests =
+          if (useBytes) {
+            FulfillRequisitionRequestBuilder.buildEncrypted(
+                requisition,
+                NONCE,
+                frequencies,
+                ENCRYPTED_PARAMS,
+              )
+              .toList()
+          } else {
+            val vector = frequencyVector { data += frequencies.map { it.toInt() and 0xFF } }
+            FulfillRequisitionRequestBuilder.buildEncrypted(
+                requisition,
+                NONCE,
+                vector,
+                ENCRYPTED_PARAMS,
+              )
+              .toList()
+          }
+        val header = requests.first().header
+        val trusTee = if (header.hasTrusTeeV2()) header.trusTeeV2.trusTee else header.trusTee
+        val dek =
+          KeysetHandle.read(
+            BinaryKeysetReader.withInputStream(
+              trusTee.envelopeEncryption.encryptedDek.data.newInput()
+            ),
+            KMS_CLIENT.getAead(KEK_URI),
+          )
+        val chunks = requests.filter { it.hasBodyChunk() }.map { it.bodyChunk.data }
+        assertThat(chunks.size).isGreaterThan(64)
+        assertThat(chunks.all { it.size() <= 32 * 1024 }).isTrue()
+        val ciphertext = chunks.fold(ByteString.EMPTY) { bytes, chunk -> bytes.concat(chunk) }
+        val plaintext =
+          dek
+            .getPrimitive(StreamingAead::class.java)
+            .newDecryptingStream(ciphertext.newInput(), byteArrayOf())
+            .use { it.readAllBytes() }
+        assertThat(plaintext).isEqualTo(frequencies)
+      }
+    }
+  }
+
+  @Test
+  fun `proto and byte overloads produce identical unencrypted requests`() {
+    val bytes = ByteArray(32 * 1024 + 17) { (it % 256).toByte() }
+    val vector = frequencyVector { data += bytes.map { it.toInt() and 0xFF } }
+    for (requisition in listOf(REQUISITION, V2_REQUISITION)) {
+      val expected =
+        FulfillRequisitionRequestBuilder.buildUnencrypted(requisition, NONCE, vector).toList()
+      assertThat(
+          FulfillRequisitionRequestBuilder.buildUnencrypted(requisition, NONCE, bytes).toList()
+        )
+        .isEqualTo(expected)
+      assertThat(
+          FulfillRequisitionRequestBuilder(requisition, NONCE, vector, null).build().toList()
+        )
+        .isEqualTo(expected)
+      assertThat(FulfillRequisitionRequestBuilder(requisition, NONCE, bytes, null).build().toList())
+        .isEqualTo(expected)
+    }
+  }
+
   companion object {
     private val KMS_CLIENT = FakeKmsClient()
     private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "kek"

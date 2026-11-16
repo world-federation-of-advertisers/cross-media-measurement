@@ -71,9 +71,14 @@ class ReportSummaryV2Processor:
         data_provider_ids_by_reporting_set_id: (
             dict[str, set[str]] | None
         ) = None,
+        *,
+        enable_validation: bool,
+        enable_correction: bool,
     ):
         """Initializes the processor with a ReportSummary v2 proto."""
         self._report_summary = report_summary
+        self._enable_validation = enable_validation
+        self._enable_correction = enable_correction
         self._ami_mrc_exempted_reporting_set_ids = (
             ami_mrc_exempted_reporting_set_ids or []
         )
@@ -398,11 +403,23 @@ class ReportSummaryV2Processor:
     def process(self) -> ReportPostProcessorResult:
         """Corrects the report and returns the result."""
         report = self._build_report()
-        self._pre_correction_constraint_violations = tuple(
-            report.get_pre_correction_constraint_violations()
-        )
+        if self._enable_validation:
+            self._pre_correction_constraint_violations = tuple(
+                report.get_pre_correction_constraint_violations()
+            )
+        if not self._enable_correction:
+            result = ReportPostProcessorResult(
+                status=report_post_processor_result_pb2.ReportPostProcessorStatus(
+                    status_code=report_post_processor_result_pb2.ReportPostProcessorStatus.CORRECTION_SKIPPED
+                ),
+            )
+            result.pre_correction_report_summary_v2.CopyFrom(self._report_summary)
+            if self._enable_validation:
+                result.pre_correction_quality.CopyFrom(report.get_report_quality())
+            return result
+
         corrected_report, report_post_processor_result = (
-            report.get_corrected_report()
+            report.get_corrected_report(enable_validation=self._enable_validation)
         )
 
         report_post_processor_result.pre_correction_report_summary_v2.CopyFrom(

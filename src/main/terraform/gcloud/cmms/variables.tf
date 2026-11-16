@@ -188,6 +188,12 @@ variable "requisition_fetcher_enabled" {
   default     = true
 }
 
+variable "requisition_fetcher_scheduler_job_name" {
+  description = "RequisitionFetcher scheduler job name. Uses the module's existing name when unset."
+  type        = string
+  default     = null
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string
@@ -318,6 +324,18 @@ variable "results_fulfiller_trusted_root_ca_collection_file_path" {
 variable "duchy_aggregator_computations_service_target" {
   description = "Target of aggregator computations service."
   type        = string
+}
+
+variable "duchy_aggregator_trustee_replicas" {
+  description = "Number of TrusTEE mill instances for the aggregator duchy."
+  type        = number
+  default     = 1
+  nullable    = false
+
+  validation {
+    condition     = var.duchy_aggregator_trustee_replicas >= 1 && floor(var.duchy_aggregator_trustee_replicas) == var.duchy_aggregator_trustee_replicas
+    error_message = "TrusTEE replica count must be a positive integer."
+  }
 }
 
 variable "kingdom_system_api_target" {
@@ -509,6 +527,42 @@ variable "vid_labeling_monitor_config_file_path" {
   type        = string
 }
 
+variable "vid_labeling_healing_controller_uber_jar_path" {
+  description = "Path to the VidLabelingHealingController uber jar."
+  type        = string
+}
+
+variable "vid_labeling_healing_controller_env_var" {
+  description = "VidLabelingHealingController extra environment variables."
+  type        = string
+
+}
+
+variable "vid_labeling_healing_controller_secret_mapping" {
+  description = "VidLabelingHealingController secret mapping."
+  type        = string
+}
+
+variable "vid_labeling_healing_labeled_output_object_prefixes" {
+  description = "Object prefixes under which the healing controller may delete labeled output."
+  type        = list(string)
+  nullable    = false
+
+  validation {
+    condition = length(var.vid_labeling_healing_labeled_output_object_prefixes) > 0 && alltrue([
+      for prefix in var.vid_labeling_healing_labeled_output_object_prefixes :
+      prefix != "" && !startswith(prefix, "/") && endswith(prefix, "/")
+    ])
+    error_message = "At least one bucket-relative labeled-output directory prefix ending in '/' is required."
+  }
+}
+
+variable "vid_labeling_healing_alert_notification_channels" {
+  description = "Monitoring notification channels for VID-labeling healing alerts."
+  type        = list(string)
+  default     = []
+}
+
 variable "dashboard_compliance_uber_jar_path" {
   description = "Path to the DashboardComplianceCheck Cloud Function uber jar. When unset, the scheduled compliance check (Cloud Function + Cloud Scheduler + alert policy) is not deployed."
   type        = string
@@ -520,4 +574,11 @@ variable "dashboard_alert_notification_channels" {
   description = "Cloud Monitoring notification channel IDs (Slack/PagerDuty) to notify on dashboard compliance check failures. Empty creates the policy without notifications."
   type        = list(string)
   default     = []
+}
+
+variable "event_group_sync_memory" {
+  description = "EventGroupSync function memory; retain the allocation required by the input size."
+  type        = string
+  nullable    = true
+  default     = null
 }

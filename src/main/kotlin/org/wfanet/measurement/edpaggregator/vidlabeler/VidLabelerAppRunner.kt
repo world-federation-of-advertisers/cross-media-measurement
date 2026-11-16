@@ -33,6 +33,8 @@ import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams.StorageParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
@@ -104,6 +106,9 @@ class VidLabelerAppRunner :
       RawImpressionUploadModelLineServiceCoroutineStub(metadataStorageChannel)
     val rawImpressionUploadFilesClient =
       RawImpressionUploadFileServiceCoroutineStub(metadataStorageChannel)
+    val rawImpressionUploadsClient = RawImpressionUploadServiceCoroutineStub(metadataStorageChannel)
+    val uploadHealingOperationsClient =
+      UploadHealingOperationServiceCoroutineStub(metadataStorageChannel)
     val rankIndexBlobsClient = RankIndexBlobServiceCoroutineStub(metadataStorageChannel)
 
     val vidLabelerApp =
@@ -120,6 +125,8 @@ class VidLabelerAppRunner :
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
         rankIndexBlobsStub = rankIndexBlobsClient,
         rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
+        rawImpressionUploadsStub = rawImpressionUploadsClient,
+        uploadHealingOperationsStub = uploadHealingOperationsClient,
         buildParquetStorageClient = { cfg, kms -> buildParquetStorageClient(cfg, kms) },
         buildVidRankMapStorageClient = { cfg -> buildStorageClient(cfg) },
         loadAssigner = { modelStorageConfig, modelBlobUri ->

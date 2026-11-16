@@ -1,4 +1,4 @@
-spanner_processing_units                          = 100
+spanner_processing_units                          = 1000
 secure_computation_storage_bucket_name            = "secure-computation-storage-dev-bucket"
 edpa_config_files_bucket_name                     = "edpa-configs-storage-dev-bucket"
 data_watcher_config_file_path                     = "envs/dev/data-watcher-config.textproto"
@@ -45,4 +45,13 @@ vid_labeling_monitor_secret_mapping          = "/secrets/cert/edpa_tee_app_tls.p
 duchy_worker1_id                             = "worker1"
 duchy_worker2_id                             = "worker2"
 duchy_aggregator_id                          = "aggregator"
+duchy_aggregator_trustee_replicas            = 2
 duchy_aggregator_computations_service_target = "10.128.0.6:8443"
+
+# VID-labeling healing controller uses the same public API and TLS material as the dispatcher.
+vid_labeling_healing_controller_env_var        = "RAW_IMPRESSION_UPLOAD_TARGET=136.113.166.193:8443,RAW_IMPRESSION_UPLOAD_CERT_HOST=system.edp-aggregator.dev.halo-cmm.org,CONTROL_PLANE_TARGET=34.31.144.81:8443,CONTROL_PLANE_CERT_HOST=v1alpha.secure-computation.dev.halo-cmm.org,GOOGLE_PROJECT_ID=halo-cmm-dev,OTEL_METRICS_EXPORTER=google_cloud_monitoring,OTEL_TRACES_EXPORTER=google_cloud_trace,OTEL_LOGS_EXPORTER=logging,OTEL_METRIC_EXPORT_INTERVAL=60000,OTEL_SERVICE_NAME=edpa.vid_labeling_healing_controller"
+vid_labeling_healing_controller_secret_mapping = "/secrets/cert/edpa_tee_app_tls.pem=edpa-tee-app-tls-pem:latest,/secrets/key/edpa_tee_app_tls.key=edpa-tee-app-tls-key:latest,/secrets/ca/secure_computation_root.pem=securecomputation-root-ca:latest,/secrets/ca/edpaggregator/edp_aggregator_root.pem=edpaggregator-root-ca:latest"
+vid_labeling_healing_labeled_output_object_prefixes = [
+  "vid-labeled-impressions/edp/edp7/",
+  "vid-labeled-impressions/edp/edpa_meta/",
+]

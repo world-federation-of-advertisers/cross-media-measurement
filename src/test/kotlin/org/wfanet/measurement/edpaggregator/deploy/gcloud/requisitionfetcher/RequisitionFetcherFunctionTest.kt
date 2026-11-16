@@ -265,7 +265,6 @@ class RequisitionFetcherFunctionTest {
             "METADATA_STORAGE_CERT_HOST" to "localhost",
             "SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST" to "localhost",
             "PAGE_SIZE" to "10",
-            "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configFolder.root.toPath()}",
             "GRPC_REQUEST_INTERVAL" to "1s",
             "OTEL_METRICS_EXPORTER" to "none",
@@ -325,7 +324,7 @@ class RequisitionFetcherFunctionTest {
     functionProcess.close()
     ensureWorkItemRequest = null
     copyConfig(
-      "legacy-requisition-fetcher-config.textproto",
+      "missing-dispatch-requisition-fetcher-config.textproto",
       "requisition-fetcher-config.textproto",
     )
     startFunction()
@@ -346,7 +345,7 @@ class RequisitionFetcherFunctionTest {
   }
 
   @Test
-  fun `service fails closed when direct storage prefix is below legacy prefix`() {
+  fun `service rejects deprecated top-level storage path prefix`() {
     functionProcess.close()
     ensureWorkItemRequest = null
     val mutableConfig = configFolder.root.toPath().resolve("requisition-fetcher-config.textproto")
@@ -356,7 +355,10 @@ class RequisitionFetcherFunctionTest {
         mutableConfig
           .toFile()
           .readText()
-          .replace(DIRECT_STORAGE_PATH_PREFIX, "$STORAGE_PATH_PREFIX/v2")
+          .replace(
+            "  cmms_connection {",
+            "  storage_path_prefix: \"$DEPRECATED_STORAGE_PATH_PREFIX\"\n  cmms_connection {",
+          )
       )
     startFunction()
 
@@ -369,20 +371,18 @@ class RequisitionFetcherFunctionTest {
   }
 
   @Test
-  fun `service fails closed when one provider direct prefix overlaps another legacy prefix`() {
+  fun `service fails closed when providers share a direct storage prefix`() {
     functionProcess.close()
     ensureWorkItemRequest = null
-    val legacyConfig =
+    val configFile =
       configFolder.root.toPath().resolve("requisition-fetcher-config.textproto").toFile()
-    val originalConfig = legacyConfig.readText()
+    val originalConfig = configFile.readText()
     val secondProviderConfig =
-      originalConfig
-        .replace("dataProviders/edp7", "dataProviders/edp8")
-        .replace(
-          "storage_path_prefix: \"$STORAGE_PATH_PREFIX\"",
-          "storage_path_prefix: \"$DIRECT_STORAGE_PATH_PREFIX/legacy\"",
-        )
-    legacyConfig.writeText("$originalConfig\n$secondProviderConfig")
+      originalConfig.replace(
+        "data_provider: \"dataProviders/edp7\"",
+        "data_provider: \"dataProviders/edp8\"",
+      )
+    configFile.writeText("$originalConfig\n$secondProviderConfig")
     startFunction()
 
     val response = invokeFunction()
@@ -560,7 +560,7 @@ class RequisitionFetcherFunctionTest {
       groupId = createDeterministicId(REQUISITION)
     }
 
-    private val STORAGE_PATH_PREFIX = "edp7"
+    private val DEPRECATED_STORAGE_PATH_PREFIX = "edp7"
     private val DIRECT_STORAGE_PATH_PREFIX = "edp7-v2"
     private val SECRETS_DIR: Path =
       getRuntimePath(

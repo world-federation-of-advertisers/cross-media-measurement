@@ -23,7 +23,10 @@ import com.google.protobuf.util.Timestamps
 import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
 import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.MetricData
@@ -36,12 +39,21 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.TimeUnit
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -51,6 +63,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.atLeastOnce
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
@@ -68,10 +81,13 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequest
@@ -79,11 +95,18 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRankerJobFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -91,6 +114,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
@@ -99,6 +124,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRe
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadCorrectionCandidatesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
@@ -108,14 +134,20 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 /**
@@ -146,10 +178,19 @@ class VidLabelingMonitorTest {
   private val rawImpressionUploadFileService:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase =
     mockService()
+  private val correctionCandidateService:
+    RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase =
+    mockService()
   private val vidLabelingJobService:
     VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase =
     mockService()
   private val rankerJobService: RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase =
+    mockService()
+  private val rankIndexBlobService:
+    RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase =
+    mockService()
+  private val uploadHealingOperationService:
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase =
     mockService()
 
   @get:Rule
@@ -162,8 +203,11 @@ class VidLabelingMonitorTest {
     addService(modelShardsService)
     addService(modelLinesService)
     addService(rawImpressionUploadFileService)
+    addService(correctionCandidateService)
     addService(vidLabelingJobService)
     addService(rankerJobService)
+    addService(rankIndexBlobService)
+    addService(uploadHealingOperationService)
   }
 
   private val rawImpressionUploadStub by lazy {
@@ -196,11 +240,23 @@ class VidLabelingMonitorTest {
       grpcTestServerRule.channel
     )
   }
+  private val correctionCandidateStub by lazy {
+    RawImpressionUploadCorrectionCandidateServiceGrpcKt
+      .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(grpcTestServerRule.channel)
+  }
   private val vidLabelingJobStub by lazy {
     VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(grpcTestServerRule.channel)
   }
   private val rankerJobStub by lazy {
     RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val rankIndexBlobStub by lazy {
+    RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val uploadHealingOperationStub by lazy {
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
   }
   private val rawImpressionsStorageClient = InMemoryStorageClient()
   private val vidLabeledImpressionsStorageClient = InMemoryStorageClient()
@@ -267,12 +323,970 @@ class VidLabelingMonitorTest {
   private fun List<MetricData>.counterValue(name: String): Long =
     associateBy { it.name }.getValue(name).longSumData.points.single().value
 
+  @Test
+  fun `dispatch cadence preserves original execution identity with immediate control plane replies`() =
+    runBlocking<Unit> {
+      val parent = upload("inline-replies", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      stubUploads(active = listOf(parent))
+      stubModelLines(availabilityRow(parent.name, day))
+      seedAvailabilityMarkers(parent.name, listOf(day))
+      val items = linkedMapOf<String, WorkItem>()
+      var retries = 0
+      val service =
+        object : WorkItemsGrpcKt.WorkItemsCoroutineImplBase(Dispatchers.Unconfined) {
+          override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
+            val name = "workItems/" + request.workItemId
+            if (name in items) throw Status.ALREADY_EXISTS.asException()
+            return request.workItem
+              .copy {
+                this.name = name
+                state = WorkItem.State.QUEUED
+                generation = 1L
+              }
+              .also { items[name] = it }
+          }
+
+          override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem =
+            items.getValue(request.name)
+
+          override suspend fun retryWorkItem(
+            request:
+              org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
+          ): WorkItem {
+            val original = items.getValue(request.name)
+            check(original.state == WorkItem.State.FAILED)
+            check(original.generation == request.expectedWorkItemGeneration)
+            retries++
+            return original
+              .copy {
+                generation = original.generation + 1L
+                state = WorkItem.State.QUEUED
+              }
+              .also { items[request.name] = it }
+          }
+        }
+      val serverName = InProcessServerBuilder.generateName()
+      val server =
+        InProcessServerBuilder.forName(serverName)
+          .directExecutor()
+          .addService(service)
+          .build()
+          .start()
+      val channel = InProcessChannelBuilder.forName(serverName).directExecutor().build()
+      try {
+        val monitor =
+          createMonitor(availabilityWorkItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(channel))
+        withContext(Dispatchers.Unconfined) {
+          assertThat(monitor.runDispatch().dispatchError).isFalse()
+          val original = items.values.single()
+          items[original.name] = original.copy { state = WorkItem.State.FAILED }
+
+          assertThat(monitor.runDispatch().dispatchError).isFalse()
+
+          val retried = items.values.single()
+          assertThat(retried.name).isEqualTo(original.name)
+          assertThat(retried.workItemParams).isEqualTo(original.workItemParams)
+          assertThat(retried.generation).isEqualTo(2L)
+          assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
+          assertThat(retries).isEqualTo(1)
+        }
+      } finally {
+        withContext(Dispatchers.IO) {
+          channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS)
+          server.shutdownNow().awaitTermination(5, TimeUnit.SECONDS)
+        }
+      }
+    }
+
+  @Test
+  fun `health cadence retains an all-state snapshot after an empty filtered dispatch scan`() =
+    runBlocking<Unit> {
+      stubUploads()
+      stubFiles()
+      val monitor = createMonitor()
+      assertThat(monitor.runDispatch().dispatchError).isFalse()
+      val beforeHealth = argumentCaptor<ListRawImpressionUploadsRequest>()
+      verifyBlocking(rawImpressionUploadService, atLeastOnce()) {
+        listRawImpressionUploads(beforeHealth.capture())
+      }
+      assertThat(beforeHealth.allValues.none { it.filter.stateInList.isEmpty() }).isTrue()
+
+      assertThat(monitor.runHealth().dataQualityCheckFailed).isFalse()
+
+      val all = argumentCaptor<ListRawImpressionUploadsRequest>()
+      verifyBlocking(rawImpressionUploadService, atLeastOnce()) {
+        listRawImpressionUploads(all.capture())
+      }
+      assertThat(
+          all.allValues.drop(beforeHealth.allValues.size).any { it.filter.stateInList.isEmpty() }
+        )
+        .isTrue()
+      verifyBlocking(workItemsService, never()) { retryWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatch cadence recovers a valid date after rejecting an invalid pending calendar date`() =
+    runBlocking<Unit> {
+      val parent = upload("invalid-calendar-neighbor", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val valid = LocalDate.of(2026, 6, 2)
+      val validRow = availabilityRow(parent.name, valid)
+      val row =
+        validRow.copy {
+          pendingAvailabilityDates.clear()
+          pendingAvailabilityDates += date {
+            year = 2026
+            month = 13
+            day = 1
+          }
+          pendingAvailabilityDates += validRow.pendingAvailabilityDatesList
+        }
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      seedAvailabilityMarkers(parent.name, listOf(valid))
+      val tasks = installAvailabilityWorkItems(WorkItem.State.FAILED)
+
+      assertThat(createMonitor().runDispatch().dispatchError).isFalse()
+
+      assertThat(tasks).hasSize(1)
+      assertThat(tasks.values.single().generation).isEqualTo(2L)
+      assertThat(logRecords.any { it.message.contains("invalid pending date") }).isTrue()
+    }
+
+  @Test
+  fun `dispatch cadence detects a legacy successful task with pending acknowledgment while recovering another date`() =
+    runBlocking<Unit> {
+      val parent = upload("legacy-unacknowledged", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val first = LocalDate.of(2026, 6, 1)
+      val second = first.plusDays(1)
+      val row = availabilityRow(parent.name, first, second)
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      seedAvailabilityMarkers(parent.name, listOf(first, second))
+      val tasks = installAvailabilityWorkItems(WorkItem.State.FAILED)
+      whenever(workItemsService.createWorkItem(any())).thenAnswer {
+        val request = it.getArgument<CreateWorkItemRequest>(0)
+        val name = "workItems/" + request.workItemId
+        val day =
+          request.workItem.workItemParams
+            .unpack<WorkItem.WorkItemParams>()
+            .appParams
+            .unpack<DataAvailabilitySyncParams>()
+            .eventDate
+            .day
+        if (name !in tasks)
+          tasks[name] =
+            request.workItem.copy {
+              this.name = name
+              state = if (day == 1) WorkItem.State.SUCCEEDED else WorkItem.State.FAILED
+              generation = 1L
+            }
+        throw Status.ALREADY_EXISTS.asRuntimeException()
+      }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(row)
+
+      assertThat(createMonitor().runDispatch().dispatchError).isFalse()
+
+      assertThat(tasks.values.map { it.generation }).containsExactly(1L, 2L).inOrder()
+      assertThat(tasks.values.map { it.state })
+        .containsExactly(WorkItem.State.SUCCEEDED, WorkItem.State.QUEUED)
+        .inOrder()
+      verifyBlocking(workItemsService, times(1)) { retryWorkItem(any()) }
+      assertThat(logRecords.any { it.message.contains("succeeded while its date remains pending") })
+        .isTrue()
+    }
+
+  @Test
+  fun `dispatch cadence cooperatively cancels while waiting at availability RPC boundaries`() =
+    runBlocking<Unit> {
+      for (phase in listOf("upload_scan", "model_rows", "task_creation", "date_ack")) {
+        val parent = upload("waiting-$phase", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+        val day = LocalDate.of(2026, 6, 1)
+        stubUploads(active = listOf(parent))
+        stubModelLines(availabilityRow(parent.name, day))
+        seedAvailabilityMarkers(parent.name, listOf(day))
+        installAvailabilityWorkItems(WorkItem.State.SUCCEEDED)
+        val waiting = CompletableDeferred<Unit>()
+        var reads = 0
+        val throttlers =
+          VidLabelingRpcThrottlersTestHelper.alwaysReady()
+            .copy(
+              metadataRead =
+                object : Throttler {
+                  override suspend fun <T> onReady(block: suspend () -> T): T {
+                    reads++
+                    val boundary =
+                      when (phase) {
+                        "upload_scan" -> 1
+                        "model_rows" -> 2
+                        "date_ack" -> 3
+                        else -> -1
+                      }
+                    if (reads == boundary) {
+                      waiting.complete(Unit)
+                      awaitCancellation()
+                    }
+                    return block()
+                  }
+                },
+              controlPlane =
+                object : Throttler {
+                  override suspend fun <T> onReady(block: suspend () -> T): T {
+                    if (phase == "task_creation") {
+                      waiting.complete(Unit)
+                      awaitCancellation()
+                    }
+                    return block()
+                  }
+                },
+            )
+        val attempt = async { createMonitor(throttlers).runDispatch() }
+        waiting.await()
+        attempt.cancel()
+
+        assertFailsWith<CancellationException> { attempt.await() }
+      }
+      verifyBlocking(workItemsService, never()) { retryWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatch cadence recovers another owner beside incomplete or missing healing provenance`() =
+    runBlocking<Unit> {
+      for (incompleteDates in listOf(true, false)) {
+        val bad =
+          upload("incomplete-$incompleteDates", RawImpressionUpload.State.ACTIVE, FIXED_NOW).copy {
+            if (!incompleteDates)
+              uploadHealingOperation = "$DATA_PROVIDER/uploadHealingOperations/missing"
+          }
+        val good = upload("ready-$incompleteDates", RawImpressionUpload.State.FAILED, FIXED_NOW)
+        val day = LocalDate.of(2026, 6, 1)
+        stubUploads(active = listOf(bad), failed = listOf(good))
+        val badRow =
+          if (incompleteDates) availabilityRow(bad.name) else availabilityRow(bad.name, day)
+        stubModelLinesByParent(
+          mapOf(bad.name to listOf(badRow), good.name to listOf(availabilityRow(good.name, day)))
+        )
+        whenever(uploadHealingOperationService.getUploadHealingOperation(any()))
+          .thenThrow(Status.NOT_FOUND.asRuntimeException())
+        seedAvailabilityMarkers(good.name, listOf(day))
+        val tasks = installAvailabilityWorkItems(WorkItem.State.FAILED)
+
+        assertThat(createMonitor().runDispatch().dispatchError).isFalse()
+
+        assertThat(tasks).hasSize(1)
+        assertThat(tasks.values.single().generation).isEqualTo(2L)
+      }
+      assertThat(logRecords.any { it.message.contains("no pending availability dates") }).isTrue()
+      assertThat(logRecords.any { it.message.contains("Cannot recover availability for") }).isTrue()
+    }
+
+  @Test
+  fun `dispatch cadence recovers another date beside missing invalid or unavailable source markers`() =
+    runBlocking<Unit> {
+      for (badSource in listOf("missing", "invalid", "unavailable")) {
+        val parent = upload("source-$badSource", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+        val first = LocalDate.of(2026, 6, 1)
+        val second = first.plusDays(1)
+        stubUploads(active = listOf(parent))
+        stubModelLines(availabilityRow(parent.name, first, second))
+        seedAvailabilityMarkers(parent.name, listOf(second))
+        val goodKey = availabilityDoneKey(parent.name, second)
+        val goodBlob = checkNotNull(vidLabeledImpressionsStorageClient.getBlob(goodKey))
+        val invalid = mock<ConditionalOperationStorageClient.Blob>()
+        whenever(invalid.freshnessToken).thenReturn("invalid")
+        val storage = mock<StorageClient>()
+        whenever(storage.getBlob(any())).thenAnswer {
+          if (it.getArgument<String>(0) == goodKey) goodBlob
+          else
+            when (badSource) {
+              "missing" -> null
+              "invalid" -> invalid
+              else -> throw IllegalStateException("temporary source read failure")
+            }
+        }
+        val tasks = installAvailabilityWorkItems(WorkItem.State.FAILED)
+
+        assertThat(createMonitor(labeledStorageClient = storage).runDispatch().dispatchError)
+          .isFalse()
+
+        assertThat(tasks).hasSize(1)
+        val only = tasks.values.single()
+        assertThat(only.generation).isEqualTo(2L)
+        assertThat(
+            only.workItemParams
+              .unpack<WorkItem.WorkItemParams>()
+              .appParams
+              .unpack<DataAvailabilitySyncParams>()
+              .eventDate
+              .day
+          )
+          .isEqualTo(2)
+      }
+    }
+
+  @Test
+  fun `dispatch cadence recovers a later date while a successful neighbor acknowledgment is unavailable`() =
+    runBlocking<Unit> {
+      val parent = upload("neighbor-ack-unavailable", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val first = LocalDate.of(2026, 6, 1)
+      val second = first.plusDays(1)
+      stubUploads(active = listOf(parent))
+      stubModelLines(availabilityRow(parent.name, first, second))
+      seedAvailabilityMarkers(parent.name, listOf(first, second))
+      val tasks = installAvailabilityWorkItems(WorkItem.State.FAILED)
+      whenever(workItemsService.createWorkItem(any())).thenAnswer {
+        val request = it.getArgument<CreateWorkItemRequest>(0)
+        val name = "workItems/" + request.workItemId
+        val day =
+          request.workItem.workItemParams
+            .unpack<WorkItem.WorkItemParams>()
+            .appParams
+            .unpack<DataAvailabilitySyncParams>()
+            .eventDate
+            .day
+        if (name !in tasks)
+          tasks[name] =
+            request.workItem.copy {
+              this.name = name
+              state = if (day == 1) WorkItem.State.SUCCEEDED else WorkItem.State.FAILED
+              generation = 1L
+            }
+        throw Status.ALREADY_EXISTS.asRuntimeException()
+      }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+      assertThat(createMonitor().runDispatch().dispatchError).isFalse()
+
+      assertThat(tasks.values.map { it.generation }).containsExactly(1L, 2L).inOrder()
+      assertThat(tasks.values.map { it.state })
+        .containsExactly(WorkItem.State.SUCCEEDED, WorkItem.State.QUEUED)
+        .inOrder()
+      verifyBlocking(workItemsService, times(1)) { retryWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatch cadence keeps independent dates stable across immediate retry outcomes and lost responses`() =
+    runBlocking<Unit> {
+      val parent = upload("mixed-retry-outcomes", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val dates = (1..3).map { LocalDate.of(2026, 6, it) }
+      val row = availabilityRow(parent.name, *dates.toTypedArray())
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      seedAvailabilityMarkers(parent.name, dates)
+      val tasks = installAvailabilityWorkItems(WorkItem.State.FAILED)
+      whenever(workItemsService.retryWorkItem(any())).thenAnswer {
+        val request =
+          it.getArgument<
+            org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
+          >(
+            0
+          )
+        val original = tasks.getValue(request.name)
+        val day =
+          original.workItemParams
+            .unpack<WorkItem.WorkItemParams>()
+            .appParams
+            .unpack<DataAvailabilitySyncParams>()
+            .eventDate
+            .day
+        val updated =
+          original.copy {
+            generation = request.expectedWorkItemGeneration + 1L
+            state =
+              when (day) {
+                1 -> WorkItem.State.SUCCEEDED
+                2 -> WorkItem.State.FAILED
+                else -> WorkItem.State.QUEUED
+              }
+          }
+        tasks[request.name] = updated
+        if (day == 2) throw Status.UNAVAILABLE.asRuntimeException()
+        updated
+      }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(
+          row.copy {
+            pendingAvailabilityDates.clear()
+            pendingAvailabilityDates += row.pendingAvailabilityDatesList.filter { it.day != 1 }
+          }
+        )
+      val monitor = createMonitor()
+
+      repeat(2) { assertThat(monitor.runDispatch().dispatchError).isFalse() }
+
+      assertThat(tasks.values.map { it.generation }).containsExactly(2L, 3L, 2L).inOrder()
+      assertThat(tasks.values.map { it.state })
+        .containsExactly(WorkItem.State.SUCCEEDED, WorkItem.State.FAILED, WorkItem.State.QUEUED)
+        .inOrder()
+      verifyBlocking(workItemsService, times(4)) { retryWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatch cadence recovers a valid date beside unscheduled or unknown created task states`() =
+    runBlocking<Unit> {
+      for (unknownState in listOf(0, 999)) {
+        val parent =
+          upload("malformed-task-$unknownState", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+        val dates = (1..3).map { LocalDate.of(2026, 6, it) }
+        stubUploads(active = listOf(parent))
+        stubModelLines(availabilityRow(parent.name, *dates.toTypedArray()))
+        seedAvailabilityMarkers(parent.name, dates)
+        val replies = mutableListOf<WorkItem>()
+        whenever(workItemsService.createWorkItem(any())).thenAnswer {
+          val request = it.getArgument<CreateWorkItemRequest>(0)
+          val day =
+            request.workItem.workItemParams
+              .unpack<WorkItem.WorkItemParams>()
+              .appParams
+              .unpack<DataAvailabilitySyncParams>()
+              .eventDate
+              .day
+          request.workItem
+            .copy {
+              name = "workItems/" + request.workItemId
+              stateValue =
+                when (day) {
+                  1 -> unknownState
+                  2 -> WorkItem.State.SUCCEEDED.number
+                  else -> WorkItem.State.QUEUED.number
+                }
+              generation = 1L
+            }
+            .also { replies += it }
+        }
+
+        assertThat(createMonitor().runDispatch().dispatchError).isFalse()
+
+        assertThat(replies).hasSize(3)
+        assertThat(replies.last().state).isEqualTo(WorkItem.State.QUEUED)
+      }
+      verifyBlocking(workItemsService, never()) { retryWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatch cadence propagates cancellation across availability RPC boundaries`() =
+    runBlocking<Unit> {
+      for (phase in listOf("upload_scan", "model_rows", "task_creation", "date_ack")) {
+        val parent = upload("cancel-$phase", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+        val day = LocalDate.of(2026, 6, 1)
+        val row = availabilityRow(parent.name, day)
+        stubUploads(active = listOf(parent))
+        stubModelLines(row)
+        seedAvailabilityMarkers(parent.name, listOf(day))
+        installAvailabilityWorkItems(WorkItem.State.SUCCEEDED)
+        var readCalls = 0
+        val throttlers =
+          VidLabelingRpcThrottlersTestHelper.alwaysReady()
+            .copy(
+              metadataRead =
+                object : Throttler {
+                  override suspend fun <T> onReady(block: suspend () -> T): T {
+                    readCalls++
+                    val stop =
+                      when (phase) {
+                        "upload_scan" -> 1
+                        "model_rows" -> 2
+                        "date_ack" -> 3
+                        else -> -1
+                      }
+                    if (readCalls == stop) throw CancellationException(phase)
+                    return block()
+                  }
+                },
+              controlPlane =
+                object : Throttler {
+                  override suspend fun <T> onReady(block: suspend () -> T): T {
+                    if (phase == "task_creation") throw CancellationException(phase)
+                    return block()
+                  }
+                },
+            )
+
+        assertThat(
+            assertFailsWith<CancellationException> { createMonitor(throttlers).runDispatch() }
+          )
+          .hasMessageThat()
+          .contains(phase)
+      }
+    }
+
+  @Test
+  fun `dispatch cadence continues a healthy owner when another model lookup is unavailable`() =
+    runBlocking<Unit> {
+      val failed = upload("lookup-failed", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val healthy = upload("lookup-healthy", RawImpressionUpload.State.FAILED, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      val row = availabilityRow(healthy.name, day)
+      stubUploads(active = listOf(failed), failed = listOf(healthy))
+      whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+        .thenAnswer {
+          val request = it.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+          if (request.parent == failed.name) throw Status.UNAVAILABLE.asRuntimeException()
+          listRawImpressionUploadModelLinesResponse {
+            if (request.parent == healthy.name) rawImpressionUploadModelLines += row
+          }
+        }
+      seedAvailabilityMarkers(healthy.name, listOf(day))
+      val items = installAvailabilityWorkItems(WorkItem.State.FAILED)
+
+      assertThat(createMonitor().runDispatch().dispatchError).isTrue()
+
+      verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+      assertThat(items.values.single().generation).isEqualTo(2L)
+      assertThat(logRecords.any { it.message.contains("Cannot inspect availability owners") })
+        .isTrue()
+    }
+
+  @Test
+  fun `dispatch cadence continues a healthy owner when another healing lookup is unavailable`() =
+    runBlocking<Unit> {
+      val failed =
+        upload("healing-lookup-failed", RawImpressionUpload.State.ACTIVE, FIXED_NOW).copy {
+          uploadHealingOperation = "$DATA_PROVIDER/uploadHealingOperations/unavailable"
+        }
+      val healthy = upload("healing-lookup-healthy", RawImpressionUpload.State.FAILED, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      stubUploads(active = listOf(failed), failed = listOf(healthy))
+      stubModelLinesByParent(
+        mapOf(
+          failed.name to listOf(availabilityRow(failed.name, day)),
+          healthy.name to listOf(availabilityRow(healthy.name, day)),
+        )
+      )
+      whenever(uploadHealingOperationService.getUploadHealingOperation(any()))
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      seedAvailabilityMarkers(healthy.name, listOf(day))
+      val items = installAvailabilityWorkItems(WorkItem.State.FAILED)
+
+      assertThat(createMonitor().runDispatch().dispatchError).isFalse()
+
+      assertThat(items.values.single().generation).isEqualTo(2L)
+      assertThat(logRecords.any { it.message.contains("Cannot recover availability for") }).isTrue()
+    }
+
+  @Test
+  fun `dispatch cadence refuses an availability owner without pending dates`() =
+    runBlocking<Unit> {
+      val parent = upload("missing-dates", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      stubUploads(active = listOf(parent))
+      stubModelLines(availabilityRow(parent.name))
+
+      assertThat(createMonitor().runDispatch().dispatchError).isFalse()
+
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+      assertThat(logRecords.any { it.message.contains("no pending availability dates") }).isTrue()
+    }
+
+  @Test
+  fun `dispatch cadence rejects missing and invalid source generations before task publication`() =
+    runBlocking<Unit> {
+      val parent = upload("invalid-marker", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      stubUploads(active = listOf(parent))
+      stubModelLines(availabilityRow(parent.name, day))
+      val missing = mock<StorageClient>()
+      whenever(missing.getBlob(any())).thenReturn(null)
+      assertThat(createMonitor(labeledStorageClient = missing).runDispatch().dispatchError)
+        .isFalse()
+
+      val nonconditional = mock<StorageClient.Blob>()
+      val storage = mock<StorageClient>()
+      whenever(storage.getBlob(any())).thenReturn(nonconditional)
+      assertThat(createMonitor(labeledStorageClient = storage).runDispatch().dispatchError)
+        .isFalse()
+      for (token in listOf("", "not-a-generation", "0", "-1")) {
+        val blob = mock<ConditionalOperationStorageClient.Blob>()
+        whenever(blob.freshnessToken).thenReturn(token)
+        whenever(storage.getBlob(any())).thenReturn(blob)
+        assertThat(createMonitor(labeledStorageClient = storage).runDispatch().dispatchError)
+          .isFalse()
+      }
+
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+      assertThat(
+          logRecords.any { it.message.contains("done marker") && it.message.contains("missing") }
+        )
+        .isTrue()
+      assertThat(logRecords.any { it.message.contains("no positive generation") }).isTrue()
+    }
+
+  @Test
+  fun `dispatch cadence retains completed tasks when their date acknowledgment lookup fails`() =
+    runBlocking<Unit> {
+      val parent = upload("ack-lookup-failed", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      stubUploads(active = listOf(parent))
+      stubModelLines(availabilityRow(parent.name, day))
+      seedAvailabilityMarkers(parent.name, listOf(day))
+      val items = installAvailabilityWorkItems(WorkItem.State.SUCCEEDED)
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+      assertThat(createMonitor().runDispatch().dispatchError).isFalse()
+
+      assertThat(items.values.single().state).isEqualTo(WorkItem.State.SUCCEEDED)
+      assertThat(items.values.single().generation).isEqualTo(1L)
+      verifyBlocking(workItemsService, never()) { retryWorkItem(any()) }
+      assertThat(
+          logRecords.any { it.message.contains("Cannot verify availability date acknowledgment") }
+        )
+        .isTrue()
+    }
+
+  @Test
+  fun `dispatch cadence handles an original retry completing before its response`() =
+    runBlocking<Unit> {
+      val parent = upload("fast-retry-success", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      val row = availabilityRow(parent.name, day)
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      seedAvailabilityMarkers(parent.name, listOf(day))
+      val items = installAvailabilityWorkItems(WorkItem.State.FAILED)
+      whenever(workItemsService.retryWorkItem(any())).thenAnswer {
+        val request =
+          it.getArgument<
+            org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
+          >(
+            0
+          )
+        val original = items.getValue(request.name)
+        original
+          .copy {
+            generation = request.expectedWorkItemGeneration + 1L
+            state = WorkItem.State.SUCCEEDED
+          }
+          .also { updated -> items[request.name] = updated }
+      }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(
+          row.copy {
+            pendingAvailabilityDates.clear()
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+        )
+
+      assertThat(createMonitor().runDispatch().dispatchError).isFalse()
+
+      assertThat(items.values.single().state).isEqualTo(WorkItem.State.SUCCEEDED)
+      assertThat(items.values.single().generation).isEqualTo(2L)
+      verifyBlocking(workItemsService, times(1)) { retryWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatch cadence retries an execution that fails before its retry response`() =
+    runBlocking<Unit> {
+      val parent = upload("fast-retry-failure", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      stubUploads(active = listOf(parent))
+      stubModelLines(availabilityRow(parent.name, day))
+      seedAvailabilityMarkers(parent.name, listOf(day))
+      val items = installAvailabilityWorkItems(WorkItem.State.FAILED)
+      whenever(workItemsService.retryWorkItem(any())).thenAnswer {
+        val request =
+          it.getArgument<
+            org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
+          >(
+            0
+          )
+        items
+          .getValue(request.name)
+          .copy {
+            generation = request.expectedWorkItemGeneration + 1L
+            state = WorkItem.State.FAILED
+          }
+          .also { updated -> items[request.name] = updated }
+      }
+      val monitor = createMonitor()
+      repeat(2) { assertThat(monitor.runDispatch().dispatchError).isFalse() }
+
+      assertThat(items.values.single().state).isEqualTo(WorkItem.State.FAILED)
+      assertThat(items.values.single().generation).isEqualTo(3L)
+      verifyBlocking(workItemsService, times(2)) { retryWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatch cadence rejects unknown states in a newly created availability task`() =
+    runBlocking<Unit> {
+      val parent = upload("invalid-created-state", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val day = LocalDate.of(2026, 6, 1)
+      stubUploads(active = listOf(parent))
+      stubModelLines(availabilityRow(parent.name, day))
+      seedAvailabilityMarkers(parent.name, listOf(day))
+      for (stateNumber in listOf(0, 999)) {
+        whenever(workItemsService.createWorkItem(any())).thenAnswer {
+          val request = it.getArgument<CreateWorkItemRequest>(0)
+          request.workItem.copy {
+            name = "workItems/" + request.workItemId
+            stateValue = stateNumber
+            generation = 1L
+          }
+        }
+        assertThat(createMonitor().runDispatch().dispatchError).isFalse()
+      }
+
+      verifyBlocking(workItemsService, never()) { retryWorkItem(any()) }
+      assertThat(
+          logRecords.count { it.message.contains("Availability WorkItem has invalid state") }
+        )
+        .isEqualTo(2)
+    }
+
+  @Test
+  fun `dispatch cadence skips completed history while retaining failed-parent availability`() =
+    runBlocking<Unit> {
+      val parent = upload("failed-parent", RawImpressionUpload.State.FAILED, FIXED_NOW)
+      val completed =
+        (1..100).map { upload("completed-$it", RawImpressionUpload.State.COMPLETED, FIXED_NOW) }
+      val day = LocalDate.of(2026, 6, 1)
+      val row = availabilityRow(parent.name, day)
+      stubUploads(failed = listOf(parent), completed = completed)
+      stubModelLinesByParent(mapOf(parent.name to listOf(row)))
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, listOf(day))
+      val items = installAvailabilityWorkItems(WorkItem.State.FAILED)
+
+      val result = createMonitor().runDispatch()
+
+      assertThat(result.dispatchError).isFalse()
+      assertThat(items.values.single().generation).isEqualTo(2L)
+      val children = argumentCaptor<ListRawImpressionUploadModelLinesRequest>()
+      verifyBlocking(rawImpressionUploadModelLineService, atLeastOnce()) {
+        listRawImpressionUploadModelLines(children.capture())
+      }
+      assertThat(children.allValues.map { it.parent }).contains(parent.name)
+      assertThat(children.allValues.map { it.parent }).containsNoneIn(completed.map { it.name })
+      val uploads = argumentCaptor<ListRawImpressionUploadsRequest>()
+      verifyBlocking(rawImpressionUploadService, atLeastOnce()) {
+        listRawImpressionUploads(uploads.capture())
+      }
+      assertThat(uploads.firstValue.filter.stateInList)
+        .containsExactly(RawImpressionUpload.State.ACTIVE, RawImpressionUpload.State.FAILED)
+    }
+
+  @Test
+  fun `dispatch cadence retries fresh availability under a sibling failed parent`() =
+    runBlocking<Unit> {
+      val parent = upload("failed-parent", RawImpressionUpload.State.FAILED, FIXED_NOW)
+      val row = availabilityRow(parent.name, LocalDate.of(2026, 6, 1))
+      stubUploads(failed = listOf(parent))
+      stubModelLines(row)
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, listOf(LocalDate.of(2026, 6, 1)))
+      val items = installAvailabilityWorkItems(WorkItem.State.FAILED)
+
+      val result = createMonitor().runDispatch()
+
+      assertThat(result.dispatchError).isFalse()
+      assertThat(items.values.single().generation).isEqualTo(2L)
+      verifyBlocking(workItemsService, times(1)) { retryWorkItem(any()) }
+      verifyBlocking(vidLabelingJobService, never()) { listVidLabelingJobs(any()) }
+    }
+
+  @Test
+  fun `dispatch cadence does not duplicate queued or running availability`() =
+    runBlocking<Unit> {
+      val parent = upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val row = availabilityRow(parent.name, LocalDate.of(2026, 6, 1))
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, listOf(LocalDate.of(2026, 6, 1)))
+      val items = installAvailabilityWorkItems(WorkItem.State.QUEUED)
+      val monitor = createMonitor()
+      monitor.runDispatch()
+      val name = items.keys.single()
+      items[name] = items.getValue(name).copy { state = WorkItem.State.RUNNING }
+      monitor.runDispatch()
+
+      verifyBlocking(workItemsService, never()) { retryWorkItem(any()) }
+      assertThat(items.values.single().generation).isEqualTo(1L)
+    }
+
+  @Test
+  fun `dispatch cadence continues another date after one lookup fails`() =
+    runBlocking<Unit> {
+      val parent = upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val dates = listOf(LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2))
+      val row = availabilityRow(parent.name, *dates.toTypedArray())
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, dates)
+      val items = installAvailabilityWorkItems(WorkItem.State.FAILED, failedReadDay = 1)
+
+      createMonitor().runDispatch()
+
+      assertThat(items.values.map { it.generation }).containsExactly(1L, 2L)
+      verifyBlocking(workItemsService, times(1)) { retryWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatch cadence retries a later failure without exhausting a labeler budget`() =
+    runBlocking<Unit> {
+      val parent = upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val row = availabilityRow(parent.name, LocalDate.of(2026, 6, 1))
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, listOf(LocalDate.of(2026, 6, 1)))
+      val items = installAvailabilityWorkItems(WorkItem.State.FAILED)
+      val monitor = createMonitor()
+      repeat(5) {
+        monitor.runDispatch()
+        val name = items.keys.single()
+        items[name] = items.getValue(name).copy { state = WorkItem.State.FAILED }
+      }
+
+      assertThat(items.values.single().generation).isEqualTo(6L)
+      verifyBlocking(workItemsService, times(5)) { retryWorkItem(any()) }
+      verifyBlocking(vidLabelingJobService, never()) { listVidLabelingJobs(any()) }
+    }
+
+  @Test
+  fun `dispatch cadence recognizes a date completed before its snapshot is checked`() =
+    runBlocking<Unit> {
+      val parent = upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val row = availabilityRow(parent.name, LocalDate.of(2026, 6, 1))
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, listOf(LocalDate.of(2026, 6, 1)))
+      installAvailabilityWorkItems(WorkItem.State.SUCCEEDED)
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(
+          row.copy {
+            pendingAvailabilityDates.clear()
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+        )
+
+      createMonitor().runDispatch()
+
+      verifyBlocking(workItemsService, never()) { retryWorkItem(any()) }
+      assertThat(
+          logRecords.none { it.message.contains("succeeded while its date remains pending") }
+        )
+        .isTrue()
+    }
+
+  @Test
+  fun `dispatch cadence leaves initial healing availability to its controller`() =
+    runBlocking<Unit> {
+      val operation = "$DATA_PROVIDER/uploadHealingOperations/healing-1"
+      val parent =
+        upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW).copy {
+          uploadHealingOperation = operation
+        }
+      val row = availabilityRow(parent.name, LocalDate.of(2026, 6, 1))
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      stubFiles()
+      whenever(uploadHealingOperationService.getUploadHealingOperation(any()))
+        .thenReturn(
+          uploadHealingOperation {
+            name = operation
+            state = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+          }
+        )
+
+      createMonitor().runDispatch()
+
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+      verifyBlocking(workItemsService, never()) { retryWorkItem(any()) }
+    }
+
+  private fun availabilityRow(parent: String, vararg dates: LocalDate) =
+    rawImpressionUploadModelLine {
+      name = "$parent/rawImpressionUploadModelLines/ml1"
+      cmmsModelLine = MODEL_LINE
+      state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      updateTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli())
+      pendingAvailabilityDates +=
+        dates.map {
+          date {
+            year = it.year
+            month = it.monthValue
+            day = it.dayOfMonth
+          }
+        }
+    }
+
+  private fun availabilityDoneKey(parent: String, day: LocalDate): String =
+    SelectedStorageClient.parseBlobUri(
+        LabeledImpressionsBlobKeys.forDoneUri(
+          VID_LABELED_IMPRESSIONS_PREFIX,
+          parent,
+          MODEL_LINE,
+          day,
+        )
+      )
+      .key
+
+  private suspend fun seedAvailabilityMarkers(parent: String, dates: List<LocalDate>) {
+    for (date in dates) seedLabeled(
+      "edp123/" + LabeledImpressionsBlobKeys.forDone(parent, MODEL_LINE, date)
+    )
+  }
+
+  private suspend fun installAvailabilityWorkItems(
+    state: WorkItem.State,
+    failedReadDay: Int? = null,
+  ): MutableMap<String, WorkItem> {
+    val items = linkedMapOf<String, WorkItem>()
+    whenever(workItemsService.createWorkItem(any())).thenAnswer {
+      val request = it.getArgument<CreateWorkItemRequest>(0)
+      val name = "workItems/${request.workItemId}"
+      if (name !in items)
+        items[name] =
+          request.workItem.copy {
+            this.name = name
+            this.state = state
+            generation = 1L
+          }
+      throw Status.ALREADY_EXISTS.asRuntimeException()
+    }
+    whenever(workItemsService.getWorkItem(any())).thenAnswer {
+      val name = it.getArgument<GetWorkItemRequest>(0).name
+      val item = items[name] ?: throw Status.NOT_FOUND.asRuntimeException()
+      val params =
+        item.workItemParams
+          .unpack<WorkItem.WorkItemParams>()
+          .appParams
+          .unpack<DataAvailabilitySyncParams>()
+      if (params.eventDate.day == failedReadDay) throw Status.UNAVAILABLE.asRuntimeException()
+      item
+    }
+    whenever(workItemsService.retryWorkItem(any())).thenAnswer {
+      val request =
+        it.getArgument<
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
+        >(
+          0
+        )
+      val item = items.getValue(request.name)
+      check(item.state == WorkItem.State.FAILED)
+      check(request.expectedWorkItemGeneration == item.generation)
+      item
+        .copy {
+          generation = item.generation + 1L
+          this.state = WorkItem.State.QUEUED
+        }
+        .also { updated -> items[request.name] = updated }
+    }
+    return items
+  }
+
   private fun createSequencer(
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady()
   ): VidLabelingDispatchSequencer =
     VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+      rankIndexBlobStub = rankIndexBlobStub,
+      uploadHealingOperationStub = uploadHealingOperationStub,
       workItemsStub = workItemsStub,
       poolAssignmentJobStub = poolAssignmentJobStub,
       modelRolloutsStub = modelRolloutsStub,
@@ -292,21 +1306,29 @@ class VidLabelingMonitorTest {
     )
 
   private fun createMonitor(
-    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady()
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    labeledStorageClient: StorageClient = vidLabeledImpressionsStorageClient,
+    availabilityWorkItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub = workItemsStub,
   ): VidLabelingMonitor =
     VidLabelingMonitor(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+      correctionCandidateStub = correctionCandidateStub,
       dispatchSequencer = createSequencer(rpcThrottlers),
       dataProviderName = DATA_PROVIDER,
       stalenessThreshold = STALENESS_THRESHOLD,
+      rawImpressionsStorageRootUri = "gs://raw-bucket",
+      rawImpressionsBlobPrefix = RAW_IMPRESSIONS_PREFIX,
+      rawInputQuietPeriod = Duration.ZERO,
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       rawImpressionsStorageClientProvider = { rawImpressionsStorageClient },
-      vidLabeledImpressionsStorageClientProvider = { vidLabeledImpressionsStorageClient },
+      vidLabeledImpressionsStorageClientProvider = { labeledStorageClient },
       poolAssignmentJobStub = poolAssignmentJobStub,
       rankerJobStub = rankerJobStub,
       vidLabelingJobStub = vidLabelingJobStub,
-      workItemsStub = workItemsStub,
+      workItemsStub = availabilityWorkItemsStub,
+      uploadHealingOperationStub = uploadHealingOperationStub,
+      vidLabeledImpressionsBlobPrefix = VID_LABELED_IMPRESSIONS_PREFIX,
       rpcThrottlers = rpcThrottlers,
       clock = fixedClock,
     )
@@ -320,6 +1342,9 @@ class VidLabelingMonitorTest {
     created: List<RawImpressionUpload> = emptyList(),
     failed: List<RawImpressionUpload> = emptyList(),
     completed: List<RawImpressionUpload> = emptyList(),
+    correctionRequired: List<RawImpressionUpload> = emptyList(),
+    removedWithoutReplacement: List<RawImpressionUpload> = emptyList(),
+    noReplacementCandidates: List<RawImpressionUploadCorrectionCandidate> = emptyList(),
   ) {
     whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
@@ -328,7 +1353,7 @@ class VidLabelingMonitorTest {
       // state_in (the dispatcher's dispatch scan) returns just those states.
       val uploads =
         if (states.isEmpty()) {
-          active + created + failed + completed
+          active + created + failed + completed + correctionRequired + removedWithoutReplacement
         } else {
           states.flatMap { state ->
             when (state) {
@@ -336,12 +1361,20 @@ class VidLabelingMonitorTest {
               RawImpressionUpload.State.CREATED -> created
               RawImpressionUpload.State.FAILED -> failed
               RawImpressionUpload.State.COMPLETED -> completed
+              RawImpressionUpload.State.CORRECTION_REQUIRED -> correctionRequired
+              RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT -> removedWithoutReplacement
               else -> emptyList()
             }
           }
         }
       listRawImpressionUploadsResponse { rawImpressionUploads += uploads }
     }
+    whenever(correctionCandidateService.listRawImpressionUploadCorrectionCandidates(any()))
+      .thenReturn(
+        listRawImpressionUploadCorrectionCandidatesResponse {
+          rawImpressionUploadCorrectionCandidates += noReplacementCandidates
+        }
+      )
   }
 
   /** Stubs `listRawImpressionUploadModelLines` to return [modelLines] for any parent upload. */
@@ -434,14 +1467,29 @@ class VidLabelingMonitorTest {
     }
   }
 
-  private fun upload(id: String, state: RawImpressionUpload.State, createdAt: Instant) =
-    rawImpressionUpload {
-      name = "$DATA_PROVIDER/rawImpressionUploads/$id"
-      this.state = state
-      registrationComplete = true
-      createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
-      doneBlobUri = "gs://raw-bucket/edp7/2026-06-01/done"
+  private fun upload(
+    id: String,
+    state: RawImpressionUpload.State,
+    createdAt: Instant,
+    processingDeferred: Boolean = false,
+    replacesRawImpressionUpload: String = "",
+    doneBlobGeneration: Long = 0L,
+    doneBlobCreateTime: Instant? = null,
+    registrationComplete: Boolean = true,
+    doneBlobUri: String = "gs://raw-bucket/edp7/2026-06-01/done",
+  ) = rawImpressionUpload {
+    name = "$DATA_PROVIDER/rawImpressionUploads/$id"
+    this.state = state
+    this.registrationComplete = registrationComplete
+    createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
+    this.doneBlobUri = doneBlobUri
+    this.doneBlobGeneration = doneBlobGeneration
+    if (doneBlobCreateTime != null) {
+      this.doneBlobCreateTime = Timestamps.fromMillis(doneBlobCreateTime.toEpochMilli())
     }
+    this.processingDeferred = processingDeferred
+    this.replacesRawImpressionUpload = replacesRawImpressionUpload
+  }
 
   private fun createdModelLine(id: String = "ml1") = rawImpressionUploadModelLine {
     name = "$DATA_PROVIDER/rawImpressionUploads/upload-1/modelLines/$id"
@@ -532,6 +1580,35 @@ class VidLabelingMonitorTest {
   }
 
   @Test
+  fun `health ignores quarantined and deferred uploads`() = runBlocking {
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads +=
+            upload(
+              "correction",
+              RawImpressionUpload.State.CORRECTION_REQUIRED,
+              FIXED_NOW.minus(STALENESS_THRESHOLD).minusSeconds(60),
+            )
+          rawImpressionUploads +=
+            upload(
+              "deferred",
+              RawImpressionUpload.State.CREATED,
+              FIXED_NOW.minus(STALENESS_THRESHOLD).minusSeconds(60),
+              processingDeferred = true,
+            )
+        }
+      )
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.hasIssues).isFalse()
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      listRawImpressionUploadModelLines(any())
+    }
+  }
+
+  @Test
   fun `run does not flag a recent ACTIVE upload as stuck`() = runBlocking {
     stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
     stubModelLines()
@@ -541,6 +1618,779 @@ class VidLabelingMonitorTest {
     assertThat(result.stuckUploads).isEmpty()
     assertThat(result.hasIssues).isFalse()
   }
+
+  @Test
+  fun `health diagnoses a missing availability checkpoint without replaying labeling`() =
+    runBlocking<Unit> {
+      val parent =
+        upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(25)))
+      val row = rawImpressionUploadModelLine {
+        name = "${parent.name}/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        updateTime = Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(25)).toEpochMilli())
+      }
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      stubFiles()
+
+      val result = createMonitor().runHealth()
+
+      assertThat(result.recoveredTransitions).isEqualTo(0)
+      assertThat(result.unrecoverableRecoveries).isEqualTo(1)
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+      verifyBlocking(vidLabelingJobService, never()) { listVidLabelingJobs(any()) }
+    }
+
+  @Test
+  fun `health recreates availability WorkItem when the labeler WorkItem is gone`() = runBlocking {
+    val upload =
+      upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(25)))
+    val modelLine = rawImpressionUploadModelLine {
+      name = "${upload.name}/modelLines/ml1"
+      cmmsModelLine = MODEL_LINE
+      state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      pendingAvailabilityDates += date {
+        year = 2026
+        month = 6
+        day = 1
+      }
+      updateTime = Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(25)).toEpochMilli())
+      etag = "etag-1"
+    }
+    stubUploads(active = listOf(upload))
+    stubModelLines(modelLine)
+    stubFiles()
+    val donePath =
+      LabeledImpressionsBlobKeys.forDone(upload.name, MODEL_LINE, LocalDate.of(2026, 6, 1))
+    seedLabeled("edp123/$donePath")
+    whenever(vidLabelingJobService.listVidLabelingJobs(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListVidLabelingJobsRequest>(0)
+      listVidLabelingJobsResponse {
+        if (request.filter.state == VidLabelingJob.State.SUCCEEDED) {
+          vidLabelingJobs += vidLabelingJob {
+            name = "${upload.name}/vidLabelingJobs/vj1"
+            cmmsModelLines += MODEL_LINE
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+        }
+      }
+    }
+    whenever(workItemsService.getWorkItem(any())).thenAnswer {
+      throw Status.NOT_FOUND.asRuntimeException()
+    }
+    whenever(workItemsService.createWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<CreateWorkItemRequest>(0)
+      request.workItem.copy {
+        name = "workItems/${request.workItemId}"
+        state = WorkItem.State.QUEUED
+        generation = 1L
+      }
+    }
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(1)
+    assertThat(result.unrecoverableRecoveries).isEqualTo(0)
+    val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
+    val request = createCaptor.firstValue
+    val doneUri = "$VID_LABELED_IMPRESSIONS_PREFIX/$donePath"
+    assertThat(request.workItemId)
+      .isEqualTo(
+        WorkItemIds.forDataAvailabilitySync(
+          VidLabelingTraceAttributes.gcsObjectPathHash(doneUri),
+          1L,
+        )
+      )
+    assertThat(request.workItem.queue).isEqualTo(DataAvailabilitySyncWorkItems.QUEUE)
+    val workItemParams = request.workItem.workItemParams.unpack<WorkItem.WorkItemParams>()
+    assertThat(workItemParams.dataPathParams.dataPath).isEqualTo(doneUri)
+    assertThat(workItemParams.dataPathParams.generation).isEqualTo(1L)
+    val appParams = workItemParams.appParams.unpack<DataAvailabilitySyncParams>()
+    assertThat(appParams.triggeringRawImpressionUpload).isEqualTo(upload.name)
+    assertThat(appParams.rawImpressionUploadModelLine).isEqualTo(modelLine.name)
+    assertThat(appParams.modelLine).isEqualTo(MODEL_LINE)
+    assertThat(appParams.eventDate)
+      .isEqualTo(
+        date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      )
+  }
+
+  @Test
+  fun `health recreates availability directly without consuming labeler recovery attempts`() =
+    runBlocking {
+      val upload =
+        upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(25)))
+      val modelLine = rawImpressionUploadModelLine {
+        name = "${upload.name}/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        pendingAvailabilityDates += date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+        updateTime = Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(25)).toEpochMilli())
+      }
+      stubUploads(active = listOf(upload))
+      stubModelLines(modelLine)
+      stubFiles()
+      stubSucceededVidLabelingJob(upload.name)
+      val donePath =
+        LabeledImpressionsBlobKeys.forDone(upload.name, MODEL_LINE, LocalDate.of(2026, 6, 1))
+      val doneKey = "edp123/$donePath"
+      seedLabeled(doneKey)
+      val doneCreateTime =
+        checkNotNull(vidLabeledImpressionsStorageClient.getBlob(doneKey)).createTime
+      whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+        val name = invocation.getArgument<GetWorkItemRequest>(0).name
+        when {
+          name == "workItems/$VID_LABELER_WORK_ITEM" -> workItem { queue = "queues/labeler" }
+          name.startsWith("workItems/$VID_LABELER_WORK_ITEM-monitor-recovery-") ->
+            workItem {
+              createTime =
+                Timestamps.fromMillis(
+                  FIXED_NOW.minus(STALENESS_THRESHOLD).minusSeconds(1).toEpochMilli()
+                )
+            }
+          else -> throw Status.NOT_FOUND.asRuntimeException()
+        }
+      }
+      whenever(workItemsService.createWorkItem(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<CreateWorkItemRequest>(0)
+        if (request.workItemId.startsWith("$VID_LABELER_WORK_ITEM-monitor-recovery-")) {
+          throw Status.ALREADY_EXISTS.asRuntimeException()
+        }
+        request.workItem.copy {
+          name = "workItems/${request.workItemId}"
+          state = WorkItem.State.QUEUED
+          generation = 1L
+        }
+      }
+
+      val result = createMonitor().runHealth()
+
+      assertThat(result.recoveredTransitions).isEqualTo(1)
+      assertThat(result.recoveryExhausted).isEqualTo(0)
+      val requests = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(1)) { createWorkItem(requests.capture()) }
+      val availabilityRequest =
+        requests.allValues.single { it.workItem.queue == DataAvailabilitySyncWorkItems.QUEUE }
+      val workItemParams =
+        availabilityRequest.workItem.workItemParams.unpack<WorkItem.WorkItemParams>()
+      assertThat(workItemParams.dataPathParams.generation).isEqualTo(1L)
+      assertThat(workItemParams.dataPathParams.createTime.toInstant()).isEqualTo(doneCreateTime)
+    }
+
+  @Test
+  fun `health retries the original availability execution without changing source identity`() =
+    runBlocking<Unit> {
+      val parent =
+        upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(25)))
+      val row = availabilityRow(parent.name, LocalDate.of(2026, 6, 1))
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, listOf(LocalDate.of(2026, 6, 1)))
+      val originals = installAvailabilityWorkItems(WorkItem.State.FAILED)
+
+      val result = createMonitor().runHealth()
+
+      assertThat(result.recoveredTransitions).isEqualTo(1)
+      assertThat(result.unrecoverableRecoveries).isEqualTo(0)
+      val retries =
+        argumentCaptor<
+          org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
+        >()
+      verifyBlocking(workItemsService, times(1)) { retryWorkItem(retries.capture()) }
+      val original = originals.getValue(retries.firstValue.name)
+      assertThat(retries.firstValue.expectedWorkItemGeneration).isEqualTo(1L)
+      assertThat(original.generation).isEqualTo(2L)
+      assertThat(original.state).isEqualTo(WorkItem.State.QUEUED)
+      assertThat(
+          original.workItemParams.unpack<WorkItem.WorkItemParams>().dataPathParams.generation
+        )
+        .isEqualTo(1L)
+      verifyBlocking(workItemsService, times(1)) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `health redacts done key when availability marker read fails`() = runBlocking {
+    val upload =
+      upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(25)))
+    val modelLine = rawImpressionUploadModelLine {
+      name = "${upload.name}/modelLines/ml1"
+      cmmsModelLine = MODEL_LINE
+      state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      pendingAvailabilityDates += date {
+        year = 2026
+        month = 6
+        day = 1
+      }
+      updateTime = Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(25)).toEpochMilli())
+    }
+    stubUploads(active = listOf(upload))
+    stubModelLines(modelLine)
+    stubFiles()
+    stubSucceededVidLabelingJob(upload.name)
+    whenever(workItemsService.getWorkItem(any())).thenAnswer {
+      throw Status.NOT_FOUND.asRuntimeException()
+    }
+    val donePath =
+      LabeledImpressionsBlobKeys.forDone(upload.name, MODEL_LINE, LocalDate.of(2026, 6, 1))
+    val sensitiveKey = "edp123/$donePath"
+    val failingStorageClient = mock<StorageClient>()
+    whenever(failingStorageClient.getBlob(any()))
+      .thenThrow(IllegalStateException("Read failed for $sensitiveKey"))
+
+    val result = createMonitor(labeledStorageClient = failingStorageClient).runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.unrecoverableRecoveries).isEqualTo(0)
+    val doneUri = "$VID_LABELED_IMPRESSIONS_PREFIX/$donePath"
+    val failureLog =
+      logRecords.single { it.message.contains("event=edpa.vid_labeling.monitor.done_read_failed ") }
+    assertThat(failureLog.message).contains(VidLabelingTraceAttributes.gcsObjectPathHash(doneUri))
+    assertThat(failureLog.thrown).isNull()
+    assertThat(
+        logRecords.any { sensitiveKey in it.message || sensitiveKey in (it.thrown?.message ?: "") }
+      )
+      .isFalse()
+    val healthSpan =
+      spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.monitor.health" }
+    assertThat(healthSpan.status.statusCode).isEqualTo(StatusCode.ERROR)
+  }
+
+  @Test
+  fun `health escalates availability recovery when its done marker is missing`() = runBlocking {
+    val upload =
+      upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(25)))
+    stubUploads(active = listOf(upload))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "${upload.name}/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        pendingAvailabilityDates += date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+        updateTime = Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(25)).toEpochMilli())
+      }
+    )
+    stubFiles()
+    whenever(vidLabelingJobService.listVidLabelingJobs(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListVidLabelingJobsRequest>(0)
+      listVidLabelingJobsResponse {
+        if (request.filter.state == VidLabelingJob.State.SUCCEEDED) {
+          vidLabelingJobs += vidLabelingJob {
+            name = "${upload.name}/vidLabelingJobs/vj1"
+            cmmsModelLines += MODEL_LINE
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+        }
+      }
+    }
+    whenever(workItemsService.getWorkItem(any())).thenAnswer {
+      throw Status.NOT_FOUND.asRuntimeException()
+    }
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.unrecoverableRecoveries).isEqualTo(1)
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `health reconciles terminal WorkItem failures for all VID phases`() = runBlocking {
+    val poolUpload = upload("pool-failed", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val rankUpload = upload("rank-failed", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val labelUpload = upload("label-failed", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val secondModelLine = "$MODEL_SUITE/modelLines/ml2"
+    val poolModelLine =
+      modelLine(poolUpload.name, MODEL_LINE, RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+    val rankModelLine =
+      modelLine(rankUpload.name, MODEL_LINE, RawImpressionUploadModelLine.State.RANKING)
+    val labelModelLine =
+      modelLine(labelUpload.name, MODEL_LINE, RawImpressionUploadModelLine.State.LABELING)
+    val secondLabelModelLine =
+      modelLine(labelUpload.name, secondModelLine, RawImpressionUploadModelLine.State.LABELING)
+    stubUploads(active = listOf(poolUpload, rankUpload, labelUpload))
+    stubModelLinesByParent(
+      mapOf(
+        poolUpload.name to listOf(poolModelLine),
+        rankUpload.name to listOf(rankModelLine),
+        labelUpload.name to listOf(labelModelLine, secondLabelModelLine),
+      )
+    )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+
+    val poolJobName = "${poolUpload.name}/poolAssignmentJobs/pj1"
+    whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+      .thenReturn(
+        listPoolAssignmentJobsResponse {
+          poolAssignmentJobs += poolAssignmentJob {
+            name = poolJobName
+            cmmsModelLine = MODEL_LINE
+            shardIndex = 0
+            state = PoolAssignmentJob.State.CREATED
+            etag = "pool-etag"
+          }
+        }
+      )
+    whenever(poolAssignmentJobService.markPoolAssignmentJobFailed(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<MarkPoolAssignmentJobFailedRequest>(0)
+      poolAssignmentJob {
+        name = request.name
+        cmmsModelLine = MODEL_LINE
+        state = PoolAssignmentJob.State.FAILED
+      }
+    }
+
+    val rankJobName = "${rankUpload.name}/rankerJobs/rj1"
+    whenever(rankerJobService.listRankerJobs(any()))
+      .thenReturn(
+        listRankerJobsResponse {
+          rankerJobs += rankerJob {
+            name = rankJobName
+            cmmsModelLine = MODEL_LINE
+            state = RankerJob.State.CREATED
+            etag = "rank-etag"
+          }
+        }
+      )
+    whenever(rankerJobService.markRankerJobFailed(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<MarkRankerJobFailedRequest>(0)
+      rankerJob {
+        name = request.name
+        cmmsModelLine = MODEL_LINE
+        state = RankerJob.State.FAILED
+      }
+    }
+
+    val labelJobName = "${labelUpload.name}/vidLabelingJobs/vj1"
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(
+        listVidLabelingJobsResponse {
+          vidLabelingJobs += vidLabelingJob {
+            name = labelJobName
+            cmmsModelLines += listOf(MODEL_LINE, secondModelLine)
+            state = VidLabelingJob.State.CREATED
+            etag = "label-etag"
+          }
+        }
+      )
+    whenever(vidLabelingJobService.markVidLabelingJobFailed(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<MarkVidLabelingJobFailedRequest>(0)
+      vidLabelingJob {
+        name = request.name
+        cmmsModelLines += listOf(MODEL_LINE, secondModelLine)
+        state = VidLabelingJob.State.FAILED
+      }
+    }
+
+    val failedWorkItemNames =
+      setOf(
+        "workItems/${WorkItemIds.forSubpoolAssigner(poolUpload.name, MODEL_LINE, 0)}",
+        "workItems/${WorkItemIds.forVidRankBuilder(rankJobName)}",
+        "workItems/${WorkItemIds.forVidLabeler(labelJobName)}",
+      )
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      check(request.name in failedWorkItemNames)
+      workItem {
+        name = request.name
+        state = WorkItem.State.FAILED
+        generation = 1L
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineFailed(any()))
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<MarkRawImpressionUploadModelLineFailedRequest>(0)
+        rawImpressionUploadModelLine {
+          name = request.name
+          state = RawImpressionUploadModelLine.State.FAILED
+          failureReason = request.failureReason
+        }
+      }
+
+    val result = createMonitor().runHealth()
+
+    verifyBlocking(poolAssignmentJobService) { markPoolAssignmentJobFailed(any()) }
+    verifyBlocking(rankerJobService) { markRankerJobFailed(any()) }
+    verifyBlocking(vidLabelingJobService) { markVidLabelingJobFailed(any()) }
+    val failedModelLines = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
+    verifyBlocking(rawImpressionUploadModelLineService, times(4)) {
+      markRawImpressionUploadModelLineFailed(failedModelLines.capture())
+    }
+    assertThat(failedModelLines.allValues.map { it.name })
+      .containsExactly(
+        poolModelLine.name,
+        rankModelLine.name,
+        labelModelLine.name,
+        secondLabelModelLine.name,
+      )
+    assertThat(failedModelLines.allValues.map { it.failureReason }.distinct())
+      .containsExactly(RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE)
+    assertThat(result.failedModelLines)
+      .containsAtLeast(
+        poolModelLine.name,
+        rankModelLine.name,
+        labelModelLine.name,
+        secondLabelModelLine.name,
+      )
+    Unit
+  }
+
+  @Test
+  fun `health resumes Phase 2 failure reconciliation after a partial write`() = runBlocking {
+    val uploadName = "$DATA_PROVIDER/rawImpressionUploads/label-partial"
+    val secondModelLine = "$MODEL_SUITE/modelLines/ml2"
+    val firstModelLineName = "$uploadName/modelLines/ml1"
+    val secondModelLineName = "$uploadName/modelLines/ml2"
+    var uploadState = RawImpressionUpload.State.ACTIVE
+    val modelLineStates =
+      mutableMapOf(
+        MODEL_LINE to RawImpressionUploadModelLine.State.LABELING,
+        secondModelLine to RawImpressionUploadModelLine.State.LABELING,
+      )
+    var jobState = VidLabelingJob.State.CREATED
+    var failSecondModelLine = true
+    var workItemReads = 0
+
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer {
+      listRawImpressionUploadsResponse {
+        rawImpressionUploads += rawImpressionUpload {
+          name = uploadName
+          state = uploadState
+          createTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli())
+        }
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenAnswer {
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = firstModelLineName
+            cmmsModelLine = MODEL_LINE
+            state = modelLineStates.getValue(MODEL_LINE)
+            etag = "line-1-etag"
+          }
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = secondModelLineName
+            cmmsModelLine = secondModelLine
+            state = modelLineStates.getValue(secondModelLine)
+            etag = "line-2-etag"
+          }
+        }
+      }
+    whenever(vidLabelingJobService.listVidLabelingJobs(any())).thenAnswer {
+      listVidLabelingJobsResponse {
+        vidLabelingJobs += vidLabelingJob {
+          name = "$uploadName/vidLabelingJobs/vj1"
+          cmmsModelLines += listOf(MODEL_LINE, secondModelLine)
+          state = jobState
+          etag = "job-etag"
+          if (jobState == VidLabelingJob.State.FAILED) {
+            errorMessage = "terminal WorkItem failure"
+          }
+        }
+      }
+    }
+    whenever(vidLabelingJobService.markVidLabelingJobFailed(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<MarkVidLabelingJobFailedRequest>(0)
+      jobState = VidLabelingJob.State.FAILED
+      vidLabelingJob {
+        name = request.name
+        cmmsModelLines += listOf(MODEL_LINE, secondModelLine)
+        state = jobState
+        errorMessage = request.errorMessage
+      }
+    }
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      workItemReads++
+      workItem {
+        name = request.name
+        state = WorkItem.State.FAILED
+        generation = 1L
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineFailed(any()))
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<MarkRawImpressionUploadModelLineFailedRequest>(0)
+        if (request.name == secondModelLineName && failSecondModelLine) {
+          failSecondModelLine = false
+          throw Status.UNAVAILABLE.asRuntimeException()
+        }
+        val cmmsModelLine = if (request.name == firstModelLineName) MODEL_LINE else secondModelLine
+        modelLineStates[cmmsModelLine] = RawImpressionUploadModelLine.State.FAILED
+        uploadState = RawImpressionUpload.State.FAILED
+        rawImpressionUploadModelLine {
+          name = request.name
+          this.cmmsModelLine = cmmsModelLine
+          state = RawImpressionUploadModelLine.State.FAILED
+          failureReason = request.failureReason
+        }
+      }
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+
+    assertFailsWith<IllegalStateException> { createMonitor().runHealth() }
+
+    assertThat(jobState).isEqualTo(VidLabelingJob.State.FAILED)
+    assertThat(modelLineStates.getValue(MODEL_LINE))
+      .isEqualTo(RawImpressionUploadModelLine.State.FAILED)
+    assertThat(modelLineStates.getValue(secondModelLine))
+      .isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+
+    val result = createMonitor().runHealth()
+
+    assertThat(modelLineStates.getValue(secondModelLine))
+      .isEqualTo(RawImpressionUploadModelLine.State.FAILED)
+    assertThat(result.failedModelLines).containsAtLeast(firstModelLineName, secondModelLineName)
+    assertThat(workItemReads).isEqualTo(1)
+    verifyBlocking(vidLabelingJobService, times(1)) { markVidLabelingJobFailed(any()) }
+  }
+
+  @Test
+  fun `health preserves an active operator retry for a failed phase job`() = runBlocking {
+    val uploadName = "$DATA_PROVIDER/rawImpressionUploads/rank-retry"
+    val failureAttemptId = "work-item-attempt-1"
+    val rankJobName = "$uploadName/rankerJobs/rj1"
+    val originalWorkItemId = WorkItemIds.forVidRankBuilder(rankJobName)
+    val retryWorkItemId = RequestIds.forRetriedWorkItem(originalWorkItemId, failureAttemptId)
+    stubUploads(active = listOf(upload("rank-retry", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "$uploadName/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.RANKING
+        this.failureAttemptId = failureAttemptId
+        etag = "line-etag"
+      }
+    )
+    whenever(rankerJobService.listRankerJobs(any()))
+      .thenReturn(
+        listRankerJobsResponse {
+          rankerJobs += rankerJob {
+            name = rankJobName
+            cmmsModelLine = MODEL_LINE
+            state = RankerJob.State.FAILED
+            errorMessage = "original failure"
+          }
+          totalSize = 1
+        }
+      )
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      check(request.name == "workItems/$retryWorkItemId")
+      workItem {
+        name = request.name
+        state = WorkItem.State.QUEUED
+        generation = 1L
+      }
+    }
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+
+    val result = createMonitor().runHealth()
+
+    verifyBlocking(rankerJobService, never()) { markRankerJobFailed(any()) }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLineFailed(any())
+    }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    assertThat(result.failedModelLines).isEmpty()
+  }
+
+  @Test
+  fun `health does not apply an earlier phase retry id to a new terminal failure`() = runBlocking {
+    val uploadName = "$DATA_PROVIDER/rawImpressionUploads/rank-new-failure"
+    val rankJobName = "$uploadName/rankerJobs/rj1"
+    val originalWorkItemId = WorkItemIds.forVidRankBuilder(rankJobName)
+    val modelLineName = "$uploadName/modelLines/ml1"
+    stubUploads(
+      active = listOf(upload("rank-new-failure", RawImpressionUpload.State.ACTIVE, FIXED_NOW))
+    )
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = modelLineName
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.RANKING
+        failureAttemptId = "earlier-phase-attempt"
+        etag = "line-etag"
+      }
+    )
+    whenever(rankerJobService.listRankerJobs(any()))
+      .thenReturn(
+        listRankerJobsResponse {
+          rankerJobs += rankerJob {
+            name = rankJobName
+            cmmsModelLine = MODEL_LINE
+            state = RankerJob.State.CREATED
+            etag = "rank-etag"
+          }
+          totalSize = 1
+        }
+      )
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      check(request.name == "workItems/$originalWorkItemId")
+      workItem {
+        name = request.name
+        state = WorkItem.State.FAILED
+        generation = 1L
+      }
+    }
+    whenever(rankerJobService.markRankerJobFailed(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<MarkRankerJobFailedRequest>(0)
+      rankerJob {
+        name = request.name
+        cmmsModelLine = MODEL_LINE
+        state = RankerJob.State.FAILED
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineFailed(any()))
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<MarkRawImpressionUploadModelLineFailedRequest>(0)
+        rawImpressionUploadModelLine {
+          name = request.name
+          cmmsModelLine = MODEL_LINE
+          state = RawImpressionUploadModelLine.State.FAILED
+          failureReason = request.failureReason
+        }
+      }
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+
+    val result = createMonitor().runHealth()
+
+    verifyBlocking(rankerJobService) { markRankerJobFailed(any()) }
+    verifyBlocking(rawImpressionUploadModelLineService) {
+      markRawImpressionUploadModelLineFailed(any())
+    }
+    assertThat(result.failedModelLines).contains(modelLineName)
+  }
+
+  @Test
+  fun `health defers stale healing availability handoff while operation is active`() = runBlocking {
+    val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing-1"
+    val upload =
+      upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(25)))
+        .copy { uploadHealingOperation = operationName }
+    val modelLine = rawImpressionUploadModelLine {
+      name = "${upload.name}/modelLines/ml1"
+      cmmsModelLine = MODEL_LINE
+      state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      updateTime = Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(25)).toEpochMilli())
+      etag = "etag-1"
+    }
+    stubUploads(active = listOf(upload))
+    stubModelLines(modelLine)
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+    whenever(uploadHealingOperationService.getUploadHealingOperation(any()))
+      .thenReturn(
+        uploadHealingOperation {
+          name = operationName
+          state = UploadHealingOperation.State.DRAINING
+        }
+      )
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.stuckUploads).isEmpty()
+    assertThat(result.hasIssues).isFalse()
+    assertThat(collectMetrics().gaugeValue(UPLOADS_STUCK_METRIC)).isEqualTo(0)
+    verifyBlocking(vidLabelingJobService, never()) { listVidLabelingJobs(any()) }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `health schedules pending availability after healing operation completes`() =
+    runBlocking<Unit> {
+      val operationName = "$DATA_PROVIDER/uploadHealingOperations/healing-1"
+      val parent =
+        upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(25)))
+          .copy { uploadHealingOperation = operationName }
+      val row = availabilityRow(parent.name, LocalDate.of(2026, 6, 1))
+      stubUploads(active = listOf(parent))
+      stubModelLines(row)
+      stubFiles()
+      seedAvailabilityMarkers(parent.name, listOf(LocalDate.of(2026, 6, 1)))
+      whenever(uploadHealingOperationService.getUploadHealingOperation(any()))
+        .thenReturn(
+          uploadHealingOperation {
+            name = operationName
+            state = UploadHealingOperation.State.COMPLETE
+          }
+        )
+      whenever(workItemsService.createWorkItem(any())).thenAnswer {
+        val request = it.getArgument<CreateWorkItemRequest>(0)
+        request.workItem.copy {
+          name = "workItems/${request.workItemId}"
+          state = WorkItem.State.QUEUED
+          generation = 1L
+        }
+      }
+
+      val result = createMonitor().runHealth()
+
+      assertThat(result.recoveredTransitions).isEqualTo(1)
+      val created = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService) { createWorkItem(created.capture()) }
+      assertThat(created.firstValue.workItem.queue).isEqualTo(DataAvailabilitySyncWorkItems.QUEUE)
+      verifyBlocking(vidLabelingJobService, never()) { listVidLabelingJobs(any()) }
+    }
+
+  @Test
+  fun `health does not create work for missing availability checkpoints or failed models`() =
+    runBlocking {
+      val active = upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+      val failed = upload("failed-1", RawImpressionUpload.State.FAILED, FIXED_NOW.minusSeconds(1))
+      stubUploads(active = listOf(active), failed = listOf(failed))
+      stubModelLinesByParent(
+        mapOf(
+          active.name to
+            listOf(
+              rawImpressionUploadModelLine {
+                name = "${active.name}/modelLines/ml1"
+                cmmsModelLine = MODEL_LINE
+                state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+                updateTime =
+                  Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(11)).toEpochMilli())
+              }
+            ),
+          failed.name to
+            listOf(
+              rawImpressionUploadModelLine {
+                name = "${failed.name}/modelLines/ml1"
+                cmmsModelLine = MODEL_LINE
+                state = RawImpressionUploadModelLine.State.FAILED
+                updateTime =
+                  Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofDays(1)).toEpochMilli())
+              }
+            ),
+        )
+      )
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+
+      val result = createMonitor().runHealth()
+
+      assertThat(result.recoveredTransitions).isEqualTo(0)
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    }
 
   @Test
   fun `run reports FAILED model lines on ACTIVE uploads`() = runBlocking {
@@ -641,17 +2491,49 @@ class VidLabelingMonitorTest {
     }
   }
 
+  private suspend fun seedRawVersion(key: String): Long =
+    (rawImpressionsStorageClient.writeBlob(key, flowOf(ByteString.copyFromUtf8("x")))
+        as ConditionalOperationStorageClient.Blob)
+      .freshnessToken
+      .toLong()
+
   private suspend fun seedLabeled(vararg keys: String) {
     for (key in keys) {
       vidLabeledImpressionsStorageClient.writeBlob(key, flowOf(ByteString.copyFromUtf8("x")))
     }
   }
 
+  private fun labeledDoneKey(rawImpressionUpload: String, eventDate: LocalDate): String =
+    SelectedStorageClient.parseBlobUri(
+        LabeledImpressionsBlobKeys.forDoneUri(
+          VID_LABELED_IMPRESSIONS_PREFIX,
+          rawImpressionUpload,
+          MODEL_LINE,
+          eventDate,
+        )
+      )
+      .key
+
   private suspend fun stubFiles(vararg files: RawImpressionUploadFile) {
     whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
       .thenReturn(
         listRawImpressionUploadFilesResponse { rawImpressionUploadFiles += files.toList() }
       )
+  }
+
+  private suspend fun stubSucceededVidLabelingJob(uploadName: String) {
+    whenever(vidLabelingJobService.listVidLabelingJobs(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListVidLabelingJobsRequest>(0)
+      listVidLabelingJobsResponse {
+        if (request.filter.state == VidLabelingJob.State.SUCCEEDED) {
+          vidLabelingJobs += vidLabelingJob {
+            name = "$uploadName/vidLabelingJobs/vj1"
+            cmmsModelLines += MODEL_LINE
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+        }
+      }
+    }
   }
 
   /**
@@ -676,42 +2558,39 @@ class VidLabelingMonitorTest {
   }
 
   @Test
-  fun `reports missing done blobs for a registered date folder without a done blob`() =
-    runBlocking {
-      stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
-      stubModelLines()
-      stubFiles(
-        rawImpressionUploadFile {
-          blobUri = "gs://raw-bucket/edp7/2026-06-02/data-1"
-          eventDate = date {
-            year = 2026
-            month = 6
-            day = 2
-          }
-        }
-      )
-      seedRaw("edp7/2026-06-02/data-1")
+  fun `reports wholly unregistered raw directory without a done blob`() = runBlocking {
+    stubUploads()
+    stubModelLines()
+    stubFiles()
+    seedRaw("edp7/2026-06-02/data-1")
 
-      createMonitor().runHealth()
+    createMonitor().runHealth()
 
-      assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_done_blobs"))
-        .isEqualTo(1)
-    }
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_done_blobs"))
+      .isEqualTo(1)
+  }
 
   @Test
-  fun `reports zero-impression dates for a done blob with no data files`() = runBlocking {
-    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+  fun `health streams registered files across uploads at maximum page size`() = runBlocking {
+    stubUploads()
     stubModelLines()
-    stubFiles(
-      rawImpressionUploadFile {
-        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
-        eventDate = date {
-          year = 2026
-          month = 6
-          day = 1
-        }
-      }
-    )
+    stubFiles()
+
+    createMonitor().runHealth()
+
+    val requests = argumentCaptor<ListRawImpressionUploadFilesRequest>()
+    verifyBlocking(rawImpressionUploadFileService, times(1)) {
+      listRawImpressionUploadFiles(requests.capture())
+    }
+    assertThat(requests.firstValue.parent).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/-")
+    assertThat(requests.firstValue.pageSize).isEqualTo(1000)
+  }
+
+  @Test
+  fun `reports unregistered done-only directory`() = runBlocking {
+    stubUploads()
+    stubModelLines()
+    stubFiles()
     seedRaw("edp7/2026-06-01/done")
 
     createMonitor().runHealth()
@@ -719,6 +2598,175 @@ class VidLabelingMonitorTest {
     val metrics = collectMetrics()
     assertThat(metrics.gaugeValue("edpa.vid_labeling_monitor.zero_impression_dates")).isEqualTo(1)
     assertThat(metrics.gaugeValue("edpa.vid_labeling_monitor.missing_done_blobs")).isEqualTo(0)
+  }
+
+  @Test
+  fun `does not report no-op done rewrite as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val registeredDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val registeredUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = registeredDoneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+      )
+    stubUploads(completed = listOf(registeredUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${registeredUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(0)
+  }
+
+  @Test
+  fun `reports unchanged manifest after failed upload as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val failedDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val failedUpload =
+      upload(
+        "failed-1",
+        RawImpressionUpload.State.FAILED,
+        FIXED_NOW,
+        doneBlobGeneration = failedDoneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+      )
+    stubUploads(failed = listOf(failedUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${failedUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `reports changed manifest after done rewrite as unregistered`() = runBlocking {
+    val registeredDataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val registeredDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val registeredUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = registeredDoneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+      )
+    stubUploads(completed = listOf(registeredUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${registeredUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = registeredDataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/data-1")
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `reports incompletely registered done generation as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val doneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val incompleteUpload =
+      upload(
+        "created-1",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW,
+        doneBlobGeneration = doneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+        registrationComplete = false,
+      )
+    stubUploads(created = listOf(incompleteUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${incompleteUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `reports marker older than latest registered revision as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val registeredDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val registeredUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = registeredDoneGeneration,
+        doneBlobCreateTime = Instant.parse("2030-01-01T00:00:00Z"),
+      )
+    stubUploads(completed = listOf(registeredUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${registeredUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `does not match registered done identity from another bucket`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val doneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val oldBucketUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = doneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+        doneBlobUri = "gs://old-raw-bucket/edp7/2026-06-01/done",
+      )
+    stubUploads(completed = listOf(oldBucketUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${oldBucketUpload.name}/files/file-1"
+        blobUri = "gs://old-raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
   }
 
   @Test
@@ -742,6 +2790,24 @@ class VidLabelingMonitorTest {
     createMonitor().runHealth()
 
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.late_arriving_files"))
+      .isEqualTo(1)
+  }
+
+  @Test
+  fun `reports overlapping parent and child done markers`() = runBlocking {
+    stubUploads()
+    stubModelLines()
+    stubFiles()
+    seedRaw("edp7/2026-06-01/backfill/data")
+    seedRaw("edp7/2026-06-01/backfill/done")
+    seedRaw("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.ambiguousDoneMarkerLayouts).isEqualTo(1)
+    assertThat(
+        collectMetrics().gaugeValue("edpa.vid_labeling_monitor.ambiguous_done_marker_layouts")
+      )
       .isEqualTo(1)
   }
 
@@ -810,6 +2876,67 @@ class VidLabelingMonitorTest {
   }
 
   @Test
+  fun `reports missing files from a nonempty correction upload`() = runBlocking {
+    stubUploads(
+      correctionRequired =
+        listOf(upload("correction-1", RawImpressionUpload.State.CORRECTION_REQUIRED, FIXED_NOW))
+    )
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "$DATA_PROVIDER/rawImpressionUploads/correction-1/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      }
+    )
+
+    createMonitor().runHealth()
+
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_raw_files"))
+      .isEqualTo(1)
+  }
+
+  @Test
+  fun `does not report deleted files after no-replacement candidate is purged`() = runBlocking {
+    val predecessor = upload("original-1", RawImpressionUpload.State.FAILED, FIXED_NOW)
+    val correctionUpload =
+      upload(
+        "correction-1",
+        RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT,
+        FIXED_NOW,
+        replacesRawImpressionUpload = predecessor.name,
+      )
+    stubUploads(failed = listOf(predecessor), removedWithoutReplacement = listOf(correctionUpload))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "${predecessor.name}/modelLines/ml1"
+        state = RawImpressionUploadModelLine.State.FAILED
+        recoveryAction = RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+      }
+    )
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${correctionUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/deleted-data"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      }
+    )
+
+    createMonitor().runHealth()
+
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_raw_files"))
+      .isEqualTo(0)
+  }
+
+  @Test
   fun `reports missing labeled outputs for a completed model line and date with no done blob`() =
     runBlocking {
       stubUploads(
@@ -825,6 +2952,7 @@ class VidLabelingMonitorTest {
       // One registered file dated 2026-06-01; no labeled done blob for (ml1, 2026-06-01).
       stubFiles(
         rawImpressionUploadFile {
+          name = "$DATA_PROVIDER/rawImpressionUploads/done-1/files/file-1"
           blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
           eventDate = date {
             year = 2026
@@ -842,11 +2970,10 @@ class VidLabelingMonitorTest {
 
   @Test
   fun `does not report missing labeled outputs when the labeled done blob exists`() = runBlocking {
-    // The labeler writes model-line/<id>/<date>/done for the input event date whether or not any
+    val completedUpload = upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW)
+    // The labeler writes an upload-specific marker for the input event date whether or not any
     // impression survived filtering, so a fully-dropped date is finalized and not a false positive.
-    stubUploads(
-      completed = listOf(upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW))
-    )
+    stubUploads(completed = listOf(completedUpload))
     stubModelLines(
       modelLine(
         "$DATA_PROVIDER/rawImpressionUploads/done-1",
@@ -856,6 +2983,7 @@ class VidLabelingMonitorTest {
     )
     stubFiles(
       rawImpressionUploadFile {
+        name = "$DATA_PROVIDER/rawImpressionUploads/done-1/files/file-1"
         blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
         eventDate = date {
           year = 2026
@@ -864,12 +2992,90 @@ class VidLabelingMonitorTest {
         }
       }
     )
-    seedLabeled("model-line/ml1/2026-06-01/done")
+    seedLabeled(labeledDoneKey(completedUpload.name, LocalDate.of(2026, 6, 1)))
 
     createMonitor().runHealth()
 
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
       .isEqualTo(0)
+  }
+
+  @Test
+  fun `reports missing labeled output when done blob exists only at bucket root`() = runBlocking {
+    val completedUpload = upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW)
+    stubUploads(completed = listOf(completedUpload))
+    stubModelLines(
+      modelLine(completedUpload.name, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED)
+    )
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${completedUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      }
+    )
+    seedLabeled(
+      LabeledImpressionsBlobKeys.forDone(completedUpload.name, MODEL_LINE, LocalDate.of(2026, 6, 1))
+    )
+
+    createMonitor().runHealth()
+
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
+      .isEqualTo(1)
+  }
+
+  @Test
+  fun `same-date uploads require their own labeled done markers`() = runBlocking {
+    val mainUpload = upload("main", RawImpressionUpload.State.COMPLETED, FIXED_NOW)
+    val advertiserUpload =
+      upload("advertiser", RawImpressionUpload.State.COMPLETED, FIXED_NOW.plusSeconds(1))
+    stubUploads(completed = listOf(mainUpload, advertiserUpload))
+    stubModelLinesByParent(
+      mapOf(
+        mainUpload.name to
+          listOf(
+            modelLine(mainUpload.name, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED)
+          ),
+        advertiserUpload.name to
+          listOf(
+            modelLine(
+              advertiserUpload.name,
+              MODEL_LINE,
+              RawImpressionUploadModelLine.State.COMPLETED,
+            )
+          ),
+      )
+    )
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${mainUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/main"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      },
+      rawImpressionUploadFile {
+        name = "${advertiserUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/advertiser"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      },
+    )
+    seedLabeled(labeledDoneKey(mainUpload.name, LocalDate.of(2026, 6, 1)))
+
+    createMonitor().runHealth()
+
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
+      .isEqualTo(1)
   }
 
   @Test
@@ -942,7 +3148,7 @@ class VidLabelingMonitorTest {
       assertThat(recoverySpan.attributes.get(VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME))
         .isEqualTo("workItems/$originalWorkItem-monitor-recovery-1")
       assertThat(recoverySpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("recovered")
-      verifyBlocking(poolAssignmentJobService, times(2)) { listPoolAssignmentJobs(any()) }
+      verifyBlocking(poolAssignmentJobService, times(4)) { listPoolAssignmentJobs(any()) }
     }
 
   @Test
@@ -979,7 +3185,7 @@ class VidLabelingMonitorTest {
     val result = createMonitor().runHealth()
 
     assertThat(result.recoveredTransitions).isEqualTo(0)
-    verifyBlocking(workItemsService, never()) { getWorkItem(any()) }
+    verifyBlocking(workItemsService) { getWorkItem(any()) }
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
@@ -1027,7 +3233,7 @@ class VidLabelingMonitorTest {
     // C3: a successful recovery is not an issue; only exhausted recovery is.
     assertThat(result.hasIssues).isFalse()
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(6)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(8)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(0)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
   }
@@ -1488,6 +3694,8 @@ class VidLabelingMonitorTest {
     private const val MODEL_LINE = "$MODEL_SUITE/modelLines/ml1"
     private const val MODEL_RELEASE = "$MODEL_SUITE/modelReleases/mr1"
     private const val MODEL_BLOB_PATH = "gs://models/vid-model-v1.pb"
+    private const val VID_LABELED_IMPRESSIONS_PREFIX = "gs://vid-labeled-bucket/edp123"
+    private const val RAW_IMPRESSIONS_PREFIX = "edp7"
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
     private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner-queue"
     private const val NUMBER_OF_SHARDS = 2

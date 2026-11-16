@@ -2,7 +2,7 @@
 # proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
 watched_paths {
   identifier: "data-availability-cleanup"
-  source_path_regex: "^gs://secure-computation-storage-head-bucket/edp/edp7/.*"
+  source_path_regex: "^gs://secure-computation-storage-head-bucket/(?:vid-labeled-impressions/)?edp/edp7/.*"
   http_endpoint_sink {
     endpoint_uri: "https://us-central1-halo-cmm-head.cloudfunctions.net/data-availability-cleanup"
     app_params {
@@ -75,7 +75,7 @@ watched_paths {
 }
 watched_paths {
   identifier: "data-availability-cleanup"
-  source_path_regex: "^gs://secure-computation-storage-head-bucket/edp/edpa_meta/.*"
+  source_path_regex: "^gs://secure-computation-storage-head-bucket/(?:vid-labeled-impressions/)?edp/edpa_meta/.*"
   http_endpoint_sink {
     endpoint_uri: "https://us-central1-halo-cmm-head.cloudfunctions.net/data-availability-cleanup"
     app_params {

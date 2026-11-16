@@ -64,7 +64,6 @@ Each scheduled invocation:
    deterministic WorkItem name `workItems/results-fulfiller-<group-id>`, and only
    then ensures that WorkItem through the Secure Computation API. The WorkItem
    carries the persisted blob URI and the configured `ResultsFulfillerParams`.
-   Pre-cutover legacy groups remain `STORED` under the original DataWatcher namespace.
 
 This ordering makes every handoff recoverable. A crash before metadata registration
 can leave only an unreferenced direct-prefix blob. A crash after registration leaves
@@ -73,8 +72,8 @@ can leave only an unreferenced direct-prefix blob. A crash after registration le
 matching queued or running WorkItem without republishing it. A WorkItem created by
 `EnsureWorkItem` cannot run before all metadata rows for its blob are durable and
 queued, and its initial publication cannot be stranded between the WorkItem commit
-and outbox commit. Use `RetryWorkItem` for explicit repair of a legacy queued
-WorkItem that has no outbox record.
+and outbox commit. Use `RetryWorkItem` for explicit repair of a queued WorkItem
+that has no outbox record.
 
 If a worker completes while the fetcher reconciles an existing WorkItem, the
 fetcher accepts `SUCCEEDED` only after verifying the queue, application parameters,

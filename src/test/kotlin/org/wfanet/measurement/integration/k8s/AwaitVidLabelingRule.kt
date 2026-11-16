@@ -22,6 +22,8 @@ import io.grpc.StatusException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -89,6 +91,7 @@ class AwaitVidLabelingRule : TestRule {
   }
 
   private suspend fun awaitCompletion() {
+    val setupStart = TimeSource.Monotonic.markNow()
     val channel: ManagedChannel = buildEdpaChannel()
     try {
       val uploadsStub = RawImpressionUploadServiceCoroutineStub(channel)
@@ -103,7 +106,7 @@ class AwaitVidLabelingRule : TestRule {
       // comparison to avoid CI-runner vs. Spanner commit-clock skew.
       val preexistingUploadNames: Set<String> =
         checkNotNull(
-          withTimeoutOrNull(TIMEOUT_MS) {
+          withTimeoutOrNull(SNAPSHOT_TIMEOUT) {
             while (true) {
               try {
                 return@withTimeoutOrNull listUploads(uploadsStub).map { it.name }.toSet()
@@ -127,7 +130,7 @@ class AwaitVidLabelingRule : TestRule {
 
       var lastSummary = "(no fresh uploads yet)"
       val terminal =
-        withTimeoutOrNull(TIMEOUT_MS) {
+        withTimeoutOrNull(SETUP_TIMEOUT - setupStart.elapsedNow()) {
           while (true) {
             try {
               val uploads: List<RawImpressionUpload> =
@@ -162,7 +165,7 @@ class AwaitVidLabelingRule : TestRule {
           @Suppress("UNREACHABLE_CODE") false
         }
       checkNotNull(terminal) {
-        "Timed out after ${TIMEOUT_MS / 1000}s waiting for edp7 VID Labeling. Last state: $lastSummary"
+        "Timed out after ${SETUP_TIMEOUT.inWholeSeconds}s waiting for edp7 VID Labeling. Last state: $lastSummary"
       }
       logger.info("VID Labeling COMPLETED for this run's edp7 model lines. $lastSummary")
 
@@ -301,19 +304,14 @@ class AwaitVidLabelingRule : TestRule {
     private const val EDPA_TRUSTED_CERTS_FILE = "edp_aggregator_root.pem"
 
     private const val LIST_PAGE_SIZE = 100
-    // edp7 pipelines a single upload (2021-03-21) at roughly a Confidential-Space-cold ~15-20 min.
-    // 30 min keeps the downstream chain (writeReusedLabeledImpressions, createDoneBlobs, the
-    // measurement tests) inside the workflow's 90 min `--test_timeout`; a slow pipeline then fails
-    // here with a clean "Timed out waiting for VID Labeling" rather than at the workflow timeout
-    // with a truncated log.
-    private const val TIMEOUT_MS = 30L * 60L * 1000L
+    private val SNAPSHOT_TIMEOUT = 30.minutes
+    // Allow cold worker starts and WorkItem recovery, leaving 30 minutes of the workflow's
+    // 90-minute test budget for downstream fixture publication and measurement tests.
+    private val SETUP_TIMEOUT = 60.minutes
     private const val POLL_MS = 20L * 1000L
 
-    // Transient gRPC codes from the metadata API that should be retried within TIMEOUT_MS rather
-    // than failing the run: UNAVAILABLE (pod rollout drains after a deploy), DEADLINE_EXCEEDED
-    // (per-RPC deadline), ABORTED (Spanner write-conflict retry during rollout). INTERNAL and
-    // UNKNOWN are intentionally excluded: they usually signal a real server bug, and retrying them
-    // for TIMEOUT_MS would hide the actual error behind a timeout.
+    // Retry temporary transport failures and Spanner conflicts within the current wait budget.
+    // INTERNAL and UNKNOWN fail immediately so server errors retain their original cause.
     private val RETRYABLE_CODES =
       setOf(Status.Code.UNAVAILABLE, Status.Code.DEADLINE_EXCEEDED, Status.Code.ABORTED)
 

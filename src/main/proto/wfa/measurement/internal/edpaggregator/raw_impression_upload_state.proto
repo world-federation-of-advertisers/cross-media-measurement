@@ -35,4 +35,7 @@ enum RawImpressionUploadState {
   RAW_IMPRESSION_UPLOAD_STATE_FAILED = 4;
   // The upload is quarantined pending correction approval.
   RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED = 5;
+  // The upload establishes the permanent manifest after its prior
+  // contribution was removed without applying a replacement.
+  RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT = 6;
 }

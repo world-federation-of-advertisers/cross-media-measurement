@@ -25,6 +25,15 @@ option java_outer_classname = "UploadHealingOperationProto";
 
 // Internal representation of a durable upload-healing workflow.
 message UploadHealingOperation {
+  enum OutputManifestState {
+    UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_UNSPECIFIED = 0;
+    UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_PROVISIONAL = 1;
+    UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED = 2;
+  }
+
+  reserved 6, 7;
+  reserved "bad_raw_impression_upload_resource_ids", "cutoff_time";
+
   enum State {
     reserved 1;
     reserved "UPLOAD_HEALING_OPERATION_STATE_IN_PROGRESS";
@@ -38,6 +47,7 @@ message UploadHealingOperation {
     UPLOAD_HEALING_OPERATION_STATE_REPLAYING = 7;
     UPLOAD_HEALING_OPERATION_STATE_RECOVERING = 8;
     UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION = 9;
+    UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING = 10;
   }
 
   string data_provider_resource_id = 1;
@@ -45,14 +55,14 @@ message UploadHealingOperation {
   State state = 3;
   string reason = 4;
   string labeled_impressions_blob_prefix = 5;
-  repeated string bad_raw_impression_upload_resource_ids = 6;
-  google.protobuf.Timestamp cutoff_time = 7;
   repeated UploadHealingStep steps = 8;
   google.protobuf.Timestamp create_time = 9;
   google.protobuf.Timestamp update_time = 10;
   string etag = 11;
   repeated string raw_impression_upload_correction_candidate_ids = 12;
   State resume_state = 13;
+  int32 plan_format_version = 14;
+  OutputManifestState output_manifest_state = 15;
 }
 
 // Approved generations of labeled-output objects for one healing step.

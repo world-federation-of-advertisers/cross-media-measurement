@@ -20,10 +20,18 @@ The required `--mode` flag makes the scope explicit:
 
 Prepare a textproto containing one `DataAvailabilitySyncConfig`, not the
 `DataAvailabilitySyncConfigs` wrapper used by the deployed Cloud Function. Use the same
-DataProvider, storage, impression path, TLS, model-line, and EventGroup activity settings as the
-deployed configuration. See the
+DataProvider, storage, impression paths, TLS, model-line, and EventGroup activity settings as the
+deployed configuration. Publication checks date gaps across both configured paths, even when the
+replay selection uses only one. See the
 [EDP Aggregator deployment guide](../edpaggregator/deployment-guide.md#dataavailabilitysync-config-dataavailabilitysyncconfigs)
 for the full configuration.
+
+Keep both configured prefixes in the standalone replay config: `edp_impression_path` for
+external uploads and `vid_labeled_impression_path` for internal VID Labeler outputs. An explicit
+`external_impression_path` overrides the external prefix. Discovery uses the selected completion
+blob's prefix; gap checks include both configured prefixes. A metadata
+replay does not record VID Labeler pipeline completion; use the pipeline's WorkItem recovery
+path when that bookkeeping also needs repair.
 
 The runtime identity needs:
 
@@ -43,11 +51,16 @@ The runtime identity needs:
 
 Choose exactly one selection mode:
 
-* `--blob-prefix` accepts a `gs://` URI or bucket-relative prefix. It recursively finds blobs whose
-  basename is exactly `done`. The prefix must be the configured `edp_impression_path` or one of its
-  descendants.
-* Repeat `--done-blob-uri` to replay an explicit set of `gs://.../done` blobs. Every URI must use
-  the configured bucket and be below the configured `edp_impression_path`.
+* `--blob-prefix` accepts a `gs://` URI or bucket-relative prefix beneath either configured
+  impression path. It recursively finds external `done` blobs or the VID Labeler completion
+  filenames appropriate to that path.
+* Repeat `--done-blob-uri` to replay an explicit set of completion blobs. Every URI must use
+  the configured bucket, fall beneath a configured impression path, and match that path's
+  completion filename.
+
+The configured paths must not overlap. When VID labeling is enabled, `vid_labeled_impression_path`
+is required. A config for a provider with VID labeling disabled may omit it and continue
+accepting only `edp_impression_path`.
 
 To backfill EventGroup activity below an impression prefix without changing metadata or data
 availability:
@@ -60,7 +73,7 @@ bazel run \
   --config-file=/absolute/path/to/data-availability-sync-config.textproto \
   --kingdom-public-api-target=KINGDOM_HOST:8443 \
   --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
-  --blob-prefix=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/vid-labeled-impressions
+  --blob-prefix=gs://EDPA_STORAGE_BUCKET/vid-labeled-impressions/edp/EDP_ID
 ```
 
 To replay data availability for named completion blobs without publishing EventGroup activity:
@@ -73,8 +86,8 @@ bazel run \
   --config-file=/absolute/path/to/data-availability-sync-config.textproto \
   --kingdom-public-api-target=KINGDOM_HOST:8443 \
   --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
-  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/vid-labeled-impressions/2026-09-12/done \
-  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/vid-labeled-impressions/2026-09-15/done
+  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/edp/EDP_ID/model-line/MODEL_LINE_ID/2026-09-12/done \
+  --done-blob-uri=gs://EDPA_STORAGE_BUCKET/vid-labeled-impressions/edp/EDP_ID/model-line/MODEL_LINE_ID/2026-09-15/done
 ```
 
 Optional flags:
@@ -99,10 +112,11 @@ its completion blob's current GCS generation. Metadata mutations include that le
 The lease is released after each folder, including when synchronization fails. Activity-only
 replay does not acquire a synchronization lease.
 
-`DATA_AVAILABILITY_ONLY` and `FULL_SYNC` scan the folder's current metadata and check its
-referenced impressions blobs. If blobs were added or overwritten after the original `done` blob
-was written, select that existing `done` blob by prefix or URI; the operator does not need to
-rewrite it to generate another storage event.
+`DATA_AVAILABILITY_ONLY` and `FULL_SYNC` capture external metadata and impressions at
+the completion blob's creation-time cutoff, revalidate them before publication, and persist
+their generations for fulfillment. Additions or overwrites after `done` require a new
+`done` marker before replay. A generationless synchronization cannot update metadata
+that already has stored generations.
 
 `EVENT_GROUP_ACTIVITY_ONLY` lists only active ImpressionMetadata for each selected folder. Deleted
 metadata is excluded, including metadata left behind by an interrupted eviction. This mode does
