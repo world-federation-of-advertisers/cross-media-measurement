@@ -40,6 +40,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
@@ -208,6 +209,50 @@ class VidLabelingAwaiterTest {
     assertThat(failure).hasMessageThat().contains(UPLOAD.name)
     assertThat(uploadRequests).hasSize(1)
     assertThat(modelLineRequests).isEmpty()
+  }
+
+  @Test
+  fun `correction required uploads fail immediately`() = runTest {
+    readUploads = {
+      listRawImpressionUploadsResponse {
+        rawImpressionUploads +=
+          UPLOAD.copy { state = RawImpressionUpload.State.CORRECTION_REQUIRED }
+      }
+    }
+    readModelLines = { listRawImpressionUploadModelLinesResponse {} }
+
+    val failure =
+      assertFailsWith<IllegalStateException> {
+        awaiter().awaitCompletion(DATA_PROVIDER, EXPECTED_DONE_BLOBS)
+      }
+
+    assertThat(failure).hasMessageThat().contains(UPLOAD.name)
+    assertThat(failure).hasMessageThat().contains("CORRECTION_REQUIRED")
+    assertThat(uploadRequests).hasSize(1)
+    assertThat(modelLineRequests).isEmpty()
+    assertThat(testScheduler.currentTime).isEqualTo(0L)
+  }
+
+  @Test
+  fun `uploads removed without replacement fail immediately`() = runTest {
+    readUploads = {
+      listRawImpressionUploadsResponse {
+        rawImpressionUploads +=
+          UPLOAD.copy { state = RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT }
+      }
+    }
+    readModelLines = { listRawImpressionUploadModelLinesResponse {} }
+
+    val failure =
+      assertFailsWith<IllegalStateException> {
+        awaiter().awaitCompletion(DATA_PROVIDER, EXPECTED_DONE_BLOBS)
+      }
+
+    assertThat(failure).hasMessageThat().contains(UPLOAD.name)
+    assertThat(failure).hasMessageThat().contains("REMOVED_WITHOUT_REPLACEMENT")
+    assertThat(uploadRequests).hasSize(1)
+    assertThat(modelLineRequests).isEmpty()
+    assertThat(testScheduler.currentTime).isEqualTo(0L)
   }
 
   @Test

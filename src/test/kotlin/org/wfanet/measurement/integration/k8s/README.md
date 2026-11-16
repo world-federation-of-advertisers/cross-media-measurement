@@ -20,7 +20,9 @@ credential library refreshes the token as needed throughout the test.
 
 The fixture wait matches every seeded done blob by its GCS URI and generation.
 Each upload must finish registration and have completed model lines before the
-measurement fixtures are published. A failed upload or model line fails setup.
+measurement fixtures are published. Uploads in `FAILED`, `CORRECTION_REQUIRED`,
+or `REMOVED_WITHOUT_REPLACEMENT` fail setup immediately with their names and
+states. Failed model lines also fail setup.
 
 Read-only polling retries temporary `INTERNAL`, `UNAVAILABLE`,
 `DEADLINE_EXCEEDED`, and `ABORTED` responses. Five consecutive failed polls stop

@@ -65,9 +65,10 @@ class VidLabelingAwaiter(
               listUploads(dataProvider).filter {
                 expectedDoneBlobs[it.doneBlobUri] == it.doneBlobGeneration
               }
-            val failedUploads = uploads.filter { it.state == RawImpressionUpload.State.FAILED }
-            check(failedUploads.isEmpty()) {
-              "VID labeling FAILED for upload(s): ${failedUploads.joinToString { it.name }}"
+            val unusableUploads = uploads.filter { it.state in UNUSABLE_UPLOAD_STATES }
+            check(unusableUploads.isEmpty()) {
+              "VID labeling cannot complete for upload(s): " +
+                unusableUploads.joinToString { "${it.name} (${it.state})" }
             }
             val linesByUpload = uploads.associateWith { listModelLines(it.name) }
             val lines = linesByUpload.values.flatten()
@@ -169,6 +170,12 @@ class VidLabelingAwaiter(
   companion object {
     private val logger = Logger.getLogger(VidLabelingAwaiter::class.java.name)
     private const val LIST_PAGE_SIZE = 100
+    private val UNUSABLE_UPLOAD_STATES =
+      setOf(
+        RawImpressionUpload.State.FAILED,
+        RawImpressionUpload.State.CORRECTION_REQUIRED,
+        RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT,
+      )
     // Public INTERNAL can represent a dependency interruption. Only these read-only polls retry;
     // persistent server errors still fail after a bounded number of consecutive failures.
     private val RETRYABLE_READ_CODES =
