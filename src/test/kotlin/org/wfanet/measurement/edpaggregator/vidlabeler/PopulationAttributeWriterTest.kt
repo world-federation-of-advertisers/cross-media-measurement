@@ -17,7 +17,10 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.common.truth.Truth.assertThat
+import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.Any as ProtoAny
+import com.google.protobuf.TypeRegistry
+import java.nio.file.Paths
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,6 +39,8 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.video
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.versionedCommon
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.versionedEvent
 import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
 
 @RunWith(JUnit4::class)
 class PopulationAttributeWriterTest {
@@ -181,24 +186,7 @@ class PopulationAttributeWriterTest {
 
   @Test
   fun `apply copies only population fields present in configured version`() {
-    val versionedSpec = populationSpec {
-      subpopulations +=
-        PopulationSpecKt.subPopulation {
-          attributes +=
-            ProtoAny.pack(
-              versionedCommon {
-                original = VersionedCommon.Segment.SEGMENT_A
-                retired = VersionedCommon.Segment.SEGMENT_B
-              }
-            )
-          vidRanges +=
-            PopulationSpecKt.vidRange {
-              startVid = 1L
-              endVidInclusive = 100L
-            }
-        }
-    }
-    val writer = PopulationAttributeWriter(VersionedEvent.getDescriptor(), versionedSpec, 1)
+    val writer = PopulationAttributeWriter(VersionedEvent.getDescriptor(), VERSION_ONE_SPEC, 1)
     val uploaded = versionedEvent {
       versionedCommon = versionedCommon {
         original = VersionedCommon.Segment.SEGMENT_B
@@ -289,5 +277,41 @@ class PopulationAttributeWriterTest {
         PopulationAttributeWriter(eventDescriptor, duplicated)
       }
     assertThat(exception).hasMessageThat().contains("more than one attribute")
+  }
+
+  private companion object {
+    private val RUNFILES = Runfiles.preload().withSourceRepository("")
+
+    private val VERSION_ONE_SPEC: PopulationSpec =
+      parseTextProto(
+        versionedPopulationSpecFile(VERSION_ONE_SPEC_FILE),
+        PopulationSpec.getDefaultInstance(),
+        TypeRegistry.newBuilder().add(VersionedCommon.getDescriptor()).build(),
+      )
+
+    private fun versionedPopulationSpecFile(fileName: String): java.io.File {
+      val path =
+        checkNotNull(
+          RUNFILES.getRuntimePath(
+            Paths.get(
+              "wfa_measurement_system",
+              "src",
+              "test",
+              "kotlin",
+              "org",
+              "wfanet",
+              "measurement",
+              "api",
+              "v2alpha",
+              fileName,
+            )
+          )
+        ) {
+          "Runfile not found: $fileName"
+        }
+      return path.toFile()
+    }
+
+    private const val VERSION_ONE_SPEC_FILE = "versioned_population_spec_v1.textproto"
   }
 }
