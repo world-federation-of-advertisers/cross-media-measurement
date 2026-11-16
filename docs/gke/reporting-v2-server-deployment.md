@@ -339,6 +339,10 @@ Within the Kustomization directory, run
 kubectl apply -k src/main/k8s/dev/reporting_v2
 ```
 
+The example Access internal API configuration uses two replicas and a
+`PodDisruptionBudget`. It requires two eligible nodes; ensure both replicas are
+ready before proceeding.
+
 Now all components should be successfully deployed to your GKE cluster. You can
 verify by running
 
