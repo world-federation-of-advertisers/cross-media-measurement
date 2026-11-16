@@ -428,6 +428,7 @@ spanner_emulator_test(
 
 spanner_emulator_test(
     name = "VidLabelingRevisionHealingIntegrationTest",
+    timeout = "long",
     srcs = ["VidLabelingRevisionHealingIntegrationTest.kt"],
     data = ["//src/main/resources/testing/labeler:memoized_reference_test_model_riegeli"],
     test_class = "org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingRevisionHealingIntegrationTest",
