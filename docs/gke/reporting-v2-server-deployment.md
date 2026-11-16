@@ -57,6 +57,10 @@ See [Machine Setup](machine-setup.md).
 This can be done using Terraform. See [the guide](terraform.md) to use the
 example configuration for Reporting.
 
+Include system workloads and rolling-update surge pods when sizing the node pool.
+A replacement pod must fit while its predecessor remains available. The
+Halo-managed Reporting pool permits an additional autoscaled node for rollouts.
+
 Applying the Terraform configuration will create a new cluster. You can use the
 `gcloud` CLI to obtain credentials so that you can access the cluster via
 `kubectl`. For example:
