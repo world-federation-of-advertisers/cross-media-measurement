@@ -35,6 +35,10 @@ Update both dispatcher and monitor configurations:
 * Add `secure_computation_control_plane_connection` with the client certificate,
   private key, and root-CA paths; set `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` on
   DataAvailabilitySync.
+* Before resuming standalone `ReplayDataAvailabilitySync` and
+  `RecoverMissingImpressionMetadata` runs or CronJobs, update their binaries/images and
+  per-provider config; align cutovers, source buckets/prefixes, model-line
+  mappings, gap policy, and TLS mounts with deployed DataAvailabilitySync.
 * Separate internal VidLabeler output from external labeled uploads:
 
 | Configuration | Value |
@@ -43,8 +47,9 @@ Update both dispatcher and monitor configurations:
 | Sync config: `vid_labeled_impression_path` | `<INTERNAL_OUTPUT_PREFIX>` |
 | Sync config: `edp_impression_path` | `<EXTERNAL_OUTPUT_PREFIX>` |
 
-The prefixes must not overlap; the internal output bucket must match the sync
-configuration's bucket.
+Internal and external output prefixes must not overlap. Each source's actual
+bucket and prefix must match its default source configuration or its
+`model_line_data_sources` entry; contributors may use different buckets.
 
 ### [data_watcher_config.proto](../../src/main/proto/wfa/measurement/config/securecomputation/data_watcher_config.proto) and [queues_config.proto](../../src/main/proto/wfa/measurement/config/securecomputation/queues_config.proto)
 
@@ -131,6 +136,15 @@ number of days, and no greater than the overlap.
 * Healing IAM: read input/configuration, delete configured internal output
   prefixes, rewrite raw `done` markers, and grant the controller `roles/run.invoker`
   on VidLabelingDispatcher.
+* Availability alerts: configure `vid_labeling_availability_alert_thresholds`
+  (`pending_age_seconds`, `failed_executions`, `publication_age_seconds`). For
+  managed deployments, set `vid_labeling_healing_alert_notification_channels` to
+  a nonempty list of verified channels and confirm delivery to the intended
+  operator.
+* Publication-status IAM: grant DataAvailabilitySync write access to each
+  additional source root's `.availability-publication/` directory; configure
+  `data_availability_publication_status_storage_roots` with its bucket and
+  bucket-relative root prefix.
 
 ## Rollout
 
