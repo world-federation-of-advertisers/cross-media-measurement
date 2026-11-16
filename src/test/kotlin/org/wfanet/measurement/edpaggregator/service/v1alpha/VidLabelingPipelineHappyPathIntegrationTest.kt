@@ -101,7 +101,7 @@ internal class VidLabelingPipelineHappyPathIntegrationTest : VidLabelingPipeline
     val initialTasks = listAvailabilityTasks(initialUploads.single().name)
     assertThat(initialTasks).hasSize(2)
     assertThat(initialTasks.map { it.state }.toSet()).containsExactly(WorkItem.State.SUCCEEDED)
-    assertThat(initialTasks.map { it.attemptCount }.toSet()).containsExactly(1)
+    assertThat(initialTasks.map { it.workItem.generation }.toSet()).containsExactly(1L)
     assertAvailabilityTaskIdentities(initialUploads.single(), EVENT_DATE)
     assertThat(initialTasks.any { workItemTransport.deliveryCount(it.name) >= 2 }).isTrue()
     assertThat(externalAvailabilityDeliveries.get()).isEqualTo(0)

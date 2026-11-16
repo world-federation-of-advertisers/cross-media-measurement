@@ -19,6 +19,8 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.TextFormat
+import com.google.protobuf.duration
+import com.google.type.date
 import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
@@ -38,6 +40,7 @@ import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemSto
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilityMonitorConfig
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilityMonitorConfigs
 import org.wfanet.measurement.config.edpaggregator.modelLineConfig
+import org.wfanet.measurement.config.edpaggregator.modelLineCutoverConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -201,6 +204,35 @@ class DataAvailabilityMonitorFunctionTest {
   }
 
   @Test
+  fun `allows cutover contributors in separate storage configs`() {
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    val historicalPath = "edp/test/historical"
+    val replacementPath = "edp/test/replacement"
+    val today = LocalDate.now(ZoneId.of("UTC"))
+    for (date in listOf(today.minusDays(1), today)) {
+      writeCompletedDate(storageClient, historicalPath, HISTORICAL_MODEL_LINE_ID, date)
+      writeCompletedDate(storageClient, replacementPath, REPLACEMENT_MODEL_LINE_ID, date)
+    }
+    val config = dataAvailabilityMonitorConfigs {
+      configs += createConfig(historicalPath, listOf(HISTORICAL_MODEL_LINE)).configsList
+      configs += createConfig(replacementPath, listOf(REPLACEMENT_MODEL_LINE)).configsList
+      modelLineCutovers += modelLineCutoverConfig {
+        externalModelLine = EXTERNAL_MODEL_LINE
+        historicalModelLine = HISTORICAL_MODEL_LINE
+        replacementModelLine = REPLACEMENT_MODEL_LINE
+        cutoverDate = today.minusDays(1).toProtoDate()
+        legacyRequiredThroughDate = today.toProtoDate()
+        maximumReportDuration = duration { seconds = 86400 }
+      }
+    }
+
+    val port = startFunction(TextFormat.printer().printToString(config))
+    val response = invokeFunction(port)
+
+    assertThat(response.statusCode()).isEqualTo(200)
+  }
+
+  @Test
   fun `returns 200 when model line is stale`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
@@ -317,9 +349,23 @@ class DataAvailabilityMonitorFunctionTest {
   }
 
   companion object {
+    private fun LocalDate.toProtoDate() = date {
+      year = this@toProtoDate.year
+      month = this@toProtoDate.monthValue
+      day = this@toProtoDate.dayOfMonth
+    }
+
     private const val MODEL_LINE_ID = "modelLineA"
     private const val MODEL_LINE_RESOURCE_NAME =
       "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
+    private const val HISTORICAL_MODEL_LINE_ID = "historical"
+    private const val REPLACEMENT_MODEL_LINE_ID = "replacement"
+    private const val HISTORICAL_MODEL_LINE =
+      "modelProviders/provider1/modelSuites/suite1/modelLines/historical"
+    private const val REPLACEMENT_MODEL_LINE =
+      "modelProviders/provider1/modelSuites/suite1/modelLines/replacement"
+    private const val EXTERNAL_MODEL_LINE =
+      "modelProviders/provider1/modelSuites/suite1/modelLines/external"
 
     private val FUNCTION_BINARY_PATH =
       Paths.get(
