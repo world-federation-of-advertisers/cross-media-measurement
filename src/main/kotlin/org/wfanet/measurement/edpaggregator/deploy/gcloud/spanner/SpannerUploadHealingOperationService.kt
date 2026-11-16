@@ -339,7 +339,14 @@ class SpannerUploadHealingOperationService(
             .UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING &&
           request.state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
       ) {
-        precondition(txn.getVidLabelingEvictionFence(request.dataProviderResourceId) == null) {
+        val fence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
+        precondition(
+          fence == null ||
+            (fence.state ==
+              VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING &&
+              fence.evictionOperationId != operation.uploadHealingOperationId &&
+              fence.evictionOperationId !in operation.rawImpressionUploadCorrectionCandidateIdsList)
+        ) {
           "availability handoff cannot complete while the DataProvider is fenced"
         }
         txn.completeUploadHealingOperation(
@@ -374,7 +381,7 @@ class SpannerUploadHealingOperationService(
               it.uploadHealingOperation.uploadHealingOperationId !=
                 operation.uploadHealingOperationId
             } != null
-        if (!hasPendingCandidate && !hasOtherOperation) {
+        if (fence == null && !hasPendingCandidate && !hasOtherOperation) {
           clearProcessingDeferrals(txn, operation.dataProviderResourceId)
         }
         return@run

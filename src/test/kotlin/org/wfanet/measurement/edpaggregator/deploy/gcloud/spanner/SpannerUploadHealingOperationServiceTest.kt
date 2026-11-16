@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingStepRequest
 import org.wfanet.measurement.internal.edpaggregator.approveUploadHealingOperationRequest
@@ -2322,6 +2323,190 @@ class SpannerUploadHealingOperationServiceTest {
       .isEqualTo(
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
       )
+  }
+
+  @Test
+  fun `handoff completes under foreign approval fence before candidate registration`() =
+    runBlocking {
+      verifyForeignApprovalHandoff(candidateRegistered = false)
+    }
+
+  @Test
+  fun `handoff completes under foreign approval fence with pending candidate`() = runBlocking {
+    verifyForeignApprovalHandoff(candidateRegistered = true)
+  }
+
+  @Test
+  fun `handoff rejects its own approval fence`() = runBlocking {
+    verifyFencedHandoff(
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING,
+      OPERATION_ID,
+    )
+  }
+
+  @Test
+  fun `handoff rejects its candidate approval fence`() = runBlocking {
+    verifyFencedHandoff(
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING,
+      CANDIDATE_IDS[0],
+    )
+  }
+
+  @Test
+  fun `handoff rejects foreign draining fence`() = runBlocking {
+    verifyFencedHandoff(
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING,
+      CANDIDATE_IDS[1],
+    )
+  }
+
+  @Test
+  fun `handoff rejects foreign evicting fence`() = runBlocking {
+    verifyFencedHandoff(
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING,
+      CANDIDATE_IDS[1],
+    )
+  }
+
+  private suspend fun pendingRemovalHandoff():
+    Pair<SpannerUploadHealingOperationService, UploadHealingOperation> {
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    insertUploadGraph()
+    insertQuarantinedCandidateUpload(CANDIDATE_IDS[0])
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    val created =
+      activateOperation(
+        service,
+        createRequest(
+          memoized = true,
+          recoveryAction =
+            RawImpressionUploadModelLineRecoveryAction
+              .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT,
+          recoveryTarget = false,
+        ),
+      )
+    service.advanceUploadHealingStep(
+      advanceUploadHealingStepRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        uploadHealingStepId = 1L
+        etag = created.stepsList.single().etag
+        action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+        requestId = WAITING_REQUEST_ID
+      }
+    )
+    val pending =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+    return service to pending
+  }
+
+  private suspend fun insertHandoffFence(state: VidLabelingEvictionFenceState, owner: String) {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newInsertBuilder("VidLabelingEvictionFence")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("EvictionOperationId")
+          .to(owner)
+          .set("State")
+          .to(Value.protoEnum(state))
+          .set("Etag")
+          .to(UUID.randomUUID().toString())
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
+  }
+
+  private suspend fun verifyForeignApprovalHandoff(candidateRegistered: Boolean) {
+    val (service, pending) = pendingRemovalHandoff()
+    insertQueuedUpload()
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadId")
+          .to(900L)
+          .set("ProcessingDeferred")
+          .to(true)
+          .build()
+      )
+    )
+    insertHandoffFence(
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING,
+      CANDIDATE_IDS[1],
+    )
+    if (candidateRegistered) insertCorrectionCandidate(CANDIDATE_IDS[1])
+    val fence =
+      spannerDatabase.databaseClient.singleUse().use {
+        it.getVidLabelingEvictionFence(DATA_PROVIDER_ID)
+      }
+    val completed =
+      service.advanceUploadHealingOperation(
+        advanceUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = pending.etag
+          state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
+          requestId = HANDOFF_COMPLETE_REQUEST_ID
+        }
+      )
+    assertThat(completed.state)
+      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
+    assertThat(
+        spannerDatabase.databaseClient.singleUse().use {
+          it.getVidLabelingEvictionFence(DATA_PROVIDER_ID)
+        }
+      )
+      .isEqualTo(fence)
+    assertThat(
+        spannerDatabase.databaseClient.singleUse().use {
+          it
+            .getRawImpressionUploadByResourceId(DATA_PROVIDER_ID, "queued-upload")
+            .rawImpressionUpload
+            .processingDeferred
+        }
+      )
+      .isTrue()
+  }
+
+  private suspend fun verifyFencedHandoff(state: VidLabelingEvictionFenceState, owner: String) {
+    val (service, pending) = pendingRemovalHandoff()
+    insertHandoffFence(state, owner)
+    val failure =
+      assertFailsWith<StatusRuntimeException> {
+        service.advanceUploadHealingOperation(
+          advanceUploadHealingOperationRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            etag = pending.etag
+            this.state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE
+            requestId = HANDOFF_COMPLETE_REQUEST_ID
+          }
+        )
+      }
+    assertThat(failure.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    val after =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+    assertThat(after).isEqualTo(pending)
+    assertThat(
+        spannerDatabase.databaseClient.singleUse().use {
+          it.getVidLabelingEvictionFence(DATA_PROVIDER_ID)?.evictionOperationId
+        }
+      )
+      .isEqualTo(owner)
   }
 
   @Test

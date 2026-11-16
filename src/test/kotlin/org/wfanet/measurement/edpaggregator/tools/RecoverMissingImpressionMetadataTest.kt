@@ -68,6 +68,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.gcloud.gcs.testing.StorageEmulatorRule
 
 @RunWith(JUnit4::class)
@@ -480,11 +481,17 @@ class RecoverMissingImpressionMetadataTest {
     ADDED_METADATA,
   }
 
+  @Test
+  fun `legacy recovery validates an already synchronized managed peer without changing its marker`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, managedPeer = true)
+  }
+
   private fun runRecoveryAcrossConfiguredPaths(
     externalMutation: ExternalMutation,
     blockedByGaps: Boolean = false,
     includeRegisteredNeighbour: Boolean = false,
     externalOverride: Boolean = false,
+    managedPeer: Boolean = false,
   ) {
     var externalMutationApplied = false
     val recoveredMetadata = mutableListOf<ImpressionMetadata>()
@@ -553,8 +560,18 @@ class RecoverMissingImpressionMetadataTest {
             modelLineBounds += modelLineBoundMapEntry {
               key = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
               value = interval {
-                startTime = timestamp { seconds = 1 }
-                endTime = timestamp { seconds = 2 }
+                startTime = timestamp {
+                  seconds =
+                    if (managedPeer)
+                      LocalDate.of(2000, 1, 1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                    else 1
+                }
+                endTime = timestamp {
+                  seconds =
+                    if (managedPeer)
+                      LocalDate.of(2000, 1, 2).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                    else 2
+                }
               }
             }
           }
@@ -567,7 +584,18 @@ class RecoverMissingImpressionMetadataTest {
         .thenReturn(DataProvider.getDefaultInstance())
     }
     val server: Server =
-      NettyServerBuilder.forPort(0)
+      ManagedDoneObjectTestServices(
+          "dataProviders/test-provider",
+          listOf(MANAGED_MODEL_LINE),
+          LocalDate.of(1999, 12, 31),
+          MANAGED_RAW_INPUT_URI,
+        )
+        .apply {
+          ownerState =
+            org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine.State
+              .COMPLETED
+        }
+        .addTo(NettyServerBuilder.forPort(0))
         .sslContext(serverCerts.toServerTlsContext())
         .addService(impressionMetadataServiceMock)
         .addService(dataProvidersServiceMock)
@@ -591,7 +619,7 @@ class RecoverMissingImpressionMetadataTest {
           val metadataKey = "$impressionsKey.metadata.binpb"
           storageEmulator.storage.create(
             BlobInfo.newBuilder(BUCKET_NAME, impressionsKey).build(),
-            byteArrayOf(),
+            if (managedPeer) byteArrayOf(1) else byteArrayOf(),
           )
           storageEmulator.storage.create(
             BlobInfo.newBuilder(BUCKET_NAME, metadataKey).build(),
@@ -600,8 +628,18 @@ class RecoverMissingImpressionMetadataTest {
                 eventGroupReferenceId = "event-group"
                 modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
                 interval = interval {
-                  startTime = timestamp { seconds = 1 }
-                  endTime = timestamp { seconds = 2 }
+                  startTime = timestamp {
+                    seconds =
+                      if (managedPeer)
+                        LocalDate.of(2000, 1, 1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                      else 1
+                  }
+                  endTime = timestamp {
+                    seconds =
+                      if (managedPeer)
+                        LocalDate.of(2000, 1, 2).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                      else 2
+                  }
                 }
               }
               .toByteArray(),
@@ -628,8 +666,18 @@ class RecoverMissingImpressionMetadataTest {
                     eventGroupReferenceId = "event-group"
                     modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
                     interval = interval {
-                      startTime = timestamp { seconds = 1 }
-                      endTime = timestamp { seconds = 2 }
+                      startTime = timestamp {
+                        seconds =
+                          if (managedPeer)
+                            LocalDate.of(2000, 1, 1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                          else 1
+                      }
+                      endTime = timestamp {
+                        seconds =
+                          if (managedPeer)
+                            LocalDate.of(2000, 1, 2).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                          else 2
+                      }
                     }
                   }
                   .toByteArray(),
@@ -659,8 +707,18 @@ class RecoverMissingImpressionMetadataTest {
               eventGroupReferenceId = "event-group"
               modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
               interval = interval {
-                startTime = timestamp { seconds = 1 }
-                endTime = timestamp { seconds = 2 }
+                startTime = timestamp {
+                  seconds =
+                    if (managedPeer)
+                      LocalDate.of(2000, 1, 1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                    else 1
+                }
+                endTime = timestamp {
+                  seconds =
+                    if (managedPeer)
+                      LocalDate.of(2000, 1, 2).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                    else 2
+                }
               }
               state = ACTIVE
               metadataBlobGeneration = neighbourMetadata.generation
@@ -672,6 +730,29 @@ class RecoverMissingImpressionMetadataTest {
           }
           "gs://$BUCKET_NAME/$metadataKey" to doneBlob.generation
         }
+      val managedPeerKey =
+        "$INTERNAL_IMPRESSION_PATH/" +
+          LabeledImpressionsBlobKeys.forDone(
+            "dataProviders/test-provider/rawImpressionUploads/managed",
+            MANAGED_MODEL_LINE,
+            LocalDate.of(1999, 12, 31),
+          )
+      val peerMetadata =
+        mapOf(
+          DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+          DataAvailabilityBlobs.SYNC_ID_KEY to "zero-peer-sync",
+          DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to "zero-peer-sync",
+        )
+      val initialPeerBlob =
+        if (managedPeer) {
+          storageEmulator.storage.create(
+            BlobInfo.newBuilder(BUCKET_NAME, managedPeerKey).setMetadata(peerMetadata).build(),
+            byteArrayOf(),
+          )
+          storageEmulator.storage.get(BUCKET_NAME, managedPeerKey)
+        } else null
+      val initialPeerMetadata = initialPeerBlob?.metadata?.toMap().orEmpty()
+      val initialPeerGeneration = initialPeerBlob?.generation
       val configFile =
         writeConfigFile(
           (if (externalOverride) {
@@ -697,6 +778,11 @@ class RecoverMissingImpressionMetadataTest {
           ::main,
         )
 
+      if (managedPeer) {
+        val currentPeer = storageEmulator.storage.get(BUCKET_NAME, managedPeerKey)
+        assertThat(currentPeer.metadata).containsExactlyEntriesIn(initialPeerMetadata)
+        assertThat(currentPeer.generation).isEqualTo(initialPeerGeneration)
+      }
       val failed = blockedByGaps || externalMutation != ExternalMutation.NONE
       CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(if (failed) 1 else 0)
       verifyBlocking(dataProvidersServiceMock, times(if (failed) 0 else 2)) {
@@ -868,6 +954,10 @@ class RecoverMissingImpressionMetadataTest {
       .apply { writeText(contents) }
 
   companion object {
+    private const val MANAGED_RAW_INPUT_URI = "gs://raw/managed.parquet"
+    private const val MANAGED_MODEL_LINE =
+      "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+
     init {
       System.setSecurityManager(ExitInterceptingSecurityManager)
     }

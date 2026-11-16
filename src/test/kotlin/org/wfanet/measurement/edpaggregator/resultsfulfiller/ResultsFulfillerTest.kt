@@ -23,6 +23,8 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
@@ -169,6 +171,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.NoOpFulfill
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
@@ -661,6 +664,8 @@ class ResultsFulfillerTest {
         multiplier = 1.0,
         randomnessFactor = 0.0,
       ),
+    groupedRequisitions: GroupedRequisitions = groupedRequisitions { groupId = "retry-group" },
+    modelLineInfoMap: Map<String, ModelLineInfo> = emptyMap(),
   ): ResultsFulfiller {
     val tmpDir = Files.createTempDirectory(null).toFile()
     return ResultsFulfiller(
@@ -670,8 +675,8 @@ class ResultsFulfillerTest {
       requisitionsThrottler = FakeThrottler(),
       kingdomThrottler = FakeThrottler(),
       privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-      groupedRequisitions = groupedRequisitions { groupId = "retry-group" },
-      modelLineInfoMap = emptyMap(),
+      groupedRequisitions = groupedRequisitions,
+      modelLineInfoMap = modelLineInfoMap,
       pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
       impressionDataSourceProvider =
         ImpressionDataSourceProvider(
@@ -687,6 +692,272 @@ class ResultsFulfillerTest {
       listMaxAttempts = listMaxAttempts,
       listRetryBackoff = listRetryBackoff,
     )
+  }
+
+  @Test
+  fun `selected model line with matching processing artifacts is accepted`() {
+    createRetryTestFulfiller(
+      groupedRequisitions =
+        groupedRequisitions {
+          groupId = "compatible"
+          modelLine = "visible"
+          selectedModelLine = "selected"
+          requireModelLineFinalization = true
+        },
+      modelLineInfoMap = mapOf("visible" to MODEL_LINE_INFO, "selected" to MODEL_LINE_INFO),
+    )
+  }
+
+  @Test
+  fun `selected model line with mismatched population spec is rejected`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        createRetryTestFulfiller(
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "incompatible"
+              modelLine = "visible"
+              selectedModelLine = "selected"
+              requireModelLineFinalization = true
+            },
+          modelLineInfoMap =
+            mapOf(
+              "visible" to MODEL_LINE_INFO,
+              "selected" to MODEL_LINE_INFO.copy(populationSpec = populationSpec {}),
+            ),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("incompatible PopulationSpec")
+  }
+
+  @Test
+  fun `selected model line with mismatched event descriptor is rejected`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        createRetryTestFulfiller(
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "incompatible"
+              modelLine = "visible"
+              selectedModelLine = "selected"
+              requireModelLineFinalization = true
+            },
+          modelLineInfoMap =
+            mapOf(
+              "visible" to MODEL_LINE_INFO,
+              "selected" to
+                MODEL_LINE_INFO.copy(eventDescriptor = LabeledImpression.getDescriptor()),
+            ),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("incompatible EventTemplate descriptor")
+  }
+
+  @Test
+  fun `selected model line with same descriptor shape in another package is rejected`() {
+    val messageDescriptor =
+      DescriptorProtos.DescriptorProto.newBuilder()
+        .setName("Event")
+        .addField(
+          DescriptorProtos.FieldDescriptorProto.newBuilder()
+            .setName("value")
+            .setNumber(1)
+            .setType(DescriptorProtos.FieldDescriptorProto.Type.TYPE_INT64)
+        )
+        .build()
+    fun descriptor(packageName: String): Descriptors.Descriptor =
+      Descriptors.FileDescriptor.buildFrom(
+          DescriptorProtos.FileDescriptorProto.newBuilder()
+            .setName("$packageName.proto")
+            .setPackage(packageName)
+            .addMessageType(messageDescriptor)
+            .build(),
+          emptyArray(),
+        )
+        .findMessageTypeByName(messageDescriptor.name)
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        createRetryTestFulfiller(
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "incompatible-package"
+              modelLine = "visible"
+              selectedModelLine = "selected"
+              requireModelLineFinalization = true
+            },
+          modelLineInfoMap =
+            mapOf(
+              "visible" to MODEL_LINE_INFO.copy(eventDescriptor = descriptor("visible")),
+              "selected" to MODEL_LINE_INFO.copy(eventDescriptor = descriptor("selected")),
+            ),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("incompatible EventTemplate descriptor")
+  }
+
+  @Test
+  fun `cutover event schema rejects a changed referenced message`() {
+    assertReferencedEventSchemaRejected(
+      referencedEventDescriptor(ageFieldNumber = 1),
+      referencedEventDescriptor(ageFieldNumber = 2),
+    )
+  }
+
+  @Test
+  fun `cutover event schema rejects a changed referenced enum`() {
+    assertReferencedEventSchemaRejected(
+      referencedEventDescriptor(activeEnumNumber = 1),
+      referencedEventDescriptor(activeEnumNumber = 2),
+    )
+  }
+
+  @Test
+  fun `cutover event schema rejects changed protobuf syntax`() {
+    assertReferencedEventSchemaRejected(
+      referencedEventDescriptor(syntax = "proto3"),
+      referencedEventDescriptor(syntax = "proto2"),
+    )
+  }
+
+  @Test
+  fun `cutover event schema accepts equivalent reachable definitions with unused changes`() {
+    createRetryTestFulfiller(
+      groupedRequisitions =
+        groupedRequisitions {
+          groupId = "same-reachable-schema"
+          modelLine = "visible"
+          selectedModelLine = "selected"
+          requireModelLineFinalization = true
+        },
+      modelLineInfoMap =
+        mapOf(
+          "visible" to
+            MODEL_LINE_INFO.copy(
+              eventDescriptor = referencedEventDescriptor(unusedFieldNumber = 1)
+            ),
+          "selected" to
+            MODEL_LINE_INFO.copy(eventDescriptor = referencedEventDescriptor(unusedFieldNumber = 2)),
+        ),
+    )
+  }
+
+  private fun assertReferencedEventSchemaRejected(
+    visible: Descriptors.Descriptor,
+    selected: Descriptors.Descriptor,
+  ) {
+    assertThat(visible.fullName).isEqualTo(selected.fullName)
+    assertThat(visible.toProto()).isEqualTo(selected.toProto())
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        createRetryTestFulfiller(
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "incompatible-referenced-schema"
+              modelLine = "visible"
+              selectedModelLine = "selected"
+              requireModelLineFinalization = true
+            },
+          modelLineInfoMap =
+            mapOf(
+              "visible" to MODEL_LINE_INFO.copy(eventDescriptor = visible),
+              "selected" to MODEL_LINE_INFO.copy(eventDescriptor = selected),
+            ),
+        )
+      }
+    assertThat(error).hasMessageThat().contains("incompatible EventTemplate descriptor")
+  }
+
+  private fun referencedEventDescriptor(
+    ageFieldNumber: Int = 1,
+    activeEnumNumber: Int = 1,
+    syntax: String = "proto3",
+    unusedFieldNumber: Int = 1,
+  ): Descriptors.Descriptor {
+    fun field(
+      name: String,
+      number: Int,
+      type: DescriptorProtos.FieldDescriptorProto.Type,
+      typeName: String? = null,
+    ) =
+      DescriptorProtos.FieldDescriptorProto.newBuilder()
+        .apply {
+          setName(name)
+          setNumber(number)
+          setType(type)
+          setLabel(DescriptorProtos.FieldDescriptorProto.Label.LABEL_OPTIONAL)
+          if (typeName != null) setTypeName(typeName)
+        }
+        .build()
+    val descriptor =
+      DescriptorProtos.FileDescriptorProto.newBuilder()
+        .apply {
+          setName("events.proto")
+          setPackage("example")
+          setSyntax(syntax)
+          addEnumType(
+            DescriptorProtos.EnumDescriptorProto.newBuilder().apply {
+              setName("Status")
+              addValue(
+                DescriptorProtos.EnumValueDescriptorProto.newBuilder()
+                  .setName("UNSPECIFIED")
+                  .setNumber(0)
+              )
+              addValue(
+                DescriptorProtos.EnumValueDescriptorProto.newBuilder()
+                  .setName("ACTIVE")
+                  .setNumber(activeEnumNumber)
+              )
+            }
+          )
+          addMessageType(
+            DescriptorProtos.DescriptorProto.newBuilder().apply {
+              setName("Attributes")
+              addField(
+                field("age", ageFieldNumber, DescriptorProtos.FieldDescriptorProto.Type.TYPE_INT64)
+              )
+              addField(
+                field(
+                  "status",
+                  3,
+                  DescriptorProtos.FieldDescriptorProto.Type.TYPE_ENUM,
+                  ".example.Status",
+                )
+              )
+            }
+          )
+          addMessageType(
+            DescriptorProtos.DescriptorProto.newBuilder().apply {
+              setName("Unused")
+              addField(
+                field(
+                  "value",
+                  unusedFieldNumber,
+                  DescriptorProtos.FieldDescriptorProto.Type.TYPE_INT64,
+                )
+              )
+            }
+          )
+          addMessageType(
+            DescriptorProtos.DescriptorProto.newBuilder().apply {
+              setName("Event")
+              addField(
+                field(
+                  "attributes",
+                  1,
+                  DescriptorProtos.FieldDescriptorProto.Type.TYPE_MESSAGE,
+                  ".example.Attributes",
+                )
+              )
+            }
+          )
+        }
+        .build()
+    return Descriptors.FileDescriptor.buildFrom(descriptor, emptyArray())
+      .findMessageTypeByName("Event")
   }
 
   @Test
@@ -851,6 +1122,15 @@ class ResultsFulfillerTest {
 
   @Test
   fun `runWork uses mapped model line when provided`() = runBlocking {
+    assertMappedModelLineFulfillment(embeddedAlias = false)
+  }
+
+  @Test
+  fun `runWork fulfills a persisted legacy alias with visible model info only`() = runBlocking {
+    assertMappedModelLineFulfillment(embeddedAlias = true)
+  }
+
+  private suspend fun assertMappedModelLineFulfillment(embeddedAlias: Boolean) {
     val mappedModelLine = "mapped-model-line"
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
@@ -928,7 +1208,10 @@ class ResultsFulfillerTest {
       )
 
     // Load grouped requisitions from storage
-    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+    val groupedRequisitions =
+      loadGroupedRequisitions(requisitionsTmpPath).copy {
+        if (embeddedAlias) selectedModelLine = mappedModelLine
+      }
 
     val resultsFulfiller =
       ResultsFulfiller(
