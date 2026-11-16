@@ -1338,6 +1338,9 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
 
 ## Deployment
 
+For the VID Labeling release upgrade, see the
+[v0.5.53 migration guide](vid-labeling-migration-v0.5.53.md).
+
 ### Prerequisites
 
 * A GCP project with billing, and the GKE, Spanner, Cloud Functions, Cloud Run,
