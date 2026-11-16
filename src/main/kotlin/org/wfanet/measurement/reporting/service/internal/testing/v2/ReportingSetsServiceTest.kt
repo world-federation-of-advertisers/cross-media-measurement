@@ -65,13 +65,311 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   private lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
 
   /** Constructs the services being tested. */
-  protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
+  protected abstract fun newServices(
+    idGenerator: IdGenerator,
+    validateCreateReportingSet: Boolean,
+  ): Services<T>
 
   @Before
   fun initService() {
-    val services = newServices(idGenerator)
+    val services = newServices(idGenerator, validateCreateReportingSet = true)
     service = services.reportingSetsService
     measurementConsumersService = services.measurementConsumersService
+  }
+
+  @Test
+  fun `createReportingSet validation rejects malformed primitive and composite inserts`(): Unit =
+    runBlocking {
+      val services = newServices(idGenerator, true)
+      seedReportingSetValidationInputs(services)
+      for ((scenario, malformed) in reportingSetValidationCases()) {
+        val exception =
+          assertFailsWith<StatusRuntimeException>(scenario) {
+            services.reportingSetsService.createReportingSet(
+              createReportingSetRequest {
+                reportingSet = malformed
+                externalReportingSetId = scenario
+              }
+            )
+          }
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+        val missing =
+          assertFailsWith<StatusRuntimeException>(scenario) {
+            services.reportingSetsService.batchGetReportingSets(
+              batchGetReportingSetsRequest {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalReportingSetIds += scenario
+              }
+            )
+          }
+        assertThat(missing.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      }
+    }
+
+  @Test
+  fun `createReportingSet disabled validation permits malformed legacy primitive and composite inserts`():
+    Unit = runBlocking {
+    val services = newServices(idGenerator, false)
+    seedReportingSetValidationInputs(services)
+    for ((scenario, malformed) in reportingSetValidationCases()) {
+      val inserted =
+        services.reportingSetsService.createReportingSet(
+          createReportingSetRequest {
+            reportingSet = malformed
+            externalReportingSetId = scenario
+          }
+        )
+      val persisted =
+        services.reportingSetsService
+          .batchGetReportingSets(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportingSetIds += scenario
+            }
+          )
+          .reportingSetsList
+          .single()
+      assertThat(inserted.externalReportingSetId).isEqualTo(scenario)
+      assertThat(persisted.externalReportingSetId).isEqualTo(scenario)
+      assertThat(persisted.externalCampaignGroupId).isEqualTo(malformed.externalCampaignGroupId)
+      assertThat(persisted.filter).isEqualTo(malformed.filter)
+      if (malformed.hasPrimitive()) {
+        assertThat(persisted.primitive).isEqualTo(malformed.primitive)
+      } else {
+        assertThat(persisted.composite.operationValue).isEqualTo(malformed.composite.operationValue)
+        assertThat(persisted.weightedSubsetUnionsList)
+          .containsExactlyElementsIn(malformed.weightedSubsetUnionsList)
+      }
+    }
+  }
+
+  @Test
+  fun `createReportingSet validation accepts standalone custom sets and valid Campaign Group membership`():
+    Unit = runBlocking {
+    val services = newServices(idGenerator, true)
+    seedReportingSetValidationInputs(services)
+    val primitive = reportingSetValidationPrimitive().copy { filter = "person.age_group == 1" }
+    val composite = reportingSetValidationComposite()
+    for ((id, set) in
+      listOf(
+        "standalone-primitive" to primitive,
+        "standalone-composite" to composite,
+        "copied-output-id" to primitive.copy { externalReportingSetId = "old-output-id" },
+        "group-primitive" to primitive.copy { externalCampaignGroupId = "validation-campaign" },
+        "group-composite" to composite.copy { externalCampaignGroupId = "validation-campaign" },
+      )) {
+      val inserted =
+        services.reportingSetsService.createReportingSet(
+          createReportingSetRequest {
+            reportingSet = set
+            externalReportingSetId = id
+          }
+        )
+      val persisted =
+        services.reportingSetsService
+          .batchGetReportingSets(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportingSetIds += id
+            }
+          )
+          .reportingSetsList
+          .single()
+      assertThat(persisted).isEqualTo(inserted)
+      assertThat(persisted.externalCampaignGroupId).isEqualTo(set.externalCampaignGroupId)
+      assertThat(persisted.filter).isEqualTo(set.filter)
+    }
+  }
+
+  @Test
+  fun `createReportingSet validation rejects a composite referencing a malformed legacy primitive`():
+    Unit = runBlocking {
+    val legacy = newServices(idGenerator, false)
+    seedReportingSetValidationInputs(legacy)
+    legacy.reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        externalReportingSetId = "legacy-bad-group"
+        reportingSet =
+          reportingSetValidationPrimitive().copy {
+            externalCampaignGroupId = "validation-campaign"
+            primitive =
+              primitive.copy {
+                eventGroupKeys[0] = eventGroupKeys[0].copy { cmmsEventGroupId = "outside" }
+              }
+          }
+      }
+    )
+    val request = createReportingSetRequest {
+      externalReportingSetId = "new-composite"
+      reportingSet =
+        reportingSetValidationComposite().copy {
+          composite =
+            composite.copy {
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = "legacy-bad-group"
+                }
+            }
+        }
+    }
+    val strict = newServices(idGenerator, true)
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        strict.reportingSetsService.createReportingSet(request)
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val inserted = legacy.reportingSetsService.createReportingSet(request)
+    assertThat(inserted.externalReportingSetId).isEqualTo("new-composite")
+  }
+
+  private fun reportingSetValidationCases(): Map<String, ReportingSet> {
+    val primitive = reportingSetValidationPrimitive()
+    val composite = reportingSetValidationComposite()
+    return linkedMapOf(
+      "empty-primitive" to primitive.copy { this.primitive = ReportingSetKt.primitive {} },
+      "missing-provider-id" to
+        primitive.copy {
+          this.primitive =
+            this.primitive.copy {
+              eventGroupKeys[0] = eventGroupKeys[0].copy { cmmsDataProviderId = "" }
+            }
+        },
+      "missing-event-group-id" to
+        primitive.copy {
+          this.primitive =
+            this.primitive.copy {
+              eventGroupKeys[0] = eventGroupKeys[0].copy { cmmsEventGroupId = "" }
+            }
+        },
+      "primitive-outside-campaign" to
+        primitive.copy {
+          externalCampaignGroupId = "validation-campaign"
+          this.primitive =
+            this.primitive.copy {
+              eventGroupKeys[0] = eventGroupKeys[0].copy { cmmsEventGroupId = "outside" }
+            }
+        },
+      "unspecified-operation" to
+        composite.copy {
+          this.composite =
+            this.composite.copy {
+              operation = ReportingSet.SetExpression.Operation.OPERATION_UNSPECIFIED
+            }
+        },
+      "unknown-operation" to
+        composite.copy { this.composite = this.composite.copy { operationValue = 99 } },
+      "empty-right-operand" to
+        composite.copy {
+          this.composite = this.composite.copy { rhs = ReportingSetKt.SetExpressionKt.operand {} }
+        },
+      "baseless-union" to
+        composite.copy {
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 1
+            }
+        },
+      "composite-basis" to
+        composite.copy {
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 1
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = "existing-composite"
+                }
+            }
+        },
+      "basis-wrong-existing-identity" to
+        composite.copy {
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 1
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = "same-membership-other-id"
+                }
+            }
+        },
+      "basis-outside-expression" to
+        composite.copy {
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 1
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = "outside-primitive"
+                }
+            }
+        },
+      "composite-outside-campaign" to
+        composite.copy {
+          externalCampaignGroupId = "validation-campaign"
+          this.composite =
+            this.composite.copy {
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = "outside-primitive"
+                }
+            }
+        },
+    )
+  }
+
+  private fun reportingSetValidationPrimitive(): ReportingSet = reportingSet {
+    cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+    primitive =
+      ReportingSetKt.primitive {
+        eventGroupKeys +=
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = "1235"
+            cmmsEventGroupId = "eg1"
+          }
+      }
+  }
+
+  private fun reportingSetValidationComposite(): ReportingSet = reportingSet {
+    cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+    composite =
+      ReportingSetKt.setExpression {
+        operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+        lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "primitive-a" }
+        rhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "primitive-b" }
+      }
+  }
+
+  private suspend fun seedReportingSetValidationInputs(services: Services<T>) {
+    services.measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    val primitive = reportingSetValidationPrimitive()
+    val sets =
+      listOf(
+        "validation-campaign" to primitive.copy { externalCampaignGroupId = "validation-campaign" },
+        "primitive-a" to primitive,
+        "primitive-b" to primitive,
+        "same-membership-other-id" to primitive.copy { filter = "person.age_group == 1" },
+        "outside-primitive" to
+          primitive.copy {
+            this.primitive =
+              this.primitive.copy {
+                eventGroupKeys[0] = eventGroupKeys[0].copy { cmmsEventGroupId = "outside" }
+              }
+          },
+        "existing-composite" to reportingSetValidationComposite(),
+      )
+    for ((id, set) in sets) {
+      services.reportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = set
+          externalReportingSetId = id
+        }
+      )
+    }
   }
 
   @Test

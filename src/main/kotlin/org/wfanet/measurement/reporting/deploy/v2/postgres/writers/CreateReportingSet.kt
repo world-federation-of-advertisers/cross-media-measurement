@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 import io.r2dbc.postgresql.api.PostgresqlException
 import io.r2dbc.spi.R2dbcDataIntegrityViolationException
+import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
@@ -31,6 +32,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSet.PrimitiveReport
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.WeightedSubsetUnion
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.EventGroupReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
@@ -39,6 +41,7 @@ import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidExc
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetValidator
 
 const val INTEGRITY_CONSTRAINT_VIOLATION = "23505"
 
@@ -51,8 +54,10 @@ const val INTEGRITY_CONSTRAINT_VIOLATION = "23505"
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * * [CampaignGroupInvalidException] Existing ReportingSet is not a valid Campaign Group
  */
-class CreateReportingSet(private val request: CreateReportingSetRequest) :
-  PostgresWriter<ReportingSet>() {
+class CreateReportingSet(
+  private val request: CreateReportingSetRequest,
+  private val validateCreateReportingSet: Boolean,
+) : PostgresWriter<ReportingSet>() {
   private data class SetExpressionsValues(
     val setExpressionId: InternalId,
     val operationValue: Int,
@@ -98,9 +103,29 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
           ?: throw MeasurementConsumerNotFoundException(cmmsMeasurementConsumerId))
         .measurementConsumerId
 
-    val reportingSetId = idGenerator.generateInternalId()
     val externalReportingSetId: String = request.externalReportingSetId
     val externalCampaignGroupId = request.reportingSet.externalCampaignGroupId
+
+    if (validateCreateReportingSet) {
+      val validator =
+        ReportingSetValidator(cmmsMeasurementConsumerId) { id ->
+          ReportingSetReader(transactionContext)
+            .batchGetReportingSets(
+              batchGetReportingSetsRequest {
+                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                externalReportingSetIds += id
+              }
+            )
+            .single()
+            .reportingSet
+        }
+      // The creation ID is authoritative; a copied ReportingSet can contain an old output ID.
+      val reportingSet =
+        request.reportingSet.copy { this.externalReportingSetId = request.externalReportingSetId }
+      validator.validate(reportingSet)
+    }
+
+    val reportingSetId = idGenerator.generateInternalId()
     val campaignGroupIds: ReportingSetReader.ReportingSetIds? =
       if (externalCampaignGroupId.isNotEmpty()) {
         if (externalCampaignGroupId == externalReportingSetId) {
@@ -402,6 +427,10 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     val primitiveReportingSetBasisFiltersValuesList =
       mutableListOf<PrimitiveReportingSetBasisFiltersValues>()
 
+    if (weightedSubsetUnions.isEmpty()) {
+      return
+    }
+
     weightedSubsetUnions.forEach { weightedSubsetUnion ->
       val weightedSubsetUnionId = idGenerator.generateInternalId()
       weightedSubsetUnionsValuesList.add(
@@ -523,8 +552,10 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
 
     transactionContext.run {
       executeStatement(weightedSubsetUnionsStatement)
-      executeStatement(primitiveReportingSetBasesStatement)
-      executeStatement(weightedSubsetUnionPrimitiveReportingSetBasesStatement)
+      if (primitiveReportingSetBasesValuesList.isNotEmpty()) {
+        executeStatement(primitiveReportingSetBasesStatement)
+        executeStatement(weightedSubsetUnionPrimitiveReportingSetBasesStatement)
+      }
       if (primitiveReportingSetBasisFiltersValuesList.size > 0) {
         executeStatement(primitiveReportingSetBasisFiltersStatement)
       }
@@ -586,6 +617,11 @@ internal suspend fun PostgresWriter.TransactionScope.insertReportingSetEventGrou
   reportingSetId: InternalId,
   eventGroups: List<ReportingSet.Primitive.EventGroupKey>,
 ) {
+  // Validation rejects empty primitives unless the legacy write mode was explicitly enabled.
+  if (eventGroups.isEmpty()) {
+    return
+  }
+
   // Map of Primitive Reporting Set EventGroupKey to internal EventGroup ID.
   val eventGroupMap = mutableMapOf<ReportingSet.Primitive.EventGroupKey, InternalId>()
 

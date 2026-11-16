@@ -255,6 +255,7 @@ class BasicReportsServiceTest {
         spannerDatabaseClient,
         postgresDatabaseClient,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
+        validateInsertBasicReport = true,
       )
     )
     addService(
@@ -262,7 +263,13 @@ class BasicReportsServiceTest {
     )
     addService(PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient))
     addService(PostgresMetricCalculationSpecsService(idGenerator, postgresDatabaseClient))
-    addService(PostgresReportingSetsService(idGenerator, postgresDatabaseClient))
+    addService(
+      PostgresReportingSetsService(
+        idGenerator,
+        postgresDatabaseClient,
+        validateCreateReportingSet = true,
+      )
+    )
     addService(ImpressionQualificationFiltersService(IMPRESSION_QUALIFICATION_FILTER_MAPPING))
     addService(modelLinesServiceMock)
   }

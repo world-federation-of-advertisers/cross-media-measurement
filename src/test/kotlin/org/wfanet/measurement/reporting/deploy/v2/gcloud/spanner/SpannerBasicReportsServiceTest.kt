@@ -36,18 +36,28 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.REPORTING_CHANGELOG_PATH)
 
-  override fun newServices(idGenerator: IdGenerator): Services<SpannerBasicReportsService> {
+  private val postgresDatabaseClient by lazy { postgresDatabaseProvider.createDatabase() }
+
+  override fun newServices(
+    idGenerator: IdGenerator,
+    validateInsertBasicReport: Boolean,
+    validateCreateReportingSet: Boolean,
+  ): Services<SpannerBasicReportsService> {
     val spannerDatabaseClient = spannerDatabase.databaseClient
-    val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
     return Services(
       basicReportsService =
         SpannerBasicReportsService(
           spannerClient = spannerDatabaseClient,
           postgresClient = postgresDatabaseClient,
           impressionQualificationFilterMapping = impressionQualificationFilterMapping,
+          validateInsertBasicReport = validateInsertBasicReport,
         ),
       PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient),
-      PostgresReportingSetsService(idGenerator, postgresDatabaseClient),
+      PostgresReportingSetsService(
+        idGenerator,
+        postgresDatabaseClient,
+        validateCreateReportingSet = validateCreateReportingSet,
+      ),
       SpannerReportResultsService(
         spannerClient = spannerDatabaseClient,
         impressionQualificationFilterMapping = impressionQualificationFilterMapping,

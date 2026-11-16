@@ -74,20 +74,30 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setExternalR
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.internal.BasicReportAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.BasicReportInsertValidator
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.internal.BasicReportStateInvalidException
+import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidException
 import org.wfanet.measurement.reporting.service.internal.GroupingDimensions
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetValidator
 import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
 
+/**
+ * Spanner BasicReports service with ReportingSet references in Postgres.
+ *
+ * [validateInsertBasicReport] enables completed-insert identity checks and the Report ID
+ * requirement. It does not change CreateBasicReport, which assigns its Report later.
+ */
 class SpannerBasicReportsService(
   private val spannerClient: AsyncDatabaseClient,
   private val postgresClient: DatabaseClient,
   private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
+  private val validateInsertBasicReport: Boolean,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val idGenerator: IdGenerator = IdGenerator.Default,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
@@ -516,8 +526,23 @@ class SpannerBasicReportsService(
   override suspend fun insertBasicReport(request: InsertBasicReportRequest): BasicReport {
     try {
       validateBasicReport(request.basicReport)
+      if (validateInsertBasicReport) {
+        val reportingSetValidator =
+          ReportingSetValidator(request.basicReport.cmmsMeasurementConsumerId) { id ->
+            getReportingSets(request.basicReport.cmmsMeasurementConsumerId, listOf(id))
+              .single()
+              .reportingSet
+          }
+        BasicReportInsertValidator(reportingSetValidator).validate(request.basicReport)
+      }
     } catch (e: RequiredFieldNotSetException) {
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: ReportingSetNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: CampaignGroupInvalidException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ImpressionQualificationFilterNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
@@ -605,8 +630,6 @@ class SpannerBasicReportsService(
    * @throws ImpressionQualificationFilterNotFoundException
    */
   private fun validateBasicReport(basicReport: BasicReport) {
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4551): Require
-    //   external_report_id after existing rows and callers have been migrated.
     if (basicReport.cmmsMeasurementConsumerId.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
     }
@@ -627,26 +650,32 @@ class SpannerBasicReportsService(
       throw RequiredFieldNotSetException("result_details")
     }
 
-    basicReport.resultDetails.resultGroupsList.forEachIndexed { resultGroupIndex, resultGroup ->
-      resultGroup.resultsList.forEachIndexed { resultIndex, result ->
-        val componentSummaryListPath =
-          "result_details.result_groups[$resultGroupIndex].results[$resultIndex]" +
-            ".metadata.reporting_unit_summary.reporting_unit_component_summary"
-        result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList.forEachIndexed {
-          componentIndex,
-          componentSummary ->
-          if (componentSummary.externalReportingSetId.isEmpty()) {
-            throw RequiredFieldNotSetException(
-              "$componentSummaryListPath[$componentIndex].external_reporting_set_id"
-            )
+    if (validateInsertBasicReport && basicReport.externalReportId.isEmpty()) {
+      throw RequiredFieldNotSetException("external_report_id")
+    }
+
+    if (validateInsertBasicReport) {
+      basicReport.resultDetails.resultGroupsList.forEachIndexed { resultGroupIndex, resultGroup ->
+        resultGroup.resultsList.forEachIndexed { resultIndex, result ->
+          val componentSummaryListPath =
+            "result_details.result_groups[$resultGroupIndex].results[$resultIndex]" +
+              ".metadata.reporting_unit_summary.reporting_unit_component_summary"
+          result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList.forEachIndexed {
+            componentIndex,
+            componentSummary ->
+            if (componentSummary.externalReportingSetId.isEmpty()) {
+              throw RequiredFieldNotSetException(
+                "$componentSummaryListPath[$componentIndex].external_reporting_set_id"
+              )
+            }
           }
-        }
-        result.metricSet.reportingSetComponentsList.forEachIndexed { componentIndex, component ->
-          if (component.externalReportingSetId.isEmpty()) {
-            throw RequiredFieldNotSetException(
-              "result_details.result_groups[$resultGroupIndex].results[$resultIndex]" +
-                ".metric_set.reporting_set_components[$componentIndex].external_reporting_set_id"
-            )
+          result.metricSet.reportingSetComponentsList.forEachIndexed { componentIndex, component ->
+            if (component.externalReportingSetId.isEmpty()) {
+              throw RequiredFieldNotSetException(
+                "result_details.result_groups[$resultGroupIndex].results[$resultIndex]" +
+                  ".metric_set.reporting_set_components[$componentIndex].external_reporting_set_id"
+              )
+            }
           }
         }
       }
