@@ -416,3 +416,42 @@ the per-`BasicReport` reasons are logged and the readiness result is `no`.
 Check the reported `create_time` range as well. It covers only the
 `BasicReport`s that were backfilled, so it can be compared against the window in
 which the affected `BasicReport`s are known to have been created.
+
+## Clean up abandoned report results
+
+`CleanupReportResults` removes old result trees that are not attached to any
+BasicReport. The cutoff applies to the tree's creation time. Attached trees are
+preserved regardless of the BasicReport's state.
+
+Preview candidates first; dry run is the default:
+
+```shell
+bazel run //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:CleanupReportResults -- \
+  --spanner-project=PROJECT \
+  --spanner-instance=INSTANCE \
+  --spanner-database=DATABASE \
+  --cmms-measurement-consumer-id=CONSUMER_ID \
+  --created-before=2026-11-01T00:00:00Z \
+  --limit=1000 \
+  --dry-run
+```
+
+Before deleting, pause all report-assembly workers, prevent new assembly jobs
+from starting, and wait for existing workers and their in-flight RPCs to finish.
+Suspending a Kubernetes CronJob prevents new runs but does not stop a run already
+in progress. Add `--dry-run=false --assembly-paused` to perform deletion.
+`--assembly-paused` confirms that this maintenance step has been completed; age
+alone does not establish that a result tree is inactive.
+
+The command rechecks the creation cutoff and association in each deletion
+transaction, then deletes the parent and its children together. Candidates are
+read in pages of 100, oldest first. `--limit` caps the number examined per run.
+Output contains external result IDs and examined/deleted/skipped counts.
+`limit_reached=true` indicates that the run stopped at its cap. A
+failure exits nonzero and reports partial progress; rerunning the command
+safely picks up remaining candidates.
+
+For repeated maintenance runs, replace `--created-before` with
+`--older-than=7d`. Use the same command within a maintenance process that pauses
+and drains assembly before deletion and resumes it afterward, including after a
+cleanup failure. The command itself does not suspend Kubernetes jobs.

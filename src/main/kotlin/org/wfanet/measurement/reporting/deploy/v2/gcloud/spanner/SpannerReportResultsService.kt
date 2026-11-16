@@ -16,9 +16,6 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
-import com.google.cloud.spanner.Key
-import com.google.cloud.spanner.KeySet
-import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.protobuf.Empty
 import com.google.type.DateTime
@@ -26,7 +23,6 @@ import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.RandomIdGenerator
@@ -55,6 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.nonCumulativeStartOrNull
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportResultResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportingSetResultResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.discardReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasurementConsumerByCmmsMeasurementConsumerId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertNoisyReportResultValues
@@ -111,27 +108,7 @@ class SpannerReportResultsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     spannerClient.readWriteTransaction(Options.tag("action=discardReportResult")).run { txn ->
-      val result =
-        try {
-          txn.readReportResult(request.cmmsMeasurementConsumerId, request.externalReportResultId)
-        } catch (e: ReportResultNotFoundException) {
-          return@run
-        }
-      val filter =
-        ListBasicReportsRequestKt.filter {
-          cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
-          externalReportResultId = request.externalReportResultId
-        }
-      // Serialize this check with final-batch association, including a lost RPC response.
-      if (txn.readBasicReports(filter).firstOrNull() != null) {
-        return@run
-      }
-      txn.buffer(
-        Mutation.delete(
-          "ReportResults",
-          KeySet.singleKey(Key.of(result.measurementConsumerId, result.reportResultId)),
-        )
-      )
+      txn.discardReportResult(request.cmmsMeasurementConsumerId, request.externalReportResultId)
     }
     return Empty.getDefaultInstance()
   }
