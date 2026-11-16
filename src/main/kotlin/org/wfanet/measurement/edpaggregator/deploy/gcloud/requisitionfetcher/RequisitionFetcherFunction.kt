@@ -253,7 +253,12 @@ class RequisitionFetcherFunction : HttpFunction {
     val eventGroupsStub = EventGroupsCoroutineStub(instrumentedCmmsChannel)
     val edpPrivateKey = checkNotNull(File(dataProviderConfig.edpPrivateKeyPath))
 
-    val requisitionsValidator = RequisitionsValidator(loadPrivateKey(edpPrivateKey))
+    val requisitionsValidator =
+      RequisitionsValidator(
+        privateEncryptionKey = loadPrivateKey(edpPrivateKey),
+        allowMixedEventGroupSelectors =
+          dispatchConfig.resultsFulfillerParams.hasEventGroupReferenceIdEntityKeyMapping(),
+      )
 
     val kingdomMutationThrottler = MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval)
     val kingdomEventGroupThrottler =
