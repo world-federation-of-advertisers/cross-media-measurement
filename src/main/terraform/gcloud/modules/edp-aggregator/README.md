@@ -92,7 +92,7 @@ To reduce cleanup retries during the upgrade, update these components in order:
 
 1.  EDPA internal metadata API server.
 2.  EDPA public API server.
-3.  Cleanup functions.
+3.  Availability sync and cleanup functions.
 
 Uploads and deletions can continue throughout the upgrade. Deletion events already
 waiting to be processed need no changes.
@@ -100,7 +100,9 @@ waiting to be processed need no changes.
 If an updated cleanup function reaches an API server still running the old code,
 the cleanup attempt fails and the system retries the event. Events that reach the
 retry limit go to the existing cleanup dead-letter queue. After the upgrade, check
-that queue and retry any failed events.
+that queue and [retry any failed events](#retry-a-failed-cleanup-event). A failed
+attempt names the internal metadata API or public API when that server needs an
+upgrade.
 
 Cleanup jobs still running the old code can still mistakenly mark a replacement
 file's metadata as deleted. The fix applies when the updated cleanup code processes
@@ -109,6 +111,77 @@ an event.
 Both triggers use the same service account and dead-letter queue. Enabling archive
 events handles future removals; it does not repair metadata left behind by earlier
 missed notifications.
+
+### Retry a failed cleanup event
+
+Use `ReplayStorageCleanupEvent` after the API servers and functions have been
+upgraded. This command sends one saved deletion or archive event to the original
+deletion watcher, which selects the data provider and calls cleanup. It accepts
+events queued before the upgrade, including events without a generation or
+metadata resource ID. It does not acknowledge the queue message.
+
+You need a local checkout, Bazel, `gcloud`, `jq`, permission to pull and acknowledge
+messages on the dead-letter subscription, and permission to obtain an identity
+token for a service account that can invoke the deletion watcher.
+
+1.  Set the dead-letter **subscription** and deletion watcher URL for the failed
+    event. Use the URL of the deletion watcher attached to that queue. Both
+    deletion and archive triggers use the deletion watcher.
+
+    ```shell
+    CLEANUP_DLQ_SUBSCRIPTION='projects/PROJECT/subscriptions/DELETION_WATCHER_DLQ_SUBSCRIPTION'
+    CLEANUP_WATCHER_URL='https://DELETION_WATCHER_URL'
+    CLEANUP_INVOKER_SERVICE_ACCOUNT='INVOKER_SERVICE_ACCOUNT_EMAIL'
+    umask 077
+    CLEANUP_REPLAY_DIR=$(mktemp -d)
+    ```
+
+2.  Pull one message without acknowledging it. If the output is `[]`, the queue
+    has no message available; stop here. Otherwise, extend its acknowledgment
+    deadline while you inspect it.
+
+    ```shell
+    gcloud pubsub subscriptions pull "$CLEANUP_DLQ_SUBSCRIPTION" \
+      --limit=1 --format=json > "$CLEANUP_REPLAY_DIR/message.json"
+    CLEANUP_REPLAY_ACK_ID=$(jq -er '.[0].ackId // empty' "$CLEANUP_REPLAY_DIR/message.json")
+    gcloud pubsub subscriptions modify-message-ack-deadline "$CLEANUP_DLQ_SUBSCRIPTION" \
+      --ack-ids="$CLEANUP_REPLAY_ACK_ID" --ack-deadline=600
+    jq '.[0].message.attributes' "$CLEANUP_REPLAY_DIR/message.json"
+    jq -r '.[0].message.data | @base64d' "$CLEANUP_REPLAY_DIR/message.json"
+    ```
+
+    Confirm this is a deletion or archive event for a bucket handled by the
+    selected watcher. Keep the original JSON; do not add or change its version or
+    metadata fields. The command supports native Cloud Storage Pub/Sub
+    notifications and exported events with `ce-*` attributes.
+
+3.  Obtain a token and replay the saved event from the repository root. The queue
+    message is acknowledged only if the watcher returns HTTP 200.
+
+    ```shell
+    gcloud auth print-identity-token \
+      --impersonate-service-account="$CLEANUP_INVOKER_SERVICE_ACCOUNT" \
+      --audiences="$CLEANUP_WATCHER_URL" > "$CLEANUP_REPLAY_DIR/identity-token"
+    if bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:ReplayStorageCleanupEvent -- \
+      --message-file="$CLEANUP_REPLAY_DIR/message.json" \
+      --watcher-url="$CLEANUP_WATCHER_URL" \
+      --identity-token-file="$CLEANUP_REPLAY_DIR/identity-token"; then
+      gcloud pubsub subscriptions ack "$CLEANUP_DLQ_SUBSCRIPTION" \
+        --ack-ids="$CLEANUP_REPLAY_ACK_ID"
+    fi
+    rm "$CLEANUP_REPLAY_DIR/identity-token"
+    ```
+
+    On failure, leave the message unacknowledged and check the watcher and cleanup
+    logs. On success, cleanup either marked the missing file's metadata deleted or
+    found that cleanup was no longer needed, for example because a replacement
+    is live. Confirm the metadata state and repeat from step 2 for other failed
+    events. If the acknowledgment deadline expires, pull the message again before
+    replaying and acknowledging it; repeated cleanup attempts are safe.
+
+    Empty objects other than `done` markers are skipped by the watcher, so the
+    replay command rejects those events for manual investigation. Invalid or
+    unrelated events are also rejected before an HTTP request is sent.
 
 ### Known gaps
 
