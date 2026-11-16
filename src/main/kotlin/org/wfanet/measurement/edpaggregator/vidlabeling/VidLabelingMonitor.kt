@@ -40,6 +40,7 @@ import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.telemetry.XmmTracing
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityPublicationStatus
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
@@ -271,6 +272,7 @@ class VidLabelingMonitor(
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
+      metrics.availabilityMonitoringErrorsGauge.set(1L, dataProviderAttributes())
       metrics.recoveryStepFailuresCounter.add(1, recoveryStepAttributes("list_availability_owners"))
       logger.log(Level.WARNING, "Availability recovery scan failed for $dataProviderName", e)
     }
@@ -323,7 +325,15 @@ class VidLabelingMonitor(
     }
 
   private suspend fun runHealthInternal(): HealthResult {
-    val snapshot = RunSnapshot(listAllUploads().groupBy { it.state })
+    val snapshot =
+      try {
+        RunSnapshot(listAllUploads().groupBy { it.state })
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        metrics.availabilityMonitoringErrorsGauge.set(1L, dataProviderAttributes())
+        throw e
+      }
     reconcileTerminalWorkItemFailures(snapshot)
     val (stuckUploads, failedModelLines) = checkFailuresAndStaleness(snapshot)
     val availabilityRecovery = recoverPendingAvailability(snapshot)
@@ -1328,10 +1338,20 @@ class VidLabelingMonitor(
     )
   }
 
+  private data class AvailabilityHealth(
+    var pendingAge: Long = 0,
+    var failedExecutions: Long = 0,
+    var terminalFailures: Long = 0,
+    var pending: Boolean = false,
+    var incomplete: Boolean = false,
+  )
+
   /** Defers a healing replacement's availability recovery until its fence is released. */
   private suspend fun recoverPendingAvailability(snapshot: RunSnapshot): RecoverySummary {
     var recovered = 0
     var unrecoverable = 0
+    val healthByModelLine = mutableMapOf<String, AvailabilityHealth>()
+    var scanIncomplete = false
     for (upload in snapshot.everyUpload()) {
       if (
         !upload.registrationComplete ||
@@ -1350,14 +1370,16 @@ class VidLabelingMonitor(
             1,
             recoveryStepAttributes("list_availability_owners"),
           )
+          scanIncomplete = true
           logger.log(Level.WARNING, "Cannot inspect availability owners for ${upload.name}", e)
           continue
         }
-      for (row in
-        rows.filter { it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING }) {
+      for (row in rows) {
+        val health = healthByModelLine.getOrPut(row.cmmsModelLine) { AvailabilityHealth() }
+        if (row.state != RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING) continue
         val outcome =
           try {
-            recoverAvailabilitySyncing(upload, row)
+            recoverAvailabilitySyncing(upload, row, health)
           } catch (e: CancellationException) {
             throw e
           } catch (e: Exception) {
@@ -1365,6 +1387,7 @@ class VidLabelingMonitor(
               1,
               recoveryStepAttributes("availability_recovery"),
             )
+            health.incomplete = true
             logger.log(Level.WARNING, "Cannot recover availability for ${row.name}", e)
             continue
           }
@@ -1379,25 +1402,83 @@ class VidLabelingMonitor(
         }
       }
     }
+    var maximumPublicationAge = 0L
+    for ((modelLine, health) in healthByModelLine) {
+      var publicationAge = 0L
+      if (health.pending) {
+        publicationAge =
+          try {
+            val publishedAt =
+              DataAvailabilityPublicationStatus.read(
+                vidLabeledImpressionsStorageClient,
+                SelectedStorageClient.parseBlobUri(vidLabeledImpressionsBlobPrefix).key,
+                dataProviderName,
+                modelLine,
+              )
+            if (publishedAt == null) health.pendingAge else ageSeconds(publishedAt)
+          } catch (e: CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            health.incomplete = true
+            XmmTracing.recordFailure(Span.current(), e)
+            VidLabelingTraceLogging.log(
+              logger,
+              Level.WARNING,
+              "edpa.vid_labeling.monitor.publication_read_failed",
+              VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+              VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+              XmmTraceAttributes.ERROR_TYPE_STRING to XmmTraceAttributes.errorType(e),
+              XmmTraceAttributes.ERROR_CODE_STRING to XmmTraceAttributes.errorCode(e),
+            )
+            health.pendingAge
+          }
+      }
+      maximumPublicationAge = maxOf(maximumPublicationAge, publicationAge)
+    }
+    val attributes = dataProviderAttributes()
+    metrics.pendingAvailabilityAgeGauge.set(
+      healthByModelLine.values.maxOfOrNull { it.pendingAge } ?: 0L,
+      attributes,
+    )
+    metrics.failedAvailabilityExecutionsGauge.set(
+      healthByModelLine.values.maxOfOrNull { it.failedExecutions } ?: 0L,
+      attributes,
+    )
+    metrics.terminalAvailabilityFailuresGauge.set(
+      healthByModelLine.values.sumOf { it.terminalFailures },
+      attributes,
+    )
+    metrics.availabilityPublicationAgeGauge.set(maximumPublicationAge, attributes)
+    metrics.availabilityMonitoringErrorsGauge.set(
+      if (scanIncomplete || healthByModelLine.values.any { it.incomplete }) 1L else 0L,
+      attributes,
+    )
     return RecoverySummary(recovered, 0, unrecoverable)
   }
 
   private suspend fun recoverAvailabilitySyncing(
     upload: RawImpressionUpload,
     modelLine: RawImpressionUploadModelLine,
+    health: AvailabilityHealth,
   ): RecoveryOutcome {
     val operationName = upload.uploadHealingOperation
     if (operationName.isNotEmpty() && isUploadHealingActive(operationName)) {
       return RecoveryOutcome.NOOP
     }
-    return recoverAvailabilityWorkItems(upload.name, modelLine)
+    return recoverAvailabilityWorkItems(upload.name, modelLine, health)
   }
+
+  private fun ageSeconds(time: Instant): Long =
+    Duration.between(time, clock.instant()).seconds.coerceAtLeast(0L)
 
   private suspend fun recoverAvailabilityWorkItems(
     uploadName: String,
     modelLine: RawImpressionUploadModelLine,
+    health: AvailabilityHealth,
   ): RecoveryOutcome {
+    health.pending = true
     if (modelLine.pendingAvailabilityDatesList.isEmpty()) {
+      health.incomplete = true
       logger.severe("Cannot recover ${modelLine.name}: no pending availability dates")
       return RecoveryOutcome.UNRECOVERABLE
     }
@@ -1411,6 +1492,7 @@ class VidLabelingMonitor(
           logger.log(Level.SEVERE, "Cannot recover ${modelLine.name}: invalid pending date", e)
           XmmTracing.recordFailure(Span.current(), e)
           unrecoverable = true
+          health.incomplete = true
           continue
         }
       val doneUri =
@@ -1442,12 +1524,14 @@ class VidLabelingMonitor(
             XmmTraceAttributes.ERROR_TYPE_STRING to errorType,
             XmmTraceAttributes.ERROR_CODE_STRING to errorCode,
           )
+          health.incomplete = true
           metrics.recoveryStepFailuresCounter.add(1, recoveryStepAttributes("read_done_marker"))
           continue
         }
       if (blob == null) {
         logger.severe("Cannot recover ${modelLine.name}: done marker $pathHash is missing")
         unrecoverable = true
+        health.incomplete = true
         continue
       }
       val generation =
@@ -1459,8 +1543,10 @@ class VidLabelingMonitor(
           "Cannot recover ${modelLine.name}: done marker $pathHash has no positive generation"
         )
         unrecoverable = true
+        health.incomplete = true
         continue
       }
+      health.pendingAge = maxOf(health.pendingAge, ageSeconds(blob.createTime))
       val outcome =
         try {
           availabilityPublisher.ensure(
@@ -1473,6 +1559,10 @@ class VidLabelingMonitor(
             generation,
             blob.createTime,
             Tracing.currentW3CTraceContext(),
+            onExecutionHistory = { history ->
+              health.failedExecutions = maxOf(health.failedExecutions, history.failedExecutions)
+              if (history.terminalFailure) health.terminalFailures++
+            },
           )
         } catch (e: CancellationException) {
           throw e
@@ -1482,6 +1572,7 @@ class VidLabelingMonitor(
               "(${e.status.code})"
           )
           XmmTracing.recordFailure(Span.current(), e)
+          health.incomplete = true
           metrics.recoveryStepFailuresCounter.add(
             1,
             recoveryStepAttributes("ensure_availability_work_item"),
@@ -1491,6 +1582,7 @@ class VidLabelingMonitor(
           logger.log(Level.SEVERE, "Cannot recover ${modelLine.name}: invalid availability task", e)
           XmmTracing.recordFailure(Span.current(), e)
           unrecoverable = true
+          health.incomplete = true
           continue
         }
       when (outcome.state) {
@@ -1512,6 +1604,7 @@ class VidLabelingMonitor(
             } catch (e: CancellationException) {
               throw e
             } catch (e: Exception) {
+              health.incomplete = true
               metrics.recoveryStepFailuresCounter.add(1, recoveryStepAttributes("verify_date_ack"))
               logger.log(Level.WARNING, "Cannot verify availability date acknowledgment", e)
               continue
@@ -1521,6 +1614,7 @@ class VidLabelingMonitor(
               "Availability WorkItem succeeded while its date remains pending for ${modelLine.name}"
             )
             unrecoverable = true
+            health.incomplete = true
           } else if (outcome.outcome == "retried") {
             created = true
           }
@@ -1529,6 +1623,7 @@ class VidLabelingMonitor(
         WorkItem.State.UNRECOGNIZED -> {
           logger.severe("Availability WorkItem has invalid state for ${modelLine.name}")
           unrecoverable = true
+          health.incomplete = true
         }
       }
     }
