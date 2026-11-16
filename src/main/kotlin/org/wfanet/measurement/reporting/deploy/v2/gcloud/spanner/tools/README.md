@@ -451,7 +451,5 @@ Output contains external result IDs and examined/deleted/skipped counts.
 failure exits nonzero and reports partial progress; rerunning the command
 safely picks up remaining candidates.
 
-For repeated maintenance runs, replace `--created-before` with
-`--older-than=7d`. Use the same command within a maintenance process that pauses
-and drains assembly before deletion and resumes it afterward, including after a
-cleanup failure. The command itself does not suspend Kubernetes jobs.
+See the [periodic maintenance guide](../../../../../../../../../../../../docs/operations/cleaning-up-abandoned-report-results.md)
+for the suggested schedule, pause and drain procedure, and recovery steps.
