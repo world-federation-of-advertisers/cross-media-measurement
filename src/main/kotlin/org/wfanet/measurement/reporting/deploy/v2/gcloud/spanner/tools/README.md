@@ -451,5 +451,5 @@ Output contains external result IDs and examined/deleted/skipped counts.
 failure exits nonzero and reports partial progress; rerunning the command
 safely picks up remaining candidates.
 
-See the [periodic maintenance guide](../../../../../../../../../../../../docs/operations/cleaning-up-abandoned-report-results.md)
+See the [periodic maintenance guide](/docs/operations/cleaning-up-abandoned-report-results.md)
 for when to run cleanup, the pause and drain procedure, and recovery steps.
