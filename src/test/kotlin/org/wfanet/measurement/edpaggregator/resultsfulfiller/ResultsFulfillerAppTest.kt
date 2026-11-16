@@ -313,7 +313,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -460,7 +463,10 @@ class ResultsFulfillerAppTest {
       val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
       val requisitionValidator =
-        RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+        RequisitionsValidator(
+          privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+          allowMixedEventGroupSelectors = false,
+        )
       val groupedRequisitions =
         SingleRequisitionGrouper(
             requisitionsClient = requisitionsStub,
@@ -593,7 +599,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val requisition2 =
       REQUISITION.copy {
         protocolConfig = protocolConfig {
@@ -725,7 +734,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val requisition2 =
       REQUISITION.copy {
         protocolConfig = protocolConfig {
@@ -876,7 +888,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -1012,7 +1027,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -1159,7 +1177,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -1319,7 +1340,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -1485,7 +1509,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,

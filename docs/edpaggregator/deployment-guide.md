@@ -1047,14 +1047,13 @@ Use this rollout order:
 2. Ensure every EventGroupSync input with the mapped entity type supplies both
    a non-blank `event_group_reference_id` and a non-blank `entity_key.entity_id`.
    The two values must be exactly equivalent after prefix conversion.
-3. Prevent reports from selecting a partially migrated EventGroup cohort. Pause
-   report creation during a batched migration, or migrate every EventGroup that
-   can occur in one report before allowing that report. RequisitionFetcher
-   refuses a report as `UNFULFILLABLE` when some selected EventGroups have entity
-   keys and others are still reference-ID-only; the ResultsFulfiller mapping
-   cannot bypass that validation.
+3. Verify that the deployed RequisitionFetcher supports mixed selectors and
+   that every affected EDP's `work_item_dispatch.results_fulfiller_params`
+   contains the mapping. With it configured, one requisition may select both
+   reference-ID-only and entity-key EventGroups during a batched migration.
+   Without it, RequisitionFetcher refuses mixed selections as `UNFULFILLABLE`.
 4. Configure and run EventGroupSync with the same mapping, then verify the
-   targeted EventGroups have entity keys before resuming report creation.
+   targeted EventGroups retain their resource names and have entity keys.
 
 EventGroupSync uses both supplied identifiers to find and update the existing
 EventGroup instead of creating a second resource. It does not derive a missing
@@ -1322,7 +1321,9 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
 
 * `event_group_reference_id_entity_key_mapping` — optional equivalence between
   legacy event-group reference IDs and one entity-key type. Presence enables
-  lookup and filtering through both representations. Its two prefixes are
+  lookup and filtering through both representations, and permits mixed
+  reference-ID-only and entity-key selectors in a requisition when included in
+  the RequisitionFetcher's dispatched params. Its two prefixes are
   independent and optional; leave either blank when that representation is
   unprefixed.
 * `whole_blob_entity_types` — entity types whose `BlobDetails.entity_keys` group
