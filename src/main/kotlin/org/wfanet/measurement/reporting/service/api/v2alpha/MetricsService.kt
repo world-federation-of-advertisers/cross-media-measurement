@@ -1770,6 +1770,7 @@ class MetricsService(
         InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
         InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
         InternalErrors.Reason.INVALID_BASIC_REPORT,
+        InternalErrors.Reason.PROCESSED_RESULT_REQUEST_CONFLICT,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
