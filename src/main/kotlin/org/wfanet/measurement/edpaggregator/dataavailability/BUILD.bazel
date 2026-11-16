@@ -8,9 +8,14 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "data_availability_blobs",
-    srcs = ["DataAvailabilityBlobs.kt"],
+    srcs = [
+        "DataAvailabilityBlobs.kt",
+        "DataAvailabilityPublicationStatus.kt",
+    ],
     deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )
