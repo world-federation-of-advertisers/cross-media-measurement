@@ -15,3 +15,16 @@ gcloud auth application-default login --impersonate-service-account=SERVICE_ACCO
 
 The ID token audience is the configured RequisitionFetcher endpoint. Google's
 credential library refreshes the token as needed throughout the test.
+
+## VID labeling fixture wait
+
+The fixture wait matches every seeded done blob by its GCS URI and generation.
+Each upload must finish registration and have completed model lines before the
+measurement fixtures are published. Uploads in `FAILED`, `CORRECTION_REQUIRED`,
+or `REMOVED_WITHOUT_REPLACEMENT` fail setup immediately with their names and
+states. Failed model lines also fail setup.
+
+Read-only polling retries temporary `INTERNAL`, `UNAVAILABLE`,
+`DEADLINE_EXCEEDED`, and `ABORTED` responses. Five consecutive failed polls stop
+setup and retain the last RPC failure and pipeline state. Each RPC has a
+30-second deadline; the overall pipeline wait remains limited to 60 minutes.
