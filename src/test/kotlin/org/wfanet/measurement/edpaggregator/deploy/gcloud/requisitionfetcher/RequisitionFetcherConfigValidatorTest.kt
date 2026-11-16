@@ -19,11 +19,13 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.TextFormat
 import com.google.protobuf.duration
+import com.google.type.date
 import kotlin.test.assertFailsWith
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
+import org.wfanet.measurement.config.edpaggregator.ModelLineCutoverConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionWorkItemDispatchConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams
@@ -186,6 +188,77 @@ class RequisitionFetcherConfigValidatorTest {
   }
 
   @Test
+  fun `deployment config accepts cutover data source windows`() {
+    RequisitionFetcherConfigValidator.validate(
+      RequisitionFetcherConfig.newBuilder().addConfigs(validCutoverDataProviderConfig()).build(),
+      CONTROL_PLANE_TARGET,
+    )
+  }
+
+  @Test
+  fun `deployment config requires both cutover data sources`() {
+    val dataProviderConfig = validCutoverDataProviderConfig()
+    val params =
+      dataProviderConfig.workItemDispatch.resultsFulfillerParams
+        .toBuilder()
+        .removeModelLineDataSources(HISTORICAL_MODEL_LINE)
+    val config =
+      RequisitionFetcherConfig.newBuilder()
+        .addConfigs(
+          dataProviderConfig
+            .toBuilder()
+            .setWorkItemDispatch(
+              dataProviderConfig.workItemDispatch.toBuilder().setResultsFulfillerParams(params)
+            )
+        )
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        RequisitionFetcherConfigValidator.validate(config, CONTROL_PLANE_TARGET)
+      }
+
+    assertThat(exception).hasMessageThat().contains("Missing model_line_data_sources entry")
+  }
+
+  @Test
+  fun `deployment config requires validity dates to match cutover`() {
+    val dataProviderConfig = validCutoverDataProviderConfig()
+    val invalidReplacement =
+      dataProviderConfig.workItemDispatch.resultsFulfillerParams.modelLineDataSourcesMap
+        .getValue(REPLACEMENT_MODEL_LINE)
+        .toBuilder()
+        .setValidStartDate(
+          date {
+            year = 2026
+            month = 10
+            day = 6
+          }
+        )
+    val params =
+      dataProviderConfig.workItemDispatch.resultsFulfillerParams
+        .toBuilder()
+        .putModelLineDataSources(REPLACEMENT_MODEL_LINE, invalidReplacement.build())
+    val config =
+      RequisitionFetcherConfig.newBuilder()
+        .addConfigs(
+          dataProviderConfig
+            .toBuilder()
+            .setWorkItemDispatch(
+              dataProviderConfig.workItemDispatch.toBuilder().setResultsFulfillerParams(params)
+            )
+        )
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        RequisitionFetcherConfigValidator.validate(config, CONTROL_PLANE_TARGET)
+      }
+
+    assertThat(exception).hasMessageThat().contains("must match cutover_date")
+  }
+
+  @Test
   fun `deployment config requires requisition metadata storage connection`() {
     val config =
       RequisitionFetcherConfig.newBuilder()
@@ -277,6 +350,58 @@ class RequisitionFetcherConfigValidatorTest {
       )
       .build()
 
+  private fun validCutoverDataProviderConfig(): DataProviderRequisitionConfig {
+    val cutover =
+      ModelLineCutoverConfig.newBuilder()
+        .setExternalModelLine(EXTERNAL_MODEL_LINE)
+        .setHistoricalModelLine(HISTORICAL_MODEL_LINE)
+        .setReplacementModelLine(REPLACEMENT_MODEL_LINE)
+        .setCutoverDate(
+          date {
+            year = 2026
+            month = 10
+            day = 5
+          }
+        )
+        .setLegacyRequiredThroughDate(
+          date {
+            year = 2026
+            month = 10
+            day = 6
+          }
+        )
+        .setMaximumReportDuration(duration { seconds = 86400 })
+        .build()
+    val params =
+      resultsFulfillerParams()
+        .toBuilder()
+        .putModelLineDataSources(
+          HISTORICAL_MODEL_LINE,
+          ResultsFulfillerParams.ModelLineDataSource.newBuilder()
+            .setBlobUriPrefix("gs://bucket/historical")
+            .setValidEndDate(cutover.legacyRequiredThroughDate)
+            .build(),
+        )
+        .putModelLineDataSources(
+          REPLACEMENT_MODEL_LINE,
+          ResultsFulfillerParams.ModelLineDataSource.newBuilder()
+            .setBlobUriPrefix("gs://bucket/replacement")
+            .setValidStartDate(cutover.cutoverDate)
+            .build(),
+        )
+        .build()
+    val config = validDataProviderConfig()
+    return config
+      .toBuilder()
+      .setWorkItemDispatch(
+        config.workItemDispatch
+          .toBuilder()
+          .setResultsFulfillerParams(params)
+          .addModelLineCutovers(cutover)
+      )
+      .build()
+  }
+
   private fun tlsParams(): TransportLayerSecurityParams =
     TransportLayerSecurityParams.newBuilder()
       .setCertFilePath("/secrets/client.pem")
@@ -323,5 +448,11 @@ class RequisitionFetcherConfigValidatorTest {
     private const val DATA_PROVIDER = "dataProviders/dp"
     private const val CONTROL_PLANE_TARGET = "secure-computation.example:8443"
     private const val RESULTS_FULFILLER_QUEUE = "results-fulfiller-queue"
+    private const val EXTERNAL_MODEL_LINE =
+      "modelProviders/provider/modelSuites/suite/modelLines/external"
+    private const val HISTORICAL_MODEL_LINE =
+      "modelProviders/provider/modelSuites/suite/modelLines/historical"
+    private const val REPLACEMENT_MODEL_LINE =
+      "modelProviders/provider/modelSuites/suite/modelLines/replacement"
   }
 }

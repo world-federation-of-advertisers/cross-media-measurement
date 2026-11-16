@@ -43,6 +43,10 @@ service RequisitionMetadataService {
       RegisterQueuedRequisitionMetadataRequest)
       returns (RegisterQueuedRequisitionMetadataResponse);
 
+  // Resolves the immutable model-line choice for a Report.
+  rpc ResolveReportRoutingDecision(ResolveReportRoutingDecisionRequest)
+      returns (ResolveReportRoutingDecisionResponse);
+
   // Retrieves a specific RequisitionMetadata entry by its resource ID.
   rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
       returns (RequisitionMetadata);
@@ -109,6 +113,16 @@ message RegisterQueuedRequisitionMetadataRequest {
 
 message RegisterQueuedRequisitionMetadataResponse {
   repeated RequisitionMetadata requisition_metadata = 1;
+}
+
+message ResolveReportRoutingDecisionRequest {
+  string data_provider_resource_id = 1;
+  ReportRoutingDecision candidate = 2;
+}
+
+message ResolveReportRoutingDecisionResponse {
+  ReportRoutingDecision report_routing_decision = 1;
+  bool created = 2;
 }
 
 message GetRequisitionMetadataRequest {
