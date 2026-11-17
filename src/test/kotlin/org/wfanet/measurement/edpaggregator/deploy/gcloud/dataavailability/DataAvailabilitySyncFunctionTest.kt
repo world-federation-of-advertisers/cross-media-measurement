@@ -64,6 +64,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
@@ -168,6 +169,8 @@ class DataAvailabilitySyncFunctionTest {
     }
 
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
+    onBlocking { getDataProvider(any<GetDataProviderRequest>()) }
+      .thenAnswer { DataProvider.getDefaultInstance() }
     onBlocking { replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>()) }
       .thenAnswer { DataProvider.getDefaultInstance() }
   }
