@@ -41,8 +41,11 @@ object ModelLineAliasValidator {
           listOf(it.externalModelLine, it.historicalModelLine, it.replacementModelLine)
         }
     for (name in references) {
-      val key = ModelLineKey.fromName(name) ?: continue
-      for (id in listOf(key.modelProviderId, key.modelSuiteId, key.modelLineId)) {
+      val key =
+        requireNotNull(ModelLineKey.fromName(name)) { "Invalid ModelLine resource name: $name" }
+      val ids = listOf(key.modelProviderId, key.modelSuiteId, key.modelLineId)
+      require(ids.all { it.isNotEmpty() }) { "Invalid ModelLine resource name: $name" }
+      for (id in ids) {
         // Opaque local resource IDs remain supported. Numeric Kingdom API IDs must
         // use their canonical spelling so string ownership matches persisted identity.
         val canonical = runCatching { ApiId(id).externalId.apiId.value }.getOrNull() ?: continue
@@ -50,9 +53,6 @@ object ModelLineAliasValidator {
       }
     }
     ModelLineCutoverValidator.validate(cutovers, aliases.values.flatten().toSet())
-    require(hiddenModelLines.all { ModelLineKey.fromName(it) != null }) {
-      "hidden_model_lines must contain valid ModelLine resource names"
-    }
     val visible = cutovers.mapTo(mutableSetOf()) { it.externalModelLine }
     require(hiddenModelLines.intersect(visible).isEmpty()) {
       "hidden_model_lines must not contain a cutover-visible model line"

@@ -2152,7 +2152,7 @@ class DataAvailabilitySyncTest {
       val mappedLines =
         listOf(
           "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineB",
-          "dataProviders/dataProvider123/modelLines/modelLineC",
+          "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineC",
         )
 
       val dataAvailabilitySync =
@@ -4740,6 +4740,43 @@ class DataAvailabilitySyncTest {
       scenario.assertLastPublication(emptyMap())
       scenario.assertCompleted(done)
     }
+
+  @Test
+  fun `constructor rejects malformed configured ModelLine references before publication`() {
+    val storage = FakeBlobMetadataStorageClient(FileSystemStorageClient(tempFolder.root))
+    val invalid = "modelLines/bad"
+    fun construct(aliases: Map<String, List<String>>, sourceKeys: Set<String> = emptySet()) =
+      DataAvailabilitySync(
+        edpImpressionPath = "edp/test",
+        storageClient = storage,
+        dataProvidersStub = dataProvidersStub,
+        impressionMetadataServiceStub = impressionMetadataStub,
+        dataProviderName = "dataProviders/dataProvider123",
+        throttler = RecordingThrottler(),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = aliases,
+        errorIfGapsExist = false,
+        publishEventGroupActivities = null,
+        modelLineDataSources =
+          sourceKeys.associateWith { DataAvailabilitySync.ModelLineDataSource(storage, "edp/test") },
+      )
+    val errors =
+      listOf(
+        assertFailsWith<IllegalArgumentException> {
+          construct(mapOf(invalid to listOf(MODEL_LINE)))
+        },
+        assertFailsWith<IllegalArgumentException> {
+          construct(mapOf(MODEL_LINE to listOf(invalid)))
+        },
+        assertFailsWith<IllegalArgumentException> { construct(emptyMap(), setOf(invalid)) },
+      )
+    for (error in errors) {
+      assertThat(error).hasMessageThat().contains("Invalid ModelLine resource name")
+      assertThat(error).hasMessageThat().contains(invalid)
+    }
+    verifyBlocking(dataProvidersServiceMock, never()) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(impressionMetadataServiceMock, never()) { batchCreateImpressionMetadata(any()) }
+  }
 
   @Test
   fun `sync rejects contributor alias ownership collision at construction`() {

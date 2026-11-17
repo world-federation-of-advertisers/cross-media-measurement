@@ -1730,7 +1730,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     val metadataRequest = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       batchCreateImpressionMetadata(metadataRequest.capture())
@@ -1870,7 +1870,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
 
@@ -1984,7 +1984,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
@@ -2124,7 +2124,9 @@ class DataAvailabilitySyncFunctionTest {
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"
       vidLabeledImpressionPath = "edp/edp_name/vid-labeler"
-      modelLineMap[modelLineResourceName] = modelLineList { modelLines += "some-model-line-mapped" }
+      modelLineMap[modelLineResourceName] = modelLineList {
+        modelLines += "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped"
+      }
       errorIfGapsExist = true
     }
 
@@ -2293,7 +2295,7 @@ class DataAvailabilitySyncFunctionTest {
       vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
       modelLineMap["modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"] =
         modelLineList {
-          modelLines += "some-model-line-mapped"
+          modelLines += "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped"
         }
     }
 

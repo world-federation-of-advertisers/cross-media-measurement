@@ -1117,7 +1117,7 @@ configs {
   secure_computation_control_plane_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   edp_impression_path: "edp/<edp-id>"
   vid_labeled_impression_path: "vid-labeled-impressions/edp/<edp-id>"  # required when VID labeling is enabled
-  # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
+  # model_line_map { key: "modelProviders/MP/modelSuites/MS/modelLines/INTERNAL" value { model_lines: ["modelProviders/MP/modelSuites/MS/modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
   # model_line_cutovers {
   #   external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/VISIBLE"

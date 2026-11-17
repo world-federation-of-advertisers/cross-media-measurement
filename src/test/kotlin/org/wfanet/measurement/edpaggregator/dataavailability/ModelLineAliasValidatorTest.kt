@@ -38,6 +38,68 @@ class ModelLineAliasValidatorTest {
       Duration.ofDays(2),
     )
 
+  private val malformedNames =
+    listOf(
+      "",
+      "modelLines/dev",
+      "modelProviders/mp/modelSuites/ms",
+      "modelProviders/mp/modelSuites/ms/modelLines/",
+      "modelProviders/mp/modelSuites//modelLines/dev",
+      "modelProviders//modelSuites/ms/modelLines/dev",
+      "/modelProviders/mp/modelSuites/ms/modelLines/dev",
+      "modelProviders/mp/modelSuites/ms/modelLines/dev/",
+      "modelProviders/mp/modelSuites/ms/modelLines/dev/extra",
+      "modelProviders/mp/modelSuites/ms/models/dev",
+    )
+
+  @Test
+  fun `validate rejects malformed alias source names`() {
+    for (name in malformedNames) {
+      val error =
+        assertFailsWith<IllegalArgumentException> {
+          ModelLineAliasValidator.validate(emptyList(), mapOf(name to listOf(d1)))
+        }
+      assertThat(error).hasMessageThat().contains("Invalid ModelLine resource name")
+      assertThat(error).hasMessageThat().contains(name)
+    }
+  }
+
+  @Test
+  fun `validate rejects malformed alias target names`() {
+    for (name in malformedNames) {
+      val error =
+        assertFailsWith<IllegalArgumentException> {
+          ModelLineAliasValidator.validate(emptyList(), mapOf(r1 to listOf(name)))
+        }
+      assertThat(error).hasMessageThat().contains("Invalid ModelLine resource name")
+      assertThat(error).hasMessageThat().contains(name)
+    }
+  }
+
+  @Test
+  fun `validate rejects malformed storage source names`() {
+    for (name in malformedNames) {
+      val error =
+        assertFailsWith<IllegalArgumentException> {
+          ModelLineAliasValidator.validate(emptyList(), emptyMap(), sourceModelLines = setOf(name))
+        }
+      assertThat(error).hasMessageThat().contains("Invalid ModelLine resource name")
+      assertThat(error).hasMessageThat().contains(name)
+    }
+  }
+
+  @Test
+  fun `validate rejects malformed hidden source names with the offending reference`() {
+    for (name in malformedNames) {
+      val error =
+        assertFailsWith<IllegalArgumentException> {
+          ModelLineAliasValidator.validate(emptyList(), emptyMap(), hiddenModelLines = setOf(name))
+        }
+      assertThat(error).hasMessageThat().contains("Invalid ModelLine resource name")
+      assertThat(error).hasMessageThat().contains(name)
+    }
+  }
+
   @Test
   fun `validate accepts independent aliases with one source each`() {
     ModelLineAliasValidator.validate(listOf(cutover), mapOf(r1 to listOf(d1, d2)))

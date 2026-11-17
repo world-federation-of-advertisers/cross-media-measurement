@@ -117,6 +117,40 @@ class RecoverMissingImpressionMetadataTest {
   }
 
   @Test
+  fun `main rejects malformed ModelLine references before synchronization`() {
+    val invalid = "modelLines/bad"
+    val valid = "modelProviders/mp/modelSuites/ms/modelLines/valid"
+    val fragments =
+      listOf(
+        "model_line_map { key: \"" + invalid + "\" value { model_lines: \"" + valid + "\" } }",
+        "model_line_map { key: \"" + valid + "\" value { model_lines: \"" + invalid + "\" } }",
+        "model_line_data_sources { key: \"" +
+          invalid +
+          "\" value { storage { gcs { bucket_name: \"" +
+          BUCKET_NAME +
+          "\" } } edp_impression_path: \"" +
+          EDP_IMPRESSION_PATH +
+          "\" } }",
+      )
+    storageEmulator.createBucket(BUCKET_NAME)
+    try {
+      for (fragment in fragments) {
+        val configFile = writeConfigFile(validConfig() + "\n" + fragment)
+        val output =
+          CommandLineTesting.capturingOutput(
+            requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0) + storageArgs,
+            ::main,
+          )
+        CommandLineTesting.assertThat(output).status().isNotEqualTo(0)
+        CommandLineTesting.assertThat(output).err().contains("Invalid ModelLine resource name")
+        CommandLineTesting.assertThat(output).err().contains(invalid)
+      }
+    } finally {
+      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
+  }
+
+  @Test
   fun `main rejects equal or nested impression paths`() {
     for (internalPath in listOf(EDP_IMPRESSION_PATH, "$EDP_IMPRESSION_PATH/internal", "edp")) {
       val configFile =
