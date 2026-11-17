@@ -26,16 +26,23 @@ object EntityMetadataValues {
     }
   }
 
+  private val valueAppenders: Map<Value.KindCase, MutableList<String>.(Value) -> Unit> =
+    mapOf(
+      Value.KindCase.STRING_VALUE to { add(it.stringValue) },
+      Value.KindCase.NUMBER_VALUE to { add(it.numberValue.toString()) },
+      Value.KindCase.BOOL_VALUE to { add(it.boolValue.toString()) },
+      Value.KindCase.STRUCT_VALUE to { addAll(flatten(it.structValue)) },
+      Value.KindCase.LIST_VALUE to
+        { value ->
+          for (element in value.listValue.valuesList) {
+            addValue(element)
+          }
+        },
+      Value.KindCase.NULL_VALUE to {},
+      Value.KindCase.KIND_NOT_SET to {},
+    )
+
   private fun MutableList<String>.addValue(value: Value) {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf accessors cannot return null.
-    when (value.kindCase) {
-      Value.KindCase.STRING_VALUE -> add(value.stringValue)
-      Value.KindCase.NUMBER_VALUE -> add(value.numberValue.toString())
-      Value.KindCase.BOOL_VALUE -> add(value.boolValue.toString())
-      Value.KindCase.STRUCT_VALUE -> addAll(flatten(value.structValue))
-      Value.KindCase.LIST_VALUE -> value.listValue.valuesList.forEach { addValue(it) }
-      Value.KindCase.NULL_VALUE,
-      Value.KindCase.KIND_NOT_SET -> Unit
-    }
+    valueAppenders.getValue(value.kindCase).invoke(this, value)
   }
 }
