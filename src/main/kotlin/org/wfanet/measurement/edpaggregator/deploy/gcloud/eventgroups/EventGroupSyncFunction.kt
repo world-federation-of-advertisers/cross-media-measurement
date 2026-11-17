@@ -79,7 +79,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 /*
  * Cloud Run Function that receives a [HTTPRequest] with EventGroupSyncConfig. It updates/registers
- * EventGroups with the kingdom and writes a map of the registered resource names to storage.
+ * EventGroups with the kingdom and writes the complete map for the configured provider and entity
+ * types to storage.
  */
 class EventGroupSyncFunction() : HttpFunction {
 
@@ -195,7 +196,7 @@ class EventGroupSyncFunction() : HttpFunction {
                 entityKeyTypes = eventGroupSyncConfig.entityKeyTypesList,
                 eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
               )
-              .sync(),
+              .syncAndListEventGroupMappings(),
           eventGroupSyncConfig = eventGroupSyncConfig,
           beforePublish = beforePublish,
         )

@@ -310,6 +310,27 @@ class EventGroupSync(
       .build()
 
   /**
+   * Synchronizes input and lists all nondeleted Kingdom mappings for the configured listing scope.
+   */
+  fun syncAndListEventGroupMappings(): Flow<MappedEventGroup> = flow {
+    sync().collect()
+    fetchEventGroups().collect { eventGroup ->
+      if (eventGroup.state == CmmsEventGroup.State.DELETED) {
+        return@collect
+      }
+      emit(
+        mappedEventGroup {
+          eventGroupReferenceId = eventGroup.eventGroupReferenceId
+          eventGroupResource = eventGroup.name
+          if (eventGroup.hasEntityKey()) {
+            entityKey = eventGroup.entityKey.toEdpaEntityKey()
+          }
+        }
+      )
+    }
+  }
+
+  /**
    * Synchronizes EventGroups with the CMMS Public API by creating, updating, or deleting as needed.
    *
    * For EventGroups with `client_account_reference_id`, resolves all associated

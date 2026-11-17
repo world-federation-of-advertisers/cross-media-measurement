@@ -105,6 +105,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.ent
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 
 @RunWith(JUnit4::class)
 class EventGroupSyncTest {
@@ -341,6 +342,115 @@ class EventGroupSyncTest {
         campaign = "campaign-1"
       }
     }
+  }
+
+  @Test
+  fun `syncAndListEventGroupMappings includes unuploaded groups across pages and consumers`() =
+    runBlocking {
+      val createdEventGroup = cmmsEventGroup {
+        name = "dataProviders/data-provider-1/eventGroups/created"
+        eventGroupReferenceId = CAMPAIGNS.first().eventGroupReferenceId
+        measurementConsumer = CAMPAIGNS.first().measurementConsumer
+      }
+      val unuploadedEventGroup = cmmsEventGroup {
+        name = "dataProviders/data-provider-1/eventGroups/unuploaded"
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        entityKey = cmmsEntityKey {
+          entityType = "creative"
+          entityId = "shared-entity-id"
+        }
+      }
+      val otherConsumerEventGroup = cmmsEventGroup {
+        name = "dataProviders/data-provider-1/eventGroups/other-consumer"
+        measurementConsumer = "measurementConsumers/measurement-consumer-2"
+        entityKey = unuploadedEventGroup.entityKey
+      }
+      wheneverBlocking { eventGroupsServiceMock.listEventGroups(any()) }
+        .thenReturn(
+          listEventGroupsResponse {
+            eventGroups += listOf(unuploadedEventGroup, otherConsumerEventGroup)
+          }
+        )
+        .thenReturn(
+          listEventGroupsResponse {
+            eventGroups += listOf(createdEventGroup, unuploadedEventGroup)
+            nextPageToken = "next-page"
+          }
+        )
+        .thenReturn(listEventGroupsResponse { eventGroups += otherConsumerEventGroup })
+      val sync =
+        EventGroupSync(
+          edpName = "dataProviders/data-provider-1",
+          eventGroupsStub = eventGroupsStub,
+          clientAccountsStub = clientAccountsStub,
+          unlinkedClientAccountsStub = unlinkedClientAccountsStub,
+          eventGroups = listOf(CAMPAIGNS.first()).asFlow(),
+          throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+          listEventGroupPageSize = 2,
+          entityKeyTypes = listOf("campaign", "creative"),
+          eventGroupReferenceIdEntityKeyMapping = null,
+        )
+
+      assertThat(sync.syncAndListEventGroupMappings().toList())
+        .containsExactly(
+          mappedEventGroup {
+            eventGroupReferenceId = createdEventGroup.eventGroupReferenceId
+            eventGroupResource = createdEventGroup.name
+          },
+          mappedEventGroup {
+            eventGroupResource = unuploadedEventGroup.name
+            entityKey = entityKey {
+              entityType = "creative"
+              entityId = "shared-entity-id"
+            }
+          },
+          mappedEventGroup {
+            eventGroupResource = otherConsumerEventGroup.name
+            entityKey = entityKey {
+              entityType = "creative"
+              entityId = "shared-entity-id"
+            }
+          },
+        )
+      val listCaptor = argumentCaptor<ListEventGroupsRequest>()
+      verifyBlocking(eventGroupsServiceMock, times(3)) { listEventGroups(listCaptor.capture()) }
+      assertThat(listCaptor.allValues.map { it.pageToken })
+        .containsExactly("", "", "next-page")
+        .inOrder()
+      for (request in listCaptor.allValues) {
+        assertThat(request.parent).isEqualTo("dataProviders/data-provider-1")
+        assertThat(request.pageSize).isEqualTo(2)
+        assertThat(request.filter.entityTypeInList).containsExactly("campaign", "creative")
+      }
+      verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
+    }
+
+  @Test
+  fun `syncAndListEventGroupMappings excludes deleted Kingdom groups`() = runBlocking {
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any()) }
+      .thenReturn(listEventGroupsResponse {})
+      .thenReturn(
+        listEventGroupsResponse {
+          eventGroups += cmmsEventGroup {
+            name = "dataProviders/data-provider-1/eventGroups/deleted"
+            state = CmmsEventGroup.State.DELETED
+          }
+        }
+      )
+    val sync =
+      EventGroupSync(
+        edpName = "dataProviders/data-provider-1",
+        eventGroupsStub = eventGroupsStub,
+        clientAccountsStub = clientAccountsStub,
+        unlinkedClientAccountsStub = unlinkedClientAccountsStub,
+        eventGroups = emptyList<EdpaEventGroup>().asFlow(),
+        throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+        listEventGroupPageSize = 100,
+        entityKeyTypes = emptyList(),
+        eventGroupReferenceIdEntityKeyMapping = null,
+      )
+
+    assertThat(sync.syncAndListEventGroupMappings().toList()).isEmpty()
   }
 
   @Test

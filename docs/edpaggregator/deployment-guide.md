@@ -211,6 +211,12 @@ It registers or updates the EDP's event groups in the Kingdom public API. To onb
 a new EDP, add an `event-groups` watched path in the DataWatcher config and a
 per-EDP entry in the EventGroupSync config.
 
+After applying the uploaded changes, the function lists Kingdom EventGroups again and
+publishes a complete Mesos RecordIO mapping at `event_group_map_blob_uri`. The map includes
+all nondeleted EventGroups returned for the configured DataProvider and entity types,
+including groups absent from the upload. A failed sync or final listing leaves the
+previous map intact.
+
 Config: [`EventGroupSyncConfigs`](#eventgroupsync-config-eventgroupsyncconfigs).
 Deploy the lease-aware control plane and queue registry, then the consumer infrastructure,
 then the DataWatcher routes. Drain legacy HTTP deliveries before cutover. See the
