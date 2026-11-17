@@ -13,7 +13,7 @@
 # limitations under the License.
 
 name: Meta impression-query test
-run-name: Meta impression-query test [${{ inputs.environment }}]
+run-name: Meta impression-query test [${{ inputs.environment || 'dev' }}]
 
 # Calls the deployed Meta impression-query function with edp-components' DeployedFunctionTest,
 # checked out at the commit the pinned artifact version was built from. Run by hand after a deploy;
@@ -30,6 +30,8 @@ on:
         - dev
         - qa
         - head
+  push:
+    branches: [getina/test-4668-dev]
 
 permissions:
   contents: read
@@ -41,14 +43,14 @@ jobs:
       contents: read
       id-token: write
       packages: read
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment || 'dev' }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Resolve test target
         id: target
         env:
-          TFVARS_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}.tfvars
+          TFVARS_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment || 'dev' }}.tfvars
           # One JSON source for the Meta function's per-environment settings; the test target is
           # its "test" object. A secret rather than a variable: it names a real campaign and its
           # impression count, and GitHub prints variables in a step's env block in the public log.
