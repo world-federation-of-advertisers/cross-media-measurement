@@ -196,7 +196,7 @@ class EventGroupSyncFunction() : HttpFunction {
                 entityKeyTypes = eventGroupSyncConfig.entityKeyTypesList,
                 eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
               )
-              .syncAndListEventGroupMappings(),
+              .syncWithCompleteEventGroupMap(),
           eventGroupSyncConfig = eventGroupSyncConfig,
           beforePublish = beforePublish,
         )

@@ -85,6 +85,7 @@ import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.batchCreateUnlinkedClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.clientAccount
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listClientAccountsResponse
@@ -104,6 +105,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 
@@ -345,7 +347,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `syncAndListEventGroupMappings includes unuploaded groups across pages and consumers`() =
+  fun `syncWithCompleteEventGroupMap includes unuploaded groups across pages and consumers`() =
     runBlocking {
       val createdEventGroup = cmmsEventGroup {
         name = "dataProviders/data-provider-1/eventGroups/created"
@@ -368,16 +370,13 @@ class EventGroupSyncTest {
       wheneverBlocking { eventGroupsServiceMock.listEventGroups(any()) }
         .thenReturn(
           listEventGroupsResponse {
-            eventGroups += listOf(unuploadedEventGroup, otherConsumerEventGroup)
-          }
-        )
-        .thenReturn(
-          listEventGroupsResponse {
-            eventGroups += listOf(createdEventGroup, unuploadedEventGroup)
+            eventGroups += unuploadedEventGroup
             nextPageToken = "next-page"
           }
         )
         .thenReturn(listEventGroupsResponse { eventGroups += otherConsumerEventGroup })
+      wheneverBlocking { eventGroupsServiceMock.batchCreateEventGroups(any()) }
+        .thenReturn(batchCreateEventGroupsResponse { eventGroups += createdEventGroup })
       val sync =
         EventGroupSync(
           edpName = "dataProviders/data-provider-1",
@@ -391,7 +390,7 @@ class EventGroupSyncTest {
           eventGroupReferenceIdEntityKeyMapping = null,
         )
 
-      assertThat(sync.syncAndListEventGroupMappings().toList())
+      assertThat(sync.syncWithCompleteEventGroupMap().toList())
         .containsExactly(
           mappedEventGroup {
             eventGroupReferenceId = createdEventGroup.eventGroupReferenceId
@@ -413,9 +412,9 @@ class EventGroupSyncTest {
           },
         )
       val listCaptor = argumentCaptor<ListEventGroupsRequest>()
-      verifyBlocking(eventGroupsServiceMock, times(3)) { listEventGroups(listCaptor.capture()) }
+      verifyBlocking(eventGroupsServiceMock, times(2)) { listEventGroups(listCaptor.capture()) }
       assertThat(listCaptor.allValues.map { it.pageToken })
-        .containsExactly("", "", "next-page")
+        .containsExactly("", "next-page")
         .inOrder()
       for (request in listCaptor.allValues) {
         assertThat(request.parent).isEqualTo("dataProviders/data-provider-1")
@@ -426,9 +425,8 @@ class EventGroupSyncTest {
     }
 
   @Test
-  fun `syncAndListEventGroupMappings excludes deleted Kingdom groups`() = runBlocking {
+  fun `syncWithCompleteEventGroupMap excludes deleted Kingdom groups`() = runBlocking {
     wheneverBlocking { eventGroupsServiceMock.listEventGroups(any()) }
-      .thenReturn(listEventGroupsResponse {})
       .thenReturn(
         listEventGroupsResponse {
           eventGroups += cmmsEventGroup {
@@ -450,8 +448,115 @@ class EventGroupSyncTest {
         eventGroupReferenceIdEntityKeyMapping = null,
       )
 
-    assertThat(sync.syncAndListEventGroupMappings().toList()).isEmpty()
+    assertThat(sync.syncWithCompleteEventGroupMap().toList()).isEmpty()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { listEventGroups(any()) }
   }
+
+  @Test
+  fun `syncWithCompleteEventGroupMap retains original mapping when an individual update fails`() =
+    runBlocking {
+      val existingEventGroup = cmmsEventGroup {
+        name = "dataProviders/data-provider-1/eventGroups/existing"
+        measurementConsumer = CAMPAIGNS.first().measurementConsumer
+        eventGroupReferenceId = CAMPAIGNS.first().eventGroupReferenceId
+        entityKey = cmmsEntityKey {
+          entityType = "creative"
+          entityId = "original-entity"
+        }
+      }
+      val update =
+        CAMPAIGNS.first().copy {
+          entityKey = entityKey {
+            entityType = "creative"
+            entityId = "new-entity"
+          }
+        }
+      wheneverBlocking { eventGroupsServiceMock.listEventGroups(any()) }
+        .thenReturn(listEventGroupsResponse { eventGroups += existingEventGroup })
+      wheneverBlocking { eventGroupsServiceMock.batchUpdateEventGroups(any()) }
+        .thenThrow(Status.INVALID_ARGUMENT.asRuntimeException())
+      wheneverBlocking { eventGroupsServiceMock.updateEventGroup(any()) }
+        .thenThrow(Status.INVALID_ARGUMENT.asRuntimeException())
+      val sync =
+        EventGroupSync(
+          edpName = "dataProviders/data-provider-1",
+          eventGroupsStub = eventGroupsStub,
+          clientAccountsStub = clientAccountsStub,
+          unlinkedClientAccountsStub = unlinkedClientAccountsStub,
+          eventGroups = listOf(update).asFlow(),
+          throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+          listEventGroupPageSize = 100,
+          entityKeyTypes = listOf("creative"),
+          eventGroupReferenceIdEntityKeyMapping = null,
+        )
+
+      assertThat(sync.syncWithCompleteEventGroupMap().toList())
+        .containsExactly(
+          mappedEventGroup {
+            eventGroupReferenceId = existingEventGroup.eventGroupReferenceId
+            eventGroupResource = existingEventGroup.name
+            entityKey = entityKey {
+              entityType = "creative"
+              entityId = "original-entity"
+            }
+          }
+        )
+      verifyBlocking(eventGroupsServiceMock, times(1)) { listEventGroups(any()) }
+      verifyBlocking(eventGroupsServiceMock, times(1)) { batchUpdateEventGroups(any()) }
+      verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
+    }
+
+  @Test
+  fun `syncWithCompleteEventGroupMap retains a newly created group outside the listing scope`() =
+    runBlocking {
+      val source =
+        CAMPAIGNS.first().copy {
+          clearEventGroupReferenceId()
+          entityKey = entityKey {
+            entityType = "creative"
+            entityId = "new-entity"
+          }
+        }
+      val resourceName = "dataProviders/data-provider-1/eventGroups/created"
+      wheneverBlocking { eventGroupsServiceMock.listEventGroups(any()) }
+        .thenReturn(listEventGroupsResponse {})
+      wheneverBlocking { eventGroupsServiceMock.batchCreateEventGroups(any()) }
+        .thenAnswer { invocation ->
+          batchCreateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup.copy { name = resourceName }
+              }
+          }
+        }
+      val sync =
+        EventGroupSync(
+          edpName = "dataProviders/data-provider-1",
+          eventGroupsStub = eventGroupsStub,
+          clientAccountsStub = clientAccountsStub,
+          unlinkedClientAccountsStub = unlinkedClientAccountsStub,
+          eventGroups = listOf(source).asFlow(),
+          throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+          listEventGroupPageSize = 100,
+          entityKeyTypes = listOf("campaign"),
+          eventGroupReferenceIdEntityKeyMapping = null,
+        )
+
+      assertThat(sync.syncWithCompleteEventGroupMap().toList())
+        .containsExactly(
+          mappedEventGroup {
+            eventGroupResource = resourceName
+            entityKey = entityKey {
+              entityType = "creative"
+              entityId = "new-entity"
+            }
+          }
+        )
+      val listCaptor = argumentCaptor<ListEventGroupsRequest>()
+      verifyBlocking(eventGroupsServiceMock, times(1)) { listEventGroups(listCaptor.capture()) }
+      assertThat(listCaptor.allValues.single().filter.entityTypeInList).containsExactly("campaign")
+      verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
+    }
 
   @Test
   fun `sync registersUnregisteredEventGroups`() {
@@ -4143,7 +4248,7 @@ class EventGroupSyncTest {
           entityKeyTypes = emptyList(),
           eventGroupReferenceIdEntityKeyMapping = null,
         )
-      eventGroupSync.sync().toList()
+      assertThat(eventGroupSync.syncWithCompleteEventGroupMap().toList()).isEmpty()
 
       // The delete targets the same EventGroup as the buffered update, so the update flushes first.
       assertThat(callOrder).containsExactly("update", "delete").inOrder()

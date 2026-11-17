@@ -309,24 +309,29 @@ class EventGroupSync(
       .put(INVALID_EVENT_GROUP_FAILURE_REASON_ATTRIBUTE, failureReason.attributeValue)
       .build()
 
-  /**
-   * Synchronizes input and lists all nondeleted Kingdom mappings for the configured listing scope.
-   */
-  fun syncAndListEventGroupMappings(): Flow<MappedEventGroup> = flow {
-    sync().collect()
-    fetchEventGroups().collect { eventGroup ->
-      if (eventGroup.state == CmmsEventGroup.State.DELETED) {
-        return@collect
-      }
-      emit(
-        mappedEventGroup {
-          eventGroupReferenceId = eventGroup.eventGroupReferenceId
-          eventGroupResource = eventGroup.name
-          if (eventGroup.hasEntityKey()) {
-            entityKey = eventGroup.entityKey.toEdpaEntityKey()
-          }
-        }
+  /** Synchronizes input and returns the initial Kingdom mapping with successful changes applied. */
+  fun syncWithCompleteEventGroupMap(): Flow<MappedEventGroup> = flow {
+    var fetchedEventGroups: List<CmmsEventGroup> = emptyList()
+    val synchronizedByResource = mutableMapOf<String, MappedEventGroup>()
+    val deletedResources = mutableSetOf<String>()
+    syncEventGroups(
+        onEventGroupsFetched = { fetchedEventGroups = it },
+        onEventGroupDeleted = { deletedResources += it.name },
+        emitUnchangedMappings = false,
       )
+      .collect { synchronizedByResource[it.eventGroupResource] = it }
+
+    for (eventGroup in fetchedEventGroups) {
+      val synchronized = synchronizedByResource.remove(eventGroup.name)
+      if (eventGroup.state == CmmsEventGroup.State.DELETED || eventGroup.name in deletedResources) {
+        continue
+      }
+      emit(synchronized ?: eventGroup.toMappedEventGroup())
+    }
+    for (synchronized in synchronizedByResource.values) {
+      if (synchronized.eventGroupResource !in deletedResources) {
+        emit(synchronized)
+      }
     }
   }
 
@@ -345,7 +350,18 @@ class EventGroupSync(
    * @return Flow of [MappedEventGroup] for each successfully synced EventGroup. Deleted EventGroups
    *   are not included.
    */
-  suspend fun sync(): Flow<MappedEventGroup> = flow {
+  suspend fun sync(): Flow<MappedEventGroup> =
+    syncEventGroups(
+      onEventGroupsFetched = {},
+      onEventGroupDeleted = {},
+      emitUnchangedMappings = true,
+    )
+
+  private fun syncEventGroups(
+    onEventGroupsFetched: (List<CmmsEventGroup>) -> Unit,
+    onEventGroupDeleted: (CmmsEventGroup) -> Unit,
+    emitUnchangedMappings: Boolean,
+  ): Flow<MappedEventGroup> = flow {
     withSpan(
       tracer,
       "EventGroupSync",
@@ -358,6 +374,7 @@ class EventGroupSync(
       errorMessage = "EventGroupSync failed",
     ) { _ ->
       val fetchedEventGroups = fetchEventGroups().toList()
+      onEventGroupsFetched(fetchedEventGroups)
 
       val cmmsEventGroups: Map<EventGroupKey, CmmsEventGroup> =
         fetchedEventGroups
@@ -462,6 +479,7 @@ class EventGroupSync(
               }
             if (cmmsEventGroup != null) {
               deleteCmmsEventGroup(cmmsEventGroup)
+              onEventGroupDeleted(cmmsEventGroup)
               metrics.syncDeleted.add(1, metricAttributes())
             }
           }
@@ -516,6 +534,7 @@ class EventGroupSync(
               cmmsEventGroupsByEntityKey,
               pendingCreates,
               pendingUpdates,
+              emitUnchangedMappings,
             )
           } catch (e: Exception) {
             if (e is BatchSyncException) throw e
@@ -548,10 +567,9 @@ class EventGroupSync(
   /**
    * Queues a single resolved EventGroup for a batched create or update.
    *
-   * The create-vs-update decision is made against the precache via [findExistingEventGroup]. An
-   * EventGroup that needs no change is emitted immediately with no RPC. Otherwise the request is
-   * appended to the matching buffer, which is flushed as one batched RPC once it reaches
-   * [MAX_BATCH_SIZE].
+   * The create-vs-update decision is made against the precache via [findExistingEventGroup].
+   * Unchanged mappings are emitted only when requested. Writes are appended to the matching buffer,
+   * which is flushed as one batched RPC once it reaches [MAX_BATCH_SIZE].
    */
   private suspend fun FlowCollector<MappedEventGroup>.queueEventGroupItem(
     eventGroup: EventGroup,
@@ -559,6 +577,7 @@ class EventGroupSync(
     existingByEntityKey: Map<EntityKeyId, CmmsEventGroup>,
     pendingCreates: MutableList<PendingWrite<CreateEventGroupRequest>>,
     pendingUpdates: MutableList<PendingWrite<UpdateEventGroupRequest>>,
+    emitUnchangedMappings: Boolean,
   ) {
     val referenceId = eventGroup.eventGroupReferenceId
     val entityType = eventGroup.entityKey.entityType
@@ -591,21 +610,23 @@ class EventGroupSync(
         } else {
           val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
           if (updatedEventGroup == existingEventGroup) {
-            // Already up to date; emit the mapping without issuing a write RPC.
+            // Already up to date; no write RPC needed.
             metrics.syncSuccess.add(1, metricAttributes())
             metrics.syncLatency.record(
               itemStartTime.elapsedNow().inWholeMilliseconds / 1000.0,
               metricAttributes(),
             )
-            emit(
-              mappedEventGroup {
-                eventGroupReferenceId = existingEventGroup.eventGroupReferenceId
-                eventGroupResource = existingEventGroup.name
-                if (existingEventGroup.hasEntityKey()) {
-                  entityKey = existingEventGroup.entityKey.toEdpaEntityKey()
+            if (emitUnchangedMappings) {
+              emit(
+                mappedEventGroup {
+                  eventGroupReferenceId = existingEventGroup.eventGroupReferenceId
+                  eventGroupResource = existingEventGroup.name
+                  if (existingEventGroup.hasEntityKey()) {
+                    entityKey = existingEventGroup.entityKey.toEdpaEntityKey()
+                  }
                 }
-              }
-            )
+              )
+            }
             WriteAction.None
           } else {
             WriteAction.Update(updateEventGroupRequest { this.eventGroup = updatedEventGroup })
@@ -1535,6 +1556,14 @@ class EventGroupSync(
           }
       }
     }
+
+  private fun CmmsEventGroup.toMappedEventGroup(): MappedEventGroup = mappedEventGroup {
+    eventGroupReferenceId = this@toMappedEventGroup.eventGroupReferenceId
+    eventGroupResource = this@toMappedEventGroup.name
+    if (this@toMappedEventGroup.hasEntityKey()) {
+      entityKey = this@toMappedEventGroup.entityKey.toEdpaEntityKey()
+    }
+  }
 
   companion object {
     /** Maximum number of sub-requests per BatchCreate/BatchUpdate EventGroups RPC. */

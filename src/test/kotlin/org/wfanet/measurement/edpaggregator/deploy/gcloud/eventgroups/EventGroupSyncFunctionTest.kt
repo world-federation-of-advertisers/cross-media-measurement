@@ -285,7 +285,17 @@ class EventGroupSyncFunctionTest() {
         }
       }
     onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
-      .thenAnswer { listEventGroupsResponse { eventGroups += kingdomEventGroups.values.toList() } }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListEventGroupsRequest>(0)
+        val entityTypes = request.filter.entityTypeInList.ifEmpty { listOf("campaign") }
+        listEventGroupsResponse {
+          eventGroups +=
+            kingdomEventGroups.values.filter {
+              val entityType = if (it.hasEntityKey()) it.entityKey.entityType else "campaign"
+              entityType in entityTypes
+            }
+        }
+      }
   }
 
   private val clientAccountsServiceMock: ClientAccountsCoroutineImplBase = mockService {
@@ -393,6 +403,7 @@ class EventGroupSyncFunctionTest() {
         .toList()
     assertThat(mapping.map { it.eventGroupReferenceId })
       .containsExactly("reference-id-1", "reference-id-2", "reference-id-3", "work-item-reference")
+    verifyBlocking(eventGroupsServiceMock, times(1)) { listEventGroups(any()) }
   }
 
   @Test
@@ -577,12 +588,11 @@ class EventGroupSyncFunctionTest() {
   private fun invokeFunctionWithKingdomFailure(
     status: Status,
     previousMappedEventGroup: MappedEventGroup?,
-    failFinalListing: Boolean,
+    failListing: Boolean,
   ): FailedInvocation {
     eventGroupsServiceMock.stub {
-      if (failFinalListing) {
+      if (failListing) {
         onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
-          .thenReturn(listEventGroupsResponse {})
           .thenReturn(
             listEventGroupsResponse {
               eventGroups += cmmsEventGroup {
@@ -680,7 +690,7 @@ class EventGroupSyncFunctionTest() {
       invokeFunctionWithKingdomFailure(
         Status.DEADLINE_EXCEEDED,
         previousMappedEventGroup,
-        failFinalListing = false,
+        failListing = false,
       )
 
     assertThat(result.statusCode).isEqualTo(503)
@@ -696,7 +706,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  fun `sync preserves map when final Kingdom listing fails after a partial page`() {
+  fun `sync preserves map when Kingdom listing fails after a partial page`() {
     val previousMappedEventGroup = mappedEventGroup {
       eventGroupReferenceId = "previous-reference-id"
       eventGroupResource = "dataProviders/data-provider-1/eventGroups/previous-event-group"
@@ -706,10 +716,11 @@ class EventGroupSyncFunctionTest() {
       invokeFunctionWithKingdomFailure(
         Status.DEADLINE_EXCEEDED,
         previousMappedEventGroup,
-        failFinalListing = true,
+        failListing = true,
       )
 
     assertThat(result.statusCode).isEqualTo(503)
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
     val mappedData = runBlocking {
       checkNotNull(
           MesosRecordIoStorageClient(FileSystemStorageClient(tempFolder.root))
@@ -728,7 +739,7 @@ class EventGroupSyncFunctionTest() {
         invokeFunctionWithKingdomFailure(
             Status.PERMISSION_DENIED,
             previousMappedEventGroup = null,
-            failFinalListing = false,
+            failListing = false,
           )
           .statusCode
       )
