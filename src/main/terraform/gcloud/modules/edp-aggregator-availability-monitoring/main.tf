@@ -66,9 +66,10 @@ resource "google_monitoring_alert_policy" "availability" {
   conditions {
     display_name = each.key
     condition_threshold {
-      filter          = "metric.type=\"workload.googleapis.com/edpa.vid_labeling_monitor.${each.key}\" AND resource.type=\"generic_task\""
-      comparison      = "COMPARISON_GE"
-      threshold_value = each.value.threshold
+      filter     = "metric.type=\"workload.googleapis.com/edpa.vid_labeling_monitor.${each.key}\" AND resource.type=\"generic_task\""
+      comparison = "COMPARISON_GT"
+      # INT64 gauges make > ceil(threshold) - 1 equivalent to >= threshold.
+      threshold_value = ceil(each.value.threshold) - 1
       duration        = "0s"
       aggregations {
         alignment_period   = "300s"

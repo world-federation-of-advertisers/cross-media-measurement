@@ -27,12 +27,13 @@ run "defaults_without_notifications" {
 
   assert {
     condition = (
-      google_monitoring_alert_policy.availability["pending_availability_age"].conditions[0].condition_threshold[0].threshold_value == 86400 &&
-      google_monitoring_alert_policy.availability["failed_availability_executions"].conditions[0].condition_threshold[0].threshold_value == 3 &&
-      google_monitoring_alert_policy.availability["terminal_availability_failures"].conditions[0].condition_threshold[0].threshold_value == 1 &&
-      google_monitoring_alert_policy.availability["availability_publication_age"].conditions[0].condition_threshold[0].threshold_value == 3600
+      google_monitoring_alert_policy.availability["pending_availability_age"].conditions[0].condition_threshold[0].threshold_value == 86399 &&
+      google_monitoring_alert_policy.availability["failed_availability_executions"].conditions[0].condition_threshold[0].threshold_value == 2 &&
+      google_monitoring_alert_policy.availability["terminal_availability_failures"].conditions[0].condition_threshold[0].threshold_value == 0 &&
+      google_monitoring_alert_policy.availability["availability_publication_age"].conditions[0].condition_threshold[0].threshold_value == 3599 &&
+      google_monitoring_alert_policy.availability["availability_monitoring_errors"].conditions[0].condition_threshold[0].threshold_value == 0
     )
-    error_message = "All requested availability conditions must use the documented defaults."
+    error_message = "Strict cutoffs must preserve the documented inclusive defaults."
   }
 
   assert {
@@ -41,7 +42,9 @@ run "defaults_without_notifications" {
       policy.conditions[0].condition_threshold[0].filter == "metric.type=\"workload.googleapis.com/edpa.vid_labeling_monitor.${name}\" AND resource.type=\"generic_task\"" &&
       policy.conditions[0].condition_threshold[0].aggregations[0].per_series_aligner == "ALIGN_MAX" &&
       policy.conditions[0].condition_threshold[0].duration == "0s" &&
-      google_monitoring_metric_descriptor.availability[name].metric_kind == "GAUGE"
+      policy.conditions[0].condition_threshold[0].comparison == "COMPARISON_GT" &&
+      google_monitoring_metric_descriptor.availability[name].metric_kind == "GAUGE" &&
+      google_monitoring_metric_descriptor.availability[name].value_type == "INT64"
     ])
     error_message = "Policies must evaluate a single scheduled observation using the actual gauge names."
   }
@@ -68,11 +71,38 @@ run "configured_route_and_thresholds" {
 
   assert {
     condition = (
-      google_monitoring_alert_policy.availability["pending_availability_age"].conditions[0].condition_threshold[0].threshold_value == 7200 &&
-      google_monitoring_alert_policy.availability["failed_availability_executions"].conditions[0].condition_threshold[0].threshold_value == 5 &&
-      google_monitoring_alert_policy.availability["availability_publication_age"].conditions[0].condition_threshold[0].threshold_value == 1800
+      google_monitoring_alert_policy.availability["pending_availability_age"].conditions[0].condition_threshold[0].threshold_value == 7199 &&
+      google_monitoring_alert_policy.availability["failed_availability_executions"].conditions[0].condition_threshold[0].threshold_value == 4 &&
+      google_monitoring_alert_policy.availability["availability_publication_age"].conditions[0].condition_threshold[0].threshold_value == 1799
     )
-    error_message = "Configured thresholds must reach every policy."
+    error_message = "Strict cutoffs must preserve the configured inclusive thresholds."
+  }
+}
+
+run "fractional_age_and_count_boundaries" {
+  command = plan
+  variables {
+    thresholds = {
+      pending_age_seconds     = 7200.25
+      failed_executions       = 5
+      publication_age_seconds = 1800.5
+    }
+  }
+
+  assert {
+    condition = (
+      7201 > google_monitoring_alert_policy.availability["pending_availability_age"].conditions[0].condition_threshold[0].threshold_value &&
+      7200 <= google_monitoring_alert_policy.availability["pending_availability_age"].conditions[0].condition_threshold[0].threshold_value &&
+      1801 > google_monitoring_alert_policy.availability["availability_publication_age"].conditions[0].condition_threshold[0].threshold_value &&
+      1800 <= google_monitoring_alert_policy.availability["availability_publication_age"].conditions[0].condition_threshold[0].threshold_value &&
+      5 > google_monitoring_alert_policy.availability["failed_availability_executions"].conditions[0].condition_threshold[0].threshold_value &&
+      4 <= google_monitoring_alert_policy.availability["failed_availability_executions"].conditions[0].condition_threshold[0].threshold_value &&
+      1 > google_monitoring_alert_policy.availability["terminal_availability_failures"].conditions[0].condition_threshold[0].threshold_value &&
+      0 <= google_monitoring_alert_policy.availability["terminal_availability_failures"].conditions[0].condition_threshold[0].threshold_value &&
+      1 > google_monitoring_alert_policy.availability["availability_monitoring_errors"].conditions[0].condition_threshold[0].threshold_value &&
+      0 <= google_monitoring_alert_policy.availability["availability_monitoring_errors"].conditions[0].condition_threshold[0].threshold_value
+    )
+    error_message = "Each policy must trigger at its first eligible integer observation, including the first failure."
   }
 }
 
