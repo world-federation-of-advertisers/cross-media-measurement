@@ -1182,6 +1182,7 @@ abstract class VidLabelingPipelineTestHarness(
           eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
           eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
           eventTemplateType = params.eventTemplateType
+          eventTemplateVersion = params.eventTemplateVersion
           populationSpecBlobUri = params.populationSpecBlobUri
           requiredEntityKeyFieldMapping.putAll(params.requiredEntityKeyFieldMappingMap)
           optionalEntityKeyFieldMapping.putAll(params.optionalEntityKeyFieldMappingMap)
@@ -2221,6 +2222,7 @@ abstract class VidLabelingPipelineTestHarness(
       populationSpecBlobUri = "file:///unused/population-spec"
       eventTemplateDescriptorBlobUri = "file:///unused/event-template-descriptor"
       eventTemplateType = TestEvent.getDescriptor().fullName
+      eventTemplateVersion = 1
     }
 
   protected class RecordingDataProvidersService :
