@@ -222,6 +222,79 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     assertThat(inserted.externalReportingSetId).isEqualTo("new-composite")
   }
 
+  @Test
+  fun `createReportingSet validation resolves nested and shared composite references`(): Unit =
+    runBlocking {
+      val services = newServices(idGenerator, true)
+      seedReportingSetValidationInputs(services)
+      fun unionSet(lhsId: String, rhsId: String): ReportingSet = reportingSet {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalCampaignGroupId = "validation-campaign"
+        composite =
+          ReportingSetKt.setExpression {
+            operation = ReportingSet.SetExpression.Operation.UNION
+            lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = lhsId }
+            rhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = rhsId }
+          }
+        weightedSubsetUnions +=
+          ReportingSetKt.weightedSubsetUnion {
+            weight = 1
+            binaryRepresentation = 3
+            for (id in listOf("primitive-a", "primitive-b")) {
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = id }
+            }
+          }
+      }
+      val child = unionSet("primitive-a", "primitive-b")
+      val middle =
+        unionSet("batch-child", "primitive-a").copy {
+          composite =
+            composite.copy {
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  expression =
+                    ReportingSetKt.setExpression {
+                      operation = ReportingSet.SetExpression.Operation.UNION
+                      lhs =
+                        ReportingSetKt.SetExpressionKt.operand {
+                          externalReportingSetId = "primitive-a"
+                        }
+                      rhs =
+                        ReportingSetKt.SetExpressionKt.operand {
+                          externalReportingSetId = "primitive-b"
+                        }
+                    }
+                }
+            }
+        }
+      val root = unionSet("batch-middle", "primitive-a")
+      for ((id, set) in
+        listOf("batch-child" to child, "batch-middle" to middle, "batch-root" to root)) {
+        services.reportingSetsService.createReportingSet(
+          createReportingSetRequest {
+            externalReportingSetId = id
+            reportingSet = set
+          }
+        )
+      }
+      val persisted =
+        services.reportingSetsService
+          .batchGetReportingSets(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportingSetIds += "batch-root"
+            }
+          )
+          .reportingSetsList
+          .single()
+      assertThat(persisted.composite).isEqualTo(root.composite)
+      assertThat(persisted.externalCampaignGroupId).isEqualTo(root.externalCampaignGroupId)
+      assertThat(persisted.weightedSubsetUnionsList)
+        .ignoringRepeatedFieldOrder()
+        .containsExactlyElementsIn(root.weightedSubsetUnionsList)
+    }
+
   private fun reportingSetValidationCases(): Map<String, ReportingSet> {
     val primitive = reportingSetValidationPrimitive()
     val composite = reportingSetValidationComposite()

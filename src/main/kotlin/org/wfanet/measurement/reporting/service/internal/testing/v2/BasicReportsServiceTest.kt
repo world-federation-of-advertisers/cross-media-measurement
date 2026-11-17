@@ -156,6 +156,25 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         }
       assertThat(exception.status.code)
         .isAnyOf(Status.Code.INVALID_ARGUMENT, Status.Code.FAILED_PRECONDITION)
+      if (
+        scenario in
+          setOf(
+            "missing-request-specs",
+            "missing-reporting-unit",
+            "unset-components",
+            "extra-request-spec",
+          )
+      ) {
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+        assertThat(exception.errorInfo)
+          .isEqualTo(
+            errorInfo {
+              domain = Errors.DOMAIN
+              reason = Errors.Reason.INVALID_FIELD_VALUE.name
+              metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.result_details"
+            }
+          )
+      }
       if (scenario == "missing-report-id") {
         assertThat(exception.errorInfo)
           .isEqualTo(
@@ -204,6 +223,30 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       assertThat(persisted.resultDetails).isEqualTo(report.resultDetails)
     }
   }
+
+  @Test
+  fun `insertBasicReport validation accepts empty request and result groups together`(): Unit =
+    runBlocking {
+      val services = newServices(idGenerator, true, true)
+      seedInsertValidationReportingSets(services, includeMalformedSets = false)
+      val report =
+        insertValidationCustomReport("custom-a").copy {
+          details = details.copy { resultGroupSpecs.clear() }
+          resultDetails = basicReportResultDetails {}
+        }
+      services.basicReportsService.insertBasicReport(
+        insertBasicReportRequest { basicReport = report }
+      )
+      val persisted =
+        services.basicReportsService.getBasicReport(
+          getBasicReportRequest {
+            cmmsMeasurementConsumerId = report.cmmsMeasurementConsumerId
+            externalBasicReportId = report.externalBasicReportId
+          }
+        )
+      assertThat(persisted.details).isEqualTo(report.details)
+      assertThat(persisted.resultDetails).isEqualTo(report.resultDetails)
+    }
 
   @Test
   fun `insertBasicReport validation accepts standalone primitive and composite custom identities`():
@@ -276,7 +319,15 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         }
       }
     for ((index, report) in
-      listOf(primitive, composite, both, partial, insertValidationProviderReport()).withIndex()) {
+      listOf(
+          primitive,
+          composite,
+          both,
+          partial,
+          insertValidationCustomReport("custom-nested"),
+          insertValidationProviderReport(),
+        )
+        .withIndex()) {
       val expected = report.copy { externalBasicReportId = "valid-$index" }
       services.basicReportsService.insertBasicReport(
         insertBasicReportRequest { basicReport = expected }
@@ -353,6 +404,22 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       }
     return linkedMapOf(
       "missing-report-id" to custom.copy { externalReportId = "" },
+      "missing-request-specs" to
+        custom.copy { details = details.copy { resultGroupSpecs.clear() } },
+      "missing-reporting-unit" to
+        custom.copy {
+          details =
+            details.copy { resultGroupSpecs[0] = resultGroupSpecs[0].copy { clearReportingUnit() } }
+        },
+      "unset-components" to
+        provider.copy {
+          details =
+            details.copy {
+              resultGroupSpecs[0] = resultGroupSpecs[0].copy { reportingUnit = reportingUnit {} }
+            }
+        },
+      "extra-request-spec" to
+        custom.copy { details = details.copy { resultGroupSpecs += resultGroupSpecs[0] } },
       "missing-summary-id" to withSummary(custom, "", ""),
       "unknown-summary-id" to withSummary(custom, "missing", ""),
       "wrong-existing-summary-id" to withSummary(custom, "custom-b", ""),
@@ -687,6 +754,58 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
               eventGroupKeys += first.copy { cmmsEventGroupId = "outside" }
             }
         },
+        reportingSet {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportingSetId = "custom-child"
+          composite =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.UNION
+              lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "custom-a" }
+              rhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "custom-b" }
+            }
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 3
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = "custom-a"
+                  filters += "person.age_group == 1"
+                }
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = "custom-b" }
+            }
+        },
+        reportingSet {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportingSetId = "custom-nested"
+          composite =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.UNION
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "custom-child" }
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = "provider-partial"
+                }
+            }
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 7
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = "custom-a"
+                  filters += "person.age_group == 1"
+                }
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = "custom-b" }
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = "provider-partial"
+                }
+            }
+        },
       )
     for (set in sets) {
       services.reportingSetsService.createReportingSet(
@@ -956,17 +1075,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       }
     )
 
-    val resultGroup = resultGroup { title = "title" }
-
-    val basicReport = basicReport {
-      externalReportId = "2237"
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalBasicReportId = "1237"
-      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      details = basicReportDetails { title = "title" }
-      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
-      externalReportId = "2237"
-    }
+    val basicReport = INSERT_BASIC_REPORT
 
     val response =
       service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
@@ -990,16 +1099,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
       )
 
-      val resultGroup = resultGroup { title = "title" }
-
-      val basicReport = basicReport {
-        externalReportId = "2237"
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalBasicReportId = "1237"
-        externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-        details = basicReportDetails { title = "title" }
-        resultDetails = basicReportResultDetails { resultGroups += resultGroup }
-      }
+      val basicReport = INSERT_BASIC_REPORT
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -1022,16 +1122,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       }
     )
 
-    val resultGroup = resultGroup { title = "title" }
-
-    val basicReport = basicReport {
-      externalReportId = "2237"
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalBasicReportId = "1237"
-      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      details = basicReportDetails { title = "title" }
-      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
-    }
+    val basicReport = INSERT_BASIC_REPORT
 
     service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
 
@@ -1067,21 +1158,15 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       }
     )
 
-    val resultGroup = resultGroup { title = "title" }
-
-    val basicReport = basicReport {
-      externalReportId = "2237"
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalBasicReportId = "1237"
-      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      details = basicReportDetails {
-        title = "title"
-        impressionQualificationFilters += reportingImpressionQualificationFilter {
-          externalImpressionQualificationFilterId = "abc"
-        }
+    val basicReport =
+      INSERT_BASIC_REPORT.copy {
+        details =
+          details.copy {
+            impressionQualificationFilters += reportingImpressionQualificationFilter {
+              externalImpressionQualificationFilterId = "abc"
+            }
+          }
       }
-      resultDetails = basicReportResultDetails { resultGroups += resultGroup }
-    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -2946,6 +3031,41 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             INSERT_BASIC_REPORT.copy {
               cmmsMeasurementConsumerId = measurementConsumer2.cmmsMeasurementConsumerId
               externalCampaignGroupId = reportingSet2.externalReportingSetId
+              details =
+                details.copy {
+                  resultGroupSpecs[0] =
+                    resultGroupSpecs[0].copy {
+                      reportingUnit = reportingUnit {
+                        reportingSetKeys =
+                          ReportingUnitKt.reportingSetKeys {
+                            reportingSetKeys += reportingSetKey {
+                              cmmsMeasurementConsumerId =
+                                measurementConsumer2.cmmsMeasurementConsumerId
+                              externalReportingSetId = reportingSet2.externalReportingSetId
+                            }
+                          }
+                      }
+                    }
+                }
+              resultDetails =
+                resultDetails.copy {
+                  resultGroups[0] =
+                    resultGroups[0].copy {
+                      results[0] =
+                        results[0].copy {
+                          metadata =
+                            metadata.copy {
+                              reportingUnitSummary =
+                                reportingUnitSummary.copy {
+                                  reportingUnitComponentSummary[0] =
+                                    reportingUnitComponentSummary[0].copy {
+                                      externalReportingSetId = reportingSet2.externalReportingSetId
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
       )
@@ -4039,6 +4159,42 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       details = basicReportDetails { title = "title" }
       resultDetails = basicReportResultDetails { resultGroups += resultGroup { title = "title" } }
     }
-    private val INSERT_BASIC_REPORT = BASIC_REPORT.copy { externalReportId = "2237" }
+    private val INSERT_BASIC_REPORT =
+      BASIC_REPORT.copy {
+        externalReportId = "2237"
+        details =
+          details.copy {
+            resultGroupSpecs += resultGroupSpec {
+              reportingUnit = reportingUnit {
+                reportingSetKeys =
+                  ReportingUnitKt.reportingSetKeys {
+                    reportingSetKeys += reportingSetKey {
+                      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                      externalReportingSetId = REPORTING_SET.externalReportingSetId
+                    }
+                  }
+              }
+            }
+          }
+        resultDetails =
+          resultDetails.copy {
+            resultGroups[0] =
+              resultGroups[0].copy {
+                results +=
+                  ResultGroupKt.result {
+                    metadata =
+                      ResultGroupKt.metricMetadata {
+                        reportingUnitSummary =
+                          ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                            reportingUnitComponentSummary +=
+                              ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                                externalReportingSetId = REPORTING_SET.externalReportingSetId
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+      }
   }
 }

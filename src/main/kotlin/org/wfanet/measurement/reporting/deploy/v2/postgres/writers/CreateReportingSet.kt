@@ -18,7 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 import io.r2dbc.postgresql.api.PostgresqlException
 import io.r2dbc.spi.R2dbcDataIntegrityViolationException
-import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
@@ -108,16 +108,16 @@ class CreateReportingSet(
 
     if (validateCreateReportingSet) {
       val validator =
-        ReportingSetValidator(cmmsMeasurementConsumerId) { id ->
+        ReportingSetValidator(cmmsMeasurementConsumerId) { ids ->
           ReportingSetReader(transactionContext)
             .batchGetReportingSets(
               batchGetReportingSetsRequest {
                 this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                externalReportingSetIds += id
+                externalReportingSetIds += ids
               }
             )
-            .single()
-            .reportingSet
+            .toList()
+            .map { it.reportingSet }
         }
       // The creation ID is authoritative; a copied ReportingSet can contain an old output ID.
       val reportingSet =

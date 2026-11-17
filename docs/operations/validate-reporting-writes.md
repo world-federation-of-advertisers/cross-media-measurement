@@ -22,6 +22,10 @@ Group before storing the report. The standalone sets remain unchanged.
 
 `InsertBasicReport` imports completed reports. Its report ID requirement does
 not apply to `CreateBasicReport`, which assigns the associated Report later.
+Stored request specs must match the result-group count, including when either
+list is empty. Each spec must identify custom ReportingSets or DataProviders.
+ReportingSet references are loaded in batches and cached for each validation
+request, including dependencies of nested composite sets.
 
 ## Migrating legacy callers
 

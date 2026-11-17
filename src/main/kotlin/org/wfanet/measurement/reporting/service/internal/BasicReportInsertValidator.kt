@@ -31,26 +31,47 @@ class BasicReportInsertValidator(private val reportingSetValidator: ReportingSet
    * @throws InvalidFieldValueException if the identities or memberships are inconsistent.
    */
   suspend fun validate(basicReport: BasicReport) {
+    val specs = basicReport.details.resultGroupSpecsList
+    requireValid(
+      specs.size == basicReport.resultDetails.resultGroupsCount,
+      "Result groups do not match the stored request",
+    )
+    reportingSetValidator.preloadReportingSets(
+      buildSet {
+        add(basicReport.externalCampaignGroupId)
+        for (group in basicReport.resultDetails.resultGroupsList) {
+          for (result in group.resultsList) {
+            addAll(
+              result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList.map {
+                it.externalReportingSetId
+              }
+            )
+          }
+        }
+      }
+    )
     val campaignGroup = reportingSetValidator.getReportingSet(basicReport.externalCampaignGroupId)
     val campaignUniverse = reportingSetValidator.validateCampaignGroup(campaignGroup)
-    val specs = basicReport.details.resultGroupSpecsList
-    if (specs.isNotEmpty()) {
-      requireValid(
-        specs.size == basicReport.resultDetails.resultGroupsCount,
-        "Result groups do not match the stored request",
-      )
-    }
 
     for ((groupIndex, group) in basicReport.resultDetails.resultGroupsList.withIndex()) {
-      val unit = specs.getOrNull(groupIndex)?.reportingUnit
+      val unit = specs[groupIndex].reportingUnit
+      requireValid(
+        when (unit.componentsCase) {
+          ReportingUnit.ComponentsCase.REPORTING_SET_KEYS,
+          ReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS -> true
+          ReportingUnit.ComponentsCase.COMPONENTS_NOT_SET,
+          null -> false
+        },
+        "Requested ReportingUnit components are not set",
+      )
       val customKeys =
-        if (unit?.componentsCase == ReportingUnit.ComponentsCase.REPORTING_SET_KEYS) {
+        if (unit.componentsCase == ReportingUnit.ComponentsCase.REPORTING_SET_KEYS) {
           unit.reportingSetKeys.reportingSetKeysList
         } else {
           null
         }
       val requestedProviders =
-        if (unit?.componentsCase == ReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS) {
+        if (unit.componentsCase == ReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS) {
           unit.dataProviderKeys.dataProviderKeysList.map { it.cmmsDataProviderId }
         } else {
           null

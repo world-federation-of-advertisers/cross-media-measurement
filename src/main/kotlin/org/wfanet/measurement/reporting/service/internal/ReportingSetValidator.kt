@@ -21,12 +21,12 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 /**
  * Validates ReportingSet identities and their complete EventGroup universe for one request.
  *
- * [readReportingSet] must read under [cmmsMeasurementConsumerId]. Reads and validated memberships
+ * [readReportingSets] must read under [cmmsMeasurementConsumerId]. Reads and validated memberships
  * are cached for this instance. A standalone custom set does not need a Campaign Group.
  */
 class ReportingSetValidator(
   private val cmmsMeasurementConsumerId: String,
-  private val readReportingSet: suspend (String) -> ReportingSet,
+  private val readReportingSets: suspend (List<String>) -> List<ReportingSet>,
 ) {
   private val reportingSets = mutableMapOf<String, ReportingSet>()
 
@@ -47,17 +47,66 @@ class ReportingSetValidator(
   /** Resolves an existing ID in this MeasurementConsumer, without changing its identity. */
   suspend fun getReportingSet(externalReportingSetId: String): ReportingSet {
     requireValid(externalReportingSetId.isNotEmpty(), "ReportingSet ID is empty")
-    reportingSets[externalReportingSetId]?.let {
-      return it
+    preloadReportingSets(listOf(externalReportingSetId))
+    return reportingSets.getValue(externalReportingSetId)
+  }
+
+  /** Loads uncached references in batches, discovering nested dependencies one level at a time. */
+  suspend fun preloadReportingSets(externalReportingSetIds: Collection<String>) {
+    requireValid(externalReportingSetIds.none { it.isEmpty() }, "ReportingSet ID is empty")
+    var pending = externalReportingSetIds.toSet() - reportingSets.keys
+    while (pending.isNotEmpty()) {
+      val next = mutableSetOf<String>()
+      for (batch in pending.chunked(MAX_READ_BATCH_SIZE)) {
+        val sets = readReportingSets(batch)
+        val setsById = sets.associateBy { it.externalReportingSetId }
+        requireValid(
+          setsById.keys == batch.toSet() &&
+            setsById.size == sets.size &&
+            sets.all { it.cmmsMeasurementConsumerId == cmmsMeasurementConsumerId },
+          "ReportingSet identities do not match the requested MeasurementConsumer and IDs",
+        )
+        reportingSets.putAll(setsById)
+        for (set in sets) {
+          next += referencedReportingSetIds(set)
+        }
+      }
+      pending = next - reportingSets.keys
     }
-    val reportingSet = readReportingSet(externalReportingSetId)
-    requireValid(
-      reportingSet.cmmsMeasurementConsumerId == cmmsMeasurementConsumerId &&
-        reportingSet.externalReportingSetId == externalReportingSetId,
-      "ReportingSet identity does not match the requested MeasurementConsumer and ID",
-    )
-    reportingSets[externalReportingSetId] = reportingSet
-    return reportingSet
+  }
+
+  private fun referencedReportingSetIds(reportingSet: ReportingSet): Set<String> = buildSet {
+    if (reportingSet.externalCampaignGroupId.isNotEmpty()) {
+      add(reportingSet.externalCampaignGroupId)
+    }
+    if (reportingSet.hasComposite()) {
+      addExpressionReferences(reportingSet.composite, this)
+      for (union in reportingSet.weightedSubsetUnionsList) {
+        for (basis in union.primitiveReportingSetBasesList) {
+          if (basis.externalReportingSetId.isNotEmpty()) {
+            add(basis.externalReportingSetId)
+          }
+        }
+      }
+    }
+  }
+
+  private fun addExpressionReferences(
+    expression: ReportingSet.SetExpression,
+    ids: MutableSet<String>,
+  ) {
+    for (operand in listOf(expression.lhs, expression.rhs)) {
+      when (operand.operandCase) {
+        ReportingSet.SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID ->
+          if (operand.externalReportingSetId.isNotEmpty()) {
+            ids += operand.externalReportingSetId
+          }
+        ReportingSet.SetExpression.Operand.OperandCase.EXPRESSION ->
+          addExpressionReferences(operand.expression, ids)
+        ReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET,
+        null -> Unit
+      }
+    }
   }
 
   /** Validates a nonempty, self-linked primitive Campaign Group and returns its universe. */
@@ -92,6 +141,7 @@ class ReportingSetValidator(
     requireValid(visiting.add(id), "ReportingSet expression contains a cycle")
     reportingSets[id] = reportingSet
     try {
+      preloadReportingSets(referencedReportingSetIds(reportingSet))
       val membership =
         when (reportingSet.valueCase) {
           ReportingSet.ValueCase.PRIMITIVE ->
@@ -192,5 +242,9 @@ class ReportingSetValidator(
     if (!condition) {
       throw InvalidFieldValueException("reporting_set") { message }
     }
+  }
+
+  private companion object {
+    const val MAX_READ_BATCH_SIZE = 1000
   }
 }

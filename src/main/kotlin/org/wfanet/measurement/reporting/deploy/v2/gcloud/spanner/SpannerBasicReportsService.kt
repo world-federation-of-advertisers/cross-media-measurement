@@ -528,10 +528,10 @@ class SpannerBasicReportsService(
       validateBasicReport(request.basicReport)
       if (validateInsertBasicReport) {
         val reportingSetValidator =
-          ReportingSetValidator(request.basicReport.cmmsMeasurementConsumerId) { id ->
-            getReportingSets(request.basicReport.cmmsMeasurementConsumerId, listOf(id))
-              .single()
-              .reportingSet
+          ReportingSetValidator(request.basicReport.cmmsMeasurementConsumerId) { ids ->
+            getReportingSets(request.basicReport.cmmsMeasurementConsumerId, ids).map {
+              it.reportingSet
+            }
           }
         BasicReportInsertValidator(reportingSetValidator).validate(request.basicReport)
       }
