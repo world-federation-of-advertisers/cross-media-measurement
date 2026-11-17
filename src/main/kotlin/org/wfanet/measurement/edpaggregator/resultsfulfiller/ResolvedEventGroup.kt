@@ -41,10 +41,13 @@ data class ResolvedEventGroup(
 /** Normalized event groups and blob-level entity-key configuration. */
 data class ResolvedEventGroups(
   val eventGroupsByKey: Map<EventGroupKey, ResolvedEventGroup>,
-  val mappedEntityType: String?,
+  val mapping: EventGroupReferenceIdEntityKeyMapping?,
   /** Entity types whose blob metadata IDs are guaranteed to be exhaustive at that entity level. */
   val wholeBlobEntityTypes: Set<String>,
 ) {
+  val mappedEntityType: String?
+    get() = mapping?.entityType
+
   init {
     require(wholeBlobEntityTypes.all { it.isNotBlank() }) {
       "Whole-blob entity types must not be blank"
@@ -76,7 +79,7 @@ data class ResolvedEventGroups(
       require(eventGroupsByKey.size == entries.size) { "Event-group keys must be unique" }
       return ResolvedEventGroups(
         eventGroupsByKey = eventGroupsByKey,
-        mappedEntityType = mapping?.entityType,
+        mapping = mapping,
         wholeBlobEntityTypes = wholeBlobEntityTypes,
       )
     }
@@ -85,6 +88,14 @@ data class ResolvedEventGroups(
       details: GroupedRequisitions.EventGroupDetails,
       mapping: EventGroupReferenceIdEntityKeyMapping?,
     ): ResolvedEventGroup {
+      if (
+        mapping != null &&
+          details.hasEntityKey() &&
+          details.entityKey.entityType == mapping.entityType &&
+          details.entityKey.entityId.isNotEmpty()
+      ) {
+        mapping.validateEntityId(details.entityKey.entityType, details.entityKey.entityId)
+      }
       if (detailsHasEntityKey(details)) {
         val detailsEntityKey: GroupedRequisitions.EventGroupDetails.EntityKey = details.entityKey
         val entityKey: LabeledImpression.EntityKey =
@@ -92,24 +103,34 @@ data class ResolvedEventGroups(
             entityType = detailsEntityKey.entityType
             entityId = detailsEntityKey.entityId
           }
+        val mappedReferenceId: String? =
+          if (mapping?.entityType == entityKey.entityType) {
+            mapping.requireEventGroupReferenceId(entityKey.entityType, entityKey.entityId)
+          } else {
+            null
+          }
+        if (mappedReferenceId != null) {
+          val nativeReferenceId: String? = details.eventGroupReferenceId.takeIf { it.isNotEmpty() }
+          require(nativeReferenceId == null || nativeReferenceId == mappedReferenceId) {
+            "Event-group reference ID $nativeReferenceId and entity ID ${entityKey.entityId} " +
+              "are not equivalent under event_group_reference_id_entity_key_mapping"
+          }
+        }
         return ResolvedEventGroup(
           collectionIntervals = details.collectionIntervalsList,
-          eventGroupReferenceId =
-            mapping?.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId),
+          eventGroupReferenceId = mappedReferenceId,
           entityKey = entityKey,
         )
       }
 
-      val referenceId: String? = details.eventGroupReferenceId.takeIf { it.isNotBlank() }
+      val referenceId: String? = details.eventGroupReferenceId.takeIf { it.isNotEmpty() }
       val entityKey: LabeledImpression.EntityKey? =
         if (mapping == null || referenceId == null) {
           null
         } else {
-          mapping.toEntityId(referenceId)?.let { entityId ->
-            LabeledImpressionKt.entityKey {
-              entityType = mapping.entityType
-              this.entityId = entityId
-            }
+          LabeledImpressionKt.entityKey {
+            entityType = mapping.entityType
+            entityId = mapping.requireEntityId(referenceId)
           }
         }
       return ResolvedEventGroup(
