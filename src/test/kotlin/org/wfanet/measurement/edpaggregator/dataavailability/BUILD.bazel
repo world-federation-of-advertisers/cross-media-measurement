@@ -238,3 +238,16 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
     ],
 )
+
+kt_jvm_test(
+    name = "ModelLineAliasValidatorTest",
+    srcs = ["ModelLineAliasValidatorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.dataavailability.ModelLineAliasValidatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:model_line_cutover",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

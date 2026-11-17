@@ -60,7 +60,6 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.ModelLineCutover
-import org.wfanet.measurement.edpaggregator.ModelLineCutoverValidator
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -151,6 +150,8 @@ class ExternalDataAvailabilitySnapshotChangedException(
  * @property kingdomPublicationTimeout Deadline for publishing availability to the Kingdom.
  * @property availabilityImpressionPaths All impression roots checked for provider-wide date gaps.
  * @property managedDoneObjectResolver factory for an invocation-scoped managed-output owner view.
+ * @property hiddenModelLines Internal sources whose native identity must never be published. Keep
+ *   these sources configured when changing cutovers or retiring their comparison aliases.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
@@ -172,6 +173,7 @@ class DataAvailabilitySync(
   private val generationMatchedMetadataUpdater: GenerationMatchedBlobMetadataUpdater? = null,
   private val managedDoneObjectResolver: (() -> ManagedDoneObjectResolver)? = null,
   private val clock: Clock = Clock.systemUTC(),
+  private val hiddenModelLines: Set<String> = emptySet(),
 ) {
   data class ModelLineDataSource(
     val storageClient: BlobMetadataStorageClient,
@@ -322,13 +324,21 @@ class DataAvailabilitySync(
     require(modelLineMap.values.all { it.isNotEmpty() }) {
       "modelLineMap entries must contain at least one model line"
     }
-    ModelLineCutoverValidator.validate(modelLineCutovers, modelLineMap.values.flatten().toSet())
+    ModelLineAliasValidator.validate(
+      modelLineCutovers,
+      modelLineMap,
+      hiddenModelLines,
+      modelLineDataSources.keys,
+    )
     val cutoverContributors =
       modelLineCutovers.flatMapTo(mutableSetOf()) {
         listOf(it.historicalModelLine, it.replacementModelLine)
       }
     require(modelLineDataSources.keys.containsAll(cutoverContributors)) {
       "modelLineDataSources must contain every cutover contributor"
+    }
+    require(modelLineDataSources.keys.containsAll(hiddenModelLines.intersect(modelLineMap.keys))) {
+      "modelLineDataSources must contain every mapped hidden model line"
     }
     require(!kingdomPublicationTimeout.isZero && !kingdomPublicationTimeout.isNegative) {
       "kingdomPublicationTimeout must be positive"
@@ -495,7 +505,9 @@ class DataAvailabilitySync(
         }
       }
 
-      if (impressionMetadataMap.isEmpty() && modelLineCutovers.isEmpty()) {
+      if (
+        impressionMetadataMap.isEmpty() && modelLineCutovers.isEmpty() && hiddenModelLines.isEmpty()
+      ) {
         logger.info("There were no valid impressions metadata.")
         if (vidLabelerOutputs != null) {
           // The registered raw inputs were checked and every output/sidecar pair was absent, so
@@ -589,7 +601,13 @@ class DataAvailabilitySync(
           listOf(it.historicalModelLine, it.replacementModelLine)
         }
       val modelLinesToValidate =
-        (impressionMetadataMap.keys.map(ModelLineKey::toName) + cutoverContributorLines)
+        (impressionMetadataMap.keys.map(ModelLineKey::toName) +
+            cutoverContributorLines +
+            if (hiddenModelLines.isNotEmpty()) {
+              hiddenModelLines +
+                modelLineBounds.modelLineBoundsList.map { it.key } +
+                modelLineMap.keys
+            } else emptySet())
           .map { checkNotNull(ModelLineKey.fromName(it)) }
           .toSet()
       val dateInfoByModelLine = mutableMapOf<String, PublicationDateInfo>()
@@ -646,7 +664,7 @@ class DataAvailabilitySync(
       var publicationNoWork = false
       var retainedIdentities: Set<String> = emptySet()
       val availabilityEntries =
-        if (modelLineCutovers.isNotEmpty()) {
+        if (modelLineCutovers.isNotEmpty() || hiddenModelLines.isNotEmpty()) {
           val publication =
             planAvailabilityPublication(
               modelLineBounds,
@@ -819,7 +837,11 @@ class DataAvailabilitySync(
         recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
         return Outcome.NO_WORK
       }
-      check(availabilityEntries.isNotEmpty() || modelLineCutovers.isNotEmpty()) {
+      check(
+        availabilityEntries.isNotEmpty() ||
+          modelLineCutovers.isNotEmpty() ||
+          hiddenModelLines.isNotEmpty()
+      ) {
         "No data availability intervals were computed for $dataProviderName"
       }
       onStage(Stage.KINGDOM_PUBLICATION)
@@ -1182,7 +1204,7 @@ class DataAvailabilitySync(
     val contributors =
       modelLineCutovers.flatMapTo(mutableSetOf()) {
         listOf(it.historicalModelLine, it.replacementModelLine)
-      }
+      } + hiddenModelLines
     val visible = modelLineCutovers.mapTo(mutableSetOf()) { it.externalModelLine }
     val plans = linkedMapOf<String, PublicationPlan>()
     for (source in bounds.keys + contributors) {
@@ -1306,14 +1328,17 @@ class DataAvailabilitySync(
             ?: modelLineCutovers
               .filter { source == it.historicalModelLine || source == it.replacementModelLine }
               .map { it.externalModelLine }
-              .ifEmpty { listOf(source) }
+              .ifEmpty { if (source in hiddenModelLines) emptyList() else listOf(source) }
         }
         .toSet()
+    val noPublicTargets = sources.isNotEmpty() && triggerTargets.isEmpty()
     val triggerPlans = triggerTargets.mapNotNull(plans::get)
     val ready =
-      (if (triggerPlans.isEmpty()) updates.isNotEmpty() || triggeringSources.isEmpty()
+      (if (noPublicTargets) true
+      else if (triggerPlans.isEmpty()) updates.isNotEmpty() || triggeringSources.isEmpty()
       else triggerPlans.all { it.ready }) && triggerChecks.none { it.blocks }
     val intervals = retained + updates
+    val publish = updates.isNotEmpty() || intervals != existing
     return AvailabilityPublication(
       intervals = intervals,
       triggerReady = ready,
@@ -1323,13 +1348,15 @@ class DataAvailabilitySync(
             !plan.ready &&
               (plan.interval != null || plan.checks.any { it.blocks } || target in existing)
           },
-      publish = updates.isNotEmpty() || intervals != existing,
+      publish = publish,
       retained = retained.keys,
       noWork =
-        metadataSources.isEmpty() &&
-          plans.values.none { it.interval != null || it.checks.any { check -> check.blocks } } &&
-          bounds.isEmpty() &&
-          triggerChecks.none { it.blocks },
+        if (noPublicTargets) !publish
+        else
+          metadataSources.isEmpty() &&
+            plans.values.none { it.interval != null || it.checks.any { check -> check.blocks } } &&
+            bounds.isEmpty() &&
+            triggerChecks.none { it.blocks },
     )
   }
 
