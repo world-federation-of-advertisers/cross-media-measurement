@@ -40,10 +40,9 @@ internal object Edp7PipelinedDates {
  *
  * All three test envs (dev / head / qa) deliberately share one KEK URI in the dev EDP project: edp7
  * is the same EDP everywhere, with `kms_config.service_account = primus-sa@halo-cmm-dev-edp` in
- * dev/head/qa alike (see the per-env `EDPA_EDPS_CONFIG` variable). This is not a staging shortcut;
- * if a future change splits edp7 per env, update [BY_PROJECT]. Kept here rather than a per-env
- * GitHub variable because the env-var limit is reached; the `EDP7_KEK_URI` env still overrides at
- * the call sites.
+ * dev/head/qa alike (see the per-env `envs/<env>/event-data-provider-configs.textproto`). This is
+ * not a staging shortcut; if a future change splits edp7 per env, update [BY_PROJECT] and the
+ * corresponding committed configs. The `EDP7_KEK_URI` env still overrides at the call sites.
  */
 internal object Edp7StorageKek {
   private const val URI =

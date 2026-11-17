@@ -17,7 +17,9 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
+import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
@@ -26,6 +28,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -34,6 +37,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.ExponentialBackoff
@@ -41,20 +45,27 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class ImpressionDataSourceProviderTest {
 
   @get:Rule val tmp = TemporaryFolder()
   val modelLine = "model-line-1"
+  val fullModelLine = "modelProviders/provider/modelSuites/suite/modelLines/model-line-1"
   val impressionsBlobDetailsUriPrefix = "file:///meta-bucket/"
 
   private val impressionMetadataServiceMock =
@@ -70,12 +81,293 @@ class ImpressionDataSourceProviderTest {
     )
   }
 
-  private fun createService() =
-    ImpressionDataSourceProvider(
+  private fun createService(
+    modelLineDataSources: Map<String, ModelLineDataSource> = emptyMap(),
+    modelLineStorageClient: StorageClient? = null,
+  ): ImpressionDataSourceProvider {
+    val storageClientFactory: (BlobUri) -> StorageClient =
+      modelLineStorageClient?.let { storageClient -> { _: BlobUri -> storageClient } }
+        ?: { blobUri ->
+          SelectedStorageClient(blobUri, tmp.root).underlyingClient
+        }
+    return ImpressionDataSourceProvider(
       impressionMetadataStub = impressionMetadataStub,
       dataProvider = "dataProviders/123",
       impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmp.root),
+      modelLineDataSources = modelLineDataSources,
+      modelLineStorageClientFactory = storageClientFactory,
     )
+  }
+
+  private suspend fun writeDoneMarker(
+    storageClient: InMemoryStorageClient,
+    blobKey: String,
+    synced: Boolean,
+  ) {
+    storageClient.writeBlob(blobKey, ByteString.copyFromUtf8("done"))
+    if (synced) {
+      storageClient.updateBlobMetadata(
+        blobKey,
+        metadata =
+          mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+      )
+    }
+  }
+
+  private fun referenceEventGroup(referenceId: String, period: Interval): ResolvedEventGroup {
+    return ResolvedEventGroup(
+      collectionIntervals = listOf(period),
+      eventGroupReferenceId = referenceId,
+      entityKey = null,
+    )
+  }
+
+  private fun entityEventGroup(
+    entityType: String,
+    entityId: String,
+    period: Interval,
+  ): ResolvedEventGroup {
+    return ResolvedEventGroup(
+      collectionIntervals = listOf(period),
+      eventGroupReferenceId = null,
+      entityKey =
+        LabeledImpressionKt.entityKey {
+          this.entityType = entityType
+          this.entityId = entityId
+        },
+    )
+  }
+
+  @Test
+  fun `selected model line fails when requested date is not finalized`(): Unit = runBlocking {
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse {})
+    File(tmp.root, "availability").mkdirs()
+    val date = LocalDate.of(2026, 10, 5)
+    val period = interval {
+      startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        createService(
+            mapOf(
+              fullModelLine to
+                ModelLineDataSource(
+                  "file:///availability/root",
+                  validStartDate = date,
+                  validEndDate = null,
+                )
+            )
+          )
+          .listImpressionDataSources(
+            fullModelLine,
+            listOf(referenceEventGroup("eg-missing", period)),
+            reportInterval = period,
+            requireModelLineFinalization = true,
+          )
+      }
+
+    assertThat(exception).hasMessageThat().contains("not finalized")
+  }
+
+  @Test
+  fun `selected model line accepts synced legacy and upload markers for zero impressions`(): Unit =
+    runBlocking {
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+      val date = LocalDate.of(2026, 10, 5)
+      val period = interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+      for (markerName in listOf("done", "done-${"a".repeat(64)}")) {
+        val storageClient = InMemoryStorageClient()
+        writeDoneMarker(
+          storageClient,
+          "root/model-line/model-line-1/$date/$markerName",
+          synced = true,
+        )
+
+        val sources =
+          createService(
+              mapOf(
+                fullModelLine to
+                  ModelLineDataSource(
+                    "file:///availability/root",
+                    validStartDate = date,
+                    validEndDate = null,
+                  )
+              ),
+              storageClient,
+            )
+            .listImpressionDataSources(
+              fullModelLine,
+              listOf(referenceEventGroup("eg-zero", period)),
+              reportInterval = period,
+              requireModelLineFinalization = true,
+            )
+
+        assertThat(sources).isEmpty()
+      }
+    }
+
+  @Test
+  fun `selected model line rejects unprocessed completion markers`(): Unit = runBlocking {
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse {})
+    val date = LocalDate.of(2026, 10, 5)
+    val period = interval {
+      startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+    }
+    for (markerName in listOf("done", "done-${"a".repeat(64)}")) {
+      val storageClient = InMemoryStorageClient()
+      writeDoneMarker(
+        storageClient,
+        "root/model-line/model-line-1/$date/$markerName",
+        synced = false,
+      )
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          createService(
+              mapOf(
+                fullModelLine to
+                  ModelLineDataSource(
+                    "file:///availability/root",
+                    validStartDate = date,
+                    validEndDate = null,
+                  )
+              ),
+              storageClient,
+            )
+            .listImpressionDataSources(
+              fullModelLine,
+              listOf(referenceEventGroup("eg-unprocessed", period)),
+              reportInterval = period,
+              requireModelLineFinalization = true,
+            )
+        }
+
+      assertThat(exception).hasMessageThat().contains("unprocessed completion marker")
+    }
+  }
+
+  @Test
+  fun `selected model line rejects date when any completion marker is unprocessed`(): Unit =
+    runBlocking {
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+      val date = LocalDate.of(2026, 10, 5)
+      val period = interval {
+        startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+      val storageClient = InMemoryStorageClient()
+      writeDoneMarker(
+        storageClient,
+        "root/model-line/model-line-1/$date/done-${"a".repeat(64)}",
+        synced = true,
+      )
+      writeDoneMarker(
+        storageClient,
+        "root/model-line/model-line-1/$date/done-${"b".repeat(64)}",
+        synced = false,
+      )
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          createService(
+              mapOf(
+                fullModelLine to
+                  ModelLineDataSource(
+                    "file:///availability/root",
+                    validStartDate = date,
+                    validEndDate = null,
+                  )
+              ),
+              storageClient,
+            )
+            .listImpressionDataSources(
+              fullModelLine,
+              listOf(referenceEventGroup("eg-partial", period)),
+              reportInterval = period,
+              requireModelLineFinalization = true,
+            )
+        }
+
+      assertThat(exception).hasMessageThat().contains("unprocessed completion marker")
+    }
+
+  @Test
+  fun `cutover selection fails when finalization data source is missing`(): Unit = runBlocking {
+    val date = LocalDate.of(2026, 10, 5)
+    val reportInterval = interval {
+      startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+    }
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        createService()
+          .listImpressionDataSources(
+            fullModelLine,
+            listOf(referenceEventGroup("eg-missing-source", reportInterval)),
+            reportInterval = reportInterval,
+            requireModelLineFinalization = true,
+          )
+      }
+
+    assertThat(exception).hasMessageThat().contains("Missing finalization data source")
+  }
+
+  @Test
+  fun `cutover selection validates dates outside current collection intervals`(): Unit =
+    runBlocking {
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+      val firstDate = LocalDate.of(2026, 10, 5)
+      val collectionDate = firstDate.plusDays(1)
+      val availabilityDir = File(tmp.root, "availability").also(File::mkdirs)
+      FileSystemStorageClient(availabilityDir)
+        .writeBlob(
+          "root/model-line/model-line-1/$collectionDate/done",
+          ByteString.copyFromUtf8("done"),
+        )
+      val collectionInterval = interval {
+        startTime = collectionDate.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime =
+          collectionDate.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+      val reportInterval = interval {
+        startTime = firstDate.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+        endTime = firstDate.plusDays(2).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+      }
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          createService(
+              mapOf(
+                fullModelLine to
+                  ModelLineDataSource(
+                    "file:///availability/root",
+                    validStartDate = firstDate,
+                    validEndDate = null,
+                  )
+              )
+            )
+            .listImpressionDataSources(
+              fullModelLine,
+              listOf(referenceEventGroup("eg-narrow", collectionInterval)),
+              reportInterval = reportInterval,
+              requireModelLineFinalization = true,
+            )
+        }
+
+      assertThat(exception).hasMessageThat().contains("not finalized on $firstDate")
+    }
 
   @Test
   fun `storage-backed returns one source for a single day`(): Unit = runBlocking {
@@ -120,21 +412,20 @@ class ImpressionDataSourceProviderTest {
         }
       )
 
+    val period = interval {
+      startTime = timestamp {
+        seconds = start.epochSecond
+        nanos = start.nano
+      }
+      endTime = timestamp {
+        seconds = end.epochSecond
+        nanos = end.nano
+      }
+    }
     val sources =
       svc.listImpressionDataSources(
         modelLine = modelLine,
-        selector = ImpressionQuerySelector.ByEventGroupReferenceId(eventGroupRef),
-        period =
-          interval {
-            startTime = timestamp {
-              seconds = start.epochSecond
-              nanos = start.nano
-            }
-            endTime = timestamp {
-              seconds = end.epochSecond
-              nanos = end.nano
-            }
-          },
+        eventGroups = listOf(referenceEventGroup(eventGroupRef, period)),
       )
 
     assertThat(sources).hasSize(1)
@@ -142,6 +433,133 @@ class ImpressionDataSourceProviderTest {
     assertThat(sources[0].interval.startTime).isEqualTo(start.toProtoTime())
     assertThat(sources[0].interval.endTime).isEqualTo(end.toProtoTime())
   }
+
+  @Test
+  fun `listImpressionDataSources prefers pinned output after metadata upgrade between queries`():
+    Unit = runBlocking {
+    val bucketName = "meta-bucket"
+    val key = "metadata.binpb"
+    val outputUri = "file:///impressions/shared"
+    val bucketDir = File(tmp.root, bucketName).apply { mkdirs() }
+    FileSystemStorageClient(bucketDir)
+      .writeBlob(key, blobDetails { blobUri = outputUri }.toByteString())
+    val period = interval {
+      startTime = timestamp { seconds = 1 }
+      endTime = timestamp { seconds = 2 }
+    }
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            blobUri = "file:///$bucketName/$key"
+            interval = period
+          }
+        },
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            blobUri = "file:///$bucketName/$key"
+            interval = period
+            impressionsBlobGeneration = 7L
+          }
+        },
+      )
+
+    val sources =
+      createService()
+        .listImpressionDataSources(
+          modelLine,
+          listOf(
+            ResolvedEventGroup(
+              collectionIntervals = listOf(period),
+              eventGroupReferenceId = "ref/123",
+              entityKey =
+                LabeledImpressionKt.entityKey {
+                  entityType = "campaign"
+                  entityId = "entity/123"
+                },
+            )
+          ),
+        )
+
+    assertThat(sources).hasSize(1)
+    assertThat(sources.single().blobDetails.blobUri).isEqualTo(outputUri)
+    assertThat(sources.single().blobGeneration).isEqualTo(7L)
+    val requests = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(requests.capture())
+    assertThat(requests.firstValue.filter.entityKeysList).hasSize(1)
+    assertThat(requests.secondValue.filter.eventGroupReferenceIdsList).containsExactly("ref/123")
+  }
+
+  @Test
+  fun `storage-backed retains distinct output generations at the same metadata URI`(): Unit =
+    runBlocking {
+      val svc = createService()
+      val bucketName = "meta-bucket"
+      val bucketDir = File(tmp.root, bucketName)
+      bucketDir.mkdirs()
+
+      // Write BlobDetails at the resolved metadata path key within the bucket.
+      val date = LocalDate.of(2025, 1, 15)
+      val eventGroupRef = "eg-1"
+      val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+      val blobDetailsBytes =
+        blobDetails {
+            blobUri = "file:///impressions/$date/$eventGroupRef"
+            encryptedDek = EncryptedDek.getDefaultInstance()
+          }
+          .toByteString()
+      val fs = FileSystemStorageClient(bucketDir)
+      fs.writeBlob(key, blobDetailsBytes)
+
+      val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(
+          listImpressionMetadataResponse {
+            for (generation in listOf(7L, 8L)) {
+              impressionMetadata += impressionMetadata {
+                state = ImpressionMetadata.State.ACTIVE
+                impressionsBlobGeneration = generation
+                blobUri = "file:///$bucketName/$key"
+                interval = interval {
+                  startTime = timestamp {
+                    seconds = start.epochSecond
+                    nanos = start.nano
+                  }
+                  endTime = timestamp {
+                    seconds = end.epochSecond
+                    nanos = end.nano
+                  }
+                }
+              }
+            }
+          }
+        )
+
+      val period = interval {
+        startTime = timestamp {
+          seconds = start.epochSecond
+          nanos = start.nano
+        }
+        endTime = timestamp {
+          seconds = end.epochSecond
+          nanos = end.nano
+        }
+      }
+      val sources =
+        svc.listImpressionDataSources(
+          modelLine = modelLine,
+          eventGroups = listOf(referenceEventGroup(eventGroupRef, period)),
+        )
+
+      assertThat(sources).hasSize(2)
+      assertThat(sources.map { it.blobGeneration }).containsExactly(7L, 8L)
+      assertThat(sources[0].blobDetails.blobUri)
+        .isEqualTo("file:///impressions/$date/$eventGroupRef")
+      assertThat(sources[0].interval.startTime).isEqualTo(start.toProtoTime())
+      assertThat(sources[0].interval.endTime).isEqualTo(end.toProtoTime())
+    }
 
   @Test
   fun `storage-backed throws when metadata is missing`(): Unit = runBlocking {
@@ -163,27 +581,26 @@ class ImpressionDataSourceProviderTest {
     val date = LocalDate.of(2025, 2, 1)
     val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
     val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
-
-    try {
-      svc.listImpressionDataSources(
-        modelLine = modelLine,
-        selector = ImpressionQuerySelector.ByEventGroupReferenceId("eg-3"),
-        period =
-          interval {
-            startTime = timestamp {
-              seconds = start.epochSecond
-              nanos = start.nano
-            }
-            endTime = timestamp {
-              seconds = end.epochSecond
-              nanos = end.nano
-            }
-          },
-      )
-      assert(false) { "Expected ImpressionReadException" }
-    } catch (e: ImpressionReadException) {
-      assertThat(e.code).isEqualTo(ImpressionReadException.Code.BLOB_NOT_FOUND)
+    val period = interval {
+      startTime = timestamp {
+        seconds = start.epochSecond
+        nanos = start.nano
+      }
+      endTime = timestamp {
+        seconds = end.epochSecond
+        nanos = end.nano
+      }
     }
+
+    val exception =
+      assertFailsWith<ImpressionReadException> {
+        svc.listImpressionDataSources(
+          modelLine = modelLine,
+          eventGroups = listOf(referenceEventGroup("eg-3", period)),
+        )
+      }
+
+    assertThat(exception.code).isEqualTo(ImpressionReadException.Code.BLOB_NOT_FOUND)
   }
 
   @Test
@@ -208,12 +625,6 @@ class ImpressionDataSourceProviderTest {
     val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
     val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
 
-    val queryEntityKey =
-      org.wfanet.measurement.edpaggregator.v1alpha.entityKey {
-        entityType = "creative-id"
-        entityId = "creative-a"
-      }
-
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(
         listImpressionMetadataResponse {
@@ -235,21 +646,20 @@ class ImpressionDataSourceProviderTest {
         }
       )
 
+    val period = interval {
+      startTime = timestamp {
+        seconds = start.epochSecond
+        nanos = start.nano
+      }
+      endTime = timestamp {
+        seconds = end.epochSecond
+        nanos = end.nano
+      }
+    }
     val sources =
       svc.listImpressionDataSources(
         modelLine = modelLine,
-        selector = ImpressionQuerySelector.ByEntityKey(queryEntityKey),
-        period =
-          interval {
-            startTime = timestamp {
-              seconds = start.epochSecond
-              nanos = start.nano
-            }
-            endTime = timestamp {
-              seconds = end.epochSecond
-              nanos = end.nano
-            }
-          },
+        eventGroups = listOf(entityEventGroup("creative-id", "creative-a", period)),
       )
 
     assertThat(sources).hasSize(1)
@@ -319,27 +729,20 @@ class ImpressionDataSourceProviderTest {
       whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
         .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataEntries })
 
-      val queryEntityKey =
-        org.wfanet.measurement.edpaggregator.v1alpha.entityKey {
-          entityType = "campaign-id"
-          entityId = "campaign-123"
+      val period = interval {
+        startTime = timestamp {
+          seconds = start.epochSecond
+          nanos = start.nano
         }
-
+        endTime = timestamp {
+          seconds = end.epochSecond
+          nanos = end.nano
+        }
+      }
       val sources =
         svc.listImpressionDataSources(
           modelLine = modelLine,
-          selector = ImpressionQuerySelector.ByEntityKey(queryEntityKey),
-          period =
-            interval {
-              startTime = timestamp {
-                seconds = start.epochSecond
-                nanos = start.nano
-              }
-              endTime = timestamp {
-                seconds = end.epochSecond
-                nanos = end.nano
-              }
-            },
+          eventGroups = listOf(entityEventGroup("campaign-id", "campaign-123", period)),
         )
 
       assertThat(sources).hasSize(3)
@@ -365,31 +768,24 @@ class ImpressionDataSourceProviderTest {
       whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
         .thenReturn(listImpressionMetadataResponse {})
 
-      val queryEntityKey =
-        org.wfanet.measurement.edpaggregator.v1alpha.entityKey {
-          entityType = "creative-id"
-          entityId = "nonexistent"
-        }
-
       val date = LocalDate.of(2025, 3, 1)
       val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
       val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
 
+      val period = interval {
+        startTime = timestamp {
+          seconds = start.epochSecond
+          nanos = start.nano
+        }
+        endTime = timestamp {
+          seconds = end.epochSecond
+          nanos = end.nano
+        }
+      }
       val sources =
         svc.listImpressionDataSources(
           modelLine = modelLine,
-          selector = ImpressionQuerySelector.ByEntityKey(queryEntityKey),
-          period =
-            interval {
-              startTime = timestamp {
-                seconds = start.epochSecond
-                nanos = start.nano
-              }
-              endTime = timestamp {
-                seconds = end.epochSecond
-                nanos = end.nano
-              }
-            },
+          eventGroups = listOf(entityEventGroup("creative-id", "nonexistent", period)),
         )
 
       assertThat(sources).isEmpty()
@@ -401,12 +797,6 @@ class ImpressionDataSourceProviderTest {
 
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
       .thenReturn(listImpressionMetadataResponse {})
-
-    val queryEntityKey =
-      org.wfanet.measurement.edpaggregator.v1alpha.entityKey {
-        entityType = "placement-id"
-        entityId = "placement-42"
-      }
 
     val date = LocalDate.of(2025, 4, 10)
     val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
@@ -426,8 +816,7 @@ class ImpressionDataSourceProviderTest {
     val results =
       svc.listImpressionDataSources(
         modelLine,
-        ImpressionQuerySelector.ByEntityKey(queryEntityKey),
-        period,
+        listOf(entityEventGroup("placement-id", "placement-42", period)),
       )
 
     assertThat(results).isEmpty()
@@ -468,8 +857,11 @@ class ImpressionDataSourceProviderTest {
       val results =
         svc.listImpressionDataSources(
           modelLine,
-          ImpressionQuerySelector.ByEventGroupReferenceIds(listOf("eg-1", "eg-2", "eg-3")),
-          period,
+          listOf(
+            referenceEventGroup("eg-1", period),
+            referenceEventGroup("eg-2", period),
+            referenceEventGroup("eg-3", period),
+          ),
         )
 
       assertThat(results).isEmpty()
@@ -484,72 +876,132 @@ class ImpressionDataSourceProviderTest {
     }
 
   @Test
-  fun `listImpressionDataSources retries a transient UNAVAILABLE from the metadata service`():
-    Unit = runBlocking {
-    val bucketName = "meta-bucket"
-    val bucketDir = File(tmp.root, bucketName)
-    bucketDir.mkdirs()
+  fun `listImpressionDataSources retries a transient UNAVAILABLE from metadata service`(): Unit =
+    runBlocking {
+      val bucketName = "meta-bucket"
+      val bucketDir = File(tmp.root, bucketName)
+      bucketDir.mkdirs()
 
-    val date = LocalDate.of(2025, 1, 15)
-    val eventGroupRef = "eg-retry"
-    val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
-    val blobDetailsBytes =
-      blobDetails {
-          blobUri = "file:///impressions/$date/$eventGroupRef"
-          encryptedDek = EncryptedDek.getDefaultInstance()
+      val date = LocalDate.of(2025, 1, 15)
+      val eventGroupRef = "eg-retry"
+      val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+      val blobDetailsBytes =
+        blobDetails {
+            blobUri = "file:///impressions/$date/$eventGroupRef"
+            encryptedDek = EncryptedDek.getDefaultInstance()
+          }
+          .toByteString()
+      FileSystemStorageClient(bucketDir).writeBlob(key, blobDetailsBytes)
+
+      val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val period = interval {
+        startTime = timestamp {
+          seconds = start.epochSecond
+          nanos = start.nano
         }
-        .toByteString()
-    FileSystemStorageClient(bucketDir).writeBlob(key, blobDetailsBytes)
-
-    val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
-    val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
-    val period = interval {
-      startTime = timestamp {
-        seconds = start.epochSecond
-        nanos = start.nano
-      }
-      endTime = timestamp {
-        seconds = end.epochSecond
-        nanos = end.nano
-      }
-    }
-
-    // Fail transiently on the first two attempts, then succeed.
-    val attempts = AtomicInteger(0)
-    whenever(impressionMetadataServiceMock.listImpressionMetadata(any())).thenAnswer {
-      if (attempts.incrementAndGet() < 3) {
-        throw StatusException(Status.UNAVAILABLE)
-      }
-      listImpressionMetadataResponse {
-        impressionMetadata += impressionMetadata {
-          state = ImpressionMetadata.State.ACTIVE
-          blobUri = "file:///$bucketName/$key"
-          interval = period
+        endTime = timestamp {
+          seconds = end.epochSecond
+          nanos = end.nano
         }
       }
+
+      // Fail transiently on the first two attempts, then succeed.
+      val attempts = AtomicInteger(0)
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any())).thenAnswer {
+        if (attempts.incrementAndGet() < 3) {
+          throw StatusException(Status.UNAVAILABLE)
+        }
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///$bucketName/$key"
+            interval = period
+          }
+        }
+      }
+
+      val svc =
+        ImpressionDataSourceProvider(
+          impressionMetadataStub = impressionMetadataStub,
+          dataProvider = "dataProviders/123",
+          impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          listRetryBackoff =
+            ExponentialBackoff(
+              initialDelay = Duration.ofMillis(1),
+              multiplier = 1.0,
+              randomnessFactor = 0.0,
+            ),
+        )
+
+      val sources =
+        svc.listImpressionDataSources(
+          modelLine = modelLine,
+          eventGroups = listOf(referenceEventGroup(eventGroupRef, period)),
+        )
+
+      assertThat(sources).hasSize(1)
+      assertThat(attempts.get()).isEqualTo(3)
     }
 
-    val svc =
-      ImpressionDataSourceProvider(
-        impressionMetadataStub = impressionMetadataStub,
-        dataProvider = "dataProviders/123",
-        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmp.root),
-        listRetryBackoff =
-          ExponentialBackoff(
-            initialDelay = Duration.ofMillis(1),
-            multiplier = 1.0,
-            randomnessFactor = 0.0,
-          ),
-      )
+  @Test
+  fun `listImpressionDataSources deduplicates metadata URIs before reading blob details`(): Unit =
+    runBlocking {
+      val svc = createService()
+      val bucketName = "meta-bucket"
+      val bucketDir = File(tmp.root, bucketName)
+      bucketDir.mkdirs()
+      val key = "duplicate/metadata"
+      FileSystemStorageClient(bucketDir)
+        .writeBlob(
+          key,
+          blobDetails {
+              blobUri = "file:///impressions/duplicate"
+              encryptedDek = EncryptedDek.getDefaultInstance()
+            }
+            .toByteString(),
+        )
+      val firstMetadata = impressionMetadata {
+        blobUri = "file:///$bucketName/$key"
+        interval = interval {
+          startTime = timestamp { seconds = 1 }
+          endTime = timestamp { seconds = 2 }
+        }
+      }
+      val duplicateMetadata = impressionMetadata {
+        blobUri = firstMetadata.blobUri
+        interval = interval {
+          startTime = timestamp { seconds = 3 }
+          endTime = timestamp { seconds = 4 }
+        }
+      }
 
-    val sources =
-      svc.listImpressionDataSources(
-        modelLine = modelLine,
-        selector = ImpressionQuerySelector.ByEventGroupReferenceIds(listOf(eventGroupRef)),
-        period = period,
-      )
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(
+          listImpressionMetadataResponse { impressionMetadata += firstMetadata },
+          listImpressionMetadataResponse { impressionMetadata += duplicateMetadata },
+        )
 
-    assertThat(sources).hasSize(1)
-    assertThat(attempts.get()).isEqualTo(3)
-  }
+      val sources =
+        svc.listImpressionDataSources(
+          modelLine = modelLine,
+          eventGroups =
+            listOf(
+              ResolvedEventGroup(
+                collectionIntervals = listOf(firstMetadata.interval),
+                eventGroupReferenceId = "ref/123",
+                entityKey =
+                  LabeledImpressionKt.entityKey {
+                    entityType = "campaign"
+                    entityId = "entity/123"
+                  },
+              )
+            ),
+        )
+
+      assertThat(sources).hasSize(1)
+      assertThat(sources.single().blobDetails.blobUri).isEqualTo("file:///impressions/duplicate")
+      assertThat(sources.single().interval).isEqualTo(firstMetadata.interval)
+      verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(any())
+    }
 }

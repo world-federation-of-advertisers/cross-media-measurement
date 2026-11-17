@@ -39,6 +39,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadFile
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadFilesResponse
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFile
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteRawImpressionUploadFilesRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadFileRequest
@@ -57,6 +58,13 @@ abstract class RawImpressionUploadFileServiceTest {
   protected abstract suspend fun createUpload(
     dataProviderResourceId: String = DATA_PROVIDER_RESOURCE_ID
   ): String
+
+  protected abstract suspend fun setUploadManifestState(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    registrationComplete: Boolean,
+    state: RawImpressionUploadState,
+  )
 
   @Before
   fun initService() {
@@ -111,6 +119,59 @@ abstract class RawImpressionUploadFileServiceTest {
     val file2: RawImpressionUploadFile = createFile(uploadId, requestId = requestId)
 
     assertThat(file2).isEqualTo(file1)
+  }
+
+  @Test
+  fun `createRawImpressionUploadFile rejects new file after registration completes`() =
+    runBlocking {
+      val uploadId = createUpload()
+      val requestId = UUID.randomUUID().toString()
+      val existing = createFile(uploadId, requestId = requestId)
+      setUploadManifestState(
+        DATA_PROVIDER_RESOURCE_ID,
+        uploadId,
+        registrationComplete = true,
+        state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
+      )
+
+      assertThat(createFile(uploadId, requestId = requestId)).isEqualTo(existing)
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          createFile(uploadId, blobUri = "gs://bucket/new-file")
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadFiles rejects quarantined manifest`() = runBlocking {
+    val uploadId = createUpload()
+    setUploadManifestState(
+      DATA_PROVIDER_RESOURCE_ID,
+      uploadId,
+      registrationComplete = false,
+      state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        fileService.batchCreateRawImpressionUploadFiles(
+          batchCreateRawImpressionUploadFilesRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = uploadId
+            requests += createRawImpressionUploadFileRequest {
+              rawImpressionUploadFile = rawImpressionUploadFile {
+                blobUri = BLOB_URI
+                blobGeneration = BLOB_GENERATION
+                eventDate = EVENT_DATE
+              }
+              requestId = UUID.randomUUID().toString()
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   @Test
@@ -939,6 +1000,31 @@ abstract class RawImpressionUploadFileServiceTest {
   }
 
   @Test
+  fun `deleteRawImpressionUploadFile rejects completed manifest`() = runBlocking {
+    val uploadId = createUpload()
+    val created = createFile(uploadId)
+    setUploadManifestState(
+      DATA_PROVIDER_RESOURCE_ID,
+      uploadId,
+      registrationComplete = true,
+      state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        fileService.deleteRawImpressionUploadFile(
+          deleteRawImpressionUploadFileRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = uploadId
+            fileResourceId = created.fileResourceId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
   fun `deleteRawImpressionUploadFile throws NOT_FOUND when file not found`() = runBlocking {
     val uploadId: String = createUpload()
 
@@ -1009,6 +1095,33 @@ abstract class RawImpressionUploadFileServiceTest {
 
     assertThat(response.rawImpressionUploadFilesList).hasSize(2)
     response.rawImpressionUploadFilesList.forEach { assertThat(it.hasDeleteTime()).isTrue() }
+  }
+
+  @Test
+  fun `batchDeleteRawImpressionUploadFiles rejects quarantined manifest`() = runBlocking {
+    val uploadId = createUpload()
+    val created = createFile(uploadId)
+    setUploadManifestState(
+      DATA_PROVIDER_RESOURCE_ID,
+      uploadId,
+      registrationComplete = false,
+      state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        fileService.batchDeleteRawImpressionUploadFiles(
+          batchDeleteRawImpressionUploadFilesRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = uploadId
+            requests += deleteRawImpressionUploadFileRequest {
+              fileResourceId = created.fileResourceId
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   @Test

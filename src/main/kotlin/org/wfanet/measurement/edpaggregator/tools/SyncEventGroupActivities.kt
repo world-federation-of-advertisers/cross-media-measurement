@@ -93,15 +93,20 @@ class SyncEventGroupActivities : Runnable {
     names = ["--mode"],
     description =
       [
-        "How the sync writes to the Kingdom: " +
-          "sync (default: write creates and deletes to match input exactly), " +
-          "append (write creates only; leave Kingdom records absent from input untouched), " +
-          "or preview (make no mutating calls; log the planned diff)."
+        "Input semantics: " +
+          "sync (reconcile exactly to the input) or " +
+          "patch (apply explicit append/delete operations and leave omissions untouched)."
       ],
     converter = [SyncModeConverter::class],
-    defaultValue = "sync",
+    required = true,
   )
-  private var mode: SyncMode = SyncMode.SYNC
+  private lateinit var mode: SyncMode
+
+  @Option(
+    names = ["--preview"],
+    description = ["Report planned changes without making mutating API calls"],
+  )
+  private var preview: Boolean = false
 
   override fun run() {
     val config: EventGroupActivitySyncConfig =
@@ -131,11 +136,11 @@ class SyncEventGroupActivities : Runnable {
         dataProviderName = dataProvider,
         listPageSize = listPageSize,
         mode = mode,
+        preview = preview,
       )
 
-    // Always shut down the channel; only exit non-zero AFTER the finally runs, since exitProcess
-    // would otherwise skip it. Skipped deletes (non-FULL delete modes) are intentional, so only
-    // runtime (RPC) failures drive the non-zero exit.
+    // `exitProcess` skips `finally`, so shut down the channel before reporting RPC failures with a
+    // nonzero exit.
     val hasFailures: Boolean =
       try {
         runBlocking {

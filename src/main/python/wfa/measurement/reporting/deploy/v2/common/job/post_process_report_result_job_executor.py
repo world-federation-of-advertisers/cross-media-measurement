@@ -61,6 +61,27 @@ _CERT_COLLECTION_FILE = flags.DEFINE_string(
     "The path to the certificate collection file for validating the server's cert.",
     required=True)
 flags.DEFINE_alias("cert-collection-file", "cert_collection_file")
+_LOG_NOISE_CORRECTION_VALUES = flags.DEFINE_boolean(
+    "log_noise_correction_values",
+    False,
+    "Log post-noise, pre-correction report-result values and corrected values. "
+    "These may include reach, impression, frequency, and correction values.",
+)
+flags.DEFINE_alias(
+    "log-noise-correction-values", "log_noise_correction_values"
+)
+_ENABLE_VALIDATION = flags.DEFINE_boolean(
+    "enable_validation",
+    True,
+    "Validate report results and check for large corrections. Assembly always runs.",
+)
+flags.DEFINE_alias("enable-validation", "enable_validation")
+_ENABLE_CORRECTION = flags.DEFINE_boolean(
+    "enable_correction",
+    True,
+    "Correct report measurements. When disabled, assemble the uncorrected values.",
+)
+flags.DEFINE_alias("enable-correction", "enable_correction")
 _AMI_MRC_EXEMPTED_EDPS = flags.DEFINE_list(
     "ami_mrc_exempted_edps",
     [],
@@ -236,6 +257,11 @@ def main(argv):
             logging.info("Create PostProcessReportResultJob.")
             job = post_process_report_result_job.PostProcessReportResultJob(
                 internal_reporting_channel,
+                log_noise_correction_values=(
+                    _LOG_NOISE_CORRECTION_VALUES.value
+                ),
+                enable_validation=_ENABLE_VALIDATION.value,
+                enable_correction=_ENABLE_CORRECTION.value,
                 ami_mrc_exempted_edps=_AMI_MRC_EXEMPTED_EDPS.value,
                 potential_direct_result_minimum_thresholds=(
                     potential_direct_result_minimum_thresholds

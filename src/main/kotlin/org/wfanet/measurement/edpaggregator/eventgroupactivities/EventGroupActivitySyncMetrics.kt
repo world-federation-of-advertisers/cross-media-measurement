@@ -24,16 +24,15 @@ import io.opentelemetry.api.metrics.Meter
  * OpenTelemetry metrics for EventGroup activity synchronization.
  *
  * Tracks created, deleted, and unchanged activity counts, the number of EventGroups processed, the
- * number of recoverable sync errors, the number of deletes computed but suppressed by the delete
- * mode, and the overall sync latency.
+ * number of recoverable sync errors, the number of deletes computed during previews, and the
+ * overall sync latency.
  *
  * Attributes:
  * - data_provider_name: The data provider performing the sync.
  * - outcome: For [eventGroupsProcessed], the per-EventGroup outcome (`success` or `failed`).
  * - error_type: For [syncErrors], the gRPC status code name or exception class that caused the
  *   failure.
- * - mode: For [wouldDeleteCount], the sync mode that suppressed the deletes (`append` or `preview`;
- *   `sync` never meters this counter).
+ * - mode: For [wouldDeleteCount], the selected input mode (`sync` or `patch`).
  */
 class EventGroupActivitySyncMetrics(meter: Meter) {
   /** Counter for EventGroupActivities created (present in input but missing in the Kingdom). */
@@ -50,7 +49,7 @@ class EventGroupActivitySyncMetrics(meter: Meter) {
       .setDescription("Number of EventGroupActivities deleted")
       .build()
 
-  /** Counter for EventGroupActivities left unchanged (present in both input and the Kingdom). */
+  /** Counter for input records that require no mutation. */
   val activitiesUnchanged: LongCounter =
     meter
       .counterBuilder("edpa.event_group_activity.activities_unchanged")
@@ -72,14 +71,14 @@ class EventGroupActivitySyncMetrics(meter: Meter) {
       .build()
 
   /**
-   * Counter for EventGroupActivity deletes that were computed but not applied because the
-   * configured [SyncMode] suppressed them, split by `mode`.
+   * Counter for EventGroupActivity deletes that were computed but not applied during a preview,
+   * split by `mode`.
    */
   val wouldDeleteCount: LongCounter =
     meter
       .counterBuilder("edpa.event_group_activity.would_delete_count")
       .setDescription(
-        "Number of EventGroupActivity deletes computed but not applied due to delete mode"
+        "Number of EventGroupActivity deletes computed but not applied during preview"
       )
       .build()
 

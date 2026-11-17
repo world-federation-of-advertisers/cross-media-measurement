@@ -50,9 +50,11 @@ jobs:
         readarray -d '' -t changed_files < <(
           git diff -z --diff-filter=AMRC --name-only "${BASE_REV}" HEAD -- \
             ":(exclude,top)${workflow_file}" \
+            ":(exclude,top).github/skills/code-review/SKILL.md" \
             ":(exclude,top)docs/dev-standards.md" \
-            ":(exclude,top)AGENTS.md" \
-            ":(exclude,top)docs/bazel-build-standards.md"
+            ":(exclude,top)docs/bazel-build-standards.md" \
+            ":(exclude,top)AGENTS.md"
+            
         )
 
         echo "Checking for DO_NOT_SUBMIT comments in ${#changed_files[@]} files"

@@ -19,30 +19,31 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
-import com.google.gson.JsonParser
-import com.google.gson.stream.JsonReader
-import com.google.protobuf.util.JsonFormat
-import io.grpc.Channel
+import com.google.cloud.storage.BlobId
+import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
+import io.grpc.ManagedChannel
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.context.Context
+import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
-import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.nio.file.Files
 import java.time.Clock
 import java.time.Duration
-import java.util.logging.Level
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -50,30 +51,36 @@ import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCor
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfigs
 import org.wfanet.measurement.edpaggregator.ConfigLoader
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
+import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupReader
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
-import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemPublicationCodec
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 /*
  * Cloud Run Function that receives a [HTTPRequest] with EventGroupSyncConfig. It updates/registers
- * EventGroups with the kingdom and writes a map of the registered resource names to storage.
+ * EventGroups with the kingdom and writes the complete map for the configured provider and entity
+ * types to storage.
  */
 class EventGroupSyncFunction() : HttpFunction {
 
@@ -81,8 +88,20 @@ class EventGroupSyncFunction() : HttpFunction {
     var failureAttributes: Attributes = Attributes.empty()
     try {
       logger.fine("Starting EventGroupSyncFunction")
+      if (
+        request.getFirstHeader("x-goog-pubsub-message-id").isPresent ||
+          request.contentType.orElse("").substringBefore(';') == "application/octet-stream"
+      ) {
+        runBlocking { serviceWorkItem(WorkItemPublicationCodec.parse(request.inputStream)) }
+        return
+      }
       val dataWatcherPath: String = request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElse("")
-      logger.fine("Value of DATA_WATCHER_PATH_HEADER: $dataWatcherPath")
+      logger.fine(
+        "Received DataWatcher path hash: " +
+          dataWatcherPath
+            .takeIf { it.isNotEmpty() }
+            ?.let { VidLabelingTraceAttributes.gcsObjectPathHash(it) }
+      )
       val requestBody = request.reader.readText()
       val eventGroupSyncConfig =
         ConfigLoader.buildEventGroupSyncConfig(requestBody, runtimeConfigs.configsList)
@@ -91,74 +110,206 @@ class EventGroupSyncFunction() : HttpFunction {
       functionFailureCounter.add(0, failureAttributes)
 
       runBlocking {
-        Tracing.traceSuspending(
-          spanName = "event_group_sync_function",
-          attributes = mapOf("data_provider_name" to eventGroupSyncConfig.dataProvider),
-        ) {
-          val kingdomChannel =
-            createKingdomPublicApiChannel(
-              target = kingdomTarget,
-              eventGroupSyncConfig = eventGroupSyncConfig,
-              certHost = kingdomCertHost,
-              shutdownTimeout = channelShutdownDuration,
-            )
-          val eventGroupsClient = EventGroupsCoroutineStub(kingdomChannel)
-          val clientAccountsClient = ClientAccountsCoroutineStub(kingdomChannel)
-          val unlinkedClientAccountsClient = UnlinkedClientAccountsCoroutineStub(kingdomChannel)
-          val eventGroups: Flow<EventGroup> =
-            Tracing.traceSuspending(
-              spanName = "load_event_groups",
-              attributes = mapOf("blob_uri" to eventGroupSyncConfig.eventGroupsBlobUri),
-            ) {
-              val eventGroupsBlobUri =
-                if (dataWatcherPath.isBlank()) {
-                  SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupsBlobUri)
-                } else {
-                  SelectedStorageClient.parseBlobUri(dataWatcherPath)
-                }
-
-              when {
-                eventGroupsBlobUri.key.endsWith(PROTO_FILE_SUFFIX) -> {
-                  getEventGroupsFromProtoFormat(eventGroupsBlobUri, eventGroupSyncConfig)
-                }
-                eventGroupsBlobUri.key.endsWith(JSON_FILE_SUFFIX) -> {
-                  getEventGroupsFromJsonFormat(eventGroupsBlobUri, eventGroupSyncConfig)
-                }
-                else -> error("Unsupported EventGroup file format: ${eventGroupsBlobUri.key}")
-              }
-            }
-
-          writeEventGroupMapToStorage(
-            mappedData =
-              EventGroupSync(
-                  edpName = eventGroupSyncConfig.dataProvider,
-                  eventGroupsStub = eventGroupsClient,
-                  clientAccountsStub = clientAccountsClient,
-                  unlinkedClientAccountsStub = unlinkedClientAccountsClient,
-                  eventGroups = eventGroups,
-                  throttler = kingdomThrottler,
-                  listEventGroupPageSize,
-                  entityKeyTypes = eventGroupSyncConfig.entityKeyTypesList,
-                )
-                .sync(),
-            eventGroupSyncConfig = eventGroupSyncConfig,
-          )
-        }
+        synchronize(eventGroupSyncConfig, readEventGroups(eventGroupSyncConfig, dataWatcherPath)) {}
       }
     } catch (e: Exception) {
       functionFailureCounter.add(1, failureAttributes)
+      val errorType = e::class.java.simpleName
+      val errorCode = Status.fromThrowable(e).code.name
       if (isRetryableKingdomFailure(e)) {
-        logger.log(Level.WARNING, "Transient Kingdom failure; requesting redelivery", e)
+        logger.warning(
+          "Transient EventGroupSync failure; requesting redelivery: " +
+            "errorType=$errorType, errorCode=$errorCode"
+        )
         response.setStatusCode(HttpURLConnection.HTTP_UNAVAILABLE)
-        response.writer.write("EventGroup sync failed due to a transient Kingdom error")
+        response.writer.write("EventGroup sync failed due to a transient error")
         return
       }
-      throw e
+      logger.warning("EventGroupSync failed: errorType=$errorType, errorCode=$errorCode")
+      response.setStatusCode(HttpURLConnection.HTTP_INTERNAL_ERROR)
+      response.writer.write("EventGroup sync failed")
+      return
     } finally {
       // Critical: flush metrics and traces before function terminates
       // Without this, all telemetry recorded during execution will be lost
       // because Cloud Functions freeze background threads after return
       EdpaTelemetry.flush()
+    }
+  }
+
+  private suspend fun synchronize(
+    eventGroupSyncConfig: EventGroupSyncConfig,
+    eventGroups: Flow<EventGroup>,
+    beforePublish: suspend () -> Unit,
+  ) {
+    Tracing.traceSuspending(
+      spanName = "event_group_sync_function",
+      attributes = mapOf("data_provider_name" to eventGroupSyncConfig.dataProvider),
+    ) {
+      val managedChannel =
+        createKingdomPublicApiChannel(
+          target = kingdomTarget,
+          eventGroupSyncConfig = eventGroupSyncConfig,
+          certHost = kingdomCertHost,
+        )
+      val kingdomChannel =
+        ClientInterceptors.intercept(
+          managedChannel,
+          GrpcTelemetry.create(Instrumentation.openTelemetry).newClientInterceptor(),
+        )
+      try {
+        val eventGroupsClient = EventGroupsCoroutineStub(kingdomChannel)
+        val clientAccountsClient = ClientAccountsCoroutineStub(kingdomChannel)
+        val unlinkedClientAccountsClient = UnlinkedClientAccountsCoroutineStub(kingdomChannel)
+        val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? =
+          if (eventGroupSyncConfig.hasEventGroupReferenceIdEntityKeyMapping()) {
+            eventGroupSyncConfig.eventGroupReferenceIdEntityKeyMapping.let { mapping ->
+              EventGroupReferenceIdEntityKeyMapping(
+                entityType = mapping.entityType,
+                eventGroupReferenceIdPrefix = mapping.eventGroupReferenceIdPrefix,
+                entityIdPrefix = mapping.entityIdPrefix,
+              )
+            }
+          } else {
+            null
+          }
+
+        val guardedThrottler =
+          object : Throttler {
+            override suspend fun <T> onReady(block: suspend () -> T): T =
+              kingdomThrottler.onReady {
+                beforePublish()
+                block()
+              }
+          }
+
+        writeEventGroupMapToStorage(
+          mappedData =
+            EventGroupSync(
+                edpName = eventGroupSyncConfig.dataProvider,
+                eventGroupsStub = eventGroupsClient,
+                clientAccountsStub = clientAccountsClient,
+                unlinkedClientAccountsStub = unlinkedClientAccountsClient,
+                eventGroups = eventGroups,
+                throttler = guardedThrottler,
+                listEventGroupPageSize,
+                entityKeyTypes = eventGroupSyncConfig.entityKeyTypesList,
+                eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
+              )
+              .syncWithCompleteEventGroupMap(),
+          eventGroupSyncConfig = eventGroupSyncConfig,
+          beforePublish = beforePublish,
+        )
+      } finally {
+        withContext(NonCancellable + Dispatchers.IO) {
+          managedChannel.shutdown()
+          if (
+            !managedChannel.awaitTermination(
+              channelShutdownDuration.toMillis(),
+              TimeUnit.MILLISECONDS,
+            )
+          ) {
+            managedChannel.shutdownNow()
+          }
+        }
+      }
+    }
+  }
+
+  private fun readEventGroups(config: EventGroupSyncConfig, path: String): Flow<EventGroup> {
+    val uri = SelectedStorageClient.parseBlobUri(path.ifBlank { config.eventGroupsBlobUri })
+    val storage =
+      SelectedStorageClient(
+        uri,
+        rootDirectory =
+          if (config.eventGroupStorage.hasFileSystem()) File(checkNotNull(fileSystemStorageRoot))
+          else null,
+        projectId = config.eventGroupStorage.gcs.projectId,
+      )
+    return EventGroupReader(storage).read(uri.key)
+  }
+
+  private suspend fun serviceWorkItem(workItem: WorkItem) {
+    val input = EventGroupSyncWorkItem.parse(workItem)
+    val config =
+      runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
+    val channel =
+      createSecureComputationControlPlaneChannel(
+        EnvVars.checkNotNullOrEmpty("SECURE_COMPUTATION_CONTROL_PLANE_TARGET"),
+        System.getenv("SECURE_COMPUTATION_CERT_HOST"),
+      )
+    try {
+      val instrumented =
+        ClientInterceptors.intercept(
+          channel,
+          GrpcTelemetry.create(Instrumentation.openTelemetry).newClientInterceptor(),
+        )
+      val processor =
+        EventGroupSyncWorkItemProcessor(
+          WorkItemsCoroutineStub(instrumented),
+          WorkItemAttemptsCoroutineStub(instrumented),
+          synchronize = { task, ensureLeaseActive ->
+            synchronizeWorkItem(task, config, ensureLeaseActive)
+          },
+          uuidGenerator = UUID::randomUUID,
+          activeAttemptDelay = { delay(30_000L) },
+          renewalDelay = { delay(60_000L) },
+          updateRetryDelay = { attempt ->
+            delay(ExponentialBackoff().durationForAttempt(attempt).toMillis())
+          },
+        )
+      val parentContext =
+        Tracing.withW3CTraceContext(input.params.traceContextMap) { Context.current() }
+      withContext(parentContext.asContextElement()) { processor.process(input) }
+    } finally {
+      withContext(NonCancellable + Dispatchers.IO) { channel.shutdownNow() }
+    }
+  }
+
+  private suspend fun synchronizeWorkItem(
+    task: EventGroupSyncWorkItem,
+    config: EventGroupSyncConfig,
+    ensureLeaseActive: suspend () -> Unit,
+  ) {
+    if (config.eventGroupStorage.hasFileSystem()) {
+      synchronize(config, readEventGroups(config, task.source.dataPath), ensureLeaseActive)
+      return
+    }
+    val uri = SelectedStorageClient.parseBlobUri(task.source.dataPath)
+    task.validateGcsSource(config.eventGroupsBlobUri)
+    val storage =
+      StorageOptions.newBuilder()
+        .also { builder ->
+          config.eventGroupStorage.gcs.projectId
+            .takeIf(String::isNotEmpty)
+            ?.let(builder::setProjectId)
+        }
+        .build()
+        .service
+    fun verifyGeneration() {
+      require(storage.get(BlobId.of(uri.bucket, uri.key))?.generation == task.source.generation) {
+        "EventGroupSync source generation is no longer current"
+      }
+    }
+    val directory =
+      withContext(Dispatchers.IO) { Files.createTempDirectory("event-group-source-").toFile() }
+    try {
+      val key = uri.key.substringAfterLast('/')
+      withContext(Dispatchers.IO) {
+        verifyGeneration()
+        val blob =
+          requireNotNull(storage.get(BlobId.of(uri.bucket, uri.key, task.source.generation))) {
+            "EventGroupSync source generation does not exist"
+          }
+        blob.downloadTo(File(directory, key).toPath())
+      }
+      ensureLeaseActive()
+      synchronize(config, EventGroupReader(FileSystemStorageClient(directory)).read(key)) {
+        ensureLeaseActive()
+        withContext(Dispatchers.IO) { verifyGeneration() }
+      }
+    } finally {
+      withContext(NonCancellable + Dispatchers.IO) { directory.deleteRecursively() }
     }
   }
 
@@ -176,6 +327,7 @@ class EventGroupSyncFunction() : HttpFunction {
   private suspend fun writeEventGroupMapToStorage(
     mappedData: Flow<org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup>,
     eventGroupSyncConfig: EventGroupSyncConfig,
+    beforePublish: suspend () -> Unit,
   ) {
     Tracing.traceSuspending(
       spanName = "write_event_group_map",
@@ -202,6 +354,7 @@ class EventGroupSyncFunction() : HttpFunction {
           .writeBlob(STAGING_BLOB_KEY, mappedData.map { it.toByteString() })
         val stagingBlob = checkNotNull(stagingStorageClient.getBlob(STAGING_BLOB_KEY))
 
+        beforePublish()
         if (destinationFreshnessToken == null) {
           destinationStorageClient.writeBlobIfNotFound(mappedDataBlobUri.key, stagingBlob.read())
         } else {
@@ -215,92 +368,6 @@ class EventGroupSyncFunction() : HttpFunction {
         withContext(NonCancellable + Dispatchers.IO) { stagingDirectory.deleteRecursively() }
       }
     }
-  }
-
-  private suspend fun getEventGroupsFromProtoFormat(
-    eventGroupsBlobUri: BlobUri,
-    eventGroupSyncConfig: EventGroupSyncConfig,
-  ): Flow<EventGroup> {
-    val storageClient =
-      MesosRecordIoStorageClient(
-        SelectedStorageClient(
-          blobUri = eventGroupsBlobUri,
-          rootDirectory =
-            if (eventGroupSyncConfig.eventGroupStorage.hasFileSystem())
-              File(checkNotNull(fileSystemStorageRoot))
-            else null,
-          projectId = eventGroupSyncConfig.eventGroupStorage.gcs.projectId,
-        )
-      )
-
-    val blob =
-      storageClient.getBlob(eventGroupsBlobUri.key)
-        ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
-    return blob.read().map { bytes -> EventGroup.parseFrom(bytes) }
-  }
-
-  /**
-   * Reads an `EventGroups` JSON file and emits each [EventGroup] as it is parsed.
-   *
-   * The file is parsed incrementally with a streaming [JsonReader]: the top-level `event_groups`
-   * array is walked element by element and each element is converted to a single [EventGroup] via
-   * [JsonFormat]. This avoids materializing the whole file as a UTF-8 String and the entire
-   * `EventGroups` message in memory, which previously caused [OutOfMemoryError] on large (ad-level)
-   * uploads. The raw blob bytes are still buffered once (see `flatten()` below), so peak memory is
-   * roughly the file size plus a single [EventGroup] rather than several multiples of it.
-   *
-   * EventGroups are emitted (and therefore synced) incrementally as they are parsed, so a parse
-   * failure partway through the array may leave the EventGroups emitted so far already applied to
-   * the Kingdom. This is acceptable: syncing is not atomic regardless (it makes one Kingdom call
-   * per EventGroup) and is idempotent (keyed by request ID / existing-resource lookup), so a re-run
-   * converges.
-   */
-  private suspend fun getEventGroupsFromJsonFormat(
-    eventGroupsBlobUri: BlobUri,
-    eventGroupSyncConfig: EventGroupSyncConfig,
-  ): Flow<EventGroup> = flow {
-    val storageClient =
-      SelectedStorageClient(
-        blobUri = eventGroupsBlobUri,
-        rootDirectory =
-          if (eventGroupSyncConfig.eventGroupStorage.hasFileSystem())
-            File(checkNotNull(fileSystemStorageRoot))
-          else null,
-        projectId = eventGroupSyncConfig.eventGroupStorage.gcs.projectId,
-      )
-
-    val blob =
-      storageClient.getBlob(eventGroupsBlobUri.key)
-        ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
-    val parser = JsonFormat.parser()
-    // The blob bytes are buffered once via flatten(); newInput() then reads over that (possibly
-    // rope) ByteString lazily, without forcing a contiguous copy or a full UTF-8 String. Peak
-    // memory is ~1x the file size (plus a single EventGroup), not several multiples of it.
-    var count = 0
-    val jsonInput = InputStreamReader(blob.read().flatten().newInput(), Charsets.UTF_8)
-    JsonReader(jsonInput).use { jsonReader ->
-      jsonReader.beginObject()
-      while (jsonReader.hasNext()) {
-        when (jsonReader.nextName()) {
-          EVENT_GROUPS_FIELD_NAME,
-          EVENT_GROUPS_FIELD_JSON_NAME -> {
-            jsonReader.beginArray()
-            while (jsonReader.hasNext()) {
-              // Parse a single array element (one EventGroup) into its own message.
-              val element = JsonParser.parseReader(jsonReader)
-              val builder = EventGroup.newBuilder()
-              parser.merge(element.toString(), builder)
-              emit(builder.build())
-              count++
-            }
-            jsonReader.endArray()
-          }
-          else -> jsonReader.skipValue()
-        }
-      }
-      jsonReader.endObject()
-    }
-    require(count > 0) { "Uploads with zero event groups are not supported." }
   }
 
   companion object {
@@ -339,8 +406,6 @@ class EventGroupSyncFunction() : HttpFunction {
           ?: KINGDOM_SHUTDOWN_DURATION_SECONDS
       )
     private val fileSystemStorageRoot = System.getenv("FILE_STORAGE_ROOT")
-    private const val PROTO_FILE_SUFFIX = ".binpb"
-    private const val JSON_FILE_SUFFIX = ".json"
     private const val STAGING_BLOB_KEY = "event-group-map.recordio"
     private val DATA_PROVIDER_NAME_ATTRIBUTE = AttributeKey.stringKey("data_provider_name")
     private val functionFailureCounter: LongCounter by lazy {
@@ -367,10 +432,6 @@ class EventGroupSyncFunction() : HttpFunction {
       return false
     }
 
-    // Name of the repeated field in the EventGroups message, in both its proto (snake_case) and
-    // JSON (camelCase) spellings, since JsonFormat accepts either.
-    private const val EVENT_GROUPS_FIELD_NAME = "event_groups"
-    private const val EVENT_GROUPS_FIELD_JSON_NAME = "eventGroups"
     private val DATA_WATCHER_PATH_HEADER =
       System.getenv("DATA_WATCHER_PATH_HEADER") ?: "X-DataWatcher-Path"
 
@@ -394,7 +455,6 @@ class EventGroupSyncFunction() : HttpFunction {
      *
      * The channel is configured with:
      * - Mutual TLS authentication (certificates loaded from eventGroupSyncConfig)
-     * - Graceful shutdown timeout
      * - OpenTelemetry gRPC instrumentation for automatic span and metric creation
      *
      * This channel should be shared across all stubs for the same target to avoid creating
@@ -402,16 +462,15 @@ class EventGroupSyncFunction() : HttpFunction {
      *
      * @param target The Kingdom API target (e.g., "kingdom.example.com:443")
      * @param eventGroupSyncConfig Configuration containing certificate file paths for mutual TLS
-     * @param certHost The expected certificate hostname (optional, for cert verification)
-     * @param shutdownTimeout Duration to wait for graceful channel shutdown
-     * @return Instrumented Channel ready for use with multiple stubs
+     * @param certHost The expected certificate hostname (optional, for cert verification) The
+     *   caller owns the channel and closes it after the invocation.
+     * @return Channel ready for instrumentation and use with multiple stubs
      */
     private fun createKingdomPublicApiChannel(
       target: String,
       eventGroupSyncConfig: EventGroupSyncConfig,
       certHost: String?,
-      shutdownTimeout: Duration,
-    ): Channel {
+    ): ManagedChannel {
       val cmmsConnection = eventGroupSyncConfig.cmmsConnection
       val certificateFile = File(cmmsConnection.certFilePath)
       val privateKeyFile = File(cmmsConnection.privateKeyFilePath)
@@ -432,12 +491,32 @@ class EventGroupSyncFunction() : HttpFunction {
           trustedCertCollectionFile = trustedCertCollectionFile,
         )
 
-      val publicChannel =
-        buildMutualTlsChannel(target, signingCerts, certHost).withShutdownTimeout(shutdownTimeout)
+      return buildMutualTlsChannel(target, signingCerts, certHost)
+    }
 
-      // Use official OpenTelemetry gRPC instrumentation for automatic span and metric creation
-      val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
-      return ClientInterceptors.intercept(publicChannel, grpcTelemetry.newClientInterceptor())
+    private fun createSecureComputationControlPlaneChannel(
+      target: String,
+      certHost: String?,
+    ): ManagedChannel {
+      val certificateFile = File(EnvVars.checkNotNullOrEmpty("SECURE_COMPUTATION_CERT_FILE"))
+      val privateKeyFile = File(EnvVars.checkNotNullOrEmpty("SECURE_COMPUTATION_PRIVATE_KEY_FILE"))
+      val trustedCertCollectionFile =
+        File(EnvVars.checkNotNullOrEmpty("SECURE_COMPUTATION_CERT_COLLECTION_FILE"))
+      require(certificateFile.isFile) {
+        "SECURE_COMPUTATION_CERT_FILE must point to an existing file: ${certificateFile.path}"
+      }
+      require(privateKeyFile.isFile) {
+        "SECURE_COMPUTATION_PRIVATE_KEY_FILE must point to an existing file: ${privateKeyFile.path}"
+      }
+      require(trustedCertCollectionFile.isFile) {
+        "SECURE_COMPUTATION_CERT_COLLECTION_FILE must point to an existing file: " +
+          trustedCertCollectionFile.path
+      }
+      return buildMutualTlsChannel(
+        target,
+        SigningCerts.fromPemFiles(certificateFile, privateKeyFile, trustedCertCollectionFile),
+        certHost,
+      )
     }
   }
 }

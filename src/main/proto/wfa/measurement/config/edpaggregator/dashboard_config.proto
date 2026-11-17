@@ -22,10 +22,10 @@ option java_outer_classname = "DashboardConfigProto";
 
 // Consolidated configuration for the reporting dashboard.
 //
-// Stored as a single `DASHBOARD_CONFIG_CONTENT` GitHub variable (JSON) per
-// environment, replacing the five separate dashboard variables. Consumed by
-// Terraform (natively as `*.tfvars.json`), by workflows (via `jq`), and by the
-// dashboard compliance check (parsed against this schema via `JsonFormat`).
+// Stored as `envs/<env>/dashboard-config.json` for each environment. Consumed
+// by Terraform through the per-environment tfvars, by workflows (via `jq`),
+// and by the dashboard compliance check (parsed against this schema via
+// `JsonFormat`).
 message DashboardConfig {
   // BigQuery region hosting the dashboard dataset (e.g. "us-central1").
   string bigquery_region = 1;
@@ -34,7 +34,8 @@ message DashboardConfig {
   bool deletion_protection = 2;
 
   // IAM principals granted platform-wide access to the dashboard tables
-  // (e.g. "user:alice@example.com").
+  // (e.g.
+  // "serviceAccount:dashboard-operators@example.iam.gserviceaccount.com").
   repeated string operators = 3;
 
   // The EDPs whose data the dashboard exposes; each is isolated to its own

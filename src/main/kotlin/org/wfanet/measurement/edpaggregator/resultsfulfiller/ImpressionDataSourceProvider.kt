@@ -21,24 +21,33 @@ import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
 import io.grpc.Status
 import io.grpc.StatusException
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Describes an impression data source for a specific time interval.
@@ -50,12 +59,21 @@ data class ImpressionDataSource(
   val modelLine: String,
   val interval: Interval,
   val blobDetails: BlobDetails,
+  /** Finalized impressions generation, or zero for legacy current-object reads. */
+  val blobGeneration: Long,
+)
+
+data class ModelLineDataSource(
+  val blobUriPrefix: String,
+  val validStartDate: LocalDate?,
+  val validEndDate: LocalDate?,
 )
 
 /**
  * @param impressionMetadataStub used to sync impressions with the ImpressionsMetadataStorage
  * @param dataProvider The DataProvider resource name
  * @param impressionsMetadataStorageConfig configuration for metadata storage
+ * @param modelLineStorageClientFactory builds a client for a configured model-line storage prefix
  * @param listMaxAttempts maximum total attempts for each `ListImpressionMetadata` page before
  *   giving up. Transient gRPC failures (`UNAVAILABLE` / `DEADLINE_EXCEEDED`, e.g. a server-side
  *   rate limit or an overloaded metadata service) are retried so they do not fail the whole report.
@@ -65,53 +83,106 @@ class ImpressionDataSourceProvider(
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val dataProvider: String,
   private val impressionsMetadataStorageConfig: StorageConfig,
+  private val modelLineDataSources: Map<String, ModelLineDataSource> = emptyMap(),
+  private val modelLineStorageClientFactory: (BlobUri) -> StorageClient = { blobUri ->
+    SelectedStorageClient(
+        blobUri,
+        impressionsMetadataStorageConfig.rootDirectory,
+        impressionsMetadataStorageConfig.projectId,
+      )
+      .underlyingClient
+  },
   private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
 
-  /**
-   * Lists impression data sources for a given selector within a period.
-   *
-   * @param modelLine the model line to query.
-   * @param selector determines whether to query by entity key or event group reference ID.
-   * @param period closed-open time interval in UTC.
-   * @return sources covering the requested period; empty if the period maps to no dates.
-   * @throws ImpressionReadException if a required metadata blob does not exist.
-   * @throws com.google.protobuf.InvalidProtocolBufferException if a metadata blob is present but
-   *   contains invalid `BlobDetails`.
-   */
+  /** Lists impression data sources for [eventGroups], batching selectors by interval. */
   suspend fun listImpressionDataSources(
     modelLine: String,
-    selector: ImpressionQuerySelector,
-    period: Interval,
+    eventGroups: Collection<ResolvedEventGroup>,
+    reportInterval: Interval? = null,
+    requireModelLineFinalization: Boolean = false,
   ): List<ImpressionDataSource> {
-    return getImpressionsMetadata(modelLine, selector, period)
+    if (requireModelLineFinalization) {
+      val dataSource =
+        checkNotNull(modelLineDataSources[modelLine]) {
+          "Missing finalization data source for selected model line $modelLine"
+        }
+      validateFinalizedDates(
+        modelLine,
+        checkNotNull(reportInterval) {
+          "Missing Report interval for selected model line $modelLine"
+        },
+        dataSource,
+      )
+    }
+    val eventGroupsByInterval: Map<Interval, List<ResolvedEventGroup>> =
+      eventGroups
+        .flatMap { eventGroup ->
+          eventGroup.collectionIntervals.map { interval -> interval to eventGroup }
+        }
+        .groupBy({ it.first }, { it.second })
+    val metadata = mutableListOf<ImpressionMetadata>()
+    for ((interval, intervalEventGroups) in eventGroupsByInterval) {
+      val entityKeys: Set<EntityKey> =
+        intervalEventGroups
+          .mapNotNull { eventGroup ->
+            val labeledEntityKey = eventGroup.entityKey ?: return@mapNotNull null
+            entityKey {
+              entityType = labeledEntityKey.entityType
+              entityId = labeledEntityKey.entityId
+            }
+          }
+          .toSet()
+      if (entityKeys.isNotEmpty()) {
+        val filter =
+          ListImpressionMetadataRequestKt.filter {
+            this.modelLine = modelLine
+            this.entityKeys += entityKeys
+            intervalOverlaps = interval
+          }
+        metadata += getImpressionsMetadata(filter).toList()
+      }
+
+      val referenceIds: Set<String> =
+        intervalEventGroups.mapNotNull { it.eventGroupReferenceId }.toSet()
+      if (referenceIds.isNotEmpty()) {
+        val filter =
+          ListImpressionMetadataRequestKt.filter {
+            this.modelLine = modelLine
+            eventGroupReferenceIds += referenceIds
+            intervalOverlaps = interval
+          }
+        metadata += getImpressionsMetadata(filter).toList()
+      }
+    }
+
+    return metadata
+      .distinctBy { Triple(it.blobUri, it.metadataBlobGeneration, it.impressionsBlobGeneration) }
       .map { metadata ->
         logger.info("Processing impression metadata: $metadata")
-        val blobDetails = readBlobDetails(metadata.blobUri)
+        val blobDetails = readBlobDetails(metadata.blobUri, metadata.metadataBlobGeneration)
         ImpressionDataSource(
           modelLine = modelLine,
           interval = metadata.interval,
           blobDetails = blobDetails,
+          blobGeneration = metadata.impressionsBlobGeneration,
         )
       }
-      .toList()
+      .groupBy { it.blobDetails.blobUri }
+      .values
+      .flatMap { aliases ->
+        val pinned = aliases.filter { it.blobGeneration > 0L }
+        pinned.ifEmpty { aliases }.distinctBy { it.blobGeneration }
+      }
   }
 
-  /**
-   * Queries impression metadata using the given [selector] strategy.
-   *
-   * @param reportModelLine the model line
-   * @param selector determines whether to query by entity key or event group reference ID.
-   * @param period the time period to filter by
-   */
+  /** Queries impression metadata using [filter]. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private fun getImpressionsMetadata(
-    reportModelLine: String,
-    selector: ImpressionQuerySelector,
-    period: Interval,
+    filter: ListImpressionMetadataRequest.Filter
   ): Flow<ImpressionMetadata> {
-    logger.info("Resolving path for impression metadata: $reportModelLine, $selector, $period")
+    logger.info("Resolving path for impression metadata: $filter")
 
     // Fetches a single page, retrying the transient gRPC statuses that are safe to replay here
     // (ListImpressionMetadata is an idempotent read): UNAVAILABLE and DEADLINE_EXCEEDED, so a
@@ -131,19 +202,7 @@ class ImpressionDataSourceProvider(
             impressionMetadataStub.listImpressionMetadata(
               listImpressionMetadataRequest {
                 parent = dataProvider
-                filter =
-                  ListImpressionMetadataRequestKt.filter {
-                    modelLine = reportModelLine
-                    when (selector) {
-                      is ImpressionQuerySelector.ByEventGroupReferenceId ->
-                        eventGroupReferenceIds += selector.refId
-                      is ImpressionQuerySelector.ByEventGroupReferenceIds ->
-                        eventGroupReferenceIds += selector.refIds
-                      is ImpressionQuerySelector.ByEntityKey ->
-                        this.entityKeys += selector.entityKey
-                    }
-                    intervalOverlaps = period
-                  }
+                this.filter = filter
                 this.pageSize = pageSize
                 this.pageToken = pageToken
               }
@@ -157,7 +216,7 @@ class ImpressionDataSourceProvider(
           if (!retryable || attempt >= listMaxAttempts) {
             throw Exception(
               "Error listing ImpressionMetadata for dataProvider=$dataProvider, " +
-                "modelLine=$reportModelLine, selector=$selector, period=$period: ${e.status}",
+                "filter=$filter: ${e.status}",
               e,
             )
           }
@@ -186,17 +245,56 @@ class ImpressionDataSourceProvider(
       .flattenConcat()
   }
 
+  private suspend fun validateFinalizedDates(
+    modelLine: String,
+    reportInterval: Interval,
+    dataSource: ModelLineDataSource,
+  ) {
+    val modelLineId = checkNotNull(ModelLineKey.fromName(modelLine)).modelLineId
+    val prefixUri = SelectedStorageClient.parseBlobUri(dataSource.blobUriPrefix)
+    val storageClient = modelLineStorageClientFactory(prefixUri)
+    val prefix = prefixUri.key.trimEnd('/')
+    require(reportInterval.hasStartTime() && reportInterval.hasEndTime()) {
+      "Invalid Report interval for selected model line $modelLine"
+    }
+    val start = reportInterval.startTime.toInstant()
+    val end = reportInterval.endTime.toInstant()
+    require(start < end) { "Invalid Report interval for selected model line $modelLine" }
+    val firstDate = start.atZone(ZoneOffset.UTC).toLocalDate()
+    val lastDate = end.minusNanos(1).atZone(ZoneOffset.UTC).toLocalDate()
+    val dates = generateSequence(firstDate) { it.plusDays(1) }.takeWhile { it <= lastDate }.toList()
+    for (date in dates) {
+      require(dataSource.validStartDate == null || date >= dataSource.validStartDate) {
+        "Selected model line $modelLine is not valid on $date"
+      }
+      require(dataSource.validEndDate == null || date <= dataSource.validEndDate) {
+        "Selected model line $modelLine is not valid on $date"
+      }
+      val dateFolderPrefix =
+        listOf(prefix, "model-line/$modelLineId/$date").filter(String::isNotEmpty).joinToString("/")
+      val doneBlobs =
+        storageClient.listBlobs("$dateFolderPrefix/").toList().filter {
+          DataAvailabilityBlobs.isDoneBlob(it.blobKey)
+        }
+      check(doneBlobs.isNotEmpty()) { "Selected model line $modelLine is not finalized on $date" }
+      check(doneBlobs.all(DataAvailabilityBlobs::isSynced)) {
+        "Selected model line $modelLine has an unprocessed completion marker on $date"
+      }
+    }
+  }
+
   /**
    * Reads `BlobDetails` from a metadata blob.
    *
    * @param metadataPath blob URI for the metadata (e.g., `file:///bucket/key`).
+   * @param generation finalized metadata generation, or zero for a legacy current-object read.
    * @return parsed [BlobDetails].
    * @throws ImpressionReadException with [ImpressionReadException.Code.BLOB_NOT_FOUND] when the
    *   blob is missing.
    * @throws com.google.protobuf.InvalidProtocolBufferException if parsing fails due to invalid
    *   metadata contents.
    */
-  private suspend fun readBlobDetails(metadataPath: String): BlobDetails {
+  private suspend fun readBlobDetails(metadataPath: String, generation: Long): BlobDetails {
     val storageClientUri = SelectedStorageClient.parseBlobUri(metadataPath)
     val storageClient =
       SelectedStorageClient(
@@ -206,7 +304,7 @@ class ImpressionDataSourceProvider(
       )
     logger.info("Reading impression metadata from $metadataPath")
     val blob =
-      storageClient.getBlob(storageClientUri.key)
+      GenerationMatchedStorageClient(storageClient, generation).getBlob(storageClientUri.key)
         ?: throw ImpressionReadException(
           metadataPath,
           ImpressionReadException.Code.BLOB_NOT_FOUND,

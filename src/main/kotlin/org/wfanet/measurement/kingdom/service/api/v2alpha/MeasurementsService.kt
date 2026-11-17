@@ -19,6 +19,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.kotlin.unpack
+import com.google.protobuf.util.Timestamps
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
@@ -186,6 +187,7 @@ class MeasurementsService(
       }
     }
 
+    request.measurement.requireNotMultimeasurement()
     grpcRequire(request.measurement.dataProvidersList.isNotEmpty()) {
       "measurement.data_providers is empty"
     }
@@ -276,10 +278,12 @@ class MeasurementsService(
           internalMeasurement.toMeasurement()
         }
       if (results.size > listMeasurementsPageToken.pageSize) {
+        val lastReturnedMeasurement = results[listMeasurementsPageToken.pageSize - 1]
         val pageToken =
           listMeasurementsPageToken.copy {
             lastMeasurement = previousPageEnd {
-              externalMeasurementId = results[results.lastIndex - 1].externalMeasurementId
+              updateTime = lastReturnedMeasurement.updateTime
+              externalMeasurementId = lastReturnedMeasurement.externalMeasurementId
             }
           }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()
@@ -381,6 +385,10 @@ class MeasurementsService(
 
     if (request.requestsList.size > MAX_BATCH_SIZE) {
       failGrpc { "Number of elements in requests exceeds the maximum batch size." }
+    }
+
+    for (createMeasurementRequest in request.requestsList) {
+      createMeasurementRequest.measurement.requireNotMultimeasurement()
     }
 
     val allExternalDataProviderIds: List<ExternalId> =
@@ -841,6 +849,15 @@ class MeasurementsService(
   }
 }
 
+/** Rejects a multimeasurement, which the Kingdom does not support yet. */
+// TODO(world-federation-of-advertisers/cross-media-measurement#4532): Validate and create a
+//   multimeasurement, fanning it out to one Requisition per vector, once its Kingdom support lands.
+private fun Measurement.requireNotMultimeasurement() {
+  if (hasUnsignedMeasurementSpec() || hasMultimeasurement()) {
+    failGrpc(Status.UNIMPLEMENTED) { "Multimeasurements are not supported" }
+  }
+}
+
 private fun MeasurementSpec.validateReportingMetadata(parentKey: MeasurementConsumerKey) {
   val metadata = reportingMetadata
   fun requireChildResource(
@@ -858,6 +875,18 @@ private fun MeasurementSpec.validateReportingMetadata(parentKey: MeasurementCons
   }
   requireChildResource(metadata.report, "report") { ReportKey.fromName(it)?.parentKey }
   requireChildResource(metadata.metric, "metric") { MetricKey.fromName(it)?.parentKey }
+  if (metadata.hasReportInterval()) {
+    val reportInterval = metadata.reportInterval
+    grpcRequire(
+      reportInterval.hasStartTime() &&
+        reportInterval.hasEndTime() &&
+        Timestamps.isValid(reportInterval.startTime) &&
+        Timestamps.isValid(reportInterval.endTime) &&
+        Timestamps.compare(reportInterval.startTime, reportInterval.endTime) < 0
+    ) {
+      "measurement_spec.reporting_metadata.report_interval is invalid"
+    }
+  }
 }
 
 private fun DifferentialPrivacyParams.hasValidEpsilonAndDelta(): Boolean {

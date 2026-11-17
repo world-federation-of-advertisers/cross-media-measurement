@@ -116,6 +116,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
   workItemId: Long,
   workItemAttemptId: Long,
   workItemAttemptResourceId: String,
+  workItemGeneration: Long,
   leaseExpirationTime: Instant? = null,
 ): Pair<Int, WorkItemAttempt.State> {
 
@@ -127,6 +128,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
     set("WorkItemId").to(workItemId)
     set("WorkItemAttemptId").to(workItemAttemptId)
     set("WorkItemAttemptResourceId").to(workItemAttemptResourceId)
+    set("Generation").to(workItemGeneration)
     set("State").to(workItemAttemptState)
     if (leaseExpirationTime != null) {
       set("LeaseExpirationTime").to(leaseExpirationTime.toGcloudTimestamp())
@@ -289,7 +291,8 @@ private object WorkItemAttempts {
       WorkItemAttempts.WorkItemId,
       WorkItems.WorkItemResourceId,
       WorkItems.QueueId,
-      WorkItems.Generation,
+      WorkItems.Generation AS CurrentGeneration,
+      WorkItemAttempts.Generation AS AttemptGeneration,
       WorkItemAttempts.WorkItemAttemptResourceId,
       WorkItemAttempts.State,
       (
@@ -312,13 +315,16 @@ private object WorkItemAttempts {
       workItemId = row.getLong("WorkItemId"),
       workItemAttemptId = row.getLong("WorkItemAttemptId"),
       queueId = row.getLong("QueueId"),
-      generation = if (row.isNull("Generation")) 1L else row.getLong("Generation"),
+      generation = if (row.isNull("CurrentGeneration")) 1L else row.getLong("CurrentGeneration"),
       workItemAttempt =
         workItemAttempt {
           workItemResourceId = row.getString("WorkItemResourceId")
           workItemAttemptResourceId = row.getString("WorkItemAttemptResourceId")
           state = row.getProtoEnum("State", WorkItemAttempt.State::forNumber)
           attemptNumber = row.getLong("AttemptNumber").toInt()
+          if (!row.isNull("AttemptGeneration")) {
+            workItemGeneration = row.getLong("AttemptGeneration")
+          }
           errorMessage = row.getNullableString("ErrorMessage") ?: ""
           if (!row.isNull("LeaseExpirationTime")) {
             leaseExpirationTime = row.getTimestamp("LeaseExpirationTime").toProto()

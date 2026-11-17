@@ -43,7 +43,7 @@ object DashboardComplianceRunner {
 
   private val SCOPES = listOf("https://www.googleapis.com/auth/cloud-platform")
 
-  /** The EDPs and BigQuery region resolved from a DASHBOARD_CONFIG_CONTENT document. */
+  /** The EDPs and BigQuery region resolved from `envs/<env>/dashboard-config.json`. */
   data class ResolvedConfig(val edps: List<EdpConfig>, val region: String)
 
   /** A named group of [CheckResult]s (mirrors the CLI's section layout). */
@@ -125,8 +125,8 @@ object DashboardComplianceRunner {
   }
 
   /**
-   * Parses a DASHBOARD_CONFIG_CONTENT JSON document against the [DashboardConfig] proto schema and
-   * extracts the EDPs and BigQuery region.
+   * Parses a committed `envs/<env>/dashboard-config.json` document against the [DashboardConfig]
+   * proto schema and extracts the EDPs and BigQuery region.
    *
    * @throws IllegalArgumentException if the JSON is malformed or a required field (`edps`,
    *   `bigquery_region`) is missing

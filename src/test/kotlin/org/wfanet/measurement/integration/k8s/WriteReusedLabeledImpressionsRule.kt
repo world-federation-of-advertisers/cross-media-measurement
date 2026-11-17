@@ -164,6 +164,7 @@ class WriteReusedLabeledImpressionsRule(
         storagePath = null,
         schema = GCS_SCHEME,
         outputKey = eventGroup.outputKey,
+        includeEventGroupReferenceIdInImpressions = false,
       )
     val vidLabeler = vidLabelerProvider()
     val shards: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =

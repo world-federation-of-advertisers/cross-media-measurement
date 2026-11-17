@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 @RunWith(JUnit4::class)
@@ -65,6 +66,52 @@ class DirectReachAndFrequencyResultBuilderTest {
       // once and 10% saw it twice
       assertThat(result.frequency.relativeFrequencyDistributionMap[1]).isEqualTo(0.9)
       assertThat(result.frequency.relativeFrequencyDistributionMap[2]).isEqualTo(0.1)
+    }
+
+  @Test
+  fun `buildMeasurementResult keeps reach and surviving frequency when freq-1 fails threshold`() =
+    runBlocking {
+      val frequencyData =
+        IntArray(110) { index ->
+          when {
+            index < 8 -> 1
+            index < 73 -> 2
+            index < 98 -> 5
+            else -> 9
+          }
+        }
+      val directReachAndFrequencyResultBuilder =
+        DirectReachAndFrequencyResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          maxFrequency = MAX_FREQUENCY,
+          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          frequencyData = frequencyData,
+          maxPopulation = null,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 5),
+        )
+
+      val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
+
+      assertThat(result.reach.value).isEqualTo(110)
+      assertThat(result.frequency.relativeFrequencyDistributionMap).hasSize(MAX_FREQUENCY)
+      assertThat(result.frequency.relativeFrequencyDistributionMap[1])
+        .isWithin(FLOAT_COMPARISON_TOLERANCE)
+        .of(0.0)
+      assertThat(result.frequency.relativeFrequencyDistributionMap[2])
+        .isWithin(FLOAT_COMPARISON_TOLERANCE)
+        .of(65.0 / 110.0)
+      assertThat(result.frequency.relativeFrequencyDistributionMap[5])
+        .isWithin(FLOAT_COMPARISON_TOLERANCE)
+        .of(25.0 / 110.0)
+      assertThat(result.frequency.relativeFrequencyDistributionMap[9])
+        .isWithin(FLOAT_COMPARISON_TOLERANCE)
+        .of(12.0 / 110.0)
+      assertThat(result.frequency.relativeFrequencyDistributionMap.values.sum())
+        .isWithin(FLOAT_COMPARISON_TOLERANCE)
+        .of(102.0 / 110.0)
     }
 
   @Test
@@ -164,6 +211,7 @@ class DirectReachAndFrequencyResultBuilderTest {
 
   companion object {
     private val MAX_FREQUENCY = 10
+    private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
     private val REACH_PRIVACY_PARAMS = differentialPrivacyParams {
       epsilon = 1.0
       delta = 1E-12

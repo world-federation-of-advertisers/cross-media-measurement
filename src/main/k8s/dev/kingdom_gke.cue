@@ -33,10 +33,25 @@ _systemApiAddressName: string @tag("system_api_address_name")
 // a thread, so this should be greater than the number of Heralds.
 #SystemServerGrpcThreads: 5
 
+#InternalServerMaxHeapSize: "192M"
+
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "352Mi"
+		memory: "640Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
+#CancellationJobMaxHeapSize:     "96M"
+#CancellationJobInitialHeapSize: "64M"
+
+#CancellationJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "10m"
+		memory: "300Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -90,14 +105,30 @@ kingdom: #Kingdom & {
 
 	configMaps: "java": #JavaConfigMap
 
+	deploymentPodDisruptionBudgets: {
+		"gcp-kingdom-data-server": spec: minAvailable: 1
+	}
+
 	deployments: {
 		"gcp-kingdom-data-server": {
 			_container: {
 				_grpcThreadPoolSize: #InternalServerGrpcThreads
 				resources:           #InternalServerResourceRequirements
+				_javaOptions: maxHeapSize: #InternalServerMaxHeapSize
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
+			spec: {
+				replicas: 2
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+					// Prefer separate nodes for availability during drains without blocking
+					// scheduling when capacity is limited.
+					topologySpreadConstraints: [{
+						maxSkew:           1
+						topologyKey:       "kubernetes.io/hostname"
+						whenUnsatisfiable: "ScheduleAnyway"
+						labelSelector:     kingdom.deployments["gcp-kingdom-data-server"].spec.selector
+					}]
+				}
 			}
 		}
 		"system-api-server": {
@@ -111,6 +142,15 @@ kingdom: #Kingdom & {
 	}
 
 	cronJobs: {
+		"pending-measurements-cancellation": {
+			_container: {
+				_javaOptions: {
+					maxHeapSize:     #CancellationJobMaxHeapSize
+					initialHeapSize: #CancellationJobInitialHeapSize
+				}
+				resources: #CancellationJobResourceRequirements
+			}
+		}
 		"operational-metrics": {
 			_container: {
 				_javaOptions: maxHeapSize: "48M"

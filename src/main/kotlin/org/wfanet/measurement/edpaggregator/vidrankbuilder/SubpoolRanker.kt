@@ -144,6 +144,9 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  *   the prior-snapshot lookup.
  * @param rawImpressionUpload the upload resource name (parent of the new blob rows + key scoping).
  * @param modelLine the model line being ranked.
+ * @param allowedPriorSnapshotRawImpressionUploads exact earlier uploads in the same healing
+ *   operation whose durable snapshots may be read while their model lines wait for availability.
+ *   Empty for ordinary dispatches.
  * @param vidRankMapBlobPrefix static blob prefix for the vid-rank-map bucket.
  * @param kekUri KEK URI used to wrap each new blob's DEK.
  * @param encryptedSubpoolMapsDek DEK that decrypts the Phase-0 merged blobs.
@@ -170,6 +173,7 @@ class SubpoolRanker(
   private val dataProvider: String,
   private val rawImpressionUpload: String,
   private val modelLine: String,
+  private val allowedPriorSnapshotRawImpressionUploads: Set<String>,
   private val vidRankMapBlobPrefix: String,
   private val kekUri: String,
   private val encryptedSubpoolMapsDek: EncryptedDek,
@@ -182,7 +186,7 @@ class SubpoolRanker(
   private val maxInFlightRecords: Int = maxOf(2, ConcurrentRankAllocator.DEFAULT_STRIPES * 2),
   private val metrics: VidRankBuilderMetrics = VidRankBuilderMetrics(),
 ) {
-  private val completedModelLinesByUpload = mutableMapOf<String, Boolean>()
+  private val priorSnapshotEligibilityByUpload = mutableMapOf<String, Boolean>()
 
   init {
     require(stripes >= 1) { "stripes must be >= 1, got $stripes" }
@@ -677,7 +681,7 @@ class SubpoolRanker(
       }
       .collect { page ->
         for (blob in page) {
-          if (!isOwnedByCompletedModelLine(blob)) continue
+          if (!isEligiblePriorSnapshot(blob)) continue
           val current = latest
           if (
             current == null || blob.createTime.toComparable() > current.createTime.toComparable()
@@ -760,7 +764,7 @@ class SubpoolRanker(
       }
       .collect { page ->
         for (blob in page) {
-          if (!isOwnedByCompletedModelLine(blob)) continue
+          if (!isEligiblePriorSnapshot(blob)) continue
           if (!blob.hasMaxEventDate()) continue
           val current = best
           if (current == null || blob.maxEventDate.epochDay() > current.maxEventDate.epochDay()) {
@@ -771,11 +775,11 @@ class SubpoolRanker(
     return best
   }
 
-  private suspend fun isOwnedByCompletedModelLine(blob: RankIndexBlob): Boolean {
+  private suspend fun isEligiblePriorSnapshot(blob: RankIndexBlob): Boolean {
     val uploadName =
       blob.name.substringBeforeLast(RANK_INDEX_BLOB_COLLECTION, missingDelimiterValue = "")
     check(uploadName.isNotEmpty()) { "Invalid RankIndexBlob name: ${blob.name}" }
-    completedModelLinesByUpload[uploadName]?.let {
+    priorSnapshotEligibilityByUpload[uploadName]?.let {
       return it
     }
 
@@ -803,9 +807,13 @@ class SubpoolRanker(
           modelLineRow = candidate
         }
       }
-    val completed = modelLineRow?.state == RawImpressionUploadModelLine.State.COMPLETED
-    completedModelLinesByUpload[uploadName] = completed
-    return completed
+    val state = modelLineRow?.state
+    val eligible =
+      state == RawImpressionUploadModelLine.State.COMPLETED ||
+        (uploadName in allowedPriorSnapshotRawImpressionUploads &&
+          state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+    priorSnapshotEligibilityByUpload[uploadName] = eligible
+    return eligible
   }
 
   /**

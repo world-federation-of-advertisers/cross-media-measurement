@@ -53,6 +53,7 @@ objectSets: [
 	edpAggregator.serviceAccounts,
 	edpAggregator.configMaps,
 	edpAggregator.deployments,
+	edpAggregator.deploymentPodDisruptionBudgets,
 	edpAggregator.services,
 	edpAggregator.networkPolicies,
 	edpAggregator.cronJobs,
@@ -75,6 +76,22 @@ edpAggregator: #EdpAggregator & {
 	}
 
 	configMaps: "java": #JavaConfigMap
+
+	deploymentPodDisruptionBudgets: {
+		"edp-aggregator-internal-api-server": spec: minAvailable: 1
+		"edp-aggregator-system-api-server": spec: minAvailable:   1
+	}
+
+	deployments: [Name=string]: spec: {
+		replicas: 2
+		// Prefer different nodes without blocking scheduling when capacity is limited.
+		template: spec: topologySpreadConstraints: [{
+			maxSkew:           1
+			topologyKey:       "kubernetes.io/hostname"
+			whenUnsatisfiable: "ScheduleAnyway"
+			labelSelector:     edpAggregator.deployments[Name].spec.selector
+		}]
+	}
 
 	deployments: {
 		"edp-aggregator-internal-api-server": {
@@ -114,9 +131,10 @@ edpAggregator: #EdpAggregator & {
 			"--cert-collection-file=/etc/halo-cmms/edp-aggregator/config/kingdom_root.pem",
 			"--list-page-size=1000",
 			"--throttler-minimum-interval=100ms",
-			// Start in preview; switch to "--mode=append" (creates only) or
-			// "--mode=sync" (creates + deletes) after validating a run.
-			"--mode=preview",
+			// Start with a SYNC preview. Use PATCH for explicit operations or remove
+			// --preview for full reconciliation after validating a run.
+			"--mode=sync",
+			"--preview",
 		]
 	}
 
@@ -131,7 +149,7 @@ edpAggregator: #EdpAggregator & {
 			"--impression-metadata-api-cert-host=localhost",
 			"--lookback-days=90",
 			"--end-days-ago=0",
-			"--impression-metadata-batch-size=1000",
+			"--impression-metadata-batch-size=100",
 			"--throttler-minimum-interval=100ms",
 		]
 	}
