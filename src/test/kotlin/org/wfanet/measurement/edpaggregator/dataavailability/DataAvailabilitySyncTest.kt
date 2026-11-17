@@ -4261,6 +4261,36 @@ class DataAvailabilitySyncTest {
     }
 
   @Test
+  fun `sync records publication status for healthy peers of a blocked trigger`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario(mapReplacementLine = true)
+    val first = scenario.cutoverDate.minusDays(30)
+    for (offset in 0L..2L) {
+      scenario.writeDate(scenario.historicalLine, first.plusDays(offset), alreadySynced = true)
+    }
+    scenario.writeDate(scenario.replacementLine, first, alreadySynced = true)
+    val done = scenario.writeDate(scenario.replacementLine, first.plusDays(2))
+    assertThat(scenario.sync(done))
+      .isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED_OTHER_IDENTITIES)
+    scenario.assertPublicationStatus(scenario.historicalLine)
+    scenario.assertNotPublished(done)
+  }
+
+  @Test
+  fun `sync leaves publication status absent for a blocked contributor`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario(mapReplacementLine = true)
+    val first = scenario.cutoverDate.minusDays(30)
+    scenario.writeDate(scenario.historicalLine, first, alreadySynced = true)
+    scenario.writeDate(scenario.historicalLine, first.plusDays(2), alreadySynced = true)
+    for (offset in 0L..1L) {
+      scenario.writeDate(scenario.replacementLine, first.plusDays(offset), alreadySynced = true)
+    }
+    val done = scenario.writeDate(scenario.replacementLine, first.plusDays(2))
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PARTIALLY_PUBLISHED)
+    scenario.assertPublicationStatus(scenario.replacementLine)
+    scenario.assertCompleted(done)
+  }
+
+  @Test
   fun `sync comparison blocks native gap before future cutover while publishing legacy`() =
     runBlocking {
       val scenario = CutoverAvailabilityScenario(mapReplacementLine = true)
@@ -5179,6 +5209,20 @@ class DataAvailabilitySyncTest {
     suspend fun assertCompleted(done: String) {
       val blob = checkNotNull(storage.getBlob(done.removePrefix("$bucket/")))
       assertThat(DataAvailabilityBlobs.isDataAvailabilityPublished(blob)).isTrue()
+    }
+
+    suspend fun assertPublicationStatus(vararg publishedSources: String) {
+      for (source in listOf(historicalLine, replacementLine)) {
+        val publishedAt =
+          DataAvailabilityPublicationStatus.read(
+            storage,
+            path,
+            "dataProviders/dataProvider123",
+            source,
+          )
+        if (source in publishedSources) assertThat(publishedAt).isNotNull()
+        else assertThat(publishedAt).isNull()
+      }
     }
 
     fun seedAvailability(modelLine: String, dates: Pair<LocalDate, LocalDate>) {
