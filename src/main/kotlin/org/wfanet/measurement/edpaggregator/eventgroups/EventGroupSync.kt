@@ -326,6 +326,8 @@ class EventGroupSync(
       if (eventGroup.state == CmmsEventGroup.State.DELETED || eventGroup.name in deletedResources) {
         continue
       }
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4934): Define activity
+      // eligibility for retained groups as part of revisiting account-link provenance.
       emit(synchronized ?: eventGroup.toMappedEventGroup())
     }
     for (synchronized in synchronizedByResource.values) {
