@@ -122,7 +122,10 @@ jobs:
             "-a" "dev.cosignproject.cosign/pub=${PUBLIC_KEY}"
           )
           signing_log=$(mktemp)
-          trap 'rm -f "$signing_log"' EXIT
+          # Go HTTP socket and DNS errors identify transport failures at their source.
+          token_transport_errors='(dial|read|write) (tcp|udp)|lookup [^:]+:'
+          token_transport_errors+='|timeout|context deadline exceeded|EOF'
+          token_transport_errors+='|connection (reset by peer|refused|aborted)|network is unreachable|no route to host'
           for target in "${targets[@]}"; do
             for attempt in 1 2 3; do
               if bazelisk run "$target" -- "${common_flags[@]}" 2>&1 | tee "$signing_log"; then
@@ -131,8 +134,8 @@ jobs:
                 exit_code=$?
               fi
 
-              if ((attempt == 3)) || ! grep -Eq \
-                'invalid response when retrieving subject token:.*(i/o timeout|TLS handshake timeout|connection reset by peer|unexpected EOF)' \
+              if ((attempt == 3)) || ! grep -Eiq \
+                "invalid response when retrieving subject token:.*(${token_transport_errors})" \
                 "$signing_log"; then
                 exit "$exit_code"
               fi
