@@ -212,6 +212,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitor
+import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitorMetrics
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadata
@@ -1051,6 +1052,8 @@ abstract class VidLabelingPipelineTestHarness(
   protected fun buildVidLabelingMonitor(
     stalenessThreshold: Duration = Duration.ZERO,
     rawInputQuietPeriod: Duration = Duration.ZERO,
+    clock: Clock = Clock.systemUTC(),
+    metrics: VidLabelingMonitorMetrics = VidLabelingMonitorMetrics(),
   ): VidLabelingMonitor =
     VidLabelingMonitor(
       rawImpressionUploadStub = uploadsStub,
@@ -1078,6 +1081,8 @@ abstract class VidLabelingPipelineTestHarness(
       workItemsStub = workItemsStub,
       uploadHealingOperationStub = operationsStub,
       vidLabeledImpressionsBlobPrefix = outputPrefix,
+      clock = clock,
+      metrics = metrics,
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
 
@@ -1177,6 +1182,7 @@ abstract class VidLabelingPipelineTestHarness(
           eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
           eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
           eventTemplateType = params.eventTemplateType
+          eventTemplateVersion = params.eventTemplateVersion
           populationSpecBlobUri = params.populationSpecBlobUri
           requiredEntityKeyFieldMapping.putAll(params.requiredEntityKeyFieldMappingMap)
           optionalEntityKeyFieldMapping.putAll(params.optionalEntityKeyFieldMappingMap)
@@ -2216,6 +2222,7 @@ abstract class VidLabelingPipelineTestHarness(
       populationSpecBlobUri = "file:///unused/population-spec"
       eventTemplateDescriptorBlobUri = "file:///unused/event-template-descriptor"
       eventTemplateType = TestEvent.getDescriptor().fullName
+      eventTemplateVersion = 1
     }
 
   protected class RecordingDataProvidersService :
