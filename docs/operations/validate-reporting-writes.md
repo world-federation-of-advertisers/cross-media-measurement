@@ -27,6 +27,11 @@ list is empty. Each spec must identify custom ReportingSets or DataProviders.
 ReportingSet references are loaded in batches and cached for each validation
 request, including dependencies of nested composite sets.
 
+Union-only composite ReportingSets must include compiled weighted subset unions.
+The check includes operations in referenced expressions. Expressions involving
+other operations may cancel and are allowed to have empty compilation. Validation
+does not recompute compilation or require a particular nonempty representation.
+
 ## Migrating legacy callers
 
 Prefer fixing callers to supply consistent identities before enabling these
@@ -37,7 +42,8 @@ affected switch explicitly to `false`, for example
 Disabling a switch skips the new validation and permits legacy malformed writes,
 including empty primitive membership.
 Existing required fields, database constraints, reference existence checks in
-the writer, and ImpressionQualificationFilter validation still apply. The
+the writer, and ImpressionQualificationFilter validation still apply. Component
+ReportingSet IDs in summaries and metrics remain required with either setting. The
 server does not repair malformed data or rename metric keys when validation is
 disabled.
 

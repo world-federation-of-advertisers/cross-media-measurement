@@ -203,7 +203,10 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     Unit = runBlocking {
     val services = newServices(idGenerator, false, false)
     seedInsertValidationReportingSets(services, includeMalformedSets = true)
-    for ((scenario, malformed) in insertValidationCases()) {
+    for ((scenario, malformed) in
+      insertValidationCases().filterKeys {
+        it !in setOf("missing-summary-id", "missing-metric-id")
+      }) {
       val report = malformed.copy { externalBasicReportId = scenario }
       val inserted =
         services.basicReportsService.insertBasicReport(
@@ -223,6 +226,51 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       assertThat(persisted.resultDetails).isEqualTo(report.resultDetails)
     }
   }
+
+  @Test
+  fun `insertBasicReport disabled validation preserves required component IDs from main`(): Unit =
+    runBlocking {
+      val services = newServices(idGenerator, false, false)
+      seedInsertValidationReportingSets(services, includeMalformedSets = false)
+      val fields =
+        mapOf(
+          "missing-summary-id" to
+            "result_details.result_groups[0].results[0].metadata.reporting_unit_summary." +
+              "reporting_unit_component_summary[0].external_reporting_set_id",
+          "missing-metric-id" to
+            "result_details.result_groups[0].results[0].metric_set." +
+              "reporting_set_components[0].external_reporting_set_id",
+        )
+      for ((scenario, field) in fields) {
+        val report =
+          insertValidationCases().getValue(scenario).copy { externalBasicReportId = scenario }
+        val exception =
+          assertFailsWith<StatusRuntimeException>(scenario) {
+            services.basicReportsService.insertBasicReport(
+              insertBasicReportRequest { basicReport = report }
+            )
+          }
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+        assertThat(exception.errorInfo)
+          .isEqualTo(
+            errorInfo {
+              domain = Errors.DOMAIN
+              reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+              metadata[Errors.Metadata.FIELD_NAME.key] = field
+            }
+          )
+        val missing =
+          assertFailsWith<StatusRuntimeException>(scenario) {
+            services.basicReportsService.getBasicReport(
+              getBasicReportRequest {
+                cmmsMeasurementConsumerId = report.cmmsMeasurementConsumerId
+                externalBasicReportId = report.externalBasicReportId
+              }
+            )
+          }
+        assertThat(missing.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      }
+    }
 
   @Test
   fun `insertBasicReport validation accepts empty request and result groups together`(): Unit =
@@ -325,6 +373,8 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           both,
           partial,
           insertValidationCustomReport("custom-nested"),
+          insertValidationCustomReport("custom-cancelled"),
+          insertValidationCustomReport("custom-cancelled-nested"),
           insertValidationProviderReport(),
         )
         .withIndex()) {
@@ -403,6 +453,8 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         }
       }
     return linkedMapOf(
+      "uncompiled-union" to insertValidationCustomReport("custom-uncompiled-union"),
+      "uncompiled-nested-union" to insertValidationCustomReport("custom-uncompiled-nested"),
       "missing-report-id" to custom.copy { externalReportId = "" },
       "missing-request-specs" to
         custom.copy { details = details.copy { resultGroupSpecs.clear() } },
@@ -806,6 +858,29 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                 }
             }
         },
+        reportingSet {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportingSetId = "custom-cancelled"
+          composite =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+              lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "custom-a" }
+              rhs = lhs
+            }
+        },
+        reportingSet {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportingSetId = "custom-cancelled-nested"
+          composite =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.UNION
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = "custom-cancelled"
+                }
+              rhs = lhs
+            }
+        },
       )
     for (set in sets) {
       services.reportingSetsService.createReportingSet(
@@ -818,6 +893,14 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     if (includeMalformedSets) {
       for (set in
         listOf(
+          sets[7].copy {
+            externalReportingSetId = "custom-uncompiled-union"
+            weightedSubsetUnions.clear()
+          },
+          sets[8].copy {
+            externalReportingSetId = "custom-uncompiled-nested"
+            weightedSubsetUnions.clear()
+          },
           sets[0].copy {
             externalReportingSetId = "small-campaign"
             externalCampaignGroupId = externalReportingSetId

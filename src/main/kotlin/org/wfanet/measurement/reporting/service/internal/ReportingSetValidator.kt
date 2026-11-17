@@ -33,11 +33,13 @@ class ReportingSetValidator(
   private data class Universe(
     val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
     val primitiveReportingSetIds: Set<String>,
+    val isUnionOnly: Boolean,
   ) {
     operator fun plus(other: Universe): Universe =
       Universe(
         eventGroupKeys + other.eventGroupKeys,
         primitiveReportingSetIds + other.primitiveReportingSetIds,
+        isUnionOnly && other.isUnionOnly,
       )
   }
 
@@ -121,7 +123,8 @@ class ReportingSetValidator(
    * Validates the set, its expression, and all referenced primitive bases.
    *
    * The universe includes both operands of every operation, including DIFFERENCE. An empty list of
-   * weighted unions is allowed because a valid expression can cancel algebraically.
+   * weighted unions is allowed for expressions that can cancel; union-only expressions require
+   * compiled unions.
    *
    * @throws InvalidFieldValueException if a set or reference is malformed or cyclic.
    */
@@ -145,9 +148,17 @@ class ReportingSetValidator(
       val membership =
         when (reportingSet.valueCase) {
           ReportingSet.ValueCase.PRIMITIVE ->
-            Universe(reportingSet.primitive.eventGroupKeysList.toSet(), setOf(id))
+            Universe(
+              reportingSet.primitive.eventGroupKeysList.toSet(),
+              setOf(id),
+              isUnionOnly = true,
+            )
           ReportingSet.ValueCase.COMPOSITE -> {
             val universe = validateExpression(reportingSet.composite)
+            requireValid(
+              !universe.isUnionOnly || reportingSet.weightedSubsetUnionsCount > 0,
+              "Union-only ReportingSet has no compiled weighted subset unions",
+            )
             for (union in reportingSet.weightedSubsetUnionsList) {
               requireValid(
                 union.primitiveReportingSetBasesCount > 0,
@@ -208,7 +219,12 @@ class ReportingSetValidator(
     )
     val lhs = validateOperand(expression.lhs)
     // Unary expressions are supported by the existing Reporting API.
-    return if (expression.hasRhs()) lhs + validateOperand(expression.rhs) else lhs
+    val universe = if (expression.hasRhs()) lhs + validateOperand(expression.rhs) else lhs
+    return if (expression.operation == ReportingSet.SetExpression.Operation.UNION) {
+      universe
+    } else {
+      universe.copy(isUnionOnly = false)
+    }
   }
 
   private suspend fun validateOperand(operand: ReportingSet.SetExpression.Operand): Universe {

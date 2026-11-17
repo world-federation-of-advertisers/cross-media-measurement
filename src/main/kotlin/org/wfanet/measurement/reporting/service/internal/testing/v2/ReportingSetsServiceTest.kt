@@ -295,10 +295,123 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         .containsExactlyElementsIn(root.weightedSubsetUnionsList)
     }
 
+  @Test
+  fun `createReportingSet validation preserves compiled unions and cancelling expressions`(): Unit =
+    runBlocking {
+      val services = newServices(idGenerator, true)
+      seedReportingSetValidationInputs(services)
+      val union = reportingSetValidationUnion()
+      val cancellation =
+        union.copy {
+          composite =
+            composite.copy {
+              operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+              rhs = lhs
+            }
+          weightedSubsetUnions.clear()
+        }
+      val inlineCancellation =
+        union.copy {
+          composite =
+            composite.copy {
+              lhs = ReportingSetKt.SetExpressionKt.operand { expression = cancellation.composite }
+              clearRhs()
+            }
+          weightedSubsetUnions.clear()
+        }
+      val referencedCancellation =
+        union.copy {
+          composite =
+            composite.copy {
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = "direct-cancellation"
+                }
+              rhs = lhs
+            }
+          weightedSubsetUnions.clear()
+        }
+      val unaryUnion =
+        union.copy {
+          composite = composite.copy { clearRhs() }
+          weightedSubsetUnions[0] =
+            weightedSubsetUnions[0].copy {
+              binaryRepresentation = 1
+              val first = primitiveReportingSetBases[0]
+              primitiveReportingSetBases.clear()
+              primitiveReportingSetBases += first
+            }
+        }
+      val alternateCompilation =
+        union.copy {
+          val compiled = weightedSubsetUnions[0]
+          weightedSubsetUnions.clear()
+          weightedSubsetUnions += compiled.copy { weight = 2 }
+          weightedSubsetUnions += compiled.copy { weight = -1 }
+        }
+      for ((id, set) in
+        listOf(
+          "compiled-union" to union,
+          "unary-union" to unaryUnion,
+          "direct-cancellation" to cancellation,
+          "inline-cancellation" to inlineCancellation,
+          "referenced-cancellation" to referencedCancellation,
+          "alternate-compilation" to alternateCompilation,
+        )) {
+        val inserted =
+          services.reportingSetsService.createReportingSet(
+            createReportingSetRequest {
+              externalReportingSetId = id
+              reportingSet = set
+            }
+          )
+        val persisted =
+          services.reportingSetsService
+            .batchGetReportingSets(
+              batchGetReportingSetsRequest {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalReportingSetIds += id
+              }
+            )
+            .reportingSetsList
+            .single()
+        assertThat(persisted).ignoringRepeatedFieldOrder().isEqualTo(inserted)
+        assertThat(persisted.composite).isEqualTo(set.composite)
+        assertThat(persisted.externalCampaignGroupId).isEmpty()
+        assertThat(persisted.weightedSubsetUnionsList)
+          .ignoringRepeatedFieldOrder()
+          .containsExactlyElementsIn(set.weightedSubsetUnionsList)
+      }
+    }
+
   private fun reportingSetValidationCases(): Map<String, ReportingSet> {
     val primitive = reportingSetValidationPrimitive()
     val composite = reportingSetValidationComposite()
+    val union = reportingSetValidationUnion()
     return linkedMapOf(
+      "union-without-compilation" to union.copy { weightedSubsetUnions.clear() },
+      "unary-union-without-compilation" to
+        union.copy {
+          this.composite = this.composite.copy { clearRhs() }
+          weightedSubsetUnions.clear()
+        },
+      "nested-union-without-compilation" to
+        union.copy {
+          this.composite =
+            this.composite.copy {
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "existing-union" }
+            }
+          weightedSubsetUnions.clear()
+        },
+      "inline-union-without-compilation" to
+        union.copy {
+          this.composite =
+            this.composite.copy {
+              lhs = ReportingSetKt.SetExpressionKt.operand { expression = union.composite }
+            }
+          weightedSubsetUnions.clear()
+        },
       "empty-primitive" to primitive.copy { this.primitive = ReportingSetKt.primitive {} },
       "missing-provider-id" to
         primitive.copy {
@@ -415,6 +528,20 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       }
   }
 
+  private fun reportingSetValidationUnion(): ReportingSet =
+    reportingSetValidationComposite().copy {
+      composite = composite.copy { operation = ReportingSet.SetExpression.Operation.UNION }
+      weightedSubsetUnions +=
+        ReportingSetKt.weightedSubsetUnion {
+          weight = 1
+          binaryRepresentation = 3
+          for (id in listOf("primitive-a", "primitive-b")) {
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = id }
+          }
+        }
+    }
+
   private suspend fun seedReportingSetValidationInputs(services: Services<T>) {
     services.measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
@@ -434,6 +561,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               }
           },
         "existing-composite" to reportingSetValidationComposite(),
+        "existing-union" to reportingSetValidationUnion(),
       )
     for ((id, set) in sets) {
       services.reportingSetsService.createReportingSet(
