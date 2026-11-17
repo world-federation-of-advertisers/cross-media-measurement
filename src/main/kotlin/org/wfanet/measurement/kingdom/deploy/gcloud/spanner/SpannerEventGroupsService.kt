@@ -67,6 +67,7 @@ class SpannerEventGroupsService(
   private val client: AsyncDatabaseClient,
   maxReadStaleness: Duration,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val enableEntityMetadataSearch: Boolean = false,
 ) : EventGroupsCoroutineImplBase(coroutineContext) {
   private val staleReadTimestampBound =
     TimestampBound.ofMaxStaleness(maxReadStaleness.toMillis(), TimeUnit.MILLISECONDS)
@@ -391,6 +392,7 @@ class SpannerEventGroupsService(
             view = request.view,
             internalDataProviderId = internalDataProviderId,
             internalMeasurementConsumerId = internalMeasurementConsumerId,
+            enableEntityMetadataSearch = enableEntityMetadataSearch,
           )
           .execute(client.singleUse(timestampBound))
           .map { it.eventGroup }

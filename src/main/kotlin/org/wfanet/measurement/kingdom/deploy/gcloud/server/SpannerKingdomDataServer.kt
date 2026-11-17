@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.server
 
 import java.time.Clock
 import java.time.Duration
+import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.RandomIdGenerator
@@ -34,6 +35,14 @@ import picocli.CommandLine
 )
 class SpannerKingdomDataServer : KingdomDataServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
+
+  @set:CommandLine.Option(
+    names = ["--enable-entity-metadata-search"],
+    description =
+      ["Search entity metadata values and entity types. Enable after the values backfill."],
+    defaultValue = "false",
+  )
+  private var enableEntityMetadataSearch by Delegates.notNull<Boolean>()
 
   @CommandLine.Option(
     names = ["--max-event-group-read-staleness"],
@@ -57,6 +66,7 @@ class SpannerKingdomDataServer : KingdomDataServer() {
           client,
           knownEventGroupMetadataTypes,
           maxEventGroupReadStaleness,
+          enableEntityMetadataSearch = enableEntityMetadataSearch,
         )
       )
     }

@@ -19,6 +19,9 @@ import com.google.cloud.spanner.SpannerException
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.NullValue
+import com.google.protobuf.Struct
+import com.google.protobuf.listValue
 import com.google.protobuf.struct
 import com.google.protobuf.util.Timestamps
 import com.google.protobuf.value
@@ -1731,6 +1734,207 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
       )
   }
+
+  @Test
+  fun `streamEventGroups matches nested entity metadata scalar values`(): Unit = runBlocking {
+    val created =
+      createEntityMetadataEventGroup(
+        struct {
+          fields["outerkey"] = value {
+            structValue = struct {
+              fields["nestedkey"] = value { stringValue = "Violet Bicycle" }
+              fields["arraykey"] = value {
+                listValue = listValue {
+                  values += value { stringValue = "Orchid" }
+                  values += value { numberValue = 42.5 }
+                  values += value { boolValue = false }
+                  values += value {
+                    listValue = listValue {
+                      values += value {
+                        structValue = struct {
+                          fields["deepkey"] = value { stringValue = "Marigold" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      )
+
+    for (query in listOf("violet", "bicycle", "orchid", "42.5", "false", "marigold")) {
+      assertThat(searchEntityMetadata(created, query)).containsExactly(created)
+    }
+  }
+
+  @Test
+  fun `streamEventGroups does not match entity metadata keys or nulls`(): Unit = runBlocking {
+    val created =
+      createEntityMetadataEventGroup(
+        struct {
+          fields["outerkey"] = value {
+            structValue = struct { fields["nestedkey"] = value { stringValue = "Violet" } }
+          }
+          fields["nullkey"] = value { nullValue = NullValue.NULL_VALUE }
+          fields["unsetkey"] = value {}
+          fields["emptykey"] = value { structValue = struct {} }
+        }
+      )
+
+    for (query in listOf("outerkey", "nestedkey", "nullkey", "unsetkey", "emptykey", "null")) {
+      assertThat(searchEntityMetadata(created, query)).isEmpty()
+    }
+  }
+
+  @Test
+  fun `streamEventGroups matches entity type independently of metadata`(): Unit = runBlocking {
+    val created = createEntityMetadataEventGroup(Struct.getDefaultInstance(), "advertisement")
+
+    assertThat(searchEntityMetadata(created, "advertisement")).containsExactly(created)
+    assertThat(searchEntityMetadata(created, "unmatched")).isEmpty()
+  }
+
+  @Test
+  fun `streamEventGroups applies other filters to entity metadata matches`(): Unit = runBlocking {
+    val created = createEntityMetadataEventGroup(ENTITY_METADATA)
+    val other = createEntityMetadataEventGroup(ENTITY_METADATA)
+
+    assertThat(searchEntityMetadata(created, "awareness")).containsExactly(created)
+    assertThat(searchEntityMetadata(other, "awareness")).containsExactly(other)
+  }
+
+  @Test
+  fun `updateEventGroup replaces searchable entity metadata and type`(): Unit = runBlocking {
+    val created = createEntityMetadataEventGroup(ENTITY_METADATA, "advertisement")
+    val updated =
+      eventGroupsService.updateEventGroup(
+        updateEventGroupRequest {
+          eventGroup =
+            created.copy {
+              entityMetadata = struct { fields["objective"] = value { stringValue = "conversion" } }
+              entityKey = entityKey { entityType = "promotion" }
+            }
+        }
+      )
+
+    assertThat(searchEntityMetadata(updated, "awareness")).isEmpty()
+    assertThat(searchEntityMetadata(updated, "advertisement")).isEmpty()
+    assertThat(searchEntityMetadata(updated, "conversion")).containsExactly(updated)
+    assertThat(searchEntityMetadata(updated, "promotion")).containsExactly(updated)
+  }
+
+  @Test
+  fun `updateEventGroup removes searchable entity metadata`(): Unit = runBlocking {
+    val created = createEntityMetadataEventGroup(ENTITY_METADATA)
+    val updated =
+      eventGroupsService.updateEventGroup(
+        updateEventGroupRequest { eventGroup = created.copy { clearEntityMetadata() } }
+      )
+
+    assertThat(searchEntityMetadata(updated, "awareness")).isEmpty()
+    assertThat(
+        eventGroupsService
+          .getEventGroup(
+            getEventGroupRequest {
+              externalDataProviderId = updated.externalDataProviderId
+              externalEventGroupId = updated.externalEventGroupId
+            }
+          )
+          .hasEntityMetadata()
+      )
+      .isFalse()
+  }
+
+  @Test
+  fun `batchCreateEventGroups populates searchable entity metadata`(): Unit = runBlocking {
+    val template = createEntityMetadataEventGroup(Struct.getDefaultInstance())
+    val created =
+      eventGroupsService
+        .batchCreateEventGroups(
+          batchCreateEventGroupsRequest {
+            externalDataProviderId = template.externalDataProviderId
+            requests += createEventGroupRequest {
+              eventGroup =
+                template.copy {
+                  clearExternalEventGroupId()
+                  entityMetadata = ENTITY_METADATA
+                }
+            }
+          }
+        )
+        .eventGroupsList
+        .single()
+
+    assertThat(searchEntityMetadata(created, "awareness")).containsExactly(created)
+  }
+
+  @Test
+  fun `batchUpdateEventGroup replaces and removes searchable entity metadata`(): Unit =
+    runBlocking {
+      val created = createEntityMetadataEventGroup(ENTITY_METADATA)
+      suspend fun update(metadata: Struct?): EventGroup {
+        return eventGroupsService
+          .batchUpdateEventGroup(
+            batchUpdateEventGroupsRequest {
+              externalDataProviderId = created.externalDataProviderId
+              requests += updateEventGroupRequest {
+                eventGroup =
+                  created.copy {
+                    clearEntityMetadata()
+                    if (metadata != null) {
+                      entityMetadata = metadata
+                    }
+                  }
+              }
+            }
+          )
+          .eventGroupsList
+          .single()
+      }
+      val updated = update(struct { fields["objective"] = value { stringValue = "conversion" } })
+      assertThat(searchEntityMetadata(updated, "awareness")).isEmpty()
+      assertThat(searchEntityMetadata(updated, "conversion")).containsExactly(updated)
+
+      val cleared = update(null)
+      assertThat(searchEntityMetadata(cleared, "conversion")).isEmpty()
+    }
+
+  private suspend fun createEntityMetadataEventGroup(
+    metadata: Struct,
+    entityType: String = "campaign",
+  ): EventGroup {
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    return eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          entityMetadata = metadata
+          entityKey = entityKey { this.entityType = entityType }
+        }
+      }
+    )
+  }
+
+  private suspend fun searchEntityMetadata(
+    eventGroup: EventGroup,
+    query: String,
+  ): List<EventGroup> =
+    eventGroupsService
+      .streamEventGroups(
+        streamEventGroupsRequest {
+          filter = filter {
+            externalDataProviderId = eventGroup.externalDataProviderId
+            externalMeasurementConsumerId = eventGroup.externalMeasurementConsumerId
+            metadataSearchQuery = query
+          }
+        }
+      )
+      .toList()
 
   @Test
   fun `streamEventGroups respects media types filter`(): Unit = runBlocking {
