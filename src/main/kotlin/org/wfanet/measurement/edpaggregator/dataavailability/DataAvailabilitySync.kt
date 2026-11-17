@@ -27,6 +27,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.nio.ByteBuffer
 import java.security.MessageDigest
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -169,6 +170,7 @@ class DataAvailabilitySync(
   private val availabilityImpressionPaths: List<String> = listOf(edpImpressionPath),
   private val generationMatchedMetadataUpdater: GenerationMatchedBlobMetadataUpdater? = null,
   private val managedDoneObjectResolver: (() -> ManagedDoneObjectResolver)? = null,
+  private val clock: Clock = Clock.systemUTC(),
 ) {
   data class ModelLineDataSource(
     val storageClient: BlobMetadataStorageClient,
@@ -808,6 +810,19 @@ class DataAvailabilitySync(
         )
       for (entry in availabilityEntries) {
         logAvailabilityInterval(entry.key, entry.value, "published")
+      }
+      val publishedAt = clock.instant()
+      for (modelLine in modelLinesToValidate) {
+        ensureLeaseActive()
+        val modelLineName = modelLine.toName()
+        val source = modelLineDataSources[modelLineName]
+        DataAvailabilityPublicationStatus.record(
+          source?.storageClient ?: storageClient,
+          source?.edpImpressionPath ?: edpImpressionPath,
+          dataProviderName,
+          modelLineName,
+          publishedAt,
+        )
       }
 
       if (publishEventGroupActivities != null) {

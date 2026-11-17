@@ -768,6 +768,38 @@ out-of-retention candidates, and plans in `NEEDS_ATTENTION`. Configure
 `vid_labeling_healing_alert_notification_channels`; each incident links its condition to the plan
 inspection or retry action, while approval remains a separate operator decision.
 
+Availability recovery uses the same notification channels. The dispatch and health passes emit
+per-DataProvider gauges for pending age, failed execution generations, terminal task
+failures, publication silence while work is pending, and incomplete monitoring. Retries preserve
+the original labeled done-object creation time and execution history. Publication timestamps are
+stored under the `.availability-publication` directory in each contributor's configured output root,
+keyed by the full provider and model-line identities, only after a successful Kingdom publication. Failed,
+blocked, and no-work executions do not advance them. Before a timestamp exists, publication
+silence is measured from the oldest pending done object. Ages and failed execution counts take
+the worst pending model line; terminal failures count pending tasks. Idle and empty scans emit zero.
+
+DataAvailabilitySync needs access to create and update these status objects in every configured
+source. The managed EDPA bucket's existing object-user grant covers its roots. For additional GCS
+buckets, set `data_availability_publication_status_storage_roots` to a map of bucket names to
+bucket-relative output-prefix sets; use an empty prefix for a bucket root. Terraform grants the
+runtime identity object-user access only below each prefix's `.availability-publication` directory.
+Additional buckets must use uniform bucket-level access for these conditional grants. Configure
+equivalent status-object write access for non-GCS sources.
+
+The `vid_labeling_availability_alert_thresholds` defaults are 24 hours for pending age, three failed
+execution generations, and one hour of publication silence. Terminal failures and monitoring
+errors alert at one. Each observed threshold breach is evaluated without an additional retest
+window: the ages and execution counts already include the relevant persistence. Configure the existing
+`vid_labeling_healing_alert_notification_channels` to deliver these incidents. An empty list
+creates incidents without sending notifications. Before relying on delivery, verify the channel
+in Cloud Monitoring and confirm that a test notification reaches the intended operator.
+
+With Terraform 1.7 or newer, check the alert policy module without creating cloud resources with
+`terraform test` in
+`src/main/terraform/gcloud/modules/edp-aggregator-availability-monitoring`. Its mocked-provider tests
+verify thresholds, metric filters and notification-channel wiring; they do not verify actual
+notification delivery.
+
 #### VID Labeling outbound RPC rate limits
 
 Every VID Labeling process shares four client-side throttlers across its coroutines. The defaults
