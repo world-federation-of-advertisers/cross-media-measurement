@@ -21,6 +21,7 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import com.google.protobuf.Parser
 import com.google.protobuf.Struct
@@ -98,6 +99,7 @@ import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.ListModelShardsRequest
 import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
@@ -272,7 +274,15 @@ import org.wfanet.measurement.storage.parquetValue
 import org.wfanet.virtualpeople.common.Gender
 
 data class PipelineHarnessConfig(
+  val dataProviderName: String = "dataProviders/dp1",
+  val eventDescriptor: Descriptors.Descriptor = TestEvent.getDescriptor(),
+  val populationSpec: PopulationSpec? = null,
+  val eventTemplateFieldMapping: Map<String, String> = emptyMap(),
+  val fixedDoubleColumns: Map<String, Double> = emptyMap(),
   val extraModelLines: List<ModelLineFixture> = emptyList(),
+  val includeDefaultModelLines: Boolean = true,
+  val externalModelLines: Set<String> = emptySet(),
+  val publishAvailability: (suspend (ReplaceDataAvailabilityIntervalsRequest) -> Unit)? = null,
   val initiallyVisibleModelLines: Set<String>? = null,
   val numberOfShards: Int = 1,
   val rankStripes: Int = 1,
@@ -316,6 +326,7 @@ data class RankEntryFixture(
 abstract class VidLabelingPipelineTestHarness(
   protected val pipelineConfig: PipelineHarnessConfig = PipelineHarnessConfig()
 ) {
+  protected val providerName: String = pipelineConfig.dataProviderName
   protected val tempFolder = TemporaryFolder()
   protected val edpaDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, EdpaSchemata.EDP_AGGREGATOR_CHANGELOG_PATH)
@@ -330,26 +341,31 @@ abstract class VidLabelingPipelineTestHarness(
       .forEach { addService(it) }
   }
 
+  protected val comparisonPopulationSpec: PopulationSpec
+    get() = pipelineConfig.populationSpec ?: POPULATION_SPEC
+
   protected val modelLineFixtures =
-    listOf(
-      ModelLineFixture(
-        MEMOIZED_MODEL_LINE,
-        MEMOIZED_RELEASE,
-        memoized = true,
-        pipelineConfig.modelLineActiveStarts[MEMOIZED_MODEL_LINE]
-          ?: EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
-        EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant(),
-      ),
-      ModelLineFixture(
-        DIRECT_MODEL_LINE,
-        DIRECT_RELEASE,
-        memoized = false,
-        pipelineConfig.modelLineActiveStarts[DIRECT_MODEL_LINE]
-          ?: EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
-        pipelineConfig.modelLineActiveEnds[DIRECT_MODEL_LINE]
-          ?: EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant(),
-      ),
-    ) + pipelineConfig.extraModelLines
+    (if (pipelineConfig.includeDefaultModelLines)
+      listOf(
+        ModelLineFixture(
+          MEMOIZED_MODEL_LINE,
+          MEMOIZED_RELEASE,
+          memoized = true,
+          pipelineConfig.modelLineActiveStarts[MEMOIZED_MODEL_LINE]
+            ?: EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+          EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant(),
+        ),
+        ModelLineFixture(
+          DIRECT_MODEL_LINE,
+          DIRECT_RELEASE,
+          memoized = false,
+          pipelineConfig.modelLineActiveStarts[DIRECT_MODEL_LINE]
+            ?: EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+          pipelineConfig.modelLineActiveEnds[DIRECT_MODEL_LINE]
+            ?: EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant(),
+        ),
+      )
+    else emptyList()) + pipelineConfig.extraModelLines
   protected val visibleModelLineNames = ConcurrentHashMap.newKeySet<String>()
   protected val today = AtomicReference(pipelineConfig.initialToday)
   protected val modelLines =
@@ -365,7 +381,10 @@ abstract class VidLabelingPipelineTestHarness(
     object : ModelLinesGrpcKt.ModelLinesCoroutineImplBase() {
       override suspend fun listModelLines(request: ListModelLinesRequest) = listModelLinesResponse {
         modelLines +=
-          this@VidLabelingPipelineTestHarness.modelLines.filter { it.name in visibleModelLineNames }
+          this@VidLabelingPipelineTestHarness.modelLines.filter {
+            it.name in visibleModelLineNames &&
+              checkNotNull(ModelLineKey.fromName(it.name)).parentKey.toName() == request.parent
+          }
       }
 
       override suspend fun getModelLine(request: GetModelLineRequest): ModelLine =
@@ -387,7 +406,7 @@ abstract class VidLabelingPipelineTestHarness(
           modelShards +=
             modelLineFixtures.map { fixture ->
               modelShard {
-                name = "$DATA_PROVIDER/modelShards/${fixture.name.substringAfterLast('/')}"
+                name = "$providerName/modelShards/${fixture.name.substringAfterLast('/')}"
                 modelRelease = fixture.release
                 modelBlob = modelBlob { modelBlobPath = modelBlobUri }
                 memoizedVidAssignmentEnabled = fixture.memoized
@@ -395,7 +414,8 @@ abstract class VidLabelingPipelineTestHarness(
             }
         }
     }
-  protected val dataProvidersService = RecordingDataProvidersService()
+  protected val dataProvidersService =
+    RecordingDataProvidersService(pipelineConfig.publishAvailability)
   protected val edpaBeforeCallFaults = BeforeCallFaultInterceptor()
   protected val edpaPublicServer = GrpcTestServerRule {
     Services.build(edpaInternalServer.channel).toList().forEach {
@@ -468,6 +488,7 @@ abstract class VidLabelingPipelineTestHarness(
   protected lateinit var workItemAttemptsStub: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
   protected lateinit var dispatchSequencer: VidLabelingDispatchSequencer
   protected lateinit var internalDataAvailabilitySync: DataAvailabilitySync
+  protected lateinit var externalDataAvailabilitySync: DataAvailabilitySync
   private lateinit var availabilityWorkItemProcessor: DataAvailabilitySyncWorkItemProcessor
 
   protected class AvailabilityStagePause
@@ -585,7 +606,7 @@ abstract class VidLabelingPipelineTestHarness(
           ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(edpaPublicServer.channel),
         modelShardsStub = ModelShardsGrpcKt.ModelShardsCoroutineStub(edpaPublicServer.channel),
         modelLinesStub = ModelLinesGrpcKt.ModelLinesCoroutineStub(edpaPublicServer.channel),
-        dataProviderName = DATA_PROVIDER,
+        dataProviderName = providerName,
         vidLabelerParamsTemplate = vidLabelerParamsTemplate(),
         subpoolAssignerParamsTemplate = subpoolAssignerParamsTemplate(),
         queueName = VID_LABELER_QUEUE,
@@ -609,8 +630,9 @@ abstract class VidLabelingPipelineTestHarness(
         rankIndexBlobStub = rankIndexBlobsStub,
         modelLinesStub = ModelLinesGrpcKt.ModelLinesCoroutineStub(edpaPublicServer.channel),
         dispatchSequencer = dispatchSequencer,
-        dataProviderName = DATA_PROVIDER,
-        modelSuiteName = MODEL_SUITE,
+        dataProviderName = providerName,
+        modelSuiteName =
+          checkNotNull(ModelLineKey.fromName(modelLineFixtures.first().name)).parentKey.toName(),
         overrideModelLines =
           exchange.requestHeaders.getFirst(OVERRIDE_MODEL_LINES_HEADER)?.split(',').orEmpty(),
         recoverySourceUpload = exchange.requestHeaders.getFirst(RECOVERY_SOURCE_UPLOAD_HEADER),
@@ -639,7 +661,7 @@ abstract class VidLabelingPipelineTestHarness(
         dataProvidersStub =
           DataProvidersGrpcKt.DataProvidersCoroutineStub(edpaPublicServer.channel),
         impressionMetadataServiceStub = impressionMetadataStub,
-        dataProviderName = DATA_PROVIDER,
+        dataProviderName = providerName,
         throttler = ImmediateThrottler,
         impressionMetadataBatchSize = 100,
         modelLineMap = pipelineConfig.modelLineMap,
@@ -650,12 +672,16 @@ abstract class VidLabelingPipelineTestHarness(
             .associateWith {
               DataAvailabilitySync.ModelLineDataSource(
                 metadataStorage,
-                SelectedStorageClient.parseBlobUri(outputPrefix).key,
+                SelectedStorageClient.parseBlobUri(
+                    if (it in pipelineConfig.externalModelLines) externalOutputPrefix
+                    else outputPrefix
+                  )
+                  .key,
               )
             },
         managedDoneObjectResolver = {
           GrpcManagedDoneObjectResolver(
-            DATA_PROVIDER,
+            providerName,
             uploadsStub,
             modelLineRowsStub,
             filesStub,
@@ -673,14 +699,14 @@ abstract class VidLabelingPipelineTestHarness(
             SelectedStorageClient.parseBlobUri(externalOutputPrefix).key,
           ),
       )
-    val externalDataAvailabilitySync =
+    externalDataAvailabilitySync =
       DataAvailabilitySync(
         edpImpressionPath = SelectedStorageClient.parseBlobUri(externalOutputPrefix).key,
         storageClient = metadataStorage,
         dataProvidersStub =
           DataProvidersGrpcKt.DataProvidersCoroutineStub(edpaPublicServer.channel),
         impressionMetadataServiceStub = impressionMetadataStub,
-        dataProviderName = DATA_PROVIDER,
+        dataProviderName = providerName,
         throttler = ImmediateThrottler,
         impressionMetadataBatchSize = 100,
         modelLineMap = pipelineConfig.modelLineMap,
@@ -691,12 +717,16 @@ abstract class VidLabelingPipelineTestHarness(
             .associateWith {
               DataAvailabilitySync.ModelLineDataSource(
                 metadataStorage,
-                SelectedStorageClient.parseBlobUri(outputPrefix).key,
+                SelectedStorageClient.parseBlobUri(
+                    if (it in pipelineConfig.externalModelLines) externalOutputPrefix
+                    else outputPrefix
+                  )
+                  .key,
               )
             },
         managedDoneObjectResolver = {
           GrpcManagedDoneObjectResolver(
-            DATA_PROVIDER,
+            providerName,
             uploadsStub,
             modelLineRowsStub,
             filesStub,
@@ -755,9 +785,9 @@ abstract class VidLabelingPipelineTestHarness(
             sourcePathRegex = "${Regex.escape(externalOutputPrefix)}/model-line/.+/done"
             controlPlaneQueueSink = controlPlaneQueueSink {
               queue = DataAvailabilitySyncWorkItems.QUEUE
-              serializationKey = "data-availability:$DATA_PROVIDER"
+              serializationKey = "data-availability:$providerName"
               appParams =
-                ProtoAny.pack(externalDataAvailabilitySyncParams { dataProvider = DATA_PROVIDER })
+                ProtoAny.pack(externalDataAvailabilitySyncParams { dataProvider = providerName })
             }
           }
         ),
@@ -853,7 +883,7 @@ abstract class VidLabelingPipelineTestHarness(
 
   protected fun buildHealingController(
     correctionRetention: Duration = Duration.ofDays(3650),
-    dataProviderNames: List<String> = listOf(DATA_PROVIDER),
+    dataProviderNames: List<String> = listOf(providerName),
     clock: Clock = Clock.systemUTC(),
   ): VidLabelingHealingController {
     val evictUploader =
@@ -921,7 +951,7 @@ abstract class VidLabelingPipelineTestHarness(
       dataProviderNames.map { dataProviderName ->
         VidLabelingHealingController.DataProviderConfig(
           dataProviderName,
-          if (dataProviderName == DATA_PROVIDER) outputPrefix
+          if (dataProviderName == providerName) outputPrefix
           else "$outputPrefix/${dataProviderName.substringAfterLast('/')}",
           correctionRetention,
         )
@@ -1059,7 +1089,7 @@ abstract class VidLabelingPipelineTestHarness(
       rawImpressionUploadModelLineStub = modelLineRowsStub,
       correctionCandidateStub = correctionCandidatesStub,
       dispatchSequencer = dispatchSequencer,
-      dataProviderName = DATA_PROVIDER,
+      dataProviderName = providerName,
       stalenessThreshold = stalenessThreshold,
       rawImpressionsStorageRootUri = "gs://$fileBucket/",
       rawImpressionsBlobPrefix = "$rootKey/raw",
@@ -1203,14 +1233,14 @@ abstract class VidLabelingPipelineTestHarness(
     }
 
   protected suspend fun listHealingOperations(
-    dataProviderName: String = DATA_PROVIDER
+    dataProviderName: String = providerName
   ): List<UploadHealingOperation> =
     operationsStub
       .listUploadHealingOperations(listUploadHealingOperationsRequest { parent = dataProviderName })
       .uploadHealingOperationsList
 
   protected suspend fun listCorrectionCandidates(
-    dataProviderName: String = DATA_PROVIDER
+    dataProviderName: String = providerName
   ): List<RawImpressionUploadCorrectionCandidate> =
     correctionCandidatesStub
       .listRawImpressionUploadCorrectionCandidates(
@@ -1386,7 +1416,7 @@ abstract class VidLabelingPipelineTestHarness(
           workItemsClient = workItemsStub,
           workItemAttemptsClient = workItemAttemptsStub,
           vidRankBuilderQueue = RANK_BUILDER_QUEUE,
-          kmsClients = mapOf(DATA_PROVIDER to kmsClient),
+          kmsClients = mapOf(providerName to kmsClient),
           getSubpoolMapStorageConfig = {
             StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)
           },
@@ -1419,8 +1449,8 @@ abstract class VidLabelingPipelineTestHarness(
           parser = WorkItem.parser(),
           workItemsClient = workItemsStub,
           workItemAttemptsClient = workItemAttemptsStub,
-          kmsClients = mapOf(DATA_PROVIDER to kmsClient),
-          retentionDaysByDataProvider = mapOf(DATA_PROVIDER to pipelineConfig.retentionDays),
+          kmsClients = mapOf(providerName to kmsClient),
+          retentionDaysByDataProvider = mapOf(providerName to pipelineConfig.retentionDays),
           rankerJobsStub =
             RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel),
           rankIndexBlobsStub = rankIndexBlobsStub,
@@ -1444,8 +1474,8 @@ abstract class VidLabelingPipelineTestHarness(
           parser = WorkItem.parser(),
           workItemsClient = workItemsStub,
           workItemAttemptsClient = workItemAttemptsStub,
-          kmsClients = mapOf(DATA_PROVIDER to kmsClient),
-          encryptKekUris = mapOf(DATA_PROVIDER to kekUri),
+          kmsClients = mapOf(providerName to kmsClient),
+          encryptKekUris = mapOf(providerName to kekUri),
           getStorageConfig = {
             StorageConfig(rootDirectory = File("/"), blobPrefix = it.impressionsBlobPrefix)
           },
@@ -1465,8 +1495,8 @@ abstract class VidLabelingPipelineTestHarness(
           },
           buildImpressionConverter = { _, _ ->
             ParquetImpressionConverter(
-              TestEvent.getDescriptor(),
-              PopulationAttributeWriter(TestEvent.getDescriptor(), POPULATION_SPEC),
+              pipelineConfig.eventDescriptor,
+              PopulationAttributeWriter(pipelineConfig.eventDescriptor, comparisonPopulationSpec),
             )
           },
           rpcThrottlers = throttlers,
@@ -1531,6 +1561,9 @@ abstract class VidLabelingPipelineTestHarness(
                   columns[PERSON_ID_COLUMN] = parquetValue { stringValue = event.personId }
                   columns[GENDER_COLUMN] = parquetValue { stringValue = event.gender }
                   columns[AGE_GROUP_COLUMN] = parquetValue { stringValue = event.ageGroup }
+                  for ((column, value) in pipelineConfig.fixedDoubleColumns) {
+                    columns[column] = parquetValue { doubleValue = value }
+                  }
                 }
                 .toByteString()
             )
@@ -1720,7 +1753,7 @@ abstract class VidLabelingPipelineTestHarness(
       val response =
         uploadsStub.listRawImpressionUploads(
           listRawImpressionUploadsRequest {
-            parent = DATA_PROVIDER
+            parent = providerName
             filter = ListRawImpressionUploadsRequestKt.filter {}
             this.pageToken = pageToken
           }
@@ -1833,7 +1866,7 @@ abstract class VidLabelingPipelineTestHarness(
         val response =
           impressionMetadataStub.listImpressionMetadata(
             listImpressionMetadataRequest {
-              parent = DATA_PROVIDER
+              parent = providerName
               this.showDeleted = showDeleted
               this.pageToken = pageToken
             }
@@ -1973,7 +2006,7 @@ abstract class VidLabelingPipelineTestHarness(
             blobDetails = details,
             kmsClient = kmsClient,
             impressionsStorageConfig = StorageConfig(rootDirectory = File("/")),
-            descriptor = TestEvent.getDescriptor(),
+            descriptor = pipelineConfig.eventDescriptor,
           )
           .readEvents()
           .toList()
@@ -1993,7 +2026,7 @@ abstract class VidLabelingPipelineTestHarness(
     eventDates: Set<LocalDate>,
   ) {
     assertThat(dataProvidersService.requests).isNotEmpty()
-    assertThat(dataProvidersService.requests.map { it.name }.toSet()).containsExactly(DATA_PROVIDER)
+    assertThat(dataProvidersService.requests.map { it.name }.toSet()).containsExactly(providerName)
     val publishedIntervals =
       dataProvidersService.requests.last().dataAvailabilityIntervalsList.associate {
         it.key to it.value
@@ -2080,7 +2113,7 @@ abstract class VidLabelingPipelineTestHarness(
             blobDetails = details,
             kmsClient = kmsClient,
             impressionsStorageConfig = StorageConfig(rootDirectory = File("/")),
-            descriptor = TestEvent.getDescriptor(),
+            descriptor = pipelineConfig.eventDescriptor,
           )
           .readEvents()
           .toList()
@@ -2147,7 +2180,7 @@ abstract class VidLabelingPipelineTestHarness(
   }
 
   protected fun vidLabelerParamsTemplate(): VidLabelerParams = vidLabelerParams {
-    dataProvider = DATA_PROVIDER
+    dataProvider = providerName
     rawImpressionsStorageParams =
       VidLabelerParamsKt.storageParams { impressionsBlobPrefix = rawPrefix }
     vidLabeledImpressionsStorageParams =
@@ -2159,7 +2192,7 @@ abstract class VidLabelingPipelineTestHarness(
   }
 
   protected fun subpoolAssignerParamsTemplate() = subpoolAssignerParams {
-    dataProvider = DATA_PROVIDER
+    dataProvider = providerName
     rawImpressionStorageParams = SubpoolAssignerParamsKt.storageParams { blobPrefix = rawPrefix }
     vidLabeledImpressionsStorageParams =
       SubpoolAssignerParamsKt.storageParams { blobPrefix = outputPrefix }
@@ -2217,11 +2250,14 @@ abstract class VidLabelingPipelineTestHarness(
       optionalEntityKeyFieldMapping["person"] = PERSON_ID_COLUMN
       populationSpecBlobUri = "file:///unused/population-spec"
       eventTemplateDescriptorBlobUri = "file:///unused/event-template-descriptor"
-      eventTemplateType = TestEvent.getDescriptor().fullName
+      eventTemplateType = pipelineConfig.eventDescriptor.fullName
+      eventTemplateFieldMapping.putAll(pipelineConfig.eventTemplateFieldMapping)
     }
 
-  protected class RecordingDataProvidersService :
-    DataProvidersGrpcKt.DataProvidersCoroutineImplBase() {
+  protected class RecordingDataProvidersService(
+    private val publishAvailability: (suspend (ReplaceDataAvailabilityIntervalsRequest) -> Unit)? =
+      null
+  ) : DataProvidersGrpcKt.DataProvidersCoroutineImplBase() {
     val requests = mutableListOf<ReplaceDataAvailabilityIntervalsRequest>()
     private val lostResponsesAfterCommit = AtomicInteger()
 
@@ -2242,6 +2278,7 @@ abstract class VidLabelingPipelineTestHarness(
     override suspend fun replaceDataAvailabilityIntervals(
       request: ReplaceDataAvailabilityIntervalsRequest
     ): DataProvider {
+      publishAvailability?.invoke(request)
       synchronized(requests) { requests += request }
       if (lostResponsesAfterCommit.getAndUpdate { count -> maxOf(0, count - 1) } > 0) {
         throw Status.UNAVAILABLE.withDescription("injected response loss after commit")
@@ -3200,7 +3237,6 @@ abstract class VidLabelingPipelineTestHarness(
 
     @ClassRule @JvmField val spannerEmulator = SpannerEmulatorRule()
 
-    private const val DATA_PROVIDER = "dataProviders/dp1"
     private const val MODEL_SUITE = "modelProviders/mp1/modelSuites/ms1"
     const val MEMOIZED_MODEL_LINE = "$MODEL_SUITE/modelLines/memoized"
     const val DIRECT_MODEL_LINE = "$MODEL_SUITE/modelLines/direct"
