@@ -663,6 +663,7 @@ class DataAvailabilitySync(
       var publicationNeeded = true
       var publicationNoWork = false
       var retainedIdentities: Set<String> = emptySet()
+      var publishedSourceModelLines = modelLinesToValidate.map(ModelLineKey::toName).toSet()
       val availabilityEntries =
         if (modelLineCutovers.isNotEmpty() || hiddenModelLines.isNotEmpty()) {
           val publication =
@@ -681,6 +682,7 @@ class DataAvailabilitySync(
           publicationNeeded = publication.publish
           publicationNoWork = publication.noWork
           retainedIdentities = publication.retained
+          publishedSourceModelLines = publication.publishedSources
           publication.intervals.map { (modelLine, availabilityInterval) ->
             dataAvailabilityMapEntry {
               key = modelLine
@@ -889,14 +891,9 @@ class DataAvailabilitySync(
         )
       }
 
-      if (!triggerPublicationReady) {
-        recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
-        return Outcome.PUBLISHED_OTHER_IDENTITIES
-      }
       val publishedAt = clock.instant()
-      for (modelLine in modelLinesToValidate) {
+      for (modelLineName in publishedSourceModelLines) {
         ensureLeaseActive()
-        val modelLineName = modelLine.toName()
         val source = modelLineDataSources[modelLineName]
         DataAvailabilityPublicationStatus.record(
           source?.storageClient ?: storageClient,
@@ -905,6 +902,11 @@ class DataAvailabilitySync(
           modelLineName,
           publishedAt,
         )
+      }
+
+      if (!triggerPublicationReady) {
+        recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
+        return Outcome.PUBLISHED_OTHER_IDENTITIES
       }
 
       if (publishEventGroupActivities != null) {
@@ -1084,6 +1086,7 @@ class DataAvailabilitySync(
     val partial: Boolean,
     val publish: Boolean,
     val retained: Set<String>,
+    val publishedSources: Set<String>,
     val noWork: Boolean,
   )
 
@@ -1307,7 +1310,8 @@ class DataAvailabilitySync(
         throw Exception("Error reading current data availability for $dataProviderName", e)
       }
     val existing = previous.dataAvailabilityIntervalsList.associate { it.key to it.value }
-    val updates = plans.filterValues { it.ready }.mapValues { checkNotNull(it.value.interval) }
+    val eligiblePlans = plans.filterValues { it.ready }
+    val updates = eligiblePlans.mapValues { checkNotNull(it.value.interval) }
     val retained = linkedMapOf<String, Interval>()
     for ((target, oldInterval) in existing) {
       val plan = plans[target] ?: continue
@@ -1350,6 +1354,10 @@ class DataAvailabilitySync(
           },
       publish = publish,
       retained = retained.keys,
+      publishedSources =
+        eligiblePlans.values
+          .flatMap { plan -> listOfNotNull(plan.source) + plan.checks.map { it.modelLine } }
+          .toSet(),
       noWork =
         if (noPublicTargets) !publish
         else
