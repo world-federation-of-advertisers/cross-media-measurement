@@ -92,6 +92,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetModelLineRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequest
@@ -2227,6 +2228,16 @@ abstract class VidLabelingPipelineTestHarness(
     fun loseNextResponseAfterCommit() {
       lostResponsesAfterCommit.incrementAndGet()
     }
+
+    override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider =
+      dataProvider {
+        name = request.name
+        synchronized(requests) {
+          requests.lastOrNull()?.let {
+            dataAvailabilityIntervals += it.dataAvailabilityIntervalsList
+          }
+        }
+      }
 
     override suspend fun replaceDataAvailabilityIntervals(
       request: ReplaceDataAvailabilityIntervalsRequest

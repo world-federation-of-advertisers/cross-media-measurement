@@ -102,6 +102,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:watched_blobs",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:date_interval_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_activities_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",

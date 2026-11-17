@@ -249,30 +249,28 @@ internal class DataAvailabilitySyncWorkItemProcessor(
                       nextStage.name.lowercase(),
                     )
                 }
-              if (
-                result == DataAvailabilitySync.Outcome.PUBLISHED ||
-                  result == DataAvailabilitySync.Outcome.NO_WORK
-              ) {
+              if (result.canCompleteTrigger) {
                 lease()
                 if (!input.isExternal) markAvailabilitySynchronized(input)
               }
               result
             }
-          if (
-            synchronized == DataAvailabilitySync.Outcome.PUBLISHED ||
-              synchronized == DataAvailabilitySync.Outcome.NO_WORK
-          ) {
+          if (synchronized.canCompleteTrigger) {
             completeWorkItemAttempt(attempt)
           }
           synchronized
         }
 
-      if (
-        outcome == DataAvailabilitySync.Outcome.PUBLISHED ||
-          outcome == DataAvailabilitySync.Outcome.NO_WORK
-      ) {
+      if (outcome.canCompleteTrigger) {
         val traceOutcome =
-          if (outcome == DataAvailabilitySync.Outcome.NO_WORK) "no_work" else "succeeded"
+          when (outcome) {
+            DataAvailabilitySync.Outcome.NO_WORK -> "no_work"
+            DataAvailabilitySync.Outcome.PARTIALLY_PUBLISHED -> "partially_published"
+            DataAvailabilitySync.Outcome.PUBLISHED -> "succeeded"
+            DataAvailabilitySync.Outcome.BLOCKED_GAPS,
+            DataAvailabilitySync.Outcome.PUBLISHED_OTHER_IDENTITIES ->
+              error("Blocked trigger cannot complete")
+          }
         Span.current().setAttribute(XmmTraceAttributes.OUTCOME, traceOutcome)
         logLifecycle(input, attempt, outcome = traceOutcome, stage = stage, leaseName = leaseName)
         return

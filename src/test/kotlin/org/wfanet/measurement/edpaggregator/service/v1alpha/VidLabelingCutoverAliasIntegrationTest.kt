@@ -28,7 +28,7 @@ import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineT
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 
-/** A replacement alias shares cutover publication without creating another labeling path. */
+/** A native replacement alias uses finalized coverage without creating another labeling path. */
 internal class VidLabelingCutoverAliasIntegrationTest :
   VidLabelingPipelineTestHarness(
     PipelineHarnessConfig(
@@ -149,14 +149,9 @@ internal class VidLabelingCutoverAliasIntegrationTest :
       .isEqualTo(EVENT_DATE.atStartOfDay(java.time.ZoneOffset.UTC).toInstant())
     assertThat(intervals.getValue(EXTERNAL_MODEL_LINE).endTime.toInstant()).isEqualTo(expectedEnd)
     if (replacementAvailable) {
-      val replacementMetadata = listMetadata().filter { it.modelLine == MEMOIZED_MODEL_LINE }
-      assertThat(replacementMetadata).isNotEmpty()
-      assertThat(intervals.getValue(DEV_MODEL_LINE).startTime)
-        .isEqualTo(
-          replacementMetadata.minBy { it.interval.startTime.toInstant() }.interval.startTime
-        )
-      assertThat(intervals.getValue(DEV_MODEL_LINE).endTime)
-        .isEqualTo(replacementMetadata.maxBy { it.interval.endTime.toInstant() }.interval.endTime)
+      assertThat(intervals.getValue(DEV_MODEL_LINE).startTime.toInstant())
+        .isEqualTo(date(3).atStartOfDay(java.time.ZoneOffset.UTC).toInstant())
+      assertThat(intervals.getValue(DEV_MODEL_LINE).endTime.toInstant()).isEqualTo(expectedEnd)
     }
   }
 

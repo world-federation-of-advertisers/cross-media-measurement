@@ -105,7 +105,7 @@ class DataAvailabilitySyncReplayTest {
   fun `replay reports every outcome and continues after a failure`() =
     runBlocking<Unit> {
       val storageClient = InMemoryStorageClient()
-      for (date in 1..4) {
+      for (date in 1..6) {
         storageClient.writeBlob("edp/meta/model-line/1/2026-01-0$date/done", ByteString.EMPTY)
       }
       var invocation = 0
@@ -121,6 +121,8 @@ class DataAvailabilitySyncReplayTest {
               0 -> DataAvailabilitySync.Outcome.NO_WORK
               1 -> throw failure
               2 -> DataAvailabilitySync.Outcome.BLOCKED_GAPS
+              3 -> DataAvailabilitySync.Outcome.PARTIALLY_PUBLISHED
+              4 -> DataAvailabilitySync.Outcome.PUBLISHED_OTHER_IDENTITIES
               else -> DataAvailabilitySync.Outcome.PUBLISHED
             }
           },
@@ -128,10 +130,11 @@ class DataAvailabilitySyncReplayTest {
 
       val result = replay.replay()
 
-      assertThat(result.doneBlobsSelected).isEqualTo(4)
-      assertThat(result.published).isEqualTo(1)
+      assertThat(result.doneBlobsSelected).isEqualTo(6)
+      assertThat(result.published).isEqualTo(3)
+      assertThat(result.partiallyPublished).isEqualTo(2)
       assertThat(result.noWork).isEqualTo(1)
-      assertThat(result.blockedByGaps).isEqualTo(1)
+      assertThat(result.blockedByGaps).isEqualTo(2)
       assertThat(result.errors)
         .containsExactly(
           DataAvailabilitySyncReplay.ReplayError(

@@ -687,6 +687,7 @@ class ReplayDataAvailabilitySync : Runnable {
       "Data-availability replay result: " +
         "doneBlobsSelected=${result.doneBlobsSelected}, " +
         "published=${result.published}, " +
+        "partiallyPublished=${result.partiallyPublished}, " +
         "noWork=${result.noWork}, " +
         "blockedByGaps=${result.blockedByGaps}, " +
         "errors=${result.errors.size}"
