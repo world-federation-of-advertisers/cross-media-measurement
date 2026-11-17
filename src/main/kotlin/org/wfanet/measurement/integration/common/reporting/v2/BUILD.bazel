@@ -4,6 +4,7 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
     ],
 )
@@ -46,6 +47,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:encryption_key_pair_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:metric_spec_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filters_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_reports_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
