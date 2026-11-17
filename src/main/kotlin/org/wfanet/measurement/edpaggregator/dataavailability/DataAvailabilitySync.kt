@@ -552,11 +552,13 @@ class DataAvailabilitySync(
       )
 
       // 4. Retrieve model line bound from ImpressionMetadataStorage for all model lines
-      ensureLeaseActive()
       val modelLineBounds: ComputeModelLineBoundsResponse =
-        impressionMetadataServiceStub.computeModelLineBounds(
-          computeModelLineBoundsRequest { parent = dataProviderName }
-        )
+        throttler.onReady {
+          ensureLeaseActive()
+          impressionMetadataServiceStub.computeModelLineBounds(
+            computeModelLineBoundsRequest { parent = dataProviderName }
+          )
+        }
 
       // Check, per model line present in this batch, for date gaps or in-range unfinalized
       // dates before updating availability intervals. Done locally via
@@ -1371,8 +1373,14 @@ class DataAvailabilitySync(
             storageClient.getBlob(it) == null
           }
         if (missingBlobKey != null) {
-          DataAvailabilityCleanup(impressionMetadataServiceStub, dataProviderName, storageClient)
-            .cleanup(BlobUris.buildUri(metadataBlobUri, missingBlobKey), resultMetadata.name)
+          val missingBlobPath = BlobUris.buildUri(metadataBlobUri, missingBlobKey)
+          DataAvailabilityCleanup(
+              impressionMetadataServiceStub,
+              dataProviderName,
+              storageClient,
+              throttler,
+            )
+            .cleanup(missingBlobPath, resultMetadata.name)
           continue
         }
 

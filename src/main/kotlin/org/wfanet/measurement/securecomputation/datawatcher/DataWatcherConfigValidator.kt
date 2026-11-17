@@ -25,6 +25,12 @@ object DataWatcherConfigValidator {
     for (watchedPath in config.watchedPathsList) {
       if (!watchedPath.hasControlPlaneQueueSink()) continue
       require(
+        !watchedPath.controlPlaneQueueSink.allowMissingSourceIdentity ||
+          watchedPath.controlPlaneQueueSink.serializationKey.isEmpty()
+      ) {
+        "Legacy events cannot use ordered publication"
+      }
+      require(
         !watchedPath.controlPlaneQueueSink.appParams.`is`(ResultsFulfillerParams::class.java)
       ) {
         "DataWatcher path '${watchedPath.identifier}' uses legacy ResultsFulfiller dispatch; " +

@@ -28,6 +28,8 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -44,6 +46,7 @@ import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
@@ -56,6 +59,10 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
 class DataAvailabilityCleanupTest {
+  private val directThrottler =
+    object : Throttler {
+      override suspend fun <T> onReady(block: suspend () -> T): T = block()
+    }
 
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/dataProvider123"
@@ -66,6 +73,66 @@ class DataAvailabilityCleanupTest {
     private const val CLEANUP_DURATION_METRIC = "edpa.data_availability.cleanup_duration"
     private const val RECORDS_DELETED_METRIC = "edpa.data_availability.records_deleted"
     private const val CLEANUP_ERRORS_METRIC = "edpa.data_availability.cleanup_errors"
+  }
+
+  @Test
+  fun `cleanup waits for throttler admission before reading and deleting metadata`() = runBlocking {
+    val waiting = Channel<Unit>(Channel.UNLIMITED)
+    val permits = Channel<Unit>(Channel.UNLIMITED)
+    val throttler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T {
+          waiting.send(Unit)
+          permits.receive()
+          return block()
+        }
+      }
+    val cleanup =
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler,
+      )
+    val pending = async { cleanup.cleanup(BLOB_URI, RESOURCE_ID) }
+    waiting.receive()
+    verifyBlocking(impressionMetadataServiceMock, never()) { getImpressionMetadata(any()) }
+    permits.send(Unit)
+    waiting.receive()
+    verifyBlocking(impressionMetadataServiceMock) { getImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
+    permits.send(Unit)
+    assertThat(pending.await().status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
+  }
+
+  @Test
+  fun `cleanup throttles metadata lookup for events without a resource name`() = runBlocking {
+    val waiting = Channel<Unit>(Channel.UNLIMITED)
+    val permits = Channel<Unit>(Channel.UNLIMITED)
+    val throttler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T {
+          waiting.send(Unit)
+          permits.receive()
+          return block()
+        }
+      }
+    val cleanup =
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler,
+      )
+    val pending = async { cleanup.cleanup(BLOB_URI, null) }
+    waiting.receive()
+    verifyBlocking(impressionMetadataServiceMock, never()) { listImpressionMetadata(any()) }
+    permits.send(Unit)
+    waiting.receive()
+    verifyBlocking(impressionMetadataServiceMock) { listImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
+    permits.send(Unit)
+    assertThat(pending.await().status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
   }
 
   private val cleanupStatusAttributeKey =
@@ -156,7 +223,12 @@ class DataAvailabilityCleanupTest {
     val uri =
       "gs://bucket/vid-labeled-impressions/edp/test/model-line/model-line-1/2000-01-01/metadata.binpb"
     val cleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val result = cleanup.cleanup(uri, null)
 
@@ -185,6 +257,7 @@ class DataAvailabilityCleanupTest {
         impressionMetadataStub,
         DATA_PROVIDER_NAME,
         FileSystemStorageClient(root),
+        throttler = directThrottler,
       )
 
     val result = cleanup.cleanup("gs://bucket/$key", RESOURCE_ID)
@@ -197,7 +270,12 @@ class DataAvailabilityCleanupTest {
   @Test
   fun `cleanup with resource ID reads its version before deleting`() = runBlocking {
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
 
@@ -222,7 +300,12 @@ class DataAvailabilityCleanupTest {
   @Test
   fun `cleanup without resource ID looks up by blob URI then deletes`() = runBlocking {
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, null)
 
@@ -290,7 +373,12 @@ class DataAvailabilityCleanupTest {
       }
 
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, null)
 
@@ -310,7 +398,12 @@ class DataAvailabilityCleanupTest {
       .thenReturn(listImpressionMetadataResponse {})
 
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, null)
 
@@ -327,7 +420,12 @@ class DataAvailabilityCleanupTest {
       .thenAnswer { throw StatusException(Status.NOT_FOUND) }
 
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
 
@@ -341,7 +439,12 @@ class DataAvailabilityCleanupTest {
       .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
 
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     assertFailsWith<StatusException> { dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID) }
     Unit
@@ -352,7 +455,12 @@ class DataAvailabilityCleanupTest {
     wheneverBlocking { impressionMetadataServiceMock.getImpressionMetadata(any()) }
       .thenAnswer { throw StatusException(Status.NOT_FOUND) }
     val cleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val result = cleanup.cleanup(BLOB_URI, RESOURCE_ID)
 
@@ -372,7 +480,12 @@ class DataAvailabilityCleanupTest {
         )
       }
     val cleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val exception = assertFailsWith<StatusException> { cleanup.cleanup(BLOB_URI, RESOURCE_ID) }
 
@@ -418,6 +531,7 @@ class DataAvailabilityCleanupTest {
         impressionMetadataStub,
         DATA_PROVIDER_NAME,
         FileSystemStorageClient(root),
+        throttler = directThrottler,
       )
 
     val result = cleanup.cleanup(BLOB_URI, resourceId)
@@ -436,7 +550,12 @@ class DataAvailabilityCleanupTest {
         }
       )
     val cleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val exception = assertFailsWith<StatusException> { cleanup.cleanup(BLOB_URI, RESOURCE_ID) }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
@@ -458,7 +577,12 @@ class DataAvailabilityCleanupTest {
         }
       )
     val cleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val exception = assertFailsWith<StatusException> { cleanup.cleanup(BLOB_URI, null) }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
@@ -478,7 +602,12 @@ class DataAvailabilityCleanupTest {
         }
       )
     val cleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val result = cleanup.cleanup(BLOB_URI, RESOURCE_ID)
 
@@ -491,7 +620,12 @@ class DataAvailabilityCleanupTest {
     wheneverBlocking { impressionMetadataServiceMock.markImpressionMetadataDeleted(any()) }
       .thenAnswer { throw StatusException(Status.ABORTED) }
     val cleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     assertFailsWith<StatusException> { cleanup.cleanup(BLOB_URI, RESOURCE_ID) }
     Unit
@@ -500,7 +634,12 @@ class DataAvailabilityCleanupTest {
   @Test
   fun `cleanup with empty resource ID string looks up by blob URI`() = runBlocking {
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        emptyStorageClient,
+        throttler = directThrottler,
+      )
 
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, "")
 
@@ -520,7 +659,8 @@ class DataAvailabilityCleanupTest {
           impressionMetadataStub,
           DATA_PROVIDER_NAME,
           emptyStorageClient,
-          metricsEnv.metrics,
+          metrics = metricsEnv.metrics,
+          throttler = directThrottler,
         )
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
@@ -559,7 +699,8 @@ class DataAvailabilityCleanupTest {
           impressionMetadataStub,
           DATA_PROVIDER_NAME,
           emptyStorageClient,
-          metricsEnv.metrics,
+          metrics = metricsEnv.metrics,
+          throttler = directThrottler,
         )
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, null)
@@ -597,7 +738,8 @@ class DataAvailabilityCleanupTest {
           impressionMetadataStub,
           DATA_PROVIDER_NAME,
           emptyStorageClient,
-          metricsEnv.metrics,
+          metrics = metricsEnv.metrics,
+          throttler = directThrottler,
         )
 
       try {
@@ -641,7 +783,8 @@ class DataAvailabilityCleanupTest {
           impressionMetadataStub,
           DATA_PROVIDER_NAME,
           emptyStorageClient,
-          metricsEnv.metrics,
+          metrics = metricsEnv.metrics,
+          throttler = directThrottler,
         )
 
       dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID)
@@ -671,7 +814,12 @@ class DataAvailabilityCleanupTest {
 
     val storageClient = FileSystemStorageClient(tempDir)
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, storageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        storageClient,
+        throttler = directThrottler,
+      )
 
     val blobPath = "file:///${tempDir.name}/path/to/blob"
     val result = dataAvailabilityCleanup.cleanup(blobPath, RESOURCE_ID)
@@ -688,7 +836,12 @@ class DataAvailabilityCleanupTest {
     // Do NOT create any file — simulates a permanent deletion with no live version
     val storageClient = FileSystemStorageClient(tempDir)
     val dataAvailabilityCleanup =
-      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, storageClient)
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        storageClient,
+        throttler = directThrottler,
+      )
 
     val blobPath = "file:///${tempDir.name}/path/to/blob"
     val result = dataAvailabilityCleanup.cleanup(blobPath, RESOURCE_ID)

@@ -90,6 +90,20 @@ message WorkItem {
         (google.api.field_behavior) = OPTIONAL,
         (google.api.field_behavior) = IMMUTABLE
       ];
+
+      // Snapshot of custom object metadata from the first notification for this
+      // generation. Standard identity fields are carried separately above.
+      map<string, string> object_metadata = 6 [
+        (google.api.field_behavior) = OPTIONAL,
+        (google.api.field_behavior) = IMMUTABLE
+      ];
+
+      // Source notification identity when a legacy deletion event has no
+      // object generation. New object events use generation instead.
+      string source_event_id = 7 [
+        (google.api.field_behavior) = OPTIONAL,
+        (google.api.field_behavior) = IMMUTABLE
+      ];
     }
     // The data path params for this [WorkItem]
     DataPathParams data_path_params = 2

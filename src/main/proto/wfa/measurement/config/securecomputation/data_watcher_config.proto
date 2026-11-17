@@ -41,6 +41,12 @@ message WatchedPath {
     // Stable ordering key for tasks sharing a synchronization destination.
     // Empty preserves unordered publication.
     string serialization_key = 3;
+    // Include custom source-object metadata in the WorkItem. Keep disabled for
+    // existing routes whose WorkItems were created without these fields.
+    bool include_object_metadata = 4;
+    // Allow old deletion events without object generation or creation time.
+    // Requires an unordered route and a source event ID for deduplication.
+    bool allow_missing_source_identity = 5;
   }
   // The config used for any Webhooks
   message HttpEndpointSink {

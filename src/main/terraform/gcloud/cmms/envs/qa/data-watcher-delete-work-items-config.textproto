@@ -1,0 +1,58 @@
+# proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
+# proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-qa-bucket/(?:vid-labeled-impressions/)?edp/edp7/.*"
+  control_plane_queue_sink {
+    queue: "data-availability-cleanup-queue"
+    include_object_metadata: true
+    allow_missing_source_identity: true
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {
+        data_provider: "dataProviders/MPxlwJmFW7A"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-qa-bucket/(?:vid-labeled-impressions/)?edp/edpa_meta/.*"
+  control_plane_queue_sink {
+    queue: "data-availability-cleanup-queue"
+    include_object_metadata: true
+    allow_missing_source_identity: true
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {
+        data_provider: "dataProviders/WLb7yRONEO4"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-qa-bucket/(?:vid-labeled-impressions/)?edp/edpa_video_pub/.*"
+  control_plane_queue_sink {
+    queue: "data-availability-cleanup-queue"
+    include_object_metadata: true
+    allow_missing_source_identity: true
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {
+        data_provider: "dataProviders/FAROIT4Wkwc"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-qa-bucket/(?:vid-labeled-impressions/)?edp/edpa_retail_pub/.*"
+  control_plane_queue_sink {
+    queue: "data-availability-cleanup-queue"
+    include_object_metadata: true
+    allow_missing_source_identity: true
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {
+        data_provider: "dataProviders/YxARUD4Wzcg"
+      }
+    }
+  }
+}

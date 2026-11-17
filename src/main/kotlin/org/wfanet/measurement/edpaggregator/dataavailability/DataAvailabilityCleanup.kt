@@ -22,6 +22,7 @@ import io.opentelemetry.api.common.Attributes
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
@@ -40,6 +41,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @property impressionMetadataServiceStub Stub for the ImpressionMetadata service.
  * @property dataProviderName Resource name of the data provider.
  * @property storageClient Storage client for checking whether a live object remains.
+ * @property throttler Regulates each metadata RPC, including rechecks after a version conflict.
  * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilityCleanup(
@@ -47,6 +49,7 @@ class DataAvailabilityCleanup(
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
   private val dataProviderName: String,
   private val storageClient: StorageClient,
+  private val throttler: Throttler,
   private val metrics: DataAvailabilityCleanupMetrics = DataAvailabilityCleanupMetrics(),
 ) {
 
@@ -169,9 +172,11 @@ class DataAvailabilityCleanup(
   /** Returns the named metadata, or null if it no longer exists. */
   private suspend fun getImpressionMetadata(name: String): ImpressionMetadata? {
     return try {
-      impressionMetadataServiceStub.getImpressionMetadata(
-        getImpressionMetadataRequest { this.name = name }
-      )
+      throttler.onReady {
+        impressionMetadataServiceStub.getImpressionMetadata(
+          getImpressionMetadataRequest { this.name = name }
+        )
+      }
     } catch (e: StatusException) {
       if (e.status.code == Status.Code.NOT_FOUND) {
         null
@@ -184,12 +189,14 @@ class DataAvailabilityCleanup(
   /** Returns the metadata for the exact blob URI, or null if it no longer exists. */
   private suspend fun lookupMetadataByBlobUri(blobUri: String): ImpressionMetadata? {
     val listResponse =
-      impressionMetadataServiceStub.listImpressionMetadata(
-        listImpressionMetadataRequest {
-          parent = dataProviderName
-          filter = ListImpressionMetadataRequestKt.filter { blobUris += blobUri }
-        }
-      )
+      throttler.onReady {
+        impressionMetadataServiceStub.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            parent = dataProviderName
+            filter = ListImpressionMetadataRequestKt.filter { blobUris += blobUri }
+          }
+        )
+      }
 
     val results = listResponse.impressionMetadataList
     if (results.isEmpty()) {
@@ -212,12 +219,14 @@ class DataAvailabilityCleanup(
   private suspend fun deleteImpressionMetadata(metadata: ImpressionMetadata): CleanupStatus {
     val resourceId = metadata.name
     return try {
-      impressionMetadataServiceStub.markImpressionMetadataDeleted(
-        markImpressionMetadataDeletedRequest {
-          name = resourceId
-          etag = metadata.etag
-        }
-      )
+      throttler.onReady {
+        impressionMetadataServiceStub.markImpressionMetadataDeleted(
+          markImpressionMetadataDeletedRequest {
+            name = resourceId
+            etag = metadata.etag
+          }
+        )
+      }
       logger.info("Successfully soft-deleted ImpressionMetadata: $resourceId")
       // Record successful deletion
       metrics.recordsDeletedCounter.add(
