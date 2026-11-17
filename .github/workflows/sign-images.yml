@@ -121,6 +121,24 @@ jobs:
             "-a" "dev.cosignproject.cosign/sigalg=ECDSA_P256_SHA256"
             "-a" "dev.cosignproject.cosign/pub=${PUBLIC_KEY}"
           )
+          signing_log=$(mktemp)
+          trap 'rm -f "$signing_log"' EXIT
           for target in "${targets[@]}"; do
-            bazelisk run "$target" -- "${common_flags[@]}"
+            for attempt in 1 2 3; do
+              if bazelisk run "$target" -- "${common_flags[@]}" 2>&1 | tee "$signing_log"; then
+                break
+              else
+                exit_code=$?
+              fi
+
+              if ((attempt == 3)) || ! grep -Eq \
+                'invalid response when retrieving subject token:.*(i/o timeout|TLS handshake timeout|connection reset by peer|unexpected EOF)' \
+                "$signing_log"; then
+                exit "$exit_code"
+              fi
+
+              delay_seconds=$((15 * attempt))
+              echo "::warning::Identity-token network failure signing $target; retrying in ${delay_seconds}s (attempt $((attempt + 1)) of 3)."
+              sleep "$delay_seconds"
+            done
           done
