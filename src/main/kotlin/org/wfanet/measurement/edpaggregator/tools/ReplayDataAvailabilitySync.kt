@@ -50,7 +50,6 @@ import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.ModelLineCutover
-import org.wfanet.measurement.edpaggregator.ModelLineCutoverValidator
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.CompletionBlobNames
 import org.wfanet.measurement.edpaggregator.dataavailability.CompletionBlobType
@@ -61,6 +60,7 @@ import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityB
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcManagedDoneObjectResolver
+import org.wfanet.measurement.edpaggregator.dataavailability.ModelLineAliasValidator
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -228,16 +228,20 @@ class ReplayDataAvailabilitySync : Runnable {
         .service
     val storageClient = GcsStorageClient(storage, storageConfig.bucketName)
     val modelLineCutovers = config.modelLineCutoversList.map(ModelLineCutover::from)
-    ModelLineCutoverValidator.validate(
+    ModelLineAliasValidator.validate(
       modelLineCutovers,
-      config.modelLineMapMap.values.flatMap { it.modelLinesList }.toSet(),
+      config.modelLineMapMap.mapValues { it.value.modelLinesList },
+      config.hiddenModelLinesList.toSet(),
+      config.modelLineDataSourcesMap.keys,
     )
     val contributors =
       modelLineCutovers.flatMap { listOf(it.historicalModelLine, it.replacementModelLine) }
     require(config.modelLineDataSourcesMap.keys.containsAll(contributors)) {
       "model_line_data_sources must contain every cutover contributor"
     }
-    val replacementModelLines = modelLineCutovers.mapTo(mutableSetOf()) { it.replacementModelLine }
+    val internalModelLines =
+      modelLineCutovers.mapTo(mutableSetOf()) { it.replacementModelLine } +
+        config.hiddenModelLinesList
     val modelLineStorageSources =
       config.modelLineDataSourcesMap.mapValues { (modelLine, source) ->
         val modelLineKey =
@@ -280,9 +284,9 @@ class ReplayDataAvailabilitySync : Runnable {
             } else {
               "${source.edpImpressionPath}/model-line/${modelLineKey.modelLineId}"
             },
-          // Replacement contributors are produced by the internal VID Labeler.
+          // Persisted hidden sources remain internal after their cutover is removed.
           completionBlobType =
-            if (modelLine in replacementModelLines) {
+            if (modelLine in internalModelLines) {
               CompletionBlobType.VID_LABELER_OR_LEGACY
             } else {
               completionType(config, sourceStorageConfig.bucketName, source.edpImpressionPath)
@@ -437,6 +441,7 @@ class ReplayDataAvailabilitySync : Runnable {
                             },
                             availabilityImpressionPaths = availabilityPaths,
                             modelLineCutovers = modelLineCutovers,
+                            hiddenModelLines = config.hiddenModelLinesList.toSet(),
                             modelLineDataSources = modelLineDataSources,
                             publishEventGroupActivities =
                               eventGroupActivityPublisher?.let { it::publish },
