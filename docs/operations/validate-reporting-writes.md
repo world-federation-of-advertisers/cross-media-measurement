@@ -5,7 +5,7 @@ default to `true`:
 
 | Flag | RPC | Validation |
 | --- | --- | --- |
-| `--validate-insert-basic-report` | `InsertBasicReport` | Require `external_report_id` and component ReportingSet IDs. Resolve the Campaign Group and component sets under the report's MeasurementConsumer, and check request, summary, membership, and metric identities. |
+| `--validate-insert-basic-report` | `InsertBasicReport` | Require `external_report_id`. Resolve the Campaign Group and component sets under the report's MeasurementConsumer, and check request, summary, membership, and metric identities. |
 | `--validate-create-reporting-set` | `CreateReportingSet` | Require nonempty primitive membership and complete EventGroup keys, validate composite operations and references, and check membership in any supplied Campaign Group. |
 
 A Campaign Group must be a nonempty primitive ReportingSet whose Campaign Group
@@ -39,9 +39,8 @@ checks. For a deployment that still imports malformed legacy payloads, set the
 affected switch explicitly to `false`, for example
 `--validate-insert-basic-report=false`. The other switch remains enabled.
 
-Disabling a switch skips the new validation and permits legacy malformed writes,
-including empty primitive membership.
-Existing required fields, database constraints, reference existence checks in
+Disabling a switch skips only the new validation. Existing required fields,
+database constraints, empty-insert failures, reference existence checks in
 the writer, and ImpressionQualificationFilter validation still apply. Component
 ReportingSet IDs in summaries and metrics remain required with either setting. The
 server does not repair malformed data or rename metric keys when validation is

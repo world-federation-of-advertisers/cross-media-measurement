@@ -427,7 +427,7 @@ class CreateReportingSet(
     val primitiveReportingSetBasisFiltersValuesList =
       mutableListOf<PrimitiveReportingSetBasisFiltersValues>()
 
-    if (weightedSubsetUnions.isEmpty()) {
+    if (validateCreateReportingSet && weightedSubsetUnions.isEmpty()) {
       return
     }
 
@@ -552,10 +552,8 @@ class CreateReportingSet(
 
     transactionContext.run {
       executeStatement(weightedSubsetUnionsStatement)
-      if (primitiveReportingSetBasesValuesList.isNotEmpty()) {
-        executeStatement(primitiveReportingSetBasesStatement)
-        executeStatement(weightedSubsetUnionPrimitiveReportingSetBasesStatement)
-      }
+      executeStatement(primitiveReportingSetBasesStatement)
+      executeStatement(weightedSubsetUnionPrimitiveReportingSetBasesStatement)
       if (primitiveReportingSetBasisFiltersValuesList.size > 0) {
         executeStatement(primitiveReportingSetBasisFiltersStatement)
       }
@@ -617,11 +615,6 @@ internal suspend fun PostgresWriter.TransactionScope.insertReportingSetEventGrou
   reportingSetId: InternalId,
   eventGroups: List<ReportingSet.Primitive.EventGroupKey>,
 ) {
-  // Validation rejects empty primitives unless the legacy write mode was explicitly enabled.
-  if (eventGroups.isEmpty()) {
-    return
-  }
-
   // Map of Primitive Reporting Set EventGroupKey to internal EventGroup ID.
   val eventGroupMap = mutableMapOf<ReportingSet.Primitive.EventGroupKey, InternalId>()
 

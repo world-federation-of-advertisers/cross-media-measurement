@@ -131,6 +131,16 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     validateCreateReportingSet: Boolean,
   ): Services<T>
 
+  protected abstract suspend fun removeReportingSetEventGroups(
+    cmmsMeasurementConsumerId: String,
+    externalReportingSetId: String,
+  )
+
+  protected abstract suspend fun removeReportingSetCompilation(
+    cmmsMeasurementConsumerId: String,
+    externalReportingSetId: String,
+  )
+
   @Before
   fun initService() {
     val services =
@@ -797,6 +807,25 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
               lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "custom-a" }
               rhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "custom-b" }
             }
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 3
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = "custom-a"
+                  filters += "person.age_group == 1"
+                }
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = "custom-b" }
+            }
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = -1
+              binaryRepresentation = 2
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = "custom-b" }
+            }
         },
         reportingSet {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -882,8 +911,9 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             }
         },
       )
+    val strictReportingSets = newServices(idGenerator, true, true).reportingSetsService
     for (set in sets) {
-      services.reportingSetsService.createReportingSet(
+      strictReportingSets.createReportingSet(
         createReportingSetRequest {
           reportingSet = set
           externalReportingSetId = set.externalReportingSetId
@@ -920,12 +950,28 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             composite = composite.copy { operationValue = 99 }
           },
         )) {
+        val seed =
+          when (set.externalReportingSetId) {
+            "custom-uncompiled-union" ->
+              sets[7].copy { externalReportingSetId = set.externalReportingSetId }
+            "custom-uncompiled-nested" ->
+              sets[8].copy { externalReportingSetId = set.externalReportingSetId }
+            "empty-campaign" -> set.copy { primitive = sets[0].primitive }
+            else -> set
+          }
         services.reportingSetsService.createReportingSet(
           createReportingSetRequest {
-            reportingSet = set
+            reportingSet = seed
             externalReportingSetId = set.externalReportingSetId
           }
         )
+        when (set.externalReportingSetId) {
+          "custom-uncompiled-union",
+          "custom-uncompiled-nested" ->
+            removeReportingSetCompilation(CMMS_MEASUREMENT_CONSUMER_ID, set.externalReportingSetId)
+          "empty-campaign" ->
+            removeReportingSetEventGroups(CMMS_MEASUREMENT_CONSUMER_ID, set.externalReportingSetId)
+        }
       }
     }
   }

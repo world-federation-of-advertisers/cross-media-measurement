@@ -111,7 +111,8 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     Unit = runBlocking {
     val services = newServices(idGenerator, false)
     seedReportingSetValidationInputs(services)
-    for ((scenario, malformed) in reportingSetValidationCases()) {
+    for ((scenario, malformed) in
+      reportingSetValidationCases().filterKeys { it !in EMPTY_INSERT_SCENARIOS }) {
       val inserted =
         services.reportingSetsService.createReportingSet(
           createReportingSetRequest {
@@ -138,10 +139,41 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       } else {
         assertThat(persisted.composite.operationValue).isEqualTo(malformed.composite.operationValue)
         assertThat(persisted.weightedSubsetUnionsList)
+          .ignoringRepeatedFieldOrder()
           .containsExactlyElementsIn(malformed.weightedSubsetUnionsList)
       }
     }
   }
+
+  @Test
+  fun `createReportingSet disabled validation preserves empty insert failures from main`(): Unit =
+    runBlocking {
+      val services = newServices(idGenerator, false)
+      seedReportingSetValidationInputs(services)
+      for ((scenario, malformed) in
+        reportingSetValidationCases().filterKeys { it in EMPTY_INSERT_SCENARIOS }) {
+        val exception =
+          assertFailsWith<RuntimeException>(scenario) {
+            services.reportingSetsService.createReportingSet(
+              createReportingSetRequest {
+                reportingSet = malformed
+                externalReportingSetId = scenario
+              }
+            )
+          }
+        assertThat(exception).isNotInstanceOf(StatusRuntimeException::class.java)
+        val missing =
+          assertFailsWith<StatusRuntimeException>(scenario) {
+            services.reportingSetsService.batchGetReportingSets(
+              batchGetReportingSetsRequest {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalReportingSetIds += scenario
+              }
+            )
+          }
+        assertThat(missing.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      }
+    }
 
   @Test
   fun `createReportingSet validation accepts standalone custom sets and valid Campaign Group membership`():
@@ -175,7 +207,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           )
           .reportingSetsList
           .single()
-      assertThat(persisted).isEqualTo(inserted)
+      assertThat(persisted).ignoringRepeatedFieldOrder().isEqualTo(inserted)
       assertThat(persisted.externalCampaignGroupId).isEqualTo(set.externalCampaignGroupId)
       assertThat(persisted.filter).isEqualTo(set.filter)
     }
@@ -450,6 +482,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         },
       "baseless-union" to
         composite.copy {
+          weightedSubsetUnions.clear()
           weightedSubsetUnions +=
             ReportingSetKt.weightedSubsetUnion {
               weight = 1
@@ -526,11 +559,28 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "primitive-a" }
         rhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "primitive-b" }
       }
+    weightedSubsetUnions +=
+      ReportingSetKt.weightedSubsetUnion {
+        weight = 1
+        binaryRepresentation = 3
+        for (id in listOf("primitive-a", "primitive-b")) {
+          primitiveReportingSetBases +=
+            ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = id }
+        }
+      }
+    weightedSubsetUnions +=
+      ReportingSetKt.weightedSubsetUnion {
+        weight = -1
+        binaryRepresentation = 2
+        primitiveReportingSetBases +=
+          ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = "primitive-b" }
+      }
   }
 
   private fun reportingSetValidationUnion(): ReportingSet =
     reportingSetValidationComposite().copy {
       composite = composite.copy { operation = ReportingSet.SetExpression.Operation.UNION }
+      weightedSubsetUnions.clear()
       weightedSubsetUnions +=
         ReportingSetKt.weightedSubsetUnion {
           weight = 1
@@ -3204,6 +3254,15 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       .toList()
 
   companion object {
+    private val EMPTY_INSERT_SCENARIOS =
+      setOf(
+        "empty-primitive",
+        "union-without-compilation",
+        "unary-union-without-compilation",
+        "nested-union-without-compilation",
+        "inline-union-without-compilation",
+        "baseless-union",
+      )
     private val REPORTING_SET_TAGS = mapOf("tag1" to "tag_value1", "tag2" to "tag_value2")
   }
 }
