@@ -303,6 +303,36 @@ class DataAvailabilitySyncTest {
   @get:Rule val tempFolder = TemporaryFolder()
 
   @Test
+  fun `publication timestamp advances only for actual successful Kingdom publication`() =
+    runBlocking<Unit> {
+      val storageClient = FakeBlobMetadataStorageClient(FileSystemStorageClient(tempFolder.root))
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+      val provider = "dataProviders/dataProvider123"
+      val outputRoot = "edp/edpa_edp"
+      val sync = newDataAvailabilitySync(storageClient)
+      assertThat(sync.sync("$bucket/" + folderPrefix + "done"))
+        .isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      val publishedAt =
+        checkNotNull(
+          DataAvailabilityPublicationStatus.read(storageClient, outputRoot, provider, MODEL_LINE)
+        )
+      storageClient.writeBlob(outputRoot + "/empty/done", ByteString.EMPTY)
+      assertThat(sync.sync("$bucket/$outputRoot/empty/done"))
+        .isEqualTo(DataAvailabilitySync.Outcome.NO_WORK)
+      assertThat(
+          DataAvailabilityPublicationStatus.read(storageClient, outputRoot, provider, MODEL_LINE)
+        )
+        .isEqualTo(publishedAt)
+      whenever(dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()))
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      assertFailsWith<Exception> { sync.sync("$bucket/" + folderPrefix + "done") }
+      assertThat(
+          DataAvailabilityPublicationStatus.read(storageClient, outputRoot, provider, MODEL_LINE)
+        )
+        .isEqualTo(publishedAt)
+    }
+
+  @Test
   fun `sync applies configured Kingdom publication timeout`() = runBlocking {
     val storageClient =
       FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
@@ -1026,7 +1056,7 @@ class DataAvailabilitySyncTest {
       )
     assertThat(intervalLog.message).contains("xmm.lifecycle.stage=data_availability_publish")
     assertThat(intervalLog.message).contains("xmm.outcome=published")
-    assertThat(leaseChecks).isEqualTo(9)
+    assertThat(leaseChecks).isEqualTo(10)
   }
 
   @Test
@@ -3801,6 +3831,7 @@ class DataAvailabilitySyncTest {
           ManagedDoneObjectResolver { _, _, _ -> ManagedDoneObjectDisposition.CURRENT }
         },
         publishEventGroupActivities = null,
+        clock = Clock.fixed(createdAt, ZoneOffset.UTC),
       )
 
     suspend fun synchronize(external: Boolean, done: VersionedBlobMetadataStorageClient.TestBlob) =
@@ -3848,6 +3879,36 @@ class DataAvailabilitySyncTest {
     }
     assertThat(synchronize(externalFirst, firstDone))
       .isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    for ((path, line) in
+      listOf(historicalPath to historicalLine, replacementPath to replacementLine)) {
+      assertThat(
+          DataAvailabilityPublicationStatus.read(
+            storage,
+            path,
+            "dataProviders/dataProvider123",
+            line,
+          )
+        )
+        .isEqualTo(createdAt)
+    }
+    assertThat(
+        DataAvailabilityPublicationStatus.read(
+          storage,
+          historicalPath,
+          "dataProviders/dataProvider123",
+          replacementLine,
+        )
+      )
+      .isNull()
+    assertThat(
+        DataAvailabilityPublicationStatus.read(
+          storage,
+          replacementPath,
+          "dataProviders/dataProvider123",
+          historicalLine,
+        )
+      )
+      .isNull()
     assertThat(registered).hasSize(2)
     val externalMetadata =
       registered.getValue("$bucket/$historicalFolder/impressions.metadata.binpb")
@@ -4574,11 +4635,39 @@ class DataAvailabilitySyncTest {
           ManagedDoneObjectResolver { _, _, _ -> ManagedDoneObjectDisposition.CURRENT }
         },
         publishEventGroupActivities = null,
+        clock = Clock.fixed(boundary, ZoneOffset.UTC),
       )
 
     val outcome = dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
     assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    assertThat(
+        DataAvailabilityPublicationStatus.read(
+          historicalStorageClient,
+          historicalPath,
+          "dataProviders/dataProvider123",
+          historicalModelLine,
+        )
+      )
+      .isEqualTo(boundary)
+    assertThat(
+        DataAvailabilityPublicationStatus.read(
+          replacementStorageClient,
+          replacementPath,
+          "dataProviders/dataProvider123",
+          replacementModelLine,
+        )
+      )
+      .isEqualTo(boundary)
+    assertThat(
+        DataAvailabilityPublicationStatus.read(
+          replacementStorageClient,
+          edpPath,
+          "dataProviders/dataProvider123",
+          historicalModelLine,
+        )
+      )
+      .isNull()
     val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
     verifyBlocking(dataProvidersServiceMock) {
       replaceDataAvailabilityIntervals(requestCaptor.capture())

@@ -273,6 +273,51 @@ class VidLabelingMonitorMetrics(meter: Meter = Instrumentation.meter) {
       .setUnit("{failure}")
       .build()
 
+  /** Oldest finalized labeled date still awaiting publication; retries do not reset its age. */
+  val pendingAvailabilityAgeGauge: LongGauge =
+    meter
+      .gaugeBuilder("edpa.vid_labeling_monitor.pending_availability_age")
+      .setDescription("Age of the oldest pending labeled done object")
+      .setUnit("s")
+      .ofLongs()
+      .build()
+
+  /** Largest number of failed execution generations among currently pending availability tasks. */
+  val failedAvailabilityExecutionsGauge: LongGauge =
+    meter
+      .gaugeBuilder("edpa.vid_labeling_monitor.failed_availability_executions")
+      .setDescription("Failed executions of pending availability WorkItems")
+      .setUnit("1")
+      .ofLongs()
+      .build()
+
+  /** Pending availability tasks observed terminally failed before recovery attempts. */
+  val terminalAvailabilityFailuresGauge: LongGauge =
+    meter
+      .gaugeBuilder("edpa.vid_labeling_monitor.terminal_availability_failures")
+      .setDescription("Terminal availability WorkItem failures observed this scan")
+      .setUnit("1")
+      .ofLongs()
+      .build()
+
+  /** Publication silence while work is pending; zero when this provider is idle. */
+  val availabilityPublicationAgeGauge: LongGauge =
+    meter
+      .gaugeBuilder("edpa.vid_labeling_monitor.availability_publication_age")
+      .setDescription("Time since actual Kingdom publication while availability is pending")
+      .setUnit("s")
+      .ofLongs()
+      .build()
+
+  /** Whether this provider's pending availability could not be fully inspected. */
+  val availabilityMonitoringErrorsGauge: LongGauge =
+    meter
+      .gaugeBuilder("edpa.vid_labeling_monitor.availability_monitoring_errors")
+      .setDescription("1 when availability monitoring is incomplete, else 0")
+      .setUnit("1")
+      .ofLongs()
+      .build()
+
   companion object {
     /** Attribute key for the `DataProvider` resource name. */
     val DATA_PROVIDER_ATTR: AttributeKey<String> =

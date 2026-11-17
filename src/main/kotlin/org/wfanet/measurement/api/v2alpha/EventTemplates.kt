@@ -28,7 +28,23 @@ object EventTemplates {
    */
   fun getPopulationFields(
     eventMessageDescriptor: Descriptors.Descriptor
+  ): List<Descriptors.FieldDescriptor> =
+    getPopulationFields(
+      eventMessageDescriptor,
+      getEventDescriptor(eventMessageDescriptor).currentVersion,
+    )
+
+  /** Returns the population fields present in [eventTemplateVersion]. */
+  fun getPopulationFields(
+    eventMessageDescriptor: Descriptors.Descriptor,
+    eventTemplateVersion: Int,
   ): List<Descriptors.FieldDescriptor> = buildList {
+    val currentVersion = getEventDescriptor(eventMessageDescriptor).currentVersion
+    require(eventTemplateVersion > 0) { "event_template_version must be positive" }
+    require(eventTemplateVersion <= currentVersion) {
+      "event_template_version $eventTemplateVersion exceeds current version $currentVersion for " +
+        eventMessageDescriptor.fullName
+    }
     for (field in eventMessageDescriptor.fields) {
       require(field.messageType.options.hasExtension(EventAnnotationsProto.eventTemplate)) {
         "${eventMessageDescriptor.fullName} is not a valid event message type"
@@ -36,7 +52,12 @@ object EventTemplates {
       for (templateField in field.messageType.fields) {
         val templateFieldDescriptor: EventFieldDescriptor =
           templateField.options.getExtension(EventAnnotationsProto.templateField)
-        if (templateFieldDescriptor.populationAttribute) {
+        if (
+          templateFieldDescriptor.populationAttribute &&
+            templateFieldDescriptor.versionAdded <= eventTemplateVersion &&
+            (templateFieldDescriptor.versionRemoved == 0 ||
+              eventTemplateVersion < templateFieldDescriptor.versionRemoved)
+        ) {
           add(templateField)
         }
       }
@@ -52,6 +73,16 @@ object EventTemplates {
     eventMessageDescriptor: Descriptors.Descriptor
   ): Map<Descriptors.Descriptor, List<Descriptors.FieldDescriptor>> {
     return getPopulationFields(eventMessageDescriptor).groupBy { field -> field.containingType }
+  }
+
+  /** Returns the population fields present in [eventTemplateVersion], grouped by template type. */
+  fun getPopulationFieldsByTemplateType(
+    eventMessageDescriptor: Descriptors.Descriptor,
+    eventTemplateVersion: Int,
+  ): Map<Descriptors.Descriptor, List<Descriptors.FieldDescriptor>> {
+    return getPopulationFields(eventMessageDescriptor, eventTemplateVersion).groupBy { field ->
+      field.containingType
+    }
   }
 
   /**

@@ -15,9 +15,16 @@
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import java.time.Clock
+import java.time.Duration
 import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityPublicationStatus
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.DIRECT_MODEL_LINE
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.EVENT_DATE
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.MEMOIZED_MODEL_LINE
@@ -27,8 +34,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectio
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitorMetrics
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /** Exercises provider uploads with real pipeline processing; dates need not arrive in order. */
 internal abstract class VidLabelingGapRecoveryHarness :
@@ -71,6 +80,96 @@ internal abstract class VidLabelingGapRecoveryHarness :
 }
 
 internal class VidLabelingGapRecoveryIntegrationTest : VidLabelingGapRecoveryHarness() {
+  @Test
+  fun `permanently missing day remains blocked and visible through repeated monitor ticks`() =
+    runBlocking<Unit> {
+      seedPublishedDays()
+      assertAvailabilityPublished(
+        setOf(DIRECT_MODEL_LINE, MEMOIZED_MODEL_LINE),
+        (1..3).map(::date).toSet(),
+      )
+      val requests = dataProvidersService.requests.toList()
+      val later = uploadDay(5)
+      val dataProvider = later.name.substringBefore("/rawImpressionUploads/")
+      val originals = listAvailabilityTasks(later.name).associateBy { it.name }
+      assertThat(originals).hasSize(2)
+      assertThat(originals.values.map { it.state }.toSet()).containsExactly(WorkItem.State.FAILED)
+      val artifacts = snapshotOutputArtifacts(listMetadata())
+      val labelingCount = vidLabelerWorkItems().size
+      val outputKey = SelectedStorageClient.parseBlobUri(outputPrefix).key
+      val publications =
+        listOf(DIRECT_MODEL_LINE, MEMOIZED_MODEL_LINE).associateWith {
+          checkNotNull(
+            DataAvailabilityPublicationStatus.read(metadataStorage, outputKey, dataProvider, it)
+          )
+        }
+      val start =
+        originals.values
+          .maxOf { checkNotNull(metadataStorage.getBlob(blobKey(it.doneBlobUri))).createTime }
+          .plus(Duration.ofHours(24))
+      val reader = InMemoryMetricReader.create()
+      SdkMeterProvider.builder().registerMetricReader(reader).build().use { provider ->
+        val metrics = VidLabelingMonitorMetrics(provider.get("gap-regression"))
+        var previous = originals
+        repeat(6) { tick ->
+          val now = start.plus(Duration.ofHours(tick + 1L))
+          // A new monitor each tick also proves that process restarts do not reset the signals.
+          assertThat(
+              buildVidLabelingMonitor(clock = Clock.fixed(now, ZoneOffset.UTC), metrics = metrics)
+                .runDispatch()
+                .dispatchError
+            )
+            .isFalse()
+          awaitPipelineIdle(allowFailures = true)
+          val rows = listModelLines(later.name)
+          assertThat(rows).hasSize(2)
+          for (row in rows) {
+            assertThat(row.state).isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+            assertThat(row.pendingAvailabilityDatesList)
+              .containsExactly(originals.values.first().eventDate)
+          }
+          assertThat(dataProvidersService.requests).containsExactlyElementsIn(requests).inOrder()
+          assertThat(snapshotOutputArtifacts(listMetadata())).isEqualTo(artifacts)
+          assertThat(vidLabelerWorkItems()).hasSize(labelingCount)
+          val current = listAvailabilityTasks(later.name).associateBy { it.name }
+          assertThat(current.keys).containsExactlyElementsIn(originals.keys)
+          for ((name, task) in current) {
+            val original = originals.getValue(name)
+            assertThat(task.state).isEqualTo(WorkItem.State.FAILED)
+            assertThat(task.workItem.generation)
+              .isEqualTo(previous.getValue(name).workItem.generation + 1L)
+            assertThat(task.workItem.workItemParams).isEqualTo(original.workItem.workItemParams)
+            assertThat(task.doneBlobGeneration).isEqualTo(original.doneBlobGeneration)
+            assertThat(task.doneBlobUri).isEqualTo(original.doneBlobUri)
+            assertThat(
+                DataAvailabilityPublicationStatus.read(
+                  metadataStorage,
+                  outputKey,
+                  dataProvider,
+                  task.cmmsModelLine,
+                )
+              )
+              .isEqualTo(publications.getValue(task.cmmsModelLine))
+          }
+          val collected = reader.collectAllMetrics().associateBy { it.name }
+          fun signal(name: String): Long =
+            collected
+              .getValue("edpa.vid_labeling_monitor.$name")
+              .longGaugeData
+              .points
+              .single()
+              .value
+          assertThat(signal("pending_availability_age")).isAtLeast(25L * 3600L + tick * 3600L)
+          assertThat(signal("failed_availability_executions")).isEqualTo(tick + 1L)
+          assertThat(signal("terminal_availability_failures")).isEqualTo(2L)
+          assertThat(signal("availability_publication_age"))
+            .isEqualTo(publications.values.maxOf { Duration.between(it, now).seconds })
+          assertThat(signal("availability_monitoring_errors")).isEqualTo(0L)
+          previous = current
+        }
+      }
+    }
+
   @Test
   fun `late missing day unblocks availability without labeling the later day again`() =
     runBlocking<Unit> {
