@@ -33,6 +33,8 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoDateTime
+import org.wfanet.measurement.common.toZonedDateTime
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequest
@@ -139,6 +141,7 @@ class SpannerReportResultsService(
         .withCause(e)
         .asRuntimeException()
     }
+    val normalizedReportStart = request.reportResult.reportStart.toZonedDateTime().toProtoDateTime()
     return spannerClient
       .readWriteTransaction(Options.tag("action=beginReportResultAssembly"))
       .run { txn ->
@@ -152,7 +155,7 @@ class SpannerReportResultsService(
           )
         val existingAssembly = existing?.assembly
         if (existing != null && existingAssembly?.requestId == request.requestId) {
-          if (existing.reportResult.reportStart != request.reportResult.reportStart) {
+          if (existing.reportResult.reportStart != normalizedReportStart) {
             throw Status.INVALID_ARGUMENT.withDescription(
                 "request_id reused with different metadata"
               )
@@ -186,7 +189,7 @@ class SpannerReportResultsService(
           owner.measurementConsumerId,
           reportResultId,
           externalReportResultId,
-          request.reportResult.reportStart,
+          normalizedReportStart,
           ReportResultAssembly(
             owner.basicReportId,
             request.requestId,
@@ -196,6 +199,7 @@ class SpannerReportResultsService(
         request.reportResult.copy {
           cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
           this.externalReportResultId = externalReportResultId
+          reportStart = normalizedReportStart
         }
       }
   }

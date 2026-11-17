@@ -221,6 +221,41 @@ abstract class ReportResultsServiceTest {
   }
 
   @Test
+  fun `beginReportResultAssembly retry normalizes a nonempty timezone version`() {
+    val begin =
+      newAssemblyRequest().copy {
+        reportResult =
+          reportResult.copy {
+            reportStart =
+              reportStart.copy {
+                timeZone = timeZone {
+                  id = "Europe/Rome"
+                  version = "2025b"
+                }
+                nanos = 123456789
+              }
+          }
+      }
+
+    val result = reportResultsStub.beginReportResultAssembly(begin)
+
+    assertThat(result.reportStart)
+      .isEqualTo(
+        begin.reportResult.reportStart.copy { timeZone = timeZone.copy { clearVersion() } }
+      )
+    assertThat(reportResultsStub.beginReportResultAssembly(begin)).isEqualTo(result)
+    assertThat(
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      )
+      .isEqualTo(result)
+  }
+
+  @Test
   fun `concurrent assembly begins grant ownership to exactly one worker`() {
     val begin = newAssemblyRequest()
     val executor = Executors.newFixedThreadPool(2)
