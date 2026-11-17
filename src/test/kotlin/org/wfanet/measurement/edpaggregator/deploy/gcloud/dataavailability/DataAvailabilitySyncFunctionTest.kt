@@ -914,6 +914,7 @@ class DataAvailabilitySyncFunctionTest {
   private fun sendAvailabilityWorkItem(
     port: Int,
     eventDate: LocalDate = LocalDate.of(2025, 1, 5),
+    workItemGeneration: Long = 1L,
   ): java.net.http.HttpResponse<String> {
     val request =
       DataAvailabilitySyncWorkItems.createRequest(
@@ -935,7 +936,7 @@ class DataAvailabilitySyncFunctionTest {
     val item =
       request.workItem.copy {
         name = WORK_ITEM_NAME
-        generation = 1L
+        generation = workItemGeneration
       }
     return HttpClient.newHttpClient()
       .send(
@@ -971,6 +972,58 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(sendAvailabilityWorkItem(port).statusCode()).isEqualTo(200)
     verifyBlocking(impressionMetadataServiceMock) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+  }
+
+  @Test
+  fun `WorkItem fails terminally when its source model line is missing`() {
+    val port = startAvailabilityWorkItemFunction()
+    rawImpressionUploadModelLineServiceMock.stub {
+      onBlocking { getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>()) }
+        .thenThrow(Status.NOT_FOUND.asRuntimeException())
+    }
+
+    assertThat(sendAvailabilityWorkItem(port, workItemGeneration = 7L).statusCode()).isEqualTo(200)
+    val failure = argumentCaptor<FailWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock) { failWorkItem(failure.capture()) }
+    assertThat(failure.firstValue.name).isEqualTo(WORK_ITEM_NAME)
+    assertThat(failure.firstValue.expectedWorkItemGeneration).isEqualTo(7L)
+    verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
+  }
+
+  @Test
+  fun `WorkItem retries source model line lookup failures and completes after recovery`() {
+    val port = startAvailabilityWorkItemFunction()
+    for (status in listOf(Status.INTERNAL, Status.UNAVAILABLE)) {
+      rawImpressionUploadModelLineServiceMock.stub {
+        onBlocking {
+            getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>())
+          }
+          .thenThrow(status.asRuntimeException())
+      }
+      assertThat(sendAvailabilityWorkItem(port).statusCode()).isAtLeast(500)
+    }
+    verifyBlocking(workItemAttemptsServiceMock, times(2)) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
+
+    rawImpressionUploadModelLineServiceMock.stub {
+      onBlocking { getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>()) }
+        .thenReturn(readyAvailabilityParent())
+    }
+    assertThat(sendAvailabilityWorkItem(port).statusCode()).isEqualTo(200)
+    verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+    verifyBlocking(impressionMetadataServiceMock) { batchCreateImpressionMetadata(any()) }
   }
 
   @Test
