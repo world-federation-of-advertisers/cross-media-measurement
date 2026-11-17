@@ -266,10 +266,13 @@ You should see something like the following:
 
 ```
 NAME                                 READY UP-TO-DATE AVAILABLE AGE
-gcp-kingdom-data-server-deployment   1/1   1          1         1m
+gcp-kingdom-data-server-deployment    2/2   2          2         1m
 system-api-server-deployment         1/1   1          1         1m
 v2alpha-public-api-server-deployment 1/1   1          1         1m
 ```
+
+The default configuration uses multiple Kingdom internal API replicas with a
+`PodDisruptionBudget`. Ensure all replicas are ready before proceeding.
 
 ```
 NAME                      TYPE         CLUSTER-IP   EXTERNAL-IP  PORT(S)        AGE
